@@ -21,7 +21,7 @@
 #
 # DICTIONARY STRUCTURE:
 # - Dictionary on ComponentInstance: "Na__WindowConfiguratorInfo" 
-#   - Key: "WindowID" (e.g., "PNL001")
+#   - Key: "WindowID" (e.g., "AWN001")
 # - Dictionary on ComponentDefinition: "Na__WindowConfigurator_[WindowID]"
 #   - Key: "windowMetadata"
 #   - Key: "windowComponents"
@@ -89,10 +89,10 @@ module Na__WindowConfiguratorTool
         private_class_method :na_valid_structure?
         # ---------------------------------------------------------------
 
-        # HELPER FUNCTION | Validate Window ID Format (PNLxxx)
+        # HELPER FUNCTION | Validate Window ID Format (AWNxxx)
         # ------------------------------------------------------------
         def self.na_valid_window_id?(id)
-            id.is_a?(String) && id.match?(/^PNL\d{3}$/)
+            id.is_a?(String) && id.match?(/^AWN\d{3}$/)
         end
         private_class_method :na_valid_window_id?
         # ---------------------------------------------------------------
@@ -140,7 +140,7 @@ module Na__WindowConfiguratorTool
             
             # Priority 2 (Fallback): Try to find by component definition name pattern
             model.definitions.each do |definition_item|
-                if definition_item.name.include?("_#{window_id}")
+                if definition_item.name.start_with?("#{window_id}__Window__")
                     DebugTools.na_debug_serializer("Found definition by name pattern: '#{definition_item.name}'")
                     return definition_item
                 end
@@ -160,7 +160,7 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Save Window Data to Component Dictionary
         # ------------------------------------------------------------
-        # @param window_id [String] The window ID (e.g., "PNL001")
+        # @param window_id [String] The window ID (e.g., "AWN001")
         # @param data_hash [Hash] Hash containing windowMetadata, windowComponents, windowConfiguration
         # @return [Boolean] True if save successful, false otherwise
         def self.na_save_window_data(window_id, data_hash)
@@ -218,7 +218,7 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Load Window Data from Component Dictionary
         # ------------------------------------------------------------
-        # @param window_id [String] The window ID (e.g., "PNL001")
+        # @param window_id [String] The window ID (e.g., "AWN001")
         # @return [Hash, nil] Hash with windowMetadata, windowComponents, windowConfiguration or nil
         def self.na_load_window_data(window_id)
             return nil unless na_valid_window_id?(window_id)
@@ -273,6 +273,64 @@ module Na__WindowConfiguratorTool
                 return nil
             rescue => e
                 DebugTools.na_debug_error("Error loading window data for #{window_id}", e)
+                return nil
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Load Window Data Directly from Component Instance
+        # ------------------------------------------------------------
+        # Bypasses the model-wide search in na_find_component_definition_by_window_id
+        # by reading the dictionary directly from the instance's definition.
+        # Use this when the caller already has the correct ComponentInstance
+        # (e.g., from the SelectionObserver).
+        #
+        # @param instance [Sketchup::ComponentInstance] The window component instance
+        # @param window_id [String] The window ID (e.g., "AWN001")
+        # @return [Hash, nil] Hash with windowMetadata, windowComponents, windowConfiguration or nil
+        def self.na_load_window_data_from_instance(instance, window_id)
+            return nil unless instance.is_a?(Sketchup::ComponentInstance)
+            return nil unless na_valid_window_id?(window_id)
+
+            definition = instance.definition
+            dict_name = "#{NA_DICTIONARY_PREFIX}#{window_id}"
+            dict = definition.attribute_dictionary(dict_name)
+
+            if dict.nil?
+                DebugTools.na_debug_serializer("Dictionary '#{dict_name}' not found on definition '#{definition.name}'")
+                return nil
+            end
+
+            DebugTools.na_debug_serializer("Loading data for window #{window_id} from instance definition '#{definition.name}'")
+
+            begin
+                metadata_json   = dict[NA_METADATA_KEY]
+                components_json = dict[NA_COMPONENTS_KEY]
+                config_json     = dict[NA_CONFIG_KEY]
+
+                if !metadata_json || !config_json
+                    DebugTools.na_debug_serializer("Missing required data keys for window #{window_id} on definition '#{definition.name}'")
+                    return nil
+                end
+
+                metadata   = JSON.parse(metadata_json)
+                components = components_json ? JSON.parse(components_json) : []
+                config     = JSON.parse(config_json)
+
+                loaded_hash = {
+                    NA_METADATA_KEY   => metadata,
+                    NA_COMPONENTS_KEY => components,
+                    NA_CONFIG_KEY     => config
+                }
+
+                DebugTools.na_debug_success("Loaded data for window #{window_id} from instance")
+                return loaded_hash
+
+            rescue JSON::ParserError => e
+                DebugTools.na_debug_error("JSON Parse Error loading window #{window_id} from instance", e)
+                return nil
+            rescue => e
+                DebugTools.na_debug_error("Error loading window data for #{window_id} from instance", e)
                 return nil
             end
         end
@@ -351,13 +409,14 @@ module Na__WindowConfiguratorTool
             
             max_num = 0
             all_ids.each do |id|
-                if id.match?(/^PNL(\d{3})$/)
-                    num = $1.to_i
+                m = id.match(/^AWN(\d{3})$/)
+                if m
+                    num = m[1].to_i
                     max_num = num if num > max_num
                 end
             end
             
-            new_id = "PNL#{format('%03d', max_num + 1)}"
+            new_id = "AWN#{format('%03d', max_num + 1)}"
             DebugTools.na_debug_serializer("Generated new window ID: #{new_id}")
             return new_id
         end
@@ -365,10 +424,22 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Set Window ID on Component Instance
         # ------------------------------------------------------------
-        def self.na_set_window_id_on_instance(instance, window_id)
+        # @param instance [Sketchup::ComponentInstance] The component instance
+        # @param window_id [String] The window ID (e.g., "AWN001")
+        # @param description [String, nil] Optional description suffix (e.g., "GroundFloor__Lounge")
+        def self.na_set_window_id_on_instance(instance, window_id, description = nil)
             return false unless instance.is_a?(Sketchup::ComponentInstance)
             return false unless na_valid_window_id?(window_id)
             
+            # Build the full component name: AWN001__Window__ or AWN001__Window__Description
+            full_name = "#{window_id}__Window__"
+            full_name += description if description && !description.strip.empty?
+            
+            # Set instance name and definition name to the same unique name
+            instance.name = full_name
+            instance.definition.name = full_name
+            
+            # Store window ID and names in attribute dictionary
             instance.set_attribute(NA_WINDOW_INFO_DICT, NA_WINDOW_ID_KEY, window_id)
             instance.set_attribute(NA_WINDOW_INFO_DICT, NA_SKETCHUP_INSTANCE_KEY, instance.name)
             instance.set_attribute(NA_WINDOW_INFO_DICT, NA_SKETCHUP_DEF_KEY, instance.definition.name)

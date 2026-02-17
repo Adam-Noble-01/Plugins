@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+**App Config | Single Source of Truth (Critical)**
+- All feature flags, behaviours, and settings must be sourced from the app config JSON.
+- Do not hardcode values in modules; read from config and pass values through.
+- App config path (relative): `src__AppConfig/Na__AppConfig__Main.json`
+

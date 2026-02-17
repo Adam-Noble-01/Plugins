@@ -21,11 +21,11 @@ unless file_loaded?(__FILE__)
     
     # PATH SETUP | Define Paths
     # ------------------------------------------------------------
-    plugin_root = File.dirname(__FILE__)                                                    # <-- Plugins folder
+    plugin_root = File.dirname(__FILE__)                                    	 	    # <-- Plugins folder
     plugin_folder = File.join(plugin_root, 'Na__ArchTools__3dWindowConfigTool__Modules__')  # <-- Tool subfolder
-    main_file = File.join(plugin_folder, 'Na__WindowConfiguratorTool__Main__.rb')           # <-- Main script
-    icon_folder = File.join(plugin_folder, '02__PluginImageAssets')                         # <-- Icon folder
-    icon_path = File.join(icon_folder, 'Na__CutomIcon__.png')                               # <-- Icon file
+    main_file = File.join(plugin_folder, 'Na__WindowConfiguratorTool__Main__.rb')  	    # <-- Main script
+    icon_folder = File.join(plugin_folder, '02__PluginImageAssets')        		    # <-- Icon folder
+    icon_path = File.join(icon_folder, 'Na__CutomIcon__.png')              	            # <-- Icon file
     # ---------------------------------------------------------------
     
     # SCRIPT LOADING | Load the main plugin file

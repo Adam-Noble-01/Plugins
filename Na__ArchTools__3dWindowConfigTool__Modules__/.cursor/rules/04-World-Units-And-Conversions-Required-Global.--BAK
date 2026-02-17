@@ -1,0 +1,16 @@
+---
+description: Anything related to Dimensions, converting AppConfig Values into 3js Units. 
+alwaysApply: false
+---
+**Units | App Config & Three.js Conversion**
+- All distance and position values in `src__AppConfig/Na__AppConfig__Main.json` are integer millimeters.
+  - This is to ensure that the values are consistent vs the 3D Modeling Software (e.g. SketchUp which will be used to create the models)
+
+**Conversions Are Required When Using App Config Values For Specifically Three.js Functions**
+- Convert mm data values from App config to Three.js units using math helpers in `src__MathUtils/Na__Math__Units.js`.
+- Three.js scene units are meters.
+  - So 1000 mm within the App Config = 1 Unit in the Three.js scene
+
+**Models Loaded From Glb Files Are Already Properly Scaled**
+- SketchUp Glb Exporter exports units as millimeters.
+  - So assume Glb models are in millimeters so already properly scaled.

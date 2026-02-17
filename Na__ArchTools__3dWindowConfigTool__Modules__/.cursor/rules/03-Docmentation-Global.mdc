@@ -1,0 +1,13 @@
+---
+alwaysApply: true
+Description: Documentation for the project.
+---
+
+**Architecture Of The Tool Diagram**
+- ALWAYS refer to this Architecture Diagram when planning or before writing code for the tool.
+`Na__WindowConfiguratorTool__Architecture__.md`
+- Ensure this is always up to date with the latest changes to the tool, so after the updates are completed always update this to reflect the changes.
+
+**DEVLOG**
+- After each update to the tool, update the DEVLOG to reflect the changes.
+`Na__WindowConfiguratorTool__DEVLOG__.md`

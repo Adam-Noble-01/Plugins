@@ -1,0 +1,184 @@
+{
+	"folders": [
+	  {
+        "path": "./"
+	  },
+	  {
+        "name": "Main SketchUp Plugins Folder - SketchUp 2026",
+        "path": "C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins"
+	  }
+	],
+	"settings": {
+	  "editor.tabSize": 4,
+	  "editor.insertSpaces": true,
+	  "editor.detectIndentation": false,
+	  "editor.guides.indentation": true,
+	  "files.associations": {
+		"*.txt": "markdown"
+	  },
+	  "coloredRegions": {
+		"namedColors": {
+            "jsFunctions"        :     "rgba(240, 230, 140, 0.15)",
+            "jsFunctions01"      :     "rgba(240, 230, 140, 0.15)",
+            "jsFunctions02"      :     "rgba(238, 232, 170, 0.15)",
+            "jsFunctions03"      :     "rgba(250, 250, 210, 0.15)",
+            "jsFunctions04"      :     "rgba(255, 255, 224, 0.15)",
+            "jsFunctions05"      :     "rgba(255, 255, 240, 0.15)",
+            "jsFunctions06"      :     "rgba(255, 248, 220, 0.15)",
+            "jsFunctions07"      :     "rgba(255, 239, 213, 0.15)",
+            "jsFunctions08"      :     "rgba(255, 235, 205, 0.15)",
+            "jsFunctions09"      :     "rgba(255, 228, 196, 0.15)",
+            "jsFunctions10"      :     "rgba(255, 222, 173, 0.15)",
+
+            "jsEventHandlers"    :     "rgba(255, 165, 0, 0.15)",
+            "jsEventHandlers01"  :     "rgba(255, 165, 0, 0.15)",
+            "jsEventHandlers02"  :     "rgba(255, 140, 0, 0.15)",
+            "jsEventHandlers03"  :     "rgba(255, 215, 0, 0.15)",
+            "jsEventHandlers04"  :     "rgba(255, 69, 0, 0.15)",
+            "jsEventHandlers05"  :     "rgba(255, 99, 71, 0.15)",
+            "jsEventHandlers06"  :     "rgba(255, 127, 80, 0.15)",
+            "jsEventHandlers07"  :     "rgba(255, 20, 147, 0.15)",
+            "jsEventHandlers08"  :     "rgba(255, 105, 180, 0.15)",
+            "jsEventHandlers09"  :     "rgba(255, 182, 193, 0.15)",
+            "jsEventHandlers10"  :     "rgba(255, 228, 225, 0.15)",
+
+            "loader"             :     "rgba(0, 128, 128, 0.15)",
+            "loader01"           :     "rgba(0, 255, 255, 0.15)",
+            "loader02"           :     "rgba(0, 100, 0, 0.15)",
+            "loader03"           :     "rgba(173, 216, 230, 0.15)",
+            "loader04"           :     "rgba(70, 130, 180, 0.15)",
+            "loader05"           :     "rgba(0, 0, 255, 0.15)",
+            "loader06"           :     "rgba(138, 43, 226, 0.15)",
+            "loader07"           :     "rgba(75, 0, 130, 0.15)",
+            "loader08"           :     "rgba(148, 0, 211, 0.15)",
+            "loader09"           :     "rgba(186, 85, 211, 0.15)",
+            "loader10"           :     "rgba(255, 20, 147, 0.15)",
+
+            "htmlUi"             :     "rgba(100, 149, 237, 0.15)",
+            "htmlUi01"           :     "rgba(100, 149, 237, 0.15)",
+            "htmlUi02"           :     "rgba(123, 104, 238, 0.15)",
+            "htmlUi03"           :     "rgba(72, 61, 139, 0.15)",
+            "htmlUi04"           :     "rgba(106, 90, 205, 0.15)",
+            "htmlUi05"           :     "rgba(147, 112, 219, 0.15)",
+            "htmlUi06"           :     "rgba(138, 43, 226, 0.15)",
+            "htmlUi07"           :     "rgba(75, 0, 130, 0.15)",
+            "htmlUi08"           :     "rgba(139, 0, 139, 0.15)",
+            "htmlUi09"           :     "rgba(148, 0, 211, 0.15)",
+            "htmlUi10"           :     "rgba(153, 50, 204, 0.15)",
+            "htmlUi11"           :     "rgba(186, 85, 211, 0.15)",
+
+            "css"                :     "rgba(144, 238, 144, 0.15)",
+            "css01"              :     "rgba(144, 238, 144, 0.15)",
+            "css02"              :     "rgba(152, 251, 152, 0.15)",
+            "css03"              :     "rgba(143, 188, 143, 0.15)",
+            "css04"              :     "rgba(60, 179, 113, 0.15)",
+            "css05"              :     "rgba(46, 139, 87, 0.15)",
+            "css06"              :     "rgba(32, 178, 170, 0.15)",
+            "css07"              :     "rgba(0, 139, 139, 0.15)",
+            "css08"              :     "rgba(0, 128, 128, 0.15)",
+            "css09"              :     "rgba(95, 158, 160, 0.15)",
+            "css10"              :     "rgba(127, 255, 212, 0.15)"
+		},
+	  },
+	  "editor.tokenColorCustomizations": {
+		"textMateRules": [
+		  {
+			"scope": "heading.1.markdown entity.name.section.markdown, heading.1.markdown punctuation.definition.heading.markdown",
+			"settings": {
+			  "foreground": "#FFA500",
+			  "fontStyle": "bold"
+			}
+		  },
+		  {
+			"scope": "heading.2.markdown entity.name.section.markdown, heading.2.markdown punctuation.definition.heading.markdown",
+			"settings": {
+			  "foreground": "#80FF80",
+			  "fontStyle": "bold"
+			}
+		  },
+		  {
+			"scope": "heading.3.markdown entity.name.section.markdown, heading.3.markdown punctuation.definition.heading.markdown",
+			"settings": {
+			  "foreground": "#e0e07d",
+			  "fontStyle": "bold"
+			}
+		  },
+		  {
+			"scope": "heading.4.markdown entity.name.section.markdown, heading.4.markdown punctuation.definition.heading.markdown",
+			"settings": {
+			  "foreground": "#87d6d6",
+			  "fontStyle": "bold"
+			}
+		  },
+		  {
+			"scope": "heading.5.markdown entity.name.section.markdown, heading.5.markdown punctuation.definition.heading.markdown",
+			"settings": {
+			  "foreground": "#FF99FF",
+			  "fontStyle": "bold"
+			}
+		  },
+		  {
+			"scope": "markup.italic.markdown",
+			"settings": {
+			  "fontStyle": "italic bold"
+			}
+		  },
+		  {
+			"scope": "markup.bold.markdown",
+			"settings": {
+			  "fontStyle": "bold"
+			}
+		  }
+		] 
+	  },
+	  "better-comments.tags": [
+		{
+		  "tag": "//",
+		  "color": "#808080",
+		  "strikethrough": false,
+		  "underline": false,
+		  "backgroundColor": "transparent",
+		  "bold": false,
+		  "italic": true
+		},
+		{
+		  "tag": "!",
+		  "color": "#FF2D00",
+		  "strikethrough": false,
+		  "underline": false,
+		  "backgroundColor": "transparent",
+		  "bold": false,
+		  "italic": false
+		},
+		{
+		  "tag": "?",
+		  "color": "#3498DB",
+		  "strikethrough": false,
+		  "underline": false,
+		  "backgroundColor": "transparent",
+		  "bold": false,
+		  "italic": false
+		},
+		{
+		  "tag": "*",
+		  "color": "#98C379",
+		  "strikethrough": false,
+		  "underline": false,
+		  "backgroundColor": "transparent",
+		  "bold": false,
+		  "italic": false
+		},
+		{
+		  "tag": "todo",
+		  "color": "#FF8C00",
+		  "strikethrough": false,
+		  "underline": false,
+		  "backgroundColor": "transparent",
+		  "bold": false,
+		  "italic": false
+		}
+	  ],
+	}
+}
+  
+  

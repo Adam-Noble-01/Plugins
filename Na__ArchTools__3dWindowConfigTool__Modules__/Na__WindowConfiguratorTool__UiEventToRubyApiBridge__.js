@@ -29,6 +29,7 @@ let na_currentWindowId = null;                                       // Current 
 let na_isEditMode = false;                                           // Whether we're editing an existing window
 let na_liveModeEnabled = false;                                     // Live update mode state
 let na_liveUpdateTimer = null;                                       // Debounce timer for live updates
+let na_loadedMetadata = null;                                        // Cached metadata from Ruby (preserves timestamps)
 
 // endregion ===================================================================
 
@@ -63,6 +64,7 @@ window.na_setInitialConfig = function(configJson) {
             
             na_currentWindowId = config.windowMetadata[0].WindowUniqueId;
             na_isEditMode = true;
+            na_loadedMetadata = config.windowMetadata[0];
             
             // Update window info display
             na_updateWindowInfo(config.windowMetadata[0]);
@@ -74,6 +76,7 @@ window.na_setInitialConfig = function(configJson) {
         } else {
             na_currentWindowId = null;
             na_isEditMode = false;
+            na_loadedMetadata = null;
             na_toggleEditMode(false);
             console.log('[NA_BRIDGE] Using default configuration (new window)');
         }
@@ -97,6 +100,7 @@ window.na_clearCurrentWindow = function() {
     
     na_currentWindowId = null;
     na_isEditMode = false;
+    na_loadedMetadata = null;
     
     // Hide window info section
     const infoSection = document.getElementById('na-window-info');
@@ -135,6 +139,50 @@ window.na_showStatus = function(type, message) {
                 statusBar.classList.add('na-hidden');
             }, 3000);
         }
+    }
+};
+// ---------------------------------------------------------------
+
+// FUNCTION | Receive Measurement from Measure Opening Tool
+// ------------------------------------------------------------
+// Called by Ruby after user completes the two-click measurement in the 3D viewport.
+// Updates the width and height sliders in the UI with the measured values.
+// @param {number} widthMm - Measured opening width in millimeters
+// @param {number} heightMm - Adjusted opening height in millimeters (cill height already deducted)
+window.na_receiveMeasurement = function(widthMm, heightMm) {
+    console.log(`[NA_BRIDGE] Received measurement: Width=${widthMm}mm, Height=${heightMm}mm`);
+    
+    // Remove active class from button (measurement complete)
+    const measureBtn = document.getElementById('na-btn-measure');
+    if (measureBtn) {
+        measureBtn.classList.remove('na-btn-measure-active');
+    }
+    
+    if (typeof Na_DynamicUI === 'undefined') {
+        console.error('[NA_BRIDGE] Na_DynamicUI not available to apply measurement');
+        return;
+    }
+    
+    // Update the width and height configuration values
+    Na_DynamicUI.na_setConfig({
+        width_mm: widthMm,
+        height_mm: heightMm
+    });
+    
+    window.na_showStatus('success', `Opening measured: ${widthMm}mm x ${heightMm}mm`);
+};
+// ---------------------------------------------------------------
+
+// FUNCTION | Measure Tool Cancelled
+// ------------------------------------------------------------
+// Called by Ruby when the user cancels the measurement tool (ESC key).
+// Removes the active styling from the Measure Opening button.
+window.na_measureCancelled = function() {
+    console.log('[NA_BRIDGE] Measurement cancelled');
+    
+    const measureBtn = document.getElementById('na-btn-measure');
+    if (measureBtn) {
+        measureBtn.classList.remove('na-btn-measure-active');
     }
 };
 // ---------------------------------------------------------------
@@ -229,7 +277,7 @@ function na_updateWindow() {
 
 // FUNCTION | Reload Ruby Scripts (Developer Feature)
 // ------------------------------------------------------------
-// Called when user clicks "Reload" button
+// Called when user clicks "Reload Plugin" button
 function na_reloadScripts() {
     console.log('[NA_BRIDGE] Reloading scripts');
     
@@ -238,6 +286,33 @@ function na_reloadScripts() {
     } else {
         console.log('[NA_BRIDGE] SketchUp not available for reload');
         window.na_showStatus('info', 'Reload request sent (debug mode)');
+    }
+}
+// ---------------------------------------------------------------
+
+// FUNCTION | Measure Opening (Activate 3D Measurement Tool)
+// ------------------------------------------------------------
+// Called when user clicks "Measure Opening" button.
+// Activates the Ruby-side MeasureOpeningTool for two-click measurement.
+function na_measureOpening() {
+    console.log('[NA_BRIDGE] Requesting Measure Opening tool');
+    
+    // Add active class to button to show orange styling
+    const measureBtn = document.getElementById('na-btn-measure');
+    if (measureBtn) {
+        measureBtn.classList.add('na-btn-measure-active');
+    }
+    
+    if (typeof sketchup !== 'undefined') {
+        sketchup.na_measureOpening();
+        window.na_showStatus('info', 'Click Point A (base corner) in the 3D viewport...');
+    } else {
+        console.log('[NA_BRIDGE] SketchUp not available for measure opening');
+        window.na_showStatus('warning', 'SketchUp connection not available');
+        // Remove active class if connection failed
+        if (measureBtn) {
+            measureBtn.classList.remove('na-btn-measure-active');
+        }
     }
 }
 // ---------------------------------------------------------------
@@ -390,14 +465,19 @@ function na_isLiveModeEnabled() {
 function na_buildFullConfig() {
     const uiConfig = Na_DynamicUI.na_getConfig();
     
+    // Get description suffix from the text input
+    const descInput = document.getElementById('na-info-description');
+    const description = descInput ? descInput.value.trim() : '';
+    
     return {
         windowMetadata: [
             {
                 WindowUniqueId: na_currentWindowId,
-                WindowName: "Na Window",
-                WindowNotes: "Created with Na Window Configurator",
-                CreatedDate: null,
-                LastModified: null
+                WindowName: na_loadedMetadata ? na_loadedMetadata.WindowName : "Na Window",
+                WindowDescription: description,
+                WindowNotes: na_loadedMetadata ? na_loadedMetadata.WindowNotes : "Created with Na Window Configurator",
+                CreatedDate: na_loadedMetadata ? na_loadedMetadata.CreatedDate : null,
+                LastModified: na_loadedMetadata ? na_loadedMetadata.LastModified : null
             }
         ],
         windowComponents: [],
@@ -414,12 +494,18 @@ function na_toggleEditMode(isEdit) {
     const infoSection = document.getElementById('na-window-info');
     
     if (isEdit) {
-        if (createBtn) createBtn.classList.add('na-hidden');
-        if (updateBtn) updateBtn.classList.remove('na-hidden');
+        // Keep both buttons visible, but enable update button
+        if (updateBtn) {
+            updateBtn.disabled = false;
+            updateBtn.classList.remove('na-btn-disabled');
+        }
         if (infoSection) infoSection.classList.remove('na-hidden');
     } else {
-        if (createBtn) createBtn.classList.remove('na-hidden');
-        if (updateBtn) updateBtn.classList.add('na-hidden');
+        // Keep both buttons visible, but disable update button
+        if (updateBtn) {
+            updateBtn.disabled = true;
+            updateBtn.classList.add('na-btn-disabled');
+        }
         if (infoSection) infoSection.classList.add('na-hidden');
     }
 }
@@ -429,10 +515,12 @@ function na_toggleEditMode(isEdit) {
 // ------------------------------------------------------------
 function na_updateWindowInfo(metadata) {
     const idElem = document.getElementById('na-info-window-id');
+    const descInput = document.getElementById('na-info-description');
     const createdElem = document.getElementById('na-info-created');
     const modifiedElem = document.getElementById('na-info-modified');
     
     if (idElem) idElem.textContent = metadata.WindowUniqueId || '-';
+    if (descInput) descInput.value = metadata.WindowDescription || '';
     if (createdElem) createdElem.textContent = metadata.CreatedDate || '-';
     if (modifiedElem) modifiedElem.textContent = metadata.LastModified || '-';
 }

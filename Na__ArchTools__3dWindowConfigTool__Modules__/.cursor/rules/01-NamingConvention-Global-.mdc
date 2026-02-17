@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+**Global Naming Convention**
+- This convention is mandatory and is intended to clearly distinguish Noble Architecture code from third-party libraries.
+- Prefix all custom functions, classes, methods, and related identifiers with a project-specific namespace: 
+  - `Na__`
+  - `Na_`
+  - `na_`, 
+- Selected according to the target language’s naming conventions and syntax. 
+- This improves long-term maintainability, readability, and collision avoidance.
+

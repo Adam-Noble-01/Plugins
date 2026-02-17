@@ -403,6 +403,62 @@ body {
 }
 
 /* =============================================================================
+   MATERIAL CARDS
+   ============================================================================= */
+
+/* Material Cards Container */
+.na-material-cards-container {
+    display: flex;
+    gap: var(--na-spacing-sm);
+    flex-wrap: wrap;
+    padding: var(--na-spacing-xs) 0;
+}
+
+/* Individual Material Card */
+.na-material-card {
+    flex: 0 0 auto;
+    width: 80px;
+    padding: var(--na-spacing-xs);
+    border: 2px solid var(--na-border-color);
+    border-radius: var(--na-radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--na-bg-secondary);
+}
+
+.na-material-card:hover {
+    border-color: var(--na-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.na-material-card-selected {
+    border-color: var(--na-accent);
+    border-width: 3px;
+    box-shadow: 0 0 0 2px rgba(30, 144, 255, 0.2);
+}
+
+/* Material Color Swatch */
+.na-material-swatch {
+    width: 100%;
+    height: 50px;
+    border-radius: var(--na-radius-xs);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: var(--na-spacing-xs);
+}
+
+/* Material Name Label */
+.na-material-name {
+    font-size: 10px;
+    text-align: center;
+    color: var(--na-text-secondary);
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* =============================================================================
    BUTTONS
    ============================================================================= */
 
@@ -439,7 +495,7 @@ body {
 .na-btn-large {
     padding: var(--na-spacing-md) var(--na-spacing-xl);
     font-size: var(--na-font-size-lg);
-    width: 100%;
+    flex: 1;
 }
 
 .na-btn-primary {
@@ -496,8 +552,8 @@ body {
 
 .na-actions-section {
     display: flex;
-    flex-direction: column;
-    gap: var(--na-spacing-sm);
+    flex-direction: row;
+    gap: var(--na-spacing-md);
     padding: var(--na-spacing-lg);
     background: var(--na-bg-secondary);
 }
@@ -531,6 +587,32 @@ body {
     font-size: var(--na-font-size-sm);
     font-weight: 500;
     color: var(--na-text-primary);
+}
+
+.na-info-item-full {
+    grid-column: 1 / -1;
+}
+
+.na-info-input {
+    font-size: var(--na-font-size-sm);
+    font-weight: 500;
+    color: var(--na-text-primary);
+    background: var(--na-bg-primary);
+    border: 1px solid var(--na-border-color);
+    border-radius: var(--na-radius-sm);
+    padding: var(--na-spacing-xs) var(--na-spacing-sm);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.na-info-input:focus {
+    outline: none;
+    border-color: var(--na-accent-blue);
+}
+
+.na-info-input::placeholder {
+    color: var(--na-text-muted);
+    font-style: italic;
 }
 
 /* =============================================================================
@@ -620,6 +702,27 @@ body {
 .na-btn-live-active:hover {
     background: var(--na-accent-green-hover) !important;
     border-color: var(--na-accent-green-hover) !important;
+}
+
+/* Measure Opening Button - Active State
+   ------------------------------------------------------------ */
+.na-btn-measure-active {
+    background: var(--na-accent-orange) !important;
+    border-color: var(--na-accent-orange) !important;
+    color: #ffffff !important;
+}
+
+.na-btn-measure-active:hover {
+    background: #e68a00 !important;
+    border-color: #e68a00 !important;
+}
+
+/* Measure Opening Button - Hover State (when not active)
+   ------------------------------------------------------------ */
+#na-btn-measure:hover:not(.na-btn-measure-active) {
+    background: var(--na-accent-orange);
+    border-color: var(--na-accent-orange);
+    color: #ffffff;
 }
 
 /* =============================================================================
@@ -760,6 +863,28 @@ body {
     height: 1px;
     background: var(--na-border-color);
     margin: var(--na-spacing-md) 0;
+}
+
+/* =============================================================================
+   CASEMENT CLICK TARGET OVERLAYS (SVG)
+   ============================================================================= */
+
+.na-opening-click-target {
+    cursor: pointer;
+    pointer-events: all;
+    transition: fill 0.15s ease;
+}
+
+.na-opening-click-target:hover {
+    fill: rgba(74, 144, 217, 0.15) !important;
+}
+
+/* =============================================================================
+   CASEMENT REMOVED INDICATOR (SVG)
+   ============================================================================= */
+
+.na-casement-removed-indicator {
+    pointer-events: none;
 }
 
 /* =============================================================================
