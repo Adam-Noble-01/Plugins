@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <link type="text/css" rel="StyleSheet" href="css/bootstrap.min.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/main.css"/>
+    <style>
+        .dialog-content {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+            overflow: hidden;
+        }
+
+        .dialog-header {
+            display: flex;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: flex-start;
+            /*text-align: center;*/
+            padding: .75rem;
+            border-bottom: 1px solid;
+        }
+
+        .dialog-header p {
+            text-align: center;
+            padding-bottom: 0;
+            margin-bottom: 0;
+        }
+
+        .dialog-body {
+            position: relative;
+            flex: 1 1 auto;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: .75rem;
+        }
+
+        .dialog-footer {
+            display: flex;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: flex-end;
+            padding: .75rem;
+            border-top: 1px solid;
+        }
+
+        .button-icon {
+            width: 2em;
+            height: 2em;
+        }
+
+        .thumbnail {
+            text-align: center;
+        }
+
+        .thumbnail:hover {
+            background-color: lightgrey;
+            border-radius: 2px;
+        }
+
+        .thumbnail-img {
+            border:1px solid #CACACA;
+            border-radius: 2px;
+            background-color:white;
+            margin:4px;
+        }
+
+        .thumbnail-img-sm {
+            width:128px;
+            height:128px;
+        }
+
+        .thumbnail-img-lg {
+            width:256px;
+            height:256px;
+        }
+
+        .thumbnail-text {
+            color: #4c4c4c;
+            display: block;
+            white-space: nowrap;
+            overflow:hidden;
+            text-overflow: ellipsis;
+        }
+
+        .thumbnail-text-sm {
+            width: 128px;
+        }
+
+        .thumbnail-text-lg {
+            width: 256px;
+        }
+
+        .form-clear {
+            align-items: center;
+            border-radius: 2px;
+            bottom: 15%;
+            right: 5px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            position: absolute;
+            z-index: 10;
+        }
+
+        .form-clear:hover {
+            background-color: lightgrey;
+        }
+
+        .form-checkbox-align {
+            margin-top: .15rem;
+        }
+
+        #current_directory option {
+            direction: rtl;
+        }
+        #current_directory:focus option,
+        #current_directory:active option {
+            direction: ltr;
+        }
+        #current_directory {
+            text-overflow: ellipsis;
+        }
+        .input-group .btn {
+            border-radius: 0;
+            margin: 0;
+        }
+        .input-group .first-button {
+            border-top-left-radius: 0.25rem;
+            border-bottom-left-radius: 0.25rem;
+        }
+        .input-group .last-button {
+            border-top-right-radius: 0.25rem;
+            border-bottom-right-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+<div class="dialog-content">
+    <div class="dialog-header">
+        <div class="row w-100">
+            <div class="col-12 col-md-7 my-1 d-flex">
+                <div class="input-group">
+                <button class="btn btn-sm first-button" title="Select Library Folder" onclick="openLibrary()"><img class="button-icon" src="images/folder.svg" /></button>
+                <button id="goUpBtn" type="button" class="btn btn-sm" title="Go to Parent Folder" onclick="sketchup.go_up()"><img class="button-icon" src="images/up.svg" /></button>
+                <select id="current_directory" class="form-control" onchange="currentDirectoryChanged(this)"></select>
+                <button class="btn btn-sm last-button" title="Reload Components" onclick="refresh();"><img class="button-icon" src="images/refresh.svg" /></button>
+                </div>
+            </div>
+            <div class="col-12 col-md-5 my-1 d-flex justify-content-md-end" >
+                <div class="input-group">
+                    <input id="search_string" type="text" class="form-control" placeholder="Search..." onkeydown="if (event.keyCode === 13) { onSearchPressed(); }"
+                        onfocus="clearButtonVisibility();" onblur="clearButtonVisibility()" onkeyup="clearButtonVisibility();" >
+                    <button title="Clear Search Filter" class="btn btn-sm d-none" id="clear_button" onclick="onSearchClear();"><img class="button-icon" src="images/clear-search.svg" /></button>
+                <button class="btn btn-sm last-button" onclick="onSearchPressed();"><img class="button-icon" src="images/search.svg" /></button>
+                </div>
+                <button type="button" class="btn btn-sm" style="margin-left: 4px" title="Open Settings" data-toggle="modal" data-target="#settingsModal"><img class="button-icon" src="images/gear.svg" /></button>
+            </div>
+        </div>
+    </div>
+    <div id="dialogBodyDiv" class="dialog-body">
+        <div class="m-2">
+            <h5 id="resultMessage" style='text-align: center'></h5>
+            <div id="componentList" class="d-flex flex-wrap">
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1" >
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Settings</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span >&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group row">
+                    <label for="search_depth" class="col-7 col-sm-8 col-form-label">Folder Search Depth:</label>
+                    <div class="col-5 col-sm-4">
+                        <input id="search_depth" type="number" min="1" max="5" class="form-control form-control-sm"  placeholder="Depth" onchange="onDepthChange(this)">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col">
+                        <div class="form-check">
+                            <input class="form-check-input form-checkbox-align" type="checkbox" id="stay_open" onchange="stayOpenChanged(this);">
+                            <label class="form-check-label" for="stay_open">
+                                Keep Window Open
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col">
+                        <div class="form-check">
+                            <input class="form-check-input form-checkbox-align" type="checkbox" id="large_icons" onchange="largeIconsChanged(this);">
+                            <label class="form-check-label" for="large_icons">
+                                Use Large Icons
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="context-menu" class="dropdown-menu dropdown-menu-sm" style="display: none">
+    <a class="dropdown-item"  onclick="onOpenFilePath()">Open file location</a>
+    <a class="dropdown-item"  onclick="onOpenWithSU()">Open with SketchUp</a>
+</div>
+
+<div id="context-menu-inmodel" class="dropdown-menu dropdown-menu-sm" style="display: none">
+    <a class="dropdown-item"  onclick="onDefnSaveAs()">Save as...</a>
+</div>
+
+<input id="is_in_model" type="hidden">
+<input id="skp_files" type="hidden">
+<input id="currentIndex" type="hidden">
+<script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+<script type="text/javascript" src="js/bootstrap.bundle.min.js"></script>
+<script type="text/javascript" src="js/main.js"></script>
+<script>
+    ready();
+    // Initialize the modal events.
+    // If the depth changes, force a reload of the list.
+    // if the icon size chagnes, force a reload of list only (don't search for files).
+    $('#settingsModal').on('show.bs.modal', function (e) {
+        var searchDepth = $('#search_depth');
+        searchDepth.data('prev-value', searchDepth.val());
+
+        var largeIcons = $('#large_icons');
+        largeIcons.data('prev-value', largeIcons.prop('checked'));
+    });
+
+    $('#settingsModal').on('hide.bs.modal', function (e) {
+        var searchDepth = $('#search_depth');
+        var prevValue = searchDepth.data('prev-value');
+        if (searchDepth.val() !== prevValue) {
+            refresh();
+        } else {
+            var largeIcons = $('#large_icons');
+            prevValue = largeIcons.data('prev-value');
+            if (prevValue !== largeIcons.prop('checked')) {
+                onSearchChanged(); // This will do a refresh.
+            }
+        }
+    });
+
+    // add inifinite scroll logic
+    $('#dialogBodyDiv').scroll(function () {
+        var div = $('#dialogBodyDiv');
+        var scrollHeight = div.get(0).scrollHeight;
+        var divHeight = div.height();
+        var curScroll = div.scrollTop();
+
+        if (scrollHeight - (divHeight + curScroll) <= scrollHeight * 0.25) {
+            loadThumbnailElements();
+        }
+    });
+
+    // Need to close the context menu when clicking else where.
+    $(document).on('click', function(e) {
+        $("#context-menu").removeClass("show").hide();
+        $("#context-menu-inmodel").removeClass("show").hide();
+    }).on('contextmenu', function(e) {
+        $("#context-menu").removeClass("show").hide();
+        $("#context-menu-inmodel").removeClass("show").hide();
+    });
+
+    function onOpenFilePath() {
+        var path = $('#context-menu').data('path');
+        sketchup.open_file_location(path);
+    }
+
+    function onOpenWithSU() {
+        var path = $('#context-menu').data('path');
+        sketchup.open_file(path);
+    }
+
+    function onDefnSaveAs() {
+        var name = $('#context-menu-inmodel').data('path');
+        sketchup.save_defn(name)
+    }
+
+    function clearButtonVisibility() {
+        var clearBtn = $('#clear_button');
+        if ($('#search_string').val().length > 0) {
+            clearBtn.removeClass('d-none');
+        } else {
+            clearBtn.addClass('d-none');
+        }
+    }
+
+    function stayOpenChanged(chkbox) {
+        var val = $(chkbox).prop('checked');
+        sketchup.stay_open(val);
+    }
+
+    function largeIconsChanged(chkbox) {
+        var val = $(chkbox).prop('checked');
+        sketchup.large_icons(val);
+    }
+
+    function openLibrary() {
+        var value = $('#current_directory').val();
+        sketchup.open_library(value);
+    }
+
+    function currentDirectoryChanged() {
+        $('#componentList').empty();
+        var dropdown = $('#current_directory');
+        setResultMessage('Searching...');
+        sketchup.load_skp_files(dropdown.val());
+    }
+
+    function refresh() {
+        currentDirectoryChanged();
+    }
+
+    function onSearchChanged() {
+        $('#currentIndex').val(0);
+        $('#componentList').empty();
+        loadThumbnailElements();
+        $('#search_string').blur();
+
+    }
+
+    function onSearchPressed() {
+        onSearchChanged();
+    }
+
+    function onSearchClear() {
+        $('#search_string').val('');
+        onSearchChanged()
+    }
+
+    function onDepthChange(element) {
+        var depthField = $(element);
+        sketchup.set_search_depth(depthField.val());
+    }
+
+    function onComponentClicked(element) {
+        var fullpath = unescape($(element).attr('data-path'));
+        var isInModel = $('#is_in_model').val() === 'true';
+        sketchup.select_component(fullpath, isInModel);
+    }
+
+    function setResultMessage(text) {
+        var resultElement = $('#resultMessage');
+        resultElement.html(text);
+    }
+
+    function rb_set_recent(recent_list, selected_folder) {
+        var dropdown = $("#current_directory");
+        dropdown.empty();
+        recent_list.forEach((item) => {
+            var selected = item === selected_folder  ? 'selected' : '';
+            dropdown.append(`<option value="${item}" ${selected}>${item}</option>`) ;
+        });
+    }
+
+    function rb_set_skp_files(all_files, is_in_model) {
+        $('#is_in_model').val(is_in_model);
+
+        var componentList = $('#componentList');
+        componentList.empty();
+        $('#skp_files').val(JSON.stringify(all_files));
+        $('#currentIndex').val(0);
+        loadThumbnailElements();
+    }
+
+    function rb_cancelled_search(is_in_model) {
+        $('#is_in_model').val(is_in_model);
+        $('#componentList').empty();
+        setResultMessage('Search cancelled');
+    }
+
+    function loadThumbnailElements() {
+        var all_files = JSON.parse($('#skp_files').val());
+        var is_in_model = $('#is_in_model').val() === 'true';
+        var componentList = $('#componentList');
+        var currentIndex = parseInt($('#currentIndex').val());
+
+        // Disable button is in_model
+        $('#goUpBtn').prop('disabled', is_in_model);
+
+        // Filter the list
+        var filter_string = $('#search_string').val().trim().toLowerCase();
+        if (filter_string !== '') {
+            var filters = filter_string.split(' ');
+            all_files = all_files.filter((hash) => {
+                for (var i = 0; i < filters.length; i++) {
+                    if (hash['name'].toLowerCase().includes(filters[i])) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+        }
+        var length = all_files.length;
+
+        // Update the message
+        var depth = $('#search_depth').val();
+        var depthText = `${is_in_model ? '' : '(Depth: ' + depth + ')'}`;
+        var filterText = filter_string === '' ? '' : `for "${filter_string}"`;
+        if (length === 0) {
+            setResultMessage(`No Components Found ${filterText} ${depthText}`);
+        } else {
+            var filterText = filter_string === '' ? '' : `for "${filter_string}"`;
+            setResultMessage(`Found <span class="badge">${length}</span> components ${filterText} ${depthText}`);
+        }
+
+        var thumbnailSize = $('#large_icons').prop('checked') ? 'lg' : 'sm';
+        // deal with the case where the user has their window stretched out for some reason and can fit more than
+        // 25 items before the vertical scroll bar appears.
+        do {
+            var max = currentIndex + 25;
+            if (max >= length) {
+                max = length;
+            }
+            $('#currentIndex').val(max);
+
+            all_files.slice(currentIndex, max).forEach((hash, i) => {
+                var id = `profileId${currentIndex + i}`;
+                var thumbnailId = `thumbnailImg${currentIndex + i}`;
+                var col = `
+                    <div id="${id}" class="thumbnail" title="${hash['full_path']}">
+                        <button type="button" class="btn btn-sm bg-transparent" onclick="onComponentClicked(this)" data-path="${escape(hash['full_path'])}">
+                            <span class="thumbnail-text thumbnail-text-${thumbnailSize}">${hash['name']}</span>
+                            <img id="${thumbnailId}" class="thumbnail-img thumbnail-img-${thumbnailSize}" >
+                        </button>
+                    </div>
+                `
+                componentList.append(col);
+                sketchup.create_thumbnail(thumbnailId, is_in_model, hash['name'], hash['full_path']);
+
+                // add context menu.
+                setContextMenu(id, hash['full_path'], is_in_model);
+            });
+
+            currentIndex = parseInt($('#currentIndex').val());
+        } while(currentIndex < length && componentList.height() < $(window).height());
+
+    }
+
+    function setContextMenu(id, path, is_in_model) {
+        var context_id = '#context-menu';
+        if (is_in_model) {
+            context_id += '-inmodel';
+        }
+
+        $(`#${id}`).on('contextmenu', (e) => {
+            var top = e.pageY - 10;
+            var left = e.pageX - 50;
+            $(context_id).css({
+                display: "block",
+                top: top,
+                left: left
+            }).addClass("show");
+            $(context_id).data('path', path);
+            return false;
+        }).on("click", function () {
+            $(context_id).removeClass("show").hide();
+        });
+    }
+</script>
+</body>
+</html>

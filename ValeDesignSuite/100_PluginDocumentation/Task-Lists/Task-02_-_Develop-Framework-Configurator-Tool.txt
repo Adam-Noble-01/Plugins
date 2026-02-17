@@ -1,0 +1,69 @@
+# SketchUp RubyScript Developer
+# -------------------------------------
+## Role   |  Highly Experienced RubyScript SketchUp Plugin Developer
+## Task   |  Develop a Framework Configurator Tool
+## USAGE  |  This tool will be used to configure the framework of a Vale Garden Houses Structure within the Vale Design Suite SketchUp Plugin.
+
+### Task 01 Overview  -  Develop the HTML Dialog To Include A "2D Configuration" View
+- Vale Garden Houses need a tool that allows them to configure the framework of a structure.
+- This is the outer frame of the Orangery / Conservatory / Greenhouse structure.
+
+
+### Task 01 Overview  -  Develop the HTML Dialog To Include A "2D Configuration" View
+- The HTML dialog will be used to configure the framework, it should include a canvas area that allows the user to select different options.
+- The html dialogue works on a line -> Node -> Line basis
+- Each node has a option allowing for the selection of various items which are stored in the ./ValeProductData directory in various JSON files.
+- Example implementation 
+  ```example (This would be symbols rendered in the canvas area)
+  Node-01  -->  Node-02  -->  Node-03  -->  Node-04  -->  Node-05  -->  Node-06  -->  Node-07
+  ```
+  - If the user configures
+    - Node-01 = Column_CornerColumn
+    - Node-02 = Window_WindowPanelType01
+    - Node-03 = Frame_FrameworkSection01
+    - Node-04 = Window_WindowPanelType01
+    - Node-05 = Frame_FrameworkSection01
+    - Node-06 = Window_WindowPanelType01
+    - Node-07 = Column_CornerColumn
+
+- This would be rendered as follows:
+  |_ ---- ||  ---- ||  ---- _|
+  (Note Rendered on the canvas as a Pictogram or referencing the JSON file for 2D CAD Representation)
+
+### Script File Location
+- Current Placeholder Script for the Framework Configurator Tool
+[PluginDocumentation/Task-Lists/Task-02_-_Develop-Framework-Configurator-Tool.txt](../../ValeDesignSuite_Tools_FrameworkTools.rb)
+
+### USAGE OF DICTIONARIES
+- Utilise SketchUp Dictionaries for storing the framework data.
+- Use a Custom Dictionary for storing the framework data.
+  - `ValeDesignSuite_FrameworkConfiguratorToolDataDictionary`
+- This means the data is bound to the model and can be accessed by other scripts and users.
+- Its critical as the items created need to be editable across the company and across projects.
+- Using dictionaries also allows for the data to be recalled and passed back into the UI as needed to reload the astracted 2D HTML Dialog Configurator View.
+
+### GENERAL NOTES & DEFAULT BEHAVIOUR
+- When initialised the tool begins with a corner node and allows you to build along the run of the framework left to right.
+- The Framework thickness will always be 94mm on 2d views as this is the timber thickness used by Vale Garden Houses.
+- Use mm scale in the 2d view to ensure the framework is the correct size and scale referenceable.
+- Add a Mouse wheel zoom feature to the 2d view canvas to allow for user navigation of the 2d view in the configurator.
+
+## Future Improvements 
+## -------------------------------------
+- These are not essential for the early development of the Framework Configurator Tool.
+- They are intended to be completed at a later date, but worth referencing so they can be accommodated on the initial buildout.
+
+#### Name Assigment To Runs Of Framework
+- Names can be assigned to a run of frameworkwork, meaning elevations can be tagged and the data saved to a Model Dictionary / DC Attribute.
+
+#### Change Of Direction
+- Adding a corner node allows for a interactive change of direction for the framework.
+- Bubble with arrows pop up to indicate the direction of the framework that you can change the direction to. 
+  - So each corner node would would 3 directions to choose from.
+
+
+
+### Task 02 Overview  -  Develop 2D To SketchUp 3D Translator
+- FUTURE STEP! FINISH STEP 01 FIRST, DO NOT START THIS UNTIL STEP 01 IS COMPLETE AS A WORKING 2D CONFIGURATOR IS FUNCTIONING IN THE HTML DIALOGUE.
+
+

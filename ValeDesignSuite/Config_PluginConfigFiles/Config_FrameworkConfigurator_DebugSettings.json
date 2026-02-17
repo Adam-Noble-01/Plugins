@@ -1,0 +1,20 @@
+{
+  "FileMetaData": {
+    "FileName": "Config_FrameworkConfigurator_DebugSettings.json",
+    "FileDescription": "This file contains the debug settings for the framework configurator",
+    "FileCreated": "26-May-2025",
+    "FileUpdated": "04-Jun-2025"
+  },
+  "FrameworkConfig": {
+    "DebugSettings": {
+      "DEBUG_MODE": false,
+      "REALTIME_UPDATE_DELAY": 500,
+      "MIN_PANEL_LENGTH": 100
+    },
+    "Description": {
+      "DEBUG_MODE": "Set to true for developer debugging, diagnostic and logging without spamming the console",
+      "REALTIME_UPDATE_DELAY": "Delay in milliseconds for real-time updates",
+      "MIN_PANEL_LENGTH": "Minimum panel length in millimeters"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+Extrude Edges by Lathe<==>Barrido de Curvas por Torno
+Extrude Edges by Lathe: Select a Polyline OR a Face...<==>Barrido de Curvas por Torno: Selecciona una Polilínea o una Cara...
+Extrude Edges by Lathe:  Angle/Segments (e.g. 45 or 9s): 0=Pick-Angle: <Ctrl>/double-click to confirm...<==>Barrido de Curvas por Torno:  Angulo/Seg. (ej. 45 o 9s): 0=Definir-Angulo: Ctrl/2-Clic=Aplicar...
+Extrude Edges by Lathe:  Angle/Segments (e.g. 45 or 9s): <Ctrl>/double-click to confirm...<==>Barrido de Curvas por Torno:  Angulo/Seg. (ej. 45 o 9s): Ctrl/2-Clic=Aplicar...
+Extrude Edges by Lathe:  Pick the Point for the Start of Angle: Toggles <Alt><>180deg/<Shift>C/Clockwise, or Type Angle...<==>Barrido de Curvas por Torno:  Punto Inicial del Angulo: Alternar Alt=180°|Shift=Horario/Anti-Horario|Teclear Angulo...
+Extrude Edges by Lathe:  Pick the Point for the End of Angle: Toggles <Alt><>180deg/<Shift>C/Clockwise, or Type Angle...<==>Barrido de Curvas por Torno:  Punto Final del Angulo: Alternar Alt=180°|Shift=Horario/Anti-Horario|Teclear Angulo...
+Angle/Segments<==>Angulo/Segmentos
+Angle<==>Angulo
+Start Angle: <==>Inicio del Angulo: 
+Angle: <==>Angulo: 
+Cannot convert <==>No se Puede Convertir 
+ to an Integer<==> a un Entero
+Segments cannot be zero !<==>La Cantidad de Segmentos No Puede Ser Cero !!
+ to an Angle<==> a un Angulo
+ExtrudeEdgesByLathe<==>Barrido de Curvas por Torno
+Extrude Edges by Lathe:  Pick the Arc's Center-Point...<==>Barrido de Curvas por Torno:  Establece el Centro del Torno...
+Lathe Center<==>Centro del Torno
+Lathe Center Point: <==>Centro del Torno: 
+Extrude Edges by Lathe:  Pick a Second Point to Set the Axis of Rotation...<==>Barrido de Curvas por Torno:  Establece el Eje de Rotación...
+Lathe Axis<==>Eje de Rotación
+Lathe Axis Point: <==>Eje de Rotación: 
+Extrude Edges by Lathe: Making Primary Lines <==>Barrido de Curvas por Torno: Haciendo Línea Primaria 
+ of <==> de 
+Extrude Edges by Lathe: Making Secondary Lines <==>Barrido de Curvas por Torno: Haciendo Línea Secundaria 
+Extrude Edges by Lathe: Making Faces <==>Barrido de Curvas por Torno: Haciendo Cara 
+Extrude Edges by Lathe: Tidying Faces<==>Barrido de Curvas por Torno: Ordenando Caras
+Extrude Edges by Lathe: Remove Coplanar Edges ?<==>Barrido de Curvas por Torno: ¿Deseas Borrar las Aristas Coplanares?
+Extrude Edges by Lathe: Removing Coplanar Edges<==>Barrido de Curvas por Torno: Borrando Aristas Coplanares
+Extrude Edges by Lathe: Reverse Faces ?<==>Barrido de Curvas por Torno: ¿Deseas Invertir las Caras?
+Extrude Edges by Lathe: Reversing Faces <==>Barrido de Curvas por Torno: Invirtiendo Cara 
+Extrude Edges by Lathe: Explode Group ?<==>Barrido de Curvas por Torno: ¿Deseas Explotar el Grupo?
+Extrude Edges by Lathe: Orienting Faces<==>Barrido de Curvas por Torno: Orientando Caras
+Extrude Edges by Lathe: orient faces aborted.<==>Barrido de Curvas por Torno: Orientar Caras Fue Abortado !!
+Extrude Edges by Lathe<==>Barrido de Curvas por Torno
+: Pre-Select Curve/Face, Enter Parameters, Pick Center/Axis...<==>: Pre-Seleccionar Curva/Cara, Introducir Parámetros, Establecer Centro/Eje...
+Extrude Edges by Lathe: Smooth Edges ?<==>Barrido de Curvas por Torno: ¿Deseas Suavizar las Aristas?

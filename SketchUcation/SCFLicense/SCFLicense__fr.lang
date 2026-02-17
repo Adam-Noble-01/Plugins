@@ -1,0 +1,86 @@
+#Generic Language: FRENCH
+
+mnu_global_status			= SCFLicense : Statut Global
+mnu_mylicenses				= SCFLicense : Mes Licenses chez %1
+lst_months					= Jan-Fev-Mar-Avr-Mai-Juin-Juil-Août-Sep-Oct-Nov-Déc
+lst_week_days				= Lun-Mar-Mer-Jeu-Ven-Sam-Dim
+tit_open_panel 				= Fichier Licence pour %1
+msg_license_invalid 		= Le Fichier de Licence est invalide
+msg_license_not_for_plugin	= Le Fichier de Licence n'est pas pour le Plugin %1
+title 						= Licence extension: %1
+txt_history 				= Historique...
+tip_history_button			= Affiche la liste des evenements concernant les licences
+txt_seat					= Sièges...
+tip_seat_button				= Mise à jour des informations sur le nombre de sièges de la licence
+txt_purchase 				= Acheter Licence
+txt_validate				= Activer Licence
+txt_release					= Supprimer Licence
+txt_close					= Fermer
+txt_mylicenses				= Mes Licences chez %1
+txt_file_location			= Répertoire Fichiers licence
+txt_ok						= OK - Active
+txt_no						= Non Définie
+txt_help					= Aide
+txt_expired					= Expiré
+txt_license_for				= Licence pour %1
+msg_connected				= Vous devez être connecté à Internet pour Obtenir, Valider ou Supprimer une licence
+msg_check					= Verification de la licence sur Sketchucation....
+msg_release_confirm			= Confirmez que vous voulez supprimer la licence pour %1
+msg_error_fetch				= Désolé - Une erreur est survenue dans la communication avec Sketchucation
+msg_wrong_answer_SCF		= Information erronée reçue de Sketchucation
+msg_no_writable_directory	= Aucun répertoire accessible en écriture n'a été trouvé
+msg_signature_critical		= Problème avec le fichier de Signature sur l'ordinateur
+msg_license_file_not_exist	= Le fichier n'existe pas ou est invalide
+msg_response_SCF			= Réponse de Sketchucation
+msg_request_SCF				= Requête à Sketchucation
+msg_validate_error			= Erreur dans la Validation de Licence
+msg_release_error			= Erreur dans la Desinstallation de Licence
+msg_seat_error				= Erreur dans la verification des sièges de licence
+tip_goto_page				= Ouvre la page %1
+txt_history_title			= Historique des licences
+txt_details					= information
+
+
+#----------------------------------------
+# Main fields of the license information
+#----------------------------------------
+
+txt_date_purchase			= Date Achat :
+txt_duration				= Validité :
+txt_infinite				= Perpétuelle
+txt_days					= jours
+txt_seats					= Sièges :
+txt_max						= Max
+txt_left					= Restant
+txt_taken					= Attribué
+txt_expires_on				= Expire le
+txt_plugin					= Plugin :
+txt_license_type			= Type de licence :
+txt_email					= email :
+txt_scf_user				= Membre SCF :
+txt_license_id				= ID licence :
+txt_global_status			= Statut global des plugins sous licence SCF
+txt_hwid					= HW ID :
+
+#----------------------------------------
+# Error messages
+#----------------------------------------
+
+error_open_signature_folder	= Voulez-vous ouvrir le répertoire contenant le fichier Signature ?
+error_open_mylicences		= Voulez-vous ouvrir votre page MyLicenses sur Sketchucation ?
+
+error_A0C_1					= Problème de correspondance du nom d'ordinateur - Il est conseillé de supprimer le fichier Signature et de revalider
+error_F07_1					= Fichier License erroné - Veuillez vérifier que vous avez activé le fichier de license correct
+error_F07_2					= Vous pouvez vérifer votre page MyLicenses sur Sketchucation et télécharger le bon fichier de license
+error_F09_1					= Fichier License pour un autre plugin - Veuillez vérifier que vous avez activé le fichier de license correct
+error_F09_2					= Vous pouvez vérifer votre page MyLicenses sur Sketchucation et télécharger le bon fichier de license pour ce plugin
+error_A04_1					= Fichier Signature incorrect - Vous avez peut-être changé le nom de votre ordinateur
+error_A04_2					= Il est conseillé de supprimer le fichier Signature et de revalider
+error_A04_3					= Voulez-vous ouvrir le répertoire contenant le fichier Signature ?
+error_B03_1					= Problème avec la creation du fichier Signature
+error_B03_2					= C'est peut-être dû à un nom d'ordinateur contenant des caractères diacritiques
+error_B03_3					= Il est conseillé de changer le nom de votre ordinateur avec des caractères ASCII, de supprimer le fichier Signature et de revalider
+error_U52					= Il est conseillé de mettre à jour la license
+error_U97					= La license n'est pas valide
+error_U68					= Voulez-vous la mettre à jour
+

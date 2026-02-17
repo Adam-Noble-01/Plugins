@@ -1,0 +1,153 @@
+{
+    "metadata": {
+        "file_name": "ValeDesignSuite_Config_FrameworkConfigurator_DefaultPanelConfig.json",
+        "description": "Default configuration settings for Framework Panel creation and properties",
+        "author": "Adam Noble - Noble Architecture",
+        "created": "2025",
+        "version": "1.0.0",
+        "last_modified": "26-May-2025"
+    },
+    "panel_defaults": {
+        "name": "Framework_Panel",
+        "description": "Standard Framework Infill Panel",
+        "panel_type": "solid",
+        "dimensions": {
+            "length_mm"           :    600,
+            "height_mm"           :    2000,
+            "thickness_mm"        :    18,
+            "min_length_mm"       :    100,
+            "max_length_mm"       :    3000,
+            "min_height_mm"       :    200,
+            "max_height_mm"       :    3000,
+            "min_thickness_mm"    :    6,
+            "max_thickness_mm"    :    50
+        },
+        "material_properties": {
+            "default_material": "Plywood_Birch",
+            "grain_direction": "horizontal",
+            "surface_finish": "natural",
+            "edge_treatment": "rounded",
+            "density_kg_m3": 650,
+            "moisture_content": 8
+        },
+        "structural_properties": {
+            "load_bearing": false,
+            "weatherproof": false,
+            "insulated": false,
+            "fire_rated": false,
+            "acoustic_rating": "standard",
+            "thermal_rating": "standard"
+        },
+        "positioning": {
+            "origin_x": 0.0,
+            "origin_y": 0.0,
+            "origin_z": 0.0,
+            "rotation_degrees": 0.0,
+            "anchor_point": "bottom_left",
+            "inset_from_frame_mm": 10,
+            "alignment": "center"
+        },
+        "connection_properties": {
+            "attachment_method": "groove",
+            "fastener_type": "none",
+            "fastener_spacing_mm": 200,
+            "edge_clearance_mm": 5,
+            "expansion_gap_mm": 2
+        },
+        "geometry_properties": {
+            "corner_radius_mm": 3,
+            "edge_profile": "square",
+            "surface_texture": "smooth",
+            "cutouts": [],
+            "perforations": false,
+            "perforation_pattern": "none"
+        },
+        "fabrication_properties": {
+            "cnc_machinable": true,
+            "hand_workable": true,
+            "requires_template": false,
+            "machining_tolerance_mm": 0.5,
+            "edge_finishing": "sanded"
+        }
+    },
+    "panel_types": {
+        "solid": {
+            "description": "Solid panel with no openings",
+            "transparency": 0,
+            "structural_contribution": "medium"
+        },
+        "glazed": {
+            "description": "Glass or transparent panel",
+            "transparency": 90,
+            "structural_contribution": "low",
+            "glazing_type": "single",
+            "glazing_thickness_mm": 6
+        },
+        "louvered": {
+            "description": "Panel with horizontal or vertical louvers",
+            "transparency": 50,
+            "structural_contribution": "medium",
+            "louver_spacing_mm": 50,
+            "louver_angle_degrees": 45
+        },
+        "mesh": {
+            "description": "Mesh or perforated panel",
+            "transparency": 70,
+            "structural_contribution": "low",
+            "mesh_size_mm": 10,
+            "wire_diameter_mm": 2
+        },
+        "composite": {
+            "description": "Multi-layer composite panel",
+            "transparency": 0,
+            "structural_contribution": "high",
+            "layer_count": 3,
+            "core_material": "foam"
+        },
+        "custom": {
+            "description": "Custom panel with user-defined properties",
+            "transparency": 0,
+            "structural_contribution": "medium"
+        }
+    },
+    "infill_patterns": {
+        "none": {
+            "description": "No pattern - solid infill"
+        },
+        "grid": {
+            "description": "Regular grid pattern",
+            "grid_spacing_x_mm": 100,
+            "grid_spacing_y_mm": 100,
+            "line_width_mm": 5
+        },
+        "diagonal": {
+            "description": "Diagonal cross pattern",
+            "angle_degrees": 45,
+            "spacing_mm": 150,
+            "line_width_mm": 8
+        },
+        "radial": {
+            "description": "Radial pattern from center",
+            "ray_count": 8,
+            "inner_radius_mm": 50,
+            "line_width_mm": 6
+        },
+        "organic": {
+            "description": "Organic flowing pattern",
+            "complexity": "medium",
+            "density": "medium"
+        }
+    },
+    "ui_settings": {
+        "show_dimensions": true,
+        "show_materials": true,
+        "show_structural": false,
+        "show_positioning": true,
+        "show_connections": false,
+        "show_geometry": false,
+        "show_fabrication": false,
+        "show_patterns": true,
+        "panel_width": 320,
+        "panel_height": 550
+    }
+} 

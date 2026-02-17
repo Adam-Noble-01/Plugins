@@ -1,0 +1,23 @@
+Extrude Edges by Edges<==>Barrido de Curvas por Curvas
+Extrude Edges by Edges<==>Barrido de Curvas por Curvas
+: Pre-Select 2 Groups of Edges/Curves...<==>: Pre-Selecciona 2 Grupos de Aristas/Curvas...
+Triangulating Face <==>Triangulando Cara 
+ of <==> de 
+Select 2 Groups of Edges !  1st is 'profile' and 2nd 'path'.<==>Selecciona 2 Grupos de Aristas !!  El Primero es el 'Perfil' y el Segundo el 'Recorrido'.
+Multiplying Edges...<==>Multiplicando Aristas...
+Intersecting...<==>Intersecando...
+Checking: Step <==>Comprobando: Paso 
+Making Edges: Step <==>Haciendo Aristas: Paso 
+Facing Edges: Step <==>Haciendo Caras para las Aristas: Paso 
+No Faces Made !<==>Caras No Fueron Creadas !!
+Orient Faces ?<==>¿Deseas Orientar las Caras?
+Reverse Faces ?<==>¿Deseas Invertir las Caras?
+Reversing Faces: Step <==>Invirtiendo Caras: Paso 
+Intersect with Self ?<==>¿Deseas Intersecar la Malla con si Misma?
+This is only necessary with convoluted shapes...<==>Esto (solo) es Necesario en Formas Complejas...
+Intersecting with Self...<==>Intersecando la Malla con si Misma...
+Erase Coplanar Edges ?<==>¿Deseas Borrar las Aristas Coplanares?
+Coplanar Edges Erased = <==>Aristas Coplanares Borradas = 
+Triangulate Faces ?<==>¿Deseas Triangular las Caras?
+Erase Original Groups ?<==>¿Deseas Borrar los Grupos Originales?
+Orienting Faces<==>Orientando Caras

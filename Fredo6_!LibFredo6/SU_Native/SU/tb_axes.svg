@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="24px" height="24px" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:sketch="http://www.bohemiancoding.com/sketch/ns">
+    <!-- Generator: Sketch 3.3.1 (12002) - http://www.bohemiancoding.com/sketch -->
+    <title>tb_axes</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" sketch:type="MSPage">
+        <g id="tb_axes" sketch:type="MSArtboardGroup">
+            <g id="Group" sketch:type="MSLayerGroup" transform="translate(5.000000, 4.000000)">
+                <path d="M5.921875,5.43614628 L7.03286743,5.42333984 L5.49771118,0.646759033 L4.01473999,5.45812988 L5.171875,5.44479156 L5.171875,7.71875 L5.921875,7.71875 L5.921875,5.43614628 Z" id="Path-5306" stroke="#144689" stroke-width="0.5" fill="#144689" sketch:type="MSShapeGroup"></path>
+                <path d="M8.70837402,5.18933105 L13.4821167,3.77584839 L10.3189697,7.62875366 L9.73953247,6.73492432 L6.65118408,8.69918823 L6.26895142,8.08496094 L9.3104248,6.12078857 L8.70837402,5.18933105 Z" id="Path-5308" fill="#34992C" sketch:type="MSShapeGroup"></path>
+                <path d="M8.72659302,10.8132324 L13.5003357,9.39974976 L10.3371887,13.252655 L9.75775146,12.3588257 L6.66940308,14.3230896 L6.28717041,13.7088623 L9.3286438,11.7446899 L8.72659302,10.8132324 Z" id="Path-5308-Copy" fill="#D20000" sketch:type="MSShapeGroup" transform="translate(9.893753, 11.861420) rotate(67.000000) translate(-9.893753, -11.861420) "></path>
+                <circle id="Oval-5" fill="#000000" sketch:type="MSShapeGroup" cx="5.5" cy="8.890625" r="1.359375"></circle>
+                <g id="Rectangle-10-+-Rectangle-10-Copy-+-Rectangle-10-Copy-2" transform="translate(0.203125, 5.328125)" fill="#D20000" sketch:type="MSShapeGroup">
+                    <rect id="Rectangle-10" transform="translate(3.299742, 2.251567) rotate(-56.000000) translate(-3.299742, -2.251567) " x="2.93101886" y="1.88284352" width="0.737446526" height="0.737446526"></rect>
+                    <rect id="Rectangle-10-Copy" transform="translate(1.940367, 1.407817) rotate(-56.000000) translate(-1.940367, -1.407817) " x="1.57164386" y="1.03909352" width="0.737446526" height="0.737446526"></rect>
+                    <rect id="Rectangle-10-Copy-2" transform="translate(0.534117, 0.517192) rotate(-56.000000) translate(-0.534117, -0.517192) " x="0.165393856" y="0.148468522" width="0.737446526" height="0.737446526"></rect>
+                </g>
+                <g id="Rectangle-10-+-Rectangle-10-Copy-+-Rectangle-10-Copy-2-Copy" transform="translate(2.218750, 11.023438) scale(-1, 1) translate(-2.218750, -11.023438) translate(0.296875, 9.640625)" fill="#34992C" sketch:type="MSShapeGroup">
+                    <rect id="Rectangle-10" transform="translate(3.299742, 2.251567) rotate(-56.000000) translate(-3.299742, -2.251567) " x="2.93101886" y="1.88284352" width="0.737446526" height="0.737446526"></rect>
+                    <rect id="Rectangle-10-Copy" transform="translate(1.940367, 1.360942) rotate(-56.000000) translate(-1.940367, -1.360942) " x="1.57164386" y="0.992218522" width="0.737446526" height="0.737446526"></rect>
+                    <rect id="Rectangle-10-Copy-2" transform="translate(0.534117, 0.517192) rotate(-56.000000) translate(-0.534117, -0.517192) " x="0.165393856" y="0.148468522" width="0.737446526" height="0.737446526"></rect>
+                </g>
+                <g id="Rectangle-10-Copy-3-+-Rectangle-10-Copy-4-+-Rectangle-10-Copy-5" transform="translate(5.125000, 11.281250)" fill="#144689" sketch:type="MSShapeGroup">
+                    <rect id="Rectangle-10-Copy-3" x="0.00627673687" y="0.0078435221" width="0.737446526" height="0.737446526"></rect>
+                    <rect id="Rectangle-10-Copy-4" x="0.00627673687" y="1.60159352" width="0.737446526" height="0.737446526"></rect>
+                    <rect id="Rectangle-10-Copy-5" x="0.00627673687" y="3.19534352" width="0.737446526" height="0.737446526"></rect>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

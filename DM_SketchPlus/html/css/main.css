@@ -1,0 +1,98 @@
+body {
+  background-color: #f5f5f5;
+  color: #4c4c4c;
+  height: 100%;
+  font-family: 'arial', 'sans-serif';
+  font-size: 13px;
+  margin: 0;
+  padding: 12px;
+  cursor: default;
+}
+
+select {
+  border: 1px solid gray;
+  border-radius: 1px;
+  padding: 2px;
+}
+
+.button, .li-button {
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 4px;
+  margin: 4px;
+  width: 90%;
+  background-color: #e6e6e6;
+  height: 30px;
+}
+
+.form-check-label {
+  cursor: pointer;
+}
+.form-check-input {
+  cursor: pointer;
+}
+
+.btn, .li-button {
+  background-color: #3f416d;
+  border: none;
+  color: white;
+}
+
+.li-button:hover {
+  border: none;
+}
+
+.btn:hover, .li-button:hover {
+  background-color: RGB(107, 109, 153);
+}
+
+.btn-danger {
+    background-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background-color: #f53d65;
+}
+
+.btn-success {
+    background-color: #1E7E37;
+}
+
+.btn-success:hover {
+    background-color: #29a644;
+}
+.btn-primary {
+  color: #e28c32;
+}
+
+.btn-primary:hover, .btn-primary:active, .btn-primary:focus, .btn-primary:not(:disabled):not(.disabled):active {
+  color: #3f416d;
+  background-color: #e28c32;
+  border-color: #e28c32;
+}
+
+.btn:disabled:hover {
+  text-decoration: none;
+  background-color: RGB(63, 65, 109);
+}
+
+.badge {
+  background-color: RGB(63, 65, 109);
+  color: white;
+}
+
+.grow {
+  transition: all 0.4s ease-in-out;
+}
+.grow:hover {
+  transform: scale(1.05);
+}
+
+.text-primary {
+  color: #3f416d !important;
+  font-size: 16px;
+}
+
+
+
+

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- =============================================================================
+     NA WINDOW CONFIGURATOR TOOL - UI LAYOUT
+     =============================================================================
+     
+     FILE       : Na__WindowConfiguratorTool__UiLayout__.html
+     AUTHOR     : Noble Architecture
+     PURPOSE    : Main HTML layout structure for Window Configurator dialog
+     CREATED    : 2026
+     
+     DESCRIPTION:
+     - Clean HTML structure with no inline JavaScript
+     - All JS moved to dedicated script files
+     - Dynamic UI controls generated via JavaScript
+     - SVG viewport for 2D window preview
+     
+     ============================================================================= -->
+
+<!-- =============================================================================
+     REGION | Head Section
+     ============================================================================= -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Na Window Configurator</title>
+    
+    <!-- Stylesheet
+         ------------------------------------------------------------ -->
+    <link rel="stylesheet" href="Na__WindowConfiguratorTool__Styles__.css">
+    
+    <!-- External Dependencies
+         ------------------------------------------------------------ -->
+    <script src="01__ExternalDependencies/bezierjs/src/bezier.js"></script>
+    <script src="01__ExternalDependencies/maker.js/docs/target/js/browser.maker.js"></script>
+</head>
+<!-- endregion =================================================================== -->
+
+<!-- =============================================================================
+     REGION | Body Section
+     ============================================================================= -->
+<body>
+
+    <!-- =============================================================================
+         REGION | Header
+         ============================================================================= -->
+    <header class="na-header">
+        <div class="na-header-left">
+            <img src="02__PluginImageAssets/Na__CompanyLogo__.png" 
+                 class="na-logo" 
+                 alt="Noble Architecture" 
+                 onerror="this.style.display='none'">
+        </div>
+        <div class="na-header-controls">
+            <button id="na-btn-live" 
+                    class="na-btn na-btn-secondary" 
+                    onclick="na_toggleLiveMode()">
+                Live Mode
+            </button>
+            <button id="na-btn-reload" 
+                    class="na-btn na-btn-secondary" 
+                    onclick="na_reloadScripts()">
+                Reload
+            </button>
+        </div>
+    </header>
+    <!-- endregion =================================================================== -->
+    
+    <!-- =============================================================================
+         REGION | Status Bar
+         ============================================================================= -->
+    <div id="na-status-bar" class="na-status-bar na-hidden">
+        <span id="na-status-message"></span>
+    </div>
+    <!-- endregion =================================================================== -->
+    
+    <!-- =============================================================================
+         REGION | 2D Viewport Section
+         ============================================================================= -->
+    <section class="na-section na-viewport-section">
+        <div class="na-section-header">
+            <h2>2D Preview</h2>
+            <div class="na-viewport-controls">
+                <button class="na-btn na-btn-small" 
+                        onclick="Na_Viewport.na_resetView()">
+                    Reset View
+                </button>
+                <button class="na-btn na-btn-small" 
+                        onclick="na_exportDxf()">
+                    Export DXF
+                </button>
+            </div>
+        </div>
+        <div id="na-canvas-wrapper" class="na-canvas-wrapper">
+            <svg id="na-viewport-svg" class="na-viewport-svg"></svg>
+        </div>
+        <div id="na-viewport-resize-handle" 
+             class="na-resize-handle" 
+             title="Drag to resize viewport"></div>
+    </section>
+    <!-- endregion =================================================================== -->
+    
+    <!-- =============================================================================
+         REGION | Dimensions Controls Section
+         ============================================================================= -->
+    <section class="na-section">
+        <div class="na-section-header">
+            <h2>Dimensions</h2>
+        </div>
+        <div id="na-controls-primary" class="na-controls-grid">
+            <!-- Dynamically generated by Na__WindowConfiguratorTool__UiLogic__.js -->
+        </div>
+    </section>
+    <!-- endregion =================================================================== -->
+    
+    <!-- =============================================================================
+         REGION | Glaze Bars Controls Section
+         ============================================================================= -->
+    <section class="na-section">
+        <div class="na-section-header">
+            <h2>Glaze Bars</h2>
+        </div>
+        <div id="na-controls-glazebars" class="na-controls-grid">
+            <!-- Dynamically generated by Na__WindowConfiguratorTool__UiLogic__.js -->
+        </div>
+    </section>
+    <!-- endregion =================================================================== -->
+    
+    <!-- =============================================================================
+         REGION | Options Controls Section
+         ============================================================================= -->
+    <section class="na-section">
+        <div class="na-section-header">
+            <h2>Options</h2>
+        </div>
+        <div id="na-controls-options" class="na-controls-grid">
+            <!-- Dynamically generated by Na__WindowConfiguratorTool__UiLogic__.js -->
+        </div>
+    </section>
+    <!-- endregion =================================================================== -->
+    
+    <!-- =============================================================================
+         REGION | Action Buttons Section
+         ============================================================================= -->
+    <section class="na-section na-actions-section">
+        <button id="na-btn-create" 
+                class="na-btn na-btn-primary na-btn-large" 
+                onclick="na_createWindow()">
+            Create New Window
+        </button>
+        <button id="na-btn-update" 
+                class="na-btn na-btn-success na-btn-large na-hidden" 
+                onclick="na_updateWindow()">
+            Update Window
+        </button>
+    </section>
+    <!-- endregion =================================================================== -->
+    
+    <!-- =============================================================================
+         REGION | Window Info Section (Edit Mode)
+         ============================================================================= -->
+    <section id="na-window-info" class="na-section na-window-info na-hidden">
+        <div class="na-section-header">
+            <h2>Window Info</h2>
+        </div>
+        <div class="na-info-grid">
+            <div class="na-info-item">
+                <span class="na-info-label">Window ID:</span>
+                <span id="na-info-window-id" class="na-info-value">-</span>
+            </div>
+            <div class="na-info-item">
+                <span class="na-info-label">Created:</span>
+                <span id="na-info-created" class="na-info-value">-</span>
+            </div>
+            <div class="na-info-item">
+                <span class="na-info-label">Modified:</span>
+                <span id="na-info-modified" class="na-info-value">-</span>
+            </div>
+        </div>
+    </section>
+    <!-- endregion =================================================================== -->
+    
+    <!-- =============================================================================
+         REGION | JavaScript Includes
+         ============================================================================= -->
+    <script src="Na__WindowConfiguratorTool__UiLogic__.js"></script>
+    <script src="Na__WindowConfiguratorTool__UiEventToRubyApiBridge__.js"></script>
+    <!-- endregion =================================================================== -->
+
+</body>
+<!-- endregion =================================================================== -->
+
+</html>
+<!-- =============================================================================
+     END OF FILE
+     ============================================================================= -->

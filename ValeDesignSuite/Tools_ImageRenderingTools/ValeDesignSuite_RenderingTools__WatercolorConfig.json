@@ -1,0 +1,142 @@
+{
+    "file_metadata": {
+        "file_header": {
+            "title": "VALEDESIGNSUITE - WATERCOLOR RENDERING CONFIGURATION",
+            "file": "ValeDesignSuite_RenderingTools__WatercolorConfig.json",
+            "namespace": "ValeDesignSuite",
+            "module": "WatercolorRenderingTools",
+            "author": "Adam Noble - Noble Architecture",
+            "purpose": "Configuration for watercolor pen and wash rendering effects with enhanced capture controls",
+            "created": "2025",
+            "description": [
+                "Configuration file for the enhanced Watercolor Rendering Tool that transforms SketchUp views",
+                "into painterly watercolor pen and wash style illustrations.",
+                "Features flexible image capture with aspect ratio controls and navigation tools.",
+                "Controls various artistic parameters for achieving authentic watercolor aesthetics.",
+                "Supports multiple rendering techniques including Kuwahara filtering, edge detection,",
+                "color bleeding, pen line overlay effects, and interactive canvas navigation."
+            ]
+        }
+    },
+    
+    "image_capture": {
+        "width": 2048,
+        "aspect_ratio": "4:3",
+        "dpi": 150,
+        "antialias": true,
+        "compression": 0.9,
+        "min_width": 512,
+        "max_width": 8192,
+        "available_ratios": ["3:2", "4:3", "16:9"]
+    },
+    
+    "rendering_defaults": {
+        "kuwahara_filter": {
+            "enabled": true,
+            "radius": 6,
+            "min_radius": 1,
+            "max_radius": 20,
+            "multiple_passes": 4,
+            "pass_blend_opacity": 0.7
+        },
+        
+        "watercolor_effects": {
+            "color_bleeding": {
+                "enabled": true,
+                "intensity": 0.3,
+                "spread_radius": 8,
+                "wet_edge_intensity": 0.2
+            },
+            
+            "paper_texture": {
+                "enabled": true,
+                "texture_strength": 0.6,
+                "roughness": 0.7,
+                "grain_size": "medium"
+            },
+            
+            "color_vibrancy": {
+                "saturation_boost": 0.75,
+                "brightness_adjustment": 1.15,
+                "contrast_enhancement": 0.95
+            }
+        },
+        
+        "pen_overlay": {
+            "enabled": true,
+            "blend_mode": "multiply",
+            "line_opacity": 0.75,
+            "edge_detection": {
+                "enabled": true,
+                "threshold": 0.05,
+                "line_thickness": 1.5,
+                "enhance_contrast": true
+            }
+        }
+    },
+    
+    "presets": {
+        "delicate_wash": {
+            "kuwahara_radius": 6,
+            "filter_passes": 4,
+            "color_bleeding_intensity": 0.3,
+            "pen_overlay_opacity": 0.75,
+            "paper_texture_strength": 0.6,
+            "saturation_boost": 0.75,
+            "wet_edge_intensity": 0.2,
+            "brightness": 1.15
+        },
+        "bold_illustration": {
+            "kuwahara_radius": 5,
+            "color_bleeding_intensity": 0.25,
+            "pen_overlay_opacity": 0.85,
+            "paper_texture_strength": 0.15,
+            "saturation_boost": 0.8,
+            "wet_edge_intensity": 0.5,
+            "brightness": 1.15,
+            "filter_passes": 2
+        },
+        "loose_sketch": {
+            "kuwahara_radius": 6,
+            "color_bleeding_intensity": 0.35,
+            "pen_overlay_opacity": 0.6,
+            "paper_texture_strength": 0.20,
+            "saturation_boost": 0.6,
+            "wet_edge_intensity": 0.7,
+            "brightness": 1.05,
+            "filter_passes": 3
+        }
+    },
+    
+    "ui_settings": {
+        "dialog_width": 1400,
+        "dialog_height": 900,
+        "show_preview": true,
+        "auto_apply_changes": false,
+        "enable_zoom_controls": true,
+        "enable_pan_controls": true
+    },
+    
+    "navigation": {
+        "zoom_sensitivity": 0.001,
+        "pan_sensitivity": 1.0,
+        "max_zoom": 5.0,
+        "min_zoom": 0.1,
+        "navigation_info_timeout": 2000
+    },
+    
+    "performance": {
+        "progressive_rendering": true,
+        "max_preview_size": 800,
+        "enable_gpu_acceleration": true,
+        "memory_limit_mb": 256
+    },
+    
+    "debug": {
+        "show_performance_stats": false,
+        "log_filter_passes": false,
+        "save_intermediate_steps": false,
+        "show_timing_info": true,
+        "verbose_console_output": false
+    }
+} 

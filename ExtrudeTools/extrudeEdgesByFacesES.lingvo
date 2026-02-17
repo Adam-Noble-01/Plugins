@@ -1,0 +1,37 @@
+Extrude Edges by Faces<==>Solevar Caras por Recorrido
+Extrude Edges by Faces<==>Solevar Caras por Recorrido
+Extrude Edges by Faces: Select the 'Profile' Face...<==>Solevar Caras por Recorrido: Selecciona la Cara para el Perfil...
+Pick Profile Face<==>Haz Clic en la Cara-Perfil
+Pick Rail Curve<==>Haz Clic en la Curva-Riel
+
+Extrude Edges by Faces: Select the 'Rail' Curve...<==>Solevar Caras por Recorrido: Selecciona la Curva para el Riel...
+
+Extrude Edges by Faces: Making Mesh from Face Profiles and Rail Curve...<==>Solevar Caras por Recorrido: Haciendo la Malla para las Caras de Perfil y la Curva Riel...
+
+Extrude Edges by Faces:<==>Solevar Caras por Recorrido:
+
+Extrude Edges by Faces: Formating Mesh... Please Wait...<==>Solevar Caras por Recorrido: Formateando la Malla... Espera un Momento...
+Extrude Edges by Faces: Reverse <==>Solevar Caras por Recorrido: Invertir las 
+ Faces ?<==> Caras?
+Extrude Edges by Faces: Reversing Face <==>Solevar Caras por Recorrido: Invirtiendo Cara 
+ of <==> de 
+Reverse Faces ?<==>¿Deseas Invertir las Caras?
+Extrude Edges by Faces: Erase Coplanar Edges ?<==>Solevar Caras por Recorrido: ¿Deseas Borrar las Aristas Coplanares?
+Erase Coplanar Edges ?<==>¿Deseas Borrar las Aristas Coplanares?
+Extrude Edges by Faces: Coplanar Edges Erased= <==>Solevar Caras por Recorrido: Aristas Coplanares Borradas = 
+Extrude Edges by Faces: Intersect Mesh with Self ?<==>Solevar Caras por Recorrido: ¿Deseas Intersecar la Malla con si Misma?
+Intersect Mesh with Self ?<==>¿Deseas Intersecar la Malla con si Misma?
+This is only necessary with convoluted meshes...<==>Esto (solo) es Necesario en Formas Complejas...
+Extrude Edges by Faces: Intersecting Mesh with Self... Please Wait...<==>Solevar Caras por Recorrido: Intersecando la Malla con si Misma... Espera un Momento...
+Extrude Edges by Faces: Smooth <==>Solevar Caras por Recorrido: Suavizar las 
+ Edges ?<==> Aristas?
+Smooth Edges ?<==>¿Deseas Suavizar las Aristas?
+Extrude Edges by Faces: Smoothing Edge <==>Solevar Caras por Recorrido: Suavizando Arista 
+
+Extrude Edges by Faces: <==>Solevar Caras por Recorrido: 
+Making Profile <==>Haciendo Perfil 
+Making Face <==>Haciendo Cara 
+Pick Melding Profile Face<==>Haz Clic en la Cara-Perfil->Fusión
+Extrude Edges by Faces: Select the 'Melding-Profile' Face...<==>Solevar Caras por Recorrido: Selecciona la Cara para el Perfil de Fusión...
+Orienting Faces<==>Orientando Caras
+: Pick Profile-Face, Rail.Curve & Melding-Profile-Face. Makes Mesh. Follow Prompts...<==>: Selecciona Cara-Perfil, Curva-Riel & Cara-Perfil-Fusión. Crear Malla. Seguir Indicaciones...

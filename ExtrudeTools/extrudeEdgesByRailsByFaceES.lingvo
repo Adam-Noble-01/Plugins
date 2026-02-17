@@ -1,0 +1,52 @@
+Extrude Edges by Rails by Face<==>Barrido de Curvas por Rieles con Cara
+Select a 'Flat' Face [and perhaps a Cpoint] BEFORE using.<==>Selecciona una Cara 'Plana' [+ un 'Punto Guia' Opcionalmente] ANTES de Usar.
+Extrude Edges by Rails by Face: Formating Ribs... Please Wait...<==>Barrido de Curvas por Rieles con Cara: Formateando Costillas... Espera un Momento...
+Extrusion Type<==>Tipo de Extrusión
+Rib from: <==>Costillas desde: 
+Profiles<==>Perfiles
+Profiles & Rails<==>Perfiles & Rieles
+Rails<==>Rieles
+Making Extrusion <==>Haciendo Extrusión 
+of<==> de 
+Extrude Edges by Rails by Face<==>Barrido de Curvas por Rieles con Cara
+Extrude Edges by Rails by Face: Select the 'Profile' Curve...<==>Barrido de Curvas por Rieles con Cara: Selecciona la Curva para el Perfil...
+Pick Profile<==>Haz Clic en el Perfil
+Pick 1st Rail<==>Haz Clic en el Riel 1
+Pick 2nd Rail<==>Haz Clic en el Riel 2
+Extrude Edges by Rails by Face: Select the 1st 'Rail' Curve...<==>Barrido de Curvas por Rieles con Cara: Selecciona la Curva para el Primer Riel...
+Extrude Edges by Rails by Face: Select the 2nd 'Rail' Curve...<==>Barrido de Curvas por Rieles con Cara: Selecciona la Curva para el Segundo Riel...
+Extrude Edges by Rails by Face: Making Mesh from Profile and 1 Rail.<==>Barrido de Curvas por Rieles con Cara: Haciendo la Malla desde el Perfil con el Riel 1.
+Extrude Edges by Rails by Face: Making Mesh from Profile and 2 Rails.<==>Barrido de Curvas por Rieles con Cara: Haciendo la Malla desde el Perfil con los 2 Rieles.
+Extrude Edges by Rails by Face: Reverse Rail-1's Direction ?<==>Barrido de Curvas por Rieles con Cara: ¿Deseas Invertir la Dirección del Primer Riel?
+Extrude Edges by Rails by Face:<==>Barrido de Curvas por Rieles con Cara:
+Reverse Rail-1's Direction ?<==>¿Deseas Invertir la Dirección del Primer Riel?
+This is only necessary with twisted meshes...<==>Esto (solo) es Necesario en Mallas con Torsión...
+Extrude Edges by Rails by Face: Reversing Rail-1's Direction...<==>Barrido de Curvas por Rieles con Cara: Invirtiendo la Dirección del Primer Riel...
+Extrude Edges by Rails by Face: Formating Mesh... Please Wait...<==>Barrido de Curvas por Rieles con Cara: Formateando la Malla... Espera un Momento...
+Extrude Edges by Rails by Face: Reverse <==>Barrido de Curvas por Rieles con Cara: ¿Deseas Invertir las 
+ Faces ?<==> Caras?
+Extrude Edges by Rails by Face: Reversing Face <==>Barrido de Curvas por Rieles con Cara: Invirtiendo Cara 
+ of <==> de 
+Reverse Faces ?<==>¿Deseas Invertir las Caras?
+Extrude Edges by Rails by Face: Erase Coplanar Edges ?<==>Barrido de Curvas por Rieles con Cara: ¿Deseas Borrar las Aristas Coplanares?
+Erase Coplanar Edges ?<==>¿Deseas Borrar las Aristas Coplanares?
+Extrude Edges by Rails by Face: Coplanar Edges Erased= <==>Barrido de Curvas por Rieles con Cara: Aristas Coplanares Borradas = 
+Extrude Edges by Rails by Face: Intersect Mesh with Self ?<==>Barrido de Curvas por Rieles con Cara: ¿Deseas Intersecar la Malla con si Misma?
+Intersect Mesh with Self ?<==>¿Deseas Intersecar la Malla con si Misma?
+This is only necessary with convoluted meshes...<==>Esto (solo) es Necesario en Mallas Complejas...
+Extrude Edges by Rails by Face: Intersecting Mesh with Self... Please Wait...<==>Barrido de Curvas por Rieles con Cara: Intersecando la Malla con si Misma... Espera un Momento...
+Extrude Edges by Rails by Face: Smooth <==>Barrido de Curvas por Rieles con Cara: Suavizar las 
+ Edges ?<==> Aristas?
+Smooth Edges ?<==>¿Deseas Suavizar las Aristas?
+Extrude Edges by Rails by Face: Smoothing Edge <==>Barrido de Curvas por Rieles con Cara: Suavizando Arista 
+Extrude Edges by Rails by Face: Erase Original Curves ?<==>=>Barrido de Curvas por Rieles con Cara: ¿Deseas Borrar las Curvas Originales?
+Erase Original Curves ?<==>¿Deseas Borrar las Curvas Originales?
+Extrude Edges by Rails by Face: <==>Barrido de Curvas por Rieles con Cara: 
+Making Profile <==>Haciendo Perfil 
+Making Face <==>Haciendo Caras 
+Pick Melding Profile<==>Haz Clic en el Perfil->Fusión
+Extrude Edges by Rails by Face: Select the 'Melding-Profile' Curve...<==>Barrido de Curvas por Rieles con Cara: Selecciona la Curva para el Perfil de Fusión...
+Orienting Faces<==>Orientando las Caras
+: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Makes Mesh. Follow Prompts...<==>: Selecciona Curvas: Perfil, Riel-1, Riel-2 & Perfil-Fusión. Crear Malla. Seguir Indicaciones...
+Extrude Edges by Rails by Face<==>Barrido de Curvas por Rieles con Cara
+: Preselect Face [+ perhaps Cpoint]: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Makes Ribs. Follow Prompts....<==>: Pre-Selecciona 1 Cara-Plana [+ Punto Opcional]: Selecciona Curvas: Perfil, Riel-1, Riel-2 & Perfil-Fusión. Crear Costillas. Seguir Indicaciones....

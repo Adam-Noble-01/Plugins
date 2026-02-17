@@ -1,0 +1,55 @@
+---
+description: Global naming convention for the project.
+alwaysApply: true
+---
+**Global Naming Convention**
+- This convention is mandatory and is intended to clearly distinguish Noble Architecture code from third-party libraries.
+- Prefix all custom functions, classes, methods, and related identifiers with a project-specific namespace: 
+  - `Na__`
+  - `Na_`
+  - `na_`, 
+- Selected according to the target language’s naming conventions and syntax. 
+- This improves long-term maintainability, readability, and collision avoidance.
+
+## File Naming Convention
+- All files should be named using the following convention:
+  - `FeatureName__FeatureDescription__.rb`
+  - `FeatureName__FeatureDescription__.js`
+  - `FeatureName__FeatureDescription__.css`
+  - `FeatureName__FeatureDescription__.html`
+  - `FeatureName__DataDescription__.json`
+
+# Code Naming Convention
+- Prefix all custom identifiers with `Na__`, `Na_`, or `na_` as appropriate to the language.
+- **Module Functions:** Use three-part naming: `Na__Domain__FunctionName`
+  - Examples: `Na__Canvas__ResetView()`, `Na__Menu__ShowMainMenu()`, `Na__Toolbar__Toggle()`
+  - Domain identifies the system (Canvas, Menu, Toolbar, Tutorial, Archive, etc.)
+  - Provides clear domain recognition and prevents naming conflicts
+- Align constant and config names with source data keys where possible.
+- The project uses ES6 modules with highly structured module system. 
+- Proper import/export management is critical.
+- Avoid legacy no prefixes or legacy naming conventions in new or updated code.
+  - When refactoring always update the naming convention to the new convention.
+
+
+## Import/Export Rules
+
+**Do:**
+- Use named imports/exports with `.js` extension
+- Match real paths; use correct relative paths
+- Document dependencies
+- Export only public API
+
+**Don't:**
+- Guess paths
+- Assume module location - always verify
+- Use wildcard imports
+- Omit file extensions
+- Export privates
+- Create cycles
+- Mix default/named exports
+
+### Pattern Components
+- **Prefix:** `AppCore__`, `Data__`, `StyleSheet__`, or Feature name (e.g., `ProjectAdmin__`)
+- **Name:** PascalCase, descriptive, specific
+- **Suffix:** `__Main__` for entry points, standard module names otherwise

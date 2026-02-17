@@ -1,0 +1,66 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!--Generator: Xara Designer (www.xara.com), SVG filter version: 6.5.0.21-->
+<svg fill="none" fill-rule="evenodd" stroke="black" stroke-width="0.501" stroke-linejoin="bevel" stroke-miterlimit="10" font-family="Times New Roman" font-size="16" style="font-variant-ligatures:none" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" version="1.1" overflow="visible" width="73.5pt" height="72pt" viewBox="0 -72 73.5 72">
+ <defs>
+  <linearGradient id="LinearGradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="9.75" y2="0.15" gradientTransform="translate(51.07 38.348)">
+   <stop offset="0" stop-color="#e5e5e5"/>
+   <stop offset="1" stop-color="#bcb9b9"/>
+  </linearGradient>
+  <linearGradient id="LinearGradient_1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="8.601" y2="0" gradientTransform="translate(48.272 45.851) rotate(90)">
+   <stop offset="0" stop-color="#e5e5e5"/>
+   <stop offset="1" stop-color="#bcb9b9"/>
+  </linearGradient>
+  <linearGradient id="LinearGradient_2" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="-9.446" y2="0.151" gradientTransform="translate(20.321 38.636)">
+   <stop offset="0" stop-color="#ffffff"/>
+   <stop offset="1" stop-color="#bcb9b9"/>
+  </linearGradient>
+  <linearGradient id="LinearGradient_3" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="8.54" y2="0" gradientTransform="translate(23.408 43.688) rotate(90)">
+   <stop offset="0" stop-color="#e5e5e5"/>
+   <stop offset="1" stop-color="#bcb9b9"/>
+  </linearGradient>
+  <linearGradient id="LinearGradient_4" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="6.609" gradientTransform="translate(32.359 53.48)">
+   <stop offset="0" stop-color="#e5e5e5"/>
+   <stop offset="1" stop-color="#bcb9b9"/>
+  </linearGradient>
+ </defs>
+ <g id="Cubes" transform="scale(1 -1)">
+  <g id="Group" fill-rule="nonzero" stroke-width="1.125">
+   <g id="Group_1">
+    <g id="Group_2">
+     <path d="M 36.074,31.947 L 36.074,48.57 L 51.4,44.843 L 51.4,28.222 L 36.074,31.947 Z" fill="#ffffff" marker-start="none" marker-end="none"/>
+     <path d="M 51.4,44.843 L 60.769,51.132 L 60.769,34.51 L 51.4,28.222 L 51.4,44.843 Z" marker-start="none" marker-end="none" fill="url(#LinearGradient)"/>
+     <path d="M 36.293,48.617 L 36.272,48.631 L 45.605,54.818 L 60.769,51.132 L 51.4,44.843 L 36.074,48.57 L 36.293,48.617 Z" marker-start="none" marker-end="none" fill="url(#LinearGradient_1)"/>
+    </g>
+    <g id="Group_3">
+     <path d="M 11.338,32.507 L 11.338,49.128 L 20.047,42.687 L 20.047,26.067 L 11.338,32.507 Z" marker-start="none" marker-end="none" fill="url(#LinearGradient_2)"/>
+     <path d="M 20.047,26.067 L 20.047,42.687 L 35.774,46.158 L 35.774,29.535 L 20.047,26.067 Z" fill="#e5e5e5" marker-start="none" marker-end="none"/>
+     <path d="M 11.338,49.128 L 27.043,52.594 L 29.985,53.197 L 35.541,46.22 L 35.533,46.215 L 35.774,46.158 L 20.047,42.687 L 11.338,49.128 Z" marker-start="none" marker-end="none" fill="url(#LinearGradient_3)"/>
+    </g>
+    <path d="M 41.504,53.081 L 41.615,60.42 L 41.615,43.798 L 41.595,42.668 L 41.504,36.459 L 41.504,53.081 Z" stroke="none" fill="#e0e0e0" marker-start="none" marker-end="none"/>
+    <path d="M 23.443,60.464 L 41.615,60.42 L 41.504,53.081 L 23.333,53.125 L 23.443,60.464 Z" marker-start="none" marker-end="none" fill="url(#LinearGradient_4)"/>
+    <path d="M 23.333,53.125 L 41.504,53.081 L 41.504,36.459 L 32.262,36.481 L 31.831,36.482 L 23.333,36.504 L 23.333,42.856 L 23.333,53.125 Z" fill="#ececec" marker-start="none" marker-end="none"/>
+   </g>
+  </g>
+ </g>
+ <g id="G - Groups" transform="scale(1 -1)">
+  <g id="Group_4" fill-rule="nonzero" stroke-linejoin="miter" stroke="none">
+   <path d="M 37.723,11.564 L 37.723,14.101 L 10.824,21.64 L 10.825,42.815 L 22.227,42.815 L 22.227,25.989 C 22.227,24.645 22.261,23.589 22.327,22.8 C 22.5,20.552 24.518,20.36 26.441,21.383 L 26.441,42.815 L 38.766,42.815 L 38.766,11.564 L 37.723,11.564 Z" stroke-width="1.712" fill="#ffffff" marker-start="none" marker-end="none"/>
+   <path d="M 13.332,13.704 C 11.63,15.624 10.868,18.412 10.868,21.878 L 10.868,41.801 L 21.213,41.801 L 21.26,25.989 C 21.266,23.531 20.482,19.457 24.941,19.858 C 25.843,19.939 26.689,20.368 27.455,20.903 L 27.455,41.801 L 37.752,41.801 L 37.752,11.601 L 27.455,11.601 L 27.455,13.492 C 25.617,12.024 23.41,10.989 21.046,10.874 L 19.961,10.874 C 17.228,10.931 14.976,11.846 13.332,13.704 Z" stroke-width="1.712" fill="#000000" marker-start="none" marker-end="none"/>
+   <g id="Group_5" stroke-width="1.678" fill="#0003ff">
+    <g id="Group_6">
+     <path d="M 14.295,14.327 C 12.853,15.955 12.131,18.406 12.131,21.678 L 12.131,40.434 L 20.281,40.434 L 20.281,25.707 C 20.281,24.364 20.316,23.269 20.386,22.419 C 20.456,21.57 20.621,20.852 20.884,20.265 C 21.131,19.726 21.512,19.316 22.03,19.037 C 22.547,18.761 23.268,18.621 24.194,18.621 C 24.767,18.621 25.441,18.761 26.22,19.037 C 27,19.316 27.72,19.695 28.386,20.172 L 28.386,40.434 L 36.489,40.434 L 36.489,12.6 L 28.386,12.6 L 28.386,15.473 C 26.98,14.299 25.692,13.408 24.519,12.798 C 23.346,12.188 21.948,11.884 20.327,11.884 C 17.75,11.884 15.739,12.697 14.295,14.327 Z" marker-start="none" marker-end="none"/>
+    </g>
+   </g>
+  </g>
+  <g id="Group_7" stroke-linejoin="miter" stroke="none">
+   <path d="M 45.177,10.9 L 45.177,17.527 L 38.076,17.527 L 38.076,27.129 L 45.177,27.129 L 45.177,34.755 L 54.639,34.755 L 54.639,27.129 L 61.166,27.129 L 61.166,17.527 L 54.639,17.527 L 54.639,10.9 L 45.177,10.9 Z" stroke-width="1.712" fill="#ffffff" marker-start="none" marker-end="none"/>
+   <path d="M 46.161,10.885 L 46.161,18.511 L 38.627,18.511 L 38.627,26.145 L 46.161,26.145 L 46.161,33.771 L 53.655,33.771 L 53.655,26.145 L 61.121,26.145 L 61.121,18.511 L 53.655,18.511 L 53.655,10.885 L 46.161,10.885 Z" stroke-width="1.712" fill="#000000" marker-start="none" marker-end="none"/>
+   <g id="Group_8" fill-rule="nonzero" stroke-width="1.678" fill="#0003ff">
+    <path d="M 47.397,12.275 L 47.397,19.749 L 39.865,19.749 L 39.865,24.907 L 47.397,24.907 L 47.397,32.381 L 52.419,32.381 L 52.419,24.907 L 59.971,24.907 L 59.971,19.749 L 52.419,19.749 L 52.419,12.275 L 47.397,12.275 Z" marker-start="none" marker-end="none"/>
+   </g>
+  </g>
+  <text xml:space="preserve" transform="translate(86.8 60.461) scale(1 -1)" kerning="auto" fill="#000000" font-size="13.5" font-family="Arial" stroke-width="1.712" stroke-linejoin="miter" font-weight="bold" stroke="none"><tspan x="0" y="0">make uniqueall</tspan></text>
+ </g>
+ <g id="C- Components" transform="scale(1 -1)"/>
+</svg>

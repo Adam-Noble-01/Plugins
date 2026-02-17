@@ -1,0 +1,74 @@
+# SketchUp RubyScript Developer
+# -------------------------------------
+## ROLE    |  Highly Experienced RubyScript SketchUp Plugin Developer
+## PROJECT |  Vale Design Suite; Specifically the Framework Tools Section of the plugin.
+## CONTEXT |  This tool is be used to configure the framework of a Vale Garden Houses Conservatory / Orangery Framework Visually in SketchUp.
+## PRIOR   |  You previously created other modules for this Plugin such as a framework configurator and a window and roof lantern configurator.
+## TASK    |  Develop a new module for this plugin that will allow the user to browse and select components from the Vale component library.
+
+
+## Task 01 - Study Codebase Structure To Understand The Existing Architecture
+
+- Understand the existing architecture of the plugin
+- Look at how the UI Operates
+- Note that there is already a button setup to open the component browser
+- The component browser code should be placed in a new folder called `Tools_ComponentBrowser` 
+- The tool code should be modularised and placed in an appropriate subfolder like with the other tools
+- The component browser should load the components from the a user configurable directory folder.
+
+### Data Persistence
+- The configuration of things like the component directory path should be stored in the apps config folder
+- There is a a current Json file for this that handles the main apps persistent data.
+- This means the path when configured by the user will be saved and loaded from the config folder.
+- This means the components library will always be loaded and ready to use when the plugin is opened in SketchUp.
+- Prompt user to select the directory path via a UI panel the first time the component browser is opened.
+- Add a settings tab to the component browser to allow the user to configure the component directory path. 
+  - This allows the user to change the directory path without having to search for the folder location.
+  - Use windows file browser dialog to select the directory path, so this should pop up when triggered.
+  - Once configured the components library path will be set
+
+### Component Browser UI
+- Use the same UI style as the other tools
+- Uses the HTML methods for the UI as used with the other tools
+- Uses thumbnail images for the components like used with other SketchUp Ruby Plugins for component libraries.
+- The component browser should have a search function to allow the user to search for a component by name.
+- The component browser should have a filter function to allow the user to filter the components by type.
+- The components are named with sequential numbers and letters with a numeric preference so arranging them in a grid is a good idea.3
+  - This can be based on the file name as the file name is unique and consistent.
+- Ensure the component name and the thumbnail and the description are loaded and displayed correctly.
+- Ensure the component is displayed in the correct position in the UI panel.
+
+### Code Efficiency
+- Use as many existing CSS styles as possible to make the code more efficient and easier to maintain.
+- Ensure you read the coding conventions document before starting to code.
+
+## Objective
+- We are trying to create a tool that is easy to use for members of the Vale Garden Houses team.
+- SketchUps native component library UI is poor and not user friendly, most people dont even know this exists.
+- We aim to ensure this component browser is easy to use and understand by any member of the team and skilled or unskilled.
+- It should be self explanatory and not require a tutorial to use, anyone who's familar with modern web design will be able to use this tool.
+
+### Features That Must Be Included
+- Load Components From a User Configurable Directory
+- Display Components in a Grid
+- Display Component Thumbnails
+- Display Component Names
+- Display Component Descriptions
+- Allow the user to select a component and have it added to the current model.
+- Allow for drag and drop of components from the component browser to the current model.
+  - SketchUp component library UI actually does have a smooth drag and drop feature, so we should study and use something similar.
+- A return button to return to the main tool UI
+- A close button to close the component browser
+- A settings button to configure the component directory path
+- A help button to display the help file for the component browser
+
+## Important Notes
+- RubyAPI 2024 / 2025 is being used for this plugin.
+- Its highly specialised and not all Ruby methods are available.
+- Research the Ruby API for the methods that are available before starting to code.
+- AI Model struggle alot with Ruby API, so you will need to do alot of research as its a strange implementation used by the SketchUp team.
+
+
+## -------------------------------------------------------------------------------------------
+
+

@@ -1,0 +1,1149 @@
+# =============================================================================
+# VALEDESIGNSUITE - CURSOR AI CODING CONVENTIONS
+# =============================================================================
+#
+# This file defines the coding conventions for the ValeDesignSuite project.
+# Cursor AI will automatically apply these rules to all code generation and
+# editing within this workspace.
+#
+# AUTHOR     : Adam Noble - Noble Architecture
+# PURPOSE    : Ensure consistent coding style across ValeDesignSuite project
+# VERSION    : 2.0.0
+# CREATED    : 15-Aug-2025
+# =============================================================================
+
+## CORE PRINCIPLE
+You are working on the ValeDesignSuite project and must replicate Adam Noble's exact Ruby coding style. The goal is to write code that is indistinguishable from Adam's personal style to ensure maintainability and consistency across the codebase.
+
+## REFACTORING EXCELLENCE STANDARD
+When refactoring any ValeDesignSuite code, follow the proven pattern demonstrated in the Roof Lantern Tools refactor (Version 3.0.0). This includes:
+- Complete regional reorganization with logical groupings
+- Embedded JSON method indexes for documentation
+- Proper spacing (3 lines between regions, 2 between functions)
+- Sub-regions within major regions for complex functionality
+- Helper functions defined before main functions
+- Consistent inline commenting with arrows
+- Column alignment for all constants and similar declarations
+
+### REFACTORING QUICK CHECKLIST
+When refactoring any ValeDesignSuite script, ensure you:
+- [ ] Update file header with new version in DEVELOPMENT LOG
+- [ ] Add embedded JSON method index as second region
+- [ ] Organize into logical regions (see Section 1 for optimal structure)
+- [ ] Use 3 line breaks between regions, 2 between functions
+- [ ] Add sub-regions for complex functionality groups
+- [ ] Define helper functions before main functions
+- [ ] Add inline arrow comments `# <--` for all key operations
+- [ ] Column-align all constants and similar declarations
+- [ ] Ensure all functions have proper headers and dividers
+- [ ] Group error handling into Debug & Reporting region
+- [ ] Test thoroughly to ensure functionality unchanged
+
+
+# TASK |  Ensure All Code Style Is In Adam Noble ValeDesignSuite Styling Conventions
+- You must replicate the commenting, regional structuring, and code annotation style used by Adam Noble for Ruby code in the ValeDesignSuite project. 
+- The goal is for AI to **write code, structure, and comment in a manner indistinguishable from Adam's personal style.
+- This ensures maintanability of the codebase by ensuring a consistent style is used.
+
+### ---------------------------------------------------------------------------
+
+## 1. REGIONAL DIVIDERS & SECTION STRUCTURE
+- Use a strict regional structure with a top-level region, sub-region, and function headers.
+- Ensure all functions and constants are within a region and named appropriately.
+- Each object type has its own header line and divider.
+- **CRITICAL**: All content within regions must be indented with 4 spaces for collapsible code folding.
+- Regions create logical groupings that can be collapsed/expanded in code editors.
+- **SPACING RULES**: Always use 3 line breaks between regions, 2 line breaks between functions/methods.
+
+### Optimal Region Organization for Large Scripts
+When refactoring or organizing large scripts, use this proven regional structure:
+1. **Header Region** - File header with development log
+2. **Embedded JSON Method & Function Index** - Comprehensive function listing
+3. **Main Global Scope Constants** - All module constants
+4. **Main Global Scope Variables** - Module-level variables
+5. **Global Helper Functions** - Reusable utility functions
+6. **Global Math Functions** - Mathematical calculations
+7. **[Domain] Processing Functions** - Core business logic grouped by domain
+8. **3D Generation Functions** (with sub-regions) - Complex functionality with sub-groupings
+9. **Material Assignment Functions** - Visual/material handling
+10. **Final Assembly Functions** - Main orchestration logic
+11. **Debug & Reporting Functions** - Error handling and logging
+12. **Event Handling & Callbacks / API** - External interfaces
+13. **Entry Point Functions** - Main class and initialization
+
+### ---------------------------------------------------------------------------
+
+## 2. SECTION HEADERS AND FUNCTION ANNOTATION
+
+### Region Headers
+- Use all caps to declare REGION
+- Use a single pipe ` |  ` to separate the object type from the description.
+- Be concise, e.g. `REGION | Bench Geometry Manipulation - Post Creation Updates`
+- Overline the header line with 78 hyphens.
+- Underline the header line with 78 hyphens.
+- **NO INDENTATION** for region headers - they are at the root level.
+
+```region_header_example.rb
+# -----------------------------------------------------------------------------
+# REGION | Bench Geometry Manipulation - Post Creation Updates
+# -----------------------------------------------------------------------------
+
+    # All content within region is indented 4 spaces
+    # This enables collapsible code folding
+
+# endregion -------------------------------------------------------------------
+```
+
+### ---------------------------------------------------------------------------
+
+### Function and Object Headers Within Regions
+- Each function/sub-region gets its own header line.
+- Use all caps to describe the object type, e.g. `FUNCTION`, `SUB FUNCTION`, `SUB HELPER FUNCTION`, `HELPER FUNCTION`, `MODULE CONSTANTS`, `CLASS`, etc.
+- Use a single pipe ` | ` to separate the object type from the description.
+- Be concise, e.g. `FUNCTION | Update Bench Geometry Based on New Configuration`
+- **INDENTED 4 SPACES** within regions for collapsible structure.
+- Underline with 58 hyphens (creates 60-character line with comment and space).
+- End with `# ---------------------------------------------------------------` (60 characters total).
+
+```object_header_example.rb
+# -----------------------------------------------------------------------------
+# REGION | Bench Geometry Manipulation - Post Creation Updates
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Update Bench Geometry Based on New Configuration
+    # ------------------------------------------------------------
+    def self.update_bench_geometry(length_mm, height_mm, depth_mm)
+        return unless validate_bench_update_preconditions
+    end
+    # ---------------------------------------------------------------
+
+    # SUB FUNCTION | Validate Preconditions for Bench Update
+    # ---------------------------------------------------------------
+    def self.validate_bench_update_preconditions
+        return false unless @bench_component && @bench_component.valid?
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Calculate Movement Distance
+    # ---------------------------------------------------------------
+    def self.calculate_movement_distance(current_pos, target_pos)
+        target_pos - current_pos
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+```
+
+### ---------------------------------------------------------------------------
+
+## 3. INDENTATION HIERARCHY FOR COLLAPSIBLE STRUCTURE
+
+### Indentation Rules
+- **Region Headers**                   :  No indentation (0 spaces)
+- **Function Headers within Regions**  :  4 spaces indentation
+- **Function Bodies within Regions**   :  8 spaces indentation (4 for region + 4 for function)
+- **Nested Code within Functions**     :  12+ spaces as needed
+
+### Function Organization Hierarchy
+1. **FUNCTION**             :  Main public functions
+2. **SUB FUNCTION**         :  Major sub-functions that break down main function logic
+3. **SUB HELPER FUNCTION**  :  Helper functions that support sub-functions
+4. **HELPER FUNCTION**      :  Reusable utility functions
+
+### Function Definition Order
+- **Helpers First** :  Define helper functions before main functions (unless circular dependencies exist)
+- **Logical Flow**  :  Organize from general to specific (e.g., all legs → front legs → individual legs)
+- **Dependencies**  :  Ensure functions are defined before they're called
+
+```hierarchy_example.rb
+# -----------------------------------------------------------------------------
+# REGION | Bench Geometry Manipulation - Post Creation Updates
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Calculate Movement Distance
+    # ---------------------------------------------------------------
+    def self.calculate_movement_distance(current_pos, target_pos)
+        target_pos - current_pos                                         # Calculate difference
+    end
+    # ---------------------------------------------------------------
+
+    # SUB HELPER FUNCTION | Transform Front Legs Components
+    # ---------------------------------------------------------------
+    def self.transform_front_legs(scale_factors, length_mm, height_mm)
+        transform_front_left_leg(scale_factors[:height])                 # Transform front left leg
+        transform_front_right_leg(scale_factors, length_mm)              # Transform front right leg
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Update Bench Geometry Based on New Configuration
+    # ------------------------------------------------------------
+    def self.update_bench_geometry(length_mm, height_mm, depth_mm)
+        return unless validate_bench_update_preconditions                # Validate preconditions
+        transform_front_legs(scale_factors, length_mm, height_mm)        # Use helper functions
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+```
+
+### Sub-Regions for Complex Functionality
+Within major regions, use sub-regions to group related functionality:
+- Mark with `# SUB REGION | Description` 
+- Use `# ========================================================` (56 equals) as divider
+- Maintain 4-space indentation from parent region
+- Useful for grouping related functions within larger regions
+
+```sub_region_example.rb
+# -----------------------------------------------------------------------------
+# REGION | 3D Generation Functions
+# -----------------------------------------------------------------------------
+
+    # SUB REGION | Beam Creation Functions
+    # ========================================================
+
+    # FUNCTION | Create Single Beam Between Two Points
+    # ------------------------------------------------------------
+    def self.add_beam(p0, p1, profile, ents)
+        vec = p1 - p0                                                          # <-- Direction vector
+        return if vec.length.almost?(0.0, STRICT_TOL)                         # <-- Skip degenerate beams
+    end
+    # ------------------------------------------------------------
+
+
+    # SUB REGION | Lighting Block Creation
+    # ========================================================
+
+    # FUNCTION | Create Octagonal Lighting Block
+    # ------------------------------------------------------------
+    def self.create_lighting_block(center_point, z_offset, ents)
+        radius = LIGHT_BLOCK_SIZE / 2.0                                        # <-- Calculate radius
+    end
+    # ------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+```
+
+### ---------------------------------------------------------------------------
+
+## 4. FUNCTION & CONSTANT COLUMNISATION
+
+### Column Alignment
+**Constants & Mappings**: 
+- Always columnise related constants, typically with a fixed-width left indent, so items align vertically.
+- Always two white spaces between the key and the equals sign.
+- This creates breathing space between the key and the value.
+
+```column_alignment_example.rb
+# MODULE CONSTANTS | Unit Conversion and Dictionary Keys
+# ------------------------------------------------------------
+MM_TO_INCH              =   1.0 / 25.4                                    # <-- Millimeter to inch conversion factor
+BENCH_DICT_NAME         =   "BenchConfigurator_Config"                    # <-- Dictionary name for storing bench configuration
+LEG_WIDTH_MM            =   50                                            # <-- Standard leg width in millimeters
+LEG_DEPTH_MM            =   50                                            # <-- Standard leg depth in millimeters
+# endregion ----------------------------------------------------
+```
+
+### ---------------------------------------------------------------------------
+
+## 5. INLINE COMMENTING
+
+### Inline Arrows
+**Inline Comments**
+- Use `# <-- Comment` for explanatory comments
+- Use `# Comment` for simple descriptive comments
+- Always on the same line as the code, directly after the item being described
+- Do not place comments on a separate line above or below unless absolutely necessary
+- One quick phrase or note; avoid full sentences unless clarification is essential
+- "Columnise" by aligning the comments vertically when there are multiple related lines
+
+```comment_example.rb
+    # SUB FUNCTION | Update Configuration Dimension Values
+    # ------------------------------------------------------------
+    def self.update_config_dimensions(config, length_mm, height_mm, depth_mm)
+        config["ComponentParent"]["Component_Default_Length_mm"] = length_mm  # <-- Set new length
+        config["ComponentParent"]["Component_Default_Height_mm"] = height_mm  # <-- Set new height
+        config["ComponentParent"]["Component_Default_Depth_mm"] = depth_mm    # <-- Set new depth
+        
+        seat_config = config["SubComponents_Level-01"]["Bench_SeatTop"]       # Get seat configuration reference
+        seat_config["Dimensions"]["LenX_mm"] = length_mm                      # Update seat length
+        seat_config["Dimensions"]["LenY_mm"] = depth_mm                       # Update seat depth
+    end
+    # ---------------------------------------------------------------
+```
+
+### ---------------------------------------------------------------------------
+
+## 6. EMBEDDED JSON METHOD & FUNCTION INDEX
+
+### Purpose and Structure
+Add an embedded JSON constant immediately after the file header to document all methods and functions:
+- Provides a comprehensive index of all functionality in the module
+- Helps with navigation and understanding of large scripts
+- Should be frozen with `.freeze` to prevent modification
+- Use nested structure to group related functionality
+
+```embedded_json_example.rb
+# -----------------------------------------------------------------------------
+# REGION | Embedded JSON Method & Function Index
+# -----------------------------------------------------------------------------
+
+    # EMBEDDED JSON | Script Method & Function Index
+    # ------------------------------------------------------------
+    SCRIPT_METHOD_INDEX = {
+      "script_info": {
+        "name": "RoofLanternTools",
+        "version": "3.0.0",
+        "purpose": "Generate 3D roof lanterns from 2D wireframe"
+      },
+      "constants": {
+        "unit_conversion": ["MM_TO_INCH"],
+        "profiles": ["RIDGE_PROFILE", "HIP_PROFILE", "BAR_PROFILE"],
+        "offsets": ["Z_OFFSET_RIDGE_BEAM", "Z_OFFSET_HIP_BEAM", "Z_OFFSET_BAR"],
+        "tolerances": ["STRICT_TOL", "DEF_TOL"]
+      },
+      "helper_functions": {
+        "tolerance": ["almost?", "almost_xy?"],
+        "layer_management": ["ensure_tags", "ensure_roof_triangle_tag"]
+      },
+      "generation_3d": {
+        "beams": ["create_ridge_beam", "create_hip_beams", "create_glazing_bars"],
+        "processing": ["process_ridge", "process_hips", "process_glazing_bars"]
+      }
+    }.freeze
+    # ------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+```
+
+### ---------------------------------------------------------------------------
+
+## 7. FILE HEADERS
+
+### Header Block
+- File/module headers use a Markdown-style comment block with `=` dividers
+- Include: File name, Namespace, Module, Author, Purpose, Created (NO VERSION field)
+- Follow with a description section using bullet points
+- Include a DEVELOPMENT LOG section after description with version history
+- Use exactly 77 `=` characters for divider lines
+- Close with final `=` divider line
+
+```file_header_example.rb
+# =============================================================================
+# VALEDESIGNSUITE - BENCH CONFIGURATOR
+# =============================================================================
+#
+# FILE       : BenchConfigurator.rb
+# NAMESPACE  : BenchConfigurator
+# MODULE     : BenchConfigurator
+# AUTHOR     : Adam Noble - Noble Architecture
+# PURPOSE    : Live Configurable Bench Builder for SketchUp
+# CREATED    : 2025
+#
+# DESCRIPTION:
+# - This script implements a configurable bench builder for SketchUp.
+# - It uses a UI::HtmlDialog for interactive configuration of bench dimensions.
+# - The bench is built based on JSON configuration data.
+# - All dimensions are specified in millimeters and converted to inches for SketchUp.
+# - Real-time preview updates as sliders are adjusted.
+# - Supports multiple bench instances with automatic selection switching.
+#
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG:
+# 25-May-2025 - Version 1.0.0
+# - Initial Stable Release
+#
+# 25-May-2025 - Version 1.1.0
+# - Bug Fixes & Stability Improvements
+# - Colour Swatches Added & Dynamic material updating feature added.
+#
+# =============================================================================
+```
+
+### Development Log Format
+- Use 77-character divider line before DEVELOPMENT LOG
+- Format: `# DD-MMM-YYYY - Version X.X.X`
+- Follow with bullet points for each change/feature
+- Use consistent date format (25-May-2025)
+- Separate major versions with blank lines
+- Close entire header with final `=` divider line
+
+### ---------------------------------------------------------------------------
+
+## 7. REFACTORING BEST PRACTICES
+
+### When Refactoring Existing Code
+Follow these proven practices for achieving consistent, high-quality refactors:
+
+1. **Start with Regional Analysis**
+   - Identify logical groupings in the existing code
+   - Plan the regional structure before starting
+   - Use the optimal region organization listed in Section 1
+
+2. **Create Embedded JSON Index**
+   - Document all existing functions and methods
+   - Group by functionality type
+   - Add as the second region after file header
+
+3. **Maintain Functionality**
+   - Never change behavior during refactoring
+   - Keep all original functionality intact
+   - Test thoroughly after refactoring
+
+4. **Apply Spacing Rules Strictly**
+   - 3 line breaks between regions
+   - 2 line breaks between functions
+   - 1 line break between logical sections within functions
+
+5. **Organize Functions Logically**
+   - Helper functions before main functions
+   - Group related functions together
+   - Use sub-regions for complex functionality groups
+
+6. **Enhance Documentation**
+   - Add missing inline comments with arrows
+   - Ensure all functions have proper headers
+   - Update file header with new version in development log
+
+### Example Refactoring Transformation
+```ruby
+# BEFORE: Unorganized code
+def update_bench(l, h, d)
+  return unless @bench
+  # messy implementation
+end
+
+# AFTER: Properly structured
+    # FUNCTION | Update Bench Geometry Based on New Configuration
+    # ------------------------------------------------------------
+    def self.update_bench_geometry(length_mm, height_mm, depth_mm)
+        return unless validate_bench_update_preconditions                    # <-- Validate preconditions
+        
+        model = Sketchup.active_model                                        # <-- Get active model
+        model.start_operation("Update Bench", true)                          # <-- Start operation
+        
+        scale_factors = calculate_geometry_scale_factors(length_mm, height_mm, depth_mm)  # <-- Calculate scales
+        transform_all_bench_components(scale_factors, length_mm, height_mm, depth_mm)     # <-- Apply transforms
+        
+        model.commit_operation                                               # <-- Commit operation
+    end
+    # ------------------------------------------------------------
+```
+
+### ---------------------------------------------------------------------------
+
+## 8. HTML/CSS/JAVASCRIPT FORMATTING CONVENTIONS
+
+### HTML Regional Structure
+- Use HTML comment format for regions with exact same pipe notation as Ruby
+- Use 65 hyphens for HTML dividers (to account for HTML comment syntax)
+- Use `<!-- REGION  |  Description -->` for main regions
+- Use `<!-- UI MENU | Description -->` for sub-sections and interface elements
+- End regions with `<!-- endregion ----------------------------------------------------------------- -->`
+
+```html_region_example.html
+<!-- ----------------------------------------------------------------- -->
+<!-- REGION  |  User Interface HTML Layout & Elements                  -->
+<!-- ----------------------------------------------------------------- -->
+        <body>
+        <h1>Window Configurator</h1>
+    
+        <div class="section-title">Window Dimensions</div>
+        
+        <!-- ---------------------------------------------------------------- -->
+        
+        
+        <!-- ----------------------------------------------------------------- -->
+        <!-- UI MENU | Georgian Glaze Bar Configuration Controls               -->
+        <!-- ----------------------------------------------------------------- -->
+        
+        <div class="section-title">Georgian Glaze Bars</div>
+        
+        <!-- ---------------------------------------------------------------- -->
+        
+        <!-- endregion ----------------------------------------------------------------- -->
+```
+
+### CSS Variables and Property Alignment
+- Use CSS custom properties (variables) defined in `:root` selector
+- **CRITICAL**: Column-align CSS properties using consistent spacing
+- Align property colons in a consistent column (typically 39-40 characters)
+- Use exactly 2 spaces before the colon for property alignment
+- Align values and comments consistently
+
+```css_alignment_example.css
+/* CSS Variables - Vale Design Suite Standards */
+:root {
+    --FontCol_ValeTitleTextColour      :  #172b3a;
+    --FontCol_ValeTitleHeadingColour   :  #172b3a;
+    --FontCol_ValeStandardTextColour   :  #1e1e1e;
+    --FontCol_ValeLinkTextColour       :  #336699;
+    --FontCol_ValeVisitedTextColour    :  #663399;
+    --FontCol_ValeHoverTextColour      :  #3377aa;
+    --FontCol_ValeActiveTextColour     :  #006600;
+    --FontCol_ValeDisabledTextColour   :  #999999;
+    font-size                          :  14px;
+    --FontSize_ValeTitleText           :  1.4rem;
+    --FontSize_ValeTitleHeading01      :  1.10rem;
+    --FontSize_ValeTitleHeading02      :  1.00rem;
+    --FontSize_ValeTitleHeading03      :  0.95rem;
+    --FontSize_ValeTitleHeading04      :  0.90rem;
+    --FontSize_ValeStandardText        :  0.85rem;
+}
+
+/* Base Layout Styles */
+html, body {
+    margin                             :  0;
+    padding                            :  0;
+    font-family                        :  var(--FontType_ValeStandardText);
+    font-size                          :  var(--FontSize_ValeStandardText);
+    color                              :  var(--FontCol_ValeStandardTextColour);
+    background-color                   :  var(--ValeBackgroundColor);
+    height                             :  100vh;
+    overflow                           :  hidden;
+}
+```
+
+### JavaScript Regional Structure
+- Follow exact same regional structure as Ruby with JavaScript comment syntax
+- Use `// -----------------------------------------------------------------------------` for 77-character dividers
+- Use `// REGION | Description` for regions
+- Use `// MODULE VARIABLES | Description` for variable sections
+- Use `// HELPER FUNCTION | Description` for helper functions with 58-character underlines
+- Use `// FUNCTION | Description` for functions with 58-character underlines
+- Use `// SUB FUNCTION | Description` for sub-functions with 58-character underlines
+- Use same 4-space indentation within regions as Ruby
+- Use same `// <--` inline commenting style for explanations
+- End regions with `// endregion ----------------------------------------------------`
+
+```javascript_region_example.js
+// -----------------------------------------------------------------------------
+// REGION | Front End Javascript Section
+// -----------------------------------------------------------------------------
+
+    // MODULE VARIABLES | Window Configuration State Variables
+    // ------------------------------------------------------------
+    let widthValue          = 1200;                                  // <-- Window width in millimeters
+    let heightValue         = 1500;                                  // <-- Window height in millimeters  
+    let thicknessValue      = 90;                                    // <-- Frame thickness in millimeters
+    let verticalBarsValue   = 2;                                     // <-- Number of vertical glaze bars
+    let horizontalBarsValue = 3;                                     // <-- Number of horizontal glaze bars
+    let windowCreated       = false;                                 // <-- Flag to track if window exists
+    let selectedColorValue  = 'natural-wood';                        // <-- Currently selected frame color
+    //  -----------------------------------------------------------
+    
+
+    // HELPER FUNCTION | Convert Millimeters to Inches
+    // ------------------------------------------------------------
+    function mmToInches(mm) {
+        return mm / 25.4;                                            // <-- Convert millimeters to inches
+    }
+    // ------------------------------------------------------------
+
+
+    // HELPER FUNCTION | Calculate Area of Rectangle
+    // ------------------------------------------------------------
+    function calculateRectangleArea(length, width) {
+        return length * width;                                       // <-- Calculate area of rectangle
+    }
+    // ------------------------------------------------------------
+
+
+    // FUNCTION | Initialize Dialog from Configuration Data
+    // ------------------------------------------------------------
+    function initFromConfig(config) {
+        if (!config) return;                                         // <-- Exit if no config provided
+        
+        try {
+            const parentConfig = config.ComponentParent;             // <-- Get parent configuration object
+            
+            // UPDATE INTERNAL STATE VARIABLES
+            widthValue = parentConfig.Component_Default_Width_mm;               // <-- Set width from config
+            heightValue = parentConfig.Component_Default_Height_mm;             // <-- Set height from config
+            thicknessValue = parentConfig.Component_Default_FrameThickness_mm;  // <-- Set frame thickness from co  
+        } catch (e) {
+            console.error('Error initializing from config:', e);     // <-- Log initialization errors
+        }
+    }
+    // ---------------------------------------------------------------
+
+
+    // SUB FUNCTION | Update Window Width Value and Display
+    // ---------------------------------------------------------------
+    function updateWidth(value) {
+        widthValue = parseInt(value);                                 // <-- Parse and store new width value
+        document.getElementById('width-value').textContent = value + ' mm'; // <-- Update width display text
+        if (windowCreated) {                                          // <-- Check if window exists
+            updateWindow();                                           // <-- Apply width change to window
+        }
+    }
+    // ---------------------------------------------------------------
+    
+
+// endregion ----------------------------------------------------
+```
+
+### CSS Comment Structure and Organization
+- Use `/* CSS Variables - Description */` for variable sections
+- Use `/* Section Name */` for style groupings
+- Maintain clear logical groupings for related styles
+- Use consistent indentation (4 spaces) for nested selectors and media queries
+
+```css_comment_structure.css
+/* CSS Variables - Vale Design Suite Standards */
+:root {
+    /* Color Variables */
+    --FontCol_ValeTitleTextColour      : #172b3a;
+    --FontCol_ValeTitleHeadingColour   : #172b3a;
+    
+    /* Typography Variables */
+    --FontSize_ValeTitleText           : 1.4rem;
+    --FontSize_ValeTitleHeading01      : 1.10rem;
+}
+
+/* Base Layout Styles */
+html, body {
+    margin                             : 0;
+    padding                            : 0;
+}
+
+/* Typography Styles */
+h1 {
+    font-family                        : var(--FontType_ValeTitleText);
+    font-size                          : var(--FontSize_ValeTitleText);
+    color                              : var(--FontCol_ValeTitleTextColour);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 480px) {
+    body {
+        padding                        : 15px;
+    }
+    
+    .slider-container {
+        padding                        : 12px;
+    }
+}
+```
+
+### Key HTML/CSS/JavaScript Principles
+1. **Consistent Regional Structure**: Apply same regional formatting across all languages
+2. **Column Alignment**: Maintain strict column alignment in CSS properties
+3. **Inline Comments**: Use language-appropriate comment syntax but same arrow notation
+4. **Logical Organization**: Group related functionality using clear section headers
+5. **4-Space Indentation**: Maintain consistent indentation within regions
+6. **Variable Naming**: Use descriptive variable names with consistent patterns
+7. **CSS Variables**: Use CSS custom properties for consistent design system values
+8. **Responsive Design**: Organize responsive styles in clear media query sections
+
+### ---------------------------------------------------------------------------
+
+## 9. COMPLETE STRUCTURE EXAMPLE
+
+```complete_example.rb
+# =============================================================================
+# VALEDESIGNSUITE - BENCH CONFIGURATOR
+# =============================================================================
+#
+# FILE       : BenchConfigurator.rb
+# NAMESPACE  : BenchConfigurator
+# MODULE     : BenchConfigurator
+# AUTHOR     : Adam Noble - Noble Architecture
+# PURPOSE    : Live Configurable Bench Builder for SketchUp
+# CREATED    : 25-May-2025
+#
+# DESCRIPTION:
+# - This script implements a configurable bench builder for SketchUp.
+# - It uses a UI::HtmlDialog for interactive configuration of bench dimensions.
+# - The bench is built based on JSON configuration data.
+# - All dimensions are specified in millimeters and converted to inches for SketchUp.
+# - Real-time preview updates as sliders are adjusted.
+# - Supports multiple bench instances with automatic selection switching.
+#
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG:
+# 25-May-2025 - Version 1.0.0
+# - Initial Stable Release
+#
+# 25-May-2025 - Version 1.1.0
+# - Bug Fixes & Stability Improvements
+# - Enhanced bench configuration options.
+#
+# =============================================================================
+
+module BenchConfigurator
+
+# -----------------------------------------------------------------------------
+# REGION | Module Constants and Configuration
+# -----------------------------------------------------------------------------
+
+    # MODULE CONSTANTS | Unit Conversion and Dictionary Keys
+    # ------------------------------------------------------------
+    MM_TO_INCH              =   1.0 / 25.4                                    # <-- Millimeter to inch conversion factor
+    BENCH_DICT_NAME         =   "BenchConfigurator_Config"                    # <-- Dictionary name for storing bench configuration
+    # endregion ----------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Bench Geometry Manipulation - Post Creation Updates
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Calculate Movement Distance
+    # ---------------------------------------------------------------
+    def self.calculate_movement_distance(current_position_inches, target_position_mm)
+        target_position_inches = mm_to_inch(target_position_mm)             # Convert target to inches
+        return target_position_inches - current_position_inches             # Return movement distance
+    end
+    # ---------------------------------------------------------------
+
+    # SUB FUNCTION | Transform All Bench Components
+    # ------------------------------------------------------------
+    def self.transform_all_bench_components(scale_factors, length_mm, height_mm, depth_mm)
+        transform_front_legs(scale_factors, length_mm, height_mm)           # Transform front legs
+        transform_back_legs(scale_factors, length_mm, height_mm, depth_mm)  # Transform back legs
+        transform_seat_component(scale_factors, height_mm)                  # Transform seat component
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Update Bench Geometry Based on New Configuration
+    # ------------------------------------------------------------
+    def self.update_bench_geometry(length_mm, height_mm, depth_mm)
+        return unless validate_bench_update_preconditions                    # Validate preconditions for update
+        
+        model = Sketchup.active_model                                        # Get active model
+        model.start_operation("Update Bench", true)                          # Start operation for undo support
+        
+        scale_factors = calculate_geometry_scale_factors(length_mm, height_mm, depth_mm)  # Calculate transformation scales
+        transform_all_bench_components(scale_factors, length_mm, height_mm, depth_mm)     # Apply transformations
+        
+        model.commit_operation                                               # Commit the operation
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+end
+```
+
+### ---------------------------------------------------------------------------
+
+## 10. KEY PRINCIPLES SUMMARY
+1. **Collapsible Structure**       :  Use 4-space indentation within regions for code folding
+2. **Helpers First**               :  Define helper functions before main functions when possible
+3. **Logical Hierarchy**           :  Organize functions from general to specific
+4. **Consistent Commenting**       :  Use inline arrows `# <--` for explanations, simple `#` for descriptions
+5. **Column Alignment**            :  Align related constants and comments vertically
+6. **Regional Organization**       :  Group related functionality into logical regions
+7. **Clear Headers**               :  Use descriptive headers with proper object type classification
+8. **Proper Spacing**              :  3 lines between regions, 2 lines between functions
+9. **Cross-Language Consistency**  :  Apply same structural principles to HTML, CSS, and JavaScript
+10. **CSS Property Alignment**     :  Maintain strict column alignment for CSS properties and values
+11. **Embedded Documentation**     :  Include JSON method index for large scripts
+12. **Sub-Region Usage**           :  Use sub-regions for complex functionality groups
+13. **Version Tracking**           :  Update development log with refactoring versions
+14. **Function Naming**            :  Use descriptive names with clear purpose
+15. **Error Handling**            :  Centralize error handling in debug regions
+
+### ---------------------------------------------------------------------------
+
+
+# =============================================================================
+# CURSOR AI CONFIGURATION-DRIVEN DEVELOPMENT RULES
+# =============================================================================
+
+## CORE PRINCIPLE: CONFIGURATION-DRIVEN DEVELOPMENT
+You are working on ValeDesignSuite projects and must follow the **Configuration-Driven Development** paradigm. This means that ALL commonly toggled settings, macro configurations, and behavioral switches MUST be externalized to JSON configuration files rather than hardcoded in source code.
+
+### CRITICAL IMPLEMENTATION REQUIREMENTS
+
+# -----------------------------------------------------------------------------
+# REGION | Mandatory Configuration File Architecture
+# -----------------------------------------------------------------------------
+
+## 1. EVERY PROJECT MUST HAVE A MAIN CONFIG FILE
+- **Primary Config**: Every application MUST have a main configuration file that is loaded FIRST
+- **Naming Convention**: Use descriptive names like `AppName__Config.json` or `ModuleName__ServerConfig.json`
+- **Loading Priority**: Configuration MUST be loaded before any other application logic
+- **Fallback Strategy**: Always provide sensible defaults in code for when config fails to load
+
+## 2. CONFIGURATION FILE STRUCTURE
+All config files must follow this standardized JSON structure:
+
+```json
+{
+    "file_metadata": {
+        "file_header": {
+            "title":         "PROJECT NAME - MODULE CONFIG",
+            "file":          "config_filename.json",
+            "namespace":     "ProjectNamespace",
+            "module":        "ModuleName",
+            "author":        "Adam Noble - Noble Architecture",
+            "purpose":       "Configuration purpose description",
+            "created":       "2025",
+            "description": [
+                "Bullet point description of config purpose",
+                "Each major configuration section explained",
+                "Any special considerations or dependencies"
+            ]
+        }
+    },
+    
+    "application": {
+        "debug_mode": {
+            "enabled":                 true,
+            "show_verbose_logs":       false,
+            "enable_profiling":        false
+        },
+        "server_settings": {
+            "port":                    5000,
+            "host":                    "localhost",
+            "timeout_seconds":         30
+        }
+    },
+    
+    "features": {
+        "feature_toggles": {
+            "enable_advanced_mode":    true,
+            "show_experimental_ui":    false,
+            "use_legacy_fallback":     false
+        }
+    },
+    
+    "performance": {
+        "batch_size":                  100,
+        "max_memory_mb":               512,
+        "cache_enabled":               true
+    },
+    
+    "logging": {
+        "show_startup_banner":         true,
+        "log_api_requests":            true,
+        "log_file_operations":         true,
+        "log_level":                   "INFO"
+    }
+}
+```
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Settings That MUST Be Configuration-Driven
+# -----------------------------------------------------------------------------
+
+## MANDATORY EXTERNALIZED SETTINGS
+The following types of settings MUST NEVER be hardcoded and MUST be in config files:
+
+### SERVER & NETWORK SETTINGS
+- Port numbers, host addresses, timeout values
+- API endpoints, database connections
+- SSL/TLS settings, security configurations
+
+### DEBUG & LOGGING CONTROLS
+- Debug mode toggles, verbose logging switches
+- Log level settings, output destinations
+- Performance profiling and monitoring flags
+
+### FEATURE TOGGLES & SWITCHES
+- Experimental feature flags
+- UI mode selections (basic/advanced/expert)
+- Legacy compatibility switches
+- Beta feature availability
+
+### PERFORMANCE PARAMETERS
+- Memory limits, cache sizes, buffer settings
+- Batch processing sizes, thread counts
+- File size limits, processing timeouts
+- Resource allocation limits
+
+### USER INTERFACE CONTROLS
+- Theme selections, layout preferences
+- Language/localization settings
+- Accessibility options
+- Display density and scaling
+
+### FILE & DIRECTORY PATHS
+- Input/output directories, temp folders
+- Asset locations, font paths
+- Export destinations, backup locations
+
+### BUSINESS LOGIC PARAMETERS
+- Processing algorithms selection
+- Calculation precision settings
+- Validation rules and thresholds
+- Workflow step configurations
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Multi-Language Implementation Patterns
+# -----------------------------------------------------------------------------
+
+## PYTHON IMPLEMENTATION PATTERN
+```python
+# ALWAYS load config first, before any other imports or logic
+import json
+from pathlib import Path
+
+# Configuration loading and management
+CONFIG_FILE_PATH = Path(__file__).parent / "ModuleName__Config.json"
+app_config = None
+
+def load_application_config():
+    """Load configuration with fallback to defaults"""
+    global app_config
+    try:
+        if CONFIG_FILE_PATH.exists():
+            with open(CONFIG_FILE_PATH, 'r', encoding='utf-8') as f:
+                app_config = json.load(f)
+                print(f"✅ Configuration loaded from: {CONFIG_FILE_PATH}")
+                return True
+        else:
+            app_config = DEFAULT_CONFIG  # Always have defaults
+            print(f"🔧 Using default configuration")
+            return False
+    except Exception as e:
+        print(f"❌ Config error: {e}")
+        app_config = DEFAULT_CONFIG
+        return False
+
+def get_config_value(key_path, default_value=None):
+    """Get nested config value using dot notation"""
+    keys = key_path.split('.')
+    value = app_config
+    try:
+        for key in keys:
+            value = value[key]
+        return value
+    except (KeyError, TypeError):
+        return default_value
+
+# ALWAYS call config loading before application logic
+load_application_config()
+```
+
+## RUBY IMPLEMENTATION PATTERN
+```ruby
+# Configuration loading for Ruby applications
+require 'json'
+
+module ConfigManager
+    CONFIG_FILE_PATH = File.join(File.dirname(__FILE__), 'ModuleName__Config.json')
+    @@config = nil
+    
+    def self.load_configuration
+        if File.exist?(CONFIG_FILE_PATH)
+            @@config = JSON.parse(File.read(CONFIG_FILE_PATH))
+            puts "✅ Configuration loaded from: #{CONFIG_FILE_PATH}"
+        else
+            @@config = default_configuration
+            puts "🔧 Using default configuration"
+        end
+    rescue => e
+        puts "❌ Config error: #{e}"
+        @@config = default_configuration
+    end
+    
+    def self.get_config_value(key_path, default_value = nil)
+        keys = key_path.split('.')
+        value = @@config
+        keys.each { |key| value = value[key] }
+        return value
+    rescue
+        return default_value
+    end
+end
+
+# ALWAYS load config before module logic
+ConfigManager.load_configuration
+```
+
+## JAVASCRIPT IMPLEMENTATION PATTERN
+```javascript
+// Configuration management for JavaScript applications
+class ConfigManager {
+    static CONFIG_FILE_PATH = './ModuleName__Config.json';
+    static config = null;
+    
+    static async loadConfiguration() {
+        try {
+            const response = await fetch(this.CONFIG_FILE_PATH);
+            if (response.ok) {
+                this.config = await response.json();
+                console.log(`✅ Configuration loaded from: ${this.CONFIG_FILE_PATH}`);
+                return true;
+            } else {
+                this.config = this.getDefaultConfig();
+                console.log('🔧 Using default configuration');
+                return false;
+            }
+        } catch (e) {
+            console.error(`❌ Config error: ${e}`);
+            this.config = this.getDefaultConfig();
+            return false;
+        }
+    }
+    
+    static getConfigValue(keyPath, defaultValue = null) {
+        const keys = keyPath.split('.');
+        let value = this.config;
+        try {
+            for (const key of keys) {
+                value = value[key];
+            }
+            return value;
+        } catch {
+            return defaultValue;
+        }
+    }
+}
+
+// ALWAYS load config before application logic
+await ConfigManager.loadConfiguration();
+```
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Configuration File Organization Standards
+# -----------------------------------------------------------------------------
+
+## CONFIGURATION FILE NAMING
+- **Main App Config**: `AppName__Config.json`
+- **Server Config**: `AppName__ServerConfig.json`  
+- **Database Config**: `AppName__DatabaseConfig.json`
+- **UI Config**: `AppName__UIConfig.json`
+- **Feature Config**: `AppName__FeatureToggles.json`
+
+## CONFIGURATION HIERARCHY
+1. **Main Config** - Always loaded first, contains core app settings
+2. **Module Configs** - Specific functionality configurations
+3. **Environment Configs** - Development/staging/production overrides
+4. **User Configs** - User-specific preferences and customizations
+
+## CONFIG VALIDATION REQUIREMENTS
+- Always validate config structure on load
+- Provide meaningful error messages for invalid configs
+- Fall back to safe defaults for any missing or invalid values
+- Log configuration loading status clearly
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Error Handling and Fallback Strategies
+# -----------------------------------------------------------------------------
+
+## MANDATORY ERROR HANDLING
+Every config implementation MUST include:
+
+### 1. FILE MISSING HANDLING
+- Detect when config file doesn't exist
+- Automatically fall back to sensible defaults
+- Log the fallback clearly for debugging
+
+### 2. JSON PARSING ERROR HANDLING
+- Catch and handle malformed JSON gracefully
+- Provide specific error messages about JSON syntax issues
+- Never crash the application due to config errors
+
+### 3. MISSING KEY HANDLING
+- Handle requests for non-existent config keys
+- Return provided default values safely
+- Log missing key requests for config improvement
+
+### 4. TYPE VALIDATION
+- Validate that config values match expected types
+- Convert compatible types automatically where safe
+- Reject and default obviously invalid values
+
+## FALLBACK CONFIGURATION PATTERN
+```python
+DEFAULT_CONFIG = {
+    "application": {
+        "debug_mode": {"enabled": True},
+        "name": "Unknown Application"
+    },
+    "logging": {
+        "show_startup_banner": True,
+        "log_level": "INFO"
+    },
+    "performance": {
+        "batch_size": 100,
+        "max_memory_mb": 512
+    }
+}
+```
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Development Workflow Requirements
+# -----------------------------------------------------------------------------
+
+## CURSOR AI IMPLEMENTATION RULES
+
+### 1. CONFIGURATION-FIRST DEVELOPMENT
+- **ALWAYS** create or update config files before implementing features
+- **NEVER** hardcode values that could reasonably be configured
+- **ALWAYS** use `get_config_value()` pattern for accessing settings
+
+### 2. CONFIG FILE CREATION
+- When creating new applications, generate config file FIRST
+- Include comprehensive default values for all configurable aspects
+- Document each config section's purpose in meta.description
+
+### 3. REFACTORING HARDCODED VALUES
+- When editing existing code, IDENTIFY hardcoded configuration values
+- EXTRACT them to appropriate config files immediately
+- REPLACE hardcoded values with config lookups
+
+### 4. FEATURE DEVELOPMENT
+- New features MUST have configurable toggles
+- Performance parameters MUST be configurable
+- UI behavior MUST respect configuration settings
+
+### 5. TESTING AND VALIDATION
+- Test applications with missing config files
+- Test with malformed JSON configurations
+- Verify fallback behavior works correctly
+
+## NOVICE DEVELOPER PROTECTION
+- Configuration files serve as "safe zones" for non-programmers
+- Complex logic remains in source code, simple switches in config
+- Clear documentation in config files about what each setting does
+- Validation prevents dangerous configuration combinations
+
+## COMPILATION READINESS
+- Externalized configs ensure settings remain accessible post-compilation
+- JSON configs can be modified without recompilation
+- Deployment configurations can be environment-specific
+- Runtime behavior modification without source code access
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Prohibited Practices
+# -----------------------------------------------------------------------------
+
+## NEVER DO THESE THINGS
+- **NEVER** hardcode port numbers, file paths, or URLs in source code
+- **NEVER** use inline boolean flags for feature toggles
+- **NEVER** hardcode timeout values, retry counts, or performance limits
+- **NEVER** embed environment-specific settings in source code
+- **NEVER** create applications without configuration file support
+- **NEVER** skip fallback/default configuration handling
+- **NEVER** ignore configuration loading errors silently
+
+## ALWAYS DO THESE THINGS
+- **ALWAYS** load configuration before any other application logic
+- **ALWAYS** provide comprehensive default configurations
+- **ALWAYS** use descriptive configuration key names
+- **ALWAYS** document configuration options thoroughly
+- **ALWAYS** validate configuration values on load
+- **ALWAYS** log configuration loading status clearly
+- **ALWAYS** handle configuration errors gracefully
+
+# endregion -------------------------------------------------------------------
+
+This configuration-driven approach ensures that ValeDesignSuite applications remain maintainable, customizable, and accessible to developers of all skill levels while preparing for potential future compilation scenarios. 

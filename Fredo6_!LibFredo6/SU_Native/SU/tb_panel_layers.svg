@@ -1,0 +1,22 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!--Generator: Xara Designer (www.xara.com), SVG filter version: 6.5.0.22-->
+<svg fill="none" fill-rule="evenodd" stroke="black" stroke-width="0.501" stroke-linejoin="bevel" stroke-miterlimit="10" font-family="Times New Roman" font-size="16" style="font-variant-ligatures:none" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" version="1.1" overflow="visible" width="73.5pt" height="72pt" viewBox="0 -72 73.5 72">
+ <defs>
+	</defs>
+ <g id="3 Stacked Layers" transform="scale(1 -1)">
+  <g id="Group" stroke-linejoin="miter" stroke-linecap="round">
+   <path d="M 13.206,48.579 L 40.52,59.818 L 58.296,38.711 L 51.021,34.919 L 54.602,30.236 L 49.644,27.656 L 52.215,24.28 L 29.102,11.437 L 17.264,32.553 L 18.8,33.254 L 15.263,39.397 L 17.752,40.541 L 13.206,48.579 Z" fill="#00ffff" stroke="none" stroke-width="2.25" marker-start="none" marker-end="none"/>
+   <path d="M 17.264,32.553 L 38.507,42.275 L 52.215,24.28 L 29.102,11.437 L 17.264,32.553 Z" stroke="#191919" stroke-width="0.75" marker-start="none" marker-end="none"/>
+   <path d="M 15.263,39.397 L 39.112,50.361 L 54.602,30.236 L 28.363,16.579 L 15.263,39.397 Z" stroke="#191919" stroke-width="1.5" marker-start="none" marker-end="none"/>
+   <path d="M 13.206,48.579 L 40.52,59.818 L 58.296,38.711 L 28.033,22.933 L 13.206,48.579 Z" stroke="#191919" stroke-width="2.25" marker-start="none" marker-end="none"/>
+  </g>
+ </g>
+ <g id="Circle I icon" transform="scale(1 -1)">
+  <g id="Group_1" stroke-linejoin="miter" stroke="#000000">
+   <path d="M 30.866,26.004 C 30.866,34.356 37.65,41.135 45.996,41.135 C 54.343,41.135 61.125,34.356 61.125,26.004 C 61.125,17.658 54.343,10.875 45.996,10.875 C 37.65,10.875 30.866,17.658 30.866,26.004 L 30.866,26.004 Z" fill="#144689" stroke-width="0.75" marker-start="none" marker-end="none"/>
+   <path d="M 43.497,28.923 L 48.91,28.923 L 48.91,15.179 L 43.497,15.179 L 43.497,28.923 L 43.497,28.923 Z" stroke-width="0.563" fill="#ffffff" marker-start="none" marker-end="none"/>
+   <path d="M 43.497,37.112 L 48.91,37.112 L 48.91,31.698 L 43.497,31.698 L 43.497,37.112 L 43.497,37.112 Z" stroke-width="0.563" fill="#ffffff" marker-start="none" marker-end="none"/>
+  </g>
+ </g>
+</svg>

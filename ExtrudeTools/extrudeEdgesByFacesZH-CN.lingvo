@@ -1,0 +1,37 @@
+Extrude Edges by Faces<==>双截面放样
+Extrude Edges by Faces<==>双截面放样
+Extrude Edges by Faces: Select the 'Profile' Face...<==>双截面放样: 选择开始轮廓截面...
+Pick Profile Face<==>选择开始轮廓截面
+Pick Rail Curve<==>选择轨道曲线
+
+Extrude Edges by Faces: Select the 'Rail' Curve...<==>双截面放样: 选择轨道曲线...
+
+Extrude Edges by Faces: Making Mesh from Face Profiles and Rail Curve...<==>双截面放样: 由面轮廓和轨道曲线生成网格...
+
+Extrude Edges by Faces:<==>双截面放样:
+
+Extrude Edges by Faces: Formating Mesh... Please Wait...<==>双截面放样: 格式化网格...请稍候...
+Extrude Edges by Faces: Reverse <==>双截面放样: 是否翻转 
+ Faces ?<==> 面 ?
+Extrude Edges by Faces: Reversing Face <==>双截面放样: 正在翻转面 
+ of <==> 之 
+Reverse Faces ?<==>是否翻转面 ?
+Extrude Edges by Faces: Erase Coplanar Edges ?<==>双截面放样: 是否删除共面线 ?
+Erase Coplanar Edges ?<==>是否删除共面线 ?
+Extrude Edges by Faces: Coplanar Edges Erased= <==>双截面放样: 删除共面线= 
+Extrude Edges by Faces: Intersect Mesh with Self ?<==>双截面放样: 是否模型交错网格
+Intersect Mesh with Self ?<==>是否模型交错网格 ?
+This is only necessary with convoluted meshes...<==>模型比较复杂是才需要...
+Extrude Edges by Faces: Intersecting Mesh with Self... Please Wait...<==>双截面放样: 模型交错网格... 请稍等...
+Extrude Edges by Faces: Smooth <==>双截面放样: 平滑 
+ Edges ?<==> 边线 ?
+Smooth Edges ?<==>是否平滑边线 ?
+Extrude Edges by Faces: Smoothing Edge <==>双截面放样: 正在平滑边线
+
+Extrude Edges by Faces: <==>双截面放样: 
+Making Profile <==>生成轮廓
+Making Face <==>生成面
+Pick Melding Profile Face<==>选择结束轮廓截面
+Extrude Edges by Faces: Select the 'Melding-Profile' Face...<==>双截面放样: 选择结束轮廓截面...
+Orienting Faces<==>统一面的方向
+: Pick Profile-Face, Rail.Curve & Melding-Profile-Face. Makes Mesh. Follow Prompts...<==>: 选择开始轮廓截面, 轨道.曲线 & 结束轮廓截面。生成网格，按照提示做...

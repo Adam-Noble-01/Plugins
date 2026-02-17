@@ -1,0 +1,37 @@
+# Plugin Registration
+# Reserved to the Plugin Developer
+# Copyright © 2008-2025 Fredo6 - Designed and written by Fredo6
+
+VERSION = 15.5a
+DATE = 08 Oct 25
+COPYRIGHT = © 2008-2025
+SKETCHUP_VERSION = 17
+
+CREDITS = Edson and Regis: for helping me adapting web dialogs to Mac platform
+CREDITS = Anton_S: for contribution on system methods
+CREDITS = JClements: for some artistics icons and cursors 
+CREDITS = Jeff Hammond and Takeshi:for help on debugging on Mac platform 
+CREDITS = driven: for his patience in helping me troubleshooting some problems with Safari 5.1
+CREDITS = Dave R, driven, Edson: for their patience in helping me troubleshooting some problems on Mac with SU13
+CREDITS = Eozel, Remmel: for troubleshooting problems with non-ascci usernames
+CREDITS = driven, slbaumgartner, mariocha: for troubleshooting problems on MacOS
+CREDITS = Jeff Hammond: for ideas on improving Rotation tool with offset (mini challenge)
+CREDITS = Translation: Spanish (Gaonirico, Defisto, Pichuneke, Oxer), Italian (COSEDIMARCO), German (schnydix)
+CREDITS = Translation: Japanese (Takeshi H.), Korean (Couque D`asse), Chinese (guanjin, Arc)
+
+NAME = LibFredo6 
+DESCRIPTION = Common Ruby Library for Fredo6 Plugins
+DESCRIPTION = |FR| Librairie Ruby commune aux plugins de Fredo6
+CREATOR = Fredo6
+DONATION = Fredo6 at Paypal
+MODULES = Traductor
+MODULES = G6
+RUBY_FILES = Lib6*
+WEB_SITE_NAME = Sketchucation
+WEB_SITE_LINK = https://sketchucation.com/forums/viewforum.php?f=323
+WEB_SUPPORT_LINK = https://sketchucation.com/plugin/903-libfredo6
+
+UPD_WEBSITE = Sketchucation Forum
+##UPD_URL = https://sketchucation.com/forums/viewtopic.php?f=180&t=3263
+UPD_URL = https://community.sketchucation.com/topic/99246/checkforupdate-for-script-publishing
+MENUCODES = 670,1049,902,874,1058

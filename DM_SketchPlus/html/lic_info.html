@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" http-equiv="X-UA-Compatible" content="IE=Edge"/>
+  <title>LicenseManager</title>
+
+  <link type="text/css" rel="StyleSheet" href="css/licenseManager.css"/>
+  <!-- All plugins using this module must define css/main.css to apply plugin-specific css -->
+  <link type="text/css" rel="StyleSheet" href="css/main.css">
+  <script type="text/javascript" src="js/jquery-1.11.1.min.js"></script>
+  <!-- All plugins using this module must define js/main.js  -->
+  <script type="text/javascript" src="js/main.js" charset="UTF-8"></script>
+
+</head>
+
+<body>
+
+<div id="header" class="li-top-bar">
+  <table id="li-topbarTable">
+    <tr>
+      <td align="center">
+        <img src="images/logo.png">
+        <a class="top-right-link" title="Manage your licenses online" id="manageLicense" href="javascript:window.location='skp:ValueChanged@manageLicense';">
+          <div style="float: left; margin-right: 3px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="bi bi-person-circle" viewBox="0 0 16 16">
+              <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0"></path>
+              <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"></path>
+            </svg>
+          </div>
+          My Licenses
+        </a>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div id="LicInfoWrapper">
+  <table class="licenseInfo">
+    <tr>
+      <td class="li-label localize">Product</td>
+      <td class="li-value"><input class="li-input" readonly id="product"></td>
+    </tr>
+
+    <tr>
+      <td class="li-label localize">Status</td>
+      <td class="li-value"><input class="li-input" readonly id="status"></td>
+    </tr>
+
+    <tr>
+      <td class="li-label localize">Licensed by</td>
+      <td class="li-value"><input class="li-input" readonly id="licensor"></td>
+    </tr>
+
+    <tr class="extra">
+      <td class="li-label localize">Licensed to</td>
+      <td class="li-value"><input class="li-input" readonly id="customer"></td>
+    </tr>
+
+    <tr class="extra">
+      <td class="li-label localize">Email</td>
+      <td class="li-value"><input class="li-input" readonly id="email"></td>
+    </tr>
+
+    <tr class="extra">
+      <td class="li-label localize">License type</td>
+      <td class="li-value"><input class="li-input" readonly id="type"></td>
+    </tr>
+
+    <tr class="extra">
+      <td class="li-label localize">Licensed for</td>
+      <td class="li-value"><input class="li-input" readonly id="for"></td>
+    </tr>
+
+    <tr class="extra">
+      <td class="li-label localize">Expires</td>
+      <td class="li-value"><input class="li-input" readonly id="expires"></td>
+    </tr>
+  </table>
+
+  <table style="margin:0; padding: 0;">
+    <tr align="center">
+      <td>
+        <button id="addLicense" style="display:none" class="li-button localize" onclick="tellSU(this);">Add License..</button>
+        <button id="renewLicense" style="display:none" class="li-button localize" onclick="tellSU(this);">Renew License</button>
+        <button id="removeLicense" style="display:none" class="li-button localize" onclick="tellSU(this);">Remove License..</button>
+      </td>
+    </tr>
+  </table>
+
+</div>
+
+<script>
+  window.location = 'skp:ready';
+</script>
+</body>
+</html>

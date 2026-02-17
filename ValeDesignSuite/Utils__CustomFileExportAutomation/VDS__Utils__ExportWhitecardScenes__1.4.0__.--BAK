@@ -1,0 +1,214 @@
+## SketchUp Plugin - Export Automation Script
+
+---
+
+```CodeBotInstructions
+BOT PERSONA
+- Your a highly experienced SketchUp 2025  Plugin Developer
+- You have 20 years of experience using SketchUp As a power User and understand all tools.
+- You are a developer with 10 years experience crafting Architecture focused plugins for SketchUp
+
+BOT OBJECTIVE
+- Research Ruby API 2025, Specifically for SketchUp 2025
+- MUST ONLY UISE OFFICIAL GUIDANCE
+  - `https://ruby.sketchup.com/Sketchup/Page.html`
+- Do not assume Ruby API Functions and methods, always check, the Ruby API 2025 is a nightmare for changes and unintuitive function naming etc.
+```
+
+### Script Purpose
+
+- Automates the various exports required from a SketchUp `Whitecard` Render File.
+- Deals with exporting both image files (png) and CAD Files (dwg)
+- Ensures output settings are configured to a standard each time (i.e. image size etc).
+
+---
+
+### Script Helper Functions
+
+`HelperUtils__FetchDate`
+
+- Fetches date for later usage in the naming strings for each file created
+- The date will be appended at the end of the file like "__16-Sep-2025"
+
+
+`HelperUtils__AppendWhitecardNamingToString`
+
+- Applies "__WhitecardImage" into the outputted file names, after the scene name and before the date.
+    - Or alternatively if CAD Scene exported applied "__WhitecardCadFile"
+
+
+
+### Script Functions
+
+`ExportWhitecard__DetectRequiredScenes`
+
+- Loops through looking for the correct naming prefixes 
+
+- Marks only scenes for export that have correctly named prefixes such as IMG## / IMG### or DWG## / DWG### 
+
+    - Note "#" is placeholder for sequenced numeric integers such as 01 or 003 etc
+
+    
+
+`ExportWhitecard__ExportImageFiles`
+
+- Loops through exporting each IMG marked scene with the following export settings applied.
+
+    ```ImagEexportingConfig
+    STANDARD IMAGE EXPORTING CONFIG
+    Width                     =    6000 pixels
+    Height                    =    4000 pixels
+    Aspect Ratio              =    3:2 
+    Line scale multiplier	  =    2.00 x
+    Anti-alias		  		  =    TRUE
+    Transparent background    =    FALSE
+    ```
+
+    
+
+`ExportWhitecard__ExportImageFiles`
+
+- Loops through exporting each DWG marked scene with the following export settings applied.
+
+```CadExportingConfig
+IMAGE EXPORTING CONFIG
+
+### DWG Configuration
+
+AutoCAD Version  =  Release 12
+Full Scale       =  1:1 (Disabled)
+In Drawing       =  1 mm
+In Model         =  1 mm
+
+### Profile Lines
+Export              =  None
+Width               =  0 mm
+Automatic           =  FALSE
+Separate On A Layer =  TRUE
+
+### Section Lines
+Export = None
+Width = 0 mm
+Automatic = FALSE
+
+### Extension Lines
+Show Extensions   =    FALSE
+Length            =    0 mm
+Automatic         =    FALSE
+
+### Miscellaneous
+Always Prompt For Hidden Line Options = FALSE
+```
+
+
+
+
+
+```FunctionCallSequence
+<STANDARD VALE DESIGN SUITE HEADER>
+{write stuff}
+
+MODULE CONSTANTS
+----------------
+
+# EXPORT IMAGE CONSTANTS
+EXPORT_IMAGE_WIDTH                        =    6000 pixels
+EXPORT_IMAGE_HEIGHT                       =    4000 pixels
+EXPORT_IMAGE_LINESCALE                    =    2.00 x
+EXPORT_IMAGE_ANTIALIAS                    =    TRUE
+EXPORT_IMAGE_TRANS_BG                     =    FALSE
+
+# EXPORT CAD CONSTANTS
+EXPORT_CAD_VERSION                        =    Release 12
+EXPORT_CAD_SCALE                          =    1:1 (Disabled)
+EXPORT_CAD_SCALEINDRAWING                 =    1 mm
+EXPORT_CAD_SCALEINMODEL                   =    1 mm
+EXPORT_CAD_PROFILE_LINES_EXPORT           =    None
+EXPORT_CAD_PROFILE_LINES_WIDTH            =    0 mm
+EXPORT_CAD_PROFILE_LINES_AUTOMATIC_       =    FALSE
+EXPORT_CAD_PROFILE_LINES_SEPARATE_ON_LAYER=    TRUE
+
+# EXPORT CAD SECTION LINES
+EXPORT_CAD_SECTION_LINES_EXPORT           =    None
+EXPORT_CAD_SECTION_LINES_WIDTH            =    0 mm
+EXPORT_CAD_SECTION_LINES_AUTOMATIC        =    FALSE
+
+# EXPORT CAD EXTENSION LINES
+EXPORT_CAD_EXTENSION_LINES_SHOW           =    FALSE
+EXPORT_CAD_EXTENSION_LINES_LENGTH         =    0 mm
+EXPORT_CAD_EXTENSION_LINES_AUTOMATIC      =    FALSE
+
+# EXPORT CAD MISCELLANEOUS
+EXPORT_CAD_ALWAYS_PROMPT_HIDDEN_LINES     =    FALSE
+
+
+HELPER FUNCTIONS
+----------------
+
+
+FUNCTION CALL SEQUENCE 
+
+<USER_TIGGERS_PLUGIN>
+  THEN
+    ExportWhitecard__DetectRequiredScenes()
+  THEN 
+    ExportWhitecard__ExportImageFiles()
+  THEN 
+    ExportWhitecard__ExportCadFiles()
+DIALOGUE
+  Confirms Files Exported Succesfully or reports failure
+
+```
+
+---
+
+User Interactions
+
+- User launches export via the Vale Design Suite main user interface
+  - Updates will need to be made the main UI script and to the Plugin loader script to make this work.
+  - Add a new button copying one of the placeholder style buttons already present in the HTML 
+- System UI Dialogue asks the target folder to save the outputs
+
+
+---
+
+### Expected Image File Names
+
+```IMAGE_SCENE_NAMES_AND_EXPECTED_OUTPUT_FILE_NAMING
+IMG01__3dView__FrontLeft
+	BECOMES
+		`IMG01__3dView__FrontLeft__WhitecardImage__16-Sep-2025.png`
+		
+IMG02__FrontElevation
+	BECOMES
+		`IMG02__FrontElevation__WhitecardImage__16-Sep-2025.png`
+		
+IMG03__3dView__TopDown
+	BECOMES
+		`IMG03__3dView__TopDown__WhitecardImage__16-Sep-2025.png`
+```
+
+
+
+---
+
+### Expected CAD File Names
+
+- Note the numbers and scene names will be based on what is named within SketchUp
+
+```IMAGE_SCENE_NAMES_AND_EXPECTED_OUTPUT_FILE_NAMING
+DWG01__3dView__FrontLeft
+	BECOMES
+		`DWG01__3dView__FrontLeft__WhitecardCadFile__16-Sep-2025.dwg`
+		
+DWG02__FrontElevation
+	BECOMES
+		`DWG02__FrontElevationt__WhitecardCadFile__16-Sep-2025.dwg`
+		
+DWG03__3dView__TopDown
+	BECOMES
+		`DWG03__3dView__TopDown__WhitecardCadFile__16-Sep-2025.dwg`
+```
+
+
+

@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "添加位置",
+  "EXTENSION.DESCRIPTION": "导入大区域。控制地形的网格密度。在 SketchUp 中查看北方和您的位置",
+  "EXTENSION.COMPATIBILITY_ISSUE": "注意：“添加位置”兼容性问题。\n\n您的 SketchUp 版本目前已禁用“添加位置”。\n“添加位置”功能旨在用于最新版 SketchUp。\n建议将 SketchUp 升级至最新版本，以确保最佳性能并获取全部功能访问权限。\n请前往 SketchUp 官网下载最新版本。\n升级过程中若有任何疑问或遇到任何问题，请联系我们的支持团队获取帮助。",
+  "TOOLBAR_TITLE": "添加位置",
+  "TOOLBAR_TOOL_NAME": "添加位置",
+  "TOOLBAR_TOOL_DESCRIPTION": "设置您的位置并导入地图和地形",
+  "TOOLBAR_TOOL_TOOLTIP": "添加位置",
+  "MENU_ITEM_NAME": "添加位置",
+  "WINDOW_TITLE": "添加位置",
+  "TRUE_NORTH_MENU_ITEM_NAME": "真北",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "在模型上切换显示真实的正北方向",
+  "MAP_PIN_MENU_ITEM_NAME": "定位针",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "在模型上切换显示真实的坐标点",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "定位针可将 SketchUp 模型原点与真实位置相关联",
+  "MAP_PIN_OVERLAY_NAME": "定位针",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "正在重置地理定位",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "显示定位针",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "隐藏定位针",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "重置地理定位"
+}

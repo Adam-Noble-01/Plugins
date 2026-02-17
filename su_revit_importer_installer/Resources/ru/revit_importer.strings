@@ -1,0 +1,16 @@
+"ri.msg.os.not.supported"="Эта операционная система не поддерживается программой Revit Importer.";
+"ri.msg.su.2023.or.higher"="Для использования Revit Importer требуется SketchUp 2023 или выше.\n\nПожалуйста, отключите расширение или удалите его из папки plugins.";
+"ri.msg.su.updated"="Импортер Revit для SketchUp был обновлен.";
+"ri.title.for.msg"="Импортер Revit для SketchUp";
+"ri.msg.su.updated.restart"="Импортер Revit для SketchUp был обновлен. Чтобы импортировать проект Revit (*.rvt), выберите тип файла rvt в меню Импорт файлов.\nПожалуйста, перезапустите SketchUp.";
+"ri.msg.su.installed.restart"="Программа Revit Importer для SketchUp установлена. Чтобы импортировать проект Revit (*.rvt), выберите тип файла rvt в меню Импорт файлов.\nПожалуйста, перезапустите SketchUp.";
+"riact.msg.su.2023.or.higher"="Для использования расширения Revit Importer Activator Extension требуется SketchUp 2023 или выше.\n\nПожалуйста, отключите расширение или удалите его из папки plugins.";
+"riact.msg.not.valid"="Ваша лицензия Trimble Revit Importer недействительна.";
+"riact.msg.expired"="Срок действия вашей лицензии Trimble Revit Importer истек.";
+"riact.msg.activated"="Ваша лицензия активирована.";
+"riact.msg.error"="Во время активации Trimble Revit Importer произошла ошибка. Пожалуйста, установите Trimble Revit Importer или проверьте действительность ключа активации.";
+"riact.title"="Trimble Revit Importer Offline Activator";
+"riact.bar.txt"="Открыть Trimble Revit Importer Offline Activator";
+"riact.title.prod.key"="Отправьте следующий ключ продукта своему реселлеру Trimble или контактному лицу.";
+"riact.title.lic.key"="Пожалуйста, вставьте ключ активации в текстовое поле ниже.";
+"riact.msg.exp.date"="Срок действия вашей лицензии истекает на сайте %s.";

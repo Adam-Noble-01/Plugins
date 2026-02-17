@@ -1,0 +1,84 @@
+#Default Language: ENGLISH
+
+mnu_global_status			= SCFLicense : Global Status
+mnu_mylicenses				= SCFLicense : My Licenses at %1
+lst_months					= Jan-Feb-Mar-Apr-May-Jun-Jul-Aug-Sep-Oct-Nov-Dec
+lst_week_days				= Mon-Tue-Wed-Thu-Fri-Sat-Sun
+tit_open_panel				= License File for %1
+msg_license_invalid			= License File is invalid
+msg_license_not_for_plugin	= License File is not for Plugin %1
+title						= License extension: %1
+txt_history					= History...
+tip_history_button			= Display the history of License events
+txt_seat					= Seats...
+tip_seat_button				= Get the latest status on the number of License seats
+txt_purchase				= Purchase License
+txt_validate				= Activate License
+txt_release					= Release License
+txt_close					= Close
+txt_mylicenses				= My Licenses at %1
+txt_help					= Help
+txt_file_location			= License File Location
+txt_ok						= OK - Active
+txt_no						= Not Licensed
+txt_expired					= Expired
+txt_license_for				= License for %1
+msg_connected				= You must be connected to Internet to Purchase, Validate or Release a License
+msg_check					= Checking license on Sketchucation....
+msg_release_confirm			= Please confirm that you wish to remove the license for %1
+msg_error_fetch				= Sorry - An error occured in the communication with Sketchucation
+msg_wrong_answer_SCF		= Wrong information received from Sketchucation
+msg_no_writable_directory	= NO writable directory could be found to store license information
+msg_signature_critical		= Problem with the License Signature file for the Computer
+msg_license_file_not_exist	= File does not exist or is invalid
+msg_response_SCF			= Response from Sketchucation
+msg_request_SCF				= Request to Sketchucation
+msg_validate_error			= Error in the License Validation
+msg_release_error			= Error in the License Release
+msg_seat_error				= Error in the License Seat checking
+tip_goto_page				= Open page %1
+txt_history_title			= License History
+txt_details					= details
+
+#----------------------------------------
+# Main fields of the license information
+#----------------------------------------
+
+txt_date_purchase			= Date Purchase:
+txt_duration				= Validity:
+txt_infinite				= Infinite
+txt_days					= days
+txt_seats					= Seats:
+txt_max						= Max
+txt_left					= Left
+txt_taken					= Taken
+txt_expires_on				= Expires on
+txt_plugin 					= Plugin:
+txt_license_type			= License Type:
+txt_email					= email:
+txt_scf_user				= SCF Member:
+txt_license_id				= License ID:
+txt_global_status			= Global status of plugins under SCF License
+txt_hwid					= HW ID:
+
+#----------------------------------------
+# Error messages
+#----------------------------------------
+
+error_open_signature_folder	= Do you want to open the folder containing the Signature file?
+error_open_mylicences		= Do you want to open your MyLicenses page on Sketchucation?
+
+error_A0C_1					= Computer name mismatch - It is advised to erase the Signature file and revalidate
+error_F07_1					= Wrong License File - Please check if you are trying to activate the correct license
+error_F07_2					= You may want to check your MyLicenses page on Sketchucation and download the right license file
+error_F09_1					= License File for another plugin - Please check if you are trying to activate the correct license
+error_F09_2					= You may want to check your MyLicenses page on Sketchucation and download the right license file for this plugin
+error_A04_1					= Wrong Signature File - You may have changed the computer name
+error_A04_2					= It is advised to erase the Signature file and revalidate
+error_B03_1					= Problem with the creation of the Signature file
+error_B03_2					= This may be due to your computer name containing diacritic character
+error_B03_3					= It is advised to change the computer name with ASCII characters only, erase the Signature file and revalidate
+error_U52					= It is advised to update the license
+error_U97					= The license is not valid
+error_U68					= Do you want to update it
+

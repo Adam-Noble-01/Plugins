@@ -1,0 +1,437 @@
+<!DOCTYPE HTML>
+<html>
+
+  <head>
+
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta http-equiv="Content-Script-Type" content="text/javascript">
+    <!-- Use compatibility mode in IE to allow for newer features -->
+    <meta http-equiv="x-ua-compatible" content="IE=edge">
+
+    <!-- Codemirror styles -->
+    <link rel="stylesheet" href="codemirror5/lib/codemirror.css">
+    <link rel="stylesheet" href="codemirror5/theme/ambiance.css">
+    <link rel="stylesheet" href="codemirror5/theme/eclipse.css">
+    <link rel="stylesheet" href="codemirror5/addon/hint/show-hint.css">
+    <link rel="stylesheet" href="codemirror5/addon/scroll/simplescrollbars.css">
+    <link rel="stylesheet" href="codemirror5/addon/dialog/dialog.css">
+    <link rel="stylesheet" href="codemirror5/addon/search/matchesonscrollbar.css">
+    <link rel="stylesheet" href="codemirror5/addon/fold/foldgutter.css">
+
+    <!-- Main and jQuery UI styles -->
+    <link rel="stylesheet" href="ui_main.css">
+    <link rel="stylesheet" class="switcher" href="jquery-ui/light/jquery-ui.css">
+
+    <!-- Main and jQuery scripts -->
+    <script type="text/javascript">
+      // Try to catch all IE errors and prevent display
+      window.onerror = function (e) { return true; };
+    </script>
+    <script src="jquery-ui/js/jquery-3.2.1.min.js"></script>
+    <script src="jquery-ui/js/jquery-ui-1.12.1.min.js"></script>
+    <script src="jquery-ui/js/jquery.cookie.js"></script>
+    <script src="ui.js"></script>
+
+    <!-- Codemirror scripts -->
+    <script src="codemirror5/lib/codemirror.js"></script>
+    <script src="codemirror5/addon/edit/matchbrackets.js"></script>
+    <script src="codemirror5/addon/hint/show-hint.js"></script>
+    <script src="codemirror5/addon/hint/suruby-hint.js"></script>
+    <script src="codemirror5/addon/selection/active-line.js"></script>
+    <script src="codemirror5/addon/scroll/simplescrollbars.js"></script>
+    <script src="codemirror5/addon/scroll/annotatescrollbar.js"></script>
+    <script src="codemirror5/addon/dialog/dialog.js"></script>
+    <script src="codemirror5/addon/search/searchcursor.js"></script>
+    <script src="codemirror5/addon/search/search.js"></script>
+    <script src="codemirror5/addon/search/matchesonscrollbar.js"></script>
+    <script src="codemirror5/addon/search/jump-to-line.js"></script>
+    <script src="codemirror5/addon/fold/foldcode.js"></script>
+    <script src="codemirror5/addon/fold/foldgutter.js"></script>
+    <script src="codemirror5/addon/fold/indent-fold.js"></script>
+    <script src="codemirror5/addon/fold/brace-fold.js"></script>
+    <script src="codemirror5/addon/fold/xml-fold.js"></script>
+    <script src="codemirror5/addon/fold/comment-fold.js"></script>
+
+    <!-- Codemirror modes -->
+    <script src="codemirror5/mode/css/css.js"></script>
+    <script src="codemirror5/mode/htmlmixed/htmlmixed.js"></script>
+    <script src="codemirror5/mode/javascript/javascript.js"></script>
+    <script src="codemirror5/mode/xml/xml.js"></script>
+    <script src="codemirror5/mode/ruby/ruby.js"></script>
+
+    <title>Ruby Code Editor</title>
+
+  </head>
+
+  <body>
+
+  <div id="wrap">
+
+    <div id="nav">
+
+      <ul id="menu" accesskey="m">
+        <li><a href="#">File</a>
+          <ul>
+          	<li><a href="#" onClick="cb_new();"
+              title="Close current file and show default Ruby code snippet. (Ctrl/Cmd+N)">
+              <span class="ui-icon ui-icon-document"></span><u>N</u>ew</a></li>
+            <li><a href="#" onClick="cb_open();"
+              title="Open a file. (Ctrl/Cmd+O)">
+              <span class="ui-icon ui-icon-folder-open"></span><u>O</u>pen...</a></li>
+            <li><a href="#"
+              title="Open from a list of last used files.">
+              <span class="ui-icon ui-icon-folder-open"></span>Open Recent</a>
+              <ul id="mru">
+                <li><a href="#">Last opened files will appear here</a></li>
+              </ul>
+            </li>
+            <li><a href="#" onClick="cb_save();"
+              title="Quick save current file. (Ctrl/Cmd+S)">
+              <span class="ui-icon ui-icon-disk"></span><u>S</u>ave</a></li>
+            <li><a href="#" onClick="cb_save_as();"
+              title="Save current file.">
+              <span class="ui-icon ui-icon-disk"></span>Save As...</a></li>
+            <li>-</li>
+            <li><a href="#" onClick="printEditor();"
+              title="Print code with current syntax highlighter options. (Ctrl/Cmd+P)">
+              <span class="ui-icon ui-icon-print"></span><u>P</u>rint Code</a></li>
+            <li>-</li>
+            <li><a href="#" onClick="cb_quit();"
+              title="Close this editor window. (Ctrl/Cmd+F4)">
+              <span class="ui-icon ui-icon-close"></span>Exit Editor</a></li>
+          </ul>
+        </li>
+        <li><a href="#">Edit</a>
+          <ul>
+          	<li><a href="#" onClick="editor.getDoc().undo()"
+              title="Undo last edit(s). (Ctrl/Cmd+Z)">
+              <span class="ui-icon ui-icon-arrowreturnthick-1-w"></span>Undo</a></li>
+            <li><a href="#" onClick="editor.getDoc().redo()"
+              title="Redo last edit(s).">
+              <span class="ui-icon ui-icon-arrowreturnthick-1-e"></span>Redo</a></li>
+            <li>-</li>
+            <li><a href="#" onClick="editor.execCommand('find')"
+              title="Search in the editor. (Ctrl/Cmd+F)">
+              <span class="ui-icon ui-icon-search"></span><u>F</u>ind</a></li>
+            <li><a href="#" onClick="editor.execCommand('findNext')">Find Next</a></li>
+            <li><a href="#" onClick="editor.execCommand('findPrev')">Find Previous</a></li>
+            <li><a href="#" onClick="editor.execCommand('replace')"
+              title="Search and replace in the editor. (Shift+Ctrl/Cmd+F)">
+              <span class="ui-icon ui-icon-search"></span>Replace</a></li>
+            <li><a href="#" onClick="editor.execCommand('replaceAll')">Replace All</a></li>
+            <li><a href="#" onClick="editor.execCommand('clearSearch')"
+              title="Clear all search highlighting.">
+              Clear Search</a></li>
+            <li>-</li>
+            <li><a href="#" onClick="cb_open('default')"
+              title="Edit the code snippet that comes up when you select 'File > New'.">
+              Edit Default Code</a></li>
+           </ul>
+        </li>
+        <li><a href="#">Run</a>
+          <ul>
+          	<li><a href="#" onClick="cb_exec();"
+              title="Execute code in SketchUp. (Ctrl/Cmd+R)">
+              <span class="ui-icon ui-icon-play"></span><u>R</u>un Code</a></li>
+            <li><a href="#" onClick="cb('undo');"
+              title="Undo last action in SketchUp. (Ctrl/Cmd+U)">
+              <span class="ui-icon ui-icon-arrowreturnthick-1-w"></span><u>U</u>ndo</a></li>
+            <li>-</li>
+            <li><a href="#" onClick="cb('exec_load');"
+              title="Run (Load) External File (ignores editor content). (Ctrl/Cmd+L)">
+              <span class="ui-icon ui-icon-play"></span>Run (<u>L</u>oad) File</a></li>
+          </ul>
+        </li>
+        <li><a href="#">Selection</a>
+          <ul>
+            <li><a href="#" onClick="cb('sel_explore');"
+              title="List available properties for current selection.">
+              <span class="ui-icon ui-icon-search"></span>List Properties</a></li>
+            <li><a href="#" onClick="cb('att_explore');"
+              title="List attributes that are stored with selected entities.">
+              <span class="ui-icon ui-icon-search"></span>List Attributes</a></li>
+            <li><a href="#" onClick="cb('insert_ref');"
+              title="Insert array of IDs or persistent IDs (2017+) at cursor that can be used with find_entity_by_(persistent_)id">
+              <span class="ui-icon ui-icon-pencil"></span>Insert ID Reference(s)</a></li>
+          </ul>
+        </li>
+        <li><a href="#">Tools</a>
+          <ul>
+          	<li><a href="#" onClick="cb('show_console');"
+              title="Open SketchUp's default Ruby Console (e.g. for enhanced error display).">
+              <span class="ui-icon ui-icon-script"></span>Show Ruby Console</a></li>
+            <li><a href="#" onClick="cb('browser')"
+              title="Open browser for a selection of SketchUp Ruby API and Ruby reference websites.">
+              <span class="ui-icon ui-icon-link"></span>Show Reference Browser</a></li>
+            <li><a href="#" onClick="cb('plugin_folder')"
+              title="Open SketchUp's folder that contains your plugin/extension files.">
+              <span class="ui-icon ui-icon-link"></span>Open Plugin/Extension Folder</a></li>
+            <li>-</li>
+          	<li><a href="#" onClick="$('#option-dlg').dialog('open');"
+              title="Show preferences.">
+              <span class="ui-icon ui-icon-gear"></span>Preferences</a></li>
+          </ul>
+        </li>
+        <li><a href="#">Help</a>
+          <ul>
+            <li><a href="#" onClick="cb('help')"
+              title="Opens project page on alexschreyer.net with extension details and discussions.">
+              <span class="ui-icon ui-icon-help"></span>Help</a></li>
+            <li><a href="#" onClick="$('#shorts-dlg').dialog('open');"
+              title="Lists available keyboard shortcuts.">
+              <span class="ui-icon ui-icon-info"></span>Keyboard Shortcuts</a></li>
+            <li><a href="#" onClick="$('#about-dlg').dialog('open');"><span class="ui-icon ui-icon-info"></span>About</a></li>
+          </ul>
+        </li>
+      </ul>
+
+    </div> <!-- #nav -->
+
+
+    <div id="tabs">
+
+      <ul>
+      	<li><a id="file_name" href="#tabs-1">untitled.rb</a></li>
+      </ul>
+
+      <div id="tabs-1" class="tab-content">
+
+          <input type="hidden" id="save_name" value="untitled.rb">
+          <input type="hidden" id="save_filepath" value="">
+
+          <div id="console_area">
+
+            <textarea id="console" style="width: 100%;" wrap="off" onChange="c=true;" tabindex="1" rows="20" cols="80"></textarea>
+
+          </div> <!-- #console_area -->
+
+          <div id="exec_area">
+
+              <div class="controlgroup" style="height:30px;margin: 10px 0;">
+
+                <a class="button" onClick="cb_exec()" href="#" title="Execute code in SketchUp. (Ctrl/Cmd+R)" accesskey="R"><span class="ui-icon ui-icon-play"></span></a>
+                <a class="button" onClick="cb('undo')" href="#" title="Undo last action in SketchUp. (Ctrl/Cmd+U)" accesskey="U"><span class="ui-icon ui-icon-arrowreturnthick-1-w"></span></a>
+
+              </div> <!-- .controlgroup -->
+
+              <select id="snippets" title="Insert snippets at cursor" accesskey="I" style="vertical-align:middle;margin-left:10px;">
+<option value="" selected="selected" disabled="disabled">Insert at cursor:</option>
+              <optgroup label="Ruby Snippets">
+<option value="(0..10).each { |i|
+  #...
+}">Array loop</option>
+<option value="if bool-expr [then]
+  #...
+elsif bool-expr [then]
+  #...
+else
+  #...
+end">If, then, else</option>
+<option value="unless bool-expr [then]
+  #...
+else
+  #...
+end">Unless, else</option>
+<option value="case target-expr
+  when comparison [, comparison]... [then]
+    #...
+  when comparison [, comparison]... [then]
+    #...
+  #...
+[else
+  body]
+end">Case, when</option>
+<option value="def method_name(arg_list, *list_expr, &block_expr)
+  #...
+end">Define method (function)</option>
+<option value="module Capital_name
+  def self.my_method
+    # ...
+  end
+end
+">Define Module</option>
+<option value="f = File.open(filename)
+f.each { |line|
+  # ...
+}
+f.close">Load from file</option>
+<option value="f = File.open(filename, 'w')
+f.write 'Text'
+  # ...
+f.close">Save to file</option>
+<option value="array = '1.2,3.4,5'.split(',')">Split string</option>
+              </optgroup>
+              <optgroup label="SketchUp Snippets">
+<option value="Sketchup.active_model.entities.add_face [0,0,0],[0,10,0],[0,10,10]">Add face</option>
+<option value="grp = Sketchup.active_model.entities.add_group
+grp.entities.add_line [0,0,0],[50,50,50]">Add group</option>
+<option value="all_faces = sel.grep(Sketchup::Face)">All faces in selection</option>
+<option value="tr = Geom::Transformation.new([10,10,10])
+an_entity.transform!(tr)">Transformation</option>
+<option value="an_entity.is_a? [Sketchup::Face|Edge|Group|ComponentInstance]">Check entity type</option>
+<option value="mod.[find_entity_by_id|find_entity_by_persistent_id]( ... )">Find entities</option>
+<option value="result = UI.messagebox 'Question or Alert', [MB_OK|MB_OKCANCEL|MB_ABORTRETRYCANCEL|MB_YESNOCANCEL|MB_YESNO|MB_RETRYCANCEL|MB_MULTILINE]">Messagebox</option>
+<option value="page = Sketchup.active_model.pages.add('My Page')">Add Scene (Page)</option>
+<option value="filename = UI.[openpanel|savepanel] 'File', 'c:\\', '*.jpg'">Open/save dialog</option>
+<option value="version_as_number = Sketchup.version.to_f">SketchUp version</option>
+<option value="Sketchup.platform == :platform_win ? os = 'windows' : os = 'mac'">Mac or PC (SU14+)</option>
+<option value="dlg_html='<html><head><title></title></head><body><p>Text</p></body></html>'
+dlg = UI::WebDialog.new('My Dialog', true,'MyDialog', 200, 200, 150, 150, true)
+dlg.navigation_buttons_enabled = false
+dlg.set_html( dlg_html )
+dlg.show">Web dialog</option>
+<option value="dlg_html='<html><head><title></title></head><body><p>Text</p></body></html>'
+dlg = UI::HtmlDialog.new( { :dialog_title => 'My Dialog', :width => 200, :height => 200,
+  :style => UI::HtmlDialog::STYLE_DIALOG, :preferences_key => 'MyDialog' } )
+dlg.set_html( dlg_html )
+dlg.show
+dlg.center">Html dialog (SU17+)</option>
+<option value="an_entity.set_attribute 'dictionary_name', 'key', 'value'">Set attribute</option>
+<option value="value = an_entity.get_attribute 'dictionary_name', 'key'">Get attribute</option>
+<option value="mymenu = UI.menu('Plugins').add_submenu('My New Extension')
+mymenu.add_item('My Tool') {
+  #...
+}">Create menu items</option>
+              </optgroup>
+              <optgroup label="HTML Snippets">
+<option value="<!DOCTYPE html>
+<html>
+  <head>
+  <meta http-equiv='content-type' content='text/html; charset=utf-8'>
+  <title></title>
+  </head>
+  <body>
+  </body>
+</html>">Page template</option>
+              </optgroup>
+              </select>
+
+              <select id="lang" tabindex="10" title="Code highlighter language" style="vertical-align:middle;margin-left:10px;">
+                <option value="" disabled="disabled">Language:</option>
+                <option value="none">None</option>
+                <option value="ruby" selected="selected">Ruby</option>
+                <option value="htmlmixed">HTML</option>
+                <option value="javascript">JavaScript</option>
+                <option value="css">CSS</option>
+                <option value="xml">XML</option>
+              </select>
+
+            <span id="running" style="display:none;"><img src="img/loading.gif" alt="running..." title="running..." height="20" width="40" style="margin-left:20px;vertical-align:middle;"></span>
+
+            <!-- <textarea id="results" style="height:100px; width: 100%;" readonly="readonly" tabindex="0" rows="20" cols="80"></textarea> -->
+            <div id="results" style="height:100px; width: 100%; overflow:auto;" tabindex="0" ></div>
+
+          </div> <!-- exec_area -->
+
+      </div> <!-- #tabs-1 -->
+
+    </div> <!-- #tabs -->
+
+    <div id="option-dlg" title="Preferences" style="display:none;">
+
+        <h1>Preferences</h1>
+        <fieldset>
+          <legend>Code Editor</legend>
+          <p>
+           User interface style:&nbsp;&nbsp;<select id="stylesheet">
+            <option value="light" selected="selected">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+          </p>
+          <p>
+           Font size:&nbsp;&nbsp;<select id="fontsize" tabindex="0">
+            <option value="8">8 pt</option>
+            <option value="9">9 pt</option>
+            <option value="10" selected="selected">10 pt</option>
+            <option value="11">11 pt</option>
+            <option value="12">12 pt</option>
+          </select>
+          </p>
+          <p>
+           <input id="indentWithTabs" type="checkbox" value=""> Indent with tabs
+          </p>
+          <p>
+           Indent size:&nbsp;&nbsp;<select id="tabsize" tabindex="1">
+            <option value="2" selected="selected">2 Spaces</option>
+            <option value="4">4 Spaces</option>
+            <option value="8">8 Spaces</option>
+          </select>
+          </p>
+          <p>
+           <input id="smartIndent" type="checkbox" value=""> Smart indenting (language dependent)
+          </p>
+          <p>
+           <input id="linenum" type="checkbox" value="true" checked="checked"> Show line numbers
+          </p>
+          <p>
+           <input id="savebackup" type="checkbox" value="true" checked="checked"> Always save backup file (with BAK ending)
+          </p>
+        </fieldset>
+        <fieldset>
+          <legend>SketchUp Ruby</legend>
+          <p>
+           <input id="doundo" type="checkbox" value="true" checked="checked"> Wrap entire code in single undo
+          </p>
+          <p><b>Add Ruby Search Paths (Advanced):</b><br />
+          Enter any local paths to additional Ruby files or libraries here.
+          Any non-empty fields will be added to the $LOAD_PATH variable before code execution.
+          This enables correct behavior for e.g. "require" statements.</p>
+          <p>Search Path 1: <input id="loadpath1" type="text" style="width:300px;padding:2px 5px;" value="" placeholder="Sample: C:/Ruby186/lib/ruby/1.8" /></p>
+          <p>Search Path 2: <input id="loadpath2" type="text" style="width:300px;padding:2px 5px;" value="" placeholder="Sample: C:/Ruby186/lib/ruby/1.8/i386-mingw32" /></p>
+        </fieldset>
+
+    </div> <!-- #option-dlg -->
+
+    <div id="shorts-dlg" title="Keyboard Shortcuts" style="display:none;">
+
+      <h1>Editor Keyboard Shortcuts</h1>
+      <ul>
+       	<li><strong>Ctrl/Cmd + N</strong> : New</li>
+       	<li><strong>Ctrl/Cmd + O</strong> : Open</li>
+       	<li><strong>Ctrl/Cmd + S</strong> : Save</li>
+       	<li><strong>Ctrl/Cmd + P</strong> : Print Code</li>
+       	<li><strong>Ctrl/Cmd + F4</strong> : Exit Editor</li>
+      </ul>
+      <ul>
+       	<li><strong>Ctrl/Cmd + R</strong> : Run Code</li>
+       	<li><strong>Ctrl/Cmd + U</strong> : Undo Run</li>
+        <li><strong>Ctrl/Cmd + L</strong> : Run (Load) File</li>
+      </ul>
+      <ul>
+        <li><strong>Ctrl/Cmd + Space</strong> : Autocomplete</li>
+        <li><strong>Ctrl/Cmd + Z</strong> : Undo Edit</li>
+       	<li><strong>Tab</strong> : Indent More (selection)</li>
+       	<li><strong>Shift + Tab</strong> : Indent Less (selection)</li>
+        <li><strong>Ctrl/Cmd + Q</strong> : Fold Code</li>
+      </ul>
+      <ul>
+       	<li><strong>Ctrl/Cmd + F</strong> : Search</li>
+       	<li><strong>Alt + F</strong> : Search (persistent)</li>
+       	<li><strong>Ctrl/Cmd + G</strong> : Find next</li>
+       	<li><strong>Shift + Ctrl + G</strong> : Find previous</li>
+       	<li><strong>Shift + Ctrl + F</strong> : Replace</li>
+       	<li><strong>Shift + Ctrl + R</strong> : Replace all</li>
+       	<li><strong>Alt + G</strong> : Jump to line</li>
+      </ul>
+
+    </div> <!-- #about-dlg -->
+
+    <div id="about-dlg" title="About" style="display:none;">
+
+      <img src="img/tb_rubyeditor_128.png" style="width:100px;height:100px;float:right;margin-left:10px;">
+      <h1>SketchUp Ruby Code Editor</h1>
+      <p><b>By: Alexander C. Schreyer (www.alexschreyer.net)</b></p>
+      <p><b>Version: <span id="version"></span></b></p>
+      <p>This code editor allows writing and modifying Ruby scripts directly within SketchUp.
+      These scripts can be used to create geometry, add functionality or
+      add data within the SketchUp 3D modeling environment.</p>
+      <p>THIS SOFTWARE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES,
+      INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+      FITNESS FOR A PARTICULAR PURPOSE.</p>
+
+    </div> <!-- #about-dlg -->
+
+  </div>  <!-- #wrap -->
+
+  </body>
+</html>

@@ -1,0 +1,16 @@
+"ri.msg.os.not.supported"="Tento operační systém není importérem Revit podporován.";
+"ri.msg.su.2023.or.higher"="Pro použití nástroje Revit Importer je vyžadován SketchUp 2023 nebo vyšší.\n\nVypněte toto rozšíření nebo jej odstraňte ze složky zásuvných modulů.";
+"ri.msg.su.updated"="Importér Revitu pro SketchUp byl aktualizován.";
+"ri.title.for.msg"="Importér Revitu pro SketchUp";
+"ri.msg.su.updated.restart"="Importér Revitu pro SketchUp byl aktualizován. Chcete-li importovat projekt Revit (*.rvt), vyberte typ souboru rvt v nabídce Import souboru.\nRestartujte program SketchUp.";
+"ri.msg.su.installed.restart"="Byl nainstalován nástroj Revit Importer pro SketchUp. Chcete-li importovat projekt Revit (*.rvt), vyberte typ souboru rvt v nabídce Import souborů.\nRestartujte program SketchUp.";
+"riact.msg.su.2023.or.higher"="Pro použití rozšíření Revit Importer Activator Extension je vyžadován SketchUp 2023 nebo vyšší.\n\nRozšíření vypněte nebo jej odstraňte ze složky zásuvných modulů.";
+"riact.msg.not.valid"="Vaše licence programu Trimble Revit Importer není platná.";
+"riact.msg.expired"="Platnost vaší licence programu Trimble Revit Importer vypršela.";
+"riact.msg.activated"="Vaše licence byla aktivována.";
+"riact.msg.error"="Při aktivaci programu Trimble Revit Importer došlo k chybě. Nainstalujte prosím Trimble Revit Importer nebo zkontrolujte, zda je aktivační klíč platný.";
+"riact.title"="Trimble Revit Importer Offline Activator";
+"riact.bar.txt"="Otevřít Trimble Revit Importer Offline Activator";
+"riact.title.prod.key"="Prodejci nebo kontaktní osobě společnosti Trimble zašlete následující produktový klíč.";
+"riact.title.lic.key"="Vložte aktivační klíč do níže uvedeného textového pole.";
+"riact.msg.exp.date"="Platnost vaší licence vyprší na adrese %s.";

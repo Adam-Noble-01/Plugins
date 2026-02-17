@@ -1,0 +1,21 @@
+body {
+  font-family: "Calibri", sans-serif;
+  font-size: 10pt;
+  line-height: 22px;
+  padding: 40px;
+  padding-bottom: 10px;
+  background-image: url(../pics/LOGOv3_300x300.png);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-position: right -25px bottom -66px;
+  /*background-size: 200px;*/
+  margin: 0px;
+}
+
+a:link {
+  color: #421bff;
+
+}
+a:hover, a:visited {
+  color: #de0922;
+}

@@ -1,0 +1,21 @@
+# Component Browser temporary thumbnails
+Config_PluginConfigFiles/component_thumbnails/
+
+# Configuration files with user-specific paths
+Config_PluginConfigFiles/ComponentBrowser_Config.json
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# SketchUp backup files
+*.skb
+
+# Ruby temporary files
+*.rb~ 

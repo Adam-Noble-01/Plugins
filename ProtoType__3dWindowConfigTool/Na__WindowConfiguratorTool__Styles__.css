@@ -1,0 +1,767 @@
+/* =============================================================================
+   NA WINDOW CONFIGURATOR TOOL - STYLES
+   =============================================================================
+   
+   FILE       : Na__WindowConfiguratorTool__Styles__.css
+   AUTHOR     : Noble Architecture
+   PURPOSE    : CSS styling for the Window Configurator UI
+   CREATED    : 2026
+   
+   NAMING CONVENTION:
+   - All custom classes use na- prefix
+   - Distinguishes Noble Architecture styles from third-party CSS
+   
+   ============================================================================= */
+
+/* =============================================================================
+   CSS VARIABLES (Vale Design Suite Theme)
+   ============================================================================= */
+
+:root {
+    /* Colors - Light Theme (Vale Design Suite) */
+    --na-bg-primary: #f0f0f0;
+    --na-bg-secondary: #ffffff;
+    --na-bg-tertiary: #e8e8e8;
+    --na-bg-hover: #d8d8d8;
+    
+    /* Text Colors */
+    --na-text-primary: #1e1e1e;
+    --na-text-secondary: #333333;
+    --na-text-muted: #666666;
+    
+    /* Accent Colors */
+    --na-accent-blue: #4a90d9;
+    --na-accent-blue-hover: #5a9fe9;
+    --na-accent-green: #4CAF50;
+    --na-accent-green-hover: #43A047;
+    --na-accent-orange: #ff9800;
+    --na-accent-red: #f44336;
+    
+    /* Border Colors */
+    --na-border-color: #dddddd;
+    --na-border-light: #cccccc;
+    
+    /* Spacing */
+    --na-spacing-xs: 4px;
+    --na-spacing-sm: 8px;
+    --na-spacing-md: 12px;
+    --na-spacing-lg: 16px;
+    --na-spacing-xl: 24px;
+    
+    /* Border Radius */
+    --na-radius-sm: 4px;
+    --na-radius-md: 6px;
+    --na-radius-lg: 8px;
+    
+    /* Transitions */
+    --na-transition-fast: 0.15s ease;
+    --na-transition-normal: 0.25s ease;
+    
+    /* Typography */
+    --na-font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --na-font-size-sm: 11px;
+    --na-font-size-md: 13px;
+    --na-font-size-lg: 15px;
+    --na-font-size-xl: 18px;
+}
+
+/* =============================================================================
+   BASE STYLES
+   ============================================================================= */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--na-font-family);
+    font-size: var(--na-font-size-md);
+    background-color: var(--na-bg-primary);
+    color: var(--na-text-primary);
+    line-height: 1.4;
+    overflow-x: hidden;
+}
+
+/* =============================================================================
+   UTILITY CLASSES
+   ============================================================================= */
+
+.na-hidden {
+    display: none !important;
+}
+
+.na-flex {
+    display: flex;
+}
+
+.na-flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.na-flex-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* =============================================================================
+   HEADER
+   ============================================================================= */
+
+.na-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--na-spacing-md) var(--na-spacing-lg);
+    background-color: var(--na-bg-secondary);
+    border-bottom: 1px solid var(--na-border-color);
+}
+
+.na-title {
+    font-size: var(--na-font-size-xl);
+    font-weight: 600;
+    color: var(--na-text-primary);
+}
+
+.na-header-controls {
+    display: flex;
+    gap: var(--na-spacing-sm);
+}
+
+/* =============================================================================
+   STATUS BAR
+   ============================================================================= */
+
+.na-status-bar {
+    padding: var(--na-spacing-sm) var(--na-spacing-lg);
+    font-size: var(--na-font-size-sm);
+    transition: var(--na-transition-normal);
+}
+
+.na-status-bar.na-status-success {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: var(--na-accent-green);
+    border-bottom: 1px solid var(--na-accent-green);
+}
+
+.na-status-bar.na-status-error {
+    background-color: rgba(244, 67, 54, 0.2);
+    color: var(--na-accent-red);
+    border-bottom: 1px solid var(--na-accent-red);
+}
+
+.na-status-bar.na-status-warning {
+    background-color: rgba(255, 152, 0, 0.2);
+    color: var(--na-accent-orange);
+    border-bottom: 1px solid var(--na-accent-orange);
+}
+
+.na-status-bar.na-status-info {
+    background-color: rgba(74, 144, 217, 0.2);
+    color: var(--na-accent-blue);
+    border-bottom: 1px solid var(--na-accent-blue);
+}
+
+/* =============================================================================
+   SECTIONS
+   ============================================================================= */
+
+.na-section {
+    padding: var(--na-spacing-md) var(--na-spacing-lg);
+    border-bottom: 1px solid var(--na-border-color);
+}
+
+.na-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--na-spacing-md);
+}
+
+.na-section-header h2 {
+    font-size: var(--na-font-size-md);
+    font-weight: 600;
+    color: var(--na-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* =============================================================================
+   VIEWPORT (2D Preview)
+   ============================================================================= */
+
+.na-viewport-section {
+    padding-bottom: var(--na-spacing-sm);
+    position: sticky;
+    top: 0;
+    background-color: var(--na-bg-primary);
+    z-index: 100;
+}
+
+.na-viewport-controls {
+    display: flex;
+    gap: var(--na-spacing-xs);
+}
+
+.na-canvas-wrapper {
+    position: relative;
+    width: 100%;
+    height: 300px;
+    background-color: var(--na-bg-tertiary);
+    border: 1px solid var(--na-border-color);
+    border-radius: var(--na-radius-md);
+    overflow: hidden;
+    cursor: grab;
+}
+
+.na-canvas-wrapper:active {
+    cursor: grabbing;
+}
+
+.na-viewport-svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* =============================================================================
+   CONTROLS GRID
+   ============================================================================= */
+
+.na-controls-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--na-spacing-md);
+}
+
+/* =============================================================================
+   CONTROL ITEMS
+   ============================================================================= */
+
+.na-control-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--na-spacing-xs);
+}
+
+.na-control-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--na-font-size-sm);
+    color: var(--na-text-secondary);
+}
+
+.na-control-value {
+    font-weight: 600;
+    color: var(--na-text-primary);
+    min-width: 60px;
+    text-align: right;
+}
+
+/* =============================================================================
+   SLIDER CONTROL
+   ============================================================================= */
+
+.na-slider-container {
+    display: flex;
+    align-items: center;
+    gap: var(--na-spacing-sm);
+}
+
+.na-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: var(--na-bg-tertiary);
+    border-radius: 3px;
+    outline: none;
+    transition: var(--na-transition-fast);
+}
+
+.na-slider:hover {
+    background: var(--na-bg-hover);
+}
+
+.na-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--na-accent-blue);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: var(--na-transition-fast);
+}
+
+.na-slider::-webkit-slider-thumb:hover {
+    background: var(--na-accent-blue-hover);
+    transform: scale(1.1);
+}
+
+.na-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--na-accent-blue);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.na-slider-input {
+    width: 70px;
+    padding: var(--na-spacing-xs) var(--na-spacing-sm);
+    background: var(--na-bg-tertiary);
+    border: 1px solid var(--na-border-color);
+    border-radius: var(--na-radius-sm);
+    color: var(--na-text-primary);
+    font-size: var(--na-font-size-sm);
+    text-align: right;
+}
+
+.na-slider-input:focus {
+    outline: none;
+    border-color: var(--na-accent-blue);
+}
+
+/* =============================================================================
+   TOGGLE CONTROL
+   ============================================================================= */
+
+.na-toggle-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.na-toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    background: var(--na-bg-tertiary);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: var(--na-transition-normal);
+}
+
+.na-toggle.na-active {
+    background: var(--na-accent-blue);
+}
+
+.na-toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: var(--na-text-primary);
+    border-radius: 50%;
+    transition: var(--na-transition-normal);
+}
+
+.na-toggle.na-active .na-toggle-knob {
+    left: 22px;
+}
+
+/* =============================================================================
+   COLOR PICKER
+   ============================================================================= */
+
+.na-color-container {
+    display: flex;
+    align-items: center;
+    gap: var(--na-spacing-sm);
+}
+
+.na-color-picker {
+    width: 40px;
+    height: 30px;
+    padding: 0;
+    border: 2px solid var(--na-border-color);
+    border-radius: var(--na-radius-sm);
+    cursor: pointer;
+    background: none;
+}
+
+.na-color-picker::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.na-color-picker::-webkit-color-swatch {
+    border: none;
+    border-radius: 2px;
+}
+
+.na-color-value {
+    font-family: monospace;
+    font-size: var(--na-font-size-sm);
+    color: var(--na-text-secondary);
+}
+
+/* =============================================================================
+   BUTTONS
+   ============================================================================= */
+
+.na-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--na-spacing-sm) var(--na-spacing-md);
+    font-family: var(--na-font-family);
+    font-size: var(--na-font-size-sm);
+    font-weight: 500;
+    color: var(--na-text-primary);
+    background: var(--na-bg-tertiary);
+    border: 1px solid var(--na-border-color);
+    border-radius: var(--na-radius-md);
+    cursor: pointer;
+    transition: var(--na-transition-fast);
+}
+
+.na-btn:hover {
+    background: var(--na-bg-hover);
+    border-color: var(--na-border-light);
+}
+
+.na-btn:active {
+    transform: translateY(1px);
+}
+
+.na-btn-small {
+    padding: var(--na-spacing-xs) var(--na-spacing-sm);
+    font-size: var(--na-font-size-sm);
+}
+
+.na-btn-large {
+    padding: var(--na-spacing-md) var(--na-spacing-xl);
+    font-size: var(--na-font-size-lg);
+    width: 100%;
+}
+
+.na-btn-primary {
+    background: var(--na-accent-blue);
+    border-color: var(--na-accent-blue);
+    color: #ffffff;
+}
+
+.na-btn-primary:hover {
+    background: var(--na-accent-blue-hover);
+    border-color: var(--na-accent-blue-hover);
+    color: #ffffff;
+}
+
+.na-btn-secondary {
+    background: transparent;
+    border-color: var(--na-border-light);
+}
+
+.na-btn-secondary:hover {
+    background: var(--na-bg-tertiary);
+}
+
+.na-btn-success {
+    background: var(--na-accent-green);
+    border-color: var(--na-accent-green);
+    color: #ffffff;
+}
+
+.na-btn-success:hover {
+    background: var(--na-accent-green-hover);
+    border-color: var(--na-accent-green-hover);
+    color: #ffffff;
+}
+
+.na-btn-disabled,
+.na-btn:disabled {
+    background: var(--na-bg-tertiary) !important;
+    border-color: var(--na-border-color) !important;
+    color: var(--na-text-muted) !important;
+    cursor: not-allowed !important;
+    opacity: 0.6;
+}
+
+.na-btn-disabled:hover,
+.na-btn:disabled:hover {
+    background: var(--na-bg-tertiary) !important;
+    transform: none !important;
+}
+
+/* =============================================================================
+   ACTIONS SECTION
+   ============================================================================= */
+
+.na-actions-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--na-spacing-sm);
+    padding: var(--na-spacing-lg);
+    background: var(--na-bg-secondary);
+}
+
+/* =============================================================================
+   WINDOW INFO SECTION
+   ============================================================================= */
+
+.na-window-info {
+    background: var(--na-bg-secondary);
+}
+
+.na-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--na-spacing-sm);
+}
+
+.na-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.na-info-label {
+    font-size: var(--na-font-size-sm);
+    color: var(--na-text-muted);
+}
+
+.na-info-value {
+    font-size: var(--na-font-size-sm);
+    font-weight: 500;
+    color: var(--na-text-primary);
+}
+
+/* =============================================================================
+   SCROLLBAR STYLING
+   ============================================================================= */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--na-bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--na-bg-hover);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--na-border-light);
+}
+
+/* =============================================================================
+   VIEWPORT SVG STYLES
+   ============================================================================= */
+
+.na-viewport-svg path {
+    fill: none;
+    stroke: #333333;
+    stroke-width: 1;
+}
+
+.na-viewport-svg .na-frame-path {
+    stroke: #8B7355;
+    stroke-width: 2;
+}
+
+.na-viewport-svg .na-glass-path {
+    stroke: #5F9EA0;
+    stroke-width: 1;
+    fill: rgba(135, 206, 235, 0.2);
+}
+
+.na-viewport-svg .na-glazebar-path {
+    stroke: #8B7355;
+    stroke-width: 1.5;
+}
+
+.na-viewport-svg .na-dimension-path {
+    stroke: #666666;
+    stroke-width: 0.5;
+}
+
+.na-viewport-svg text {
+    fill: #5b5b5b;
+    font-family: var(--na-font-family);
+    /* font-size removed - set per element in JavaScript for responsive sizing */
+}
+
+/* =============================================================================
+   LOGO STYLES
+   ============================================================================= */
+
+.na-logo {
+    height: 36px;
+    width: auto;
+    margin-right: var(--na-spacing-md);
+}
+
+.na-header-left {
+    display: flex;
+    align-items: center;
+}
+
+/* =============================================================================
+   LIVE MODE BUTTON STYLES
+   ============================================================================= */
+
+.na-btn-live-active {
+    background: var(--na-accent-green) !important;
+    border-color: var(--na-accent-green) !important;
+    color: #ffffff !important;
+}
+
+.na-btn-live-active:hover {
+    background: var(--na-accent-green-hover) !important;
+    border-color: var(--na-accent-green-hover) !important;
+}
+
+/* =============================================================================
+   VIEWPORT RESIZE HANDLE
+   ============================================================================= */
+
+.na-resize-handle {
+    width: 100%;
+    height: 8px;
+    background: var(--na-bg-tertiary);
+    cursor: ns-resize;
+    border-bottom: 1px solid var(--na-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.na-resize-handle::after {
+    content: '';
+    width: 40px;
+    height: 3px;
+    background: var(--na-border-color);
+    border-radius: 2px;
+}
+
+.na-resize-handle:hover {
+    background: var(--na-bg-hover);
+}
+
+.na-resize-handle:hover::after {
+    background: var(--na-text-muted);
+}
+
+/* =============================================================================
+   EXPANDABLE PANEL (Per-Casement Sizes)
+   ============================================================================= */
+
+.na-expandable-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--na-spacing-sm) var(--na-spacing-md);
+    background: var(--na-bg-tertiary);
+    border: 1px solid var(--na-border-color);
+    border-radius: var(--na-radius-sm);
+    cursor: pointer;
+    transition: var(--na-transition-fast);
+    margin-top: var(--na-spacing-sm);
+}
+
+.na-expandable-header:hover {
+    background: var(--na-bg-hover);
+    border-color: var(--na-border-light);
+}
+
+.na-expandable-header.na-expanded {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-color: transparent;
+}
+
+.na-expandable-title {
+    font-size: var(--na-font-size-sm);
+    font-weight: 500;
+    color: var(--na-text-secondary);
+}
+
+.na-expandable-arrow {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform var(--na-transition-fast);
+}
+
+.na-expandable-arrow::before {
+    content: '';
+    border: solid var(--na-text-muted);
+    border-width: 0 2px 2px 0;
+    display: inline-block;
+    padding: 4px;
+    transform: rotate(45deg);
+    margin-top: -3px;
+}
+
+.na-expandable-header.na-expanded .na-expandable-arrow::before {
+    transform: rotate(-135deg);
+    margin-top: 3px;
+}
+
+.na-expandable-content {
+    display: none;
+    padding: var(--na-spacing-md);
+    background: var(--na-bg-secondary);
+    border: 1px solid var(--na-border-color);
+    border-top: none;
+    border-bottom-left-radius: var(--na-radius-sm);
+    border-bottom-right-radius: var(--na-radius-sm);
+}
+
+.na-expandable-content.na-expanded {
+    display: block;
+}
+
+.na-expandable-content .na-control-item {
+    padding: var(--na-spacing-xs) 0;
+}
+
+.na-expandable-content .na-control-item:first-child {
+    padding-top: 0;
+}
+
+.na-expandable-content .na-control-item:last-child {
+    padding-bottom: 0;
+}
+
+/* Indent sub-controls slightly */
+.na-expandable-content .na-control-label span:first-child {
+    padding-left: var(--na-spacing-sm);
+    font-size: var(--na-font-size-sm);
+    color: var(--na-text-muted);
+}
+
+/* =============================================================================
+   TWIN CASEMENTS TOGGLE SPECIAL STYLING
+   ============================================================================= */
+
+.na-control-item[data-control-id="twin_casements"] .na-toggle-container {
+    padding: var(--na-spacing-xs) 0;
+}
+
+/* =============================================================================
+   SUBSECTION DIVIDER
+   ============================================================================= */
+
+.na-subsection-divider {
+    height: 1px;
+    background: var(--na-border-color);
+    margin: var(--na-spacing-md) 0;
+}
+
+/* =============================================================================
+   END OF FILE
+   ============================================================================= */

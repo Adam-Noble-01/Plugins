@@ -1,0 +1,70 @@
+{
+    "metadata": {
+        "file_name": "ValeDesignSuite_Config_FrameworkConfigurator_DefaultAssemblyConfig.json",
+        "description": "Default configuration settings for Framework Assembly creation and properties",
+        "author": "Adam Noble - Noble Architecture",
+        "created": "2025",
+        "version": "1.0.0",
+        "last_modified": "26-May-2025"
+    },
+    "assembly_defaults": {
+        "name": "Framework_Assembly",
+        "description": "Standard Framework Assembly Container",
+        "dimensions": {
+            "length_mm"        :    2400,
+            "height_mm"        :    2000,
+            "depth_mm"         :    150,
+            "min_length_mm"    :    600,
+            "max_length_mm"    :    6000,
+            "min_height_mm"    :    600,
+            "max_height_mm"    :    3000,
+            "min_depth_mm"     :    50,
+            "max_depth_mm"     :    300
+        },
+        "material_properties": {
+            "default_material": "Wood_Pine",
+            "frame_thickness_mm": 44,
+            "frame_width_mm": 70,
+            "corner_joint_type": "mortise_tenon",
+            "surface_finish": "natural"
+        },
+        "structural_properties": {
+            "load_bearing": true,
+            "weatherproof": false,
+            "insulated": false,
+            "glazed": false,
+            "operable": false
+        },
+        "positioning": {
+            "origin_x": 0.0,
+            "origin_y": 0.0,
+            "origin_z": 0.0,
+            "rotation_degrees": 0.0,
+            "anchor_point": "bottom_left"
+        },
+        "container_properties": {
+            "max_nodes": 50,
+            "max_panels": 100,
+            "auto_organize": true,
+            "collision_detection": true,
+            "snap_to_grid": true,
+            "grid_spacing_mm": 50
+        },
+        "performance_settings": {
+            "realtime_updates": true,
+            "update_delay_ms": 500,
+            "batch_operations": true,
+            "auto_save": true,
+            "undo_levels": 20
+        }
+    },
+    "ui_settings": {
+        "show_dimensions": true,
+        "show_materials": true,
+        "show_structure": true,
+        "show_positioning": true,
+        "show_advanced": false,
+        "panel_width": 300,
+        "panel_height": 600
+    }
+} 

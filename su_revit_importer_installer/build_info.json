@@ -1,0 +1,10 @@
+{
+  "name": "Revit_Importer",
+  "versions": [ "1.2025.0528" ],
+  "builds": [
+    {
+      "system": "Windows",
+      "arch": "x64"
+    }
+  ]
+}

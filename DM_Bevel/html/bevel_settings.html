@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link type="text/css" rel="StyleSheet" href="css/font.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/bootstrap.min.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/bevel-bootstrap.css"/>
+    <title>Settings</title>
+</head>
+
+<body class="body-hide">
+
+<div class="container px-3 small">
+    <div class="row pt-2">
+
+        <div class="col-12">
+
+            <div class="form-row">
+                <div class="col-12">
+                    <label class="h6 localize">General</label>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="col">
+                    <div class="custom-control custom-switch">
+                        <input id="show_notification" type="checkbox" class="custom-control-input">
+                        <label for="show_notification" class="custom-control-label localize">Show Operation Notifications</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row pt-2">
+                <div class="col-6 pt-2">
+                    <label for="language" class="localize">Language</label>
+                </div>
+                <div class="col-6">
+                    <select id="language" class="form-control form-control-sm">
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row pt-2">
+                <div class="col-6 pt-2">
+                    <label for="curve_type" class="localize">Rounding</label>
+                </div>
+                <div class="col-6">
+                    <select id="curve_type" class="form-control form-control-sm">
+                        <option value="1" class="localize">Bezier</option>
+                        <option value="2" class="localize">Arc</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row pt-3" >
+                <div class="col-12">
+                    <label class="h6 localize">Auto Soften Edges</label>
+                </div>
+            </div>
+
+            <div class="form-row mb-2">
+                <div class="col-6 pt-2">
+                    <label for="soften_angle" class="localize" title="Edges with faces forming this angle or less will be softened">Angle</label>
+                </div>
+                <div class="col-6">
+                    <div class="d-flex flex-row">
+                        <button id="decreaseSoftenAngle" onclick="sketchup.change_soften_angle(false)" class="btn btn-info btn-sm">-</button>
+                        <input type="text" class="form-control form-control-sm text-center p-1"  id="soften_angle">
+                        <button id="increaseSoftenAngle" onclick="sketchup.change_soften_angle(true)" class="btn btn-info btn-sm">+</button>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="form-row">
+                <div class="col-6">
+                    <div class="custom-control custom-switch">
+                        <input id="smooth_normals" type="checkbox" class="custom-control-input">
+                        <label for="smooth_normals" class="custom-control-label localize" title="Smooth the shading normals of all soft edges">Smooth Soft Edges</label>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="custom-control custom-switch">
+                        <input id="smooth_perimeter" type="checkbox" class="custom-control-input">
+                        <label for="smooth_perimeter" class="custom-control-label localize" title="Disable to remove shading artifacts">Smooth Bevel Borders</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row pt-3" >
+                <div class="col-12">
+                    <label class="h6 localize">Harden Borders</label>
+                </div>
+            </div>
+
+            <div class="form-row pt-2">
+                <div class="col-6 pt-2">
+                    <label for="harden_edges_mode" class="localize">Mode</label>
+                </div>
+                <div class="col-6">
+                    <select id="harden_edges_mode" class="form-control form-control-sm">
+                        <option value="0" class="localize">Both</option>
+                        <option value="1" class="localize">Bevel Borders</option>
+                        <option value="2" class="localize">Transitions</option>
+                    </select>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <hr>
+    <div class="row mt-3">
+        <div class="col-12">
+            <button id="close" class="btn btn-info btn-block btn-sm"><span class="localize">Close</span></button>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+<script type="text/javascript" src="js/bootstrap.bundle.min.js"></script>
+<script type="text/javascript" src="js/main.js"></script>
+<script type="text/javascript">
+
+
+    ready();
+
+</script>
+
+
+</body>

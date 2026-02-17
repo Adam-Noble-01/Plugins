@@ -1,0 +1,41 @@
+Extrude Edges by Rails<==>双轨放样
+Extrude Edges by Rails<==>双轨放样
+Extrude Edges by Rails: Select the 'Profile' Curve...<==>双轨放样: 选择开始轮廓曲线...
+Pick Profile<==>选择开始轮廓线
+Pick 1st Rail<==>选择路径1
+Pick 2nd Rail<==>选择路径2
+Extrude Edges by Rails: Select the 1st 'Rail' Curve...<==>双轨放样: 选择路径1曲线...
+Extrude Edges by Rails: Select the 2nd 'Rail' Curve...<==>双轨放样: 选择路径2曲线...
+Extrude Edges by Rails: Making Mesh from Profile and 1 Rail.<==>双轨放样: 从路径1和轮廓线生成网格
+Extrude Edges by Rails: Making Mesh from Profile and 2 Rails.<==>双轨放样: 从路径2和轮廓线生成网格
+Extrude Edges by Rails: Reverse Rail-1's Direction ?<==>双轨放样: 是否翻转路径1方向 ?
+Extrude Edges by Rails:<==>双轨放样:
+Reverse Rail-1's Direction ?<==>是否翻转路径1方向 ?
+This is only necessary with twisted meshes...<==>只在网格扭曲时使用...
+Extrude Edges by Rails: Reversing Rail-1's Direction...<==>双轨放样: 正在翻转路径1方向...
+Extrude Edges by Rails: Formating Mesh... Please Wait...<==>双轨放样: 格式化网格...请稍候...
+Extrude Edges by Rails: Reverse <==>双轨放样: 是否翻转 
+ Faces ?<==> 面 ?
+Extrude Edges by Rails: Reversing Face <==>双轨放样: 正在翻转面
+ of <==> 之 
+Reverse Faces ?<==>是否翻转面 ?
+Extrude Edges by Rails: Erase Coplanar Edges ?<==>双轨放样: 是否删除共面线 ?
+Erase Coplanar Edges ?<==>是否生成共面线 ?
+Extrude Edges by Rails: Coplanar Edges Erased= <==>双轨放样: 生成共面线= 
+Extrude Edges by Rails: Intersect Mesh with Self ?<==>双轨放样: 是否模型交错 ?
+Intersect Mesh with Self ?<==>是否模型交错 ?
+This is only necessary with convoluted meshes...<==>模型比较复杂是才需要...
+Extrude Edges by Rails: Intersecting Mesh with Self... Please Wait...<==>双轨放样: 正在模型交错... 请稍后...
+Extrude Edges by Rails: Smooth <==>双轨放样: 是否柔滑 
+ Edges ?<==> 边线 ?
+Smooth Edges ?<==>是否柔滑边线 ?
+Extrude Edges by Rails: Smoothing Edge <==>双轨放样: 正在柔滑边线
+Extrude Edges by Rails: Erase Original Curves ?<==>双轨放样: 是否删除原有曲线 ?
+Erase Original Curves ?<==>是否删除原有曲线 ?
+Extrude Edges by Rails: <==>双轨放样: 
+Making Profile <==>正在生成轮廓
+Making Face <==>正在生成面
+Pick Melding Profile<==>选择结束轮廓线
+Extrude Edges by Rails: Select the 'Melding-Profile' Curve...<==>双轨放样: 选择结束轮廓线...
+Orienting Faces<==>统一面的方向
+: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Makes Mesh. Follow Prompts...<==>: 选择曲线: 开始轮廓线, 路径-1, 路径-2 和 结束轮廓线. 生成网格. 按照提示做....

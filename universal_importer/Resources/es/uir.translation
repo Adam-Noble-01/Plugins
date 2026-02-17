@@ -1,0 +1,52 @@
+
+////////////////////////////////////////////////
+// Universal Importer Plugin Spanish Translation
+//
+// Authors: Óscar Hernández, DeepL
+// Last Update: July 27, 2024
+////////////////////////////////////////////////
+
+// File: universal_importer.rb
+
+"Universal Importer"="Importador Universal";
+"Import 3D models in SketchUp. 50+ formats are supported."="Importar modelos 3D en SketchUp. Se admiten más de 50 formatos.";
+"Reduce polygon count on the fly."="Reducir el número de polígonos al vuelo.";
+
+// File: donate.rb
+
+"Do you find Universal Importer plugin useful? You can support its author with a donation"="¿Te parece útil el extensión Importador Universal? Puede apoyar a su autor con una donación";
+
+// File: import.rb
+
+"Select a 3D Model"="Seleccionar un Modelo 3D";
+"3D Models"="Modelos 3D";
+"Source model units"="Unidades del modelo de origen";
+"Scaling"="Escalado";
+"Select a Texture for Material:"="Seleccionar una Textura para el Material:";
+"Images"="Imágenes";
+"Model has"="El modelo tiene";
+"faces"="caras";
+"Reduce polygon count?"="¿Reducir la cantidad de polígonos?";
+"Target face number"="Número de caras objetivo";
+"Polygon Reduction"="Reducción de Polígonos";
+
+// File: menu.rb
+
+"Import with"="Importar con";
+"Import a 3D Model..."="Importar un Modelo 3D...";
+"Propose Polygon Reduction"="Proponer la Reducción de Polígonos";
+"Claim Missing Textures"="Reclamar las Texturas que Faltan";
+"Get Help or Report a Bug"="Obtener Ayuda o Informar de un Error";
+"Donate to Plugin Author"="Donar al Autor del Extensión";
+"Plugins of Same Author"="Extensións del Mismo Autor";
+
+// File: polyreduction.rb
+
+"Selection must be empty!"="¡La selección debe estar vacía!";
+"Current face count:"="Cantidad de caras actual:";
+"Face count before reduction:"="Cantidad de caras antes de reducción:";
+"Face count after reduction:"="Cantidad de caras después de reducción:";
+
+// File: toolbar.rb
+
+"Reduce Polygon Count..."="Reducir la Cantidad de Polígonos...";

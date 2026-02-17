@@ -1,0 +1,11 @@
+Extrude Edges by Offset<==>Extrude Edges by Offset
+: Preselect Edges, Run Tool, Enter Offset, Yes|No Options...<==>: Preselect Edges, Run Tool, Enter Offset, Yes|No Options...
+: Offset cannot be 0!<==>: Offset cannot be 0!
+: Must Select >=2 Edges!<==>: Must Select >=2 Edges!
+: Edges must be coplanar!<==>: Edges must be coplanar!
+Distance: <==>Distance: 
+Try again<==>Try again
+Reverse Faces ?<==>Reverse Faces ?
+Erase Coplanar Edges ?<==>Erase Coplanar Edges ?
+Explode Group ?<==>Explode Group ?
+

@@ -1,0 +1,37 @@
+Extrude Edges by Lathe<==>Extruder par révolution
+Extrude Edges by Lathe: Select a Polyline OR a Face...<==>Extruder par révolution: Sélectionnez une polyligne ou une face ...
+Extrude Edges by Lathe:  Angle/Segments (e.g. 45 or 9s): 0=Pick-Angle: <Ctrl>/double-click to confirm...<==>Extruder par révolution:  Angle/Segments (e.g. 45 o 9s): 0=Sélect-Angle: <Ctrl>/double-cliquez pour confirmer...
+Extrude Edges by Lathe:  Angle/Segments (e.g. 45 or 9s): <Ctrl>/double-click to confirm...<==>Extruder par révolution:  Angle/Segments (e.g. 45 or 9s): <Ctrl>/double-cliquez pour confirmer...
+Extrude Edges by Lathe:  Pick the Point for the Start of Angle: Toggles <Alt><>180deg/<Shift>C/Clockwise, or Type Angle...<==>Extruder par révolution:  Sélectionnez le premier point pour l'angle: Basculer <Alt><>180deg/<Maj>C/[Anti]Horaire, ou tapez dans l'angle...
+Extrude Edges by Lathe:  Pick the Point for the End of Angle: Toggles <Alt><>180deg/<Shift>C/Clockwise, or Type Angle...<==>Extruder par révolution:  Sélectionnez le point final pour l'angle: Basculer <Alt><>180deg/<Maj>C/[Anti]Horaire, ou tapez dans l'angle...
+Angle/Segments<==>Angle/Segments
+Angle<==>Angle
+Start Angle: <==>Angle de départ: 
+Angle: <==>Angle: 
+Cannot convert <==>Ne peut pas convertir 
+ to an Integer<==> en un entier
+Segments cannot be zero !<==>Les segments peuvent pas être nul!
+ to an Angle<==> dans un angle
+ExtrudeEdgesByLathe<==>Extruder par révolution
+Extrude Edges by Lathe:  Pick the Arc's Center-Point...<==>Extruder par révolution:  Choisir le centre de l'arc...
+Lathe Center<==>Centre de la révolution
+Lathe Center Point: <==>Point central de l'axe de révolution: 
+Extrude Edges by Lathe:  Pick a Second Point to Set the Axis of Rotation...<==>Extruder par révolution:  Choisissez un Deuxième Point pour Fixer l'Axe de Rotation...
+Lathe Axis<==>Axe de révolution
+Lathe Axis Point: <==>Point de passage de l'axe de révolution: 
+Extrude Edges by Lathe: Making Primary Lines <==>Extruder par révolution: Dessin des lignes principales
+ of <==> de 
+Extrude Edges by Lathe: Making Secondary Lines <==>Extruder par révolution: Dessin des lignes secondaires
+Extrude Edges by Lathe: Making Faces <==>Extruder par révolution: Dessin des faces 
+Extrude Edges by Lathe: Tidying Faces<==>Extruder par révolution: Tri des faces
+Extrude Edges by Lathe: Remove Coplanar Edges ?<==>Extruder par révolution: Effacer les arêtes coplanaires ?
+Extrude Edges by Lathe: Removing Coplanar Edges<==>Extruder par révolution: Effacer les arêtes coplanaires
+
+Extrude Edges by Lathe: Reverse Faces ?<==>Extruder par révolution: Inverser les faces ?
+Extrude Edges by Lathe: Reversing Faces <==>Extruder par révolution: Inverser les faces 
+Extrude Edges by Lathe: Explode Group ?<==>Extruder par révolution: Eclater le groupe ?
+Extrude Edges by Lathe: Orienting Faces<==>Extruder par révolution: Orientation des faces
+Extrude Edges by Lathe: orient faces aborted.<==>Extruder par révolution: Orientation des faces abandonnée.
+Extrude Edges by Lathe<==>Extruder par révolution
+: Pre-Select Curve/Face, Enter Parameters, Pick Center/Axis...<==>: Présélectionnez courbe/face, entrez les paramètres, choisissez centre/axe...
+Extrude Edges by Lathe: Smooth Edges ?<==>Extruder par révolution: Lisser les arêtes?

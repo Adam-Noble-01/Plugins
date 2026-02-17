@@ -1,0 +1,43 @@
+Extrude Edges by Lathe<==>旋转放样
+Extrude Edges by Lathe: Select a Polyline OR a Face...<==>旋转放样: 请选择一条多段线曲线或者一个面...
+
+Extrude Edges by Lathe:  Angle/Segments (e.g. 45 or 9s): 0=Pick-Angle: <Ctrl>/double-click to confirm...<==>旋转放样:  角度/段数 (例如: 45 或 9s): 0=选择角度: <Ctrl>/双击以确认...
+Extrude Edges by Lathe:  Angle/Segments (e.g. 45 or 9s): <Ctrl>/double-click to confirm...<==>旋转放样:  角度/段数 (例如: 45 或 9s): <Ctrl>/双击以确认...
+Extrude Edges by Lathe:  Pick the Point for the Start of Angle: Toggles <Alt><>180deg/<Shift>C/Clockwise, or Type Angle...<==>旋转放样:  选择角度的开始点: 切换 <Alt><>180度/<Shift>C/顺时针, 类角度...
+Extrude Edges by Lathe:  Pick the Point for the End of Angle: Toggles <Alt><>180deg/<Shift>C/Clockwise, or Type Angle...<==>旋转放样:  选择角度的结束点: 切换 <Alt><>180度/<Shift>C/顺时针, 类角度...
+Angle/Segments<==>角度/段数
+Angle<==>角度
+Start Angle: <==>开始角度: 
+Angle: <==>角度: 
+Cannot convert <==>无法覆盖 
+ to an Integer<==> 到一个整数
+Segments cannot be zero !<==>段数不能是0!
+ to an Angle<==> 到一个角度
+ExtrudeEdgesByLathe<==>旋转放样
+
+Soften/Smooth ? <==>是否光滑边界? 
+
+
+Extrude Edges by Lathe:  Pick the Arc's Center-Point...<==>旋转放样: 请选择旋转的轴心...
+Lathe Center<==>旋转中心
+Lathe Center Point: <==>旋转中心点: 
+Extrude Edges by Lathe:  Pick a Second Point to Set the Axis of Rotation...<==>旋转放样: 请选择第二点以设置旋转轴...
+Lathe Axis<==>旋转轴
+Lathe Axis Point: <==>旋转轴点: 
+Extrude Edges by Lathe: Making Primary Lines <==>旋转放样: 正在生成主干线
+ of <==> of 
+Extrude Edges by Lathe: Making Secondary Lines <==>旋转放样: 正在生成枝干线
+Extrude Edges by Lathe: Making Faces <==>旋转放样: 正在生成表面
+Extrude Edges by Lathe: Tidying Faces<==>旋转放样: 正在整理表面
+Extrude Edges by Lathe: Remove Coplanar Edges ?<==>旋转放样: 是否删除共面的边线？
+Extrude Edges by Lathe: Removing Coplanar Edges<==>旋转放样: 正在删除共面的边线
+
+Extrude Edges by Lathe: Reverse Faces ?<==>旋转放样: 翻转表面吗？
+Extrude Edges by Lathe: Reversing Faces <==>旋转放样: 正在翻转表面
+Extrude Edges by Lathe: Explode Group ?<==>旋转放样: 炸开自动生成的组吗？
+Extrude Edges by Lathe: Orienting Faces<==>旋转放样:正在统一面的方向
+Extrude Edges by Lathe: orient faces aborted.<==>旋转放样:取消统一表面
+Extrude Edges by Lathe<==>旋转放样
+: Pre-Select Curve/Face, Enter Parameters, Pick Center/Axis...<==>: 首先预选曲线/面, 输入参数, 点击中点/数轴...
+
+Extrude Edges by Lathe: Smooth Edges ?<==>是否光滑边界? 

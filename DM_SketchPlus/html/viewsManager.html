@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link type="text/css" rel="StyleSheet" href="css/bootstrap.min.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/main.css"/>
+    <title></title>
+    <style>
+
+        .dialog-content {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+            overflow: hidden;
+        }
+
+        .dialog-header p {
+            text-align: center;
+            padding-bottom: 0;
+            margin-bottom: 0;
+        }
+
+        .dialog-body {
+            padding: .75rem;
+            padding-top: 0.25rem;
+        }
+
+        .dialog-footer {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .btn-sm {
+            margin-right: .75rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="dialog-content">
+    <div id="dialogBodyDiv" class="dialog-body">
+        <div>
+            <label for="selected_view" class="col-form-label">Views</label>
+            <select id="selected_view" class="form-control" onchange="tellSU(this)"></select>
+        </div>
+    </div>
+    <div class="dialog-footer" style="justify-content: center">
+        <button class="btn btn-sm btn-success" onclick="sketchup.save();">Save</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="sketchup.load();">Load</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="sketchup.update();">Update</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="sketchup.rename();">Rename</button>
+        <button class="btn btn-sm btn-danger" onclick="sketchup.delete();">Delete</button>
+    </div>
+</div>
+</body>
+<script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+<script type="text/javascript" src="js/bootstrap.bundle.min.js"></script>
+<script type="text/javascript" src="js/main.js"></script>
+<script>
+
+    ready();
+
+
+    function rb_set_view_list(recent_list, selected_view) {
+        var dropdown = $("#selected_view");
+        dropdown.empty();
+        recent_list.forEach((item) => {
+            var selected = item === selected_view  ? 'selected' : '';
+            dropdown.append(`<option value="${item}" ${selected}>${item}</option>`) ;
+        });
+    }
+
+</script>
+</html>

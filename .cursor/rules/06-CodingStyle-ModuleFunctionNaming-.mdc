@@ -1,0 +1,32 @@
+description: Three-part naming convention for module functions
+alwaysApply: true
+---
+
+## Module Function Naming Convention
+
+**Pattern:** `Na__Domain__FunctionName`
+
+**Structure:**
+- `Na__` - Noble Architecture namespace
+- `Domain__` - System/feature identifier (Canvas, Menu, Toolbar, etc.)
+- `FunctionName` - Specific function purpose
+
+**Examples:**
+- `Na__Canvas__ResetView()` - Canvas domain, reset view function
+- `Na__Menu__ShowMainMenu()` - Menu domain, show main menu
+- `Na__Toolbar__Toggle()` - Toolbar domain, toggle function
+- `Na__Archive__ShowWarning()` - Archive domain, show warning
+
+**Benefits:**
+- Clear domain identification at a glance
+- Prevents naming conflicts across domains
+- Groups related functions in IntelliSense
+- Searchable by domain prefix
+
+**Established Domains:**
+- `Canvas` - Canvas rendering and controls
+- `Menu` - Menu navigation
+- `Buttons` - Document buttons
+- `Archive` - Historic archive
+- `Tutorial` - Tutorial flow
+- `Toolbar` - Toolbar management

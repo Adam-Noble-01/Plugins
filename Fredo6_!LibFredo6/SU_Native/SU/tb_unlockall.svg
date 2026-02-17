@@ -1,0 +1,24 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!--Generator: Xara Designer (www.xara.com), SVG filter version: 6.5.0.21-->
+<svg fill="none" fill-rule="evenodd" stroke="black" stroke-width="0.501" stroke-linejoin="bevel" stroke-miterlimit="10" font-family="Times New Roman" font-size="16" style="font-variant-ligatures:none" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" version="1.1" overflow="visible" width="75pt" height="72pt" viewBox="0 -72 75 72">
+ <defs>
+	</defs>
+ <g id="3 Rectangles- Behind Eye" transform="scale(1 -1)"/>
+ <g id="EYE CLOSED" transform="scale(1 -1)">
+  <g id="Group" stroke-linejoin="miter" stroke="#ff0000" fill="#ffffff">
+   <rect x="12.401" y="12.562" width="15.759" height="16.959" stroke-width="3"/>
+   <rect x="44.851" y="45.202" width="15.014" height="14.625" stroke-width="2.749"/>
+   <rect x="12.586" y="38.759" width="21.042" height="21.159" stroke-width="2.841"/>
+  </g>
+ </g>
+ <g id="LOCK OPEN" transform="scale(1 -1)">
+  <g id="Group_1" stroke-linejoin="miter" stroke="none" stroke-width="12.872" fill="#ff0000">
+   <path d="M 45.603,27.887 L 45.63,32.923 L 45.63,33.297 C 45.722,36.934 48.352,40.143 52.061,40.803 C 56.27,41.546 60.291,38.738 61.04,34.527 C 61.124,34.027 61.164,33.528 61.154,33.036 L 61.162,33.001 L 56.763,33.001 C 56.766,33.066 56.768,33.13 56.768,33.197 C 56.768,35.053 55.265,36.556 53.412,36.556 C 51.561,36.556 50.055,35.053 50.072,33.197 L 50.072,32.877 L 50.069,27.9 L 45.603,27.887 Z" marker-start="none" marker-end="none"/>
+   <path d="M 52.718,10.838 L 52.718,28.611 L 33.968,28.611 L 33.968,10.838 L 52.718,10.838 Z" marker-start="none" marker-end="none"/>
+  </g>
+ </g>
+ <g id="Layer 1" transform="scale(1 -1)">
+  <text xml:space="preserve" transform="translate(83.626 66.743) scale(1 -1)" kerning="auto" font-size="7.342" font-family="Arial" fill="#000000" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.375"><tspan x="0" y="0">UnLOCK All</tspan></text>
+ </g>
+</svg>

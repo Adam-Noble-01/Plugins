@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "Dodaj lokalizację",
+  "EXTENSION.DESCRIPTION": "Importuj duże obszary: kontroluj gęstość siatki terenu. Wyświetlaj Północ i swoją lokalizację w SketchUp",
+  "EXTENSION.COMPATIBILITY_ISSUE": "Uwaga: Problem z kompatybilnością rozszerzenia Dodaj Lokalizację.\n\nRozrzerzenie Dodaj Lokalizację jest obecnie wyłączone w Twojej wersji SketchUp.\nRozrzerzenie to jest przeznaczone do pracy z najnowszą wersją.\nZalecamy aktualizację SketchUp do najnowszej wersji, aby zapewnić optymalną wydajność i dostęp do wszystkich funkcji.\nNajnowszą wersję można pobrać z oficjalnej strony SketchUp.\nJeśli masz pytania lub napotkasz problemy podczas procesu aktualizacji, skontaktuj się z naszym zespołem wsparcia.",
+  "TOOLBAR_TITLE": "Dodaj lokalizację",
+  "TOOLBAR_TOOL_NAME": "Dodaj lokalizację",
+  "TOOLBAR_TOOL_DESCRIPTION": "Ustaw lokalizację i importuj mapy oraz teren",
+  "TOOLBAR_TOOL_TOOLTIP": "Dodaj lokalizację",
+  "MENU_ITEM_NAME": "Dodaj lokalizację",
+  "WINDOW_TITLE": "Dodaj lokalizację",
+  "TRUE_NORTH_MENU_ITEM_NAME": "Prawdziwa północ",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "Przełącz wyświetlanie rzeczywistego kierunku północy w modelu",
+  "MAP_PIN_MENU_ITEM_NAME": "Pinezka lokalizacji",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "Przełącz wyświetlanie rzeczywistych współrzędnych punktu w modelu",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "Pinezka lokalizacji łączy początek modelu programu SketchUp z punktem w świecie rzeczywistym",
+  "MAP_PIN_OVERLAY_NAME": "Pinezka lokalizacji",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "Resetowanie geolokalizacji",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "Pokaż pinezkę lokalizacji",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "Ukryj pinezkę lokalizacji",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "Resetuj do geolokalizacji"
+}

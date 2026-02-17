@@ -1,0 +1,14 @@
+### Lattice Maker ES lingvo file ###
+Lattice Maker<==>Generar Red
+Lattice Properties<==>Propiedades de la Red
+<Default><==><Defecto>
+<None><==><Ninguno>
+'Glass'<==>'Cristal'
+Width: <==>Anchura: 
+Depth: <==>Profundidad: 
+Pane Inset: <==>Insercion del Panel: 
+Pane Thickness: <==>Espesor del Panel: 
+Lattice Material: <==>Material de la Red: 
+Pane Material: <==>Material del Panel: 
+Processing<==>Procesando
+: Select Faces. Set Parameters. Makes a Lattice...<==>: Preseleccionar Caras. Establecer Parámetros. Crear Red...

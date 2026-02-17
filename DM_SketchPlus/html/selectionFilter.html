@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <link type="text/css" rel="StyleSheet" href="css/bootstrap.min.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/main.css"/>
+    <style>
+        #material_value, #layer_value {
+            width: 175px;
+        }
+        #material_picker {
+            margin-left: 10px;
+            padding: 0 6px;
+        }
+        #material_picker img {
+            width: 24px;
+            height: 24px;
+        }
+        .dialog-content {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+            overflow: hidden;
+        }
+
+        .dialog-header {
+            /* display: flex;
+            flex-wrap: wrap;
+            flex-shrink: 0; */
+            align-items: center;
+            /* justify-content: flex-start; */
+            padding: 2px;
+            border-bottom: 1px solid;
+            text-align: center;
+        }
+
+        .dialog-header p {
+            text-align: center;
+            padding-bottom: 0;
+            margin-bottom: 4px;
+            margin-top: 2px;
+        }
+
+        .dialog-body {
+            position: relative;
+            flex: 1 1 auto;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: .75rem;
+        }
+
+        .dialog-footer {
+            display: flex;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: flex-end;
+            padding: .75rem;
+            border-top: 1px solid;
+        }
+
+        .hide {
+            display: none;
+        }
+
+        .collapse-label {
+            cursor: pointer;
+        }
+
+        [data-toggle="collapse"].collapsed .fa:before {
+            content:url("images/caret-left-fill.svg");
+        }
+
+        [data-toggle="collapse"] .fa:before {
+            content:url("images/caret-down-fill.svg");
+        }
+
+        .btn-sm {
+            margin: 2px 6px;
+            width: 125px;
+        }
+
+        .form-check-inline .form-check-label {
+            padding-left: 0.125rem;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="dialog-content">
+    <div class="dialog-header">
+        <div class="row" style="justify-content: flex-end">
+            <div class="col">
+                <p class="font-weight-bold">
+                Selected Entities: <span id="num_entities"></span>
+                </p>
+            </div>
+        </div>
+        <button class="btn btn-sm btn-success" onclick="onSubmit(false);" >+ Select Only</button>
+        <button class="btn btn-sm btn-danger" onclick="onSubmit(true);" >- Deselect Only</button>
+        <p class="small">entities matching ANY of the following attributes:</p>
+    </div>
+    <div class="dialog-body">
+        <div class="form-check-inline m-2">
+            <input class="form-check-input" type="checkbox" id="toggle_all" onclick="toggleAll(this, '#checkboxesDiv');">
+            <label class="form-check-label" for="toggle_all">
+                Toggle All
+            </label>
+        </div>
+        <div id="checkboxesDiv" class="border-bottom">
+            <div class="row border-top">
+                <div class="col">
+                    <div class="form-check-inline m-2">
+                        <input class="form-check-input" type="checkbox" id="faces">
+                        <label class="form-check-label" for="faces">
+                            Faces
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="row border-top">
+                <div class="col">
+                    <div class="form-check m-2 ">
+                        <input class="form-check-input inline-checkbox" type="checkbox" id="edges" onclick="toggleAll(this, '#edgesCollapse');"/>
+                        <div class="collapsed collapse-label  w-100" data-toggle="collapse" data-target="#edgesCollapse">
+                            <label class="form-check-label" for="edges" onclick="event.stopPropagation()">
+                                Edges
+                            </label>
+                            <i class="fa float-right"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="collapse pl-4 mb-1" id="edgesCollapse">
+                <div class="row">
+                    <div class="col">
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="edges_noncurves" onclick="setIndeterminate('#edges', '#edgesCollapse')">
+                            <label class="form-check-label" for="edges_noncurves">
+                                Non-curves
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="edges_curves" onclick="setIndeterminate('#edges', '#edgesCollapse')">
+                            <label class="form-check-label" for="edges_curves">
+                                Curves
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="edges_arcs" onclick="setIndeterminate('#edges', '#edgesCollapse')">
+                            <label class="form-check-label" for="edges_arcs">
+                                Arcs
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="edges_smooth" onclick="setIndeterminate('#edges', '#edgesCollapse')">
+                            <label class="form-check-label" for="edges_smooth">
+                                Smooth
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="edges_soft" onclick="setIndeterminate('#edges', '#edgesCollapse')">
+                            <label class="form-check-label" for="edges_soft">
+                                Soft
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="edges_faces" onclick="setIndeterminate('#edges', '#edgesCollapse');" onchange="toggleView(this, '#edges_faces_value');">
+                            <label class="form-check-label" for="edges_faces">
+                                Number of Faces
+                            </label>
+                            <select id="edges_faces_value" class="hide ml-2">
+                                <option value="faces_none">0</option>
+                                <option value="faces_one">1</option>
+                                <option value="faces_two">2</option>
+                                <option value="faces_many">>= 3</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row border-top" >
+                <div class="col">
+                    <div class="form-check m-2">
+                        <input class="form-check-input" type="checkbox" id="groups" onclick="toggleAll(this, '#groupsCollapse');" >
+                        <div class="collapsed collapse-label  w-100" data-toggle="collapse" data-target="#groupsCollapse">
+                            <label class="form-check-label" for="groups" onclick="event.stopPropagation()">
+                                Groups
+                            </label>
+                            <i class="fa float-right"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="collapse pl-4 mb-1" id="groupsCollapse">
+                <div class="row">
+                    <div class="col">
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="groups_solids" onclick="setIndeterminate('#groups', '#groupsCollapse')">
+                            <label class="form-check-label" for="groups_solids">
+                                Solids (manifold)
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="groups_nonsolids" onclick="setIndeterminate('#groups', '#groupsCollapse')">
+                            <label class="form-check-label" for="groups_nonsolids">
+                                Non-solids
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row border-top" >
+                <div class="col">
+                    <div class="form-check m-2">
+                        <input class="form-check-input" type="checkbox" id="components" onclick="toggleAll(this, '#componentsCollapse');">
+                        <div class="collapsed collapse-label  w-100" data-toggle="collapse" data-target="#componentsCollapse">
+                            <label class="form-check-label" for="components" onclick="event.stopPropagation()">
+                                Components
+                            </label>
+                            <i class="fa float-right"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="collapse pl-4 mb-1" id="componentsCollapse">
+                <div class="row">
+                    <div class="col">
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="components_solids" onclick="setIndeterminate('#components', '#componentsCollapse')">
+                            <label class="form-check-label" for="components_solids">
+                                Solids (manifold)
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="components_nonsolids" onclick="setIndeterminate('#components', '#componentsCollapse')">
+                            <label class="form-check-label" for="components_nonsolids">
+                                Non-solids
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row border-top" >
+                <div class="col">
+                    <div class="form-check form-check-inline m-2">
+                        <input class="form-check-input" type="checkbox" id="images">
+                        <label class="form-check-label" for="images">
+                            Images
+                        </label>
+                    </div>
+                    <div class="form-check form-check-inline m-2">
+                        <input class="form-check-input" type="checkbox" id="text">
+                        <label class="form-check-label" for="text">
+                            Text
+                        </label>
+                    </div>
+                    <div class="form-check form-check-inline m-2">
+                        <input class="form-check-input" type="checkbox" id="dimensions">
+                        <label class="form-check-label" for="dimensions">
+                            Dimensions
+                        </label>
+                    </div>
+                    <div class="form-check form-check-inline m-2">
+                        <input class="form-check-input" type="checkbox" id="guides">
+                        <label class="form-check-label" for="guides">
+                            Guides
+                        </label>
+                    </div>
+                    <div class="form-check form-check-inline m-2">
+                        <input class="form-check-input" type="checkbox" id="guidepoints">
+                        <label class="form-check-label" for="guidepoints">
+                            Guide Points
+                        </label>
+                    </div>
+                    <div class="form-check form-check-inline m-2">
+                        <input class="form-check-input" type="checkbox" id="sectionplanes">
+                        <label class="form-check-label" for="sectionplanes">
+                            Section Planes
+                        </label>
+                    </div>
+                    <div class="form-check form-check-inline m-2">
+                        <input class="form-check-input" type="checkbox" name="hidden" id="hidden">
+                        <label class="form-check-label" for="hidden">
+                            Hidden
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row border-top">
+                <div class="col">
+                    <div class="form-check m-2 " style="min-width: 320px">
+                        <input class="form-check-input" type="checkbox" id="material" onchange="disableMaterials(this);" onclick="toggleAll(this, '#materialsCollapse');">
+                        <div class="collapsed collapse-label w-100" data-toggle="collapse" data-target="#materialsCollapse">
+                            <label class="form-check-label" for="material" onclick="event.stopPropagation()">
+                                Material
+                            </label>
+                            <div class="form-check form-check-inline ml-2" onclick="event.stopPropagation()" style="margin-right: 0">
+                                <select id="material_value"></select>
+                                <button id="material_picker" class="btn bg-transparent"  onclick="sketchup.pick_material();" >
+                                    <img src="images/eyedropper.svg" style="margin-top: -0.25rem">
+                                </button>
+                            </div>
+                            <i class="fa float-right" style="margin-top: 0.25rem"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapse pl-4 mb-1" id="materialsCollapse">
+                <div class="row">
+                    <div class="col">
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="material_front" onclick="setIndeterminate('#material', '#materialsCollapse')">
+                            <label class="form-check-label" for="material_front">
+                                Front Material
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline m-2">
+                            <input class="form-check-input" type="checkbox" id="material_back" onclick="setIndeterminate('#material', '#materialsCollapse')">
+                            <label class="form-check-label" for="material_back">
+                                Back Material
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row border-top">
+                <div class="col text-nowrap">
+                    <div class="form-check form-check-inline m-2">
+                        <input class="form-check-input" type="checkbox" id="layer" onchange="disableLayer(this)">
+                        <label class="form-check-label" for="layer">
+                            Tag
+                        </label>
+                    </div>
+                    <div class="form-check form-check-inline m-2">
+                        <select id="layer_value" style="margin-left: 19px"></select>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+<script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+<script type="text/javascript" src="js/bootstrap.bundle.min.js"></script>
+<script type="text/javascript" src="js/main.js"></script>
+<script>
+    ready();
+
+    // Initial state
+    $('#material_value').prop('disabled', true);
+    $('#layer_value').prop('disabled', true);
+
+    // reload the material and layer list on window focus
+    $(window).on('focus', () => {
+        var material = $('#material_value').val();
+        var layer = $('#layer_value').val();
+        sketchup.refresh_dropdowns(material, layer);
+    });
+
+    function disableMaterials(chk) {
+        var checkVal = $(chk).prop('checked');
+        $('#material_value').prop('disabled', !checkVal);
+    }
+
+    function disableLayer(chk) {
+        var checkVal = $(chk).prop('checked');
+        $('#layer_value').prop('disabled', !checkVal);
+    }
+
+    function toggleAll(checkbox, id, visibleOnly = false) {
+        var toggleVal = $(checkbox).prop('checked');
+        $(`input[type='checkbox']${visibleOnly ? ':visible' : '' }` , id).each(function(i, element){
+            var jEle = $(element);
+            jEle.prop('checked', toggleVal);
+            jEle.prop('indeterminate', false);
+            if (jEle.attr('onchange') != null) {
+                element.onchange();
+            }
+        });
+    }
+
+    function setIndeterminate(mainCheckboxId, optionDivId) {
+        var total = $(`${optionDivId} input[type="checkbox"]`).length;
+        var selected = $(`${optionDivId} input[type="checkbox"]:checked`).length;
+        var mainCheckbox = $(mainCheckboxId)
+        if (total === selected) {
+            mainCheckbox.prop('checked', true);
+            mainCheckbox.prop('indeterminate', false);
+        } else if (selected !== 0) {
+            mainCheckbox.prop('checked', true);
+            mainCheckbox.prop('indeterminate', true);
+        } else {
+            mainCheckbox.prop('checked', false);
+            mainCheckbox.prop('indeterminate', false);
+        }
+        if (mainCheckbox.attr('onchange') != null) {
+            mainCheckbox.get(0).onchange();
+        }
+    }
+
+    function toggleView(checkbox, id) {
+        var toggleVal = $(checkbox).prop('checked');
+        var elementToToggle = $(id);
+        if(toggleVal) {
+            elementToToggle.show();
+        } else {
+            elementToToggle.hide();
+        }
+    }
+
+    function onSubmit(isDeselect) {
+        var selectedValues = {};
+        $("#checkboxesDiv input:checked").each(function(i, element){
+            var jEle = $(element);
+            var id = jEle.prop('id');
+            if(!id.includes('_')) {
+                if (id === 'layer') {
+                    selectedValues[id] = $("#layer_value").val();
+                } else if(selectedValues[id] == null) {
+                    selectedValues[id] = [];
+                }
+            } else {
+                var keyVal = id.split('_');
+                var opt_id = keyVal[0];
+                var val = keyVal[1];
+                if(selectedValues[opt_id] == null) {
+                    selectedValues[opt_id] = [];
+                }
+                selectedValues[opt_id].push(val);
+            }
+        });
+        if (selectedValues['edges'] && selectedValues['edges'].includes('faces')) {
+            var val = $('#edges_faces_value').val();
+            selectedValues['edges'].push(val);
+        }
+        if (selectedValues['material']) {
+            var material_val = $('#material_value').val();
+            selectedValues['material'].unshift(material_val);
+        }
+        sketchup.submit(selectedValues, isDeselect);
+    }
+
+
+
+</script>
+</body>
+</html>

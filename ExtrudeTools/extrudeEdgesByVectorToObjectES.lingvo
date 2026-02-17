@@ -1,0 +1,10 @@
+Orienting Faces<==>Orientando Caras
+Extrude Edges by Vector to Object<==>Extrusión de Aristas por Vector a Objetos
+: Reverse Extrusion's Faces ?<==>: ¿Deseas Invertir las Caras Extruidas?
+: Explode Extrusion's Group ?<==>: ¿Deseas Explotar el Grupo de Extrusión?
+Extrude Edges by Vector to Object: Pick Second Point of Vector...<==>Extrusión de Aristas por Vector a Objetos: Especifica el Final del Vector...
+Extrude Edges by Vector to Object: Cannot Convert <==>Extrusión de Aristas por Vector a Objetos: No se Puede Convertir 
+ to a Length.<==> a una Longitud.
+Extrude Edges by Vector to Object: No Edge in Selection.<==>Extrusión de Aristas por Vector a Objetos: No hay Aristas en la Selección !!
+Extrude Edges by Vector to Object: Pick First Point of Vector...<==>Extrusión de Aristas por Vector a Objetos: Especifica el Inicio del Vector...
+: Pre-Select Edges/Curves/Face, Pick Vector Start & End...<==>: Pre-Selecciona Aristas/Curvas/Cara, Especifica Inicio & Final del Vector...

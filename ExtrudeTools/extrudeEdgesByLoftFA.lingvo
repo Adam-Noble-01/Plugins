@@ -1,0 +1,23 @@
+Extrude Edges by Loft<==>امتداد دادن چند خط با ایجادیک صفحه منحنی ملایم یا لافت 
+Extrude Edges by Loft<==>امتداد دادن چند خط با ایجادیک صفحه منحنی ملایم یا لافت 
+Extrude Edges by Loft: Select Curves... [Double-Click or Press <Enter> to Make Mesh]<==>امتداد دادن چند خط با ایجاد صفحه لافت : خطوط منحنی را به ترتیب انتخاب کنید  [دابل کلیک یا زدن کلید اینتر برای ایجار مش]مممم 
+Segments per Section: <==>تعداد خطوط در هر بخش :
+: Please Wait...<==>صبر کنید ...
+Mesh Section <==>Mesh Section 
+ of <==> از
+Extrude Edges by Loft: Formatting Mesh - Please Wait...<==>امتداد دادن چند خط با ایجاد صفحه لافت : در حال ایجاد مش . لطفا صبر کنید 
+Extrude Edges by Loft: Orienting Faces - Please Wait...<==>امتداد دادن چند خط با ایجاد صفحه لافت : در حال همجهت سازی صفحات . کمی صبر کنید
+Extrude Edges by Loft: Reverse <==>امتداد دادن چند خط با ایجاد صفحه لافت: معکوس
+ Faces ?<==> صفحات؟
+Extrude Edges by Loft: Reversing Face <==>امتداد دادن چند خط با ایجاد صفحه لافت : در حال معکوس کردن صفحات
+Extrude Edges by Loft: Smooth <==>امتداد دادن چند خط با ایجاد صفحه لافت : ملایم سازی صفحات 
+ Edges ?<==> خطوط ?
+Extrude Edges by Loft: Smoothing Edge <==>امتداد دادن چند خط با ایجاد صفحه لافت :در حال ملایم سازی صفحات 
+Extrude Edges by Loft: Re-Formatting Mesh - Please Wait...<==>امتداد دادن چند خط با ایجاد صفحه لافت : درحال شکل گیری دوباره مش ... کمی صبر کنید 
+Extrude Edges by Loft: Erase <==>امتداد دادن چند خط با ایجاد صفحه لافت : پاک کردن 
+ Original Curves ?<==> منحنیهای اولیه؟
+Extrude Edges by Loft: Select at Least TWO Curves !<==>لااقل کم دو خط منحنی را برای انتخاب کنید تا امتداد دادن چند خط با ایجاد صفحه لافت بتواند انجام شود 
+: Select Curves: Follow Prompts: to Loft a Mesh...<==>منحنی ها رو انتخاب کنید :و برای لافت کردن مش بقیه مراحل را دنبال کنید:
+
+Quad Faces ?<==>صورت چهار ضلعی ?
+Extrude Edges by Loft: Quad Face <==> صورت چهار ضلعی امتداد دادن چند خط با ایجادیک صفحه منحنی ملایم یا لافت 

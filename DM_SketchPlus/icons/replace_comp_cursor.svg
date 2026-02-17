@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;">
+    <g id="comp-find" transform="matrix(1,0,0,1,-1.16208,-0.821966)">
+        <g id="comp" transform="matrix(0.7601,0,0,0.7601,7.91665,5.66037)">
+            <path d="M11.869,16.027L24.847,11.47L22.703,20.476L13.187,25.192L11.869,16.027Z" style="fill:rgb(140,140,140);"/>
+            <path d="M7.171,9.131L9.249,17.742L13.215,25.192L11.869,16.027L7.171,9.131Z" style="fill:rgb(179,179,179);"/>
+            <path d="M7.171,9.131L11.851,16L24.847,11.47L17.543,6.808L7.171,9.131Z" style="fill:white;"/>
+            <g transform="matrix(0.698708,0,0,0.698708,4.82332,4.82067)">
+                <path d="M1.08,4.802L4.56,19.168L11.209,31.657L27.217,23.699L30.799,8.651L18.554,0.833L1.08,4.802ZM6.334,18.493L3.36,6.215L18.204,2.844L28.658,9.517L25.589,22.405L12.011,29.156L6.334,18.493Z"/>
+                <path d="M3.36,6.168L10.084,16.038L28.658,9.517" style="fill:none;stroke:black;stroke-width:1.88px;"/>
+                <path d="M10.084,16.038L11.971,29.156" style="fill:none;stroke:black;stroke-width:1.88px;"/>
+            </g>
+            <g>
+                <path d="M1.449,5.03L4.847,19.059L11.339,31.253L26.954,23.49L30.453,8.791L18.498,1.158L1.449,5.03ZM6.334,18.493L3.36,6.215L18.204,2.844L28.658,9.517L25.589,22.405L12.011,29.156L6.334,18.493Z" style="fill:rgb(20,40,242);"/>
+                <path d="M3.36,6.168L10.084,16.038L28.658,9.517" style="fill:none;stroke:rgb(20,40,242);stroke-width:1.58px;"/>
+                <path d="M10.084,16.038L11.971,29.156" style="fill:none;stroke:rgb(20,40,242);stroke-width:1.58px;"/>
+            </g>
+        </g>
+        <g id="comp-find1" serif:id="comp-find" transform="matrix(1,0,0,1,-16,2)">
+            <g transform="matrix(1.16667,0,0,1.16667,-3.83792,-4.17803)">
+                <circle cx="24" cy="24" r="6" style="fill:rgb(254,255,254);"/>
+            </g>
+            <g transform="matrix(0.707107,0.707107,-0.707107,0.707107,24.1621,-8.70495)">
+                <path d="M21,24L21,25C21,26.105 21.895,27 23,27C24.105,27 25,26.105 25,25C25,24.685 25,24.348 25,24" style="fill:none;stroke:black;stroke-width:1.2px;stroke-linejoin:round;stroke-miterlimit:1.5;"/>
+            </g>
+            <g transform="matrix(0.707107,0.707107,-0.707107,0.707107,24.1621,-8.70495)">
+                <path d="M25,22L25,21C25,19.895 24.105,19 23,19C21.895,19 21,19.895 21,21C21,21.315 21,21.652 21,22" style="fill:none;stroke:black;stroke-width:1.2px;stroke-linejoin:round;stroke-miterlimit:1.5;"/>
+            </g>
+            <g transform="matrix(0.707107,0.707107,-0.707107,0.707107,24.1621,-8.70495)">
+                <path d="M23,21.586L23,24.414" style="fill:none;stroke:black;stroke-width:1.2px;stroke-linejoin:round;stroke-miterlimit:1.5;"/>
+            </g>
+        </g>
+    </g>
+    <g transform="matrix(1.61111,0,0,1.61111,-1.61111,-1.61111)">
+        <g id="_cursor">
+            <g id="pointer">
+                <g transform="matrix(1.5,0,0,1.5,-2,-2)">
+                    <path d="M2,2L4,8L5,5L8,4L2,2Z" style="fill:white;"/>
+                </g>
+                <path d="M2,2L4,8L5,5L8,4L2,2Z"/>
+            </g>
+        </g>
+    </g>
+    <g transform="matrix(1,0,0,1,-16,2)">
+        <circle cx="23" cy="23" r="7" style="fill:white;"/>
+        <g transform="matrix(1,0,0,1,-2,1)">
+            <path d="M23,18L23,24" style="fill:none;stroke:black;stroke-width:1px;"/>
+            <path d="M21.098,20L23,18L25,20" style="fill:none;stroke:black;stroke-width:1px;"/>
+        </g>
+        <g transform="matrix(-0.999807,-0.0196363,0.0196363,-0.999807,47.6811,45.4476)">
+            <path d="M23,18L23,24" style="fill:none;stroke:black;stroke-width:1px;"/>
+            <path d="M21.098,20L23,18L25,20" style="fill:none;stroke:black;stroke-width:1px;"/>
+        </g>
+    </g>
+</svg>

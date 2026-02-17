@@ -1,0 +1,31 @@
+# SketchUp RubyScript Developer
+# -------------------------------------
+## Role   |  Highly Experienced RubyScript SketchUp Plugin Developer
+## Task   |  Further Development to a Framework Configurator Tool
+## USAGE  |  This tool will be used to configure the framework of a Vale Garden Houses Structure within the Vale Design Suite SketchUp Plugin.
+
+### Task 01 Overview  -  Develop the HTML Dialog To Include A "2D Configuration" View
+- Vale Garden Houses need a tool that allows them to configure the framework of a structure.
+- This is the outer frame of the Orangery / Conservatory / Greenhouse structure.
+- The tool front end will be developed in HTML / JS and will be powered by a RubyScript file that will handle the logic of the tool.
+- The tool has been partially developed in the previous task, this task is to further develop the tool and add more new features.
+- Vale Garden Houses is happy with the current implementation of the tool and have requested the following features:
+
+TASK 01 - Study Codebase for the Framework Configurator Tool
+- Study the codebase for the Framework Configurator Tool
+- Files referenced . . . 
+
+TASK 02 - Study The Provided Reference Image
+- Notice my markup, Red shows hows a desired click even would result in option being displayed for each node.
+- The blue "Bubbles" shown are the options that are available for each node.
+- Selecting these bubbles results in the node being updated to the selected option.
+
+TASK 03 - Develop the Front End elements to support this 
+ - Placerholders for now are 3 seperate options (this will be replaced with the actual options configured using a JSON file)
+ - For now add 3 opttions . . . 
+   - Option 01 - "Corner Column"
+   - Option 02 - "290mm Column"
+   - Option 03 - "390mm Column"
+
+
+

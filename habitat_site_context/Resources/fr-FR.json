@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "Ajouter un emplacement",
+  "EXTENSION.DESCRIPTION": "Importez de grandes superficies. Contrôler la densité du maillage du terrain. Afficher le Nord et votre position dans SketchUp",
+  "EXTENSION.COMPATIBILITY_ISSUE": "Attention : problème de compatibilité sur Ajouter un emplacement.\n\nAjouter un emplacement est actuellement désactivé sur votre version de SketchUp.\nIl est conçu pour fonctionner sur la version la plus récente.\nNous vous recommandons de mettre à niveau votre SketchUp vers la dernière version pour garantir des performances optimales et un accès à toutes les fonctionnalités.\nLa dernière version peut être téléchargée sur le site officiel de SketchUp.\nContactez notre équipe d'assistance pour obtenir de l'aide si vous avez des questions ou si vous rencontrez des problèmes pendant le processus de mise à niveau.",
+  "TOOLBAR_TITLE": "Ajouter un emplacement",
+  "TOOLBAR_TOOL_NAME": "Ajouter un emplacement",
+  "TOOLBAR_TOOL_DESCRIPTION": "Définissez votre position et importez des cartes et du terrain",
+  "TOOLBAR_TOOL_TOOLTIP": "Ajouter un emplacement",
+  "MENU_ITEM_NAME": "Ajouter un emplacement",
+  "WINDOW_TITLE": "Ajouter un emplacement",
+  "TRUE_NORTH_MENU_ITEM_NAME": "Vrai Nord",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "Activer/désactiver l'affichage de la direction nord réelle sur votre modèle",
+  "MAP_PIN_MENU_ITEM_NAME": "Épingle de localisation",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "Activer ou désactiver l'affichage d'un point de coordonnées réel sur votre modèle",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "L'épingle de localisation associe l'origine du modèle SketchUp à une position réelle",
+  "MAP_PIN_OVERLAY_NAME": "Épingle de localisation",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "Réinitialisation de la géolocalisation",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "Afficher l'épingle de localisation",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "Masquer l'épingle de localisation",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "Réinitialiser à la géolocalisation"
+}

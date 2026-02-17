@@ -1,0 +1,36 @@
+Extrude Edges by Lathe<==>Extrude Edges by Lathe
+Extrude Edges by Lathe: Select a Polyline OR a Face...<==>Extrude Edges by Lathe: Select a Polyline OR a Face...
+Extrude Edges by Lathe:  Angle/Segments (e.g. 45 or 9s): 0=Pick-Angle: <Ctrl>/double-click to confirm...<==>Extrude Edges by Lathe:  Angle/Segments (e.g. 45 or 9s): 0=Pick-Angle: <Ctrl>/double-click to confirm...
+Extrude Edges by Lathe:  Angle/Segments (e.g. 45 or 9s): <Ctrl>/double-click to confirm...<==>Extrude Edges by Lathe:  Angle/Segments (e.g. 45 or 9s): <Ctrl>/double-click to confirm...
+Extrude Edges by Lathe:  Pick the Point for the Start of Angle: Toggles <Alt><>180deg/<Shift>C/Clockwise, or Type Angle...<==>Extrude Edges by Lathe:  Pick the Point for the Start of Angle: Toggles <Alt><>180deg/<Shift>C/Clockwise, or Type Angle...
+Extrude Edges by Lathe:  Pick the Point for the End of Angle: Toggles <Alt><>180deg/<Shift>C/Clockwise, or Type Angle...<==>Extrude Edges by Lathe:  Pick the Point for the End of Angle: Toggles <Alt><>180deg/<Shift>C/Clockwise, or Type Angle...
+Angle/Segments<==>Angle/Segments
+Angle<==>Angle
+Start Angle: <==>Start Angle: 
+Angle: <==>Angle: 
+Cannot convert <==>Cannot convert 
+ to an Integer<==> to an Integer
+Segments cannot be zero !<==>Segments cannot be zero !
+ to an Angle<==> to an Angle
+ExtrudeEdgesByLathe<==>ExtrudeEdgesByLathe
+Extrude Edges by Lathe:  Pick the Arc's Center-Point...<==>Extrude Edges by Lathe:  Pick the Arc's Center-Point...
+Lathe Center<==>Lathe Center
+Lathe Center Point: <==>Lathe Center Point: 
+Extrude Edges by Lathe:  Pick a Second Point to Set the Axis of Rotation...<==>Extrude Edges by Lathe:  Pick a Second Point to Set the Axis of Rotation...
+Lathe Axis<==>Lathe Axis
+Lathe Axis Point: <==>Lathe Axis Point: 
+Extrude Edges by Lathe: Making Primary Lines <==>Extrude Edges by Lathe: Making Primary Lines 
+ of <==> of 
+Extrude Edges by Lathe: Making Secondary Lines <==>Extrude Edges by Lathe: Making Secondary Lines 
+Extrude Edges by Lathe: Making Faces <==>Extrude Edges by Lathe: Making Faces 
+Extrude Edges by Lathe: Tidying Faces<==>Extrude Edges by Lathe: Tidying Faces
+Extrude Edges by Lathe: Remove Coplanar Edges ?<==>Extrude Edges by Lathe: Remove Coplanar Edges ?
+Extrude Edges by Lathe: Removing Coplanar Edges<==>Extrude Edges by Lathe: Removing Coplanar Edges
+Extrude Edges by Lathe: Reverse Faces ?<==>Extrude Edges by Lathe: Reverse Faces ?
+Extrude Edges by Lathe: Reversing Faces <==>Extrude Edges by Lathe: Reversing Faces 
+Extrude Edges by Lathe: Explode Group ?<==>Extrude Edges by Lathe: Explode Group ?
+Extrude Edges by Lathe: Orienting Faces<==>Extrude Edges by Lathe: Orienting Faces
+Extrude Edges by Lathe: orient faces aborted.<==>Extrude Edges by Lathe: orient faces aborted.
+Extrude Edges by Lathe<==>Extrude Edges by Lathe
+: Pre-Select Curve/Face, Enter Parameters, Pick Center/Axis...<==>: Pre-Select Curve/Face, Enter Parameters, Pick Center/Axis...
+Extrude Edges by Lathe: Smooth Edges ?<==>Extrude Edges by Lathe: Smooth Edges ?

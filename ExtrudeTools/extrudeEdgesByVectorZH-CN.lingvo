@@ -1,0 +1,10 @@
+Orienting Faces<==>统一面的方向
+Extrude Edges by Vector<==>垂直拉伸边线
+: Reverse Extrusion's Faces ?<==>: 是否翻转面 ?
+: Explode Extrusion's Group ?<==>: 是否炸开群组 ?
+Extrude Edges by Vector: Pick Second Point of Vector...<==>垂直拉伸边线: 选择拉伸第二点...
+Extrude Edges by Vector: Cannot Convert <==>垂直拉伸边线: 无法转换
+ to a Length.<==> 成一个长度.
+Extrude Edges by Vector: No Edge in Selection.<==>垂直拉伸边线: 没有选择边线.
+Extrude Edges by Vector: Pick First Point of Vector...<==>垂直拉伸边线: 选择拉伸第一点...
+: Pre-Select Edges/Curves/Face, Pick Vector Start & End...<==>: 预选边线/曲线/面, 选择垂直拉伸的第一点和第二点...

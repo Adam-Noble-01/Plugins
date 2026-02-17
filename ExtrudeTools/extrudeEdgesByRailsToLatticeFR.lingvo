@@ -1,0 +1,58 @@
+Extrude Edges by Rails to Lattice<==>Extruder des arêtes sur des chemins d'un treillis
+Extrude Edges by Rails To Lattice<==>Extruder des arêtes sur des chemins d'un treillis
+Extrude Edges by Rails To Lattice<==>Extruder des arêtes sur des chemins d'un treillis
+Extrude Edges by Rails To Lattice: Select the 'Profile' Curve...<==>Extruder des arêtes sur des chemins d'un treillis: Sélectionnez la courbe profil...
+Pick Profile<==>Sélectionnez le profil
+Pick 1st Rail<==>Sélectionnez le premier chemin
+Pick 2nd Rail<==>Sélectionnez le deuxième chemin
+Extrude Edges by Rails To Lattice: Select the 1st 'Rail' Curve...<==>Extruder des arêtes sur des chemins d'un treillis: Sélectionnez la courbe pour le premier chemin...
+Extrude Edges by Rails To Lattice: Select the 2nd 'Rail' Curve...<==>Extruder des arêtes sur des chemins d'un treillis: Sélectionnez la courbe pour le deuxième chemin...
+Extrude Edges by Rails To Lattice: Making Mesh from Profile and 1 Rail.<==>Extruder des arêtes sur des chemins d'un treillis: Création du maillage entre un profil et le 1er chemin.
+Extrude Edges by Rails To Lattice: Making Mesh from Profile and 2 Rails.<==>Extruder des arêtes sur des chemins d'un treillis: Création du maillage entre l'autre profil et le 2ème chemin.
+Extrude Edges by Rails To Lattice: Formating Mesh... Please Wait...<==>Extruder des arêtes sur des chemins d'un treillis: Création du maillage... Patientez SVP...
+Extrude Edges by Rails To Lattice: Reverse <==>Extruder des arêtes sur des chemins d'un treillis: Inverser 
+ Faces ?<==> Faces?
+Extrude Edges by Rails To Lattice: Reversing Face <==>Extruder des arêtes sur des chemins d'un treillis: Inversion de la face 
+ of <==> de 
+Reverse Faces ?<==>Voulez-vous inverser les faces?
+Extrude Edges by Rails To Lattice: Erase Highlighted Coplanar Edges ?<==>Extruder des arêtes sur des chemins d'un treillis: Voulez-vous effacer les arêtes coplanaires mises en évidence?
+Erase Highlighted Coplanar Edges ?<==>Voulez-vous effacer les arêtes coplanaires mises en évidence?
+Extrude Edges by Rails To Lattice: Erase Original Curves ?<==>Extruder des arêtes sur des chemins d'un treillis: Effacer les courbes originales?
+Erase Original Curves ?<==>Effacer les courbes originales?
+Extrude Edges by Rails To Lattice:<==>Extruder des arêtes sur des chemins d'un treillis:
+Making Profile <==>Création du profil 
+Making Face <==>Création de la face 
+Pick Melding Profile<==>Sélectionnez le profil intermédiaire 
+Extrude Edges by Rails To Lattice: Select the 'Melding-Profile' Curve...<==>Extruder des arêtes sur des chemins d'un treillis: Sélectionnez la courbe pour le profil intermédiaire...
+
+Extrusion Type<==>Type d'extrusion
+Lattice from:<==>Treillis de:
+Profiles<==>Profils
+Profiles/Rails<==>Profils/Chemins
+Rails<==>Chemins
+Diagonals<==>Diagonals
+Lattice Type<==>Type de treillis
+Lattice as:<==>Treillis comme:
+Lines<==>Aretes
+3D<==>3D
+
+
+Extrude Edges by Rails To Lattice: Offsetting <==>Extruder des arêtes sur des chemins d'un treillis: Compenser 
+Lattice Properties<==>Proprietes du Treillis
+<Default><==><Defaut>
+<None><==><Aucun>
+'Glass'<==>'Verre'
+Width: <==>Largeur: 
+Depth: <==>Profondeur: 
+Pane Inset: <==>Plaque d'incrustation: 
+Pane Thickness: <==>Épaisseur de la plaque: 
+Lattice Material: <==>Materiau du treillis: 
+Pane Material: <==>Materiau de la plaque: 
+Processing<==>Traitement
+Processing... Please Wait...<==>Processing... Patientez SVP...
+: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Follow Prompts. Makes Lattice...<==>: Sélectionnez les courbes: Profil, Chemin 1, Chemin 2 & Profil intermédiaire. Suivre les instructions, Création du treillis...
+
+
+
+
+

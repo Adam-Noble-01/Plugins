@@ -1,0 +1,6 @@
+{
+  "name": "Curic Stretch",
+  "version": "1.2.0",
+  "package": "CURIC::Studio",
+  "require": ["curic_!studio"]
+}

@@ -1,0 +1,16 @@
+"ri.msg.os.not.supported"="Revit 导入程序不支持该操作系统。";
+"ri.msg.su.2023.or.higher"="使用 Revit 导入器需要 SketchUp 2023 或更高版本。\n\n请禁用该扩展或将其从插件文件夹中删除。";
+"ri.msg.su.updated"="用于 SketchUp 的 Revit 导入器已更新。";
+"ri.title.for.msg"="用于 SketchUp 的 Revit 导入器";
+"ri.msg.su.updated.restart"="用于 SketchUp 的 Revit 导入器已更新。要导入 Revit (*.rvt) 项目，请在 "文件导入 "菜单中选择 rvt 文件类型。\n请重新启动 SketchUp。";
+"ri.msg.su.installed.restart"="Revit Importer for SketchUp 已安装。要导入 Revit (*.rvt) 项目，请在 "文件导入 "菜单中选择 rvt 文件类型。\n请重新启动 SketchUp。";
+"riact.msg.su.2023.or.higher"="使用 Revit Importer Activator 扩展需要 SketchUp 2023 或更高版本。\n\n请禁用该扩展或将其从插件文件夹中删除。";
+"riact.msg.not.valid"="您的 Trimble Revit Importer 许可证无效。";
+"riact.msg.expired"="您的 Trimble Revit Importer 许可证已过期。";
+"riact.msg.activated"="您的许可证已激活。";
+"riact.msg.error"="在激活 Trimble Revit Importer 时发生错误。请安装 Trimble Revit Importer 或检查激活密钥是否有效。";
+"riact.title"="Trimble Revit Importer 离线激活程序";
+"riact.bar.txt"="打开 Trimble Revit Importer 离线激活程序";
+"riact.title.prod.key"="请将以下产品密钥发送给您的 Trimble 经销商或联系人。";
+"riact.title.lic.key"="请在下面的文本框中粘贴激活密钥。";
+"riact.msg.exp.date"="您的许可证将于 %s到期。";

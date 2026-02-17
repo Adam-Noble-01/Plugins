@@ -1,0 +1,5 @@
+### Select Rectangle Tool ###
+COLOR <255,255,255>
+WIDTH 1
+OFFSET 0 -1
+LOOP [0,2] [6,6] [13,4] [10,10] [3,12]

@@ -1,0 +1,16 @@
+"ri.msg.os.not.supported"="Revit 導入器不支援此作業系統。";
+"ri.msg.su.2023.or.higher"="需要 SketchUp 2023 或更高版本才能使用 Revit 導入器。";
+"ri.msg.su.updated"="SketchUp 的 Revit 導入器已更新。";
+"ri.title.for.msg"="SketchUp 的 Revit 導入器";
+"ri.msg.su.updated.restart"="SketchUp 的 Revit 導入器已更新。若要匯入 Revit (*.rvt) 項目，請在「檔案匯入」功能表中選擇 rvt 檔案類型。";
+"ri.msg.su.installed.restart"="已安裝 SketchUp 的 Revit 導入器。若要匯入 Revit (*.rvt) 項目，請在「檔案匯入」功能表中選擇 rvt 檔案類型。";
+"riact.msg.su.2023.or.higher"="需要 SketchUp 2023 或更高版本才能使用 Revit Importer Activator Extension。";
+"riact.msg.not.valid"="您的 Trimble Revit Importer 許可證無效。";
+"riact.msg.expired"="您的 Trimble Revit Importer 許可證已過期。";
+"riact.msg.activated"="您的許可證已啟動。";
+"riact.msg.error"="啟動 Trimble Revit Importer 期間發生錯誤。請安裝 Trimble Revit Importer 或檢查啟動金鑰是否有效。";
+"riact.title"="Trimble Revit 導入器離線啟動器";
+"riact.bar.txt"="開啟 Trimble Revit Importer 離線啟動器";
+"riact.title.prod.key"="請將以下產品金鑰傳送給您的 Trimble 經銷商或聯絡人。";
+"riact.title.lic.key"="請將啟動金鑰貼到下面的文字區域。";
+"riact.msg.exp.date"="您的許可證將於 %s 到期";

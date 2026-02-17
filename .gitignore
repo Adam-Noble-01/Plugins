@@ -1,0 +1,12 @@
+# Custom Archive Directories
+00__Archive/
+01__Archive/
+00_Archive/
+01_Archive/
+00__ArchivedVersions/
+01__ArchivedVersions/
+00_ArchivedVersions/
+01_ArchivedVersions/
+
+# Checkpoint Archives
+02_-_Code-Checkpoints-Archive/

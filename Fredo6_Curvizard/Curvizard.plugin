@@ -1,0 +1,32 @@
+# Plugin Registration
+# Reserved to the Plugin Developer
+# Copyright © 2012-2024 Fredo6 - Designed and written April 2012 by Fredo6
+
+VERSION = 2.5a
+DATE = 01 Apr 24
+COPYRIGHT = "© 2012-2024"
+LIBFREDO6 = 143
+SKETCHUP_VERSION = 17
+
+CREDITS = "All SU users for their requests"
+CREDITS = Translation: Spanish (Oxer, defisto), Chinese (guanjin, Arc), Russian (blajnov)
+CREDITS = CadFather: for alternate toolbar icons
+CREDITS = JClements: for new vector icons
+
+NAME = Curvizard 
+DESCRIPTION = Various utilities about Curves
+CREATOR = Fredo6
+MODULES = F6_Curvizard
+EXT_LOAD = "true"
+ICON_CONV = CVZ_icon_
+CURSOR_CONV = CVZ_cursor_
+TOOLBAR = Curvizard
+
+WEB_SITE_NAME = Sketchucation
+WEB_SITE_LINK = http://sketchucation.com/forums/viewforum.php?f=323
+WEB_SUPPORT_LINK = http://sketchucation.com/forums/viewtopic.php?f=323&t=46473#p415495
+VIDEO = Overview v1.0 |FR| Presentation v1.0 ; http://www.youtube.com/watch?v=iYSr5w7Nv54
+VIDEO = Smooth Contours v1.1 |FR| Lissage Contours v1.1 ; http://www.youtube.com/watch?v=AHT6ZUR3qiQ
+DONATION = Fredo6 at Paypal
+
+RUBY_FILES = Curvizard*

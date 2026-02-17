@@ -1,0 +1,5 @@
+### Sidebar Info Icon ###
+COLOR <255,255,255>
+DISC [4,2] 2 16
+RECT 2 6 4 13
+LINES [1,6] [4,6] [0,18] [7,18]

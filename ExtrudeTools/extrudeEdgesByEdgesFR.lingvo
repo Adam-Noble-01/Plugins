@@ -1,0 +1,23 @@
+Extrude Edges by Edges<==>Extruder des arêtes le long d'arêtes
+Extrude Edges by Edges<==>Extruder des arêtes le long d'arêtes
+: Pre-Select 2 Groups of Edges/Curves...<==>: Présélectionner 2 groupes d'arêtes ou courbes...
+Triangulating Face <==>Triangulation des faces
+ of <==> de 
+Select 2 Groups of Edges !  1st is 'profile' and 2nd 'path'.<==>Sélectionnez 2 groupes d'arêtes !  Le 1er est le profil et le 2ème est le 'chemin'.
+Multiplying Edges...<==>Multiplication des arêtes...
+Intersecting...<==>Intersection...
+Checking: Step <==>Vérifier: Pas 
+Making Edges: Step <==>Créer les arêtes: Pas 
+Facing Edges: Step <==>Création des faces pour les arêtes: Pas 
+No Faces Made !<==>Pas de faces créées !
+Orient Faces ?<==>Orienter les faces?
+Reverse Faces ?<==>Inverser les faces?
+Reversing Faces: Step <==>Inverser les faces: Pas 
+Intersect with Self ?<==>Auto-intersection?
+This is only necessary with convoluted shapes...<==>Ceci est uniquement requis pour une forme complexe...
+Intersecting with Self...<==>Auto-intersection...
+Erase Coplanar Edges ?<==>Voulez-vous effacer les arêtes coplanaires?
+Coplanar Edges Erased = <==>Arêtes coplanaires effacées = 
+Triangulate Faces ?<==>Trianguler les faces?
+Erase Original Groups ?<==>Effacer les groupes originaux?
+Orienting Faces<==>Orienter les faces

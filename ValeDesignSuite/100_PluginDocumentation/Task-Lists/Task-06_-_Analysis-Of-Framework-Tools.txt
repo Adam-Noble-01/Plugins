@@ -1,0 +1,1892 @@
+# SketchUp RubyScript Developer
+# -------------------------------------
+## ROLE    |  Highly Experienced RubyScript SketchUp Plugin Developer
+## PROJECT |  Vale Design Suite; Specifically the Framework Tools Section of the plugin.
+## CONTEXT |  This tool is be used to configure the framework of a Vale Garden Houses Conservatory / Orangery Framework Visually in SketchUp.
+## TASK    |  Carefully review the existing framework configurator scripts logic and handling.
+
+### GENERAL OVERVIEW 
+- for SketchUp (targeting SketchUp 2024 / 2025 APIs).
+
+  
+### KEY OBJECTIVES 
+- Review the attached script that was previously segmented by another AI agent into a new child folder of the root 
+  - `ValeDesignSuite/Tools_FrameworkTools`    # <---- This is the correct location for the framework tools scripts
+
+### Task 01 - Analyse the attached script
+- Review and analyze the framework tools folder structure and file interconnections
+- Understand the node and panel design system:
+  - Nodes represent various structural elements, columns, framework verticals and sections etc.
+  - Currently implemented as wireframe boxes
+  - Will serve as container bounds for future component insertion
+  - Acts as visual placeholder during testing phase
+- Panel configuration system:
+  - Panels exist between nodes
+  - Each panel has dedicated configuration tool
+  - Configuration tool appears on panel selection
+  - Requires further development and refinement, not the main focus of this task
+- Design goals:
+  - A 2D editor window for real-time configuration
+  - Enable interactive window panel adjustments
+  - Support smooth realtime conservatory framework array modifications
+  - Provide visual feedback for user changes
+- Implementation context:
+  - A reference window configurator tool exists in parent folder, seperate to this framework tools folder
+  - Previous implementation received positive feedback
+  - Current framework tools implementation needs optimization
+  - Code quality issues likely due to incremental additions without refactoring
+
+
+### Task 02 - Analyse the attached script
+- See this script one level up in the main ValeDesignSuite root folder
+  - `ValeDesignSuite_Test_FrameworkGeometryCreation.rb`
+- Determine if this script is redundant or essential to the system
+- If redundant, it can be deleted
+- If essential, it needs to be moved to the appropriate location
+- Note that this script uses Ruby hashes while other scripts use JSON
+- The structural differences suggest it may be legacy code
+- Carefully verify if this script is being called or referenced by other components
+- Provide clear explanation of the script's purpose and dependencies if it is integral to the system
+- It seems to contain Ruby Hash data structures and methods not related to the Json pipeline established within these framework tools folder tools.
+
+
+### Task 03 - Look For Redundancy in the Framework Tools Folder
+
+#### Performance Concerns & Optimization Opportunities
+
+- **2D Editor Performance Issues**
+  - Excessive loading/reloading during small changes
+  - Need to implement debounce/delay mechanism for 2D editor updates
+  - Current implementation lacks optimization for incremental changes
+
+- **Regeneration Inefficiencies**
+  - System regenerates entire assembly for single window changes
+  - Only column nodes and other window panels need movement for isolated changes (when window sizes are changes in 2D editor)
+  - Window panels unnecessarily regenerating when unchanged
+  - 3D configuration panel selection works efficiently
+  - Panel assembly editor requires optimization
+
+- **Code Quality & Maintenance**
+  - Script has accumulated significant additions
+  - Previous AI agents implemented more judicious code
+  - Current implementation may benefit from refactoring
+  - Need to assess and optimize existing code structure
+
+- **Debug Output & Resource Usage**
+  - Ruby console shows extensive regeneration messages
+  - Console output may not indicate actual resource overhead
+  - Consider implementing debug mode in project configuration
+  - Debug mode would be optional in configure detail files
+  - Current cycling behavior useful for development but may need optimization
+
+
+
+# REFERENCE | Plugin Testing and Analysis Notes
+# ------------------------------------------------------------
+- Plugin testing activities have been conducted to evaluate functionality
+- Various components have been moved and repositioned for testing purposes
+- System logs and reports have been generated during testing
+- Analysis of these logs can help identify:
+  - Potential system behaviors
+  - Operational patterns
+  - Error conditions
+  - Performance issues
+- Testing focused on component movement and positioning
+- Log analysis required to verify system stability
+
+# REFERENCE | Ruby Console Output Dump
+    ```ruby_console_output
+    === ValeDesignSuite Debug Information ===
+    PLUGIN_ROOT: [SketchUp Plugins Directory]/ValeDesignSuite
+    PLUGIN_ASSETS: [SketchUp Plugins Directory]/ValeDesignSuite/Assets_PluginAssets
+    BRAND_ASSETS: [SketchUp Plugins Directory]/ValeDesignSuite/Assets_ValeBrandAssets
+
+    Directory Checks:
+    PLUGIN_ROOT exists?: true
+    PLUGIN_ASSETS exists?: true
+    BRAND_ASSETS exists?: true
+    Current directory: C:/Users/Administrator/Documents
+
+    Directory Contents:
+    PLUGIN_ROOT contents: ., .., .cursorignore, .cursorrules, .cursorworkspace_-_ValeDesignSuite.code-workspace, 00_Dev_Temp--Earmarked-For-Deleted, 01_Dev_-_Developer-Utilities, 02_Dev_-_Testing-&-Concept-Scripts, 10_Dev_Templates, 20_Dev_External-Scripts, Assets_PluginAssets, Assets_ValeBrandAssets, Config_PluginConfigFiles, Data_ValeProductData, PluginDocumentation, README.md, settings.json, Temp-Holder.--BAK, Tools_FrameworkTools, Tools_RoofLanternConfigurator, Tools_WindowPanelConfigurator, ValeDesignSuite_Core_MainPluginDebugTools.rb, ValeDesignSuite_Core_MainUserInterface.rb, ValeDesignSuite_Core_PluginScript.rb, ValeDesignSuite_DevTools_PluginDiagnostics.rb, ValeDesignSuite_Test_FrameworkGeometryCreation.rb
+    PLUGIN_ASSETS contents: ., .., Font_AppFontFiles, GraphicGeneratorModelskp.skb, GraphicGeneratorModelskp.skp, Icons_ValeIcons, TemporaryRoofLanternButtonGraphic.png, TemporaryRoofLanternButtonGraphic.psd, TemporaryRoofLanternButtonGraphicSketchUpExport.png
+    ==================================
+    Successfully loaded RoofLanternTools
+    Successfully loaded MainUserInterface
+    Framework Tools Configurator: Dialog callbacks setup complete
+    FrameworkSelectionObserver initialized with dialog_ref: #<UI::HtmlDialog:0x0000012ef8e8b0c0>
+    Sent node types configuration to JavaScript
+    Sent node types configuration to JavaScript
+    ValeDesignSuite::MainUserInterface: Launching Window Configurator Tool
+    Sent node types configuration to JavaScript
+    ValeDesignSuite::MainUserInterface: Clearing selection
+    ValeDesignSuite::MainUserInterface: Creating new framework assembly with name: hello
+    ValeDesignSuite::MainUserInterface: Including 3 nodes and 2 panel lines from UI
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Existing assembly IDs: 
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Generated new assembly ID: VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Created component definition: FrameworkAssembly_hello_VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Created component instance with name: hello, entityID: 28790
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Using 3 nodes from UI
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Mapped 3 nodes with positions
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Using 2 panel lines from UI
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Mapped 2 panel lines with positions
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Prepared data for serializer with 3 nodes and 2 panel lines
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Set assembly ID attribute on component: VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Stored SketchUp instance name: hello
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Stored SketchUp definition name: FrameworkAssembly_hello_VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Verified assembly ID attribute is set correctly: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Existing dictionaries on component definition before save:
+    - SU_DefinitionSet
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully created test dictionary on definition
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving METADATA_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving NODES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving PANEL_LINES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified dictionary exists after save: ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in saved dictionary:
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: All data keys verified in dictionary.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified metadata has 1 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified nodes has 3 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified panel lines has 2 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved data for assembly VFW001 to component definition
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Successfully saved assembly data via serializer
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Creating initial geometry...
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): All attribute dictionaries on new component: SU_InstanceSet, ValeDesignSuite_FrameworkAssemblyInfo
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): New framework assembly 'hello' (ID: VFW001) created and data saved.
+    ValeDesignSuite::MainUserInterface: Successfully created framework: hello
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting geometry creation with 3 nodes and 2 panels
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Framework component: Found (hello)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: NO
+    Geometry State: NO
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 0 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 0 components
+    FrameworkCoordinationManager: No transform cache found in serializer
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    FrameworkCoordinationManager: Saved bounding box data
+    FrameworkCoordinationManager: Calculated bounding boxes for 4 components
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    FrameworkCoordinationManager: Updated geometry state for ND_1748282516778
+    FrameworkCoordinationManager: Updated geometry state for ND_1748282517084
+    FrameworkCoordinationManager: Updated geometry state for ND_1748282517438
+    FrameworkCoordinationManager: Updated geometry state for PL_1748282517084
+    FrameworkCoordinationManager: Updated geometry state for PL_1748282517438
+    FrameworkCoordinationManager: Updated coordinate transformations for 5 components
+    FrameworkCoordinationManager: Calculated fresh transformations
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Initialized coordination manager for framework
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Processing node 1/3: ND_1748282516778
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node data keys: NodeUniqueId, NodeName, NodeType, NodeStyle, NodeNotes, x, y, NodePosX, NodePosY, NodePosZ, NodeSizeX, NodeSizeY, NodeSizeZ, NodeHeadHeight, NodeUsCillHeight, NodeRotationX, NodeRotationY, NodeRotationZ, NodeRotationW
+    Saved node configuration for ND_1748282516778 in framework assembly VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node configuration created successfully
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: NO
+    Geometry State: NO
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 0 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 0 components
+    FrameworkCoordinationManager: No transform cache found in serializer
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding geometry state with 5 components
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES
+    Geometry State: YES
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data keys...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved transform cache
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved geometry state
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved enhanced data for assembly VFW001 to component definition
+    FrameworkCoordinationManager: Transform cache saved to serializer
+
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding geometry state with 5 components
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES
+    Geometry State: YES
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data keys...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved transform cache
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved geometry state
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved enhanced data for assembly VFW001 to component definition
+    FrameworkCoordinationManager: Transform cache saved to serializer
+
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding geometry state with 5 components
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES
+    Geometry State: YES
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data keys...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved transform cache
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved geometry state
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved enhanced data for assembly VFW001 to component definition
+    FrameworkCoordinationManager: Transform cache saved to serializer
+
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding geometry state with 5 components
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES
+    Geometry State: YES
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data keys...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved transform cache
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved geometry state
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved enhanced data for assembly VFW001 to component definition
+    FrameworkCoordinationManager: Transform cache saved to serializer
+
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding geometry state with 5 components
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES
+    Geometry State: YES
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data keys...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved transform cache
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved geometry state
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved enhanced data for assembly VFW001 to component definition
+    FrameworkCoordinationManager: Transform cache saved to serializer
+
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding geometry state with 5 components
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES
+    Geometry State: YES
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data keys...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved transform cache
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved geometry state
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved enhanced data for assembly VFW001 to component definition
+    FrameworkCoordinationManager: Transform cache saved to serializer
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    FrameworkCoordinationManager: Saved bounding box data
+    FrameworkCoordinationManager: Calculated bounding boxes for 6 components
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    FrameworkCoordinationManager: No transformation changes detected
+    FrameworkCoordinationManager: Calculated fresh transformations
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Positioned node group for node ND_1748282516778 at (0.0, 0.0, 0.0) mm
+    Saved node configuration to group
+    Successfully created node group for node ND_1748282516778
+    Created new node group for node ND_1748282516778
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282516778 created successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Processing node 2/3: ND_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node data keys: NodeUniqueId, NodeName, NodeType, NodeStyle, NodeNotes, x, y, NodePosX, NodePosY, NodePosZ, NodeSizeX, NodeSizeY, NodeSizeZ, NodeHeadHeight, NodeUsCillHeight, NodeRotationX, NodeRotationY, NodeRotationZ, NodeRotationW
+    Loaded 1 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282517084 in framework assembly VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node configuration created successfully
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Positioned node group for node ND_1748282517084 at (1000.0, 0.0, 0.0) mm
+    Saved node configuration to group
+    Successfully created node group for node ND_1748282517084
+    Created new node group for node ND_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282517084 created successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Processing node 3/3: ND_1748282517438
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node data keys: NodeUniqueId, NodeName, NodeType, NodeStyle, NodeNotes, x, y, NodePosX, NodePosY, NodePosZ, NodeSizeX, NodeSizeY, NodeSizeZ, NodeHeadHeight, NodeUsCillHeight, NodeRotationX, NodeRotationY, NodeRotationZ, NodeRotationW
+    Loaded 2 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282517438 in framework assembly VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node configuration created successfully
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Positioned node group for node ND_1748282517438 at (2000.0, 0.0, 0.0) mm
+    Saved node configuration to group
+    Successfully created node group for node ND_1748282517438
+    Created new node group for node ND_1748282517438
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282517438 created successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Creating panel PL_1748282517084 using panel configurator
+    Saved panel configuration for PL_1748282517084 in framework assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Positioned window group for panel PL_1748282517084 at (290.0, 0.0, 0.0) mm
+    Saved window configuration to group
+    Successfully created window group for panel PL_1748282517084
+    Created new window group for panel PL_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282517084 created successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Creating panel PL_1748282517438 using panel configurator
+    Loaded 1 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282517438 in framework assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Positioned window group for panel PL_1748282517438 at (1290.0, 0.0, 0.0) mm
+    Saved window configuration to group
+    Successfully created window group for panel PL_1748282517438
+    Created new window group for panel PL_1748282517438
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282517438 created successfully
+    FrameworkCoordinationManager: Starting position synchronization...
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Error creating geometry: nil can't be coerced into Integer
+    ValeDesignSuite/Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkCoordinationManager.rb:357:in `-'
+    ValeDesignSuite/Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkCoordinationManager.rb:357:in `canvas_to_model_coordinates'
+    ValeDesignSuite/Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkCoordinationManager.rb:428:in `block in update_coordinate_transformations'
+    ValeDesignSuite/Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkCoordinationManager.rb:410:in `each'
+    ValeDesignSuite/Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkCoordinationManager.rb:410:in `each_with_index'
+    ValeDesignSuite/Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkCoordinationManager.rb:410:in `update_coordinate_transformations'
+    ValeDesignSuite/Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkCoordinationManager.rb:758:in `synchronize_framework_positions'
+    ValeDesignSuite/Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkToolsSketchUpLogic.rb:845:in `create_framework_geometry_in_entities'
+    ValeDesignSuite/Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkToolsSketchUpLogic.rb:720:in `create_framework_geometry'
+    ValeDesignSuite/Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkToolsSketchUpLogic.rb:651:in `block in create_new_framework_assembly'
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CreateAssembly): Warning - Failed to create initial geometry
+    ======= SELECTION CHANGED ========
+    Selection size: 1
+    Primary selected: #<Sketchup::ComponentInstance:0x0000012e960fe298>
+    Component instance selected: hello
+    Component EntityID: 28790
+    All attribute dictionaries on component: SU_InstanceSet, ValeDesignSuite_FrameworkAssemblyInfo, ValeDesignSuite_BoundingBoxes, ValeDesignSuite_IntegratedNodes, ValeDesignSuite_IntegratedWindowPanels
+    Found assembly info dictionary: ValeDesignSuite_FrameworkAssemblyInfo
+    Keys in dictionary: AssemblyID, SketchUpDefinitionName, SketchUpInstanceName
+    Assembly ID from dictionary: VFW001
+    Vale Framework Observer: Valid framework component selected, ID: 28790
+    Executing JavaScript: app.sketchupSelectionChanged(28790);
+    Updated last processed entity ID to: 28790
+    ValeDesignSuite::MainUserInterface: Loading data for component with entityID: 28790
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::MainUserInterface: Successfully loaded data for component with entityID: 28790
+    ValeDesignSuite::MainUserInterface: Found framework name: hello
+    ValeDesignSuite::MainUserInterface: Found 3 nodes in loaded data
+    ValeDesignSuite::MainUserInterface: Found 2 panel lines in loaded data
+    ValeDesignSuite::MainUserInterface: Sending data to JavaScript: {"frameworkMetadata":[{"FrameworkUniqueId":"VFW001","FrameworkName":"hello","FrameworkNotes":"Newly c...
+    ValeDesignSuite::MainUserInterface: Getting AssemblyID for component with entityID: 28790
+    ValeDesignSuite::MainUserInterface: Found AssemblyID VFW001 for component hello (ID: 28790)
+    Ruby save_data_to_model callback: Received data_to_save.inspect: {"frameworkMetadata"=>[{"FrameworkHeight"=>0, "FrameworkLength"=>0, "FrameworkName"=>"hello", "FrameworkNotes"=>"Newly created framework assembly.", "FrameworkUniqueId"=>"VFW001", "FrameworkWidth"=>0}], "frameworkNodes"=>[{"NodeHeadHeight"=>2000, "NodeName"=>"Start", "NodeNotes"=>"Starting corner column at origin", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_CornerColumn", "NodeUniqueId"=>"ND_1748282516778", "NodeUsCillHeight"=>0, "x"=>0, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-2", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>1000, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282517084", "NodeUsCillHeight"=>0, "x"=>1000, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-3", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>2000, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282517438", "NodeUsCillHeight"=>0, "x"=>2000, "y"=>0}], "frameworkPanelLines"=>[{"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelHeadHeight"=>2000, "PanelName"=>"Panel-1", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelPosX"=>0, "PanelPosY"=>0, "PanelPosZ"=>0, "PanelRotationW"=>1, "PanelRotationX"=>0, "PanelRotationY"=>0, "PanelRotationZ"=>0, "PanelSizeX"=>710, "PanelSizeY"=>94, "PanelSizeZ"=>2000, "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282517084", "PanelUsCillHeight"=>0, "from_node_id"=>"ND_1748282516778", "length_mm"=>710, "to_node_id"=>"ND_1748282517084"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelHeadHeight"=>2000, "PanelName"=>"Panel-2", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelPosX"=>1000, "PanelPosY"=>0, "PanelPosZ"=>0, "PanelRotationW"=>1, "PanelRotationX"=>0, "PanelRotationY"=>0, "PanelRotationZ"=>0, "PanelSizeX"=>710, "PanelSizeY"=>94, "PanelSizeZ"=>2000, "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282517438", "PanelUsCillHeight"=>0, "from_node_id"=>"ND_1748282517084", "length_mm"=>710, "to_node_id"=>"ND_1748282517438"}]}
+    ValeDesignSuite::MainUserInterface (SaveCallback): Found valid AssemblyID in metadata: VFW001
+    ValeDesignSuite::MainUserInterface (SaveCallback): Saving framework data for AssemblyID 'VFW001' using FrameworkDataSerializer.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Existing dictionaries on component definition before save:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully created test dictionary on definition
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving METADATA_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving NODES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving PANEL_LINES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified dictionary exists after save: ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in saved dictionary:
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: All data keys verified in dictionary.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified metadata has 1 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified nodes has 3 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified panel lines has 2 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved data for assembly VFW001 to component definition
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting smart geometry update for VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Using incremental update (transform cache available)
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting incremental geometry update for VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    Testing component '' (ID: 6481) for assembly ID: NOT FOUND
+    Testing component 'hello' (ID: 28790) for assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: No components need updating
+    ValeDesignSuite::MainUserInterface: Framework geometry updated successfully
+    ValeDesignSuite::MainUserInterface: Getting AssemblyID for component with entityID: 28790
+    ValeDesignSuite::MainUserInterface: Found AssemblyID VFW001 for component hello (ID: 28790)
+    Ruby save_data_to_model callback: Received data_to_save.inspect: {"frameworkMetadata"=>[{"FrameworkHeight"=>0, "FrameworkLength"=>0, "FrameworkName"=>"hello", "FrameworkNotes"=>"Newly created framework assembly.", "FrameworkUniqueId"=>"VFW001", "FrameworkWidth"=>0}], "frameworkNodes"=>[{"NodeHeadHeight"=>2000, "NodeName"=>"Start", "NodeNotes"=>"Starting corner column at origin", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_CornerColumn", "NodeUniqueId"=>"ND_1748282516778", "NodeUsCillHeight"=>0, "x"=>0, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-2", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>1000, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282517084", "NodeUsCillHeight"=>0, "x"=>717, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-3", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>2000, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282517438", "NodeUsCillHeight"=>0, "x"=>2000, "y"=>0}], "frameworkPanelLines"=>[{"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelHeadHeight"=>2000, "PanelName"=>"Panel-1", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelPosX"=>0, "PanelPosY"=>0, "PanelPosZ"=>0, "PanelRotationW"=>1, "PanelRotationX"=>0, "PanelRotationY"=>0, "PanelRotationZ"=>0, "PanelSizeX"=>710, "PanelSizeY"=>94, "PanelSizeZ"=>2000, "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282517084", "PanelUsCillHeight"=>0, "from_node_id"=>"ND_1748282516778", "length_mm"=>427, "to_node_id"=>"ND_1748282517084"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelHeadHeight"=>2000, "PanelName"=>"Panel-2", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelPosX"=>1000, "PanelPosY"=>0, "PanelPosZ"=>0, "PanelRotationW"=>1, "PanelRotationX"=>0, "PanelRotationY"=>0, "PanelRotationZ"=>0, "PanelSizeX"=>710, "PanelSizeY"=>94, "PanelSizeZ"=>2000, "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282517438", "PanelUsCillHeight"=>0, "from_node_id"=>"ND_1748282517084", "length_mm"=>993, "to_node_id"=>"ND_1748282517438"}]}
+    ValeDesignSuite::MainUserInterface (SaveCallback): Found valid AssemblyID in metadata: VFW001
+    ValeDesignSuite::MainUserInterface (SaveCallback): Saving framework data for AssemblyID 'VFW001' using FrameworkDataSerializer.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Existing dictionaries on component definition before save:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully created test dictionary on definition
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving METADATA_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving NODES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving PANEL_LINES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified dictionary exists after save: ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in saved dictionary:
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: All data keys verified in dictionary.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified metadata has 1 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified nodes has 3 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified panel lines has 2 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved data for assembly VFW001 to component definition
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting smart geometry update for VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Using incremental update (transform cache available)
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting incremental geometry update for VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    Testing component '' (ID: 6481) for assembly ID: NOT FOUND
+    Testing component 'hello' (ID: 28790) for assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node ND_1748282517084 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282517084 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282517438 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating 3 components: ND_1748282517084, PL_1748282517084, PL_1748282517438
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for node ND_1748282517084
+    Loaded 3 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282517084 in framework assembly VFW001
+    Saved node configuration to group
+    Successfully updated node group geometry for node
+    Updated existing node group for node ND_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282517084 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282517084
+    Loaded 2 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282517084 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282517084 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282517438
+    Loaded 2 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282517438 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282517438
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282517438 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Incremental update completed successfully
+    ValeDesignSuite::MainUserInterface: Framework geometry updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding geometry state with 5 components
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 3
+    Panel Lines Count: 2
+    Transform Cache: YES
+    Geometry State: YES
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data keys...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved transform cache
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved geometry state
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved enhanced data for assembly VFW001 to component definition
+    FrameworkCoordinationManager: Transform cache saved to serializer
+    ValeDesignSuite::MainUserInterface: Getting AssemblyID for component with entityID: 28790
+    ValeDesignSuite::MainUserInterface: Found AssemblyID VFW001 for component hello (ID: 28790)
+    Ruby save_data_to_model callback: Received data_to_save.inspect: {"frameworkMetadata"=>[{"FrameworkHeight"=>0, "FrameworkLength"=>0, "FrameworkName"=>"hello", "FrameworkNotes"=>"Newly created framework assembly.", "FrameworkUniqueId"=>"VFW001", "FrameworkWidth"=>0}], "frameworkNodes"=>[{"NodeHeadHeight"=>2000, "NodeName"=>"Start", "NodeNotes"=>"Starting corner column at origin", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_CornerColumn", "NodeUniqueId"=>"ND_1748282516778", "NodeUsCillHeight"=>0, "x"=>0, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-2", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>1000, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282517084", "NodeUsCillHeight"=>0, "x"=>717, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-3", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>2000, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282517438", "NodeUsCillHeight"=>0, "x"=>2000, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-4", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282546325", "NodeUsCillHeight"=>0, "x"=>3000, "y"=>0}], "frameworkPanelLines"=>[{"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelHeadHeight"=>2000, "PanelName"=>"Panel-1", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelPosX"=>0, "PanelPosY"=>0, "PanelPosZ"=>0, "PanelRotationW"=>1, "PanelRotationX"=>0, "PanelRotationY"=>0, "PanelRotationZ"=>0, "PanelSizeX"=>710, "PanelSizeY"=>94, "PanelSizeZ"=>2000, "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282517084", "PanelUsCillHeight"=>0, "from_node_id"=>"ND_1748282516778", "length_mm"=>427, "to_node_id"=>"ND_1748282517084"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelHeadHeight"=>2000, "PanelName"=>"Panel-2", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelPosX"=>1000, "PanelPosY"=>0, "PanelPosZ"=>0, "PanelRotationW"=>1, "PanelRotationX"=>0, "PanelRotationY"=>0, "PanelRotationZ"=>0, "PanelSizeX"=>710, "PanelSizeY"=>94, "PanelSizeZ"=>2000, "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282517438", "PanelUsCillHeight"=>0, "from_node_id"=>"ND_1748282517084", "length_mm"=>993, "to_node_id"=>"ND_1748282517438"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelName"=>"Panel-3", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282546325", "from_node_id"=>"ND_1748282517438", "length_mm"=>710, "to_node_id"=>"ND_1748282546325"}]}
+    ValeDesignSuite::MainUserInterface (SaveCallback): Found valid AssemblyID in metadata: VFW001
+    ValeDesignSuite::MainUserInterface (SaveCallback): Saving framework data for AssemblyID 'VFW001' using FrameworkDataSerializer.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Existing dictionaries on component definition before save:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully created test dictionary on definition
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 4
+    Panel Lines Count: 3
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving METADATA_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving NODES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving PANEL_LINES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified dictionary exists after save: ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in saved dictionary:
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: All data keys verified in dictionary.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified metadata has 1 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified nodes has 4 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified panel lines has 3 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved data for assembly VFW001 to component definition
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting smart geometry update for VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 4
+    Panel Lines Count: 3
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Using incremental update (transform cache available)
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting incremental geometry update for VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 4
+    Panel Lines Count: 3
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    Testing component '' (ID: 6481) for assembly ID: NOT FOUND
+    Testing component 'hello' (ID: 28790) for assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 4
+    Panel Lines Count: 3
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node ND_1748282517084 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node ND_1748282546325 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282517084 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282517438 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282546325 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating 5 components: ND_1748282517084, ND_1748282546325, PL_1748282517084, PL_1748282517438, PL_1748282546325
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for node ND_1748282517084
+    Loaded 3 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282517084 in framework assembly VFW001
+    Saved node configuration to group
+    Successfully updated node group geometry for node
+    Updated existing node group for node ND_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282517084 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for node ND_1748282546325
+    Loaded 3 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282546325 in framework assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 4
+    Panel Lines Count: 3
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Warning: No coordinate transformation found for node ND_1748282546325, using fallback positioning
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 4
+    Panel Lines Count: 3
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    Positioned node group for node ND_1748282546325 at fallback position (3000, 0, 0) mm
+    Saved node configuration to group
+    Successfully created node group for node ND_1748282546325
+    Created new node group for node ND_1748282546325
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282546325 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282517084
+    Loaded 2 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282517084 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282517084 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282517438
+    Loaded 2 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282517438 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282517438
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282517438 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282546325
+    Loaded 2 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282546325 in framework assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 4
+    Panel Lines Count: 3
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Warning: No coordinate transformation found for panel PL_1748282546325, using fallback positioning
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 4
+    Panel Lines Count: 3
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    Positioned window group for panel PL_1748282546325 at fallback position (2290, 0, 0) mm
+    Saved window configuration to group
+    Successfully created window group for panel PL_1748282546325
+    Created new window group for panel PL_1748282546325
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282546325 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Incremental update completed successfully
+    ValeDesignSuite::MainUserInterface: Framework geometry updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 4
+    Panel Lines Count: 3
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding geometry state with 5 components
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 4
+    Panel Lines Count: 3
+    Transform Cache: YES
+    Geometry State: YES
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data keys...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved transform cache
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved geometry state
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved enhanced data for assembly VFW001 to component definition
+    FrameworkCoordinationManager: Transform cache saved to serializer
+    ValeDesignSuite::MainUserInterface: Getting AssemblyID for component with entityID: 28790
+    ValeDesignSuite::MainUserInterface: Found AssemblyID VFW001 for component hello (ID: 28790)
+    Ruby save_data_to_model callback: Received data_to_save.inspect: {"frameworkMetadata"=>[{"FrameworkHeight"=>0, "FrameworkLength"=>0, "FrameworkName"=>"hello", "FrameworkNotes"=>"Newly created framework assembly.", "FrameworkUniqueId"=>"VFW001", "FrameworkWidth"=>0}], "frameworkNodes"=>[{"NodeHeadHeight"=>2000, "NodeName"=>"Start", "NodeNotes"=>"Starting corner column at origin", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_CornerColumn", "NodeUniqueId"=>"ND_1748282516778", "NodeUsCillHeight"=>0, "x"=>0, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-2", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>1000, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282517084", "NodeUsCillHeight"=>0, "x"=>717, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-3", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>2000, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282517438", "NodeUsCillHeight"=>0, "x"=>2000, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-4", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282546325", "NodeUsCillHeight"=>0, "x"=>3000, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-5", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282550606", "NodeUsCillHeight"=>0, "x"=>4000, "y"=>0}], "frameworkPanelLines"=>[{"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelHeadHeight"=>2000, "PanelName"=>"Panel-1", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelPosX"=>0, "PanelPosY"=>0, "PanelPosZ"=>0, "PanelRotationW"=>1, "PanelRotationX"=>0, "PanelRotationY"=>0, "PanelRotationZ"=>0, "PanelSizeX"=>710, "PanelSizeY"=>94, "PanelSizeZ"=>2000, "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282517084", "PanelUsCillHeight"=>0, "from_node_id"=>"ND_1748282516778", "length_mm"=>427, "to_node_id"=>"ND_1748282517084"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelHeadHeight"=>2000, "PanelName"=>"Panel-2", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelPosX"=>1000, "PanelPosY"=>0, "PanelPosZ"=>0, "PanelRotationW"=>1, "PanelRotationX"=>0, "PanelRotationY"=>0, "PanelRotationZ"=>0, "PanelSizeX"=>710, "PanelSizeY"=>94, "PanelSizeZ"=>2000, "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282517438", "PanelUsCillHeight"=>0, "from_node_id"=>"ND_1748282517084", "length_mm"=>993, "to_node_id"=>"ND_1748282517438"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelName"=>"Panel-3", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282546325", "from_node_id"=>"ND_1748282517438", "length_mm"=>710, "to_node_id"=>"ND_1748282546325"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelName"=>"Panel-4", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282550606", "from_node_id"=>"ND_1748282546325", "length_mm"=>710, "to_node_id"=>"ND_1748282550606"}]}
+    ValeDesignSuite::MainUserInterface (SaveCallback): Found valid AssemblyID in metadata: VFW001
+    ValeDesignSuite::MainUserInterface (SaveCallback): Saving framework data for AssemblyID 'VFW001' using FrameworkDataSerializer.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Existing dictionaries on component definition before save:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully created test dictionary on definition
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 5
+    Panel Lines Count: 4
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving METADATA_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving NODES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving PANEL_LINES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified dictionary exists after save: ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in saved dictionary:
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: All data keys verified in dictionary.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified metadata has 1 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified nodes has 5 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified panel lines has 4 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved data for assembly VFW001 to component definition
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting smart geometry update for VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 5
+    Panel Lines Count: 4
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Using incremental update (transform cache available)
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting incremental geometry update for VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 5
+    Panel Lines Count: 4
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    Testing component '' (ID: 6481) for assembly ID: NOT FOUND
+    Testing component 'hello' (ID: 28790) for assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 5
+    Panel Lines Count: 4
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node ND_1748282517084 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node ND_1748282546325 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node ND_1748282550606 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282517084 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282517438 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282546325 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282550606 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating 7 components: ND_1748282517084, ND_1748282546325, ND_1748282550606, PL_1748282517084, PL_1748282517438, PL_1748282546325, PL_1748282550606
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for node ND_1748282517084
+    Loaded 4 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282517084 in framework assembly VFW001
+    Saved node configuration to group
+    Successfully updated node group geometry for node
+    Updated existing node group for node ND_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282517084 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for node ND_1748282546325
+    Loaded 4 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282546325 in framework assembly VFW001
+    Saved node configuration to group
+    Successfully updated node group geometry for node
+    Updated existing node group for node ND_1748282546325
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282546325 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for node ND_1748282550606
+    Loaded 4 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282550606 in framework assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 5
+    Panel Lines Count: 4
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Warning: No coordinate transformation found for node ND_1748282550606, using fallback positioning
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 5
+    Panel Lines Count: 4
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    Positioned node group for node ND_1748282550606 at fallback position (4000, 0, 0) mm
+    Saved node configuration to group
+    Successfully created node group for node ND_1748282550606
+    Created new node group for node ND_1748282550606
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282550606 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282517084
+    Loaded 3 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282517084 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282517084 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282517438
+    Loaded 3 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282517438 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282517438
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282517438 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282546325
+    Loaded 3 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282546325 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282546325
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282546325 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282550606
+    Loaded 3 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282550606 in framework assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 5
+    Panel Lines Count: 4
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Warning: No coordinate transformation found for panel PL_1748282550606, using fallback positioning
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 5
+    Panel Lines Count: 4
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    Positioned window group for panel PL_1748282550606 at fallback position (3290, 0, 0) mm
+    Saved window configuration to group
+    Successfully created window group for panel PL_1748282550606
+    Created new window group for panel PL_1748282550606
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282550606 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Incremental update completed successfully
+    ValeDesignSuite::MainUserInterface: Framework geometry updated successfully
+    ValeDesignSuite::MainUserInterface: Getting AssemblyID for component with entityID: 28790
+    ValeDesignSuite::MainUserInterface: Found AssemblyID VFW001 for component hello (ID: 28790)
+    Ruby save_data_to_model callback: Received data_to_save.inspect: {"frameworkMetadata"=>[{"FrameworkHeight"=>0, "FrameworkLength"=>0, "FrameworkName"=>"hello", "FrameworkNotes"=>"Newly created framework assembly.", "FrameworkUniqueId"=>"VFW001", "FrameworkWidth"=>0}], "frameworkNodes"=>[{"NodeHeadHeight"=>2000, "NodeName"=>"Start", "NodeNotes"=>"Starting corner column at origin", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_CornerColumn", "NodeUniqueId"=>"ND_1748282516778", "NodeUsCillHeight"=>0, "x"=>0, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-2", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>1000, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282517084", "NodeUsCillHeight"=>0, "x"=>717, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-3", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>2000, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282517438", "NodeUsCillHeight"=>0, "x"=>2000, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-4", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282546325", "NodeUsCillHeight"=>0, "x"=>3000, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-5", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282550606", "NodeUsCillHeight"=>0, "x"=>4000, "y"=>0}, {"NodeHeadHeight"=>2000, "NodeName"=>"Node-6", "NodeNotes"=>"Intermediate framework node", "NodePosX"=>0, "NodePosY"=>0, "NodePosZ"=>0, "NodeRotationW"=>1, "NodeRotationX"=>0, "NodeRotationY"=>0, "NodeRotationZ"=>0, "NodeSizeX"=>290, "NodeSizeY"=>94, "NodeSizeZ"=>2000, "NodeStyle"=>"", "NodeType"=>"Column_290mm", "NodeUniqueId"=>"ND_1748282554160", "NodeUsCillHeight"=>0, "x"=>5000, "y"=>0}], "frameworkPanelLines"=>[{"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelHeadHeight"=>2000, "PanelName"=>"Panel-1", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelPosX"=>0, "PanelPosY"=>0, "PanelPosZ"=>0, "PanelRotationW"=>1, "PanelRotationX"=>0, "PanelRotationY"=>0, "PanelRotationZ"=>0, "PanelSizeX"=>710, "PanelSizeY"=>94, "PanelSizeZ"=>2000, "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282517084", "PanelUsCillHeight"=>0, "from_node_id"=>"ND_1748282516778", "length_mm"=>427, "to_node_id"=>"ND_1748282517084"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelHeadHeight"=>2000, "PanelName"=>"Panel-2", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelPosX"=>1000, "PanelPosY"=>0, "PanelPosZ"=>0, "PanelRotationW"=>1, "PanelRotationX"=>0, "PanelRotationY"=>0, "PanelRotationZ"=>0, "PanelSizeX"=>710, "PanelSizeY"=>94, "PanelSizeZ"=>2000, "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282517438", "PanelUsCillHeight"=>0, "from_node_id"=>"ND_1748282517084", "length_mm"=>993, "to_node_id"=>"ND_1748282517438"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelName"=>"Panel-3", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282546325", "from_node_id"=>"ND_1748282517438", "length_mm"=>710, "to_node_id"=>"ND_1748282546325"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelName"=>"Panel-4", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282550606", "from_node_id"=>"ND_1748282546325", "length_mm"=>710, "to_node_id"=>"ND_1748282550606"}, {"PanelDivisionsX"=>1, "PanelDivisionsY"=>1, "PanelName"=>"Panel-5", "PanelNotes"=>"Default window panel with 1x1 glazing divisions", "PanelStyle"=>"", "PanelType"=>"Window_Panel", "PanelUniqueId"=>"PL_1748282554160", "from_node_id"=>"ND_1748282550606", "length_mm"=>710, "to_node_id"=>"ND_1748282554160"}]}
+    ValeDesignSuite::MainUserInterface (SaveCallback): Found valid AssemblyID in metadata: VFW001
+    ValeDesignSuite::MainUserInterface (SaveCallback): Saving framework data for AssemblyID 'VFW001' using FrameworkDataSerializer.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Existing dictionaries on component definition before save:
+    - SU_DefinitionSet
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 5
+    Panel Lines Count: 4
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding geometry state with 5 components
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 5
+    Panel Lines Count: 4
+    Transform Cache: YES
+    Geometry State: YES
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data keys...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved transform cache
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved geometry state
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved enhanced data for assembly VFW001 to component definition
+    FrameworkCoordinationManager: Transform cache saved to serializer
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully created test dictionary on definition
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 6
+    Panel Lines Count: 5
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving METADATA_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving NODES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving PANEL_LINES_KEY...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified dictionary exists after save: ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in saved dictionary:
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: All data keys verified in dictionary.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified metadata has 1 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified nodes has 6 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Verified panel lines has 5 items
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved data for assembly VFW001 to component definition
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting smart geometry update for VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 6
+    Panel Lines Count: 5
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Using incremental update (transform cache available)
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Starting incremental geometry update for VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 6
+    Panel Lines Count: 5
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    Testing component '' (ID: 6481) for assembly ID: NOT FOUND
+    Testing component 'hello' (ID: 28790) for assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 6
+    Panel Lines Count: 5
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node ND_1748282517084 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node ND_1748282546325 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node ND_1748282550606 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Node ND_1748282554160 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282517084 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282517438 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282546325 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282550606 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Panel PL_1748282554160 has changed
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating 9 components: ND_1748282517084, ND_1748282546325, ND_1748282550606, ND_1748282554160, PL_1748282517084, PL_1748282517438, PL_1748282546325, PL_1748282550606, PL_1748282554160
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for node ND_1748282517084
+    Loaded 5 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282517084 in framework assembly VFW001
+    Saved node configuration to group
+    Successfully updated node group geometry for node
+    Updated existing node group for node ND_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282517084 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for node ND_1748282546325
+    Loaded 5 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282546325 in framework assembly VFW001
+    Saved node configuration to group
+    Successfully updated node group geometry for node
+    Updated existing node group for node ND_1748282546325
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282546325 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for node ND_1748282550606
+    Loaded 5 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282550606 in framework assembly VFW001
+    Saved node configuration to group
+    Successfully updated node group geometry for node
+    Updated existing node group for node ND_1748282550606
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282550606 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for node ND_1748282554160
+    Loaded 5 node configurations for assembly VFW001
+    Saved node configuration for ND_1748282554160 in framework assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 6
+    Panel Lines Count: 5
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Warning: No coordinate transformation found for node ND_1748282554160, using fallback positioning
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 6
+    Panel Lines Count: 5
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    Positioned node group for node ND_1748282554160 at fallback position (5000, 0, 0) mm
+    Saved node configuration to group
+    Successfully created node group for node ND_1748282554160
+    Created new node group for node ND_1748282554160
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Node ND_1748282554160 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282517084
+    Loaded 4 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282517084 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282517084
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282517084 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282517438
+    Loaded 4 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282517438 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282517438
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282517438 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282546325
+    Loaded 4 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282546325 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282546325
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282546325 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282550606
+    Loaded 4 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282550606 in framework assembly VFW001
+    Saved window configuration to group
+    Successfully updated window group geometry for panel
+    Updated existing window group for panel PL_1748282550606
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282550606 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Updating geometry for panel PL_1748282554160
+    Loaded 4 panel configurations for assembly VFW001
+    Saved panel configuration for PL_1748282554160 in framework assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading enhanced data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 6
+    Panel Lines Count: 5
+    Transform Cache: YES (5 items)
+    Geometry State: YES (5 components)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded geometry state with 5 components
+    FrameworkCoordinationManager: Loaded 5 transformations from cache
+    FrameworkCoordinationManager: Loaded 5 geometry states from cache
+    FrameworkCoordinationManager: Loaded transform cache from serializer
+    FrameworkCoordinationManager: Initialized for assembly VFW001
+    Warning: No coordinate transformation found for panel PL_1748282554160, using fallback positioning
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 6
+    Panel Lines Count: 5
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    Positioned window group for panel PL_1748282554160 at fallback position (4290, 0, 0) mm
+    Saved window configuration to group
+    Successfully created window group for panel PL_1748282554160
+    Created new window group for panel PL_1748282554160
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: ✓ Panel PL_1748282554160 updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic: Incremental update completed successfully
+    ValeDesignSuite::MainUserInterface: Framework geometry updated successfully
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Attempting to load data for AssemblyID 'VFW001' from component 'hello' (EntityID: 28790).
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Dictionaries on component definition:
+    - SU_DefinitionSet
+    - ValeDesignSuite_TestDictionary
+    - ValeDesignSuite_FrameworkAssemblies_VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loading data for assembly VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Keys in dictionary 'ValeDesignSuite_FrameworkAssemblies_VFW001':
+    - frameworkGeometryState
+    - frameworkMetadata
+    - frameworkNodes
+    - frameworkPanelLines
+    - frameworkTransforms
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Loaded metadata for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 6
+    Panel Lines Count: 5
+    ValeDesignSuite::FrameworkToolsSketchUpLogic (CompLoad): Data successfully loaded for AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding 5 cached transformations
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Adding geometry state with 5 components
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching for definition with assembly ID: VFW001
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching top-level entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found instance with AssemblyID 'VFW001': 'hello' (EntityID: 28790)
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Searching nested entities for AssemblyID 'VFW001'...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Found definition 'FrameworkAssembly_hello_VFW001' via component instance 'hello' (EntityID: 28790) having AssemblyID 'VFW001'.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Definition 'FrameworkAssembly_hello_VFW001' is valid.
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data for assembly VFW001:
+    Framework Name: hello
+    Framework Unique ID: VFW001
+    Nodes Count: 6
+    Panel Lines Count: 5
+    Transform Cache: YES
+    Geometry State: YES
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saving enhanced data keys...
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved transform cache
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Saved geometry state
+    ValeDesignSuite::DataUtils::FrameworkDataSerializer: Successfully saved enhanced data for assembly VFW001 to component definition
+    FrameworkCoordinationManager: Transform cache saved to serializer
+    '''

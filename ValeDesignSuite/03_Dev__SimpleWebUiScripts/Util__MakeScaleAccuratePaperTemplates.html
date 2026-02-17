@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- ----------------------------------------------------------------- -->
+<!-- REGION  |  Document Head & Metadata                               -->
+<!-- ----------------------------------------------------------------- -->
+    <head>
+        <meta charset="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Vale Design Suite – Scale Accurate Paper Template</title>
+        <link rel="preconnect" href="https://fonts.gstatic.com" />
+        <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+
+        <!-- ----------------------------------------------------------------- -->
+        <!-- REGION  |  Style Sheets                                           -->
+        <!-- ----------------------------------------------------------------- -->
+            <style>
+                /* CSS Variables - Vale Design Suite Standards */
+                :root {
+                    /* Colour Palette */
+                    --ValeBlue_Primary                  :  #0081c6;              /* <-- Vale brand blue colour */
+                    --ValeGrey_Dark                     :  #4f4f4f;              /* <-- Dark grey for subtitles */
+                    --ValeGrey_Mid                      :  #7e7e7e;              /* <-- Mid grey for UI elements */
+
+                    /* Typography */
+                    --FontType_OpenSans_SemiBold        :  'Open Sans', sans-serif;
+                    --FontType_OpenSans_Light           :  'Open Sans', sans-serif;
+                    --FontSize_TitleText                :  24pt;
+                    --FontSize_SubTitleText             :  14pt;
+
+                    /* Layout */
+                    --ControlPanel_Background           :  #ffffff;
+                    --ControlPanel_Border               :  #d0d0d0;
+                }
+
+                /* Base Layout Styles */
+                html, body {
+                    margin                              :  0;
+                    padding                             :  0;
+                    height                              :  100%;
+                    box-sizing                          :  border-box;
+                    font-family                         :  var(--FontType_OpenSans_Light);
+                    background-color                    :  #f5f7fa;
+                }
+
+                /* Control Panel Styles */
+                .control-panel {
+                    display                             :  flex;
+                    flex-wrap                           :  wrap;
+                    gap                                 :  8px;
+                    padding                             :  12px;
+                    background-color                    :  var(--ControlPanel_Background);
+                    border-bottom                       :  1px solid var(--ControlPanel_Border);
+                }
+                .control-panel label {
+                    font-size                           :  10pt;
+                    color                               :  var(--ValeGrey_Dark);
+                    margin-right                        :  4px;
+                }
+                .control-panel input,
+                .control-panel select {
+                    padding                             :  4px 6px;
+                    font-size                           :  10pt;
+                }
+                .control-panel button {
+                    padding                             :  6px 12px;
+                    font-size                           :  10pt;
+                    cursor                              :  pointer;
+                    border                              :  1px solid var(--ValeGrey_Mid);
+                    background-color                    :  #fafafa;
+                }
+
+                /* Paper Container */
+                #paper-container {
+                    position                            :  relative;
+                    margin                              :  24px auto;
+                    background-color                    :  #ffffff;
+                    box-shadow                          :  0 0 6px rgba(0,0,0,0.1);
+                }
+
+                /* Title & Subtitle Text */
+                #paper-title {
+                    position                            :  absolute;
+                    top                                 :  50%;
+                    left                                :  50%;
+                    transform                           :  translate(-50%, -60%);
+                    font-family                         :  var(--FontType_OpenSans_SemiBold);
+                    font-size                           :  var(--FontSize_TitleText);
+                    color                               :  var(--ValeBlue_Primary);
+                    text-align                          :  center;
+                    pointer-events                      :  none;
+                }
+                #paper-subtitle {
+                    position                            :  absolute;
+                    top                                 :  50%;
+                    left                                :  50%;
+                    transform                           :  translate(-50%, 0);
+                    font-family                         :  var(--FontType_OpenSans_Light);
+                    font-size                           :  var(--FontSize_SubTitleText);
+                    color                               :  var(--ValeGrey_Dark);
+                    text-align                          :  center;
+                    pointer-events                      :  none;
+                    margin-top                          :  05.00mm;
+                }
+
+                /* Dimension Lines */
+                .dimension-line {
+                    position                            :  absolute;
+                    background-color                    :  transparent;
+                }
+                .dimension-line.vertical {
+                    width                               :  00.20pt;
+                    background-color                    :  #57a773;              /* <-- Muted green */
+                }
+                .dimension-line.horizontal {
+                    height                              :  00.20pt;
+                    background-color                    :  #de5959;              /* <-- Muted red */
+                }
+
+                /* Dimension Text */
+                .dimension-text {
+                    position                            :  absolute;
+                    font-size                           :  10pt;
+                    font-family                         :  var(--FontType_OpenSans_Light);
+                    color                               :  #000000;
+                    pointer-events                      :  none;    
+                    white-space                         :  nowrap;
+                }
+                .dimension-text.vertical {
+                    transform                           :  translate(-50%, -50%) rotate(-90deg);
+                }
+                .dimension-text.horizontal {
+                    transform                           :  translate(-50%, -50%);
+                }
+                .dimension-text.green {
+                    color                               :  #57a773;              /* <-- Muted green */
+                }
+                .dimension-text.red {
+                    color                               :  #de5959;              /* <-- Muted red */
+                }
+
+            </style>
+        <!-- endregion -------------------------------------------------------- -->
+    </head>
+<!-- endregion --------------------------------------------------------------- -->
+
+<!-- ----------------------------------------------------------------- -->
+<!-- REGION  |  Document Body                                          -->
+<!-- ----------------------------------------------------------------- -->
+    <body>
+        <!-- ----------------------------------------------------------------- -->
+        <!-- UI MENU |  Control Panel                                         -->
+        <!-- ----------------------------------------------------------------- -->
+            <div class="control-panel">
+                <label for="size-select">Paper Size:</label>
+                <select id="size-select"></select>
+
+                <label for="orientation-select">Orientation:</label>
+                <select id="orientation-select">
+                    <option value="portrait">Portrait</option>
+                    <option value="landscape">Landscape</option>
+                </select>
+
+                <label>Custom W (mm):</label>
+                <input type="number" id="custom-width" min="1" placeholder="Width" />
+                <label>Custom H (mm):</label>
+                <input type="number" id="custom-height" min="1" placeholder="Height" />
+
+                <label for="scale-select">Scale Factor:</label>
+                <select id="scale-select"></select>
+
+                <button id="apply-button">Apply</button>
+                <button id="download-png">Download PNG</button>
+                <button id="download-pdf">Download PDF</button>
+            </div>
+        <!-- endregion -------------------------------------------------------- -->
+
+        <!-- ----------------------------------------------------------------- -->
+        <!-- REGION  |  Paper Template Display Area                            -->
+        <!-- ----------------------------------------------------------------- -->
+            <div id="paper-container">
+                <div id="paper-title">A4 Portrait</div>
+                <div id="paper-subtitle">210 mm × 297 mm</div>
+
+                <!-- Dimension Lines -->
+                <div id="dim-line-left"   class="dimension-line vertical"></div>
+                <div id="dim-line-right"  class="dimension-line vertical"></div>
+                <div id="dim-line-top"    class="dimension-line horizontal"></div>
+                <div id="dim-line-bottom" class="dimension-line horizontal"></div>
+
+                <!-- Dimension Text -->
+                <div id="dim-text-vertical-left"    class="dimension-text vertical green">297 mm</div>
+                <div id="dim-text-vertical-right"   class="dimension-text vertical green">297 mm</div>
+                <div id="dim-text-horizontal-top"   class="dimension-text horizontal red">210 mm</div>
+                <div id="dim-text-horizontal-bottom"class="dimension-text horizontal red">210 mm</div>
+            </div>
+        <!-- endregion -------------------------------------------------------- -->
+
+        <!-- ----------------------------------------------------------------- -->
+        <!-- REGION  |  Script References (External Libraries)                -->
+        <!-- ----------------------------------------------------------------- -->
+            <!-- html2canvas - Latest stable version from unpkg CDN -->
+            <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+            
+            <!-- jsPDF - Latest stable version from unpkg CDN -->
+            <script src="https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+            
+            <!-- Alternative CDN sources (fallback) - uncomment if needed -->
+            <!-- <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script> -->
+            <!-- <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script> -->
+        <!-- endregion -------------------------------------------------------- -->
+
+        <!-- ----------------------------------------------------------------- -->
+        <!-- REGION  |  Embedded Application Logic                             -->
+        <!-- ----------------------------------------------------------------- -->
+            <script>
+                // -----------------------------------------------------------------------------
+                // REGION | Module Constants & Configuration
+                // -----------------------------------------------------------------------------
+
+                    // MODULE CONSTANTS | ISO A-Series Paper Sizes (mm)
+                    // ------------------------------------------------------------
+                    const PAPER_SIZES_MM = {
+                        "A0": { width: 841, height: 1189 },
+                        "A1": { width: 594, height: 841 },
+                        "A2": { width: 420, height: 594 },
+                        "A3": { width: 297, height: 420 },
+                        "A4": { width: 210, height: 297 },
+                        "A5": { width: 148, height: 210 }
+                    };
+                    // endregion ----------------------------------------------------
+
+                    // MODULE CONSTANTS | Architectural Scale Factors
+                    // ------------------------------------------------------------
+                    const SCALE_FACTORS = {
+                        "1:1":    { factor: 1,    label: "1:1 (Actual Size)" },
+                        "1:2":    { factor: 2,    label: "1:2" },
+                        "1:5":    { factor: 5,    label: "1:5" },
+                        "1:10":   { factor: 10,   label: "1:10" },
+                        "1:20":   { factor: 20,   label: "1:20" },
+                        "1:25":   { factor: 25,   label: "1:25" },
+                        "1:50":   { factor: 50,   label: "1:50" },
+                        "1:100":  { factor: 100,  label: "1:100" },
+                        "1:200":  { factor: 200,  label: "1:200" },
+                        "1:250":  { factor: 250,  label: "1:250" },
+                        "1:500":  { factor: 500,  label: "1:500" },
+                        "1:1000": { factor: 1000, label: "1:1000" },
+                        "1:1250": { factor: 1250, label: "1:1250" }
+                    };
+                    // endregion ----------------------------------------------------
+
+                    // MODULE CONSTANTS | Output Quality Settings
+                    // ------------------------------------------------------------
+                    const OUTPUT_DPI = 300;                                               // <-- Print quality DPI for PNG output
+                    const MM_TO_PIXELS_FACTOR = OUTPUT_DPI / 25.4;                      // <-- Convert mm to pixels at 300 DPI
+                    // endregion ----------------------------------------------------
+
+                // -----------------------------------------------------------------------------
+                // REGION | Module Variables
+                // -----------------------------------------------------------------------------
+
+                    // MODULE VARIABLES | State Tracking Variables
+                    // ------------------------------------------------------------
+                    let currentSizeKey      = 'A4';                       // <-- Default paper size key
+                    let currentOrientation  = 'portrait';                 // <-- Default orientation
+                    let currentScaleKey     = '1:1';                      // <-- Default scale factor key
+                    // endregion ----------------------------------------------------
+
+                // -----------------------------------------------------------------------------
+                // REGION | Helper Functions
+                // -----------------------------------------------------------------------------
+
+                    // HELPER FUNCTION | Get Size Object Considering Orientation
+                    // ------------------------------------------------------------
+                    function getSizeMm(sizeKey, orientation) {
+                        const baseSize = PAPER_SIZES_MM[sizeKey];
+                        if (!baseSize) return { width: 210, height: 297 };  // Fallback to A4
+                        return orientation === 'landscape'
+                            ? { width: baseSize.height, height: baseSize.width }
+                            : { ...baseSize };
+                    }
+                    // ---------------------------------------------------------------
+
+                    // HELPER FUNCTION | Update Size Select Dropdown Options
+                    // ------------------------------------------------------------
+                    function populateSizeSelect() {
+                        const sizeSelect = document.getElementById('size-select');
+                        sizeSelect.innerHTML = '';
+                        Object.keys(PAPER_SIZES_MM).forEach(key => {
+                            const option = document.createElement('option');
+                            option.value = key;
+                            option.textContent = key;
+                            if (key === currentSizeKey) option.selected = true;
+                            sizeSelect.appendChild(option);
+                        });
+                    }
+                    // ---------------------------------------------------------------
+
+                    // HELPER FUNCTION | Update Scale Select Dropdown Options
+                    // ------------------------------------------------------------
+                    function populateScaleSelect() {
+                        const scaleSelect = document.getElementById('scale-select');
+                        scaleSelect.innerHTML = '';
+                        Object.keys(SCALE_FACTORS).forEach(key => {
+                            const option = document.createElement('option');
+                            option.value = key;
+                            option.textContent = SCALE_FACTORS[key].label;
+                            if (key === currentScaleKey) option.selected = true;
+                            scaleSelect.appendChild(option);
+                        });
+                    }
+                    // ---------------------------------------------------------------
+
+                    // HELPER FUNCTION | Apply Scale Factor to Dimension
+                    // ------------------------------------------------------------
+                    function applyScaleFactor(dimensionMm, scaleKey) {
+                        const scaleFactor = SCALE_FACTORS[scaleKey]?.factor || 1;
+                        return dimensionMm * scaleFactor;                    // <-- Calculate real-world dimension
+                    }
+                    // ---------------------------------------------------------------
+
+                    // HELPER FUNCTION | Format Dimension with Appropriate Units
+                    // ------------------------------------------------------------
+                    function formatDimension(dimensionMm) {
+                        // Always show dimensions in millimeters for consistency
+                        return `${dimensionMm} mm`;
+                    }
+                    // ---------------------------------------------------------------
+
+                    // HELPER FUNCTION | Get Scaled Dimension Text
+                    // ------------------------------------------------------------
+                    function getScaledDimensionText(dimensionMm, scaleKey) {
+                        const scaledDimension = applyScaleFactor(dimensionMm, scaleKey);
+                        return formatDimension(scaledDimension);
+                    }
+                    // ---------------------------------------------------------------
+
+                    // HELPER FUNCTION | Generate Descriptive Filename
+                    // ------------------------------------------------------------
+                    function generateDescriptiveFilename(fileExtension = 'png') {
+                        const timestamp = new Date().toISOString().slice(0, 10);        // <-- YYYY-MM-DD format
+                        const scaleLabel = currentScaleKey.replace(':', '-');           // <-- Replace colon for filename safety
+                        
+                        // Get current dimensions for descriptive sizing
+                        const customWidth = parseFloat(document.getElementById('custom-width').value) || null;
+                        const customHeight = parseFloat(document.getElementById('custom-height').value) || null;
+                        let sizeMm = getSizeMm(currentSizeKey, currentOrientation);
+                        
+                        if (customWidth && customHeight) {
+                            sizeMm = { width: customWidth, height: customHeight };       // <-- Use custom dimensions
+                        }
+                        
+                        // Calculate real-world dimensions at scale
+                        const realWorldWidth = applyScaleFactor(sizeMm.width, currentScaleKey);
+                        const realWorldHeight = applyScaleFactor(sizeMm.height, currentScaleKey);
+                        
+                        // Build descriptive components
+                        const paperSizeDesc = customWidth && customHeight 
+                            ? `Custom-${sizeMm.width}x${sizeMm.height}mm`               // <-- Custom size description
+                            : `${currentSizeKey}-${currentOrientation}`;               // <-- Standard size description
+                            
+                        const scaleDesc = currentScaleKey === '1:1' 
+                            ? 'ActualSize'                                              // <-- Actual size description
+                            : `Scale-${scaleLabel}`;                                   // <-- Scale factor description
+                            
+                        const realWorldDesc = currentScaleKey === '1:1' 
+                            ? `_PaperSize-${realWorldWidth}x${realWorldHeight}mm`       // <-- Paper dimensions for 1:1
+                            : `_RealWorld-${realWorldWidth}x${realWorldHeight}mm`;     // <-- Real-world dimensions
+                            
+                        // Combine all components into descriptive filename
+                        return `ScaledPaper__${paperSizeDesc}__${scaleDesc}${realWorldDesc}.${fileExtension}`;
+                    }
+                    // ---------------------------------------------------------------
+
+                // -----------------------------------------------------------------------------
+                // REGION | UI Update Functions
+                // -----------------------------------------------------------------------------
+
+                    // FUNCTION | Apply Paper Settings & Render Template
+                    // ------------------------------------------------------------
+                    function applyPaperSettings() {
+                        // Get user selections / overrides
+                        const sizeKeySelect = document.getElementById('size-select').value;
+                        const orientationSelect = document.getElementById('orientation-select').value;
+                        const scaleKeySelect = document.getElementById('scale-select').value;
+                        const customWidthInput = parseFloat(document.getElementById('custom-width').value) || null;
+                        const customHeightInput = parseFloat(document.getElementById('custom-height').value) || null;
+
+                        currentSizeKey = sizeKeySelect;
+                        currentOrientation = orientationSelect;
+                        currentScaleKey = scaleKeySelect;
+
+                        let sizeMm = getSizeMm(currentSizeKey, currentOrientation);
+                        if (customWidthInput && customHeightInput) {
+                            sizeMm = { width: customWidthInput, height: customHeightInput };
+                        }
+
+                        renderPaper(sizeMm);
+                    }
+                    // ---------------------------------------------------------------
+
+                    // SUB FUNCTION | Render Paper & Dimension Elements
+                    // ---------------------------------------------------------------
+                    function renderPaper({ width, height }) {
+                        const paperContainer = document.getElementById('paper-container');
+                        paperContainer.style.width  = `${width}mm`;
+                        paperContainer.style.height = `${height}mm`;
+
+                        // Update title & subtitle
+                        const titleEl = document.getElementById('paper-title');
+                        const subtitleEl = document.getElementById('paper-subtitle');
+                        const orientLabel = currentOrientation.charAt(0).toUpperCase() + currentOrientation.slice(1);
+                        const titleText = customTitle(width, height) || `${currentSizeKey} ${orientLabel}`;
+                        titleEl.textContent = titleText;
+                        
+                        // Update subtitle with scaled dimensions
+                        const scaledWidth = getScaledDimensionText(width, currentScaleKey);
+                        const scaledHeight = getScaledDimensionText(height, currentScaleKey);
+                        
+                        if (currentScaleKey === '1:1') {
+                            subtitleEl.textContent = `${width} mm × ${height} mm`;
+                        } else {
+                            subtitleEl.textContent = `${scaledWidth} × ${scaledHeight} (at ${currentScaleKey})`;
+                        }
+
+                        // Update dimension lines positions
+                        updateDimensionLines(width, height);
+                        updateDimensionText(width, height);
+                    }
+                    // ---------------------------------------------------------------
+
+                    // HELPER FUNCTION | Determine Custom Title (if overrides)
+                    // ------------------------------------------------------------
+                    function customTitle(width, height) {
+                        const base = PAPER_SIZES_MM[currentSizeKey];
+                        if (base && ((currentOrientation === 'portrait' && base.width === width && base.height === height) ||
+                                       (currentOrientation === 'landscape' && base.width === height && base.height === width))) {
+                            return null;                                    // <-- Using standard size, default title fine
+                        }
+                        return `Custom ${width}×${height}`;                 // <-- Custom size title
+                    }
+                    // ---------------------------------------------------------------
+
+                    // SUB FUNCTION | Update Dimension Lines Positions
+                    // ---------------------------------------------------------------
+                    function updateDimensionLines(width, height) {
+                        const inset = 20;                                   // <-- 20 mm inset for dimension lines
+
+                        const lineLeft   = document.getElementById('dim-line-left');
+                        const lineRight  = document.getElementById('dim-line-right');
+                        const lineTop    = document.getElementById('dim-line-top');
+                        const lineBottom = document.getElementById('dim-line-bottom');
+
+                        // Vertical Lines
+                        lineLeft.style.left   = `${inset}mm`;
+                        lineLeft.style.top    = `0`;
+                        lineLeft.style.height = `${height}mm`;             // Extend full height
+
+                        lineRight.style.left   = `calc(${width}mm - ${inset}mm)`;
+                        lineRight.style.top    = `0`;
+                        lineRight.style.height = `${height}mm`;
+
+                        // Horizontal Lines
+                        lineTop.style.left    = `0`;
+                        lineTop.style.top     = `${inset}mm`;
+                        lineTop.style.width   = `${width}mm`;              // Extend full width
+
+                        lineBottom.style.left   = `0`;
+                        lineBottom.style.top    = `calc(${height}mm - ${inset}mm)`;
+                        lineBottom.style.width  = `${width}mm`;
+                    }
+                    // ---------------------------------------------------------------
+
+                    // SUB FUNCTION | Update Dimension Text Values & Positions
+                    // ---------------------------------------------------------------
+                    function updateDimensionText(width, height) {
+                        const inset = 20;                                   // <-- 20 mm inset for dimension lines
+                        const offset = 8;                                   // <-- 8 mm text offset from lines for better visibility
+
+                        const textVertLeft   = document.getElementById('dim-text-vertical-left');
+                        const textVertRight  = document.getElementById('dim-text-vertical-right');
+                        const textHorTop     = document.getElementById('dim-text-horizontal-top');
+                        const textHorBottom  = document.getElementById('dim-text-horizontal-bottom');
+
+                        // Calculate scaled dimension text
+                        const scaledWidthText = getScaledDimensionText(width, currentScaleKey);
+                        const scaledHeightText = getScaledDimensionText(height, currentScaleKey);
+
+                        // Vertical text – Left (green) - positioned along the left vertical line
+                        textVertLeft.textContent = scaledHeightText;
+                        textVertLeft.style.left  = `${inset - offset}mm`;          // Offset to the left of the line
+                        textVertLeft.style.top   = `${height / 2}mm`;              // Center vertically on the paper
+
+                        // Vertical text – Right (green) - positioned along the right vertical line
+                        textVertRight.textContent = scaledHeightText;
+                        textVertRight.style.left  = `${width - inset + offset}mm`; // Offset to the right of the line
+                        textVertRight.style.top   = `${height / 2}mm`;             // Center vertically on the paper
+
+                        // Horizontal text – Top (red) - positioned above the top horizontal line
+                        textHorTop.textContent = scaledWidthText;
+                        textHorTop.style.top   = `${inset - offset}mm`;            // Offset above the line
+                        textHorTop.style.left  = `${width / 2}mm`;                 // Center horizontally on the paper
+
+                        // Horizontal text – Bottom (red) - positioned below the bottom horizontal line
+                        textHorBottom.textContent = scaledWidthText;
+                        textHorBottom.style.top   = `${height - inset + offset}mm`; // Offset below the line
+                        textHorBottom.style.left  = `${width / 2}mm`;               // Center horizontally on the paper
+                    }
+                    // ---------------------------------------------------------------
+
+                // -----------------------------------------------------------------------------
+                // REGION | Download Functions
+                // -----------------------------------------------------------------------------
+
+                    // HELPER FUNCTION | Convert Millimeters to Pixels at Output DPI
+                    // ------------------------------------------------------------
+                    function mmToPixels(mm) {
+                        return Math.round(mm * MM_TO_PIXELS_FACTOR);      // <-- Convert mm to pixels at 300 DPI
+                    }
+                    // ---------------------------------------------------------------
+
+                    // FUNCTION | Download Paper as PNG
+                    // ------------------------------------------------------------
+                    function downloadPNG() {
+                        const paperContainer = document.getElementById('paper-container');
+                        
+                        console.log('Starting PNG download...');                          // <-- Debug log
+                        console.log('html2canvas available:', typeof html2canvas);       // <-- Check library
+                        
+                        // Check if html2canvas is available
+                        if (typeof html2canvas === 'undefined') {
+                            alert('html2canvas library not loaded. Please refresh the page and try again.');
+                            return;
+                        }
+                        
+                        // Use high-resolution canvas rendering without changing container
+                        html2canvas(paperContainer, { 
+                            scale: 2,                                                     // <-- Reduced scale for better compatibility
+                            useCORS: true,
+                            allowTaint: true,                                             // <-- Allow taint for local files
+                            backgroundColor: '#ffffff',
+                            logging: true,                                                // <-- Enable html2canvas logging
+                            width: paperContainer.offsetWidth,                           // <-- Explicit dimensions
+                            height: paperContainer.offsetHeight
+                        }).then(canvas => {
+                            console.log('Canvas generated successfully');                 // <-- Debug log
+                            console.log('Canvas dimensions:', canvas.width, 'x', canvas.height);
+                            
+                            try {
+                                // Create download link
+                                const link = document.createElement('a');
+                                link.download = generateDescriptiveFilename('png');          // <-- Use descriptive filename function
+                                
+                                // Convert canvas to blob for better browser compatibility
+                                canvas.toBlob(function(blob) {
+                                    if (blob) {
+                                        const url = URL.createObjectURL(blob);
+                                        link.href = url;
+                                        
+                                        // Trigger download
+                                        document.body.appendChild(link);                     // <-- Add to DOM temporarily
+                                        link.click();
+                                        document.body.removeChild(link);                     // <-- Clean up
+                                        
+                                        // Clean up blob URL
+                                        setTimeout(() => URL.revokeObjectURL(url), 100);
+                                        
+                                        console.log('PNG download initiated successfully');  // <-- Debug log
+                                    } else {
+                                        throw new Error('Failed to create blob from canvas');
+                                    }
+                                }, 'image/png', 0.95);
+                                
+                            } catch (error) {
+                                console.error('Download creation failed:', error);           // <-- Error log
+                                alert(`Download creation failed: ${error.message}`);        // <-- User notification
+                            }
+                        }).catch(error => {
+                            console.error('PNG generation failed:', error);             // <-- Error log
+                            console.error('Error details:', error.stack);               // <-- Full error stack
+                            alert(`PNG download failed: ${error.message}\n\nCheck browser console for details.`);
+                        });
+                    }
+                    // ---------------------------------------------------------------
+
+                    // FUNCTION | Download Paper as PDF
+                    // ------------------------------------------------------------
+                    function downloadPDF() {
+                        const paperContainer = document.getElementById('paper-container');
+                        
+                        console.log('Starting PDF download...');                         // <-- Debug log
+                        
+                        html2canvas(paperContainer, { 
+                            scale: 2,                                                     // <-- Good resolution for PDF
+                            useCORS: true,
+                            allowTaint: false,
+                            backgroundColor: '#ffffff'
+                        }).then(canvas => {
+                            console.log('Canvas generated for PDF');                     // <-- Debug log
+                            
+                            try {
+                                const imgData = canvas.toDataURL('image/png');
+                                const { jsPDF } = window.jspdf;
+                                
+                                // Get current paper dimensions for proper PDF sizing
+                                const customWidth = parseFloat(document.getElementById('custom-width').value) || null;
+                                const customHeight = parseFloat(document.getElementById('custom-height').value) || null;
+                                let sizeMm = getSizeMm(currentSizeKey, currentOrientation);
+                                
+                                if (customWidth && customHeight) {
+                                    sizeMm = { width: customWidth, height: customHeight };  // <-- Use custom dimensions
+                                }
+                                
+                                // Create PDF with exact paper dimensions
+                                const pdf = new jsPDF({
+                                    orientation: currentOrientation,
+                                    unit: 'mm',
+                                    format: [sizeMm.width, sizeMm.height]                 // <-- Exact paper size
+                                });
+                                
+                                // Add image to fill entire PDF page
+                                pdf.addImage(imgData, 'PNG', 0, 0, sizeMm.width, sizeMm.height);
+                                
+                                pdf.save(generateDescriptiveFilename('pdf'));           // <-- Use descriptive filename function
+                                
+                                console.log('PDF download completed');                   // <-- Debug log
+                            } catch (error) {
+                                console.error('PDF generation failed:', error);         // <-- Error log
+                                alert(`PDF download failed: ${error.message}`);         // <-- User notification
+                            }
+                        }).catch(error => {
+                            console.error('Canvas generation for PDF failed:', error);  // <-- Error log
+                            alert(`PDF download failed: ${error.message}`);             // <-- User notification
+                        });
+                    }
+                    // ---------------------------------------------------------------
+
+                // -----------------------------------------------------------------------------
+                // REGION | Event Binding & Initialization
+                // -----------------------------------------------------------------------------
+
+                    // HELPER FUNCTION | Test Simple Download (for debugging)
+                    // ------------------------------------------------------------
+                    function testSimpleDownload() {
+                        console.log('Testing simple download...');
+                        const link = document.createElement('a');
+                        link.download = 'test-download.txt';
+                        link.href = 'data:text/plain;charset=utf-8,Test download file';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        console.log('Simple download test completed');
+                    }
+                    // ---------------------------------------------------------------
+
+                    // FUNCTION | Check Library Dependencies
+                    // ------------------------------------------------------------
+                    function checkLibraries() {
+                        console.log('=== LIBRARY DEPENDENCY CHECK ===');
+                        console.log('html2canvas available:', typeof html2canvas !== 'undefined');
+                        console.log('jsPDF available:', typeof window.jspdf !== 'undefined');
+                        
+                        if (typeof html2canvas === 'undefined') {
+                            console.error('❌ html2canvas library failed to load');
+                            return false;
+                        }
+                        
+                        if (typeof window.jspdf === 'undefined') {
+                            console.error('❌ jsPDF library failed to load');
+                            return false;
+                        }
+                        
+                        console.log('✅ All libraries loaded successfully');
+                        return true;
+                    }
+                    // ---------------------------------------------------------------
+
+                    // FUNCTION | Initialize Application
+                    // ------------------------------------------------------------
+                    function init() {
+                        console.log('🚀 Initializing Vale Paper Template Generator...');
+                        
+                        // Check if required libraries are loaded
+                        const librariesOK = checkLibraries();
+                        if (!librariesOK) {
+                            console.warn('⚠️ Some libraries missing - download features may not work');
+                        }
+                        
+                        populateSizeSelect();
+                        populateScaleSelect();
+                        applyPaperSettings();
+
+                        // Bind event listeners
+                        document.getElementById('apply-button').addEventListener('click', applyPaperSettings);
+                        document.getElementById('download-png').addEventListener('click', downloadPNG);
+                        document.getElementById('download-pdf').addEventListener('click', downloadPDF);
+                        
+                        // Add test download for debugging (optional - remove in production)
+                        console.log('💡 To test download functionality, run: testSimpleDownload()');
+                        
+                        console.log('✅ Initialization complete');
+                    }
+                    // ---------------------------------------------------------------
+
+                    // Immediately Initialize on DOMContentLoaded
+                    document.addEventListener('DOMContentLoaded', init);
+
+            </script>
+        <!-- endregion -------------------------------------------------------- -->
+    </body>
+<!-- endregion --------------------------------------------------------------- -->
+</html>
+
+
+
+
+
+

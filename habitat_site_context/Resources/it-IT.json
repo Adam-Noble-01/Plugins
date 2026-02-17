@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "Aggiungi posizione",
+  "EXTENSION.DESCRIPTION": "Importa aree di grandi dimensioni. Controlla la densità della maglia del terreno. Visualizza il Nord e la tua posizione in SketchUp",
+  "EXTENSION.COMPATIBILITY_ISSUE": "Attenzione: problema di compatibilità di Aggiungi posizione.\n\nAggiungi posizione è disabilitato nella versione di SketchUp attualmente installata.\nÈ progettato per funzionare con la versione più recente.\nTi consigliamo di aggiornare SketchUp alla versione più recente per garantire prestazioni ottimali e l'accesso a tutte le funzionalità.\nLa versione più recente può essere scaricata dal sito web ufficiale di SketchUp.\nSe hai domande o riscontri problemi durante il processo di aggiornamento, contatta il nostro team di supporto per assistenza.",
+  "TOOLBAR_TITLE": "Aggiungi posizione",
+  "TOOLBAR_TOOL_NAME": "Aggiungi posizione",
+  "TOOLBAR_TOOL_DESCRIPTION": "Imposta la posizione e importa mappe e terreno",
+  "TOOLBAR_TOOL_TOOLTIP": "Aggiungi posizione",
+  "MENU_ITEM_NAME": "Aggiungi posizione",
+  "WINDOW_TITLE": "Aggiungi posizione",
+  "TRUE_NORTH_MENU_ITEM_NAME": "Vero Nord",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "Attiva/disattiva la visualizzazione della direzione nord reale sul tuo modello",
+  "MAP_PIN_MENU_ITEM_NAME": "Segnaposto",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "Attiva/disattiva la visualizzazione di un punto di coordinate reali sul tuo modello",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "Il segnaposto associa l'origine del modello di SketchUp a un punto del mondo reale",
+  "MAP_PIN_OVERLAY_NAME": "Segnaposto",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "Reimposto la geolocalizzazione",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "Mostra segnaposto",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "Nascondi segnaposto",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "Reimposta su geolocalizzazione"
+}

@@ -1,0 +1,56 @@
+Extrude Edges by Rails to Lattice<==>Extrude Edges by Rails to Lattice
+Extrude Edges by Rails To Lattice: Select the 'Profile' Curve...<==>Extrude Edges by Rails To Lattice: Select the 'Profile' Curve...
+Pick Profile<==>Pick Profile
+Pick 1st Rail<==>Pick 1st Rail
+Pick 2nd Rail<==>Pick 2nd Rail
+Extrude Edges by Rails To Lattice: Select the 1st 'Rail' Curve...<==>Extrude Edges by Rails To Lattice: Select the 1st 'Rail' Curve...
+Extrude Edges by Rails To Lattice: Select the 2nd 'Rail' Curve...<==>Extrude Edges by Rails To Lattice: Select the 2nd 'Rail' Curve...
+Extrude Edges by Rails To Lattice: Making Mesh from Profile and 1 Rail.<==>Extrude Edges by Rails To Lattice: Making Mesh from Profile and 1 Rail.
+Extrude Edges by Rails To Lattice: Making Mesh from Profile and 2 Rails.<==>Extrude Edges by Rails To Lattice: Making Mesh from Profile and 2 Rails.
+Extrude Edges by Rails To Lattice: Formating Mesh... Please Wait...<==>Extrude Edges by Rails To Lattice: Formating Mesh... Please Wait...
+Extrude Edges by Rails To Lattice: Reverse <==>Extrude Edges by Rails To Lattice: Reverse 
+ Faces ?<==> Faces ?
+Extrude Edges by Rails To Lattice: Reversing Face <==>Extrude Edges by Rails To Lattice: Reversing Face 
+ of <==> of 
+Reverse Faces ?<==>Reverse Faces ?
+Extrude Edges by Rails To Lattice: Erase Highlighted Coplanar Edges ?<==>Extrude Edges by Rails To Lattice: Erase Highlighted Coplanar Edges ?
+Erase Highlighted Coplanar Edges ?<==>Erase Coplanar Edges ?
+Extrude Edges by Rails To Lattice: Erase Original Curves ?<==>Extrude Edges by Rails To Lattice: Erase Original Curves ?
+Erase Original Curves ?<==>Erase Original Curves ?
+Extrude Edges by Rails To Lattice:<==>Extrude Edges by Rails To Lattice:
+Making Profile <==>Making Profile 
+Making Face <==>Making Face 
+Pick Melding Profile<==>Pick Melding Profile
+Extrude Edges by Rails To Lattice: Select the 'Melding-Profile' Curve...<==>Extrude Edges by Rails To Lattice: Select the 'Melding-Profile' Curve...
+
+Extrusion Type<==>Extrusion Type
+Lattice from:<==>Lattice from:
+Profiles<==>Profiles
+Profiles/Rails<==>Profiles/Rails
+Rails<==>Rails
+Diagonals<==>Diagonals
+Lattice Type<==>Lattice Type
+Lattice as:<==>Lattice as:
+Lines<==>Lines
+3D<==>3D
+
+
+Extrude Edges by Rails To Lattice: Offsetting <==>Extrude Edges by Rails To Lattice: Offsetting 
+Lattice Properties<==>Lattice Properties
+<Default><==><Default>
+<None><==><None>
+'Glass'<==>'Glass'
+Width: <==>Width: 
+Depth: <==>Depth: 
+Pane Inset: <==>Pane Inset: 
+Pane Thickness: <==>Pane Thickness: 
+Lattice Material: <==>Lattice Material: 
+Pane Material: <==>Pane Material: 
+Processing<==>Processing
+Processing... Please Wait...<==>Processing... Please Wait...
+: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Follow Prompts. Makes Lattice...<==>: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Follow Prompts. Makes Lattice...
+
+
+
+
+

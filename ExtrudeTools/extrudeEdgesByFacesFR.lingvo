@@ -1,0 +1,37 @@
+Extrude Edges by Faces<==>Extruder des arêtes par des faces
+Extrude Edges by Faces<==>Extruder des arêtes par des faces
+Extrude Edges by Faces: Select the 'Profile' Face...<==>Extruder des arêtes par des faces: Sélectionnez la face pour le «profil»...
+Pick Profile Face<==>Sélectionnez la face du profil
+Pick Rail Curve<==>Sélectionnez la courbe du chemin
+
+Extrude Edges by Faces: Select the 'Rail' Curve...<==>Extruder des arêtes par des faces: Sélectionnez la courbe pour le «chemin»...
+
+Extrude Edges by Faces: Making Mesh from Face Profiles and Rail Curve...<==>Extruder des arêtes par des faces: Rendre le maillage des profil et la courbe du chemin...
+
+Extrude Edges by Faces:<==>Extruder des arêtes par des faces:
+
+Extrude Edges by Faces: Formating Mesh... Please Wait...<==>Extruder des arêtes par des faces: Création du maillage... Patientez SVP...
+Extrude Edges by Faces: Reverse <==>Extruder des arêtes par des faces: Inverser 
+ Faces ?<==> faces?
+Extrude Edges by Faces: Reversing Face <==>Extruder des arêtes par des faces: Inverser la face 
+ of <==> de 
+Reverse Faces ?<==>Voulez-vous inverser les faces?
+Extrude Edges by Faces: Erase Coplanar Edges ?<==>Extruder des arêtes par des faces: Voulez-vous effacer les arêtes coplanaires?
+Erase Coplanar Edges ?<==>Voulez-vous effacer les arêtes coplanaires?
+Extrude Edges by Faces: Coplanar Edges Erased= <==>Extruder des arêtes par des faces: Arêtes coplanaires effacés= 
+Extrude Edges by Faces: Intersect Mesh with Self ?<==>Extruder des arêtes par des faces: Voulez-vous intersecter le maillage avec lui-même?
+Intersect Mesh with Self ?<==>Voulez-vous intersecter le maillage avec lui-même?
+This is only necessary with convoluted meshes...<==>Ceci est uniquement nécessaire pour des maillages complexes...
+Extrude Edges by Faces: Intersecting Mesh with Self... Please Wait...<==>Extruder des arêtes par des faces: Intersection du maillage avec lui-même... Patientez SVP...
+Extrude Edges by Faces: Smooth <==>Extruder des arêtes par des faces: Lisser 
+ Edges ?<==> arêtes?
+Smooth Edges ?<==>Voulez-vous Lisser les arêtes?
+Extrude Edges by Faces: Smoothing Edge <==>Extrudez les arêtes par des Rails: Lissage des arêtes 
+
+Extrude Edges by Faces: <==>Extruder des arêtes par des faces: 
+Making Profile <==>Création du profil 
+Making Face <==>Création de la face 
+Pick Melding Profile Face<==>Sélectionnez le profil intermédiaire 
+Extrude Edges by Faces: Select the 'Melding-Profile' Face...<==>Extruder des arêtes par des faces: Sélectionnez la courbe pour le profil intermédiaire...
+Orienting Faces<==>Orientation des faces
+: Pick Profile-Face, Rail.Curve & Melding-Profile-Face. Makes Mesh. Follow Prompts...<==>: Sélectionnez Profil[Face], Chemin[Courbe] & Profil-intermédiaire[face]. Création du maillage. Suivre les instructions...

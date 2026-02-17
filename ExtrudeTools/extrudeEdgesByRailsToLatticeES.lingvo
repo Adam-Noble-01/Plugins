@@ -1,0 +1,53 @@
+Extrude Edges by Rails To Lattice: Formating Lattice... Please Wait...<==>Barrido de Curvas por Rieles para Red: Formateando la Red... Espera un Momento...
+Extrude Edges by Rails to Lattice<==>Barrido de Curvas por Rieles para Red
+Extrude Edges by Rails To Lattice<==>Barrido de Curvas por Rieles para Red
+Extrude Edges by Rails To Lattice: Select the 'Profile' Curve...<==>Barrido de Curvas por Rieles para Red: Selecciona la Curva para el Perfil...
+Pick Profile<==>Haz Clic en el Perfil
+Pick 1st Rail<==>Haz Clic en el Riel 1
+Pick 2nd Rail<==>Haz Clic en el Riel 2
+Extrude Edges by Rails To Lattice: Select the 1st 'Rail' Curve...<==>Barrido de Curvas por Rieles para Red: Selecciona la Curva para el Primer Riel...
+Extrude Edges by Rails To Lattice: Select the 2nd 'Rail' Curve...<==>Barrido de Curvas por Rieles para Red: Selecciona la Curva para el Segundo Riel...
+Extrude Edges by Rails To Lattice: Making Mesh from Profile and 1 Rail.<==>Barrido de Curvas por Rieles para Red: Haciendo la Malla desde el Perfil con el Riel 1.
+Extrude Edges by Rails To Lattice: Making Mesh from Profile and 2 Rails.<==>Barrido de Curvas por Rieles para Red: Haciendo la Malla desde el Perfil con los 2 Rieles.
+Extrude Edges by Rails To Lattice: Formating Mesh... Please Wait...<==>Barrido de Curvas por Rieles para Red: Formateando la Malla... Espera un Momento...
+Extrude Edges by Rails To Lattice: Reverse <==>Barrido de Curvas por Rieles para Red: Invertir las 
+ Faces ?<==> Caras?
+Extrude Edges by Rails To Lattice: Reversing Face <==>Barrido de Curvas por Rieles para Red: Invirtiendo Cara 
+ of <==> de 
+Reverse Faces ?<==>¿Deseas Invertir las Caras?
+Extrude Edges by Rails To Lattice: Erase Highlighted Coplanar Edges ?<==>Barrido de Curvas por Rieles para Red: ¿Deseas Borrar las Aristas Coplanares en el Relieve?
+Erase Highlighted Coplanar Edges ?<==>¿Deseas Borrar las Aristas Coplanares en el Relieve?
+Extrude Edges by Rails To Lattice: Erase Original Curves ?<==>Barrido de Curvas por Rieles para Red: ¿Deseas Borrar las Curvas Originales?
+Erase Original Curves ?<==>¿Deseas Borrar las Curvas Originales?
+Extrude Edges by Rails To Lattice:<==>Barrido de Curvas por Rieles para Red:
+Making Profile <==> Haciendo Perfil 
+Making Face <==> Haciendo Cara 
+Pick Melding Profile<==>Haz Clic en el Perfil->Fusión
+Extrude Edges by Rails To Lattice: Select the 'Melding-Profile' Curve...<==>Barrido de Curvas por Rieles para Red: Selecciona la Curva para el Perfil de Fusión...
+
+Extrusion Type<==>Tipo de Extrusión
+Lattice from:<==>Red de:
+Profiles<==>Perfiles
+Profiles/Rails<==>Perfiles/Rieles
+Rails<==>Rieles
+Diagonals<==>Diagonales
+Lattice Type<==>Tipo de Red
+Lattice as:<==>Red como:
+Lines<==>Lineas
+3D<==>3D
+
+
+Extrude Edges by Rails To Lattice: Offsetting <==>Barrido de Curvas por Rieles para Red: Desfasando 
+Lattice Properties<==>Propiedades de la Red
+<Default><==><Por Defecto>
+<None><==><Ninguno>
+'Glass'<==>'Cristal'
+Width: <==>Anchura: 
+Depth: <==>Profundidad: 
+Pane Inset: <==>Insercion del Panel: 
+Lattice Material: <==>Material de la Red: 
+Pane Material: <==>Material del Panel: 
+Pane Thickness: <==>Espesor del Panel: 
+Processing<==>Procesando
+Processing... Please Wait...<==>Procesando... Espera un Momento...
+: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Follow Prompts. Makes Lattice...<==>: Selecciona Curvas: Perfil, Riel-1, Riel-2 & Perfil-Fusión. Seguir Indicaciones. Crear Red...

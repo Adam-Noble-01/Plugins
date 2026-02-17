@@ -1,0 +1,150 @@
+# SketchUp RubyScript Developer
+# -------------------------------------
+## ROLE    |  Highly Experienced RubyScript SketchUp Plugin Developer
+## PROJECT |  Vale Design Suite; Specifically the Framework Tools Section of the plugin.
+## CONTEXT |  This tool is be used to configure the framework of a Vale Garden Houses Conservatory / Orangery Framework Visually in SketchUp.
+## TASK    |  Carefully make the following changes to the framework tools folder structure and files.
+
+
+## Task 01 - Framework Tools Analysis
+
+### Key Components:
+1. **ValeDesignSuite_Tools_FrameworkToolsSketchUpLogic.rb**                # <---- Core logic for framework manipulation
+2. **ValeDesignSuite_Tools_FrameworkCoordinationManager.rb**               # <---- Manages 2D/3D coordinate synchronization  
+3. **ValeDesignSuite_Tools_FrameworkToolsDataSerializer.rb**               # <---- Handles data persistence
+4. **ValeDesignSuite_Tools_FrameworkIntegratedNodeConfigurator.rb**        # <---- Node creation and management
+5. **ValeDesignSuite_Tools_FrameworkIntegratedWindowPanelConfigurator.rb** # <---- Panel configuration
+6. **ValeDesignSuite_Tools_FrameworkConfigurator_Logic.js**                # <---- 2D editor JavaScript logic
+
+### Design System Understanding:
+- **Nodes**   :  Represent structural elements (columns, verticals) as wireframe boxes
+- **Panels**  :  Exist between nodes as configurable window/door elements
+- **Real-time synchronization**  :  Between 2D canvas and 3D SketchUp model
+- **Transform caching**          : Implemented for performance optimization
+
+
+## -------------------------------------------------------------------------------------------
+
+
+## Task 03 - Performance Issues & Redundancy
+
+### Performance Concerns:
+
+1. **2D Editor Excessive Reloading**:
+   - In `ValeDesignSuite_Tools_FrameworkConfigurator_Logic.js`, the `triggerRealTimeUpdate()` function is called on every change
+   - No debouncing mechanism implemented
+   - **Solution**: Add debounce/throttle mechanism
+
+2. **Unnecessary Full Regeneration**:
+   - The system has incremental update capability but may not be utilizing it fully
+   - Transform cache is implemented but coordinate transformation errors in console output suggest issues
+   - **Error seen**: `nil can't be coerced into Integer` in `canvas_to_model_coordinates`
+
+3. **Redundancy Issues**:
+   - Extensive debug logging causing console spam
+   - Multiple coordinate transformation recalculations
+   - Save operations triggered multiple times in succession
+
+### Recommended Optimizations:
+
+Read file: Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkConfigurator_Logic.js
+I can see that there is already a debounce mechanism in the `triggerRealTimeUpdate()` function with a 250ms delay. However, the performance issues stem from:
+- The framework tools are well-designed but need optimization for performance and cleaner production output. 
+- The main issues are excessive logging and coordinate transformation errors that prevent efficient use of the caching system.
+1. **Repeated data serialization and geometry updates**
+2. **Excessive debug logging**
+3. **Coordinate transformation errors**
+
+
+## -------------------------------------------------------------------------------------------
+
+
+## Summary of Findings and Recommendations
+
+### Task 01 - Framework Tools Architecture Analysis ✓
+The framework tools are well-architected with:
+- Clear separation of concerns
+- Proper modularization
+- JSON-based configuration system
+- Transform caching for performance
+- Good documentation
+
+### Task 02 - Test Script Analysis ✓
+**ValeDesignSuite_Test_FrameworkGeometryCreation.rb**:
+- **Status**: ESSENTIAL - NOT redundant
+- **Action**: Move to `Tools_FrameworkTools/Tests/` subdirectory
+- **Purpose**: Critical testing infrastructure for geometry creation and performance
+- **Note**: Uses Ruby hashes for test data (separate from JSON pipeline)
+
+### Task 03 - Performance Optimization Recommendations ✓
+
+#### Immediate Fixes Needed:
+
+1. **Fix Coordinate Transformation Error**
+   - Error: `nil can't be coerced into Integer` at line 357 in FrameworkCoordinationManager.rb
+   - Issue: `@canvas_origin_offset[:x]` or `[:y]` may be nil
+   - Solution: Add nil checks and default values
+
+2. **Implement Debug Mode Toggle**
+   - Create a debug flag in configuration
+   - Wrap all `puts` statements with debug checks
+   - Reduce console spam in production
+
+3. **Optimize Real-time Updates**
+   - Current debounce (250ms) is good but consider increasing to 500ms for complex frameworks
+   - Batch multiple changes before triggering geometry updates
+   - Use incremental updates more effectively
+
+4. **Fix Transform Cache Usage**
+   - Cache is implemented but not always utilized due to errors
+   - Ensure transform cache is properly loaded/saved
+   - Skip unnecessary recalculations when cache is valid
+
+
+## -------------------------------------------------------------------------------------------
+
+## COMPLETED ✅
+
+#### Improve Debugger Tools
+- Add a condition to every debug message method Ruby Console based debuggers
+- Currently its far too slow and spams the console with debug messages
+- These messages are integral for bug fixing, but i needed a global switch to turn them on and off.
+ - DEBUG_MODE"             :  false,    =   Debug Mode is off, no messages will be shown in the console.
+ - REALTIME_UPDATE_DELAY"  :  500,      =   The delay in milliseconds between when the user stops typing and when the real-time update is triggered.
+ - MIN_PANEL_LENGTH"       :  100,      =   The minimum length of a panel in millimeters.
+
+
+**Create Configuration File**
+```json
+{
+    "FileMetaData": {
+        "FileName"                 :  "Config_FrameworkConfigurator_DebugSettings.json",
+        "FileDescription"          :  "This file contains the debug settings for the framework configurator",
+        "FileCreated"              :  "26-May-2025",
+        "FileUpdated"              :  "26-May-2025"
+    },
+    "FrameworkConfig": {
+        "DebugSettings": {
+            "DEBUG_MODE"             :  false,
+            "REALTIME_UPDATE_DELAY"  :  500,
+            "MIN_PANEL_LENGTH"       :  100
+        },
+        "Description": {
+            "DEBUG_MODE"             : "Set to true for developer debugging, diagnostic and logging without spamming the console",
+            "REALTIME_UPDATE_DELAY"  : "Delay in milliseconds for real-time updates",
+            "MIN_PANEL_LENGTH"       : "Minimum panel length in millimeters"
+        }
+    }
+}
+```
+
+2. **Wrap Debug Output**
+```ruby
+   def self.debug_log(message)
+     puts message if ValeDesignSuite::Tools::FrameworkConfig::DEBUG_MODE
+   end
+```
+
+## -------------------------------------------------------------------------------------------
+
+

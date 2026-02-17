@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "Añadir localización",
+  "EXTENSION.DESCRIPTION": "Importa grandes áreas. Controla la densidad de la malla del terreno. Visualiza el norte y tu ubicación en SketchUp",
+  "EXTENSION.COMPATIBILITY_ISSUE": "Atención: problema de compatibilidad con \"Añadir localización\".\n\nLa función \"Añadir localización\" está desactivada en tu versión de SketchUp.\nEstá diseñada para funcionar con la última versión.\nTe recomendamos que actualices tu SketchUp a la última versión para disfrutar de un rendimiento óptimo y poder acceder a todas las funciones.\nLa versión más reciente se puede descargar del sitio web oficial de SketchUp.\nContacta con nuestro equipo de asistencia si tienes alguna duda o te surgen problemas durante el proceso de actualización.",
+  "TOOLBAR_TITLE": "Añadir localización",
+  "TOOLBAR_TOOL_NAME": "Añadir localización",
+  "TOOLBAR_TOOL_DESCRIPTION": "Define tu ubicación e importa mapas y terreno",
+  "TOOLBAR_TOOL_TOOLTIP": "Añadir localización",
+  "MENU_ITEM_NAME": "Añadir localización",
+  "WINDOW_TITLE": "Añadir localización",
+  "TRUE_NORTH_MENU_ITEM_NAME": "Norte verdadero",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "Activa o desactiva la visualización de la dirección norte real en tu modelo",
+  "MAP_PIN_MENU_ITEM_NAME": "Chincheta de ubicación",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "Activa o desactiva la visualización de un punto de coordenadas real en tu modelo",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "La chincheta de ubicación asocia el origen del modelo de SketchUp a un punto del mundo real",
+  "MAP_PIN_OVERLAY_NAME": "Chincheta de ubicación",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "Restableciendo geolocalización",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "Mostrar chincheta de ubicación",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "Ocultar chincheta de ubicación",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "Restablecer a geolocalización"
+}

@@ -1,0 +1,10 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+/01_-_Archived-Versions
+/02_-_Code-Checkpoints-Archive
+*.lnk
+*.--BAK
+*.rbe
+*.lang
+*.lock
+*.lock.json
+*.zip

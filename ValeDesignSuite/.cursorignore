@@ -1,0 +1,17 @@
+PluginDocumentation/Task-Lists/
+/00_Dev_Temp--Earmarked-For-Deleted/
+/01_Dev_-_Developer-Utilities/
+/02_Dev_-_Testing-&-Concept-Scripts/
+/10_Dev_Templates/
+/20_Dev_External-Scripts/
+*.lnk                                                   
+*.--BAK                                                 
+*.rbe                                                   
+*.lang                                                  
+*.lock                                                  
+*.lock.json                                             
+*.zip                                                   
+settings.json                                         
+.cursorworkspace_-_ValeDesignSuite.code-workspace
+Config_PluginConfigFiles/ComponentBrowser_Config.json
+Config_PluginConfigFiles/component_thumbnails/

@@ -1,0 +1,148 @@
+# SketchUp RubyScript Developer
+# -------------------------------------
+## Role   |  Highly Experienced RubyScript SketchUp Plugin Developer
+## Task   |  Creation of a Live Configurable Bench Builder.
+## USAGE  |  Proof of Concept for a Live Configurable Bench Builder serving As A Simple Test Tool To Understand & Develop Further Vale Specific Features.
+
+- You are tasked with generating a **Complete, Self-contained Ruby Script** 
+- for SketchUp (targeting SketchUp 2024 / 2025 APIs).
+- This script should implement a simple configurable bench builder using a UI::HtmlDialog with full two-way real-time interactivity.
+
+## High-Level Overview
+- Build a Single Ruby File that:
+- Opens a SketchUp HtmlDialog on execution.
+- Creates the default bench geometry based on the initial JSON configuration.
+- Contains sliders to configure:
+    - **Bench Length:**  =  1000 mm to 3000 mm
+    - **Bench Height:**  =  500 mm to 800 mm
+    - **Bench Depth:**   =  400 mm to 600 mm
+- **Generates and updates geometry live**, in real-time, as sliders move.
+- Uses a structured and editable **JSON configuration** format to drive geometry creation.
+- Ensures **all units are interpreted and entered in millimeters** but converted properly internally to inches, as required by SketchUp.
+
+
+### 1. HtmlDialog UI
+- A simple HTML Dialog with 3 sliders to configure the bench, seperate from the main project UI 
+- Use `UI::HtmlDialog` (NOT the deprecated `UI::WebDialog`)
+- Embed the HTML, CSS, and JavaScript directly within the Ruby script.
+- Study how this is done with the other scripts rather than re-inventing the wheel.
+
+
+### 2. Ruby Callback and Live Geometry Updates
+- Use `dialog.add_action_callback("update_bench")` to receive values from JS.
+- Parse the slider values and **convert from millimeters to inches** before using them in geometry functions.
+- Ensure **live preview** with no delay or lag.
+- **Avoid rebuild/delete** unless necessary. Prefer using `Geom::Transformation` to scale/move components in-place.
+
+
+### 3. Geometry Construction
+Create a bench with 3 grouped solids:
+
+- `Bench Component Container`
+  - `LeftLeg Group`
+  - `RightLeg Group`
+  - `Seat Group`
+
+**Placement and logic:**
+
+* Legs should be at the front-left and front-right corners, below the seat.
+* Seat spans the entire configured width (length).
+* Use nested groups to prevent sticky geometry and improve transform performance.
+* On first run: build and store references to each component.
+* On slider move: apply **scale and translation transforms** to adjust length, height, and depth.
+
+---
+
+### 4. JSON Configuration
+
+- Drive geometry creation from a single JSON object inside the script.
+- Utilise the methods for serierlizing and unserializing the JSON data.
+  -  `ValeDesignSuite_Tools_FrameworkToolsDataSerializer.rb`
+- JSON should be human-editable and readable using column-aligned formatting** for clarity.
+- Store configuration as millimeters; convert within Ruby before use.
+- Example format:
+
+
+#### Json Structure & Key Containers
+`ComponentParent`         =  Contains Config & metadata for the parent component
+`SubComponents_Level-01`  =  Contains Config, geometry & metadata for the sub-components
+
+```json
+{
+    "ComponentParent": {
+        "Component_Name"               :  "Test_Bench_Component",
+        "Component_Version"            :  "1.0.0",
+        "Component_Author"             :  "Adam Noble",
+        "Component_Description"        :  "A simple bench component",
+        "Component_Default_Length_mm"  :  1500,
+        "Component_Default_Height_mm"  :  600,
+        "Component_Default_Depth_mm"   :  500,
+        "Component_UI_MinLength_mm"    :  1000,
+        "Component_UI_MaxLength_mm"    :  3000,
+        "Component_UI_MinHeight_mm"    :  500,
+        "Component_UI_MaxHeight_mm"    :  800,
+        "Component_UI_MinDepth_mm"     :  400,
+        "Component_UI_MaxDepth_mm"     :  600
+    }, 
+    "SubComponents_Level-01": { 
+        "Bench_LeftLeg": { 
+            "Position"    :  { "PosX_mm"   : 0  ,  "PosY_mm"  : 0  ,   "PosZ_mm": 0  }, 
+            "Dimensions"  :  { "LenX_mm"   : 50 ,  "LenY_mm"  : 600,   "LenZ_mm": 50 }, 
+            "Rotation"    :  { "RotX_deg"  : 0  ,  "RotY_deg" : 0  ,   "RotZ_deg": 0 } 
+        },  
+        "Bench_RightLeg": { 
+            "Position"    :  { "PosX_mm"   : 1450, "PosY_mm" : 0,     "PosZ_mm": 0   }, 
+            "Dimensions"  :  { "LenX_mm"   : 50,   "LenY_mm" : 600,   "LenZ_mm": 50  }, 
+            "Rotation"    :  { "RotX_deg"  : 0,    "RotY_deg": 0,    "RotZ_deg": 0   } 
+        }, 
+        "Bench_SeatTop": { 
+            "Position"    :  { "PosX_mm"   : 0,    "PosY_mm" : 600,   "PosZ_mm": 0   }, 
+            "Dimensions"  :  { "LenX_mm"   : 1500, "LenY_mm" : 600,   "LenZ_mm": 50  }, 
+            "Rotation"    :  { "RotX_deg"  : 0,    "RotY_deg": 0,    "RotZ_deg": 0   } 
+        } 
+    }
+```
+### IMPORTANT |  Json Handling
+- Note the "Column-Aligned" formatting of the JSON data, any parsers must be able to handle this format.
+- The readability of the JSON data is essential for the user to be able to edit the JSON data easily.
+- So ensure whitespace is not removed from the JSON data as needed but added back in when the JSON data is saved.
+- Future-proof the design so these JSON values could later be loaded from a library.
+
+
+### 5. Data Persistence and Dictionaries
+- Create component dictionaries to store the JSON data, for the component and sub-components.
+- Use the `ValeDesignSuite_Tools_FrameworkToolsDataSerializer.rb` to serialize and unserialize the JSON data.
+- See the Vale Framework scripts as i've implemented this successfully on the main project, so dont reinvent new code if it exists.
+  - Do NOT edit any Vale Design Suite Scripts, this project is a proof of concept only so any new code should be in a new file seperate from the main project.
+
+
+### 6. Observers & Real-Time Feedback
+- Guarantee **instant visual updates** by:
+    - Using `oninput` JS events instead of `onchange`.
+    - Minimizing geometry rebuilds and preferring in-place transformations.
+- If needed, attach a `SelectionObserver` to auto-load bench data into the dialog when the component is selected.
+- Apply `model.start_operation` / `model.commit_operation` on every change to preserve undo functionality and protect the model state.
+
+
+### 7. SketchUp Best Practices & Compatibility
+- Ensure all SketchUp API methods are validated for the 2024+ API.
+- Do not rely on general Ruby behavior where SketchUp quirks exist 
+    - (e.g., transformation chaining, group invalidation, inches-mm conversion).
+- Research anything that is ambiguous; **DO NOT ASSUME** based on non-SketchUp standards.
+
+
+### 8. Output Requirements
+- Deliver a single `.rb` file that:
+    - Can be copy-pasted into SketchUp Ruby Console.
+    - Auto-runs and opens the dialog.
+    - Includes HTML, JS, and CSS.
+    - Uses modular methods inside a uniquely-named module (`BenchConfigurator`).
+    - Is undo-safe and namespace-protected.
+
+
+Final Notes:
+- Prioritize code quality, clarity, and SketchUp-native performance over speed.
+- Time is not a constraint: it is more important to validate all behavior against SketchUp’s current API than to finish quickly.
+- If any decision point is unclear, **default to researching the SketchUp Ruby API documentation first**, not general assumptions.
+- Feedback responsiveness is **critical**—the model should visually respond **immediately** to slider changes.
+

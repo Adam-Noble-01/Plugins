@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link type="text/css" rel="StyleSheet" href="css/font.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/bootstrap.min.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/bevel-bootstrap.css"/>
+    <title>Proxy Settings</title>
+</head>
+
+<body class="body-hide">
+
+<div class="container px-3 small">
+    <div class="row pt-2">
+        <div class="col-12">
+            <div class="form-row mb-2">
+                <div class="col-5 pt-2">
+                    <label for="segments" class="localize" title="Number of bevel divisions">Segments</label>
+                </div>
+                <div class="col-7">
+                    <div class="d-flex flex-row">
+                        <button id="decreaseSegments" title="Decrease number of segments" onclick="sketchup.change_segments(false)" class="btn btn-info btn-sm">-</button>
+                        <input type="text" class="form-control form-control-sm text-center p-1"  id="segments">
+                        <button id="increaseSegments" title="Increase number of segments" onclick="sketchup.change_segments(true)" class="btn btn-info btn-sm">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row mb-2">
+                <div class="col-5" style="margin:auto;">
+                    <button onclick="sketchup.edge_offset_tool()" class="localize btn btn-outline-secondary btn-sm" title="Click to launch tool for setting the offset">Edge Offset</button>
+                </div>
+                <div class="col-7" style="margin:auto;">
+                    <div class="d-flex flex-row">
+                        <button id="decreaseEdgeOffset" title="Decrease offset by 1 pixel" onclick="sketchup.change_edge_offset(false)" class="btn btn-info btn-sm">-</button>
+                        <input type="text" class="form-control form-control-sm text-center p-1 "  id="edge_offset">
+                        <button id="increaseEdgeOffset" title="Increase offset by 1 pixel" onclick="sketchup.change_edge_offset(true)" class="btn btn-info btn-sm">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row pt-3">
+                <div class="col-12">
+                    <label for="visibilitySelector" class="localize">Show</label>
+                </div>
+            </div>
+            <div class="form-row">
+                <div id="visibilitySelector" class="btn-group btn-group-toggle col-12" data-toggle="buttons">
+                    <label class="btn btn-outline-secondary btn-sm" title="Display bevelled model only">
+                        <input type="radio" name="show_bevel_surf" id="showBevelsurf_bevel_surf" value="0"><span class="localize">Bevel</span>
+                    </label>
+                    <label class="btn btn-outline-secondary btn-sm" title="Display original (proxy) model only">
+                        <input type="radio" name="show_bevel_surf" id="showBevelsurf_proxy" value="1"><span class="localize">Proxy</span>
+                    </label>
+                    <label class="btn btn-outline-secondary btn-sm" title="Display both proxy and bevelled model">
+                        <input type="radio" name="show_bevel_surf" id="showBevelsurf_both" value="2"><span class="localize">Both</span>
+
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-row pt-3">
+                <div class="col-8">
+                    <label class="localize">Bevelsurf Opacity</label>
+                    <input id="bevel_surf_transparency_slider" type="range" min="0" max="100" class="form-control custom-range" oninput="on_bevel_surf_transparency_input($(this).val())" onchange="tellSU2('bevel_surf_transparency', $(this).val())">
+                </div>
+                <div class="col-4">
+                    <label for="bevel_surf_transparency">&nbsp;</label>
+                    <input id="bevel_surf_transparency" class="form-control form-control-xs" type="text">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="col-10 pt-2">
+                    <label for="smooth_perimeter" class="localize" title="Disable to remove shading artifacts">Smooth Bevel Borders</label>
+                </div>
+                <div class="col-2 pt-2">
+                    <div class="custom-control custom-switch">
+                        <input id="smooth_perimeter" type="checkbox" class="custom-control-input">
+                        <label for="smooth_perimeter" class="custom-control-label localize"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <div class="row mt-3">
+        <div class="col-6">
+            <button id="commit_bevel_surface" class="btn btn-info btn-block btn-sm" title="Remove the original proxy and edit the bevel surface directly"><span class="localize">Commit</span></button>
+        </div>
+        <div class="col-6">
+            <button id="remove_bevel_surface" class="btn btn-outline-secondary btn-block btn-sm" title="Remove the bevel surface and revert to the original model"><span class="localize">Remove</span></button>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+<script type="text/javascript" src="js/bootstrap.bundle.min.js"></script>
+<script type="text/javascript" src="js/main.js"></script>
+<script type="text/javascript">
+
+    // Make the SU window gain focus when the mouse leaves the dialog window
+    $(".container").mouseleave(function(){
+        sketchup.focus();
+    });
+
+    ready();
+
+    function on_bevel_surf_transparency_input(value) {
+        // Since it gets saved to the definition, it would be slow if we called the ruby method for setting bevel_surf_transparency.
+        // This will update the input box, and when the user releases the slider, then it will update the actual value.
+        $('#bevel_surf_transparency').val(`${value}%`);
+    }
+
+</script>
+
+
+</body>

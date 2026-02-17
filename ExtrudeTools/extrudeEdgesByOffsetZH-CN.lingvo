@@ -1,0 +1,10 @@
+Extrude Edges by Offset<==>偏移线成面
+: Preselect Edges, Run Tool, Enter Offset, Yes|No Options...<==>: 预选边线，运行工具，输入偏移量，是|否 选项...
+: Offset cannot be 0!<==>: 偏移量不能是0!
+: Must Select >=2 Edges!<==>: 所选边线数量要 >=2 !
+: Edges must be coplanar!<==>: 所选边线必须是共面线!
+Distance: <==>距离: 
+Try again<==>重试
+Reverse Faces ?<==>是否翻转面 ?
+Erase Coplanar Edges ?<==>删除共面线 ?
+Explode Group ?<==>炸开群组 ?

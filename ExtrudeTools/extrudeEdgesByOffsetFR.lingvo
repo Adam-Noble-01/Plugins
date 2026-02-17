@@ -1,0 +1,10 @@
+Extrude Edges by Offset<==>Extruder des arêtes par un décalage
+: Preselect Edges, Run Tool, Enter Offset, Yes|No Options...<==>: Présélectionner arêtes, exécutez l'outil, entrer le décalage, Oui|Non options...
+: Offset cannot be 0!<==>: Décalage ne peut être 0!
+: Must Select >=2 Edges!<==>: devez sélectionner >= 2 arêtes!
+: Edges must be coplanar!<==>: Les arêtes doivent être coplanaires!
+Distance: <==>Distance: 
+Try again<==>Essayez à nouveau
+Reverse Faces ?<==>Inverser les faces?
+Erase Coplanar Edges ?<==>Effacer arêtes coplanaires?
+Explode Group ?<==>Faire exploser le groupe?

@@ -1,0 +1,215 @@
+Name: RAL Classic
+Description: Copyright  RAL colors |FR| Copyright  Couleurs RAL
+190	189	127	RAL 1000 - Green beige
+194	176	120	RAL 1001 - Beige
+198	166	100	RAL 1002 - Sand yellow
+229	190	001	RAL 1003 - Signal yellow
+205	164	052	RAL 1004 - Golden yellow
+169	131	007	RAL 1005 - Honey yellow
+228	160	016	RAL 1006 - Maize yellow
+220	156	000	RAL 1007 - Daffodil yellow
+138	102	066	RAL 1011 - Brown beige
+199	180	070	RAL 1012 - Lemon yellow
+234	230	202	RAL 1013 - Oyster white
+225	204	079	RAL 1014 - Ivory
+230	214	144	RAL 1015 - Light ivory
+237	255	033	RAL 1016 - Sulfur yellow
+245	208	051	RAL 1017 - Saffron yellow
+248	243	053	RAL 1018 - Zinc yellow
+158	151	100	RAL 1019 - Grey beige
+153	153	080	RAL 1020 - Olive yellow
+243	218	011	RAL 1021 - Rape yellow
+250	210	001	RAL 1023 - Traffic yellow
+174	160	075	RAL 1024 - Ochre yellow
+255	255	000	RAL 1026 - Luminous yellow
+157	145	001	RAL 1027 - Curry
+244	169	000	RAL 1028 - Melon yellow
+214	174	001	RAL 1032 - Broom yellow
+243	165	005	RAL 1033 - Dahlia yellow
+239	169	074	RAL 1034 - Pastel yellow
+106	093	077	RAL 1035 - Pearl beige
+112	083	053	RAL 1036 - Pearl gold
+243	159	024	RAL 1037 - Sun yellow
+237	118	014	RAL 2000 - Yellow orange
+201	060	032	RAL 2001 - Red orange
+203	040	033	RAL 2002 - Vermilion
+255	117	020	RAL 2003 - Pastel orange
+244	070	017	RAL 2004 - Pure orange
+255	035	001	RAL 2005 - Luminous orange
+255	164	032	RAL 2007 - Luminous bright orange
+247	094	037	RAL 2008 - Bright red orange
+245	064	033	RAL 2009 - Traffic orange
+216	075	032	RAL 2010 - Signal orange
+236	124	038	RAL 2011 - Deep orange
+235	106	014	RAL 2012 - Salmon range
+195	088	049	RAL 2013 - Pearl orange
+175	043	030	RAL 3000 - Flame red
+165	032	025	RAL 3001 - Signal red
+162	035	029	RAL 3002 - Carmine red
+155	017	030	RAL 3003 - Ruby red
+117	021	030	RAL 3004 - Purple red
+094	033	041	RAL 3005 - Wine red
+065	034	039	RAL 3007 - Black red
+100	036	036	RAL 3009 - Oxide red
+120	031	025	RAL 3011 - Brown red
+193	135	107	RAL 3012 - Beige red
+161	035	018	RAL 3013 - Tomato red
+211	110	112	RAL 3014 - Antique pink
+234	137	154	RAL 3015 - Light pink
+179	040	033	RAL 3016 - Coral red
+230	050	068	RAL 3017 - Rose
+213	048	050	RAL 3018 - Strawberry red
+204	006	005	RAL 3020 - Traffic red
+217	080	048	RAL 3022 - Salmon pink
+248	000	000	RAL 3024 - Luminous red
+254	000	000	RAL 3026 - Luminous bright red
+197	029	052	RAL 3027 - Raspberry red
+203	050	052	RAL 3028 - Pure  red
+179	036	040	RAL 3031 - Orient red
+114	020	034	RAL 3032 - Pearl ruby red
+180	076	067	RAL 3033 - Pearl pink
+222	076	138	RAL 4001 - Red lilac
+146	043	062	RAL 4002 - Red violet
+222	076	138	RAL 4003 - Heather violet
+110	028	052	RAL 4004 - Claret violet
+108	070	117	RAL 4005 - Blue lilac
+160	052	114	RAL 4006 - Traffic purple
+074	025	044	RAL 4007 - Purple violet
+144	070	132	RAL 4008 - Signal violet
+164	125	144	RAL 4009 - Pastel violet
+215	045	109	RAL 4010 - Telemagenta
+134	115	161	RAL 4011 - Pearl violet
+108	104	129	RAL 4012 - Pearl black berry
+042	046	075	RAL 5000 - Violet blue
+031	052	056	RAL 5001 - Green blue
+032	033	079	RAL 5002 - Ultramarine blue
+029	030	051	RAL 5003 - Saphire blue
+032	033	079	RAL 5004 - Black blue
+030	045	110	RAL 5005 - Signal blue
+062	095	138	RAL 5007 - Brillant blue
+038	037	045	RAL 5008 - Grey blue
+002	086	105	RAL 5009 - Azure blue
+014	041	075	RAL 5010 - Gentian blue
+035	026	036	RAL 5011 - Steel blue
+059	131	189	RAL 5012 - Light blue
+037	041	074	RAL 5013 - Cobalt blue
+096	111	140	RAL 5014 - Pigeon blue
+034	113	179	RAL 5015 - Sky blue
+006	057	113	RAL 5017 - Traffic blue
+063	136	143	RAL 5018 - Turquoise blue
+027	085	131	RAL 5019 - Capri blue
+029	051	074	RAL 5020 - Ocean blue
+037	109	123	RAL 5021 - Water blue
+037	040	080	RAL 5022 - Night blue
+073	103	141	RAL 5023 - Distant blue
+093	155	155	RAL 5024 - Pastel blue
+042	100	120	RAL 5025 - Pearl gentian blue
+016	044	084	RAL 5026 - Pearl night blue
+049	102	080	RAL 6000 - Patina green
+040	114	051	RAL 6001 - Emerald green
+045	087	044	RAL 6002 - Leaf green
+066	070	050	RAL 6003 - Olive green
+031	058	061	RAL 6004 - Blue green
+047	069	056	RAL 6005 - Moss green
+062	059	050	RAL 6006 - Grey olive
+052	059	041	RAL 6007 - Bottle green
+057	053	042	RAL 6008 - Brown green
+049	055	043	RAL 6009 - Fir green
+053	104	045	RAL 6010 - Grass green
+088	114	070	RAL 6011 - Reseda green
+052	062	064	RAL 6012 - Black green
+108	113	086	RAL 6013 - Reed green
+071	064	046	RAL 6014 - Yellow olive
+059	060	054	RAL 6015 - Black olive
+030	089	069	RAL 6016 - Turquoise green
+076	145	065	RAL 6017 - May green
+087	166	057	RAL 6018 - Yellow green
+189	236	182	RAL 6019 - Pastel green
+046	058	035	RAL 6020 - Chrome green
+137	172	118	RAL 6021 - Pale green
+037	034	027	RAL 6022 - Olive drab
+048	132	070	RAL 6024 - Traffic green
+061	100	045	RAL 6025 - Fern green
+001	093	082	RAL 6026 - Opal green
+132	195	190	RAL 6027 - Light green
+044	085	069	RAL 6028 - Pine green
+032	096	061	RAL 6029 - Mint green
+049	127	067	RAL 6032 - Signal green
+073	126	118	RAL 6033 - Mint turquoise
+127	181	181	RAL 6034 - Pastel turquoise
+028	084	045	RAL 6035 - Pearl green
+022	053	055	RAL 6036 - Pearl opal green
+000	143	057	RAL 6037 - Pure green
+000	187	045	RAL 6038 - Luminous green
+120	133	139	RAL 7000 - Squirrel grey
+138	149	151	RAL 7001 - Silver grey
+126	123	082	RAL 7002 - Olive grey
+108	112	089	RAL 7003 - Moss grey
+150	153	146	RAL 7004 - Signal grey
+100	107	099	RAL 7005 - Mouse grey
+109	101	082	RAL 7006 - Beige grey
+106	095	049	RAL 7008 - Khaki grey
+077	086	069	RAL 7009 - Green grey
+076	081	074	RAL 7010 - Tarpaulin grey
+067	075	077	RAL 7011 - Iron grey
+078	087	084	RAL 7012 - Basalt grey
+070	069	049	RAL 7013 - Brown grey
+067	071	080	RAL 7015 - Slate grey
+041	049	051	RAL 7016 - Anthracite grey
+035	040	043	RAL 7021 - Black grey
+051	047	044	RAL 7022 - Umbra grey
+104	108	094	RAL 7023 - Concrete grey
+071	074	081	RAL 7024 - Graphite grey
+047	053	059	RAL 7026 - Granite grey
+139	140	122	RAL 7030 - Stone grey
+071	075	078	RAL 7031 - Blue grey
+184	183	153	RAL 7032 - Pebble grey
+125	132	113	RAL 7033 - Cement grey
+143	139	102	RAL 7034 - Yellow grey
+215	215	215	RAL 7035 - Light grey
+127	118	121	RAL 7036 - Platinum grey
+125	127	120	RAL 7037 - Dusty grey
+195	195	195	RAL 7038 - Agate grey
+108	105	096	RAL 7039 - Quartz grey
+157	161	170	RAL 7040 - Window grey
+141	148	141	RAL 7042 - Traffic grey A
+078	084	082	RAL 7043 - Traffic grey B
+202	196	176	RAL 7044 - Silk grey
+144	144	144	RAL 7045 - Telegrey 1
+130	137	143	RAL 7046 - Telegrey 2
+208	208	208	RAL 7047 - Telegrey 4
+137	129	118	RAL 7048 - Pearl mouse grey
+130	108	052	RAL 8000 - Green brown
+149	095	032	RAL 8001 - Ochre brown
+108	059	042	RAL 8002 - Signal brown
+115	066	034	RAL 8003 - Clay brown
+142	064	042	RAL 8004 - Copper brown
+089	053	031	RAL 8007 - Fawn brown
+111	079	040	RAL 8008 - Olive brown
+091	058	041	RAL 8011 - Nut brown
+089	035	033	RAL 8012 - Red brown
+056	044	030	RAL 8014 - Sepia brown
+099	058	052	RAL 8015 - Chestnut brown
+076	047	039	RAL 8016 - Mahogany brown
+069	050	046	RAL 8017 - Chocolate brown
+064	058	058	RAL 8019 - Grey brown
+033	033	033	RAL 8022 - Black brown
+166	094	046	RAL 8023 - Orange brown
+121	085	061	RAL 8024 - Beige brown
+117	092	072	RAL 8025 - Pale brown
+078	059	049	RAL 8028 - Terra brown
+118	060	040	RAL 8029 - Pearl copper
+250	244	227	RAL 9001 - Cream
+231	235	218	RAL 9002 - Grey white
+244	244	244	RAL 9003 - Signal white
+040	040	040	RAL 9004 - Signal black
+010	010	013	RAL 9005 - Jet black
+165	165	165	RAL 9006 - White aluminium
+143	143	143	RAL 9007 - Grey aluminium
+255	255	255	RAL 9010 - Pure white
+028	028	028	RAL 9011 - Graphite black
+246	246	246	RAL 9016 - Traffic white
+030	030	030	RAL 9017 - Traffic black
+215	215	215	RAL 9018 - Papyrus white
+156	156	156	RAL 9022 - Pearl light grey
+130	130	130	RAL 9023 - Pearl dark grey

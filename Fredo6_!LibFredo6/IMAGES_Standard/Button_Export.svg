@@ -1,0 +1,16 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!--Generator: Xara Designer (www.xara.com), SVG filter version: 6.5.0.22-->
+<svg fill="none" fill-rule="evenodd" stroke="black" stroke-width="0.501" stroke-linejoin="bevel" stroke-miterlimit="10" font-family="Times New Roman" font-size="16" style="font-variant-ligatures:none" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" version="1.1" overflow="visible" width="72pt" height="72pt" viewBox="0 -72 72 72">
+ <defs>
+	</defs>
+ <g id="Layer 1" transform="scale(1 -1)">
+  <path d="M 12.784,29.797 L 12.784,12.551 L 59.215,12.551 L 59.215,29.797" fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="miter"/>
+  <g id="Group" stroke-linejoin="miter" stroke-width="6">
+   <g id="Group_1">
+    <path d="M 36,24.796 L 36,53.245" fill="none"/>
+    <path d="M 20.532,41.434 L 36.001,56.902 L 51.469,41.432" fill="none" stroke-linecap="round"/>
+   </g>
+  </g>
+ </g>
+</svg>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="24px"
+   height="24px"
+   viewBox="0 0 24 24"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:sketch="http://www.bohemiancoding.com/sketch/ns">
+  <!-- Generator: Sketch 3.3.2 (12043) - http://www.bohemiancoding.com/sketch -->
+  <title
+     id="title1">dlg_browser_folder</title>
+  <desc
+     id="desc1">Created with Sketch.</desc>
+  <defs
+     id="defs1" />
+  <g
+     id="Page-1"
+     stroke="none"
+     stroke-width="1"
+     fill="none"
+     fill-rule="evenodd"
+     sketch:type="MSPage"
+     transform="matrix(1.4049745,0,0,1.4049558,-4.0970159,-4.8114555)">
+    <g
+       id="dlg_browser_folder"
+       sketch:type="MSArtboardGroup"
+       stroke-width="0.5">
+      <path
+         d="M 7,18 4,12.696041 6.3416636,12 Z"
+         id="Path-2638"
+         stroke="#979797"
+         fill="#8e8d8d"
+         sketch:type="MSShapeGroup" />
+      <path
+         d="M 7.4306459,19 5,6.4075524 8.6722545,5.706973 9.3689778,6.7820579 17,5 16.694932,14.983936 Z"
+         id="Path-2637"
+         stroke="#596972"
+         fill="#83b9da"
+         sketch:type="MSShapeGroup" />
+      <path
+         d="M 7,8.0160274 19,5 17.988072,14.51542 7.3623711,19 Z"
+         id="Path-2636"
+         stroke="#565d62"
+         fill="#b59870"
+         sketch:type="MSShapeGroup" />
+    </g>
+  </g>
+</svg>

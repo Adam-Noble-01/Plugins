@@ -1,0 +1,28 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="extension.css">
+  <title>About</title>
+  <script>
+    function setData(text) {
+      text = text.replace(/\n/g, '<br />');
+      document.getElementById('text').innerHTML = text;
+    }
+
+    function requestData() {
+      window.location = 'skp:request_data';
+    }
+    window.onload = requestData;
+
+    /* window.onerror = function(message, source, lineno, colno, error) {
+       alert("Error in "+source+":"+lineno+":"+colno+"\n\n"+message);
+     } */
+
+  </script>
+</head>
+
+<body>
+<!-- Text define in Ruby -->
+<div id="text"></div>
+</body>
+</html>

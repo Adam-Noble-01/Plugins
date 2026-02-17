@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" fill-rule="evenodd" stroke-linecap="square" stroke-miterlimit="2" clip-rule="evenodd" viewBox="0 0 32 32">
+  <path fill="none" d="M0 0h32v32H0z"/>
+  <g>
+    <path fill="#26b9d9" stroke="#0d28f2" stroke-width="1.08" d="m98.545 256.333 9.891.016-3.618 19.984h-6.273" transform="matrix(0 -.95652 .75 0 -186.75 111.261)"/>
+    <path fill="#8c8268" stroke="#000" stroke-linecap="butt" stroke-width="1.59" d="M106.909 276.333H84.954v-20h21.955" transform="matrix(0 -.47826 .75 0 -186.75 70.13)"/>
+    <path fill="none" stroke="#fff" stroke-width="2.16" d="M96 213h15v25.956H96z" transform="matrix(0 -1 .8459 0 -178.175 114)"/>
+    <path fill="none" stroke="#000" stroke-dasharray="1.99 2.98 0 0 0 0" stroke-width=".99" d="M96 213h15v25.956H96z" transform="matrix(0 -1 .8459 0 -178.175 114)"/>
+    <path fill="#fff" stroke="#fff" stroke-linecap="butt" stroke-miterlimit="4" stroke-width="2" d="m26 30-3-5h2v-3h2v3h2l-3 5Z"/>
+    <path fill="red" stroke="#000" stroke-linecap="butt" stroke-miterlimit="4" stroke-width=".498" d="m26 30-3-5h2v-3h2v3h2l-3 5Z"/>
+    <path fill="#fff" stroke="#fff" stroke-linecap="butt" stroke-miterlimit="4" stroke-width="2" d="m26 12 3 5h-2v3h-2v-3h-2l3-5Z"/>
+    <path fill="red" stroke="#000" stroke-linecap="butt" stroke-miterlimit="4" stroke-width=".498" d="m26 12 3 5h-2v3h-2v-3h-2l3-5Z"/>
+  </g>
+</svg>

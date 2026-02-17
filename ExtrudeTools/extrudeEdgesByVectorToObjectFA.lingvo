@@ -1,0 +1,11 @@
+Orienting Faces<==>درحال همجهت سازی صفحات
+Extrude Edges by Vector to Object<==>لبه های اکسترود شده توسط بردار، تا شی
+: Reverse Extrusion's Faces ?<==>: صفحات ایجاد شده را معکوس کنم ؟
+: Explode Extrusion's Group ?<==>:گروپ ایجاد شده را اکسپلود کنم ؟
+Extrude Edges by Vector to Object: Pick Second Point of Vector...<==>لبه های اکسترود شده توسط بردار، تا شی : انتخاب نقطه دوم از نسخه نهایی ویندوز
+Extrude Edges by Vector to Object: Cannot Convert <==>نمیتونم تبدیم کنم 
+ to a Length.<==> به یک طول
+Extrude Edges by Vector to Object: No Edge in Selection.<==>هیچ خطی در انتخابتان وجود ندارد
+Extrude Edges by Vector to Object: Pick First Point of Vector...<==>لبه های اکسترود شده توسط بردار، تا شی : انتخاب نقطه اول از نسخه نهایی ویندوز
+: Pre-Select Edges/Curves/Face, Pick Vector Start & End...
+: Pre-Select Edges/Curves/Face, Pick Vector Start & End...<==>: قبل از اجرای این فرمان خطوط ، منحنیها یا یک صفحه را انتخاب کنید و پس از اجرای فرمان نقاط ابتدا و انتهای بردار را مشخط کنید

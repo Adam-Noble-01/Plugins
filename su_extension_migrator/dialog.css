@@ -1,0 +1,216 @@
+/* Main Layout */
+
+.body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 64px;
+  box-sizing: border-box;
+  /* padding: 1em; TODO: Restore where needed */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 64px;
+  box-sizing: border-box;
+  padding: 12px;
+  text-align: right;
+  border-top: 1px solid rgb(224, 225, 233);
+}
+
+.btn {
+  margin: 4px;
+}
+
+/* Source selection view */
+
+.source-selection-column {
+  position: absolute;
+  left: 66%;
+  right: 12px;
+  top: 20%;
+}
+.source-selection-column select {
+  width: 100%;
+}
+.source-selection-graphic {
+  position: absolute;
+  top: 20%;
+  left: 10%;
+  right: 43%;
+  background: lightgray;
+  aspect-ratio: 4/3;
+  background: url(images/arrow.svg);
+  background-size: 11.11%;
+  background-repeat: no-repeat;
+  background-position: 75% 16%;
+}
+/* Using JavaScript to change the image based on what source the user has currently selected */
+:root {
+  --source-icon: url(images/sketchup.svg);
+}
+.source-selection-graphic::before {
+  content: '';
+  position: absolute; top: 0; left: 0; height: 66%; width: 50%;
+  background: var(--source-icon);
+  background-size: contain;
+
+}
+.source-selection-graphic::after {
+  content: '';
+  position: absolute; bottom: 0; right: 0; height: 66%; width: 50%;
+  background: url(images/sketchup.svg);
+  background-size: contain;
+
+}
+
+/* Extension list views */
+
+#summary {
+  padding: 1em;
+  text-wrap: pretty;
+}
+
+#extension-list {
+  border-top: 1px solid rgb(224, 225, 233);
+  overflow: auto;
+}
+
+#extension-list > label, #extension-list > div {
+  position: relative; /* Enables absolute position of children relative to this */
+  display: block;
+  padding: 12px;
+  padding-left: 48px;
+
+  /* Revert Modus' label style. We want the label functionality for toggling the
+     checkbox but not a specific style*/
+  font-size: unset;
+  color: unset;
+  margin-bottom: unset;
+}
+
+div.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.extension-status {
+  position: absolute;
+  left: 20px;
+  margin-top: 3px;
+}
+
+.ruby-error {
+  font-family: monospace;
+  white-space: pre;
+  overflow: auto;
+  max-height: 10em;
+  background: lightgray;
+  display: none;
+}
+
+input[type=checkbox] {
+  /* Sampled from Modus website */
+  accent-color: #217CBB;
+}
+
+
+
+/* Blocking error */
+
+#error-message {
+  padding: 1em;
+  text-wrap: pretty;
+}
+
+/* Items only visible in certain stages of the wizard */
+.stage-specific { display: none; }
+body.stage0 .stage0 { display: revert; }
+body.stage1 .stage1 { display: revert; }
+body.stage2 .stage2 { display: revert; }
+body.stage3 .stage3 { display: revert; }
+body.stage4 .stage4 { display: revert; }
+
+
+/* Extension states */
+
+/* still spinner */
+.pending .extension-status:before {
+  content: '';
+  display: inline-block;
+  height: 1em;
+  width: 1em;
+  background: url(images/update.svg) no-repeat;
+  background-size: contain;
+}
+
+/* Hide skipped extensions */
+#extension-list > .skipped {
+  display: none;
+}
+
+/* spinny spinner */
+@keyframes Rotate {
+   from { transform: rotate(0deg) }
+   to { transform: rotate(360deg) }
+}
+.running .extension-status:before {
+  content: '';
+  display: inline-block;
+  height: 1em;
+  width: 1em;
+  background: url(images/update.svg) no-repeat;
+  background-size: contain;
+  animation: Rotate 2s linear infinite;
+}
+
+/* green checkmark */
+.success .extension-status:before {
+  content: '';
+  display: inline-block;
+  height: 1em;
+  width: 1em;
+  background: url(images/status-success.svg) no-repeat; /* Colorize! */
+  background-size: contain;
+}
+
+/* Tuned down checkmark if copied but not loaded */
+.copied-not-loaded .extension-status:before {
+  content: '';
+  display: inline-block;
+  height: 1em;
+  width: 1em;
+  background: url(images/status-copied.svg) no-repeat;
+  background-size: contain;
+}
+
+/* red cross */
+.failure .extension-status:before {
+  content: '';
+  display: inline-block;
+  height: 1em;
+  width: 1em;
+  background: url(images/status-fail.svg) no-repeat;
+  background-size: contain;
+}
+
+
+/* Button tweaks */
+/* (Additions to the Modus styling) */
+
+.btn-back {
+  float: left;
+}
+
+.btn-back:before {
+  content: "<";
+  margin-right: 5px;
+}

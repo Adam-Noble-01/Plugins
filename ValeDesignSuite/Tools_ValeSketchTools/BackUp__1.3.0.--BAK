@@ -1,0 +1,1522 @@
+# =============================================================================
+# VALEDESIGNSUITE - WINDOW PANEL SKETCHER TOOL
+# =============================================================================
+#
+# FILE       : ValeSketchTools__WindowPanelSketcher.rb
+# NAMESPACE  : ValeDesignSuite::SketchTools::WindowPanelSketcher
+# MODULE     : WindowPanelSketcher
+# AUTHOR     : Adam Noble - Noble Architecture
+# PURPOSE    : SketchUp tool for creating window panel configurations from "Sketches"    
+# CREATED    : 09-Jul-2025
+#
+# DESCRIPTION:
+# - The tool is designed to take a simple plan and will create the necessary offsets and glazed bar divisions.
+# - The tool infers the glazing bar amounts and positions from the users selection.
+# - Uses a "Low Poly" reference panel to create the high poly window panel. 
+# - The low poly remains in the scene and is not deleted, instead added to a helper tag the tag switched off showing the high poly rendition. 
+# - The tool acts dynamically meaning any updates to the low poly reference will be reflected in the high poly window panel version.
+#
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG:
+# 09-Jul-2025 - Version 1.0.0
+# - Initial implementation of Window Panel Sketcher tool
+# - Added frame offset constants and glazing bar dimensions
+# - Implemented low poly to high poly conversion system
+# - Added observer pattern for dynamic updates
+#
+# 09-Jul-2025 - Version 1.0.1
+# - Fixed edge filtering in selection validation
+# - Fixed duplicate points error in face creation
+# - Improved panel data analysis for grid detection
+#
+# 09-Jul-2025 - Version 1.0.2
+# - Added identical panel batch update feature
+# - Fixed material name typo
+# - Added coordinate system setup for all groups
+# - Fixed success message timing
+#
+# =============================================================================
+
+module ValeDesignSuite
+    module SketchTools
+    module WindowPanelSketcher
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Module Constants and Configuration
+    # -----------------------------------------------------------------------------
+    
+        # MODULE CONSTANTS | Frame Dimensions (in millimeters)
+        # ------------------------------------------------------------
+        MM_TO_INCH                  =  1.0 / 25.4                                # <-- Millimeter to inch conversion factor
+        FRAME_OFFSET_LEFT_MM        =  65                                        # <-- Left window style offset
+        FRAME_OFFSET_RIGHT_MM       =  65                                        # <-- Right window style offset  
+        FRAME_OFFSET_TOP_MM         =  95                                        # <-- Top head rail offset
+        FRAME_OFFSET_BOTTOM_MM      =  75                                        # <-- Bottom base rail offset
+        GLAZING_BAR_WIDTH_MM        =  26                                        # <-- Standard glazing bar width
+        GLAZING_BAR_HALF_WIDTH_MM   =  13                                        # <-- Half width for centerline offsets
+        # ------------------------------------------------------------
+        
+        # MODULE CONSTANTS | Material Names and Colors
+        # ------------------------------------------------------------
+        GLASS_MATERIAL_NAME         =  "20_31__Glass__StandardWindowGlass"       # <-- Standard glass material name
+        GLASS_COLOR_R               =  218                                        # <-- Glass material red component
+        GLASS_COLOR_G               =  229                                        # <-- Glass material green component
+        GLASS_COLOR_B               =  240                                        # <-- Glass material blue component
+        GLASS_OPACITY               =  0.3                                        # <-- Glass transparency (0-1)
+        
+        FRAME_MATERIAL_NAME         =  "85_10__DefaultOrangeryPaint__OffWhite"   # <-- Frame paint material name
+        FRAME_COLOR_R               =  214                                        # <-- Frame material red component
+        FRAME_COLOR_G               =  210                                        # <-- Frame material green component
+        FRAME_COLOR_B               =  199                                        # <-- Frame material blue component
+        # ------------------------------------------------------------
+        
+        # MODULE CONSTANTS | Naming Conventions
+        # ------------------------------------------------------------
+        LOW_POLY_PREFIX             =  "01_10_LowPolyWindowPanel__"              # <-- Low poly group name prefix
+        HIGH_POLY_PREFIX            =  "01_10_HighPolyWindowPanel__"             # <-- High poly group name prefix
+        HELPER_TAG_NAME             =  "01_10_Helper__LowPolyWindowPanels"       # <-- Helper tag for low poly refs
+        GLAZING_PANEL_PREFIX        =  "GlazingPanel-"                           # <-- Individual glass panel prefix
+        FRAME_GROUP_SUFFIX          =  "__WindowPanelFramework"                  # <-- Frame group name suffix
+        # ------------------------------------------------------------
+        
+        # MODULE CONSTANTS | Geometry Constants
+        # ------------------------------------------------------------
+        X_AXIS                      =  Geom::Vector3d.new(1, 0, 0)               # <-- X axis unit vector
+        Y_AXIS                      =  Geom::Vector3d.new(0, 1, 0)               # <-- Y axis unit vector
+        Z_AXIS                      =  Geom::Vector3d.new(0, 0, 1)               # <-- Z axis unit vector
+        # ------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Helper Functions
+    # -----------------------------------------------------------------------------
+    
+        # HELPER FUNCTION | Convert Millimeters to Inches
+        # ------------------------------------------------------------
+        def self.mm_to_inch(mm)
+            mm * MM_TO_INCH                                                      # <-- Apply conversion factor
+        end
+        # ------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Global Observer Management
+    # -----------------------------------------------------------------------------
+    
+        # MODULE VARIABLES | Global Observer Instance
+        # ------------------------------------------------------------
+        @@model_observer = nil                                                       # Global model observer instance
+        # ------------------------------------------------------------
+        
+        # HELPER FUNCTION | Get or Create Global Observer
+        # ------------------------------------------------------------
+        def self.get_global_observer
+            if @@model_observer.nil?
+                @@model_observer = WindowPanelModelObserver.new                      # Create new observer
+                
+                # Check if observer is already attached (safety check)
+                begin
+                    Sketchup.active_model.add_observer(@@model_observer)            # Attach to model
+                    puts "Global WindowPanelModelObserver created and attached"      # Debug log
+                rescue => e
+                    puts "Warning: Observer may already be attached: #{e.message}"
+                end
+            end
+            @@model_observer                                                         # Return observer instance
+        end
+        # ------------------------------------------------------------
+        
+        # HELPER FUNCTION | Clean Up Global Observer  
+        # ------------------------------------------------------------
+        def self.cleanup_global_observer
+            if @@model_observer
+                @@model_observer.cleanup_deleted_groups                             # Clean up deleted groups
+            end
+        end
+        # ------------------------------------------------------------
+        
+        # FUNCTION | Remove All Observers (For Cleanup)
+        # ------------------------------------------------------------
+        def self.remove_all_observers
+            if @@model_observer
+                begin
+                    Sketchup.active_model.remove_observer(@@model_observer)         # Remove from model
+                    @@model_observer = nil                                           # Clear reference
+                    puts "Global WindowPanelModelObserver removed"
+                rescue => e
+                    puts "Error removing observer: #{e.message}"
+                end
+            end
+        end
+        # ------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    # -----------------------------------------------------------------------------
+    # REGION | WindowPanelSketcherTool Class Definition
+    # -----------------------------------------------------------------------------
+    
+        # CLASS | Main Window Panel Sketcher Tool
+        # ------------------------------------------------------------
+        class WindowPanelSketcherTool
+            
+            # SUB FUNCTION | Initialize Tool Instance
+            # ------------------------------------------------------------
+            def initialize
+                @current_panel_number = get_next_panel_number                    # Get next available panel number
+                @selected_faces = []                                              # Store selected faces only
+                @low_poly_group = nil                                            # Reference to low poly group
+                @high_poly_group = nil                                           # Reference to high poly group
+                @panel_data = {}                                                  # Store panel analysis data
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Activate Tool
+            # ------------------------------------------------------------
+            def activate
+                puts "\n=================================================="
+                puts "=== Window Panel Sketcher Tool Activated ==="
+                puts "=================================================="
+                
+                # Filter selection to get only faces
+                all_selected = Sketchup.active_model.selection.to_a              # Get all selected entities
+                puts "Total selected entities: #{all_selected.length}"           # Debug log
+                
+                # Log entity types
+                entity_types = all_selected.group_by(&:class)
+                entity_types.each do |type, entities|
+                    puts "  #{type}: #{entities.length}"                         # Log each type count
+                end
+                
+                @selected_faces = all_selected.select { |e| e.is_a?(Sketchup::Face) }  # Filter for faces only
+                puts "Faces found: #{@selected_faces.length}"                   # Debug log
+                
+                if @selected_faces.empty?
+                    UI.messagebox("No faces found in selection. Please select face geometry.")
+                    Sketchup.active_model.tools.pop_tool                         # Exit tool
+                    return
+                end
+                
+                if validate_selection                                             # Check if selection is valid
+                    create_window_panel_from_selection                            # Process the selection
+                else
+                    Sketchup.active_model.tools.pop_tool                         # Exit tool
+                end
+            rescue => e
+                puts "Error in activate: #{e.message}"                          # Log any errors
+                puts e.backtrace.first(3).join("\n")                           # Log stack trace
+                UI.messagebox("Tool activation error: #{e.message}")           # Show error
+                Sketchup.active_model.tools.pop_tool                            # Exit tool
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Validate User Selection
+            # ------------------------------------------------------------
+            def validate_selection
+                return false if @selected_faces.empty?                           # Check for empty selection
+                
+                puts "Validating #{@selected_faces.length} selected faces..."    # Debug log
+                
+                # Check if all faces share the same parent
+                first_parent = @selected_faces.first.parent                      # Get parent of first face
+                parent_info = first_parent.is_a?(Sketchup::Model) ? "Model root" : "#{first_parent.class} (#{first_parent.name})"
+                puts "First face parent: #{parent_info}"                         # Debug log
+                
+                # Check each face's parent
+                @selected_faces.each_with_index do |face, index|
+                    face_parent = face.parent
+                    face_parent_info = face_parent.is_a?(Sketchup::Model) ? "Model root" : "#{face_parent.class} (#{face_parent.name})"
+                    
+                    if face_parent != first_parent
+                        puts "Face #{index} has different parent: #{face_parent_info}"
+                        UI.messagebox("All selected faces must be in the same context.\nFace #{index + 1} is in a different group/component.")
+                        return false
+                    end
+                end
+                
+                puts "All faces share the same parent context"                   # Debug log
+                
+                # Check if all faces are coplanar (on same plane)
+                first_face = @selected_faces.first                               # Get first face
+                first_plane = first_face.plane                                   # Get its plane
+                first_normal = Geom::Vector3d.new(first_plane[0], first_plane[1], first_plane[2])  # Convert to vector
+                
+                coplanar = @selected_faces.all? do |face|
+                    face_plane = face.plane                                       # Get face plane
+                    face_normal = Geom::Vector3d.new(face_plane[0], face_plane[1], face_plane[2])  # Convert to vector
+                    
+                    # Check if planes are parallel and at same distance from origin
+                    face_normal.parallel?(first_normal) &&                       # Check normal vectors
+                    (first_plane[3] - face_plane[3]).abs < 0.001                # Check distance
+                end
+                
+                unless coplanar
+                    UI.messagebox("All selected faces must be on the same plane (coplanar)")
+                    return false
+                end
+                
+                puts "Validation passed: #{@selected_faces.length} faces selected" # Debug log
+                true                                                              # Selection is valid
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Get Next Available Panel Number
+            # ------------------------------------------------------------
+            def get_next_panel_number
+                model = Sketchup.active_model                                     # Get active model
+                existing_numbers = []                                             # Array to store existing numbers
+                
+                # Find all existing panel groups
+                model.entities.each do |entity|
+                    if entity.is_a?(Sketchup::Group) && entity.name.start_with?(LOW_POLY_PREFIX)
+                        number = entity.name.gsub(LOW_POLY_PREFIX, "").to_i      # Extract number
+                        existing_numbers << number if number > 0                 # Add to array if valid
+                    end
+                end
+                
+                # Check in all component definitions too
+                model.definitions.each do |definition|
+                    definition.entities.each do |entity|
+                        if entity.is_a?(Sketchup::Group) && entity.name.start_with?(LOW_POLY_PREFIX)
+                            number = entity.name.gsub(LOW_POLY_PREFIX, "").to_i  # Extract number
+                            existing_numbers << number if number > 0             # Add to array if valid
+                        end
+                    end
+                end
+                
+                # Return next available number
+                existing_numbers.empty? ? 1 : existing_numbers.max + 1           
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Create Window Panel From Selection
+            # ------------------------------------------------------------
+            def create_window_panel_from_selection
+                model = Sketchup.active_model                                     # Get active model
+                
+                model.start_operation("Create Window Panel", true)                # Start operation
+                
+                begin
+                    puts "Step 1: Creating low poly reference..."                # Debug log
+                    create_low_poly_reference                                     # Step 1: Create low poly group
+                    puts "Step 1 completed successfully"                          # Debug log
+                    
+                    puts "Step 2: Ensuring helper tag exists..."                 # Debug log
+                    ensure_helper_tag_exists                                      # Ensure helper tag exists
+                    puts "Step 2 completed successfully"                          # Debug log
+                    
+                    puts "Step 3: Creating high poly window panel..."            # Debug log
+                    create_high_poly_window_panel                                 # Create high poly version
+                    puts "Step 3 completed successfully"                          # Debug log
+                    
+                    puts "Step 4: Setting up dynamic observer..."                # Debug log
+                    setup_dynamic_observer                                        # Setup observer for updates
+                    puts "Step 4 completed successfully"                          # Debug log
+                    
+                    model.commit_operation                                        # Commit if successful
+                    UI.messagebox("Window panel created successfully!")           # Success message only after completion
+                rescue => e
+                    model.abort_operation                                         # Abort on error
+                    puts "ERROR: #{e.class.name}: #{e.message}"                  # Log error class and message
+                    puts "Error occurred at:"                                     # Log location
+                    puts e.backtrace.first(5).join("\n")                        # Log top 5 stack frames
+                    UI.messagebox("Error creating window panel: #{e.message}")   # Show error
+                end
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Create Low Poly Reference Group
+            # ------------------------------------------------------------
+            def create_low_poly_reference
+                model = Sketchup.active_model                                     # Get active model
+                
+                # Get the parent context of the faces
+                parent_entities = @selected_faces.first.parent.entities          # Get parent entities collection
+                
+                # ALWAYS use copy strategy for reliability
+                puts "Creating low poly group by copying face geometry..."       # Debug log
+                
+                # Create empty group first
+                @low_poly_group = parent_entities.add_group                      # Create empty group
+                @low_poly_group.name = "#{LOW_POLY_PREFIX}#{@current_panel_number.to_s.rjust(2, '0')}"
+                
+                # Get transformation for the group (identity for now)
+                group_transform = @low_poly_group.transformation                 # Group transformation
+                inverse_transform = group_transform.inverse                       # Inverse for converting coordinates
+                
+                # Copy each face into the group
+                group_entities = @low_poly_group.entities                        # Get group's entities
+                created_faces = []                                                # Track created faces
+                
+                @selected_faces.each_with_index do |face, index|
+                    begin
+                        # Get face vertices in order from outer loop
+                        loop = face.outer_loop                                    # Get outer loop
+                        vertices = loop.vertices                                  # Get vertices in order
+                        points = vertices.map { |v| v.position.transform(inverse_transform) }  # Transform to group coords
+                        
+                        # Create face in group
+                        new_face = group_entities.add_face(points)               # Create face from points
+                        
+                        if new_face && new_face.valid?
+                            created_faces << new_face                             # Track successful creation
+                            puts "Created face #{index + 1} with #{points.length} vertices"
+                        else
+                            puts "Failed to create face #{index + 1}"            # Log failure
+                        end
+                    rescue => e
+                        puts "Error copying face #{index + 1}: #{e.message}"     # Log any errors
+                    end
+                end
+                
+                puts "Successfully created #{created_faces.length} of #{@selected_faces.length} faces in group"
+                
+                # Check if we created all faces successfully
+                if created_faces.length != @selected_faces.length
+                    UI.messagebox("Warning: Only #{created_faces.length} of #{@selected_faces.length} faces were successfully copied.")
+                end
+                
+                # Ask user if they want to delete original faces
+                if created_faces.length > 0
+                    result = UI.messagebox("Delete original faces?", MB_YESNO)
+                    if result == IDYES
+                        @selected_faces.each do |face|
+                            begin
+                                face.erase! if face.valid?                       # Erase original face
+                            rescue => e
+                                puts "Could not erase face: #{e.message}"        # Log if can't erase
+                            end
+                        end
+                    end
+                end
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Ensure Helper Tag Exists
+            # ------------------------------------------------------------
+            def ensure_helper_tag_exists
+                model = Sketchup.active_model                                     # Get active model
+                
+                # Find or create helper tag
+                helper_tag = model.layers.find { |layer| layer.name == HELPER_TAG_NAME }
+                helper_tag ||= model.layers.add(HELPER_TAG_NAME)                 # Create if doesn't exist
+                
+                # Assign low poly group to helper tag
+                @low_poly_group.layer = helper_tag                               # Set layer
+                
+                # Don't hide the layer automatically to avoid "active path" conflicts
+                # User can manually hide the helper layer after creation if desired
+                puts "Low poly reference assigned to helper layer: #{HELPER_TAG_NAME}"
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Create High Poly Window Panel
+            # ------------------------------------------------------------
+            def create_high_poly_window_panel
+                model = Sketchup.active_model                                     # Get active model
+                
+                # Get panel dimensions and layout from low poly
+                @panel_data = analyze_low_poly_panel                              # Analyze the low poly reference
+                
+                # Detect panel orientation from first face normal
+                first_face = @low_poly_group.entities.grep(Sketchup::Face).first
+                if first_face
+                    normal = first_face.normal                                    # Get face normal
+                    # Determine which axis the panel faces
+                    if normal.parallel?(Z_AXIS) || normal.parallel?(Z_AXIS.reverse)
+                        @panel_data[:orientation] = :horizontal                   # Facing up/down
+                        @panel_data[:normal_axis] = :z
+                    elsif normal.parallel?(Y_AXIS) || normal.parallel?(Y_AXIS.reverse)
+                        @panel_data[:orientation] = :vertical_y                   # Facing front/back
+                        @panel_data[:normal_axis] = :y
+                    else
+                        @panel_data[:orientation] = :vertical_x                   # Facing left/right
+                        @panel_data[:normal_axis] = :x
+                    end
+                    puts "Panel orientation: #{@panel_data[:orientation]}, normal axis: #{@panel_data[:normal_axis]}"
+                end
+                
+                # Get the parent context where low poly group exists
+                parent_entities = @low_poly_group.parent.entities                # Get parent entities
+                
+                # Create high poly group in same context as low poly
+                @high_poly_group = parent_entities.add_group                     # Create empty group
+                @high_poly_group.name = @low_poly_group.name.gsub("LowPoly", "HighPoly")
+                @high_poly_group.transformation = @low_poly_group.transformation  # Match position
+                
+                # Store panel data as attribute for later use
+                @high_poly_group.set_attribute("panel_data", "data", @panel_data)
+                
+                # Build high poly geometry inside group
+                entities = @high_poly_group.entities                              # Get group entities
+                
+                create_outer_frame(entities)                                      # Step 2: Create frame
+                create_glazing_divisions(entities)                                # Step 3: Create glazing bars
+                create_glass_panels(entities)                                     # Step 4: Create glass panels
+                create_frame_group(entities)                                      # Step 5: Group frame elements
+                
+                # Apply materials
+                apply_materials_to_high_poly                                      # Apply all materials
+                
+                # Set initial generation timestamp for the high poly group
+                current_time = Time.now.to_f                                     # Get current timestamp
+                @high_poly_group.set_attribute("window_panel_sketcher", "last_generated", current_time)
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Analyze Low Poly Panel Structure
+            # ------------------------------------------------------------
+            def analyze_low_poly_panel
+                # Get all faces in low poly group
+                faces = @low_poly_group.entities.grep(Sketchup::Face)            # Get all faces
+                
+                puts "Analyzing low poly panel with #{faces.length} faces"       # Debug log
+                
+                if faces.empty?
+                    raise "No faces found in low poly group"
+                end
+                
+                # Get overall bounds from faces
+                all_points = []                                                   # Collect all vertices
+                faces.each do |face|
+                    face.vertices.each do |vertex|
+                        all_points << vertex.position                             # Add vertex position
+                    end
+                end
+                
+                if all_points.empty?
+                    raise "No vertices found in low poly faces"
+                end
+                
+                # Find min/max coordinates with tolerance for floating point
+                tolerance = 0.001                                                 # Tolerance for coordinate comparison
+                x_coords = all_points.map(&:x).uniq { |x| (x / tolerance).round }.sort
+                y_coords = all_points.map(&:y).uniq { |y| (y / tolerance).round }.sort
+                z_coords = all_points.map(&:z).uniq { |z| (z / tolerance).round }.sort
+                
+                puts "X coordinates: #{x_coords.length} unique values (#{x_coords.first} to #{x_coords.last})"
+                puts "Y coordinates: #{y_coords.length} unique values (#{y_coords.first} to #{y_coords.last})"
+                puts "Z coordinates: #{z_coords.length} unique values (#{z_coords.first} to #{z_coords.last})"
+                
+                # Determine which plane the faces are on by checking variation
+                x_range = x_coords.max - x_coords.min
+                y_range = y_coords.max - y_coords.min
+                z_range = z_coords.max - z_coords.min
+                
+                puts "Ranges - X: #{x_range}, Y: #{y_range}, Z: #{z_range}"
+                
+                # Detect orientation - window could be on XY, XZ, or YZ plane
+                if x_range > tolerance && y_range > tolerance && z_range < tolerance
+                    # XY plane (horizontal window)
+                    width = x_range
+                    height = y_range
+                    width_coords = x_coords
+                    height_coords = y_coords
+                elsif x_range > tolerance && z_range > tolerance && y_range < tolerance
+                    # XZ plane (vertical window facing Y)
+                    width = x_range
+                    height = z_range
+                    width_coords = x_coords
+                    height_coords = z_coords
+                elsif y_range > tolerance && z_range > tolerance && x_range < tolerance
+                    # YZ plane (vertical window facing X)
+                    width = y_range
+                    height = z_range
+                    width_coords = y_coords
+                    height_coords = z_coords
+                else
+                    # Default to XZ plane if unclear
+                    width = x_range > 0 ? x_range : 1.0
+                    height = z_range > 0 ? z_range : 1.0
+                    width_coords = x_coords
+                    height_coords = z_coords
+                end
+                
+                puts "Panel dimensions: #{width} x #{height}"                    # Debug log
+                
+                # Validate dimensions
+                if width <= 0 || height <= 0
+                    raise "Invalid panel dimensions: width=#{width}, height=#{height}"
+                end
+                
+                # Determine grid divisions by counting unique edge positions
+                x_divisions = [width_coords.size - 1, 1].max                     # Number of columns (minimum 1)
+                y_divisions = [height_coords.size - 1, 1].max                    # Number of rows (minimum 1)
+                
+                puts "Grid divisions: #{x_divisions} columns x #{y_divisions} rows"  # Debug log
+                
+                # Store panel data
+                {
+                    width: width,
+                    height: height,
+                    x_divisions: x_divisions,
+                    y_divisions: y_divisions,
+                    x_positions: width_coords,
+                    z_positions: height_coords,                                   # Height positions (could be Y or Z)
+                    face_count: faces.size,
+                    min_x: x_coords.min || 0,
+                    min_y: y_coords.min || 0,
+                    min_z: z_coords.min || 0,
+                    max_x: x_coords.max || 0,
+                    max_y: y_coords.max || 0,
+                    max_z: z_coords.max || 0,
+                    bounds: {
+                        min: Geom::Point3d.new(x_coords.min || 0, y_coords.min || 0, z_coords.min || 0),
+                        max: Geom::Point3d.new(x_coords.max || 0, y_coords.max || 0, z_coords.max || 0)
+                    }
+                }
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Create Outer Frame
+            # ------------------------------------------------------------
+            def create_outer_frame(entities)
+                # Get dimensions from panel data
+                width_inches = @panel_data[:width]                                # Panel width
+                height_inches = @panel_data[:height]                              # Panel height
+                
+                # Validate dimensions
+                if width_inches.nil? || height_inches.nil? || width_inches <= 0 || height_inches <= 0
+                    puts "Invalid panel dimensions: width=#{width_inches}, height=#{height_inches}"
+                    raise "Invalid panel dimensions detected"
+                end
+                
+                # Create outer rectangle points at origin based on panel orientation
+                pts = []
+                
+                case @panel_data[:normal_axis]
+                when :x
+                    # YZ plane - window faces X direction
+                    pts << Geom::Point3d.new(0, 0, 0)                           # Bottom left
+                    pts << Geom::Point3d.new(0, width_inches, 0)                # Bottom right
+                    pts << Geom::Point3d.new(0, width_inches, height_inches)    # Top right
+                    pts << Geom::Point3d.new(0, 0, height_inches)               # Top left
+                when :y
+                    # XZ plane - window faces Y direction (most common for vertical windows)
+                    pts << Geom::Point3d.new(0, 0, 0)                           # Bottom left
+                    pts << Geom::Point3d.new(width_inches, 0, 0)                # Bottom right
+                    pts << Geom::Point3d.new(width_inches, 0, height_inches)    # Top right
+                    pts << Geom::Point3d.new(0, 0, height_inches)               # Top left
+                when :z
+                    # XY plane - window faces Z direction (horizontal windows)
+                    pts << Geom::Point3d.new(0, 0, 0)                           # Bottom left
+                    pts << Geom::Point3d.new(width_inches, 0, 0)                # Bottom right
+                    pts << Geom::Point3d.new(width_inches, height_inches, 0)    # Top right
+                    pts << Geom::Point3d.new(0, height_inches, 0)               # Top left
+                else
+                    # Default to XZ plane
+                    pts << Geom::Point3d.new(0, 0, 0)                           # Bottom left
+                    pts << Geom::Point3d.new(width_inches, 0, 0)                # Bottom right
+                    pts << Geom::Point3d.new(width_inches, 0, height_inches)    # Top right
+                    pts << Geom::Point3d.new(0, 0, height_inches)               # Top left
+                end
+                
+                # Validate points are unique
+                if pts.uniq.length != pts.length
+                    puts "Duplicate points detected in frame creation"
+                    puts "Points: #{pts.map { |p| [p.x, p.y, p.z] }}"
+                    raise "Duplicate points in frame geometry"
+                end
+                
+                # Create outer face
+                outer_face = entities.add_face(pts)                              # Create face
+                
+                # Calculate inner offsets (convert mm to inches)
+                left_offset = WindowPanelSketcher.mm_to_inch(FRAME_OFFSET_LEFT_MM)      # Convert to inches
+                right_offset = WindowPanelSketcher.mm_to_inch(FRAME_OFFSET_RIGHT_MM)    # Convert to inches
+                top_offset = WindowPanelSketcher.mm_to_inch(FRAME_OFFSET_TOP_MM)        # Convert to inches
+                bottom_offset = WindowPanelSketcher.mm_to_inch(FRAME_OFFSET_BOTTOM_MM)  # Convert to inches
+                
+                # Create inner rectangle points for cutout based on orientation
+                inner_pts = []
+                
+                case @panel_data[:normal_axis]
+                when :x
+                    # YZ plane
+                    x_pos = 0.0                                                  # X position at origin
+                    inner_pts << Geom::Point3d.new(x_pos, 0 + left_offset, 0 + bottom_offset)
+                    inner_pts << Geom::Point3d.new(x_pos, width_inches - right_offset, 0 + bottom_offset)
+                    inner_pts << Geom::Point3d.new(x_pos, width_inches - right_offset, height_inches - top_offset)
+                    inner_pts << Geom::Point3d.new(x_pos, 0 + left_offset, height_inches - top_offset)
+                when :y
+                    # XZ plane
+                    y_pos = 0.0                                                  # Y position at origin
+                    inner_pts << Geom::Point3d.new(0 + left_offset, y_pos, 0 + bottom_offset)
+                    inner_pts << Geom::Point3d.new(width_inches - right_offset, y_pos, 0 + bottom_offset)
+                    inner_pts << Geom::Point3d.new(width_inches - right_offset, y_pos, height_inches - top_offset)
+                    inner_pts << Geom::Point3d.new(0 + left_offset, y_pos, height_inches - top_offset)
+                when :z
+                    # XY plane
+                    z_pos = 0.0                                                  # Z position at origin
+                    inner_pts << Geom::Point3d.new(0 + left_offset, 0 + bottom_offset, z_pos)
+                    inner_pts << Geom::Point3d.new(width_inches - right_offset, 0 + bottom_offset, z_pos)
+                    inner_pts << Geom::Point3d.new(width_inches - right_offset, height_inches - top_offset, z_pos)
+                    inner_pts << Geom::Point3d.new(0 + left_offset, height_inches - top_offset, z_pos)
+                else
+                    # Default to XZ plane
+                    y_pos = 0.0                                                  # Y position at origin
+                    inner_pts << Geom::Point3d.new(0 + left_offset, y_pos, 0 + bottom_offset)
+                    inner_pts << Geom::Point3d.new(width_inches - right_offset, y_pos, 0 + bottom_offset)
+                    inner_pts << Geom::Point3d.new(width_inches - right_offset, y_pos, height_inches - top_offset)
+                    inner_pts << Geom::Point3d.new(0 + left_offset, y_pos, height_inches - top_offset)
+                end
+                
+                # Add inner edges to create cutout
+                inner_face = entities.add_face(inner_pts)                        # Create inner face
+                inner_face.erase! if inner_face                                  # Erase to create hole
+                
+                # Store frame bounds for glazing bar calculations
+                @panel_data[:inner_bounds] = case @panel_data[:normal_axis]
+                when :x
+                    # YZ plane
+                    {
+                        left: 0 + left_offset,
+                        right: width_inches - right_offset,
+                        bottom: 0 + bottom_offset,
+                        top: height_inches - top_offset,
+                        x_pos: 0.0
+                    }
+                when :y
+                    # XZ plane
+                    {
+                        left: 0 + left_offset,
+                        right: width_inches - right_offset,
+                        bottom: 0 + bottom_offset,
+                        top: height_inches - top_offset,
+                        y_pos: 0.0
+                    }
+                when :z
+                    # XY plane
+                    {
+                        left: 0 + left_offset,
+                        right: width_inches - right_offset,
+                        bottom: 0 + bottom_offset,
+                        top: height_inches - top_offset,
+                        z_pos: 0.0
+                    }
+                else
+                    # Default to XZ plane
+                    {
+                        left: 0 + left_offset,
+                        right: width_inches - right_offset,
+                        bottom: 0 + bottom_offset,
+                        top: height_inches - top_offset,
+                        y_pos: 0.0
+                    }
+                end
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Create Glazing Bar Divisions
+            # ------------------------------------------------------------
+            def create_glazing_divisions(entities)
+                inner_bounds = @panel_data[:inner_bounds]                        # Get inner frame bounds
+                
+                # Calculate glazing bar positions based on low poly divisions
+                inner_width = inner_bounds[:right] - inner_bounds[:left]         # Inner frame width
+                inner_height = inner_bounds[:top] - inner_bounds[:bottom]        # Inner frame height
+                
+                # Get glazing bar half width in inches
+                bar_half_width = WindowPanelSketcher.mm_to_inch(GLAZING_BAR_HALF_WIDTH_MM)
+                
+                # Create temporary storage for bar positions
+                @panel_data[:vertical_bars] = []                                 # Vertical bar positions
+                @panel_data[:horizontal_bars] = []                               # Horizontal bar positions
+                
+                # Vertical glazing bars
+                if @panel_data[:x_divisions] > 1
+                    step_x = inner_width / @panel_data[:x_divisions]             # Spacing between bars
+                    
+                    (1...@panel_data[:x_divisions]).each do |i|
+                        center_x = inner_bounds[:left] + (step_x * i)            # Bar centerline
+                        
+                        # Store bar position
+                        @panel_data[:vertical_bars] << {
+                            center: center_x,
+                            left: center_x - bar_half_width,
+                            right: center_x + bar_half_width
+                        }
+                        
+                        # Create vertical bar face based on orientation
+                        bar_pts = []
+                        case @panel_data[:normal_axis]
+                        when :x
+                            # YZ plane
+                            x_pos = inner_bounds[:x_pos]
+                            bar_pts << Geom::Point3d.new(x_pos, center_x - bar_half_width, inner_bounds[:bottom])
+                            bar_pts << Geom::Point3d.new(x_pos, center_x + bar_half_width, inner_bounds[:bottom])
+                            bar_pts << Geom::Point3d.new(x_pos, center_x + bar_half_width, inner_bounds[:top])
+                            bar_pts << Geom::Point3d.new(x_pos, center_x - bar_half_width, inner_bounds[:top])
+                        when :y
+                            # XZ plane
+                            y_pos = inner_bounds[:y_pos]
+                            bar_pts << Geom::Point3d.new(center_x - bar_half_width, y_pos, inner_bounds[:bottom])
+                            bar_pts << Geom::Point3d.new(center_x + bar_half_width, y_pos, inner_bounds[:bottom])
+                            bar_pts << Geom::Point3d.new(center_x + bar_half_width, y_pos, inner_bounds[:top])
+                            bar_pts << Geom::Point3d.new(center_x - bar_half_width, y_pos, inner_bounds[:top])
+                        when :z
+                            # XY plane
+                            z_pos = inner_bounds[:z_pos]
+                            bar_pts << Geom::Point3d.new(center_x - bar_half_width, inner_bounds[:bottom], z_pos)
+                            bar_pts << Geom::Point3d.new(center_x + bar_half_width, inner_bounds[:bottom], z_pos)
+                            bar_pts << Geom::Point3d.new(center_x + bar_half_width, inner_bounds[:top], z_pos)
+                            bar_pts << Geom::Point3d.new(center_x - bar_half_width, inner_bounds[:top], z_pos)
+                        else
+                            # Default to XZ plane
+                            y_pos = inner_bounds[:y_pos]
+                            bar_pts << Geom::Point3d.new(center_x - bar_half_width, y_pos, inner_bounds[:bottom])
+                            bar_pts << Geom::Point3d.new(center_x + bar_half_width, y_pos, inner_bounds[:bottom])
+                            bar_pts << Geom::Point3d.new(center_x + bar_half_width, y_pos, inner_bounds[:top])
+                            bar_pts << Geom::Point3d.new(center_x - bar_half_width, y_pos, inner_bounds[:top])
+                        end
+                        
+                        entities.add_face(bar_pts)                               # Create bar face
+                    end
+                end
+                
+                # Horizontal glazing bars
+                if @panel_data[:y_divisions] > 1
+                    step_y = inner_height / @panel_data[:y_divisions]            # Spacing between bars
+                    
+                    (1...@panel_data[:y_divisions]).each do |i|
+                        center_y = inner_bounds[:bottom] + (step_y * i)          # Bar centerline
+                        
+                        # Store bar position
+                        @panel_data[:horizontal_bars] << {
+                            center: center_y,
+                            bottom: center_y - bar_half_width,
+                            top: center_y + bar_half_width
+                        }
+                        
+                        # Create horizontal bar segments between vertical bars
+                        x_starts = [inner_bounds[:left]]                         # Start positions
+                        x_ends = []                                               # End positions
+                        
+                        # Add breaks for vertical bars
+                        @panel_data[:vertical_bars].each do |vbar|
+                            x_ends << vbar[:left]                                 # End before vertical bar
+                            x_starts << vbar[:right]                              # Start after vertical bar
+                        end
+                        x_ends << inner_bounds[:right]                           # Final end position
+                        
+                        # Create bar segments
+                        x_starts.zip(x_ends).each do |x_start, x_end|
+                            bar_pts = []
+                            case @panel_data[:normal_axis]
+                            when :x
+                                # YZ plane
+                                x_pos = inner_bounds[:x_pos]
+                                bar_pts << Geom::Point3d.new(x_pos, x_start, center_y - bar_half_width)
+                                bar_pts << Geom::Point3d.new(x_pos, x_end, center_y - bar_half_width)
+                                bar_pts << Geom::Point3d.new(x_pos, x_end, center_y + bar_half_width)
+                                bar_pts << Geom::Point3d.new(x_pos, x_start, center_y + bar_half_width)
+                            when :y
+                                # XZ plane
+                                y_pos = inner_bounds[:y_pos]
+                                bar_pts << Geom::Point3d.new(x_start, y_pos, center_y - bar_half_width)
+                                bar_pts << Geom::Point3d.new(x_end, y_pos, center_y - bar_half_width)
+                                bar_pts << Geom::Point3d.new(x_end, y_pos, center_y + bar_half_width)
+                                bar_pts << Geom::Point3d.new(x_start, y_pos, center_y + bar_half_width)
+                            when :z
+                                # XY plane
+                                z_pos = inner_bounds[:z_pos]
+                                bar_pts << Geom::Point3d.new(x_start, center_y - bar_half_width, z_pos)
+                                bar_pts << Geom::Point3d.new(x_end, center_y - bar_half_width, z_pos)
+                                bar_pts << Geom::Point3d.new(x_end, center_y + bar_half_width, z_pos)
+                                bar_pts << Geom::Point3d.new(x_start, center_y + bar_half_width, z_pos)
+                            else
+                                # Default to XZ plane
+                                y_pos = inner_bounds[:y_pos]
+                                bar_pts << Geom::Point3d.new(x_start, y_pos, center_y - bar_half_width)
+                                bar_pts << Geom::Point3d.new(x_end, y_pos, center_y - bar_half_width)
+                                bar_pts << Geom::Point3d.new(x_end, y_pos, center_y + bar_half_width)
+                                bar_pts << Geom::Point3d.new(x_start, y_pos, center_y + bar_half_width)
+                            end
+                            
+                            entities.add_face(bar_pts)                           # Create bar segment
+                        end
+                    end
+                end
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Create Individual Glass Panels
+            # ------------------------------------------------------------
+            def create_glass_panels(entities)
+                inner_bounds = @panel_data[:inner_bounds]                        # Get inner frame bounds
+                
+                # Calculate panel dimensions
+                inner_width = inner_bounds[:right] - inner_bounds[:left]         # Inner frame width
+                inner_height = inner_bounds[:top] - inner_bounds[:bottom]        # Inner frame height
+                
+                panel_width = inner_width / @panel_data[:x_divisions]            # Individual panel width
+                panel_height = inner_height / @panel_data[:y_divisions]          # Individual panel height
+                
+                glass_faces = []                                                  # Store glass faces for material application
+                panel_number = 1                                                  # Panel counter
+                
+                # Create each glass panel
+                @panel_data[:y_divisions].times do |row|
+                    @panel_data[:x_divisions].times do |col|
+                        # Calculate base panel bounds
+                        left = inner_bounds[:left] + (col * panel_width)         # Left edge
+                        right = left + panel_width                               # Right edge
+                        bottom = inner_bounds[:bottom] + (row * panel_height)    # Bottom edge
+                        top = bottom + panel_height                              # Top edge
+                        
+                        # Adjust for glazing bars
+                        if col > 0                                                # Not leftmost panel
+                            left = @panel_data[:vertical_bars][col-1][:right]    # Start after vertical bar
+                        end
+                        if col < @panel_data[:x_divisions] - 1                   # Not rightmost panel
+                            right = @panel_data[:vertical_bars][col][:left]      # End before vertical bar
+                        end
+                        if row > 0                                                # Not bottom panel
+                            bottom = @panel_data[:horizontal_bars][row-1][:top]  # Start above horizontal bar
+                        end
+                        if row < @panel_data[:y_divisions] - 1                   # Not top panel
+                            top = @panel_data[:horizontal_bars][row][:bottom]    # End below horizontal bar
+                        end
+                        
+                        # Create glass panel face with unique points based on orientation
+                        pts = []
+                        case @panel_data[:normal_axis]
+                        when :x
+                            # YZ plane
+                            x_pos = @panel_data[:inner_bounds][:x_pos]
+                            pts << Geom::Point3d.new(x_pos, left, bottom)        # Bottom left
+                            pts << Geom::Point3d.new(x_pos, right, bottom)       # Bottom right
+                            pts << Geom::Point3d.new(x_pos, right, top)          # Top right
+                            pts << Geom::Point3d.new(x_pos, left, top)           # Top left
+                        when :y
+                            # XZ plane
+                            y_pos = @panel_data[:inner_bounds][:y_pos]
+                            pts << Geom::Point3d.new(left, y_pos, bottom)        # Bottom left
+                            pts << Geom::Point3d.new(right, y_pos, bottom)       # Bottom right
+                            pts << Geom::Point3d.new(right, y_pos, top)          # Top right
+                            pts << Geom::Point3d.new(left, y_pos, top)           # Top left
+                        when :z
+                            # XY plane
+                            z_pos = @panel_data[:inner_bounds][:z_pos]
+                            pts << Geom::Point3d.new(left, bottom, z_pos)        # Bottom left
+                            pts << Geom::Point3d.new(right, bottom, z_pos)       # Bottom right
+                            pts << Geom::Point3d.new(right, top, z_pos)          # Top right
+                            pts << Geom::Point3d.new(left, top, z_pos)           # Top left
+                        else
+                            # Default to XZ plane
+                            y_pos = @panel_data[:inner_bounds][:y_pos]
+                            pts << Geom::Point3d.new(left, y_pos, bottom)        # Bottom left
+                            pts << Geom::Point3d.new(right, y_pos, bottom)       # Bottom right
+                            pts << Geom::Point3d.new(right, y_pos, top)          # Top right
+                            pts << Geom::Point3d.new(left, y_pos, top)           # Top left
+                        end
+                        
+                        # Create face directly in the entities collection
+                        glass_face = entities.add_face(pts)                      # Create face directly
+                        
+                        if glass_face && glass_face.valid?                       # Check face was created
+                            glass_faces << glass_face                             # Add to array for material application
+                        else
+                            puts "Failed to create glass panel #{panel_number}"  # Log failure
+                        end
+                        
+                        panel_number += 1                                         # Increment counter
+                    end
+                end
+                
+                # Store glass faces reference for material application
+                @panel_data[:glass_faces] = glass_faces                          # Save for material application
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Create Frame Group From Remaining Geometry
+            # ------------------------------------------------------------
+            def create_frame_group(entities)
+                # Collect all frame faces (everything that's not a glass face)
+                frame_faces = []
+                entities.each do |entity|
+                    if entity.is_a?(Sketchup::Face) && !@panel_data[:glass_faces].include?(entity)
+                        frame_faces << entity                                     # Collect frame face
+                    end
+                end
+                
+                puts "Found #{frame_faces.length} frame faces"                   # Debug log
+                
+                # Store frame faces for material application
+                @panel_data[:frame_faces] = frame_faces                          # Save for material application
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Apply Materials to High Poly Panel
+            # ------------------------------------------------------------
+            def apply_materials_to_high_poly
+                model = Sketchup.active_model                                     # Get active model
+                materials = model.materials                                       # Get materials collection
+                
+                # Get or create glass material
+                glass_material = materials[GLASS_MATERIAL_NAME]                  # Try to find existing
+                unless glass_material
+                    glass_material = materials.add(GLASS_MATERIAL_NAME)           # Create new material
+                    glass_material.color = [GLASS_COLOR_R, GLASS_COLOR_G, GLASS_COLOR_B]
+                    glass_material.alpha = GLASS_OPACITY                          # Set transparency
+                end
+                
+                # Get or create frame material
+                frame_material = materials[FRAME_MATERIAL_NAME]                  # Try to find existing
+                unless frame_material
+                    frame_material = materials.add(FRAME_MATERIAL_NAME)           # Create new material
+                    frame_material.color = [FRAME_COLOR_R, FRAME_COLOR_G, FRAME_COLOR_B]
+                end
+                
+                # Apply to glass panels
+                if @panel_data[:glass_faces]
+                    @panel_data[:glass_faces].each do |glass_face|
+                        if glass_face && glass_face.valid?
+                            glass_face.material = glass_material                  # Apply glass material to front
+                            glass_face.back_material = glass_material             # Apply glass material to back
+                        end
+                    end
+                end
+                
+                # Apply to frame group
+                if @panel_data[:frame_faces]
+                    @panel_data[:frame_faces].each do |frame_face|
+                        if frame_face && frame_face.valid?
+                            frame_face.material = frame_material                  # Apply frame material
+                        end
+                    end
+                end
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Setup Dynamic Observer for Updates
+            # ------------------------------------------------------------
+            def setup_dynamic_observer
+                # Get global observer instance and register this group pair
+                observer = WindowPanelSketcher.get_global_observer               # Get global observer
+                observer.register_group_pair(@low_poly_group, @high_poly_group)  # Register group pair
+                
+                # Attach EntityObserver to low poly group to detect changes
+                entity_observer = WindowPanelEntityObserver.new(@low_poly_group) # Create entity observer
+                @low_poly_group.add_observer(entity_observer)                    # Attach to low poly group
+                
+                # Attach EntitiesObserver to low poly group's entities to detect geometry changes
+                entities_observer = WindowPanelEntitiesObserver.new(@low_poly_group) # Create entities observer
+                @low_poly_group.entities.add_observer(entities_observer)         # Attach to entities collection
+                
+                # Store observer references to prevent garbage collection
+                @low_poly_group.set_attribute("window_panel_sketcher", "entity_observer", entity_observer)
+                @low_poly_group.set_attribute("window_panel_sketcher", "entities_observer", entities_observer)
+                
+                # Set initial modification timestamp on low poly group
+                current_time = Time.now.to_f                                     # Get current timestamp
+                @low_poly_group.set_attribute("window_panel_sketcher", "last_modified", current_time)
+                
+                puts "Registered group pair with global observer: #{@low_poly_group.name}"
+                puts "EntityObserver and EntitiesObserver attached for change detection"
+            end
+            # ------------------------------------------------------------
+            
+        end # class WindowPanelSketcherTool
+        # ------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Observer Classes for Dynamic Updates  
+    # -----------------------------------------------------------------------------
+    
+        # CLASS | Model Observer for Group Edit Mode Detection
+        # ------------------------------------------------------------
+        class WindowPanelModelObserver < Sketchup::ModelObserver
+            
+            # SUB FUNCTION | Initialize Observer
+            # ------------------------------------------------------------
+            def initialize
+                @tracked_groups = {}                                                  # Hash of low_poly_name => high_poly_group
+                @regenerating = false                                                 # Flag to prevent infinite loops
+                @pending_updates = {}                                                 # Track pending updates
+                @last_active_path = nil                                              # Track previous active path
+                puts "WindowPanelModelObserver initialized"                          # Debug log
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Register a Low Poly Group for Monitoring
+            # ------------------------------------------------------------
+            def register_group_pair(low_poly_group, high_poly_group)
+                return unless low_poly_group && high_poly_group                      # Validate inputs
+                
+                group_name = low_poly_group.name                                     # Get low poly group name
+                @tracked_groups[group_name] = {
+                    low_poly: low_poly_group,
+                    high_poly: high_poly_group
+                }
+                puts "Registered group pair: #{group_name}"                          # Debug log
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Handle Active Path Changes (Group Edit Mode)
+            # ------------------------------------------------------------
+            def onActivePathChanged(model)
+                return if @regenerating                                              # Prevent recursive calls
+                
+                active_path = model.active_path                                      # Get current active path
+                
+                # Determine if we're exiting a tracked low poly group
+                was_editing_tracked_group = false
+                edited_group_name = nil
+                
+                if @last_active_path && !@last_active_path.empty?
+                    last_entity = @last_active_path.last
+                    if last_entity.is_a?(Sketchup::Group) && last_entity.name.start_with?(LOW_POLY_PREFIX)
+                        was_editing_tracked_group = true
+                        edited_group_name = last_entity.name
+                    end
+                end
+                
+                # Check if user exited group editing mode 
+                if (active_path.nil? || active_path.empty?) && was_editing_tracked_group
+                    puts "\n=== WINDOW PANEL UPDATE DETECTED ==="
+                    puts "User finished editing low poly group: #{edited_group_name}"
+                    puts "High poly panel will regenerate in 0.5 seconds..."
+                    
+                    # Mark this group for update (debounced)
+                    @pending_updates[edited_group_name] = true
+                    
+                    # Use a timer to debounce rapid changes
+                    UI.start_timer(0.5, false) {                                     # 500ms delay
+                        process_pending_updates                                      # Process after delay
+                    }
+                elsif active_path && !active_path.empty?
+                    entity_name = active_path.last.name
+                    if entity_name.start_with?(LOW_POLY_PREFIX)
+                        puts "\n=== EDITING LOW POLY WINDOW PANEL ==="
+                        puts "Now editing: #{entity_name}"
+                        puts "High poly panel will auto-update when you exit this group"
+                    else
+                        puts "User entered: #{entity_name}"                         # Debug log
+                    end
+                end
+                
+                # Update last active path
+                @last_active_path = active_path ? active_path.dup : nil
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Process Pending Updates (Debounced)
+            # ------------------------------------------------------------
+            def process_pending_updates
+                return if @regenerating                                              # Already regenerating
+                return if @pending_updates.empty?                                   # Nothing to update
+                
+                puts "Processing #{@pending_updates.size} pending updates"          # Debug log
+                
+                # Process each pending update
+                @pending_updates.each do |group_name, _|
+                    group_pair = @tracked_groups[group_name]
+                    next unless group_pair                                           # Skip if not tracked
+                    
+                    low_poly_group = group_pair[:low_poly]
+                    high_poly_group = group_pair[:high_poly]
+                    
+                    # Validate groups still exist
+                    next unless low_poly_group.valid? && high_poly_group.valid?
+                    
+                    # Check if update is actually needed
+                    if group_needs_update?(low_poly_group, high_poly_group)
+                        puts "Group #{group_name} needs update - regenerating"       # Debug log
+                        regenerate_high_poly_panel(low_poly_group, high_poly_group)  # Regenerate panel
+                    end
+                end
+                
+                # Clear pending updates
+                @pending_updates.clear
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Check and Update Window Panels
+            # ------------------------------------------------------------
+            def check_and_update_panels
+                # This method is now only used for manual updates or cleanup
+                @tracked_groups.each do |group_name, group_pair|
+                    low_poly_group = group_pair[:low_poly]
+                    high_poly_group = group_pair[:high_poly]
+                    
+                    # Validate groups still exist
+                    next unless low_poly_group.valid? && high_poly_group.valid?
+                    
+                    puts "Checking group: #{group_name}"                            # Debug log
+                    
+                    # Check if low poly group was modified by comparing timestamps or content
+                    if group_needs_update?(low_poly_group, high_poly_group)
+                        puts "Group #{group_name} needs update - regenerating"       # Debug log
+                        regenerate_high_poly_panel(low_poly_group, high_poly_group)  # Regenerate panel
+                    end
+                end
+            end
+            # ------------------------------------------------------------
+            
+            # HELPER FUNCTION | Check if Group Needs Update
+            # ------------------------------------------------------------
+            def group_needs_update?(low_poly_group, high_poly_group)
+                # Get modification timestamps from attributes
+                low_poly_timestamp = low_poly_group.get_attribute("window_panel_sketcher", "last_modified", 0)
+                high_poly_timestamp = high_poly_group.get_attribute("window_panel_sketcher", "last_generated", 0)
+                
+                # If low poly is newer than high poly, update needed
+                return low_poly_timestamp > high_poly_timestamp
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Regenerate High Poly Window Panel
+            # ------------------------------------------------------------
+            def regenerate_high_poly_panel(low_poly_group, high_poly_group)
+                return if @regenerating                                              # Prevent recursive regeneration
+                
+                @regenerating = true                                                 # Set flag to prevent loops
+                model = Sketchup.active_model                                        # Get active model
+                
+                model.start_operation("Update Window Panel", true)                   # Start operation
+                
+                begin
+                    # Temporarily disable observers during regeneration
+                    disable_observers_temporarily
+                    
+                    # Clear existing high poly geometry
+                    high_poly_group.entities.clear!                                 # Remove all entities
+                    
+                    # Create new tool instance to rebuild (using same approach as original observer)
+                    tool = WindowPanelSketcherTool.new                              # Create tool instance
+                    tool.instance_variable_set(:@low_poly_group, low_poly_group)
+                    tool.instance_variable_set(:@high_poly_group, high_poly_group)
+                    
+                    # Analyze low poly and rebuild high poly
+                    panel_data = tool.send(:analyze_low_poly_panel)                 # Analyze low poly
+                    tool.instance_variable_set(:@panel_data, panel_data)            # Set panel data
+                    
+                    # Detect panel orientation from first face normal
+                    first_face = low_poly_group.entities.grep(Sketchup::Face).first
+                    if first_face
+                        normal = first_face.normal                                   # Get face normal
+                        # Determine which axis the panel faces
+                        if normal.parallel?(Z_AXIS) || normal.parallel?(Z_AXIS.reverse)
+                            panel_data[:orientation] = :horizontal                   # Facing up/down
+                            panel_data[:normal_axis] = :z
+                        elsif normal.parallel?(Y_AXIS) || normal.parallel?(Y_AXIS.reverse)
+                            panel_data[:orientation] = :vertical_y                   # Facing front/back
+                            panel_data[:normal_axis] = :y
+                        else
+                            panel_data[:orientation] = :vertical_x                   # Facing left/right
+                            panel_data[:normal_axis] = :x
+                        end
+                    end
+                    
+                    # Rebuild geometry
+                    entities = high_poly_group.entities                             # Get group entities
+                    tool.send(:create_outer_frame, entities)                        # Create frame
+                    tool.send(:create_glazing_divisions, entities)                  # Create glazing bars
+                    tool.send(:create_glass_panels, entities)                       # Create glass panels
+                    tool.send(:create_frame_group, entities)                        # Group frame elements
+                    tool.send(:apply_materials_to_high_poly)                        # Apply materials
+                    
+                    # Update timestamp
+                    current_time = Time.now.to_f                                    # Get current timestamp
+                    high_poly_group.set_attribute("window_panel_sketcher", "last_generated", current_time)
+                    
+                    model.commit_operation                                          # Commit changes
+                    
+                    puts "\n=== WINDOW PANEL UPDATE COMPLETE ==="
+                    puts "Successfully regenerated high poly panel from: #{low_poly_group.name}"
+                    puts "============================================\n"
+                    
+                rescue => e
+                    model.abort_operation                                           # Abort on error
+                    puts "Error updating window panel: #{e.message}"               # Log error
+                    puts e.backtrace.first(3).join("\n")                          # Log stack trace
+                ensure
+                    @regenerating = false                                           # Always reset flag
+                    re_enable_observers                                             # Re-enable observers
+                end
+            end
+            # ------------------------------------------------------------
+            
+            # HELPER FUNCTION | Temporarily Disable Observers
+            # ------------------------------------------------------------
+            def disable_observers_temporarily
+                # Store current observer states if needed
+                # For now, we'll rely on the @regenerating flag
+            end
+            # ------------------------------------------------------------
+            
+            # HELPER FUNCTION | Re-enable Observers  
+            # ------------------------------------------------------------
+            def re_enable_observers
+                # Re-enable observers if we disabled them
+                # For now, we'll rely on the @regenerating flag
+            end
+            # ------------------------------------------------------------
+            
+            # SUB FUNCTION | Clean Up Deleted Groups
+            # ------------------------------------------------------------
+            def cleanup_deleted_groups
+                @tracked_groups.delete_if do |group_name, group_pair|
+                    # Remove entries where either group has been deleted
+                    if !group_pair[:low_poly].valid? || !group_pair[:high_poly].valid?
+                        puts "Removing deleted group pair: #{group_name}"            # Debug log
+                        
+                        # Clean up observers from low poly group if it still exists
+                        if group_pair[:low_poly].valid?
+                            cleanup_group_observers(group_pair[:low_poly])
+                        end
+                        
+                        true                                                         # Remove from hash
+                    else
+                        false                                                        # Keep in hash
+                    end
+                end
+            end
+            # ------------------------------------------------------------
+            
+            # HELPER FUNCTION | Clean Up Observers from a Group
+            # ------------------------------------------------------------
+            def cleanup_group_observers(group)
+                return unless group.valid?
+                
+                # Remove entity observer
+                entity_observer = group.get_attribute("window_panel_sketcher", "entity_observer")
+                if entity_observer
+                    begin
+                        group.remove_observer(entity_observer)
+                        puts "Removed EntityObserver from #{group.name}"
+                    rescue => e
+                        puts "Error removing entity observer: #{e.message}"
+                    end
+                end
+                
+                # Remove entities observer
+                entities_observer = group.get_attribute("window_panel_sketcher", "entities_observer")
+                if entities_observer
+                    begin
+                        group.entities.remove_observer(entities_observer)
+                        puts "Removed EntitiesObserver from #{group.name}"
+                    rescue => e
+                        puts "Error removing entities observer: #{e.message}"
+                    end
+                end
+                
+                # Clear attributes
+                group.delete_attribute("window_panel_sketcher", "entity_observer")
+                group.delete_attribute("window_panel_sketcher", "entities_observer")
+            end
+            # ------------------------------------------------------------
+            
+        end # class WindowPanelModelObserver
+        # ------------------------------------------------------------
+    
+        # CLASS | Entity Observer for Low Poly Group Modification Detection
+        # ------------------------------------------------------------
+        class WindowPanelEntityObserver < Sketchup::EntityObserver
+            
+            # SUB FUNCTION | Initialize Observer with Group Reference
+            # ------------------------------------------------------------
+            def initialize(low_poly_group)
+                @low_poly_group = low_poly_group                                     # Store group reference
+                puts "EntityObserver attached to: #{@low_poly_group.name}"          # Debug log
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Handle Entity Changes
+            # ------------------------------------------------------------
+            def onChangeEntity(entity)
+                return unless entity == @low_poly_group                             # Only process our group
+                return unless entity.valid?                                         # Make sure group is still valid
+                return if regenerating?                                              # Skip during regeneration
+                
+                # Update modification timestamp
+                current_time = Time.now.to_f                                        # Get current timestamp  
+                @low_poly_group.set_attribute("window_panel_sketcher", "last_modified", current_time)
+                puts "Updated modification timestamp for: #{@low_poly_group.name}"  # Debug log
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Handle Entity Deletion
+            # ------------------------------------------------------------
+            def onEraseEntity(entity)
+                # Notify global observer to clean up
+                observer = WindowPanelSketcher.get_global_observer
+                observer.cleanup_deleted_groups if observer
+                puts "Low poly group erased: #{entity.name}"                        # Debug log
+            end
+            # ------------------------------------------------------------
+            
+            # HELPER FUNCTION | Check if Currently Regenerating
+            # ------------------------------------------------------------
+            def regenerating?
+                # Check global observer's regenerating flag
+                observer = WindowPanelSketcher.get_global_observer
+                observer.instance_variable_get(:@regenerating) || false
+            end
+            # ------------------------------------------------------------
+            
+        end # class WindowPanelEntityObserver
+        # ------------------------------------------------------------
+    
+        # CLASS | Entities Observer for Low Poly Group Content Changes
+        # ------------------------------------------------------------
+        class WindowPanelEntitiesObserver < Sketchup::EntitiesObserver
+            
+            # SUB FUNCTION | Initialize Observer with Group Reference
+            # ------------------------------------------------------------
+            def initialize(low_poly_group)
+                @low_poly_group = low_poly_group                                     # Store group reference
+                @change_count = 0                                                    # Track number of changes
+                @last_update_time = Time.now.to_f                                   # Track last update
+                puts "EntitiesObserver attached to entities of: #{@low_poly_group.name}" # Debug log
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Handle Element Added to Group
+            # ------------------------------------------------------------
+            def onElementAdded(entities, entity)
+                return if regenerating?                                              # Skip during regeneration
+                @change_count += 1                                                   # Increment change counter
+                schedule_timestamp_update                                            # Schedule update
+                puts "Element added to #{@low_poly_group.name} - change #{@change_count}" # Debug log
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Handle Element Removed from Group
+            # ------------------------------------------------------------
+            def onElementRemoved(entities, entity)
+                return if regenerating?                                              # Skip during regeneration
+                @change_count += 1                                                   # Increment change counter
+                schedule_timestamp_update                                            # Schedule update
+                puts "Element removed from #{@low_poly_group.name} - change #{@change_count}" # Debug log
+            end
+            # ------------------------------------------------------------
+            
+            # FUNCTION | Handle Element Modified in Group
+            # ------------------------------------------------------------
+            def onElementModified(entities, entity)
+                return if regenerating?                                              # Skip during regeneration
+                @change_count += 1                                                   # Increment change counter
+                schedule_timestamp_update                                            # Schedule update
+                puts "Element modified in #{@low_poly_group.name} - change #{@change_count}" # Debug log
+            end
+            # ------------------------------------------------------------
+            
+            # HELPER FUNCTION | Check if Currently Regenerating
+            # ------------------------------------------------------------
+            def regenerating?
+                # Check global observer's regenerating flag
+                observer = WindowPanelSketcher.get_global_observer
+                observer.instance_variable_get(:@regenerating) || false
+            end
+            # ------------------------------------------------------------
+            
+            # HELPER FUNCTION | Schedule Timestamp Update (Debounced)
+            # ------------------------------------------------------------
+            def schedule_timestamp_update
+                return unless @low_poly_group.valid?                                # Make sure group is still valid
+                
+                # Only update timestamp after a batch of changes
+                current_time = Time.now.to_f
+                time_since_last = current_time - @last_update_time
+                
+                # If it's been more than 0.5 seconds, update immediately
+                if time_since_last > 0.5
+                    update_modification_timestamp
+                    @last_update_time = current_time
+                    @change_count = 0
+                end
+            end
+            # ------------------------------------------------------------
+            
+            # HELPER FUNCTION | Update Modification Timestamp
+            # ------------------------------------------------------------
+            def update_modification_timestamp
+                return unless @low_poly_group.valid?                                # Make sure group is still valid
+                
+                current_time = Time.now.to_f                                        # Get current timestamp
+                @low_poly_group.set_attribute("window_panel_sketcher", "last_modified", current_time)
+                puts "Timestamp updated for #{@low_poly_group.name} after #{@change_count} changes"
+            end
+            # ------------------------------------------------------------
+            
+        end # class WindowPanelEntitiesObserver
+        # ------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Tool Registration and Menu Items
+    # -----------------------------------------------------------------------------
+    
+        # FUNCTION | Register Tool with SketchUp
+        # ------------------------------------------------------------
+        def self.activate_window_panel_sketcher
+            Sketchup.active_model.tools.push_tool(WindowPanelSketcherTool.new)   # Activate tool
+        end
+        # ------------------------------------------------------------
+        
+        # FUNCTION | Add Menu Item to ValeDesignSuite
+        # ------------------------------------------------------------
+        def self.add_menu_items
+            # This would typically be called from the main ValeDesignSuite loader
+            # For standalone testing, you can add to Extensions menu
+            if defined?(ValeDesignSuite::MENU_ID)
+                menu = UI.menu(ValeDesignSuite::MENU_ID)                         # Get ValeDesignSuite menu
+            else
+                menu = UI.menu("Plugins")                                        # Fallback to Plugins menu
+            end
+            
+            menu.add_item("Window Panel Sketcher") {
+                self.activate_window_panel_sketcher                              # Activate tool
+            }
+            
+            menu.add_separator
+            
+            menu.add_item("Force Update Window Panels") {
+                self.force_update_all_panels                                     # Force update all panels
+            }
+            
+            menu.add_item("Clean Up Window Panel Observers") {
+                self.cleanup_all_observers                                       # Clean up observers
+            }
+        end
+        # ------------------------------------------------------------
+        
+        # FUNCTION | Force Update All Window Panels
+        # ------------------------------------------------------------
+        def self.force_update_all_panels
+            observer = get_global_observer
+            if observer
+                puts "\n=== Forcing update of all window panels ==="
+                observer.check_and_update_panels
+                puts "=== Update complete ===\n"
+            else
+                UI.messagebox("No window panel observer active")
+            end
+        end
+        # ------------------------------------------------------------
+        
+        # FUNCTION | Clean Up All Observers
+        # ------------------------------------------------------------
+        def self.cleanup_all_observers
+            cleanup_global_observer                                              # Clean up deleted groups
+            remove_all_observers                                                 # Remove all observers
+            UI.messagebox("Window panel observers cleaned up")
+        end
+        # ------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    end # module WindowPanelSketcher
+    end # module SketchTools  
+    end # module ValeDesignSuite
+    
+    # Add menu items when file is loaded
+    ValeDesignSuite::SketchTools::WindowPanelSketcher.add_menu_items

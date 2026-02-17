@@ -1,0 +1,414 @@
+# =============================================================================
+# VALEDESIGNSUITE - RAFTER ORIENTATION CORRECTION
+# =============================================================================
+#
+# FILE       : Util__RafterOrientationCorrection.rb
+# NAMESPACE  : ValeDesignSuite
+# MODULE     : RafterAutoOrientFromJSON
+# AUTHOR     : Adam Noble - Noble Architecture
+# PURPOSE    : Automatic Rafter Orientation Correction Based on Proximity Analysis
+# CREATED    : 2025
+#
+# DESCRIPTION:
+# - Loads previously generated JSON data containing rafter, ridge, and perimeter information.
+# - Analyzes each rafter's orientation by comparing Opposite point proximity to Ridge vs Perimeter.
+# - Automatically rotates rafters 180 degrees if Opposite point is closer to Perimeter than Ridge.
+# - Uses Adjacent line midpoint as rotation pivot for accurate geometric transformation.
+# - Supports dry-run mode for preview without modifying the model.
+# - All rotations applied in world space using SketchUp transformation matrices.
+#
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG:
+# 25-Jan-2025 - Version 2.0.0
+# - Complete refactor to ValeDesignSuite coding conventions
+# - Enhanced regional structure with proper function organization
+# - Improved inline documentation and error handling
+# - Added embedded JSON method index for navigation
+# - Enhanced proximity analysis algorithms
+#
+# =============================================================================
+
+require 'json'
+
+module ValeDesignSuite
+  module RafterAutoOrientFromJSON
+
+
+# -----------------------------------------------------------------------------
+# REGION | Embedded JSON Method & Function Index
+# -----------------------------------------------------------------------------
+
+    # EMBEDDED JSON | Script Method & Function Index
+    # ------------------------------------------------------------
+    SCRIPT_METHOD_INDEX = {
+      "script_info" => {
+        "name" => "RafterOrientationCorrection",
+        "version" => "2.0.0",
+        "purpose" => "Automatic rafter orientation correction based on proximity analysis"
+      },
+      "constants" => {
+        "configuration"         => ["PRINT_LOGS", "DRY_RUN", "JSON_PATH"],
+        "tolerances"            => ["PERIM_DIST_TOL_MM", "INCH_PER_MM"],
+        "regex_patterns"        => ["RAFTER_PARENT_RX", "ADJ_CHILD_FOR"]
+      },
+      "helper_functions" => {
+        "file_operations"       => ["load_json"],
+        "data_builders"         => ["perim_vertices", "ridge_segments"],
+        "distance_calculations" => ["nearest_vertex_distance", "nearest_segment_distance", "point_to_segment_distance_2d"],
+        "model_search"          => ["find_group_by_name", "find_descendant_group_with_world_tr"],
+        "geometry_extraction"   => ["adjacent_midpoint_world", "z0_line_endpoints_world"]
+      },
+      "main_functions" => {
+        "entry_point"           => ["run"]
+      }
+    }.freeze
+    # ------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Main Global Scope Constants
+# -----------------------------------------------------------------------------
+
+    # MODULE CONSTANTS | Application Configuration and Control Flags
+    # ------------------------------------------------------------
+    PRINT_LOGS              =   true                                          # <-- Enable console logging for debugging
+    DRY_RUN                 =   false                                         # <-- Preview mode without model changes
+    # ------------------------------------------------------------
+
+
+    # MODULE CONSTANTS | File System Path Configuration
+    # ------------------------------------------------------------
+    JSON_PATH               =   File.join(                                    # <-- Path to proximity finder JSON data
+                                  ENV['APPDATA'], 
+                                  "SketchUp", 
+                                  "SketchUp 2025", 
+                                  "SketchUp",
+                                  "Plugins", 
+                                  "ValeDesignSuite", 
+                                  "Tools_RoofLanternConfigurator",
+                                  "Util__RafterProximityFinderData.json"
+                                )
+    # ------------------------------------------------------------
+
+
+    # MODULE CONSTANTS | Geometric Tolerance and Conversion Factors
+    # ------------------------------------------------------------
+    PERIM_DIST_TOL_MM       =   0.5                                           # <-- Tolerance for point-to-perimeter-vertex snap
+    INCH_PER_MM             =   1.0 / 25.4                                    # <-- Millimeter to inch conversion factor
+    # ------------------------------------------------------------
+
+
+    # MODULE CONSTANTS | Regular Expression Pattern Matching
+    # ------------------------------------------------------------
+    RAFTER_PARENT_RX        =   /^RoofAngleTriangle__StandardRafter-(\d{2})$/ # <-- Parent rafter group pattern
+    ADJ_CHILD_FOR           =   ->(nn) { /^SR#{nn}__2dDatumLine__Adjacent$/ } # <-- Adjacent datum line pattern
+    # ------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Global Helper Functions
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Load JSON Data from File System
+    # ---------------------------------------------------------------
+    def self.load_json(path)
+        return nil unless File.exist?(path)                                    # <-- Check file existence
+        JSON.parse(File.read(path))                                            # <-- Parse JSON content
+    rescue
+        nil                                                                    # <-- Return nil on parsing error
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Data Builder Functions
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Extract Perimeter Vertices from JSON Data
+    # ---------------------------------------------------------------
+    def self.perim_vertices(perim_items)
+        list = []                                                              # <-- Initialize vertex collection
+        perim_items.each do |item|                                             # <-- Process each perimeter item
+          verts = Array(item.dig("Polyline", "vertices"))                      # <-- Extract vertex array
+          verts.each do |v|                                                    # <-- Process each vertex
+            list << Geom::Point3d.new(                                         # <-- Create 3D point
+              v["PosX"].to_f * INCH_PER_MM,                                    # <-- Convert X coordinate to inches
+              v["PosY"].to_f * INCH_PER_MM,                                    # <-- Convert Y coordinate to inches
+              0.0                                                              # <-- Set Z to zero
+            )
+          end
+        end
+        list                                                                   # <-- Return vertex collection
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Extract Ridge Segments from JSON Data
+    # ---------------------------------------------------------------
+    def self.ridge_segments(ridge_items)
+        segs = []                                                              # <-- Initialize segment collection
+        ridge_items.each do |it|                                               # <-- Process each ridge item
+          line = it["Line"]                                                    # <-- Extract line data
+          next unless line                                                     # <-- Skip if no line data
+          s = line["Start"]; e = line["End"]                                   # <-- Extract start and end points
+          next unless s && e                                                   # <-- Skip if incomplete line data
+          a = Geom::Point3d.new(                                               # <-- Create start point
+            s["PosX"].to_f * INCH_PER_MM,                                      # <-- Convert start X to inches
+            s["PosY"].to_f * INCH_PER_MM,                                      # <-- Convert start Y to inches
+            0.0                                                                # <-- Set start Z to zero
+          )
+          b = Geom::Point3d.new(                                               # <-- Create end point
+            e["PosX"].to_f * INCH_PER_MM,                                      # <-- Convert end X to inches
+            e["PosY"].to_f * INCH_PER_MM,                                      # <-- Convert end Y to inches
+            0.0                                                                # <-- Set end Z to zero
+          )
+          segs << [a, b]                                                       # <-- Add segment to collection
+        end
+        segs                                                                   # <-- Return segment collection
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Distance Calculation Functions
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Find Nearest Vertex Distance from Point
+    # ---------------------------------------------------------------
+    def self.nearest_vertex_distance(p, verts)
+        return nil if verts.empty?                                             # <-- Return nil if no vertices
+        verts.map { |q| p.distance(q) }.min                                    # <-- Find minimum distance to vertices
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Find Nearest Segment Distance from Point
+    # ---------------------------------------------------------------
+    def self.nearest_segment_distance(p, segs)
+        return Float::INFINITY if segs.empty?                                  # <-- Return infinity if no segments
+        segs.map { |a, b| point_to_segment_distance_2d(p, a, b) }.min          # <-- Find minimum distance to segments
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Calculate 2D Point to Segment Distance
+    # ---------------------------------------------------------------
+    def self.point_to_segment_distance_2d(p, a, b)
+        ax, ay = a.x, a.y                                                      # <-- Extract segment start coordinates
+        bx, by = b.x, b.y                                                      # <-- Extract segment end coordinates
+        px, py = p.x, p.y                                                      # <-- Extract point coordinates
+
+        vx = bx - ax; vy = by - ay                                             # <-- Calculate segment vector
+        wx = px - ax; wy = py - ay                                             # <-- Calculate point vector
+
+        vlen2 = vx * vx + vy * vy                                              # <-- Calculate segment length squared
+        return p.distance(a) if vlen2 <= 0.0                                   # <-- Return distance to start if degenerate
+
+        t = (wx * vx + wy * vy) / vlen2                                        # <-- Calculate projection parameter
+        t = [[t, 0.0].max, 1.0].min                                            # <-- Clamp parameter to [0,1] range
+
+        cx = ax + t * vx                                                       # <-- Calculate closest point X
+        cy = ay + t * vy                                                       # <-- Calculate closest point Y
+        Math.sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy))              # <-- Return distance to closest point
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Model Search and Discovery Functions
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Find Group by Name in Model Hierarchy
+    # ---------------------------------------------------------------
+    def self.find_group_by_name(entities, name, tr_acc = Geom::Transformation.new)
+        entities.each do |ent|                                                 # <-- Iterate through entities
+          case ent
+          when Sketchup::Group, Sketchup::ComponentInstance                    # <-- Check for group types
+            return ent if ent.is_a?(Sketchup::Group) && ent.name == name      # <-- Return if name matches
+            found = find_group_by_name(ent.definition.entities, name, tr_acc * ent.transformation)  # <-- Recurse into children
+            return found if found                                              # <-- Return if found in children
+          end
+        end
+        nil                                                                    # <-- Return nil if not found
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Find Descendant Group with World Transformation
+    # ---------------------------------------------------------------
+    def self.find_descendant_group_with_world_tr(group, name_rx)
+        stack = [[group.definition.entities, group.transformation]]           # <-- Initialize search stack
+        while (frame = stack.pop)                                              # <-- Process stack frames
+          ents, base_tr = frame                                                # <-- Extract entities and transform
+          ents.each do |ent|                                                   # <-- Iterate through entities
+            next unless ent.is_a?(Sketchup::Group) || ent.is_a?(Sketchup::ComponentInstance)  # <-- Skip non-groups
+            tr = base_tr * ent.transformation                                  # <-- Calculate world transform
+            if ent.is_a?(Sketchup::Group) && ent.name =~ name_rx              # <-- Check for regex match
+              return [ent, tr]                                                 # <-- Return matching group
+            end
+            stack << [ent.definition.entities, tr]                            # <-- Add children to search stack
+          end
+        end
+        [nil, nil]                                                             # <-- Return nil if no match found
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Geometry Extraction Functions
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Calculate Adjacent Line Midpoint in World Space
+    # ---------------------------------------------------------------
+    def self.adjacent_midpoint_world(parent_group, sr_code)
+        rx = ADJ_CHILD_FOR.call(sr_code.gsub(/^SR/, ""))                       # <-- Create regex for adjacent child
+        child, child_tr_world = find_descendant_group_with_world_tr(parent_group, rx)  # <-- Find adjacent child group
+        return nil unless child                                                # <-- Return nil if child not found
+
+        a, b = z0_line_endpoints_world(child, child_tr_world)                  # <-- Extract line endpoints
+        return nil unless a && b                                               # <-- Return nil if endpoints missing
+        Geom::Point3d.new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, 0.0)         # <-- Calculate and return midpoint
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Extract Z=0 Line Endpoints in World Space
+    # ---------------------------------------------------------------
+    def self.z0_line_endpoints_world(group, world_tr)
+        pts = []                                                               # <-- Initialize point collection
+        group.entities.grep(Sketchup::Edge).each do |e|                       # <-- Process all edges in group
+          pts << e.start.position.transform(world_tr)                         # <-- Transform start point to world
+          pts << e.end.position.transform(world_tr)                           # <-- Transform end point to world
+        end
+        z0 = pts.select { |p| p.z.abs <= 0.001 }                              # <-- Filter points at Z=0 plane
+        return [nil, nil] if z0.length < 2                                     # <-- Return nil if insufficient points
+
+        uniq = {}                                                              # <-- Initialize deduplication hash
+        z0.each do |p|                                                         # <-- Process Z=0 points
+          key = [p.x.round(9), p.y.round(9)]                                  # <-- Create deduplication key
+          uniq[key] ||= Geom::Point3d.new(p.x, p.y, 0.0)                      # <-- Store unique point
+        end
+        arr = uniq.values                                                      # <-- Get unique points
+        return [nil, nil] if arr.length < 2                                    # <-- Return nil if insufficient unique points
+
+        best = nil                                                             # <-- Initialize best endpoint pair
+        best_d2 = -1.0                                                         # <-- Initialize best distance squared
+        arr.each_with_index do |a, i|                                          # <-- Iterate through point pairs
+          (i + 1...arr.length).each do |j|                                     # <-- Check all pair combinations
+            b = arr[j]                                                         # <-- Get second point
+            d2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2                         # <-- Calculate distance squared
+            if d2 > best_d2                                                    # <-- Check if best distance so far
+              best_d2 = d2                                                     # <-- Update best distance
+              best = [a, b]                                                    # <-- Update best endpoint pair
+            end
+          end
+        end
+        best || [nil, nil]                                                     # <-- Return best pair or nil
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Entry Point Functions
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Main Entry Point for Rafter Orientation Correction
+    # ------------------------------------------------------------
+    def self.run
+        data = load_json(JSON_PATH)                                            # <-- Load JSON data from file
+        unless data                                                            # <-- Check if data loaded successfully
+          puts "JSON not found at: #{JSON_PATH}" if PRINT_LOGS                # <-- Log missing JSON error
+          return []                                                            # <-- Return empty array on failure
+        end
+
+        rafters  = Array(data.dig("roof_triangles", "items"))                 # <-- Extract rafter data
+        ridges   = Array(data.dig("ridge_beam_datum_lines", "items"))         # <-- Extract ridge data
+        perims   = Array(data.dig("perimeter_outline_datum_lines", "items"))  # <-- Extract perimeter data
+
+        if rafters.empty? || perims.empty?                                     # <-- Check for required data
+          puts "Missing rafters or perimeter in JSON." if PRINT_LOGS          # <-- Log missing data error
+          return []                                                            # <-- Return empty array on failure
+        end
+
+        perim_pts = perim_vertices(perims)                                     # <-- Build perimeter vertex array
+        ridge_segs = ridge_segments(ridges)                                    # <-- Build ridge segment array
+
+        tol_in = PERIM_DIST_TOL_MM * INCH_PER_MM                              # <-- Convert tolerance to inches
+
+        model = Sketchup.active_model                                          # <-- Get active SketchUp model
+        model.start_operation("Rafter Auto Orient From JSON", true)           # <-- Start operation for undo support
+
+        rotated = []                                                           # <-- Initialize rotated rafters list
+
+        rafters.sort_by { |r| r["ParentGroup"].to_s }.each do |r|             # <-- Process rafters in sorted order
+          parent_name = r["ParentGroup"].to_s                                  # <-- Extract parent group name
+          sr_code     = r["SRCode"].to_s                                       # <-- Extract standard rafter code
+          opp_xy      = r.dig("children", "Opposite")                         # <-- Extract opposite coordinates
+          next unless opp_xy                                                   # <-- Skip if no opposite data
+
+          opp_pt = Geom::Point3d.new(                                          # <-- Create opposite point
+            opp_xy["PosX"].to_f * INCH_PER_MM,                                 # <-- Convert X coordinate to inches
+            opp_xy["PosY"].to_f * INCH_PER_MM,                                 # <-- Convert Y coordinate to inches
+            0.0                                                                # <-- Set Z coordinate to zero
+          )
+
+          d_perim = nearest_vertex_distance(opp_pt, perim_pts)                 # <-- Calculate distance to perimeter
+          d_ridge = nearest_segment_distance(opp_pt, ridge_segs)               # <-- Calculate distance to ridge
+
+          needs_flip = d_perim && d_ridge ? (d_perim < d_ridge - tol_in) : false  # <-- Determine if rotation needed
+
+          grp = find_group_by_name(model.entities, parent_name)                # <-- Find rafter group in model
+          unless grp                                                           # <-- Check if group found
+            puts "Skip: Not found #{parent_name}" if PRINT_LOGS               # <-- Log missing group
+            next                                                               # <-- Skip to next rafter
+          end
+
+          if needs_flip                                                        # <-- Check if rotation needed
+            pivot = adjacent_midpoint_world(grp, sr_code)                      # <-- Calculate rotation pivot
+            unless pivot                                                       # <-- Check if pivot found
+              puts "Skip: No Adjacent midpoint for #{parent_name}" if PRINT_LOGS  # <-- Log missing pivot
+              next                                                             # <-- Skip to next rafter
+            end
+
+            unless DRY_RUN                                                     # <-- Check if not dry run
+              rot = Geom::Transformation.rotation(pivot, Z_AXIS, Math::PI)     # <-- Create 180-degree rotation
+              grp.transform!(rot)                                              # <-- Apply rotation to group
+            end
+            rotated << parent_name                                             # <-- Add to rotated list
+            puts "Rotated 180: #{parent_name}" if PRINT_LOGS                  # <-- Log rotation action
+          else
+            puts "No rotate:   #{parent_name}" if PRINT_LOGS                  # <-- Log no rotation needed
+          end
+        end
+
+        DRY_RUN ? model.abort_operation : model.commit_operation              # <-- Commit or abort operation
+        rotated                                                                # <-- Return list of rotated rafters
+    rescue => e
+        Sketchup.active_model.abort_operation                                  # <-- Abort operation on error
+        puts "Error: #{e.class} - #{e.message}\n#{e.backtrace[0..8].join("\n")}"  # <-- Log error details
+        []                                                                     # <-- Return empty array on error
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+  end
+end
+
+# Run when pasted into the Ruby Console
+ValeDesignSuite::RafterAutoOrientFromJSON.run

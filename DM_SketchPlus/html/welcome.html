@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <link type="text/css" rel="StyleSheet" href="css/bootstrap.min.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/main.css"/>
+    <script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+    <script type="text/javascript" src="js/main.js"></script>
+    <style>
+       .header-image {
+           width: 100%;
+       }
+        hr {
+            margin-top: 2px;
+        }
+        .lead {
+            margin-top: 4px;
+        }
+        .list-group {
+            margin-bottom: 8px;
+        }
+        .text-primary img {
+            width: 1.5rem;
+            height: 1.5rem;
+        }
+        .chevron {
+            width: 1rem;
+            height: 1rem;
+        }
+        .list-group a:hover {
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="row no-gutters align-items-center">
+        <div class="col-12">
+            <img class="header-image" src="images/logo.svg">
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-12">
+        <p class="lead">Add the missing tools to SketchUp Pro</p>
+            <a href="#" class="btn btn-lg btn-primary rounded-0 shadow grow" id="website">Get Free Trial</a>
+        </div>
+    </div>
+
+</div>
+<div class="container">
+    <div class="row mt-2">
+        <div class="col">
+            <div class="list-group">
+                <a class="list-group-item d-flex list-group-item-action justify-content-between align-items-center" href="" id="activate">
+                    <div class="d-flex align-items-center grow">
+                        <span class="mb-0 text-primary py-1"><img src="images/id-card.svg"> Activate your License</span>
+                    </div>
+                    <img class="chevron" src="images/chevron-right.svg">
+                </a>
+                <a class="list-group-item d-flex list-group-item-action justify-content-between align-items-center" href="" id="instructor">
+                    <div class="d-flex align-items-center grow">
+                        <span class="mb-0 text-primary py-1"><img src="images/instructor.svg"> Enable the Instructor</span>
+                    </div>
+                    <img class="chevron" src="images/chevron-right.svg">
+                </a>
+                <a class="list-group-item d-flex list-group-item-action justify-content-between align-items-center" href="" id="clickTool">
+                    <div class="d-flex align-items-center grow">
+                        <span class="mb-0 text-primary py-1"><img src="images/hand.svg"> Click a SketchPlus Tool</span>
+                    </div>
+                    <img class="chevron" src="images/chevron-right.svg">
+                </a>
+                <a class="list-group-item d-flex list-group-item-action justify-content-between align-items-center" href="" id="help">
+                    <div class="d-flex align-items-center grow">
+                        <span class="mb-0 text-primary py-1"><img src="images/help.svg"> Help Desk</span>
+                    </div>
+                    <img class="chevron" src="images/chevron-right.svg">
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $("a").click(function() {
+        sketchup.click(this.id);
+    });
+    ready();
+</script>
+</body>
+</html>

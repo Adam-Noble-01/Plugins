@@ -1,0 +1,28 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!--Generator: Xara Designer (www.xara.com), SVG filter version: 6.5.0.21-->
+<svg fill="none" fill-rule="evenodd" stroke="black" stroke-width="0.501" stroke-linejoin="bevel" stroke-miterlimit="10" font-family="Times New Roman" font-size="16" style="font-variant-ligatures:none" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" version="1.1" overflow="visible" width="75pt" height="72pt" viewBox="0 -72 75 72">
+ <defs>
+	</defs>
+ <g id="3 Rectangles Behind Eye" transform="scale(1 -1)">
+  <g id="Group" stroke-linejoin="miter" stroke="#000000" stroke-width="3.75" fill="#ffaf00">
+   <rect x="-8.479" y="-8.103" width="16.959" height="16.206" transform="translate(20.817 21.111) rotate(90)"/>
+   <rect x="-8.574" y="-8.193" width="17.148" height="16.387" transform="translate(51.056 49.075) rotate(90)"/>
+   <rect x="-11.169" y="-10.674" width="22.338" height="21.348" transform="translate(23.556 48.081) rotate(90)"/>
+  </g>
+ </g>
+ <g id="EYE CLOSED" transform="scale(1 -1)">
+  <g id="Group_1" fill-rule="nonzero" stroke-linejoin="miter" stroke="none">
+   <g id="Group_2">
+    <path d="M 18.801,24.557 L 61.125,24.528 L 61.077,25.965 C 56.762,34.078 50.66,39.829 40.16,39.816 C 33.538,39.91 23.084,36.68 18.801,24.557 Z" stroke-width="9.334" fill="#ffffff" marker-start="none" marker-end="none"/>
+    <g id="Group_3">
+     <path d="M 20.463,27.366 C 24.871,33.796 32.12,38.617 40.123,38.456 C 49.18,38.66 57.236,32.4 61.125,24.542 C 56.858,16.961 48.967,10.76 39.942,10.877 C 30.924,10.756 23.035,16.965 18.801,24.557 L 19.163,25.264 C 19.389,25.703 19.822,26.437 20.463,27.366 Z" stroke-width="9.334" fill="#000000" marker-start="none" marker-end="none"/>
+     <path d="M 24.743,23.663 C 28.245,18.798 33.748,14.906 39.945,15.007 C 46.554,14.906 52.355,19.305 55.847,24.627 C 52.602,30.146 46.713,34.474 40.107,34.328 C 33.432,34.458 27.487,30.112 24.095,24.61 L 24.743,23.663 Z" fill="#e1e1e1" stroke-width="9.054" marker-start="none" marker-end="none"/>
+    </g>
+   </g>
+  </g>
+ </g>
+ <g id="Layer 1" transform="scale(1 -1)">
+  <text xml:space="preserve" transform="translate(99.002 63.881) scale(1 -1)" kerning="auto" font-size="7.342" font-family="Arial" fill="#000000" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.375"><tspan x="0" y="0">Unhide All</tspan></text>
+ </g>
+</svg>

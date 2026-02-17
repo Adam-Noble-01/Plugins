@@ -1,0 +1,20 @@
+Extrude Edges by Loft<==>多截面线放样
+Extrude Edges by Loft<==>多截面线放样
+Extrude Edges by Loft: Select Curves... [Double-Click or Press <Enter> to Make Mesh]<==>多截面线放样: 选择曲线... [双击或按<Enter>键生成曲面]
+Segments per Section: <==>每截面段数
+: Please Wait...<==>: 请稍等...
+Mesh Section <==>截面网格 
+ of <==> 之 
+Extrude Edges by Loft: Formatting Mesh - Please Wait...<==>多截面线放样: 正在格式化网格 - 请稍后...
+Extrude Edges by Loft: Orienting Faces - Please Wait...<==>多截面线放样: 正在统一面 - 请稍后...
+Extrude Edges by Loft: Reverse <==>多截面线放样: 是否翻转 
+ Faces ?<==> 个面 ?
+Extrude Edges by Loft: Reversing Face <==>多截面线放样: 正在翻转面 
+Extrude Edges by Loft: Smooth <==>多截面线放样: 是否平滑 
+ Edges ?<==> 条边线 ?
+Extrude Edges by Loft: Smoothing Edge <==>多截面线放样: 正在平滑边线 
+Extrude Edges by Loft: Re-Formatting Mesh - Please Wait...<==>多截面线放样: 正在重新格式化网格 - 请稍后...
+Extrude Edges by Loft: Erase <==>多截面线放样: 是否删除 
+ Original Curves ?<==> 条原始曲线 ?
+Extrude Edges by Loft: Select at Least TWO Curves !<==>多截面线放样: 至少选择两条曲线 !
+: Select Curves: Follow Prompts: to Loft a Mesh...<==>: 选择曲线: 按照提示: 放样截面...

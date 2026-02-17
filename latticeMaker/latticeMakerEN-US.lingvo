@@ -1,0 +1,14 @@
+### Lattice Maker lingvo file ###
+Lattice Maker<==>Lattice Maker
+Lattice Properties<==>Lattice Properties
+<Default><==><Default>
+<None><==><None>
+'Glass'<==>'Glass'
+Width: <==>Width: 
+Depth: <==>Depth: 
+Pane Inset: <==>Pane Inset: 
+Pane Thickness: <==>Pane Thickness: 
+Lattice Material: <==>Lattice Material: 
+Pane Material: <==>Pane Material: 
+Processing<==>Processing
+: Select Faces. Set Parameters. Makes a Lattice...<==>: Select Faces. Set Parameters. Makes a Lattice...

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <link type="text/css" rel="StyleSheet" href="css/main.css"/>
+    <script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+    <script type="text/javascript" src="js/main.js"></script>
+</head>
+<script>
+    var input_ids = [];
+    function display_inputs(input_args) {
+        // input_args = [@types, @labels, @defaults]
+        $('#Content').html(""); // Clear input content
+        input_ids = []; // Clear input ids
+        let types = input_args[0];
+        let labels = input_args[1];
+        let defaults = input_args[2];
+        for (let i = 0; i < types.length; i++) {
+            // TODO: use type to determine which input to add
+            integer_input("input" + i, defaults[i], labels[i]);
+            input_ids.push("input" + i);
+        }
+    }
+
+    // Creates the message box html for the buttons based on type
+    function integer_input(id, value, label) {
+        let elem = $('#Content');
+        let html_str = elem.html();
+        html_str += input_label_html(id, label);
+        html_str += "<input class='input' id='" + id + "' type='number' step='1' min='0' value='" + value + "' >";
+        elem.html(html_str);
+    }
+
+    // Adds the label html for the specified input
+    function input_label_html(id, text) {
+        return "<label>" + text + "</label>";
+    }
+
+    // Returns an array of values for all inputs
+    function return_inputs() {
+        let result = [];
+        for (let i = 0; i < input_ids.length; i++) {
+            let id = input_ids[i];
+            result.push($("#" + id).val());
+        }
+        sketchup.response(result);
+    }
+
+</script>
+<body>
+<div id="Content"></div>
+<div id="submit">
+    <input class="button" type="button" value="Submit" onclick="return_inputs();">
+</div>
+
+<script>
+    sketchup.ready();
+</script>
+</body>
+</html>

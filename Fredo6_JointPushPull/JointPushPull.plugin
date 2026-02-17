@@ -1,0 +1,34 @@
+# Plugin Registration
+# Reserved to the Plugin Developer
+# Copyright © 2012-2025 Fredo6 - Designed and written July 2013 by Fredo6
+
+VERSION = 4.9a
+DATE = 02 Apr 24
+COPYRIGHT = "© 2013-2025"
+LIBFREDO6 = 153
+SKETCHUP_VERSION = 17
+
+CREDITS = Daniel S: for original toolbar icons
+CREDITS = RichOBrien: for toolbar icons in SVG
+CREDITS = a4chitect: for inspiration of Follow mode from his original SmartPushPull plugin
+CREDITS = JQL, eneroth3: for their advice on redesigning the interactive UX
+CREDITS = eneroth3: for suggestion and code for shading wireframe faces
+CREDITS = Tucker Webb: for suggestion of Incremental PushPull and Target Plane feature
+
+NAME = JointPushPull
+DESCRIPTION = Set of Push Pull methods applicable to multiple faces with various options
+CREATOR = Fredo6
+MODULES = F6_JointPushPull
+EXT_LOAD = true
+TOOLBAR = Fredo6_JointPushPull
+
+WEB_SITE_NAME = Sketchucation
+WEB_SITE_LINK = https://sketchucation.com/forums/viewforum.php?f=323
+WEB_SUPPORT_LINK = https://sketchucation.com/plugin/715-jointpushpull
+DONATION = Fredo6 at Paypal
+VIDEO = Overview of JPP Tools ; https://youtu.be/q8pjXKzj4u4
+VIDEO = Common Basic Operations ; https://youtu.be/ccTNwTMkYuE
+VIDEO = Molding ; https://youtu.be/OTBtdbBPhRs
+VIDEO = Trimming and Hole Extrusion ; https://youtu.be/QE8ITVniImM
+
+RUBY_FILES = JointPushPull*

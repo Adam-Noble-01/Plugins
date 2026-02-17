@@ -1,0 +1,11 @@
+Extrude Edges by Offset<==>Extrusiòn de Aristas por Desplazamiento
+Extrude Edges by Offset<==>Extrusiòn de Aristas por Desplazamiento
+: Preselect Edges, Run Tool, Enter Offset, Yes|No Options...<==>: Pre-Seleccionar Aristas, Ejecutar Herramienta, Teclear Desplazamiento, Si|No a Opciones...
+: Offset cannot be 0!<==>: El Desplazamiento No puede ser 0 !!
+: Must Select >=2 Edges!<==>: Debes Seleccionar >=2 Aristas !!
+: Edges must be coplanar!<==>: Las Aristas Seleccionadas deben ser Coplanares !!
+Distance: <==>Distancia: 
+Try again<==>Inténtalo de Nuevo
+Reverse Faces ?<==>¿Deseas Invertir las Caras?
+Erase Coplanar Edges ?<==>¿Deseas Borrar las Aristas Coplanares?
+Explode Group ?<==>¿Deseas Explotar el Grupo?

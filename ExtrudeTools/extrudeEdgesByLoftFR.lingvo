@@ -1,0 +1,23 @@
+Extrude Edges by Loft<==>Extruder des arêtes par profilage entre courbes
+Extrude Edges by Loft<==>Extruder des arêtes par profilage entre courbes
+Extrude Edges by Loft: Select Curves... [Double-Click or Press <Enter> to Make Mesh]<==>Extruder des arêtes par 'Loft': Sélectionnez les courbes... [Double-cliquez ou <Entrée> pour calculer le maillage]
+Segments per Section: <==>Segments par intervalle entre courbes: 
+: Please Wait...<==>: Patientez s'il vous plaît...
+Mesh Section <==>Section du maillage 
+ of <==> de 
+Extrude Edges by Loft: Formatting Mesh - Please Wait...<==>Extruder des arêtes par 'Loft': Mise en forme du maillage - Patientez s'il vous plaît...
+Extrude Edges by Loft: Orienting Faces - Please Wait...<==>Extruder des arêtes par 'Loft': Orientation des faces - Patientez s'il vous plaît...
+Extrude Edges by Loft: Reverse <==>Extruder des arêtes par 'Loft': Voulez-vous inverser 
+ Faces ?<==> faces?
+Extrude Edges by Loft: Reversing Face <==>Extruder des arêtes par 'Loft': Inversion de la face 
+Extrude Edges by Loft: Smooth <==>Extruder des arêtes par 'Loft': Voulez-vous lisser  
+ Edges ?<==> arêtes?
+Extrude Edges by Loft: Smoothing Edge <==>Extruder des arêtes par 'Loft': Lissage de l'arête 
+Extrude Edges by Loft: Re-Formatting Mesh - Please Wait...<==>Extruder des arêtes par 'Loft': Remise en forme du maillage - Patientez s'il vous plaît...
+Extrude Edges by Loft: Erase <==>Extruder des arêtes par 'Loft': Effacer 
+ Original Curves ?<==> courbes originales?
+Extrude Edges by Loft: Select at Least TWO Curves !<==>Extruder des arêtes par 'Loft': Sélectionnez au moins DEUX courbes !
+: Select Curves: Follow Prompts: to Loft a Mesh...<==>: Sélectionnez les courbes: Suivez les instructions: Créer un maillage...
+
+Quad Faces ?<==>Faces quadrilatère ?
+Extrude Edges by Loft: Quad Face <==>Extruder des arêtes par profilage entre courbes: Face quadrilatère 

@@ -1,0 +1,33 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!--Generator: Xara Designer (www.xara.com), SVG filter version: 6.5.0.21-->
+<svg fill="none" fill-rule="evenodd" stroke="black" stroke-width="0.501" stroke-linejoin="bevel" stroke-miterlimit="10" font-family="Times New Roman" font-size="16" style="font-variant-ligatures:none" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" version="1.1" overflow="visible" width="72pt" height="72pt" viewBox="0 -72 72 72">
+ <defs>
+  <linearGradient id="LinearGradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="-30.751" y2="0.001" gradientTransform="translate(53.361 16.553)">
+   <stop offset="0" stop-color="#ffffff"/>
+   <stop offset="1" stop-color="#b2b2b2"/>
+  </linearGradient>
+  <linearGradient id="LinearGradient_1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="33.482" y2="0.468" gradientTransform="translate(20.638 18.762)">
+   <stop offset="0" stop-color="#ffffff"/>
+   <stop offset="1" stop-color="#b2b2b2"/>
+  </linearGradient>
+  <linearGradient id="LinearGradient_2" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="2.615" y2="0" gradientTransform="matrix(0.0650024 -0.997879 1.00191 0.00325012 -0.603 1.351)">
+   <stop offset="0" stop-color="#ffffff"/>
+   <stop offset="1" stop-color="#ffffff"/>
+  </linearGradient>
+ </defs>
+ <g id="Layer 1" transform="scale(1 -1)">
+  <g id="Group" stroke-linejoin="miter" stroke="none">
+   <path d="M 17.441,10.876 L 10.875,17.443 L 10.878,61.125 L 61.124,61.122 L 61.123,10.875 L 17.441,10.876 Z" fill="#000000" stroke-width="0.201" marker-start="none" marker-end="none"/>
+   <path d="M 17.899,12.331 L 12.257,17.975 L 12.259,59.426 L 59.354,59.423 L 59.351,12.329 L 17.899,12.331 Z" fill="#5284f7" stroke-width="0.188" marker-start="none" marker-end="none"/>
+   <rect x="-13.009" y="-19.316" width="26.018" height="38.633" transform="translate(33.959 43.918) rotate(89.9969)" fill="#000000" stroke-width="0.188"/>
+   <rect x="-11.431" y="-17.74" width="22.863" height="35.481" transform="translate(33.959 43.918) rotate(89.9965)" fill="#ffffff" stroke-width="0.188"/>
+   <g id="Group_1" stroke-width="0.188">
+    <path d="M 20.637,12.33 L 20.638,23.674 C 20.638,26.361 22.819,28.543 25.507,28.543 L 50.464,28.541 C 53.15,28.54 55.332,26.359 55.332,23.672 L 55.331,12.328 L 20.637,12.33 Z" fill="#191919" marker-start="none" marker-end="none"/>
+    <path d="M 22.611,12.329 L 22.611,23.014 C 22.611,24.974 24.204,26.57 26.168,26.571 L 49.802,26.57 C 51.765,26.57 53.361,24.974 53.361,23.012 L 53.361,12.328 L 22.611,12.329 Z" marker-start="none" marker-end="none" fill="url(#LinearGradient)"/>
+    <path d="M 49.112,27.029 L 49.113,27.097 C 49.113,27.105 49.119,27.11 49.125,27.11 L 50.576,27.11 C 50.584,27.112 50.59,27.105 50.589,27.099 L 50.59,27.027 C 50.59,27.02 50.582,27.014 50.575,27.014 L 49.125,27.014 C 49.118,27.014 49.113,27.021 49.112,27.029 Z" marker-start="none" marker-end="none" fill="url(#LinearGradient_1)"/>
+   </g>
+   <rect x="-2.917" y="-1.353" width="5.835" height="2.706" transform="translate(57.997 53.686) rotate(90)" stroke-width="0.188" fill="url(#LinearGradient_2)"/>
+  </g>
+ </g>
+</svg>

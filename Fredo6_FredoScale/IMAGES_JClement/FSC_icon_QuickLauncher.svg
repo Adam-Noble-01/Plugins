@@ -1,0 +1,22 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!--Generator: Xara Designer (www.xara.com), SVG filter version: 6.3.0.4-->
+<svg stroke-width="0.501" stroke-linejoin="bevel" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" version="1.1" overflow="visible" width="72pt" height="72pt" viewBox="0 0 72 72">
+ <defs>
+	</defs>
+ <g id="Document" fill="none" stroke="black" font-family="Times New Roman" font-size="16" transform="scale(1 -1)">
+  <g id="Spread" transform="translate(0 -72)">
+   <g id="Layer 1">
+    <path d="M 14.462,8.03 L 63.061,17.33 L 54.961,34.88 L 14.462,8.03 Z" fill="#9e9e9e" stroke="none" stroke-width="0.375" stroke-linejoin="miter" stroke-linecap="round" marker-start="none" marker-end="none" stroke-miterlimit="79.8403193612775"/>
+    <path d="M 8.691,53.795 L 44.776,63.41 L 63.242,28.909 L 15.09,9 L 8.691,53.795 Z" stroke-width="0.188" fill="#ffffff" stroke="#000000" stroke-linejoin="miter" marker-start="none" marker-end="none" stroke-miterlimit="79.8403193612775"/>
+    <path d="M 36.651,40.889 L 43.801,21.743 L 62.151,29.298 L 52.698,47.115 L 36.651,40.889 Z" fill="#009bff" stroke-width="0.375" stroke="#000000" stroke-linejoin="miter" stroke-linecap="round" marker-start="none" marker-end="none" stroke-miterlimit="79.8403193612775"/>
+    <path d="M 34.267,38.688 L 21.539,44.63 L 18.264,39.756 L 11.2,52.217 L 27.424,54.041 L 24.282,48.907 L 37.016,42.963 L 34.267,38.688 Z" stroke-width="0.375" fill="#ff0000" stroke-linecap="round" stroke-linejoin="miter" marker-start="none" marker-end="none" stroke-miterlimit="79.8403193612775"/>
+    <path d="M 14.373,7.743 L 7.7,54.449 L 45.226,64.448 L 63.954,29.457 L 62.953,27.828 L 14.373,7.743 Z M 15.806,10.256 L 61.996,29.354 L 44.325,62.371 L 9.681,53.14 L 15.806,10.256 Z" fill="#000000" stroke="none" fill-rule="evenodd" stroke-width="0.5" marker-start="none" marker-end="none" stroke-miterlimit="79.8403193612775"/>
+    <g id="Group" stroke-linejoin="miter" stroke="none" stroke-width="0.541" stroke-miterlimit="79.8403193612775">
+     <path d="M 44.002,13.682 L 32.641,32.138 L 62.542,32.138 L 63.509,30.366 L 55.188,15.823 L 44.002,13.682 Z" fill="#ffffff" marker-start="none" marker-end="none"/>
+     <path d="M 50.372,7.376 L 64.514,30.366 L 36.219,30.366 L 50.372,7.376 Z" fill="#000000" marker-start="none" marker-end="none"/>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

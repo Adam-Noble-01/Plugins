@@ -1,0 +1,10 @@
+Orienting Faces<==>Orientation des faces
+Extrude Edges by Vector to Object<==>Extruder des arêtes par un vecteur à des objets
+: Reverse Extrusion's Faces ?<==>: Inverser les faces de l'extrusion ?
+: Explode Extrusion's Group ?<==>: Eclater le groupe de l'extrusion ?
+Extrude Edges by Vector to Object: Pick Second Point of Vector...<==>Extruder des arêtes par un vecteur à des objets: Choisissez le deuxième point du vecteur...
+Extrude Edges by Vector to Object: Cannot Convert <==>Extruder des arêtes par un vecteur à des objets: impossible de convertir 
+ to a Length.<==> en une longueur.
+Extrude Edges by Vector to Object: No Edge in Selection.<==>Extruder des arêtes par un vecteur à des objets: Pas d'arêtes dans la sélection.
+Extrude Edges by Vector to Object: Pick First Point of Vector...<==>Extruder des arêtes par un vecteur à des objets: Choisissez le premier point du vecteur...
+: Pre-Select Edges/Curves/Face, Pick Vector Start & End...<==>: Présélectionnez Arêtes/Courbes/Face: Choisissez le début et la fin du vecteur...

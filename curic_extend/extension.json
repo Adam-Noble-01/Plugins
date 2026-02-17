@@ -1,0 +1,6 @@
+{
+  "name": "Curic Extend",
+  "version": "1.0.5",
+  "package": "CURIC::Studio",
+  "require": ["curic_!studio"]
+}

@@ -1,0 +1,16 @@
+"ri.msg.os.not.supported"="이 운영 체제는 Revit 임포터에서 지원되지 않습니다.";
+"ri.msg.su.2023.or.higher"="Revit 임포터를 사용하려면 SketchUp 2023 이상이 필요합니다.\n\n확장 프로그램을 비활성화하거나 플러그인 폴더에서 제거하세요.";
+"ri.msg.su.updated"="SketchUp용 Revit 임포터가 업데이트되었습니다.";
+"ri.title.for.msg"="SketchUp용 Revit 임포터";
+"ri.msg.su.updated.restart"="SketchUp용 Revit 임포터가 업데이트되었습니다. Revit(*.rvt) 프로젝트를 가져오려면 파일 가져오기 메뉴에서 rvt 파일 형식을 선택합니다.\nSketchUp을 다시 시작하세요.";
+"ri.msg.su.installed.restart"="SketchUp용 Revit 임포터가 설치되었습니다. Revit(*.rvt) 프로젝트를 가져오려면 파일 가져오기 메뉴에서 rvt 파일 형식을 선택합니다.\nSketchUp을 다시 시작하세요.";
+"riact.msg.su.2023.or.higher"="Revit 임포터 액티베이터 확장 프로그램을 사용하려면 SketchUp 2023 이상이 필요합니다.\n\n확장 프로그램을 비활성화하거나 플러그인 폴더에서 제거하세요.";
+"riact.msg.not.valid"="Trimble Revit Importer의 라이선스가 유효하지 않습니다.";
+"riact.msg.expired"="Trimble Revit Importer의 라이선스가 만료되었습니다.";
+"riact.msg.activated"="라이선스가 활성화되었습니다.";
+"riact.msg.error"="Trimble Revit Importer를 활성화하는 동안 오류가 발생했습니다. Trimble Revit Importer를 설치하거나 활성화 키가 유효한지 확인하십시오.";
+"riact.title"="트림블 레빗 임포터 오프라인 액티베이터";
+"riact.bar.txt"="트림블 레빗 임포터 오프라인 액티베이터 열기";
+"riact.title.prod.key"="다음 제품 키를 Trimble 리셀러 또는 연락처로 보내주십시오.";
+"riact.title.lic.key"="아래 텍스트 영역에 활성화 키를 붙여넣으세요.";
+"riact.msg.exp.date"="라이선스가 %s에서 만료됩니다.";

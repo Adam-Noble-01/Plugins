@@ -1,0 +1,1016 @@
+# -----------------------------------------------------------------------------
+# Tools_DrawBitmapAlongFaceEdges__UvApplyAlongsideLongEdgeVersion.rb
+# Creates unique textures with black perimeter lines on selected faces
+# Author: Vale Design Suite
+# Ruby API: 2025
+# -----------------------------------------------------------------------------
+
+require 'sketchup.rb'
+
+module ValeDesignSuite
+module DrawBitmapAlongFaceEdges
+
+    # -----------------------------------------------------------------------------
+    # REGION | Configuration
+    # -----------------------------------------------------------------------------
+    
+    MAX_GROUPS_ALLOWED   = 50                                            # <-- Max groups to process at once
+    MAX_FACES_ALLOWED    = 100                                           # <-- Max faces per group (prevent hangs/crashes)
+    DEBUG_MODE           = true                                          # <-- Speeds up processing by skipping debug prints
+    SKETCHYNESS_MODIFIER = 30                                            # <-- 0-100 percentage for hand-drawn effect (0=straight, 100=very sketchy)
+    LINE_JITTER_MODIFIER = 50                                            # <-- 0-100 percentage for line jitter effect (0=no jitter, 100=very jittery)
+    LINE_BLUR_MODIFIER   = 50                                            # <-- 0-100 percentage for line blur effect (0=no blur, 100=very blurry) Applies Gaussian blur effect to the line as a final step
+    
+    # Wave Jitter Parameters
+    JITTER_WAVELENGTH         = 400.0                                    # <-- Wave wavelength in mm
+    JITTER_MAX_AMPLITUDE      = 10.0                                     # <-- Max wave amplitude in mm at 100%
+    JITTER_SECONDARY_RATIO    = 0.2                                      # <-- Secondary wave amplitude (20% of primary)
+    JITTER_PHASE_OFFSET       = Math::PI / 3                             # <-- Phase offset for secondary wave (60 degrees)
+    JITTER_WAVELENGTH_VARIANCE = 0.05                                    # <-- Random wavelength variation (±5%)
+    JITTER_AMPLITUDE_VARIANCE  = 0.10                                    # <-- Random amplitude variation (±10%)
+    
+    # endregion -------------------------------------------------------------------
+    
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Main Entry Point
+    # -----------------------------------------------------------------------------
+    
+    # FUNCTION | Main entry point - Apply border textures to selected faces or groups
+    # ------------------------------------------------------------------------
+    def self.apply_border_textures
+        model = Sketchup.active_model
+        selection = model.selection
+        
+        # Check for groups/components first, then faces
+        groups = selection.grep(Sketchup::Group) + selection.grep(Sketchup::ComponentInstance)
+        faces = selection.grep(Sketchup::Face)
+        
+        # Determine processing mode
+        if groups.any?
+            process_groups_mode(model, groups)
+        elsif faces.any?
+            process_faces_mode(model, faces)
+        else
+            UI.messagebox("Please select one or more groups/components or faces.")
+            return
+        end
+    end
+    # ------------------------------------------------------------------------
+    
+    # FUNCTION | Process groups/components mode
+    # ------------------------------------------------------------------------
+    def self.process_groups_mode(model, groups)
+        # Check group count limit
+        if groups.length > MAX_GROUPS_ALLOWED
+            result = UI.messagebox(
+                "You have selected #{groups.length} groups. For performance reasons, this tool is limited to #{MAX_GROUPS_ALLOWED} groups at a time.\n\n" +
+                "Only the first #{MAX_GROUPS_ALLOWED} groups will be processed.\n\n" +
+                "Continue?",
+                MB_OKCANCEL
+            )
+            return if result == IDCANCEL
+            groups = groups.take(MAX_GROUPS_ALLOWED)
+        end
+        
+        # Prompt for border thickness in millimeters
+        prompts = ["Border Thickness (mm):"]
+        defaults = ["10"]
+        input = UI.inputbox(prompts, defaults, "Border Texture Settings")
+        
+        return unless input
+        
+        border_thickness_mm = input[0].to_f
+        
+        if border_thickness_mm <= 0
+            UI.messagebox("Border thickness must be greater than 0.")
+            return
+        end
+        
+        # Process each group
+        model.start_operation('Apply Border Textures to Groups', true)
+        
+        # Collect all faces from all groups first
+        all_faces = []
+        groups.each do |group|
+            group_faces = extract_faces_from_group(group)
+            if group_faces.length > MAX_FACES_ALLOWED
+                group_faces = group_faces.take(MAX_FACES_ALLOWED)
+            end
+            all_faces.concat(group_faces)
+        end
+        
+        # Calculate global pixels-per-mm ratio
+        pixels_per_mm = calculate_global_pixels_per_mm(all_faces)
+        
+        unless pixels_per_mm
+            UI.messagebox("Error calculating global scale. Please check your selection.")
+            model.abort_operation
+            return
+        end
+        
+        total_success = 0
+        total_faces = 0
+        face_index = 0
+        
+        groups.each_with_index do |group, group_index|
+            puts "\n=== Processing Group #{group_index + 1} of #{groups.length} ===" if DEBUG_MODE
+            
+            # Extract faces from group
+            group_faces = extract_faces_from_group(group)
+            
+            if group_faces.empty?
+                puts "  Group #{group_index + 1} contains no faces, skipping..." if DEBUG_MODE
+                next
+            end
+            
+            # Apply face limit per group
+            if group_faces.length > MAX_FACES_ALLOWED
+                puts "  Warning: Group #{group_index + 1} has #{group_faces.length} faces. Limiting to #{MAX_FACES_ALLOWED}." if DEBUG_MODE
+                group_faces = group_faces.take(MAX_FACES_ALLOWED)
+            end
+            
+            puts "  Found #{group_faces.length} face(s) in group #{group_index + 1}" if DEBUG_MODE
+            
+            # Process each face in the group
+            group_faces.each_with_index do |face, face_idx|
+                puts "  Processing face #{face_idx + 1} of #{group_faces.length}..." if DEBUG_MODE
+                
+                begin
+                    create_and_apply_border_texture(face, border_thickness_mm, face_index, pixels_per_mm)
+                    total_success += 1
+                rescue => e
+                    if DEBUG_MODE
+                        puts "  Error processing face #{face_idx + 1}: #{e.message}"
+                        puts e.backtrace.join("\n")
+                    end
+                end
+                
+                total_faces += 1
+                face_index += 1
+            end
+        end
+        
+        model.commit_operation
+        
+        UI.messagebox("Successfully applied border textures to #{total_success} of #{total_faces} face(s) across #{groups.length} group(s).")
+    end
+    # ------------------------------------------------------------------------
+    
+    # FUNCTION | Process direct face selection mode
+    # ------------------------------------------------------------------------
+    def self.process_faces_mode(model, faces)
+        # Check face count limit
+        if faces.length > MAX_FACES_ALLOWED
+            result = UI.messagebox(
+                "You have selected #{faces.length} faces. For performance reasons, this tool is limited to #{MAX_FACES_ALLOWED} faces at a time.\n\n" +
+                "Only the first #{MAX_FACES_ALLOWED} faces will be processed.\n\n" +
+                "Continue?",
+                MB_OKCANCEL
+            )
+            return if result == IDCANCEL
+            faces = faces.take(MAX_FACES_ALLOWED)
+        end
+        
+        # Prompt for border thickness in millimeters
+        prompts = ["Border Thickness (mm):"]
+        defaults = ["10"]
+        input = UI.inputbox(prompts, defaults, "Border Texture Settings")
+        
+        return unless input
+        
+        border_thickness_mm = input[0].to_f
+        
+        if border_thickness_mm <= 0
+            UI.messagebox("Border thickness must be greater than 0.")
+            return
+        end
+        
+        # Process each face one at a time
+        model.start_operation('Apply Border Textures', true)
+        
+        # Calculate global pixels-per-mm ratio
+        pixels_per_mm = calculate_global_pixels_per_mm(faces)
+        
+        unless pixels_per_mm
+            UI.messagebox("Error calculating global scale. Please check your selection.")
+            model.abort_operation
+            return
+        end
+        
+        success_count = 0
+        
+        faces.each_with_index do |face, index|
+            puts "Processing face #{index + 1} of #{faces.length}..." if DEBUG_MODE
+            
+            begin
+                create_and_apply_border_texture(face, border_thickness_mm, index, pixels_per_mm)
+                success_count += 1
+            rescue => e
+                if DEBUG_MODE
+                    puts "Error processing face #{index + 1}: #{e.message}"
+                    puts e.backtrace.join("\n")
+                end
+            end
+        end
+        
+        model.commit_operation
+        
+        UI.messagebox("Successfully applied border textures to #{success_count} of #{faces.length} face(s).")
+    end
+    # ------------------------------------------------------------------------
+    
+    # FUNCTION | Extract all faces from a group or component instance
+    # ------------------------------------------------------------------------
+    def self.extract_faces_from_group(group)
+        faces = []
+        
+        # Get the definition entities
+        entities = if group.is_a?(Sketchup::Group)
+            group.entities
+        elsif group.is_a?(Sketchup::ComponentInstance)
+            group.definition.entities
+        else
+            return faces
+        end
+        
+        # Collect all faces (recursively handle nested groups if needed)
+        entities.each do |entity|
+            if entity.is_a?(Sketchup::Face)
+                faces << entity
+            elsif entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+                # Recursively get faces from nested groups
+                faces.concat(extract_faces_from_group(entity))
+            end
+        end
+        
+        faces
+    end
+    # ------------------------------------------------------------------------
+    
+    # FUNCTION | Calculate global pixels-per-mm ratio for consistent scaling
+    # ------------------------------------------------------------------------
+    def self.calculate_global_pixels_per_mm(all_faces)
+        return nil if all_faces.empty?
+        
+        max_width = 0.0
+        max_height = 0.0
+        
+        # Find maximum dimensions across all faces
+        all_faces.each do |face|
+            face_data = extract_face_coordinates(face)
+            next unless face_data
+            
+            max_width = [max_width, face_data[:width]].max
+            max_height = [max_height, face_data[:height]].max
+        end
+        
+        return nil if max_width == 0.0 || max_height == 0.0
+        
+        # Calculate texture size for largest dimension at 72 DPI
+        pixels_per_inch = 72
+        max_tex_width = (max_width * pixels_per_inch).to_i
+        max_tex_height = (max_height * pixels_per_inch).to_i
+        
+        # Calculate scale factor if texture exceeds 2048px limit
+        max_size = 2048
+        scale = 1.0
+        if max_tex_width > max_size || max_tex_height > max_size
+            scale = [max_tex_width.to_f / max_size, max_tex_height.to_f / max_size].max
+        end
+        
+        # Calculate global pixels per mm
+        mm_per_inch = 25.4
+        pixels_per_mm = (pixels_per_inch / scale) / mm_per_inch
+        
+        if DEBUG_MODE
+            puts "\n=== Global Scale Calculation ==="
+            puts "  Max dimensions: #{(max_width * 25.4).round(1)}mm x #{(max_height * 25.4).round(1)}mm"
+            puts "  Scale factor: #{scale.round(3)}x"
+            puts "  Pixels per mm: #{pixels_per_mm.round(3)}"
+        end
+        
+        pixels_per_mm
+    end
+    # ------------------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Face Processing
+    # -----------------------------------------------------------------------------
+    
+    # FUNCTION | Create and apply border texture to a single face
+    # ------------------------------------------------------------------------
+    def self.create_and_apply_border_texture(face, border_thickness_mm, face_index, pixels_per_mm)
+        # Extract face coordinates and calculate proper dimensions
+        face_data = extract_face_coordinates(face)
+        
+        return unless face_data
+        
+        # Convert dimensions to mm
+        mm_per_inch = 25.4
+        face_width_mm = face_data[:width] * mm_per_inch
+        face_height_mm = face_data[:height] * mm_per_inch
+        
+        # Calculate texture size using global pixels_per_mm ratio
+        tex_width = [(face_width_mm * pixels_per_mm).to_i, 64].max
+        tex_height = [(face_height_mm * pixels_per_mm).to_i, 64].max
+        
+        # Calculate border thickness in pixels using global ratio
+        border_px = [border_thickness_mm * pixels_per_mm, 1.0].max  # <-- Min 1 pixel
+        
+        if DEBUG_MODE
+            puts "  Face dimensions: #{face_width_mm.round(1)}mm x #{face_height_mm.round(1)}mm"
+            puts "  Texture size: #{tex_width} x #{tex_height} px"
+            puts "  Border: #{border_thickness_mm}mm → #{border_px.round(1)} px"
+            puts "  Sketchyness: #{SKETCHYNESS_MODIFIER}%" if SKETCHYNESS_MODIFIER > 0
+            puts "  Wave Jitter: #{LINE_JITTER_MODIFIER}% (#{JITTER_WAVELENGTH}mm wavelength)" if LINE_JITTER_MODIFIER > 0
+            puts "  Blur: #{LINE_BLUR_MODIFIER}% (#{(LINE_BLUR_MODIFIER / 100.0 * 3.0).round(1)}px radius)" if LINE_BLUR_MODIFIER > 0
+        end
+        
+        # Create the bitmap with actual edge geometry
+        image_path = create_border_bitmap(tex_width, tex_height, border_px, face_index, face_data, pixels_per_mm)
+        
+        # Create material and apply to face with proper UV mapping
+        apply_texture_to_face(face, image_path, face_data)
+        
+        # Clean up temporary file
+        File.delete(image_path) if File.exist?(image_path)
+    end
+    # ------------------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Geometry Extraction
+    # -----------------------------------------------------------------------------
+    
+    # FUNCTION | Extract face coordinates and calculate dimensions
+    # ------------------------------------------------------------------------
+    def self.extract_face_coordinates(face)
+        # Get the outer loop vertices
+        vertices = face.outer_loop.vertices
+        points = vertices.map(&:position)
+        
+        return nil if points.length < 3
+        
+        # Create a transformation to flatten the face to 2D
+        # Get face normal and arbitrary axes
+        normal = face.normal
+        
+        # Create local coordinate system
+        # Pick a vertex as origin
+        origin = points[0]
+        
+        # Find longest edge to establish primary axis direction
+        # This works for both regular and irregular faces
+        longest_edge = nil
+        longest_length = 0
+        
+        vertices.each_with_index do |v, i|
+            next_v = vertices[(i + 1) % vertices.length]
+            edge_vector = next_v.position - v.position
+            edge_length = edge_vector.length
+            
+            if edge_length > longest_length
+                longest_length = edge_length
+                longest_edge = edge_vector
+            end
+        end
+        
+        # Use longest edge direction as X axis
+        x_axis = longest_edge
+        x_axis.normalize!
+        
+        # Y axis is perpendicular to both X and normal
+        y_axis = normal.cross(x_axis)
+        y_axis.normalize!
+        
+        # Transform all points to 2D local coordinates
+        points_2d = points.map do |pt|
+            vec = pt - origin
+            x = vec.dot(x_axis)
+            y = vec.dot(y_axis)
+            [x, y]
+        end
+        
+        # Find bounds in 2D
+        min_x = points_2d.map { |p| p[0] }.min
+        max_x = points_2d.map { |p| p[0] }.max
+        min_y = points_2d.map { |p| p[1] }.min
+        max_y = points_2d.map { |p| p[1] }.max
+        
+        width = max_x - min_x
+        height = max_y - min_y
+        
+        {
+            origin: origin,
+            x_axis: x_axis,
+            y_axis: y_axis,
+            width: width,
+            height: height,
+            min_x: min_x,
+            min_y: min_y,
+            max_x: max_x,
+            max_y: max_y,
+            points_2d: points_2d                                         # <-- Face vertices in 2D
+        }
+    end
+    # ------------------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Sketch Effect
+    # -----------------------------------------------------------------------------
+    
+    # FUNCTION | Apply hand-drawn sketchyness effect to a line
+    # ------------------------------------------------------------------------
+    def self.apply_sketchyness_to_line(x0, y0, x1, y1, border_thickness)
+        return [[x0, y0], [x1, y1]] if SKETCHYNESS_MODIFIER <= 0        # <-- No effect if disabled
+        
+        # Calculate line length and direction
+        dx = x1 - x0
+        dy = y1 - y0
+        length = Math.sqrt(dx * dx + dy * dy)
+        
+        return [[x0, y0], [x1, y1]] if length == 0                      # <-- Zero-length line
+        
+        # Calculate perpendicular direction for wobble
+        perp_x = -dy / length
+        perp_y = dx / length
+        
+        # Calculate wobble amplitude based on sketchyness modifier and border thickness
+        # More sketchy = more deviation from straight line
+        max_deviation = (SKETCHYNESS_MODIFIER / 100.0) * border_thickness * 0.8
+        
+        # Create segments along the line with random offsets
+        # Segment every ~5-10 pixels for natural hand-drawn look
+        segment_length = [5 + rand(5), length / 2].min.to_f
+        num_segments = [2, (length / segment_length).ceil].max
+        
+        points = []
+        points << [x0, y0]                                               # <-- Start point
+        
+        # Add intermediate points with random perpendicular offsets
+        (1...num_segments).each do |i|
+            t = i.to_f / num_segments
+            
+            # Base position along line
+            base_x = x0 + dx * t
+            base_y = y0 + dy * t
+            
+            # Random perpendicular offset (wobble)
+            offset = (rand() - 0.5) * 2 * max_deviation
+            
+            # Apply offset
+            wobble_x = base_x + perp_x * offset
+            wobble_y = base_y + perp_y * offset
+            
+            points << [wobble_x.round, wobble_y.round]
+        end
+        
+        points << [x1, y1]                                               # <-- End point
+        
+        points
+    end
+    # ------------------------------------------------------------------------
+    
+    # FUNCTION | Apply wave-based jitter effect to a line
+    # ------------------------------------------------------------------------
+    def self.apply_jitter_to_line(x0, y0, x1, y1, border_thickness, face_data, pixels_per_mm, width, height)
+        return [[x0, y0], [x1, y1]] if LINE_JITTER_MODIFIER <= 0        # <-- No effect if disabled
+        
+        # Calculate line length and direction
+        dx = x1 - x0
+        dy = y1 - y0
+        pixel_length = Math.sqrt(dx * dx + dy * dy)
+        
+        return [[x0, y0], [x1, y1]] if pixel_length == 0                # <-- Zero-length line
+        
+        # Calculate perpendicular direction for wave offset
+        perp_x = -dy / pixel_length
+        perp_y = dx / pixel_length
+        
+        # Convert pixel length to real-world mm using global pixels_per_mm
+        line_length_mm = pixel_length / pixels_per_mm
+        
+        # Calculate wave parameters with randomization
+        random_phase = rand() * 2 * Math::PI                             # <-- Random starting phase
+        wavelength_variation = 1.0 + (rand() - 0.5) * 2 * JITTER_WAVELENGTH_VARIANCE
+        amplitude_variation = 1.0 + (rand() - 0.5) * 2 * JITTER_AMPLITUDE_VARIANCE
+        
+        effective_wavelength = JITTER_WAVELENGTH * wavelength_variation
+        
+        # Calculate amplitude based on modifier (0-100% of max 100mm)
+        primary_amplitude_mm = (LINE_JITTER_MODIFIER / 100.0) * JITTER_MAX_AMPLITUDE * amplitude_variation
+        secondary_amplitude_mm = primary_amplitude_mm * JITTER_SECONDARY_RATIO
+        
+        # Convert amplitudes to pixels
+        primary_amplitude_px = primary_amplitude_mm * pixels_per_mm
+        secondary_amplitude_px = secondary_amplitude_mm * pixels_per_mm
+        
+        # Calculate maximum wave extent for edge tapering
+        max_wave_px = primary_amplitude_px + secondary_amplitude_px
+        
+        # Calculate proportional margin (10% of border thickness, minimum 0.5px)
+        margin = [border_thickness * 0.1, 0.5].max
+        
+        # Sample points along the line for smooth wave
+        # Sample at wavelength/20 intervals for smooth curve
+        sample_interval_mm = effective_wavelength / 20.0
+        num_samples = [(line_length_mm / sample_interval_mm).ceil, 2].max
+        
+        points = []
+        
+        (0..num_samples).each do |i|
+            t = i.to_f / num_samples
+            
+            # Base position along line
+            base_x = x0 + dx * t
+            base_y = y0 + dy * t
+            
+            # Distance along line in mm
+            distance_mm = line_length_mm * t
+            
+            # Calculate wave offset using dual sine waves
+            # Primary wave
+            wave_angle_primary = (2.0 * Math::PI * distance_mm / effective_wavelength) + random_phase
+            wave_offset_primary = Math.sin(wave_angle_primary) * primary_amplitude_px
+            
+            # Secondary wave (out of phase)
+            wave_angle_secondary = wave_angle_primary + JITTER_PHASE_OFFSET
+            wave_offset_secondary = Math.sin(wave_angle_secondary) * secondary_amplitude_px
+            
+            # Combine waves
+            total_wave_offset = wave_offset_primary + wave_offset_secondary
+            
+            # Calculate edge tapering based on wave direction, not base position
+            # Project where the wave would push this point
+            test_x = base_x + perp_x * total_wave_offset
+            test_y = base_y + perp_y * total_wave_offset
+            
+            # Calculate how much each edge is exceeded (negative = safe, positive = exceeds)
+            exceed_left = margin - test_x
+            exceed_right = test_x - (width - margin)
+            exceed_top = margin - test_y
+            exceed_bottom = test_y - (height - margin)
+            
+            # Find maximum exceedance
+            max_exceed = [exceed_left, exceed_right, exceed_top, exceed_bottom, 0].max
+            
+            if max_exceed <= 0
+                # Wave doesn't exceed bounds, use full amplitude
+                taper = 1.0
+            else
+                # Wave exceeds bounds, calculate reduction needed
+                # Need to reduce wave amplitude by the exceedance amount
+                max_amplitude = Math.sqrt(total_wave_offset * total_wave_offset)
+                if max_amplitude > 0
+                    safe_amplitude = [max_amplitude - max_exceed, 0].max
+                    taper = safe_amplitude / max_amplitude
+                else
+                    taper = 1.0
+                end
+            end
+            
+            # Apply taper to wave offset
+            tapered_wave_offset = total_wave_offset * taper
+            
+            # Apply perpendicular offset with tapering
+            jittered_x = base_x + perp_x * tapered_wave_offset
+            jittered_y = base_y + perp_y * tapered_wave_offset
+            
+            # CLAMP to face boundaries with proportional margin
+            jittered_x = [[jittered_x, margin].max, width - margin].min
+            jittered_y = [[jittered_y, margin].max, height - margin].min
+            
+            points << [jittered_x.round, jittered_y.round]
+        end
+        
+        points
+    end
+    # ------------------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Bitmap Generation
+    # -----------------------------------------------------------------------------
+    
+    # FUNCTION | Create a white bitmap with black border along actual face edges
+    # ------------------------------------------------------------------------
+    def self.create_border_bitmap(width, height, border_thickness, face_index, face_data, pixels_per_mm)
+        # Create temporary file path
+        temp_dir = Sketchup.temp_dir
+        timestamp = Time.now.to_i
+        image_path = File.join(temp_dir, "border_texture_#{timestamp}_#{face_index}.png")
+        
+        # Transform 2D points to pixel coordinates
+        points_2d = face_data[:points_2d]
+        min_x = face_data[:min_x]
+        min_y = face_data[:min_y]
+        face_width = face_data[:width]
+        face_height = face_data[:height]
+        
+        # Convert face coordinates to pixel coordinates
+        # Note: Flip X-axis to correct UV mapping orientation
+        pixel_points = points_2d.map do |pt|
+            px = (width - ((pt[0] - min_x) / face_width * width)).round   # <-- Flip X (left-right)
+            py = ((pt[1] - min_y) / face_height * height).round
+            [px, py]
+        end
+        
+        # OPTIMIZED: Pre-fill entire bitmap with white in one operation
+        total_pixels = width * height * 4                                # <-- RGBA channels
+        pixels = Array.new(total_pixels, 255)                            # <-- All white
+        
+        # Draw black borders along each edge using efficient line rasterization
+        # Apply jitter and sketchyness effects to create hand-drawn appearance
+        pixel_points.each_with_index do |pt, i|
+            next_pt = pixel_points[(i + 1) % pixel_points.length]
+            
+            # Apply wave jitter first (smooth waves)
+            jittered_points = apply_jitter_to_line(pt[0], pt[1], next_pt[0], next_pt[1], border_thickness, face_data, pixels_per_mm, width, height)
+            
+            # Then apply sketchyness to each jittered segment (random wobble)
+            final_points = []
+            if SKETCHYNESS_MODIFIER > 0
+                (0...jittered_points.length - 1).each do |j|
+                    seg_start = jittered_points[j]
+                    seg_end = jittered_points[j + 1]
+                    sketchy_segment = apply_sketchyness_to_line(seg_start[0], seg_start[1], seg_end[0], seg_end[1], border_thickness)
+                    final_points.concat(sketchy_segment[0...-1])        # <-- Avoid duplicate points
+                end
+                final_points << jittered_points.last
+            else
+                final_points = jittered_points
+            end
+            
+            # Draw each segment of the processed line
+            (0...final_points.length - 1).each do |j|
+                seg_start = final_points[j]
+                seg_end = final_points[j + 1]
+                draw_thick_line(pixels, width, height, seg_start[0], seg_start[1], seg_end[0], seg_end[1], border_thickness)
+            end
+        end
+        
+        # Apply Gaussian blur as final post-processing step
+        if LINE_BLUR_MODIFIER > 0
+            blur_radius = (LINE_BLUR_MODIFIER / 100.0) * 3.0            # <-- Max 3px at 100%
+            pixels = apply_gaussian_blur(pixels, width, height, blur_radius)
+            puts "  Applied #{blur_radius.round(1)}px Gaussian blur" if DEBUG_MODE
+        end
+        
+        # Create ImageRep and write to file
+        begin
+            image_rep = Sketchup::ImageRep.new
+            image_rep.set_data(width, height, 32, 0, pixels.pack('C*'))
+            image_rep.save_file(image_path)
+        rescue => e
+            puts "Error creating bitmap: #{e.message}" if DEBUG_MODE
+            return nil
+        end
+        
+        image_path
+    end
+    # ------------------------------------------------------------------------
+    
+    # FUNCTION | Draw a thick line on pixel array (Bresenham-based with thickness)
+    # ------------------------------------------------------------------------
+    def self.draw_thick_line(pixels, width, height, x0, y0, x1, y1, thickness)
+        # Calculate perpendicular offset for thickness
+        dx = x1 - x0
+        dy = y1 - y0
+        length = Math.sqrt(dx * dx + dy * dy)
+        
+        return if length == 0                                            # <-- Zero-length line
+        
+        # Perpendicular unit vector
+        perp_x = -dy / length
+        perp_y = dx / length
+        
+        # Draw multiple parallel lines to create thickness
+        half_thick = (thickness / 2.0).ceil
+        
+        (-half_thick..half_thick).each do |offset|
+            # Offset line by perpendicular distance
+            ox0 = (x0 + perp_x * offset).round
+            oy0 = (y0 + perp_y * offset).round
+            ox1 = (x1 + perp_x * offset).round
+            oy1 = (y1 + perp_y * offset).round
+            
+            # Draw single-pixel line using Bresenham's algorithm
+            draw_line_bresenham(pixels, width, height, ox0, oy0, ox1, oy1)
+        end
+    end
+    # ------------------------------------------------------------------------
+    
+    # FUNCTION | Draw a single-pixel line using Bresenham's line algorithm
+    # ------------------------------------------------------------------------
+    def self.draw_line_bresenham(pixels, width, height, x0, y0, x1, y1)
+        dx = (x1 - x0).abs
+        dy = (y1 - y0).abs
+        sx = x0 < x1 ? 1 : -1
+        sy = y0 < y1 ? 1 : -1
+        err = dx - dy
+        
+        x = x0
+        y = y0
+        
+        loop do
+            # Set pixel to black if within bounds
+            if x >= 0 && x < width && y >= 0 && y < height
+                idx = (y * width + x) * 4
+                pixels[idx]     = 0                                      # <-- Red
+                pixels[idx + 1] = 0                                      # <-- Green
+                pixels[idx + 2] = 0                                      # <-- Blue
+                # pixels[idx + 3] remains 255 (alpha)
+            end
+            
+            break if x == x1 && y == y1
+            
+            e2 = err * 2
+            if e2 > -dy
+                err -= dy
+                x += sx
+            end
+            if e2 < dx
+                err += dx
+                y += sy
+            end
+        end
+    end
+    # ------------------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Gaussian Blur Effect
+    # -----------------------------------------------------------------------------
+    
+    # FUNCTION | Apply box blur to entire bitmap (Gaussian approximation)
+    # ------------------------------------------------------------------------
+    def self.apply_gaussian_blur(pixels, width, height, blur_radius)
+        return pixels if blur_radius <= 0                                # <-- No blur needed
+        
+        radius = blur_radius.round                                       # <-- Convert to integer
+        
+        # Two-pass box blur (horizontal then vertical) - approximates Gaussian
+        # O(n) complexity independent of radius using running sum technique
+        temp_pixels = blur_horizontal(pixels, width, height, radius)
+        final_pixels = blur_vertical(temp_pixels, width, height, radius)
+        
+        final_pixels
+    end
+    # ------------------------------------------------------------------------
+    
+    # FUNCTION | Apply horizontal blur pass using running sum
+    # ------------------------------------------------------------------------
+    def self.blur_horizontal(pixels, width, height, radius)
+        output = pixels.dup
+        kernel_size = (radius * 2 + 1).to_f
+        
+        # Process each row
+        (0...height).each do |y|
+            # Initialize running sums for this row
+            r_sum = 0
+            g_sum = 0
+            b_sum = 0
+            a_sum = 0
+            
+            # Prime the pump: initialize sum for x=0 position
+            # Kernel covers [max(0-radius,0) .. min(0+radius,width-1)]
+            (-radius..radius).each do |offset|
+                sample_x = [[offset, 0].max, width - 1].min
+                idx = (y * width + sample_x) * 4
+                r_sum += pixels[idx]
+                g_sum += pixels[idx + 1]
+                b_sum += pixels[idx + 2]
+                a_sum += pixels[idx + 3]
+            end
+            
+            # Process each pixel using running sum
+            (0...width).each do |x|
+                # Write averaged pixel for current position
+                out_idx = (y * width + x) * 4
+                output[out_idx]     = (r_sum / kernel_size).round
+                output[out_idx + 1] = (g_sum / kernel_size).round
+                output[out_idx + 2] = (b_sum / kernel_size).round
+                output[out_idx + 3] = (a_sum / kernel_size).round
+                
+                # Update sum for next position (slide window right)
+                if x < width - 1
+                    # Remove pixel leaving the window (left edge)
+                    remove_x = [[x - radius, 0].max, width - 1].min
+                    idx_remove = (y * width + remove_x) * 4
+                    r_sum -= pixels[idx_remove]
+                    g_sum -= pixels[idx_remove + 1]
+                    b_sum -= pixels[idx_remove + 2]
+                    a_sum -= pixels[idx_remove + 3]
+                    
+                    # Add pixel entering the window (right edge)
+                    add_x = [[x + radius + 1, 0].max, width - 1].min
+                    idx_add = (y * width + add_x) * 4
+                    r_sum += pixels[idx_add]
+                    g_sum += pixels[idx_add + 1]
+                    b_sum += pixels[idx_add + 2]
+                    a_sum += pixels[idx_add + 3]
+                end
+            end
+        end
+        
+        output
+    end
+    # ------------------------------------------------------------------------
+    
+    # FUNCTION | Apply vertical blur pass using running sum
+    # ------------------------------------------------------------------------
+    def self.blur_vertical(pixels, width, height, radius)
+        output = pixels.dup
+        kernel_size = (radius * 2 + 1).to_f
+        
+        # Process each column
+        (0...width).each do |x|
+            # Initialize running sums for this column
+            r_sum = 0
+            g_sum = 0
+            b_sum = 0
+            a_sum = 0
+            
+            # Prime the pump: initialize sum for y=0 position
+            # Kernel covers [max(0-radius,0) .. min(0+radius,height-1)]
+            (-radius..radius).each do |offset|
+                sample_y = [[offset, 0].max, height - 1].min
+                idx = (sample_y * width + x) * 4
+                r_sum += pixels[idx]
+                g_sum += pixels[idx + 1]
+                b_sum += pixels[idx + 2]
+                a_sum += pixels[idx + 3]
+            end
+            
+            # Process each pixel using running sum
+            (0...height).each do |y|
+                # Write averaged pixel for current position
+                out_idx = (y * width + x) * 4
+                output[out_idx]     = (r_sum / kernel_size).round
+                output[out_idx + 1] = (g_sum / kernel_size).round
+                output[out_idx + 2] = (b_sum / kernel_size).round
+                output[out_idx + 3] = (a_sum / kernel_size).round
+                
+                # Update sum for next position (slide window down)
+                if y < height - 1
+                    # Remove pixel leaving the window (top edge)
+                    remove_y = [[y - radius, 0].max, height - 1].min
+                    idx_remove = (remove_y * width + x) * 4
+                    r_sum -= pixels[idx_remove]
+                    g_sum -= pixels[idx_remove + 1]
+                    b_sum -= pixels[idx_remove + 2]
+                    a_sum -= pixels[idx_remove + 3]
+                    
+                    # Add pixel entering the window (bottom edge)
+                    add_y = [[y + radius + 1, 0].max, height - 1].min
+                    idx_add = (add_y * width + x) * 4
+                    r_sum += pixels[idx_add]
+                    g_sum += pixels[idx_add + 1]
+                    b_sum += pixels[idx_add + 2]
+                    a_sum += pixels[idx_add + 3]
+                end
+            end
+        end
+        
+        output
+    end
+    # ------------------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Texture Application
+    # -----------------------------------------------------------------------------
+    
+    # FUNCTION | Apply texture to face with proper UV mapping
+    # ------------------------------------------------------------------------
+    def self.apply_texture_to_face(face, image_path, face_data)
+        return unless image_path && File.exist?(image_path)
+        
+        model = Sketchup.active_model
+        materials = model.materials
+        
+        # Create unique material name
+        timestamp = Time.now.to_i
+        material_name = "BorderTexture_#{timestamp}_#{rand(10000)}"
+        
+        # Create or get material
+        material = materials.add(material_name)
+        material.texture = image_path
+        
+        # Set texture size to match face dimensions
+        material.texture.size = [face_data[:width], face_data[:height]]
+        
+        # Apply material to face
+        face.material = material
+        
+        # Position texture using SketchUp Ruby API 2025 best practice:
+        # Use actual longest edge as primary axis for UV mapping
+        
+        # Find the longest edge of the face
+        longest_edge = face.edges.max_by(&:length)
+        
+        unless longest_edge
+            puts "  Warning: Could not find longest edge for texture positioning" if DEBUG_MODE
+            return
+        end
+        
+        # Use actual edge vertices as primary axis points
+        pt1 = longest_edge.start.position
+        pt2 = longest_edge.end.position
+        edge_vector = pt2 - pt1
+        edge_length = edge_vector.length
+        
+        # Calculate perpendicular direction using cross product
+        normal_vector = face.normal
+        perpendicular_vector = edge_vector.cross(normal_vector)
+        
+        # Check for valid perpendicular (avoid zero-length vector)
+        if perpendicular_vector.length == 0
+            puts "  Warning: Could not calculate perpendicular vector" if DEBUG_MODE
+            return
+        end
+        
+        perpendicular_vector.normalize!
+        
+        # Calculate perpendicular distance (use face bounds perpendicular to edge)
+        # Project all face vertices onto perpendicular to find extent
+        vertices = face.outer_loop.vertices
+        perp_distances = vertices.map do |v|
+            vec_from_pt1 = v.position - pt1
+            vec_from_pt1.dot(perpendicular_vector)
+        end
+        
+        perp_min = perp_distances.min
+        perp_max = perp_distances.max
+        perp_extent = perp_max - perp_min
+        
+        # Create third point along perpendicular at the extent distance
+        # Offset from pt1 by the minimum distance to align with face bounds
+        pt3 = pt1.offset(perpendicular_vector, perp_extent)
+        
+        # Apply standard UV mapping: [point, UV] pairs
+        # pt1 → [0, 0, 0] (bottom-left)
+        # pt2 → [1, 0, 0] (bottom-right, along edge)
+        # pt3 → [0, 1, 0] (top-left, perpendicular to edge)
+        mapping = [
+            pt1, [0, 0, 0],
+            pt2, [1, 0, 0],
+            pt3, [0, 1, 0]
+        ]
+        
+        face.position_material(material, mapping, true)
+        
+        if DEBUG_MODE
+            puts "  UV Mapping: Edge length=#{(edge_length * 25.4).round(1)}mm, Perp extent=#{(perp_extent * 25.4).round(1)}mm"
+        end
+    end
+    # ------------------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Menu Integration
+    # -----------------------------------------------------------------------------
+
+    # FUNCTION | Create menu item
+    # ------------------------------------------------------------------------
+    def self.create_menu
+        unless @menu_added
+            menu = UI.menu('Plugins')
+            menu.add_item('Apply Border Textures to Faces') {
+                self.apply_border_textures
+            }
+            @menu_added = true
+        end
+    end
+    # ------------------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+
+end # module DrawBitmapAlongFaceEdges
+end # module ValeDesignSuite
+
+
+# -----------------------------------------------------------------------------
+# INITIALIZATION
+# -----------------------------------------------------------------------------
+if defined?(Sketchup)
+    ValeDesignSuite::DrawBitmapAlongFaceEdges.create_menu
+    puts "ValeDesignSuite::DrawBitmapAlongFaceEdges loaded successfully." if ValeDesignSuite::DrawBitmapAlongFaceEdges::DEBUG_MODE
+end

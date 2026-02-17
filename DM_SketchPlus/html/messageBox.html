@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <link type="text/css" rel="StyleSheet" href="css/main.css"/>
+    <script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+    <script type="text/javascript" src="js/main.js"></script>
+</head>
+<script>
+    // Replaces the inner html of content with the message
+    function display_message(text) {
+        $('#Content').html(text);
+    }
+
+    // Creates the message box html for the buttons based on type
+    const ok_btn = "<input class='button' type='button' value='OK' onclick='sketchup.response(\"ok\")'>";
+    const cancel_btn = "<input class='button' type='button' value='Cancel' onclick='sketchup.response(\"cancel\")'>";
+    const abort_btn = "<input class='button' type='button' value='Abort' onclick='sketchup.response(\"abort\")'>";
+    const retry_btn = "<input class='button' type='button' value='Retry' onclick='sketchup.response(\"retry\")'>";
+    const ignore_btn = "<input class='button' type='button' value='Ignore' onclick='sketchup.response(\"ignore\")'>";
+    const yes_btn = "<input class='button' type='button' value='Yes' onclick='sketchup.response(\"yes\")'>";
+    const no_btn = "<input class='button' type='button' value='No' onclick='sketchup.response(\"no\")'>";
+
+    function html_ok() { $('#Options').html(ok_btn); }
+
+    function html_ok_cancel() { $('#Options').html(ok_btn + cancel_btn); }
+
+    function html_abort_retry_ignore() { $('#Options').html(abort_btn + retry_btn + ignore_btn); }
+
+    function html_yes_no_cancel() { $('#Options').html(yes_btn + no_btn + cancel_btn); }
+
+    function html_yes_no() { $('#Options').html(yes_btn + no_btn); }
+
+    function html_retry_cancel() { $('#Options').html(retry_btn + cancel_btn); }
+
+</script>
+<body>
+<div id="Content" style="text-align: center"></div>
+<div id="Options"style="text-align: center"></div>
+<script>
+    sketchup.ready();
+</script>
+</body>
+</html>

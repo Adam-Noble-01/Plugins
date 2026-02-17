@@ -1,0 +1,33 @@
+# Plugin Registration
+# Reserved to the Plugin Developer
+
+VERSION = 2.0a
+DATE = 31 Mar 24
+COPYRIGHT = "© 2010-2024"
+LIBFREDO6 = 143
+SKETCHUP_VERSION = 17
+
+CREDITS = SU users: for numerous requests of such tools
+CREDITS = SU users: for providing models to test the script and exercising the beta versions
+CREDITS = Daniel S: whom I borrowed the nice greek mask for the Loft by Spline icon
+CREDITS = RichOBrien: for SVG icons
+CREDITS = Translation: Defisto (Spanish)
+
+NAME = Curviloft  
+DESCRIPTION = Family of functions generating surfaces from contours
+CREATOR = Fredo6
+MODULES = F6_Curviloft
+EXT_LOAD = true
+ICON_CONV = CVL_icon_
+CURSOR_CONV = CVL_cursor_
+TOOLBAR = Curviloft
+
+WEB_SITE_NAME = Sketchucation
+WEB_SITE_LINK = http://sketchucation.com/forums/viewforum.php?f=323
+WEB_SUPPORT_LINK = http://sketchucation.com/forums/viewtopic.php?f=323&t=28586#p248195
+DONATION = Fredo6 at Paypal
+VIDEO = Preview ; http://www.youtube.com/watch?v=t-mhHiysqAM
+VIDEO = Tuto Loft By Spline ; http://www.youtube.com/watch?v=holafltwWrc
+VIDEO = Tuto Loft Along Path ; http://www.youtube.com/watch?v=AZnVY3unWPU
+
+RUBY_FILES = Curviloft*

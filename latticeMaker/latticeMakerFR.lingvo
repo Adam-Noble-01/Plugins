@@ -1,0 +1,14 @@
+### Lattice Maker lingvo file ###
+Lattice Maker<==>Lattice Maker
+Lattice Properties<==>Proprietes du Treillis
+<Default><==><Defaut>
+<None><==><Aucun>
+'Glass'<==>'Verre'
+Width: <==>Largeur: 
+Depth: <==>Profondeur: 
+Pane Inset: <==>Plaque d'incrustation: 
+Pane Thickness: <==>Épaisseur de la plaque: 
+Lattice Material: <==>Materiau du treillis: 
+Pane Material: <==>Materiau de la plaque: 
+Processing<==>Traitement
+: Select Faces. Set Parameters. Makes a Lattice...<==>: Sélectionnez des faces. Définissez les paramètres. Faire un treillis...

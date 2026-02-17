@@ -1,0 +1,6 @@
+### Flyout Close Glypth ###
+# F2F2F2
+COLOR <242,242,242>
+WIDTH 2
+POLYLINE [0,0] [5,5] [0,10]
+

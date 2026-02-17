@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g id="cone" transform="matrix(1.03514,0,0,1.03514,-0.175688,0.859449)">
+        <path d="M27,24C20.956,26.926 11.006,26.992 5,24L16,4L27,24Z" style="fill:rgb(140,130,104);"/>
+        <path d="M27.421,24.87C27.659,24.754 27.84,24.546 27.92,24.293C28.001,24.041 27.974,23.767 27.846,23.534L16.846,3.534C16.677,3.226 16.352,3.034 16,3.034C15.648,3.034 15.323,3.226 15.154,3.534L4.154,23.534C4.027,23.765 3.999,24.037 4.078,24.288C4.156,24.539 4.334,24.747 4.569,24.865C10.808,27.972 21.143,27.909 27.421,24.87ZM27,24C20.956,26.926 11.006,26.992 5,24L16,4L27,24Z"/>
+        <path d="M16,4L27,24C25.53,24.699 24.024,25.17 22.5,25.52L16,4Z" style="fill:rgb(94,88,70);"/>
+        <g transform="matrix(1,0,0,1,0,-1.03435)">
+            <path d="M15,8.559L6.797,23.323C6.666,23.566 6.757,23.869 7,24C7.243,24.131 7.546,24.04 7.677,23.797L15,8.559Z" style="fill:rgb(190,184,167);"/>
+        </g>
+    </g>
+</svg>

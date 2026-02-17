@@ -1,0 +1,247 @@
+/*******************************************************************************
+ *
+ * $DOCUMENT
+ *
+ ******************************************************************************/
+
+html {
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 0.85em;
+  color: #333;
+  background: #fff;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+}
+
+body {
+  margin: 2em;
+}
+
+button, input, textarea, select {
+  font-family: 'Source Sans Pro', sans-serif;
+}
+
+
+/*******************************************************************************
+ *
+ * $COMPATIBILITY
+ *
+ ******************************************************************************/
+
+
+#ie_legacy_error {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 15px;
+  background: #ffb;
+  color: #000;
+  z-index: 1000;
+}
+
+
+/*******************************************************************************
+ *
+ * $HEADERS
+ *
+ ******************************************************************************/
+
+h1, h2, h3 {
+  font-weight: normal;
+  border-bottom: 3px solid #ddd;
+  padding-bottom: 0.25em;
+}
+
+h1 {
+  font-size: 2em;
+}
+
+h2 {
+  font-size: 1.5em;
+}
+
+h3 {
+  font-size: 1.2em;
+}
+
+h1, h2 {
+  clear: both;
+}
+
+
+/*******************************************************************************
+ *
+ * $LINKS
+ *
+ ******************************************************************************/
+
+a {
+  color: #c33;
+  text-decoration: none;
+  position: relative; /* For .skp-menu */
+}
+
+a.anchor {
+  color: inherit;
+}
+
+.skp-menu {
+  color: #fff;
+  background: rgba(0, 0, 0, 0.9);
+  padding: 0.5em 1em;
+  display: inline-block;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 6em;
+  z-index: 1;
+}
+
+.skp-menu a {
+  color: #fff;
+}
+
+.skp-menu a:hover {
+  text-decoration: underline;
+}
+
+/* TODO: Add icon for links that open in browser window. */
+
+
+/*******************************************************************************
+ *
+ * $FORMS
+ *
+ ******************************************************************************/
+
+input, textarea, select {
+  border: 1px solid #666;
+  border-radius: 2px;
+  color: #333;
+  background: #fff;
+  padding: 0.0em 0.2em;
+  box-sizing: border-box;
+}
+
+button {
+  border: 1px solid #666;
+  border-radius: 2px;
+  box-shadow: inset 0 0 3px #fff;
+  color: #333;
+  background: #eee;
+  background: linear-gradient(180deg, #fff 0%, #f3f3f3 100%);
+}
+button:hover {
+  background: #ddd;
+  background: linear-gradient(180deg, #fafdff 0%, #e3e9ea 100%);
+}
+button:active {
+  background: #333;
+  color: #fff;
+}
+
+
+
+/*******************************************************************************
+ *
+ * $TABS
+ *
+ ******************************************************************************/
+
+.nav {
+  list-style: none;
+  padding: 0;
+  margin: 1em 0;
+}
+
+.nav li {
+  display: inline-block;
+  border-bottom: 3px solid #d33;
+}
+
+.nav li:hover {
+  background: #eee;
+}
+
+.nav li.selected {
+  background: #fee;
+}
+
+.nav li a {
+  display: inline-block;
+  padding: 0.5em 1em;
+}
+
+
+/*******************************************************************************
+ *
+ * $CONTENT
+ *
+ ******************************************************************************/
+
+#content {
+  max-width: 60em;
+}
+
+#content ol, #content ul {
+  padding-left: 1.5em;
+}
+
+#content img.animation {
+  float: right;
+  border-left: 3px solid #ddd;
+  padding-left: 1em;
+  margin-left: 1em;
+}
+
+#content img {
+  max-width: 100%;
+}
+
+#content li {
+  margin-bottom: 0.25em;
+}
+
+#content .center {
+  text-align: center;
+}
+
+#content .padded {
+  padding: 2em;
+}
+
+
+#content .info {
+  padding: 1em;
+  background: #fff6ee;
+}
+
+
+/*******************************************************************************
+ *
+ * $UPDATE
+ *
+ ******************************************************************************/
+
+#dialog-update {
+  display: none;
+  position: fixed;
+  top: 4em;
+  left: 50%;
+  width: 20em;
+  background: rgba(255, 255, 255, 0.95);
+  margin: 0 -10em;
+  padding: 0 2em 2em 2em;
+  border: 2px solid #ddd;
+}
+
+#dialog-update .footer {
+  text-align: right;
+}
+
+#dialog-update button {
+  min-width: 6em;
+  padding: 0.25em 0.5em;
+}

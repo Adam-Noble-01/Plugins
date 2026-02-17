@@ -1,0 +1,115 @@
+{
+	"folders": [
+	  {
+		"path": "."
+	  },
+	  {
+		"path": "./ValeDesignSuite"
+	  }
+	],
+	"settings": {
+	  "files.associations": {
+		"*.txt": "markdown"
+	  },
+	  "editor.tokenColorCustomizations": {
+		"textMateRules": [
+		  {
+			"scope": "heading.1.markdown entity.name.section.markdown, heading.1.markdown punctuation.definition.heading.markdown",
+			"settings": {
+			  "foreground": "#FFA500",
+			  "fontStyle": "bold"
+			}
+		  },
+		  {
+			"scope": "heading.2.markdown entity.name.section.markdown, heading.2.markdown punctuation.definition.heading.markdown",
+			"settings": {
+			  "foreground": "#80FF80",
+			  "fontStyle": "bold"
+			}
+		  },
+		  {
+			"scope": "heading.3.markdown entity.name.section.markdown, heading.3.markdown punctuation.definition.heading.markdown",
+			"settings": {
+			  "foreground": "#e0e07d",
+			  "fontStyle": "bold"
+			}
+		  },
+		  {
+			"scope": "heading.4.markdown entity.name.section.markdown, heading.4.markdown punctuation.definition.heading.markdown",
+			"settings": {
+			  "foreground": "#87d6d6",
+			  "fontStyle": "bold"
+			}
+		  },
+		  {
+			"scope": "heading.5.markdown entity.name.section.markdown, heading.5.markdown punctuation.definition.heading.markdown",
+			"settings": {
+			  "foreground": "#FF99FF",
+			  "fontStyle": "bold"
+			}
+		  },
+		  {
+			"scope": "markup.italic.markdown",
+			"settings": {
+			  "fontStyle": "italic bold"
+			}
+		  },
+		  {
+			"scope": "markup.bold.markdown",
+			"settings": {
+			  "fontStyle": "bold"
+			}
+		  }
+		] 
+	  },
+	  "better-comments.tags": [
+		{
+		  "tag": "//",
+		  "color": "#808080",
+		  "strikethrough": false,
+		  "underline": false,
+		  "backgroundColor": "transparent",
+		  "bold": false,
+		  "italic": true
+		},
+		{
+		  "tag": "!",
+		  "color": "#FF2D00",
+		  "strikethrough": false,
+		  "underline": false,
+		  "backgroundColor": "transparent",
+		  "bold": false,
+		  "italic": false
+		},
+		{
+		  "tag": "?",
+		  "color": "#3498DB",
+		  "strikethrough": false,
+		  "underline": false,
+		  "backgroundColor": "transparent",
+		  "bold": false,
+		  "italic": false
+		},
+		{
+		  "tag": "*",
+		  "color": "#98C379",
+		  "strikethrough": false,
+		  "underline": false,
+		  "backgroundColor": "transparent",
+		  "bold": false,
+		  "italic": false
+		},
+		{
+		  "tag": "todo",
+		  "color": "#FF8C00",
+		  "strikethrough": false,
+		  "underline": false,
+		  "backgroundColor": "transparent",
+		  "bold": false,
+		  "italic": false
+		}
+	  ]
+	}
+  }
+  
+  

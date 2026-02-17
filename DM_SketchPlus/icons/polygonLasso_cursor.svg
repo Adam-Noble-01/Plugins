@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;">
+    <g id="polygonLasso_cursor" transform="matrix(1.03433,0,0,1.03433,0.122317,-1.58356)">
+        <g transform="matrix(0.785714,0,0,0.785714,4.67974,6.54329)">
+            <ellipse cx="14" cy="23" rx="4" ry="2.761" style="fill:none;stroke:white;stroke-width:2.54px;"/>
+        </g>
+        <g transform="matrix(0.785714,0,0,0.785714,4.67974,6.54329)">
+            <path d="M18.141,22.516L29.141,19.516C29.374,19.453 29.535,19.241 29.535,19L29.535,4C29.535,3.789 29.412,3.598 29.219,3.512C29.027,3.425 28.802,3.46 28.644,3.6L19.907,11.366C19.907,11.366 5.226,4.515 5.226,4.515C5.02,4.419 4.775,4.463 4.616,4.627C4.457,4.79 4.419,5.036 4.521,5.239L14.39,24.977C14.39,24.977 11.541,29.725 11.541,29.725C11.389,29.978 11.471,30.307 11.725,30.459C11.978,30.611 12.307,30.529 12.459,30.275L15.459,25.275C15.553,25.118 15.561,24.924 15.479,24.761C15.479,24.761 8.425,10.653 6.166,6.135C6.166,6.135 19.774,12.485 19.774,12.485C19.967,12.575 20.196,12.542 20.356,12.4L28.465,5.192C28.465,5.192 28.465,18.591 28.465,18.591C26.499,19.127 17.859,21.484 17.859,21.484C17.574,21.561 17.406,21.856 17.484,22.141C17.561,22.426 17.856,22.594 18.141,22.516Z" style="fill:none;stroke:white;stroke-width:1.94px;stroke-linecap:butt;stroke-miterlimit:2;"/>
+        </g>
+        <g transform="matrix(0.785714,0,0,0.785714,4.67974,6.54329)">
+            <path d="M18,22L29,19L29,4L20,12L5,5L15,25L12,30" style="fill:none;stroke:rgb(38,60,217);stroke-width:1.34px;"/>
+        </g>
+        <g transform="matrix(0.785714,0,0,0.785714,4.67974,6.54329)">
+            <ellipse cx="14" cy="23" rx="4" ry="2.761" style="fill:none;stroke:rgb(38,60,217);stroke-width:1.34px;"/>
+        </g>
+        <g transform="matrix(1.55764,0,0,1.55764,-1.6759,-0.0266352)">
+            <g id="_cursor">
+                <g id="pointer">
+                    <g transform="matrix(1.5,0,0,1.5,-2,-2)">
+                        <path d="M2,2L4,8L5,5L8,4L2,2Z" style="fill:white;"/>
+                    </g>
+                    <path d="M2,2L4,8L5,5L8,4L2,2Z"/>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

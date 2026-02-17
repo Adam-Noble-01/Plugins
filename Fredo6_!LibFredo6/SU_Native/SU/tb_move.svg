@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="512px" height="512px" viewBox="0 0 512 512" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:sketch="http://www.bohemiancoding.com/sketch/ns">
+    <!-- Generator: Sketch 3.3 (11970) - http://www.bohemiancoding.com/sketch -->
+    <title>tb_move</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" sketch:type="MSPage">
+        <g id="tb_move" sketch:type="MSArtboardGroup">
+            <path d="M213,357 L300,357 L256.499867,415 L213,357 L213,357 Z" id="Fill-22049" fill="#000000" sketch:type="MSShapeGroup"></path>
+            <path d="M213,357 L300,357 L256.499867,415 L213,357 L213,357 Z" id="Stroke-22050" stroke="#000000" stroke-width="31.9999833" stroke-linecap="round" sketch:type="MSShapeGroup"></path>
+            <path d="M357,300 L357,213 L415,256.501329 L357,300 L357,300 Z" id="Fill-22051" fill="#000000" sketch:type="MSShapeGroup"></path>
+            <path d="M357,300 L357,213 L415,256.5 L357,300 L357,300 Z" id="Stroke-22052" stroke="#000000" stroke-width="31.9999833" stroke-linecap="round" sketch:type="MSShapeGroup"></path>
+            <path d="M358,256 L304,256" id="Stroke-22053" stroke="#000000" stroke-width="55.9999708" stroke-linecap="round" stroke-linejoin="round" sketch:type="MSShapeGroup"></path>
+            <path d="M300,154 L213,154 L256.500133,96 L300,154 L300,154 Z" id="Fill-22054" fill="#000000" sketch:type="MSShapeGroup"></path>
+            <path d="M300,154 L213,154 L256.500133,96 L300,154 L300,154 Z" id="Stroke-22055" stroke="#000000" stroke-width="31.9999833" stroke-linecap="round" sketch:type="MSShapeGroup"></path>
+            <path d="M154,213 L153.999734,300 L96,256.501329 L154,213 L154,213 Z" id="Fill-22056" fill="#000000" sketch:type="MSShapeGroup"></path>
+            <path d="M154,213 L153.999734,300 L96,256.5 L154,213 L154,213 Z" id="Stroke-22057" stroke="#000000" stroke-width="31.9999833" stroke-linecap="round" sketch:type="MSShapeGroup"></path>
+            <path d="M256,155 L256,209" id="Stroke-22058" stroke="#000000" stroke-width="55.9999708" stroke-linecap="round" stroke-linejoin="round" sketch:type="MSShapeGroup"></path>
+            <path d="M155,256 L209,256" id="Stroke-22059" stroke="#000000" stroke-width="55.9999708" stroke-linecap="round" stroke-linejoin="round" sketch:type="MSShapeGroup"></path>
+            <path d="M256,358 L256,304" id="Stroke-22060" stroke="#000000" stroke-width="55.9999708" stroke-linecap="round" stroke-linejoin="round" sketch:type="MSShapeGroup"></path>
+            <path d="M213,357 L300,357 L256.499867,415 L213,357 L213,357 Z" id="Fill-23178" fill="#FB0011" sketch:type="MSShapeGroup"></path>
+            <path d="M213,357 L300,357 L256.499867,415 L213,357 L213,357 Z" id="Stroke-23179" stroke="#FB0011" stroke-width="10.6666611" stroke-linecap="round" sketch:type="MSShapeGroup"></path>
+            <path d="M357,300 L357,213 L415,256.501329 L357,300 L357,300 Z" id="Fill-23180" fill="#FB0011" sketch:type="MSShapeGroup"></path>
+            <path d="M357,300 L357,213 L415,256.5 L357,300 L357,300 Z" id="Stroke-23181" stroke="#FB0011" stroke-width="10.6666611" stroke-linecap="round" sketch:type="MSShapeGroup"></path>
+            <path d="M358,256 L304,256" id="Stroke-23182" stroke="#FB0011" stroke-width="34.6666486" stroke-linecap="round" stroke-linejoin="round" sketch:type="MSShapeGroup"></path>
+            <path d="M300,154 L213,154 L256.500133,96 L300,154 L300,154 Z" id="Fill-23183" fill="#FB0011" sketch:type="MSShapeGroup"></path>
+            <path d="M300,154 L213,154 L256.500133,96 L300,154 L300,154 Z" id="Stroke-23184" stroke="#FB0011" stroke-width="10.6666611" stroke-linecap="round" sketch:type="MSShapeGroup"></path>
+            <path d="M154,213 L153.999734,300 L96,256.501329 L154,213 L154,213 Z" id="Fill-23185" fill="#FB0011" sketch:type="MSShapeGroup"></path>
+            <path d="M154,213 L153.999734,300 L96,256.5 L154,213 L154,213 Z" id="Stroke-23186" stroke="#FB0011" stroke-width="10.6666611" stroke-linecap="round" sketch:type="MSShapeGroup"></path>
+            <path d="M256,155 L256,209" id="Stroke-23187" stroke="#FB0011" stroke-width="34.6666486" stroke-linecap="round" stroke-linejoin="round" sketch:type="MSShapeGroup"></path>
+            <path d="M155,256 L209,256" id="Stroke-23188" stroke="#FB0011" stroke-width="34.6666486" stroke-linecap="round" stroke-linejoin="round" sketch:type="MSShapeGroup"></path>
+            <path d="M256,358 L256,304" id="Stroke-23189" stroke="#FB0011" stroke-width="34.6666486" stroke-linecap="round" stroke-linejoin="round" sketch:type="MSShapeGroup"></path>
+        </g>
+    </g>
+</svg>

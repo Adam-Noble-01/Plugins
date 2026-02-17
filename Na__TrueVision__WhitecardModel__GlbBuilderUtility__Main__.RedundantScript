@@ -1,0 +1,601 @@
+# =============================================================================
+# TRUEVISION3D - GLB BUILDER UTILITY
+# =============================================================================
+#
+# FILE       : TrueVisionApp__GlbBuilderUtility.rb
+# NAMESPACE  : TrueVision3D
+# MODULE     : GlbBuilderUtility
+# AUTHOR     : Adam Noble - Noble Architecture
+# PURPOSE    : Export SketchUp models to GLB format with texture optimization
+# CREATED    : 2025
+#
+# DESCRIPTION:
+# - Exports SketchUp models to GLB format with proper binary formatting
+# - Includes material and texture export with automatic optimization
+# - Excludes entities on layers matching "TrueVision_{wildcard}_DoNotExportGLTF"
+# - Provides options for exporting selection only or entire model
+# - Integrates with TrueVision3D plugin ecosystem
+#
+# EXPORT METHOD (v1.0.4+):
+# - Uses "apply transforms" approach via temporary explosion
+# - All nested groups/components are exploded to get true global coordinates
+# - Faces are grouped by material and layer for efficient mesh creation
+# - Original model is restored via single undo operation
+# - Ensures perfect coordinate accuracy between SketchUp and GLB output
+#
+# MATERIAL HANDLING SYSTEM (for downstream texture switching):
+# - SketchUp material names are preserved exactly in GLB output using material.display_name
+# - Handles face materials, per-object materials, and nested component materials
+# - All materials logged to console during export for debugging
+# - @material_map maintains consistent material-to-index mapping across export process
+# - Enables TrueVision texture switcher scripts to match materials by original SketchUp names
+#
+# POSITIONED TEXTURE SUPPORT (v1.0.6+):
+# - Automatically detects textures positioned using SketchUp's texture positioning tool
+# - Handles rotated, scaled, skewed, and translated textures correctly
+# - Uses dual-method approach: standard UVHelper for normal textures, enhanced extraction for positioned
+# - Preserves all texture transformations applied via right-click > Texture > Position
+# - Supports perspective-corrected UV coordinates with proper Q-component handling
+#
+# -----------------------------------------------------------------------------
+#
+# SKETCHUP API QUIRKS AND IMPORTANT NOTES  -  !!READ BEFORE EDITING!!
+# - Units: SketchUp stores ALL measurements internally in inches regardless of 
+#   display units. Conversion to meters (glTF standard) requires factor 0.0254
+# - Coordinate System: SketchUp uses Z-up right-handed system while glTF uses 
+#   Y-up right-handed. Requires -90° rotation around X axis for conversion
+# - UV Coordinates: SketchUp stores UVs in pixel coordinates with bottom-left 
+#   origin. Must normalize to 0-1 range and flip V coordinate for glTF
+# - Materials: Materials.current can cause BugSplats if not in model.materials
+# - Textures: Use texture.write(path, true) to get colorized textures, not 
+#   image_rep.save_file which loses material color adjustments
+# - Image Materials: Image entities create hidden materials not visible in UI
+#
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG: See Na__TrueVision__GlbBuilder__DevLog__.md in Modules folder
+#
+# =============================================================================
+
+require 'json'                                                                    # <-- JSON parsing for dialog parameters
+require 'fileutils'                                                               # <-- File operations for texture caching
+require_relative 'Na__TrueVision__WhitecardModel__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__EngineCore__'
+require_relative 'Na__TrueVision__WhitecardModel__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__UserInterface__'
+
+module TrueVision3D
+    module GlbBuilderUtility
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Quick Reference: Supported Ruby Methods for Texture Handling
+    # -----------------------------------------------------------------------------
+    
+    # Texture Handling Quick Reference – SketchUp 2025
+
+    # ----------------------------------------
+# 
+    # | Method / Class                            | Description                                      | Params             | Returns       | Notes / Usage                                            |
+    # |----------------------------------------   |--------------------------------------------------|--------------------|---------------|----------------------------------------------------------|
+    # | `Texture#image_rep(colorized=false)`      | Gets texture pixel data as `ImageRep`.           | `colorized` (Bool) | `ImageRep`    | Best method for 2025+ PBR materials. Use for extraction. |
+    # | `ImageRep#save_file(filepath)`            | Saves `ImageRep` to disk as PNG or JPG.          | `filepath` (String)| `Boolean`     | For caching extracted textures.                          |
+    # | `Texture#write(filepath, colorize=false)` | Legacy texture-to-file method.                   | `filepath`, `Bool` | `Boolean`     | Deprecated in 2025+. Use only for fallback.              |
+    # | `Material#texture`                        | Gets assigned texture.                           | –                  | `Texture/nil` | Use `valid?` check before accessing.                     |
+    # | `Material#color`                          | Returns material's fallback RGB.                 | –                  | `Color`       | Use to create solid-colour image if no texture present.  |
+    # | `Texture#valid?`                          | Confirms texture is valid and usable.            | –                  | `Boolean`     | Always check before using texture.                       |
+    # | `Texture#filename`                        | Gets texture file name.                          | –                  | `String`      | Useful for cache naming / hashing.                       |
+    # | `Texture#image_width` / `#image_height`   | Gets texture pixel size.                         | –                  | `Integer`     | For validation or resizing logic.                        |
+    # | `Sketchup.temp_dir`                       | Gets system temp folder path.                    | –                  | `String`      | Store cache files here (e.g. GLB texture cache).         |
+    # | `File.exist?(path)`                       | Checks if file exists at given path.             | `path` (String)    | `Boolean`     | For checking if cache already exists.                    |
+    # | `File.binread(path)`                      | Loads binary file data from disk.                | `path` (String)    | `String`      | Use for buffer insertion (e.g. GLB export).              |
+    # | `File.delete(path)`                       | Deletes file from disk.                          | `path` (String)    | `Integer`     | Use to clean up after export.                            |
+
+
+    # endregion -------------------------------------------------------------------
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Module Constants and Configuration
+    # -----------------------------------------------------------------------------
+    
+        # MODULE CONSTANTS | Export Configuration and Thresholds
+        # ------------------------------------------------------------
+        MAX_TEXTURE_SIZE        =   1024                                          # <-- Maximum texture dimension before downscaling
+        TEXTURE_SCALE_FACTOR    =   0.25                                          # <-- Scale factor for texture downscaling (50%)
+        EXCLUDED_LAYER_PATTERN  =   /^TrueVision_.*_DoNotExportGLTF$/             # <-- Regex pattern for excluded layers
+        DEFAULT_EXPORT_NAME     =   "SketchUpExport"                             # <-- Default filename for exports
+        GLB_FILE_EXTENSION      =   ".glb"                                        # <-- GLB file extension
+        # ------------------------------------------------------------
+    
+        # MODULE CONSTANTS | Tag Range Definitions for Segmentation
+        # ------------------------------------------------------------
+        TAG_RANGES = {
+            "LandscapeEnvironment"      => (5..9),                                # <-- Landscape & Environment
+            "MainBuildingModel"         => (10..19),                              # <-- Main Building
+            "GroundFloorFurniture"      => (30..38),                              # <-- Ground Floor Furniture
+            "GroundFloorDecor"          => [39],                                  # <-- Ground Floor High Detail
+            "FirstFloorFurniture"       => (40..48),                              # <-- First Floor Furniture
+            "FirstFloorDecor"           => [49],                                  # <-- First Floor High Detail
+            "SceneContextual"           => (60..70)                               # <-- Scene Context (people, vehicles)
+        }
+        SKIP_RANGES             =   (1..4)                                        # <-- Modeling utility items - DO NOT EXPORT
+        MAX_NESTING_DEPTH       =   3                                             # <-- Maximum nesting depth for validation
+        
+        # ------------------------------------------------------------
+    
+        # MODULE CONSTANTS | GLB Format Constants
+        # ------------------------------------------------------------
+        GLB_MAGIC               =   0x46546C67                                    # <-- "glTF" in ASCII
+        GLB_VERSION             =   2                                             # <-- glTF 2.0 version
+        GLB_CHUNK_TYPE_JSON     =   0x4E4F534A                                    # <-- "JSON" chunk type
+        GLB_CHUNK_TYPE_BIN      =   0x004E4942                                    # <-- "BIN\0" chunk type
+        # ------------------------------------------------------------
+    
+        # MODULE VARIABLES | State Management
+        # ------------------------------------------------------------
+        @export_dialog          =   nil                                           # <-- HTML dialog for export options
+        @export_selection_only  =   false                                         # <-- Flag for selection-only export
+        @downscale_textures     =   true                                          # <-- Flag for texture downscaling
+        @excluded_layers        =   []                                            # <-- Array of excluded layer names
+        @material_map           =   {}                                            # <-- Material to index mapping
+        @texture_map            =   {}                                            # <-- Texture to index mapping
+        @image_map              =   {}                                            # <-- Image data mapping
+        @progress_dialog        =   nil                                           # <-- Progress dialog
+        @validation_errors      =   []                                            # <-- Validation error messages
+        @texture_cache_folder   =   File.join(Sketchup.temp_dir, "glb_texture_cache")  # <-- Temp cache folder for textures
+        @texture_cache          =   {}                                            # <-- Hash to track cached texture paths
+        # ------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Core Export Functionality
+    # -----------------------------------------------------------------------------
+    
+        # FUNCTION | Reset All Module State Variables
+        # ---------------------------------------------------------------
+        def self.reset_export_state
+            puts "    Resetting module state for new export..."
+            
+            # Clear all mapping variables
+            @material_map           = {}                                          # <-- Material to index mapping
+            @texture_map            =  {}                                          # <-- Texture to index mapping
+            @image_map              = {}                                          # <-- Image data mapping
+            @texture_cache          = {}                                          # <-- Texture cache (this was missing!)
+            
+            # Clear validation and layer data
+            @validation_errors      = []                                          # <-- Validation error messages
+            @excluded_layers        = []                                          # <-- Array of excluded layer names
+            
+            # Clear any progress tracking
+            @last_reported_percentage = nil                                       # <-- Reset progress tracking
+            
+            puts "    Module state reset complete"
+        end
+        # ---------------------------------------------------------------
+    
+        # FUNCTION | Initialize GLB Export Process
+        # ------------------------------------------------------------
+        def self.start_export
+            model = Sketchup.active_model                                         # Get active model
+            
+            # Check if there's anything to export using correct SketchUp API
+            if model.active_entities.length == 0
+                UI.messagebox("No entities to export in the current model.")      # Alert user
+                return false
+            end
+            
+            # Reset state at the very beginning
+            reset_export_state                                                    # Comprehensive state reset
+            
+            identify_excluded_layers(model)                                       # Identify layers to exclude
+            
+            # Skip validation for explosion-based export approach
+            # The explosion method works with any geometry, not just manifold solids
+            puts "\n=== Starting TrueVision GLB Export (Simplified Method) ==="    # Console header
+            puts "Using explosion/regrouping for accurate global coordinates"
+            
+            # Create texture cache folder if it doesn't exist
+            Dir.mkdir(@texture_cache_folder) unless Dir.exist?(@texture_cache_folder)
+            
+            show_export_dialog                                                     # Show export options dialog
+        end
+        # ---------------------------------------------------------------
+        
+        # FUNCTION | Validate All Model Entities are Watertight - Smart Leaf Detection
+        # ---------------------------------------------------------------
+        def self.validate_model_watertight(model)
+            @validation_errors = []                                                # Clear errors
+            total_entities = count_all_entities(model.active_entities)            # Count leaf containers only
+            checked_entities = 0                                                   # Progress counter
+            
+            puts "Smart validation: Checking #{total_entities} leaf containers (ignoring parent containers)..."
+            puts "  → Only validating groups/components that contain raw geometry"
+            puts "  → Skipping parent containers that only hold nested objects"
+            puts "  → Maximum nesting depth: #{MAX_NESTING_DEPTH} levels\n"
+            
+            # Validate all entities recursively with smart detection
+            validate_result = validate_entities_recursive(model.active_entities, checked_entities, total_entities)
+            
+            if @validation_errors.any?
+                puts "\n=== VALIDATION ERRORS ==="
+                @validation_errors.each { |error| puts "  - #{error}" }
+                puts "\nNote: Only leaf containers (containing raw geometry) are validated."
+                puts "Parent containers that only hold nested objects are ignored."
+                puts "=== END VALIDATION ERRORS ===\n"
+                return false
+            end
+            
+            puts "\n✓ All leaf containers validated successfully!"                # Success message
+            puts "  → #{total_entities} leaf containers checked"
+            puts "  → Parent containers automatically skipped\n"
+            true
+        end
+        # ---------------------------------------------------------------
+        
+        # SUB FUNCTION | Recursively Validate Entities - Smart Leaf Container Detection
+        # ---------------------------------------------------------------
+        def self.validate_entities_recursive(entities, checked_count, total_count, depth = 0)
+            return checked_count if depth > MAX_NESTING_DEPTH                      # Prevent infinite recursion
+            
+            entities.each do |entity|
+                next if entity_excluded?(entity)                                   # Skip excluded
+                
+                case entity
+                when Sketchup::Group
+                    if is_leaf_container?(entity)
+                        # Only validate groups that contain raw geometry (leaf containers)
+                        if entity.manifold?
+                            checked_count += 1
+                            report_progress("Validating", checked_count, total_count)
+                            puts "      ✓ Leaf group '#{entity.name || 'Unnamed'}' is solid"
+                        else
+                            entity_name = entity.name && !entity.name.empty? ? entity.name : 'Unnamed'
+                            @validation_errors << "Group '#{entity_name}' contains geometry but is not solid"
+                        end
+                    else
+                        # Parent container - skip validation but traverse children
+                        puts "      → Skipping parent group '#{entity.name || 'Unnamed'}' (contains only nested containers)"
+                    end
+                    
+                    # Always traverse nested entities regardless of validation
+                    checked_count = validate_entities_recursive(entity.entities, checked_count, total_count, depth + 1)
+                    
+                when Sketchup::ComponentInstance
+                    if is_leaf_container?(entity)
+                        # Only validate components that contain raw geometry (leaf containers)
+                        if entity.manifold?
+                            checked_count += 1
+                            report_progress("Validating", checked_count, total_count)
+                            puts "      ✓ Leaf component '#{entity.name || entity.definition.name || 'Unnamed'}' is solid"
+                        else
+                            entity_name = entity.name && !entity.name.empty? ? entity.name : (entity.definition.name || 'Unnamed')
+                            @validation_errors << "Component '#{entity_name}' contains geometry but is not solid"
+                        end
+                    else
+                        # Parent container - skip validation but traverse children
+                        puts "      → Skipping parent component '#{entity.name || entity.definition.name || 'Unnamed'}' (contains only nested containers)"
+                    end
+                    
+                    # Always traverse nested entities regardless of validation
+                    definition = entity.respond_to?(:definition) ? entity.definition : entity
+                    checked_count = validate_entities_recursive(definition.entities, checked_count, total_count, depth + 1)
+                end
+            end
+            
+            checked_count
+        end
+        # ---------------------------------------------------------------
+        
+        # HELPER FUNCTION | Check if Container is a Leaf (Contains Raw Geometry)
+        # ---------------------------------------------------------------
+        def self.is_leaf_container?(entity)
+            case entity
+            when Sketchup::Group
+                return contains_raw_geometry?(entity.entities)
+            when Sketchup::ComponentInstance
+                definition = entity.respond_to?(:definition) ? entity.definition : entity
+                return contains_raw_geometry?(definition.entities)
+            else
+                return false
+            end
+        end
+        # ---------------------------------------------------------------
+        
+        # HELPER FUNCTION | Check if Entities Collection Contains Raw Geometry
+        # ---------------------------------------------------------------
+        def self.contains_raw_geometry?(entities)
+            entities.each do |entity|
+                # If we find faces or edges, this is a leaf container
+                return true if entity.is_a?(Sketchup::Face) || entity.is_a?(Sketchup::Edge)
+                
+                # If we find other entity types (curves, etc.) that represent geometry
+                return true if entity.respond_to?(:curve) && entity.curve
+            end
+            
+            # No raw geometry found - this is a parent container
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Count Leaf Entities That Need Validation
+        # ---------------------------------------------------------------
+        def self.count_all_entities(entities, depth = 0)
+            count = 0
+            return count if depth > MAX_NESTING_DEPTH                              # Prevent infinite recursion
+            
+            entities.each do |entity|
+                next if entity_excluded?(entity)
+                
+                case entity
+                when Sketchup::Group
+                    if is_leaf_container?(entity)
+                        count += 1                                                 # Only count leaf containers
+                    end
+                    count += count_all_entities(entity.entities, depth + 1)       # Always traverse children
+                when Sketchup::ComponentInstance
+                    if is_leaf_container?(entity)
+                        count += 1                                                 # Only count leaf containers
+                    end
+                    definition = entity.respond_to?(:definition) ? entity.definition : entity
+                    count += count_all_entities(definition.entities, depth + 1)   # Always traverse children
+                end
+            end
+            count
+        end
+        # ---------------------------------------------------------------
+        
+        # HELPER FUNCTION | Report Progress to Console
+        # ---------------------------------------------------------------
+        def self.report_progress(operation, current, total)
+            percentage = (current.to_f / total * 100).to_i
+            if percentage % 10 == 0 && percentage != @last_reported_percentage
+                puts "#{operation}: #{percentage}% complete (#{current}/#{total})"
+                @last_reported_percentage = percentage
+            end
+        end
+        # ---------------------------------------------------------------
+    
+        # SUB FUNCTION | Identify Layers Matching Exclusion Pattern
+        # ---------------------------------------------------------------
+        def self.identify_excluded_layers(model)
+            @excluded_layers = []                                                  # Reset excluded layers array
+            
+            model.layers.each do |layer|
+                if layer.name =~ EXCLUDED_LAYER_PATTERN                           # Check against pattern
+                    @excluded_layers << layer.name                                 # Add to excluded list
+                end
+            end
+            
+            puts "Excluded layers: #{@excluded_layers.join(', ')}" if @excluded_layers.any?
+        end
+        # ---------------------------------------------------------------
+    
+        # FUNCTION | Perform GLB Export with Configuration
+        # ---------------------------------------------------------------
+        def self.perform_export(export_dir)
+            model = Sketchup.active_model                                         # Get active model
+            
+            # Reset ALL state variables before export
+            reset_export_state                                                    # Comprehensive state reset
+            
+            # Re-identify excluded layers after reset
+            identify_excluded_layers(model)                                       # Identify layers to exclude
+            
+            # Get tag-based entity groups
+            tag_groups = organize_entities_by_tags(model)                         # Organize by tags
+            
+            if tag_groups.length == 0
+                puts "\n=== NO ENTITIES FOUND WITH PROPER TAG RANGES ==="
+                puts "Please ensure your objects are on layers with names starting with:"
+                puts "  05-09 = Landscape & Environment (exports as 'LandscapeEnvironment.glb')"
+                puts "  10-19 = Main Building (exports as 'MainBuildingModel.glb')"
+                puts "  30-38 = Ground Floor Furniture (exports as 'GroundFloorFurniture.glb')"
+                puts "  39    = Ground Floor Decor (exports as 'GroundFloorDecor.glb')"
+                puts "  40-48 = First Floor Furniture (exports as 'FirstFloorFurniture.glb')"
+                puts "  49    = First Floor Decor (exports as 'FirstFloorDecor.glb')"
+                puts "  60-70 = Scene Context (exports as 'SceneContextual.glb')"
+                puts "\nExample layer names: '10_Building', '30_Chairs', '40_Tables', etc."
+                puts "================================================\n"
+                
+                UI.messagebox("No entities found with proper tag ranges for export.\n\nPlease check the Ruby Console for required layer naming.")
+                return false
+            end
+            
+            # Show what will be exported
+            puts "\n=== Export Plan ==="
+            tag_groups.each do |filename, entities|
+                puts "  #{filename}.glb - #{entities.length} top-level entities"
+            end
+            puts "=== End Export Plan ===\n"
+            
+            model.start_operation("GLB Export", true)                            # Start operation for undo
+            
+            begin
+                success_count = 0
+                tag_groups.each do |base_filename, entities|
+                    filepath = File.join(export_dir, "#{base_filename}.glb")     # Build filepath
+                    puts "\nExporting: #{base_filename}.glb..."
+                    
+                    # Use the new simplified export method
+                    if export_entities_to_glb_simplified(entities, filepath)
+                        success_count += 1
+                    else
+                        puts "  ERROR: Failed to export #{base_filename}.glb"
+                    end
+                end
+                
+                model.commit_operation                                             # Commit the operation
+                
+                # Clean up texture cache
+                cleanup_texture_cache                                              # Remove temporary files
+                
+                # Open output folder
+                if success_count > 0
+                    open_folder(export_dir)                                        # Open in file explorer
+                    UI.messagebox("GLB export completed!\n\n#{success_count} files exported to:\n#{export_dir}")
+                else
+                    UI.messagebox("Export failed. Please check the console for errors.")
+                end
+                
+            rescue => e
+                model.abort_operation                                              # Abort on error
+                UI.messagebox("Export error: #{e.message}")                       # Show error message
+                puts "GLB Export Error: #{e.message}\n#{e.backtrace.join("\n")}"  # Log full error
+                false
+            end
+        end
+        # ---------------------------------------------------------------
+    
+        # SUB FUNCTION | Organize Entities by Tag Ranges
+        # ---------------------------------------------------------------
+        def self.organize_entities_by_tags(model)
+            tag_groups = {}                                                        # Initialize groups
+            found_layers = {}                                                      # Track found layer names
+            
+            puts "\n=== Analyzing model layers ==="
+            
+            model.active_entities.each do |entity|
+                next if entity_excluded?(entity)                                   # Skip excluded
+                next unless entity.respond_to?(:layer)                             # Skip if no layer
+                
+                # Track all layer names found
+                layer_name = entity.layer.name
+                found_layers[layer_name] ||= 0
+                found_layers[layer_name] += 1
+                
+                # Get tag number from layer name
+                tag_match = layer_name.match(/^(\d+)/)                           # Match leading digits
+                next unless tag_match                                              # Skip if no number
+                
+                tag_number = tag_match[1].to_i                                    # Get tag number
+                
+                # Skip if in skip range
+                if SKIP_RANGES.include?(tag_number)
+                    puts "  Skipping layer '#{layer_name}' (tag #{tag_number} is in skip range 1-4)"
+                    next
+                end
+                
+                # Find matching range
+                TAG_RANGES.each do |group_name, range|
+                    if range.is_a?(Range) && range.include?(tag_number)
+                        tag_groups[group_name] ||= []
+                        tag_groups[group_name] << entity
+                        puts "  Found entity on layer '#{layer_name}' -> #{group_name}.glb"
+                        break
+                    elsif range.is_a?(Array) && range.include?(tag_number)
+                        tag_groups[group_name] ||= []
+                        tag_groups[group_name] << entity
+                        puts "  Found entity on layer '#{layer_name}' -> #{group_name}.glb"
+                        break
+                    end
+                end
+            end
+            
+            # Report all layers found
+            puts "\n=== All layers in model ==="
+            found_layers.each do |layer_name, count|
+                puts "  '#{layer_name}' (#{count} entities)"
+            end
+            puts "=========================\n"
+            
+            # Remove empty groups using correct API
+            tag_groups.delete_if { |_, entities| entities.length == 0 }
+            
+            tag_groups
+        end
+        # ---------------------------------------------------------------
+    
+        # HELPER FUNCTION | Open Folder in File Explorer
+        # ---------------------------------------------------------------
+        def self.open_folder(path)
+            if Sketchup.platform == :platform_win
+                system("explorer \"#{path.gsub('/', '\\')}\"")                    # Windows
+            elsif Sketchup.platform == :platform_osx
+                system("open \"#{path}\"")                                         # macOS
+            else
+                puts "Please navigate to: #{path}"                                # Linux/other
+            end
+        end
+        # ---------------------------------------------------------------
+    
+    # endregion -------------------------------------------------------------------
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Helper Functions
+    # -----------------------------------------------------------------------------
+    
+        # HELPER FUNCTION | Convert SketchUp Units to glTF
+        # ---------------------------------------------------------------
+        def self.convert_inches_to_meters(x, y, z)
+            # Convert from inches to meters (glTF standard)
+            # We're using a root rotation for coordinate system conversion
+            # so we only need unit conversion here
+            inches_to_meters = 0.0254
+            
+            [
+                x * inches_to_meters,
+                y * inches_to_meters,
+                z * inches_to_meters
+            ]
+        end
+        # ---------------------------------------------------------------
+        
+        # HELPER FUNCTION | Convert SketchUp Transformation Matrix to glTF
+        # ---------------------------------------------------------------
+        def self.convert_sketchup_matrix_to_gltf(transform)
+            # SketchUp uses 4x4 matrix in row-major order
+            # glTF expects column-major order
+            # Root node handles coordinate system conversion
+            
+            # Convert units for translation
+            origin = transform.origin
+            gltf_origin = convert_inches_to_meters(origin.x, origin.y, origin.z)
+            
+            # Build column-major matrix for glTF
+            matrix = []
+            4.times do |col|
+                4.times do |row|
+                    if row < 3 && col == 3
+                        # Translation column - use converted values
+                        matrix << gltf_origin[row]
+                    else
+                        # Other values stay as-is
+                        matrix << transform.to_a[row * 4 + col]
+                    end
+                end
+            end
+            
+            matrix
+        end
+        # ---------------------------------------------------------------
+        
+        # HELPER FUNCTION | Check if Entity Should Be Excluded
+        # ---------------------------------------------------------------
+        def self.entity_excluded?(entity)
+            return false unless entity.respond_to?(:layer)                        # Skip if no layer
+            @excluded_layers.include?(entity.layer.name)                          # Check exclusion
+        end
+        # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+    
+    # -----------------------------------------------------------------------------
+    # REGION | Cleanup
+    # -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | Cleanup Texture Cache
+        # ---------------------------------------------------------------
+        def self.cleanup_texture_cache
+            return unless Dir.exist?(@texture_cache_folder)
+            
+            Dir.glob(File.join(@texture_cache_folder, "*")).each do |file|
+                File.delete(file) if File.file?(file)
+            end
+            
+            Dir.rmdir(@texture_cache_folder) if Dir.empty?(@texture_cache_folder)
+            puts "      Cleaned up texture cache folder"
+        end
+        # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+    end  # module GlbBuilderUtility
+end  # module TrueVision3D

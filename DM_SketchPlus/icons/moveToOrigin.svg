@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <circle cx="16" cy="16" r="2.5" style="fill:rgb(254,255,254);stroke:rgb(254,255,254);stroke-width:3px;"/>
+    <g id="redArrow" transform="matrix(0.666667,0,0,0.666667,12,14.3333)">
+        <g transform="matrix(1,0,0,1,-10,0)">
+            <path d="M16,10L12,17L14,17L14,22L18,22L18,17L20,17L16,10Z" style="fill:none;stroke:rgb(254,255,254);stroke-width:4.5px;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-10,0)">
+            <path d="M16,10L12,17L14,17L14,22L18,22L18,17L20,17L16,10Z" style="fill:rgb(250,3,6);stroke:black;stroke-width:1.5px;"/>
+        </g>
+    </g>
+    <g id="redArrow1" serif:id="redArrow" transform="matrix(0.666667,0,0,-0.666667,12,17.6667)">
+        <g transform="matrix(1,0,0,1,-10,0)">
+            <path d="M16,10L12,17L14,17L14,22L18,22L18,17L20,17L16,10Z" style="fill:none;stroke:rgb(254,255,254);stroke-width:4.5px;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-10,0)">
+            <path d="M16,10L12,17L14,17L14,22L18,22L18,17L20,17L16,10Z" style="fill:rgb(250,3,6);stroke:black;stroke-width:1.5px;"/>
+        </g>
+    </g>
+    <g id="redArrow2" serif:id="redArrow" transform="matrix(4.08216e-17,-0.666667,0.666667,4.08216e-17,14.3333,20)">
+        <g transform="matrix(1,0,0,1,-10,0)">
+            <path d="M16,10L12,17L14,17L14,22L18,22L18,17L20,17L16,10Z" style="fill:none;stroke:rgb(254,255,254);stroke-width:4.5px;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-10,0)">
+            <path d="M16,10L12,17L14,17L14,22L18,22L18,17L20,17L16,10Z" style="fill:rgb(250,3,6);stroke:black;stroke-width:1.5px;"/>
+        </g>
+    </g>
+    <g id="redArrow3" serif:id="redArrow" transform="matrix(-4.08216e-17,0.666667,-0.666667,-4.08216e-17,17.6667,12)">
+        <g transform="matrix(1,0,0,1,-10,0)">
+            <path d="M16,10L12,17L14,17L14,22L18,22L18,17L20,17L16,10Z" style="fill:none;stroke:rgb(254,255,254);stroke-width:4.5px;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-10,0)">
+            <path d="M16,10L12,17L14,17L14,22L18,22L18,17L20,17L16,10Z" style="fill:rgb(250,3,6);stroke:black;stroke-width:1.5px;"/>
+        </g>
+    </g>
+    <circle cx="16" cy="16" r="2.5" style="fill:rgb(255,211,0);stroke:black;stroke-width:1px;"/>
+</svg>

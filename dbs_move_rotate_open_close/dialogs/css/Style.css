@@ -1,0 +1,144 @@
+﻿body, td, a, p, .h {
+	font-family: arial,sans-serif;
+	font-size: 10pt;
+	background-color: #FFFFFF;
+}
+
+tr {
+	padding: 1px;
+}
+
+.first_col {
+	width: 150px;
+}
+
+h1 {
+	font-size: 16pt;
+	color: #333333;
+}
+h2 {
+	font-size: 12pt;
+	font-weight: normal;
+	letter-spacing: 1px;
+	color: #58585A;
+}
+h3 {
+	font-size: 11pt;
+}
+p {
+	font-size: 10pt;
+}
+.f1 {
+	font-size: 16pt;
+}
+.f2 {
+	font-size: 14pt;
+}
+a {
+	text-decoration: none;
+}
+a:hover {
+	color: #fdfefe;
+	font-size: 12pt;
+}
+
+*:focus {
+	outline: none;
+}
+
+input, select, input[type=number] {
+	color: black;
+	border:1px solid black;
+	padding: 10px;
+	min-width:85px;
+	max-width:200px;
+	width: -webkit-fill-available;
+}
+input[type=number]:hover::-webkit-inner-spin-button, input[type=number]:focus::-webkit-inner-spin-button {
+	width: 20px;
+	height: 30px;
+}
+
+input, select:disabled {
+	color: #ccc;
+	background-color: #ffffff;
+	border: 1px solid #ccc;
+}
+
+input[type=button], button {
+    min-width:85px;
+	width: -webkit-fill-available;
+	text-decoration: none;
+	padding: 10px;
+	font-weight: 100;
+	font-size: 14px;
+	color: #ffffff;
+	background-color: #CC0000;
+	border-radius: 1px;
+	border: 1px solid #333333;
+}
+#set_open{
+	min-width: 50% ;
+}
+#set_close{
+	min-width: 50% ;
+	margin-left: 2px;
+	background-color: green;
+}
+
+input[type=button]:hover, button:hover {
+	color: #333333 ;
+	background-color: #ffffff;
+}
+input:invalid {
+	 border: 1px solid red;
+ }
+input:disabled {
+	color: #ccc;
+	background-color: #ffffff;
+	border: 1px solid #ccc;
+}
+.message {
+	font-size: 12px;
+	color: #ff0000;
+}
+/* Style the tab */
+.tab {
+    width:300px;
+	/*overflow: hidden;*/
+	border: 1px solid #ccc;
+	background-color: #f1f1f1;
+	padding:10px;
+	empty-cells: show;
+}
+
+
+/* Style the buttons that are used to open the tab content */
+.tab button {
+	background-color: inherit;
+	float: left;
+	border: none;
+	outline: none;
+	cursor: pointer;
+	padding: 14px 16px;
+	transition: 0.3s;
+}
+/* Change background color of buttons on hover */
+.tab button:hover {
+	background-color: #ddd;
+}
+/* Create an active/current tablink class */
+.tab button.active {
+	background-color: #ccc;
+}
+/* Style the tab content */
+.tabcontent {
+    width:300px;
+	padding: 6px 12px;
+	border: 1px solid #ccc;
+	border-top: none;
+}
+.blank_row
+{
+	/*height: 30px !important; !* overwrites any other rules *!*/
+}

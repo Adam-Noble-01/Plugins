@@ -1,0 +1,22 @@
+Extrude Edges by Edges<==>امتداد دادن یک لبه در امتداد لبه دیگر
+: Pre-Select 2 Groups of Edges/Curves...<==>:  قبل ازاجرای فرمان در گروپ دو گروه از لبه ها یا منحنیها را انتخاب کنید
+Triangulating Face <==>صفحات مثلثی شود
+ of <==> از 
+Select 2 Groups of Edges !  1st is 'profile' and 2nd 'path'.<==>دو گروه از لبه ها را انتخاب کنید! اولی مقطع و دومی مسیر به حساب میاید
+Multiplying Edges...<==>تکثیر لبه ها.....
+Intersecting...<==>تقاطع دادن....
+Checking: Step <==>آزمودن: گام
+Making Edges: Step <==>ساخت لبه ها: گام
+Facing Edges: Step <==>ایجاد صفحات: گام
+No Faces Made !<==>هیچ صفحه ای ایجاد نشد!
+Orient Faces ?<==>صفخات همجهت شود؟
+Reverse Faces ?<==>صفحات را پس وارو کنم؟
+Reversing Faces: Step <==>پس وارو کردن صفحات: گام
+Intersect with Self ?<==>خودش خودشو قطع کنه؟
+This is only necessary with convoluted shapes...<==>این کار فقط برای اشکالی که دور خود تنیده شدهاند مناسب است...
+Intersecting with Self...<==>درحال کشیدن خطوط تقاطع با خودش...
+Erase Coplanar Edges ?<==>خطوط ی که صفحه مشترک دارند پاک کنم ?
+Coplanar Edges Erased = <==>خطوط پاک شده = 
+Triangulate Faces ?<==>میخوای صفحاتو مثلثی کنم ?
+Erase Original Groups ?<==>گروپ های اولیه رو پاک کنم ?
+Orienting Faces<==>درحال همجهت سازی صفحات

@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "Lägg till plats",
+  "EXTENSION.DESCRIPTION": "Importera stora ytor. Kontrollera terrängens nätdensitet. Visa norr och din plats i SketchUp",
+  "EXTENSION.COMPATIBILITY_ISSUE": "Observera: Kompabilitetsproblem för Lägg till plats.\n\nLägg till plats är avaktiverad i din version av SketchUp.\nDen är utformad för att fungera med den senaste versionen.\nVi rekommenderar att du uppgraderar din SketchUp till den senaste versionen för att säkerställa optimal prestanda och för att få tillgång till alla funktioner.\nDen senaste versionen kan laddas ner från den officiella SketchUp-webbsidan.\nKontakta vårt support-team för att få hjälp om du har några frågor eller upplever några problem under uppgraderingsprocessen.",
+  "TOOLBAR_TITLE": "Lägg till plats",
+  "TOOLBAR_TOOL_NAME": "Lägg till plats",
+  "TOOLBAR_TOOL_DESCRIPTION": "Ange din plats och importera kartor och terräng",
+  "TOOLBAR_TOOL_TOOLTIP": "Lägg till plats",
+  "MENU_ITEM_NAME": "Lägg till plats",
+  "WINDOW_TITLE": "Lägg till plats",
+  "TRUE_NORTH_MENU_ITEM_NAME": "Rättvisande norr",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "Aktivera/inaktivera visningen av reell nordlig riktning på din modell",
+  "MAP_PIN_MENU_ITEM_NAME": "Fästposition",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "Aktivera/inaktivera visningen av reella världskoordinater på din modell",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "Fästpositionen associerar SketchUps modellursprung med punkten i verkligheten",
+  "MAP_PIN_OVERLAY_NAME": "Fästposition",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "Återställer geolokalisering",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "Visa fästposition",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "Dölj fästposition",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "Återställ till geolokalisering"
+}

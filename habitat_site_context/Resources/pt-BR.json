@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "Adicionar localização",
+  "EXTENSION.DESCRIPTION": "Importe áreas grandes. Controle a densidade da malha do terreno. Visualize o norte e sua localização no SketchUp.",
+  "EXTENSION.COMPATIBILITY_ISSUE": "Atenção: problema de compatibilidade de Adicionar localização.\n\nAdicionar localização está atualmente desativado em sua versão do SketchUp.\nEle foi projetado para funcionar com a versão mais recente.\nRecomendamos fazer upgrade do SketchUp para a versão mais recente para garantir um desempenho ideal e acesso a todos os recursos.\nA versão mais recente pode ser baixada do site oficial SketchUp.\nEntre em contato com nossa equipe de suporte para obter assistência se tiver dúvidas ou encontrar problemas durante o processo de upgrade.",
+  "TOOLBAR_TITLE": "Adicionar localização",
+  "TOOLBAR_TOOL_NAME": "Adicionar localização",
+  "TOOLBAR_TOOL_DESCRIPTION": "Defina sua localização e importe mapas e relevo",
+  "TOOLBAR_TOOL_TOOLTIP": "Adicionar localização",
+  "MENU_ITEM_NAME": "Adicionar localização",
+  "WINDOW_TITLE": "Adicionar localização",
+  "TRUE_NORTH_MENU_ITEM_NAME": "Norte verdadeiro",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "Alterna a exibição da direção norte do mundo real em seu modelo",
+  "MAP_PIN_MENU_ITEM_NAME": "Alfinete de localização",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "Alterna a exibição de pontos de coordenadas do mundo real em seu modelo",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "O alfinete de localização posiciona a origem do modelo SketchUp em um ponto do mundo real",
+  "MAP_PIN_OVERLAY_NAME": "Alfinete de localização",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "Redefinindo Geolocalização",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "Mostrar alfinete de localização",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "Ocultar alfinete de localização",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "Redefinir para Geolocalização"
+}

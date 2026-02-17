@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "Přidat lokalitu",
+  "EXTENSION.DESCRIPTION": "Importujte velké oblasti. Řiďte hustotu sítě terénu. Zobrazte sever a vaši polohu v aplikaci SketchUp.",
+  "EXTENSION.COMPATIBILITY_ISSUE": "Upozornění: Problém s kompatibilitou funkce Přidat lokalitu\n\nFunkce Přidat lokalitu je ve vaší verzi aplikace SketchUp momentálně zakázána.\nJe navržena tak, aby fungovala v nejnovější verzi.\nDoporučujeme upgradovat aplikaci SketchUp na nejnovější verzi, abyste zajistili optimální výkon a přístup ke všem funkcím.\nNejnovější verzi si můžete stáhnout z oficiálního webu SketchUp.\nMáte-li dotazy nebo se během procesu upgradu setkáte s problémy, kontaktujte náš tým podpory.",
+  "TOOLBAR_TITLE": "Přidat lokalitu",
+  "TOOLBAR_TOOL_NAME": "Přidat lokalitu",
+  "TOOLBAR_TOOL_DESCRIPTION": "Nastavte lokalitu a importujte mapy a terén",
+  "TOOLBAR_TOOL_TOOLTIP": "Přidat lokalitu",
+  "MENU_ITEM_NAME": "Přidat lokalitu",
+  "WINDOW_TITLE": "Přidat lokalitu",
+  "TRUE_NORTH_MENU_ITEM_NAME": "Skutečný sever",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "Přepnout zobrazení severního směru reálného světa na vašem modelu",
+  "MAP_PIN_MENU_ITEM_NAME": "Polohový špendlík",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "Přepnout zobrazení bodu souřadnic reálného světa na vašem modelu",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "Polohový špendlík spojuje počátek modelu SketchUp s bodem reálného světa.",
+  "MAP_PIN_OVERLAY_NAME": "Polohový špendlík",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "Obnovování zeměpisné polohy",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "Zobrazit polohový špendlík",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "Skrýt polohový špendlík",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "Obnovit na zeměpisnou polohu"
+}

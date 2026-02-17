@@ -1,0 +1,6 @@
+### Select Freehand Tool ###
+COLOR <255,255,255>
+WIDTH 1
+OFFSET 0 -1
+BEZIER [2,10] [0,10] [0,0] [15,0] [15,10] [7,10]
+POLYLINE [2,10] [4,15] [7,10]

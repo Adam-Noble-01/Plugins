@@ -1,0 +1,44 @@
+Extrude Edges by Rails<==>Extruder des arêtes sur des chemins
+Extrude Edges by Rails: Select the 'Profile' Curve...<==>Extruder des arêtes sur des chemins: Sélectionnez le profil de la courbe...
+Pick Profile<==>Sélectionnez le profil
+Pick 1st Rail<==>Sélectionnez le premier chemin
+Pick 2nd Rail<==>Sélectionnez le deuxième chemin
+Extrude Edges by Rails: Select the 1st 'Rail' Curve...<==>Extruder des arêtes sur des chemins: Sélectionnez la courbe pour le premier chemin...
+Extrude Edges by Rails: Select the 2nd 'Rail' Curve...<==>Extruder des arêtes sur des chemins: Sélectionnez la courbe pour le deuxième chemin...
+Extrude Edges by Rails: Making Mesh from Profile and 1 Rail.<==>Extruder des arêtes sur des chemins: Création du maillage ente un profil et le 1er chemin.
+Extrude Edges by Rails: Making Mesh from Profile and 2 Rails.<==>Extruder des arêtes sur des chemins: Création du maillage ente l'autre profil et le 2ème chemin.
+Extrude Edges by Rails: Reverse Rail-1's Direction ?<==>Extruder des arêtes sur des chemins: Inverser la direction du 1er chemin ?
+Extrude Edges by Rails:<==>Extruder des arêtes sur des chemins:
+Reverse Rail-1's Direction ?<==>Inverser la direction du 2ème chemin ?
+This is only necessary with twisted meshes...<==>Ceci est uniquement nécessaire pour des maillages complexes...
+Extrude Edges by Rails: Reversing Rail-1's Direction...<==>Extruder des arêtes sur des chemins: Inversion du sens du 1er chemin...
+Extrude Edges by Rails: Formating Mesh... Please Wait...<==>Extruder des arêtes sur des chemins: Création du maillage... Patientez SVP...
+Extrude Edges by Rails: Reverse <==>Extruder des arêtes sur des chemins: Inverser 
+ Faces ?<==> Faces?
+Extrude Edges by Rails: Reversing Face <==>Extruder des arêtes sur des chemins: Inversion de la face 
+ of <==> de 
+Reverse Faces ?<==>Voulez-vous inverser les faces?
+Extrude Edges by Rails: Erase Coplanar Edges ?<==>Extruder des arêtes sur des chemins: Voulez-vous effacer les arêtes coplanaires?
+Voulez-vous effacer les arêtes coplanaires mis en évidence?
+Erase Coplanar Edges ?<==>Voulez-vous Effacer les arêtes coplanaires?
+Extrude Edges by Rails: Coplanar Edges Erased= <==>Extruder des arêtes sur des chemins: Arêtes coplanaires Effacées= 
+Extrude Edges by Rails: Intersect Mesh with Self ?<==>Extruder des arêtes sur des chemins: Voulez-vous intersecter le maillage avec lui-même?
+Intersect Mesh with Self ?<==>Voulez-vous intersecter le maillage avec lui-même?
+This is only necessary with convoluted meshes...<==>Ceci est uniquement nécessaire pour des maillages complexes...
+Extrude Edges by Rails: Intersecting Mesh with Self... Please Wait...<==>Extruder des arêtes sur des chemins: Intersection du maillage avec lui-même... Patientez SVP...
+Extrude Edges by Rails: Smooth <==>Extruder des arêtes sur des chemins: Lissage 
+ Edges ?<==> Bords?
+Smooth Edges ?<==>Voulez-vous Lisser les arêtes?
+Extrude Edges by Rails: Smoothing Edge <==>Extruder des arêtes sur des chemins: Lissage des arêtes 
+Extrude Edges by Rails: Erase Original Curves ?<==>Extruder des arêtes sur des chemins: Effacer les courbes originales?
+Erase Original Curves ?<==>Effacer les courbes originales?
+Extrude Edges by Rails: <==>Extruder des arêtes sur des chemins: 
+Making Profile <==>Création du profil 
+Making Face <==>Création de la face 
+Pick Melding Profile<==>Sélectionnez le profil intermédiaire 
+Extrude Edges by Rails: Select the 'Melding-Profile' Curve...<==>Extruder des arêtes sur des chemins: Sélectionnez la courbe pour le profil intermédiaire...
+Orienting Faces<==>Orientation des faces
+: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Makes Mesh. Follow Prompts...<==>: Sélectionnez les courbes: Profil, Chemin 1, Chemin 2 & Profil intermédiaire. Création du maillage. Suivre les instructions...
+
+Quad Faces ?<==>Faces quadrilatère ?
+Extrude Edges by Rails: Quad Face <==>Extruder des arêtes sur des chemins: Face quadrilatère 

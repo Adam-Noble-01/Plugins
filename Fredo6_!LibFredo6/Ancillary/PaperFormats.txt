@@ -1,0 +1,25 @@
+# Built-in paper format
+# Dimensions Width x Height in Portrait configuration
+# Units in Inches if not specified
+
+A0		= 84.1cm x 118.9cm
+A1		= 59.4cm x 84.1cm
+A2		= 42cm x 59.4cm
+A3		= 29.7cm x 42cm
+A4 		= 21cm x 29.7cm
+A5		= 14.8cm x 21cm
+A6		= 10.5 cm x 14.8 cm
+A7		= 7.4 cm x 10.5 cm
+A8		= 5.2 cm x 7.4 cm
+A9		= 3.7 cm x 5.2 cm
+Paper 	= 8.5" x 11"
+Tabloid = 11" x 17"
+Legal	= 8.5" x 14"
+Arch A	= 9" x 12"
+Arch B	= 12" x 18"
+Arch C	= 18" x 24"
+Arch D	= 24" x 36"
+Arch E	= 36" x 48"
+ANSI C	= 17" x 22"
+ANSI D	= 24" x 36"
+ANSI E	= 36" x 48"

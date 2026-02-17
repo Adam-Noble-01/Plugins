@@ -1,0 +1,117 @@
+body {
+	font-size: 8pt;
+	font-family: 'Arial';
+	font-style: normal;
+	font-weight: normal;
+	margin: 0;
+	padding: 0;
+}
+
+table {
+	width: 100%;
+}
+
+.li-top-bar {
+	background-color:#C6C6C6;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width:100%;
+	height:auto;
+	margin: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+	border-bottom: 1px solid gray;
+}
+
+.li-top-bar td {
+	text-align: center;
+}
+
+#li-topbarTable {
+	height:34px;
+}
+
+#LicInfoWrapper {
+	margin: 0;
+	padding: 0;
+	position: relative;
+	top: 34px;
+}
+
+.licenseInfo {
+	padding: 2pt;
+	margin: 2pt;
+	font-size: 100%;
+	font-family: 'Arial';
+	font-style: normal;
+	font-weight: normal;
+}
+
+.licenseInfo .li-label {
+	text-align: left;
+}
+
+.li-input {
+	font-size:100%;
+	width: 300px;
+	height: 14px;
+	padding: 2px 4px;
+	text-align: right;
+	text-shadow: 0 0 0 gray;
+	cursor: default;
+	background-color: transparent;
+	border: none;
+	color: inherit;
+}
+
+.li-input:focus {
+	outline: none;
+}
+
+.li-value {
+	text-align: right;
+}
+
+.li-button {
+	font-family: inherit;
+	font-size: 100%;
+	vertical-align: middle;
+	margin: 1px;
+	padding: 2px;
+	width: 140px;
+	height: 40px;
+}
+
+.li-button:hover {
+	border-bottom:1px outset gray;
+	border-right:1px outset gray;
+	border-top:1px outset #E5E5E5;
+	border-left:1px outset #E5E5E5
+}
+
+.li-button:active {
+	position:relative;
+	top:1px;
+	left:1px;
+	background-color:#BBBBBB;
+	border-bottom:1px inset #E5E5E5;
+	border-right:1px inset #E5E5E5;
+	border-top:1px inset gray;
+	border-left:1px inset gray;
+}
+
+.top-right-link {
+	font-size: 11px;
+	text-decoration: none;
+	cursor:pointer;
+	position: absolute;
+	top: 16px;
+	right: 19px;
+	color: #1d1d1d;
+	white-space: nowrap;
+}
+
+.top-right-link:hover{
+	text-decoration: underline;
+}

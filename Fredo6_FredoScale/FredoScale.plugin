@@ -1,0 +1,37 @@
+# Plugin Registration
+# Reserved to the Plugin Developer
+
+VERSION = 3.6a
+DATE = 01 Apr 24
+COPYRIGHT = "© 2009-2024"
+LIBFREDO6 = 143
+SKETCHUP_VERSION = 17
+
+CREDITS = "Matt666 : for the initial idea on best-fitting bounding box in his Ruby Challenge 2"
+CREDITS = "Jim57: for the request on tapering via a scale box"
+CREDITS = "Daiku (Clark Bremer): for the initial request on Stretch"
+CREDITS = "Convex Hull algorithm : Graham Scan with Akl-Toussaint Heuristics"
+CREDITS = "Alternate icons and cursors: Daniel S."
+CREDITS = "Translation: Spanish (Pichuneke and Gaonirico), Italian (CosediMarco), German (Tom2, eichenherz)"
+CREDITS = "Translation: Japanese (Takeshi H.), Korean (Couque D`asse), Chinese"
+
+NAME = FredoScale 
+DESCRIPTION = Scaling and other transformations with free orientation of the deformation box
+DESCRIPTION = |FR| Outil de deformation améliorée avec choix d'orientation
+DESCRIPTION = |IT| Scala con l'orientamento della casella
+DESCRIPTION = |ES| Escalar con orientación de caja de escalado 
+CREATOR = Fredo6
+MODULES = F6_FredoScale
+EXT_LOAD = "true"
+ICON_CONV = FSC_icon_
+CURSOR_CONV = FSC_cursor_
+TOOLBAR = Fredo6_FredoScale
+
+WEB_SITE_NAME = Sketchucation
+WEB_SITE_LINK = http://sketchucation.com/forums/viewforum.php?f=323
+WEB_SUPPORT_LINK = https://sketchucation.com/plugin/1169-fredoscale
+VIDEO = Overview |FR| Presentation ; http://www.youtube.com/watch?v=WN-nV5VsoRY
+VIDEO = New functions in version 2.0 |FR| Nouvelles function version 2.0 ; http://www.youtube.com/watch?v=bPbb8PPGtVg
+DONATION = Fredo6 at Paypal
+
+RUBY_FILES = FredoScale*

@@ -1,0 +1,108 @@
+{
+    "metadata": {
+        "file_name": "ValeDesignSuite_Config_FrameworkConfigurator_DefaultNodeConfig.json",
+        "description": "Default configuration settings for Framework Node creation and properties",
+        "author": "Adam Noble - Noble Architecture",
+        "created": "2025",
+        "version": "1.0.0",
+        "last_modified": "2025-01-27"
+    },
+    "node_defaults": {
+        "name": "Framework_Node",
+        "description": "Standard Framework Connection Node",
+        "node_type": "corner",
+        "dimensions": {
+            "width_mm"         :    70,
+            "height_mm"        :    70,
+            "depth_mm"         :    44,
+            "min_width_mm"     :    44,
+            "max_width_mm"     :    150,
+            "min_height_mm"    :    44,
+            "max_height_mm"    :    150,
+            "min_depth_mm"     :    20,
+            "max_depth_mm"     :    100
+        },
+        "material_properties": {
+            "default_material": "Wood_Pine",
+            "grain_direction": "vertical",
+            "surface_finish": "natural",
+            "density_kg_m3": 500,
+            "moisture_content": 12
+        },
+        "connection_properties": {
+            "max_connections": 8,
+            "connection_types": ["mortise", "tenon", "dowel", "screw"],
+            "default_connection": "mortise",
+            "connection_tolerance_mm": 0.5,
+            "joint_strength": "high"
+        },
+        "positioning": {
+            "origin_x": 0.0,
+            "origin_y": 0.0,
+            "origin_z": 0.0,
+            "rotation_degrees": 0.0,
+            "anchor_point": "center",
+            "snap_to_grid": true,
+            "grid_alignment": "center"
+        },
+        "geometry_properties": {
+            "corner_radius_mm": 5,
+            "chamfer_size_mm": 2,
+            "hollow": false,
+            "wall_thickness_mm": 10,
+            "reinforcement": false
+        },
+        "structural_properties": {
+            "load_bearing": true,
+            "compression_strength_mpa": 40,
+            "tension_strength_mpa": 30,
+            "shear_strength_mpa": 5,
+            "elastic_modulus_gpa": 10
+        },
+        "fabrication_properties": {
+            "cnc_machinable": true,
+            "hand_workable": true,
+            "requires_jig": false,
+            "machining_tolerance_mm": 0.1,
+            "surface_preparation": "sanded"
+        }
+    },
+    "node_types": {
+        "corner": {
+            "description": "Corner connection node for 90-degree joints",
+            "max_connections": 2,
+            "default_angle": 90
+        },
+        "tee": {
+            "description": "T-junction node for three-way connections",
+            "max_connections": 3,
+            "default_angle": 90
+        },
+        "cross": {
+            "description": "Cross junction node for four-way connections",
+            "max_connections": 4,
+            "default_angle": 90
+        },
+        "inline": {
+            "description": "Inline connection node for straight joints",
+            "max_connections": 2,
+            "default_angle": 180
+        },
+        "custom": {
+            "description": "Custom node with user-defined properties",
+            "max_connections": 8,
+            "default_angle": 0
+        }
+    },
+    "ui_settings": {
+        "show_dimensions": true,
+        "show_materials": true,
+        "show_connections": true,
+        "show_positioning": true,
+        "show_geometry": false,
+        "show_structural": false,
+        "show_fabrication": false,
+        "panel_width": 280,
+        "panel_height": 500
+    }
+} 

@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "位置情報を追加",
+  "EXTENSION.DESCRIPTION": "広い領域をインポートします。地形のメッシュ密度を制御します。SketchUp で北と現在地を表示します。",
+  "EXTENSION.COMPATIBILITY_ISSUE": "注意: 場所を追加の互換性の問題。\n\n現在、お使いのバージョンの SketchUp では、「場所を追加」が無効になっています。これは、最新バージョンで動作するように設計されています。最適なパフォーマンスを確保し、すべての機能にアクセスできるように、SketchUp を最新バージョンにアップグレードすることをお勧めします。最新バージョンは、SketchUp の公式 Web サイトからダウンロードできます。ご不明な点がおありの場合、またはアップグレード プロセス中に問題が発生した場合は、サポート チームにお問い合わせください。",
+  "TOOLBAR_TITLE": "位置情報を追加",
+  "TOOLBAR_TOOL_NAME": "位置情報を追加",
+  "TOOLBAR_TOOL_DESCRIPTION": "位置情報を設定し、マップと地形をインポートします",
+  "TOOLBAR_TOOL_TOOLTIP": "位置情報を追加",
+  "MENU_ITEM_NAME": "位置情報を追加",
+  "WINDOW_TITLE": "位置情報を追加",
+  "TRUE_NORTH_MENU_ITEM_NAME": "真北",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "モデル上の現実世界の北方向の表示を切り替えます",
+  "MAP_PIN_MENU_ITEM_NAME": "位置情報ピン",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "モデル上の現実世界の座標点の表示を切り替えます",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "位置情報ピンは、SketchUp モデルの原点を現実世界の点に関連付けます",
+  "MAP_PIN_OVERLAY_NAME": "位置情報ピン",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "地理的位置情報をリセットしています",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "位置情報ピンを表示",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "位置情報ピンを非表示",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "地理的位置情報をリセット"
+}

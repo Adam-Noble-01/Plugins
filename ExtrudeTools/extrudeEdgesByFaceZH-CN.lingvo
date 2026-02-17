@@ -1,0 +1,12 @@
+Extrude Edges by Face<==>单截面放样
+Extrude Edges by Face:<==>单截面放样:
+Extrude Edges by Face<==>单截面放样
+Select a 'Flat' Face and Edge(s) BEFORE using.<==>使用前先选择一个红绿轴上的面和一条或多条边线。
+Error: Extrusion NOT Possible...<==>错误: 不能进行防样...
+Path is Discontinuous or Branched.<==>路径是不连续的或者有分叉。
+Yes = Process Extrusions in Pieces<==>是 = 每段单独放样
+No = Exit...<==>否 = 退出...
+Making Extrusion <==>正在放样
+ of <==> 之 
+: Pick a Face [+ optional Cpoint] and Curve/Edges: Activate Tool...<==>: 选择一个面 [+ 可选结构点] 和一条曲线/直线: 激活工具...
+

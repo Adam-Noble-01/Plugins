@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 19.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 32 32" enable-background="new 0 0 32 32" xml:space="preserve">
+<g id="Edge">
+	<line fill="none" stroke="#4D4D4D" stroke-miterlimit="10" x1="7.5" y1="7" x2="7.5" y2="26"/>
+	<line fill="none" stroke="#4D4D4D" stroke-miterlimit="10" x1="24.5" y1="7" x2="24.5" y2="26"/>
+</g>
+<g id="Bridge_Edges">
+	<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="8" y1="7.5" x2="20" y2="7.5">
+		<stop  offset="0" style="stop-color:#4D4D4D"/>
+		<stop  offset="1" style="stop-color:#FFFFFF"/>
+	</linearGradient>
+	<line fill="none" stroke="url(#SVGID_1_)" stroke-miterlimit="10" x1="8" y1="7.5" x2="20" y2="7.5"/>
+	<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="8" y1="16.5" x2="20" y2="16.5">
+		<stop  offset="0" style="stop-color:#4D4D4D"/>
+		<stop  offset="1" style="stop-color:#FFFFFF"/>
+	</linearGradient>
+	<line fill="none" stroke="url(#SVGID_2_)" stroke-miterlimit="10" x1="8" y1="16.5" x2="20" y2="16.5"/>
+	<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="8" y1="25.5" x2="20" y2="25.5">
+		<stop  offset="0" style="stop-color:#4D4D4D"/>
+		<stop  offset="1" style="stop-color:#FFFFFF"/>
+	</linearGradient>
+	<line fill="none" stroke="url(#SVGID_3_)" stroke-miterlimit="10" x1="8" y1="25.5" x2="20" y2="25.5"/>
+</g>
+<g id="Vertices">
+	<circle fill="#FF0000" stroke="#960000" stroke-miterlimit="10" cx="7.5" cy="7.5" r="1.5"/>
+	<circle fill="#FF0000" stroke="#960000" stroke-miterlimit="10" cx="7.5" cy="25.5" r="1.5"/>
+	<circle fill="#FF0000" stroke="#960000" stroke-miterlimit="10" cx="7.5" cy="16.5" r="1.5"/>
+	<circle fill="#FF0000" stroke="#960000" stroke-miterlimit="10" cx="24.5" cy="7.5" r="1.5"/>
+	<circle fill="#FF0000" stroke="#960000" stroke-miterlimit="10" cx="24.5" cy="16.5" r="1.5"/>
+	<circle fill="#FF0000" stroke="#960000" stroke-miterlimit="10" cx="24.5" cy="25.5" r="1.5"/>
+</g>
+</svg>

@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "Add Location",
+  "EXTENSION.DESCRIPTION": "Import large areas. Control the mesh density of the terrain. View North and your location in SketchUp",
+  "EXTENSION.COMPATIBILITY_ISSUE": "Attention: Add Location compatibility issue.\n\nAdd Location is currently disabled on your version of SketchUp.\nIt is designed to work on the latest version.\nWe recommend upgrading your SketchUp to the latest version to ensure optimal performance and access to all features.\nThe latest version can be downloaded from the official SketchUp website.\nPlease contact our support team for assistance if you have questions or encounter issues during the upgrade process.",
+  "TOOLBAR_TITLE": "Add Location",
+  "TOOLBAR_TOOL_NAME": "Add Location",
+  "TOOLBAR_TOOL_DESCRIPTION": "Set your location and import maps and terrain",
+  "TOOLBAR_TOOL_TOOLTIP": "Add Location",
+  "MENU_ITEM_NAME": "Add Location",
+  "WINDOW_TITLE": "Add Location",
+  "TRUE_NORTH_MENU_ITEM_NAME": "True North",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "Toggle the display of the real-world north direction on your model",
+  "MAP_PIN_MENU_ITEM_NAME": "Location Pin",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "Toggle the display of a real-world coordinates point on your model",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "The location pin associates the SketchUp model origin with a real-world point",
+  "MAP_PIN_OVERLAY_NAME": "Location Pin",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "Resetting Geolocation",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "Show Location Pin",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "Hide Location Pin",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "Reset to Geolocation"
+}

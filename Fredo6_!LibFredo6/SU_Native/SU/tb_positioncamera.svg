@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="24px" height="24px" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:sketch="http://www.bohemiancoding.com/sketch/ns">
+    <!-- Generator: Sketch 3.3.1 (12002) - http://www.bohemiancoding.com/sketch -->
+    <title>tb_positioncamera</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" sketch:type="MSPage">
+        <g id="tb_positioncamera" sketch:type="MSArtboardGroup">
+            <g id="Group" sketch:type="MSLayerGroup" transform="translate(7.000000, 3.000000)">
+                <path d="M8.796875,16.6969676 L8.19239233,17.25 L2,13.2555159 L2.65026169,12.984375 L8.796875,16.6969676 L8.796875,16.6969676 Z" id="Fill-1619" fill="#FB0011" sketch:type="MSShapeGroup"></path>
+                <path d="M1.44623331,17.296875 L0.875,16.7660403 L7.34219497,12.984375 L7.953125,13.2633072 L1.44623331,17.296875 L1.44623331,17.296875 Z" id="Fill-1620" fill="#FB0011" sketch:type="MSShapeGroup"></path>
+                <path d="M6.16320268,3.234375 L4.15438525,3.234375 L3.51977756,3.89610017 L2.375,9.00675433 L3.22549221,8.37272581 L3.74908431,14.7091435 L5.0019923,10.9230625 L6.54040476,14.71875 C6.54040476,14.71875 6.90155034,8.55624725 6.90155034,8.52430878 L7.953125,9.74595524 L7.02573726,3.92654152 L6.16320268,3.234375 L6.16320268,3.234375 Z" id="Fill-1621" fill="#FFFFFF" sketch:type="MSShapeGroup"></path>
+                <path d="M6.16320268,3.234375 L4.15438525,3.234375 L3.51977756,3.89610017 L2.375,9.00675433 L3.22549221,8.37272581 L3.74908431,14.7091435 L5.0019923,10.9230625 L6.54040476,14.71875 C6.54040476,14.71875 6.90155034,8.55624725 6.90155034,8.52430878 L7.953125,9.74595524 L7.02573726,3.92654152 L6.16320268,3.234375 L6.16320268,3.234375 Z" id="Stroke-1622" stroke="#000000" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" sketch:type="MSShapeGroup"></path>
+                <path d="M5.91099056,1.07949987 C6.25883648,1.51883304 6.25883648,2.23116696 5.91099056,2.67050013 C5.56327026,3.10983329 4.99935536,3.10983329 4.65150944,2.67050013 C4.30366352,2.23116696 4.30366352,1.51883304 4.65150944,1.07949987 C4.99935536,0.640166708 5.56327026,0.640166708 5.91099056,1.07949987" id="Fill-1623" fill="#FFFFFF" sketch:type="MSShapeGroup"></path>
+                <path d="M5.91099056,1.07949987 C6.25883648,1.51883304 6.25883648,2.23116696 5.91099056,2.67050013 C5.56327026,3.10983329 4.99935536,3.10983329 4.65150944,2.67050013 C4.30366352,2.23116696 4.30366352,1.51883304 4.65150944,1.07949987 C4.99935536,0.640166708 5.56327026,0.640166708 5.91099056,1.07949987" id="Stroke-1624" stroke="#000000" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" sketch:type="MSShapeGroup"></path>
+            </g>
+        </g>
+    </g>
+</svg>

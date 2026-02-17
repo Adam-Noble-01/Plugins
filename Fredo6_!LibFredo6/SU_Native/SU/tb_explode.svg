@@ -1,0 +1,35 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!--Generator: Xara Designer (www.xara.com), SVG filter version: 6.5.0.21-->
+<svg fill="none" fill-rule="evenodd" stroke="black" stroke-width="0.501" stroke-linejoin="bevel" stroke-miterlimit="10" font-family="Times New Roman" font-size="16" style="font-variant-ligatures:none" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" version="1.1" overflow="visible" width="73.5pt" height="72pt" viewBox="0 -72 73.5 72">
+ <defs>
+  <linearGradient id="LinearGradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="-7.858" y2="0" gradientTransform="translate(19.118 47.572)">
+   <stop offset="0" stop-color="#ffffff"/>
+   <stop offset="1" stop-color="#666666"/>
+  </linearGradient>
+  <linearGradient id="LinearGradient_1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="12.454" y2="0" gradientTransform="translate(20.389 44.824)">
+   <stop offset="0" stop-color="#f0f0f0"/>
+   <stop offset="1" stop-color="#999999"/>
+  </linearGradient>
+  <linearGradient id="LinearGradient_2" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="7.843" y2="0" gradientTransform="translate(22.668 52.184) rotate(90)">
+   <stop offset="0" stop-color="#ffffff"/>
+   <stop offset="1" stop-color="#666666"/>
+  </linearGradient>
+ </defs>
+ <g id="CUBES" transform="scale(1 -1)">
+  <g id="Group" fill-rule="nonzero" stroke-linejoin="round" stroke-width="1.5">
+   <path d="M 11.583,41.915 L 11.583,57.18 L 19.581,51.264 L 19.581,36 L 11.583,41.915 Z" marker-start="none" marker-end="none" fill="url(#LinearGradient)"/>
+   <path d="M 19.581,36 L 19.581,51.264 L 34.025,54.452 L 34.025,39.186 L 19.581,36 Z" marker-start="none" marker-end="none" fill="url(#LinearGradient_1)"/>
+   <path d="M 11.583,57.18 L 26.007,60.363 L 34.025,54.452 L 19.581,51.264 L 11.583,57.18 Z" marker-start="none" marker-end="none" fill="url(#LinearGradient_2)"/>
+  </g>
+ </g>
+ <g id="Bombs" transform="scale(1 -1)">
+  <g id="Group_1" stroke-linecap="round" stroke="none" stroke-width="0.75">
+   <path d="M 52.338,25.685 L 48.881,30.437 C 49.711,30.723 50.389,31.376 50.766,32.46 C 51.354,33.627 51.92,33.277 52.43,33.847 C 54.312,35.949 54.134,39.186 52.032,41.069 C 49.929,42.952 46.692,42.773 44.81,40.671 C 44.137,39.917 43.726,39.023 43.575,38.094 C 43.145,37.196 42.442,36.569 41.382,36.292 L 36.299,38.241 L 43.431,41.125 L 41.109,48.465 L 47.818,44.696 L 52.107,51.081 L 53.339,43.483 L 61.009,44.113 L 55.838,38.414 L 61.109,32.815 L 53.433,33.299 L 52.338,25.685 Z" fill="#ff0000" stroke-linejoin="miter" marker-start="none" marker-end="none"/>
+   <g id="Group_2" fill-rule="nonzero" stroke-linejoin="round">
+    <path d="M 49.026,40.246 L 50.756,38.672 C 49.586,37.658 49.575,36.507 48.997,35.792 C 48.376,35.021 47.581,34.409 46.746,33.971 L 47.545,33.111 C 47.784,32.897 47.913,32.633 47.929,32.32 C 47.947,32.004 47.848,31.728 47.634,31.489 L 46.557,30.284 C 47.72,28.427 48.362,26.416 48.482,24.252 C 48.575,22.551 48.334,20.905 47.761,19.318 C 47.186,17.727 46.366,16.341 45.304,15.155 C 44.242,13.969 42.953,13.003 41.438,12.258 C 39.921,11.512 38.314,11.092 36.613,10.999 C 34.912,10.905 33.267,11.146 31.678,11.72 C 30.089,12.295 28.701,13.113 27.516,14.175 C 26.33,15.237 25.364,16.525 24.619,18.043 C 23.874,19.558 23.453,21.167 23.36,22.867 C 23.266,24.57 23.507,26.213 24.081,27.803 C 24.655,29.39 25.474,30.778 26.536,31.963 C 27.597,33.148 28.886,34.115 30.402,34.862 C 31.919,35.607 33.528,36.027 35.229,36.12 C 37.393,36.24 39.462,35.823 41.436,34.87 L 42.514,36.073 C 42.727,36.312 42.993,36.441 43.308,36.458 C 43.623,36.476 43.899,36.377 44.138,36.163 L 44.837,35.618 C 45.79,35.918 46.857,36.487 47.286,37.519 C 47.808,38.779 48.218,39.501 49.026,40.246 Z" fill="#000000" marker-start="none" marker-end="none"/>
+    <path d="M 32.788,32.943 C 31.53,32.35 30.438,31.532 29.504,30.49 C 28.572,29.449 27.878,28.269 27.428,26.956 L 29.596,26.219 C 29.945,27.239 30.484,28.155 31.208,28.965 C 31.933,29.774 32.785,30.406 33.76,30.867 L 32.788,32.943 Z" fill="#ffffff" marker-start="none" marker-end="none"/>
+   </g>
+  </g>
+ </g>
+</svg>

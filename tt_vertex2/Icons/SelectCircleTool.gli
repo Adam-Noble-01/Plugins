@@ -1,0 +1,5 @@
+### Select Circle Tool ###
+COLOR <255,255,255>
+WIDTH 1
+OFFSET -1 0
+CIRCLE [6.5,6.5] 5.0 16

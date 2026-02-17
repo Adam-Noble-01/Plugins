@@ -1,0 +1,1067 @@
+# =============================================================================
+# VALEDESIGNSUITE - ROOF LANTERN TOOLS COMPLETE
+# =============================================================================
+#
+# FILE       : VDS__Generate3d__RoofLantern__StandardHipRafterObject.rb
+# NAMESPACE  : ValeDesignSuite
+# MODULE     : RoofLanternTools
+# AUTHOR     : Adam Noble - Noble Architecture
+# PURPOSE    : Generate Roof Triangles for Roof Lantern Construction
+# CREATED    : 2025
+#
+# DESCRIPTION:
+# - Generates setting-out triangles for roof lantern construction.
+# - Converts 2D datum edges on XY plane into 3D right-angled triangles.
+# - Analyzes rafter proximity to ridge/hip lines vs perimeter for orientation.
+# - Automatically corrects rafter orientations based on proximity analysis.
+# - All functionality integrated into single script for reliability.
+# - Creates organised group structure with descriptive naming.
+#
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG:
+# 15-Aug-2025 - Version 0.0.1
+# - Initial implementation with basic triangle generation.
+#
+# 15-Aug-2025 - Version 0.0.2
+# - Added proximity analysis and orientation correction utilities.
+#
+# 15-Aug-2025 - Version 0.0.3
+# - Combined all utilities into single comprehensive script.
+# - Eliminated external file dependencies and JSON file exchanges.
+# - Improved performance with internal data structures.
+# - Enhanced error handling and logging capabilities.
+#
+# 12-Sep-2025 - Version 0.0.4
+# - Added manual linework pre-processing instructions to the script.
+# - This was added and tested with `D:\80__CoreLib__Research&Development\30__SketchUp__RoofLanternGenerator\Rooflight__Script__Testing__1.7.1__WorkingWithScript-v0.0.3__.skp`
+#
+# 
+# =============================================================================
+# OPERATION PROCEDURE:
+#
+# CREATE & ASSIGN TAGS TO GROUPED LINE ENTITIES
+# `95__ValeRoofLantern__2dStandardRafterDatumLine`
+# `95__ValeRoofLantern__2dHipRafterDatumLine`
+# `95__ValeRoofLantern__2dPerimeterOutlineDatumLine`
+# `95__ValeRoofLantern__2dRidgeBeamDatumLine`
+# `96__ValeRoofLantern__2dSettingOutTriangles`
+#
+#
+# ---------------------------------------------------------
+# GENERAL MANUAL LINEWORK PREPROCESSING
+#
+# Standard Rafter Lines
+# - No Need to group the glaze bar lines, just tag them with the appropriate tag = `95__ValeRoofLantern__2dStandardRafterDatumLine`
+#
+# Perimeter Outline
+# - Create a grouped perimeter line, and tag it with the appropriate tag = `95__ValeRoofLantern__2dPerimeterOutlineDatumLine`
+# - Name the group = `95__ValeRoofLantern__2dPerimeterOutlineDatumLine__01`
+# - IMPORTANT! : Ensure the perimeter outline is broken with vertices where the standard rafter lines are located.
+#  - This is important for the orientation correction to work correctly.
+#
+# Ridge Beam Lines
+# - Create a grouped ridge beam line, and tag it with the appropriate tag = `95__ValeRoofLantern__2dRidgeBeamDatumLine`
+# - Name the group = `95__ValeRoofLantern__2dRidgeBeamDatumLine__01`
+#  - Note : DO NOT! break the ridge beam line with vertices, it should be a single unbroken line.
+#
+# ---------------------------------------------------------
+# NAME HIP GROUP CONTAINERS 
+# `95__ValeRoofLantern__2dHipRafterDatumLine__01`  =  Top Left Hip Rafter
+# `95__ValeRoofLantern__2dHipRafterDatumLine__02`  =  Bottom Left Hip Rafter
+# `95__ValeRoofLantern__2dHipRafterDatumLine__03`  =  Top Right Hip Rafter
+# `95__ValeRoofLantern__2dHipRafterDatumLine__04`  =  Bottom Right Hip Rafter
+#
+# HIP RAFTER LINE DIAGRAM
+# `/` & `\` Represent the `HIP RAFTER LINE`
+# `------` Represents the `RIDGE BEAM LINE`
+#                                                      ____________
+#   95__ValeRoofLantern__2dHipRafterDatumLine__01  ->  | \      / |  <- 95__ValeRoofLantern__2dHipRafterDatumLine__03
+#                                                      |  ------  |
+#   95__ValeRoofLantern__2dHipRafterDatumLine__02  ->  | /      \ |  <- 95__ValeRoofLantern__2dHipRafterDatumLine__04
+#                                                      ____________                          
+#
+#
+#
+# =============================================================================
+
+require 'json'
+
+module RoofLanternTools
+
+
+# -----------------------------------------------------------------------------
+# REGION | Embedded JSON Method & Function Index
+# -----------------------------------------------------------------------------
+
+    # EMBEDDED JSON | Script Method & Function Index
+    # ------------------------------------------------------------
+    SCRIPT_METHOD_INDEX = {
+      "script_info" => {
+        "name" => "RoofLanternToolsComplete",
+        "version" => "3.0.0",
+        "purpose" => "Complete roof lantern generation with automatic orientation correction"
+      },
+      "constants" => {
+        "geometry_config" => ["ROOF_ANGLE_DEG", "TOLERANCE_MM", "DEG_TO_RAD_FACTOR"],
+        "naming_prefixes" => ["GROUPNAME_PREFIX__SR"],
+        "tags" => ["TAG__SETTING_OUT_TRIANGLES", "TAG__2D_DATUM_LINE_*"],
+        "tolerances" => ["Z_TOL_IN", "XY_KEY_DP", "PERIM_DIST_TOL_MM", "INCH_TO_MM", "INCH_PER_MM"],
+        "control_flags" => ["PRINT_LOGS"],
+        "regex_patterns" => ["PARENT_TRI_REGEX", "RIDGE_DATUM_REGEX", "HIP_DATUM_REGEX", "PERIM_REGEX"]
+      },
+      "helper_functions" => {
+        "geometry" => ["mathConversion__DegreesToRadians", "queryUtility__Get_ZAxisVector", "queryUtility__IsZeroLength?", "queryUtility__IsPlanar_xy?"],
+        "formatting" => ["queryUtility__FormatIndexString", "mm", "xy_obj_mm"],
+        "tag_management" => ["tagManagement__EnsureTags", "tagManagement__EnsureTagWithLineStyle", "tagManagement__EnsureTagWithDashedLinestyle", "tagManagement__AssignGroupAndChildrenToTag"],
+        "model_search" => ["find_groups_with_world_tr", "find_descendant_group_with_world_tr", "find_group_by_name"],
+        "coordinate_extraction" => ["z0_xy_for_group_world", "z0_line_endpoints_for_group_world", "ordered_z0_polyline_vertices", "adjacent_midpoint_world", "z0_line_endpoints_world"],
+        "distance_calculations" => ["nearest_vertex_distance", "nearest_segment_distance", "point_to_segment_distance_2d"],
+        "data_builders" => ["perim_vertices", "ridge_segments"]
+      },
+      "core_functions" => {
+        "triangle_generation" => ["routine__BuildSettingOutTriangles"],
+        "proximity_analysis" => ["routine__AnalyzeProximityData", "build_triangle_item", "collect_line_items", "collect_perimeter_items"],
+        "orientation_correction" => ["routine__CorrectRafterOrientations", "routine__DetermineRafterFlipRequired"]
+      },
+      "entry_points" => {
+        "main" => ["execute_RoofTriangleGeneration"]
+      }
+    }.freeze
+    # ------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Module Constants and Configuration
+# -----------------------------------------------------------------------------
+
+    # MODULE CONSTANTS | Roof Geometry and Naming Configuration
+    # ------------------------------------------------------------
+    ROOF_ANGLE_DEG          =   20.0                                               # <-- Default roof pitch angle in degrees
+    GROUPNAME_PREFIX__SR    =   "SR"                                               # <-- "Standard Rafter" prefix for naming
+    TOLERANCE_MM            =   0.001.mm                                           # <-- Tolerance for planar validation
+    DEG_TO_RAD_FACTOR       =   Math::PI / 180.0                                   # <-- Degree to radian conversion factor
+    PRINT_LOGS              =   true                                               # <-- Enable console logging for orientation correction
+    # ------------------------------------------------------------
+
+
+    # MODULE CONSTANTS | Tag (Formerly Layers) Naming Configuration
+    # ------------------------------------------------------------
+    TAG__2D_DATUM_LINE_PERIMETER_OUTLINE =  "95__ValeRoofLantern__2dPerimeterOutlineDatumLine"   # <-- Tag name for 2D perimeter outline datum line (Dash-Dot style)
+    TAG__2D_DATUM_LINE_STANDARD_RAFTER   =  "95__ValeRoofLantern__2dStandardRafterDatumLine"     # <-- Tag name for 2D standard rafter datum line (Dash-Dot style)
+    TAG__2D_DATUM_LINE_HIP_RAFTER        =  "95__ValeRoofLantern__2dHipRafterDatumLine"          # <-- Tag name for 2D hip rafter datum line (Dash-Dot style)
+    TAG__2D_DATUM_LINE_RIDGE_BEAM        =  "95__ValeRoofLantern__2dRidgeBeamDatumLine"          # <-- Tag name for 2D ridge beam datum line (Dash-Dot style)
+    TAG__SETTING_OUT_TRIANGLES           =  "96__ValeRoofLantern__2dSettingOutTriangles"         # <-- Tag name for setting-out triangles (Dashed style)
+    # ------------------------------------------------------------
+
+
+    # MODULE CONSTANTS | Proximity Analysis Configuration
+    # ------------------------------------------------------------
+    Z_TOL_IN                =   0.001                                              # <-- Z-axis tolerance in inches
+    INCH_TO_MM              =   25.4                                               # <-- Inch to millimeter conversion factor
+    INCH_PER_MM             =   1.0 / 25.4                                         # <-- Millimeter to inch conversion factor
+    XY_KEY_DP               =   9                                                  # <-- Decimal places for XY coordinate deduplication
+    PERIM_DIST_TOL_MM       =   0.5                                                # <-- Tolerance for point-to-perimeter-vertex snap
+    # ------------------------------------------------------------
+
+
+    # MODULE CONSTANTS | Regular Expression Pattern Matching
+    # ------------------------------------------------------------
+    PARENT_TRI_REGEX        =   /^RoofAngleTriangle__StandardRafter-(\d{2})$/      # <-- Parent triangle group pattern
+    CHILD_OPP_FOR           =   ->(nn) { /^SR#{nn}__3dDatumLine__Opposite$/ }      # <-- Opposite datum line pattern
+    CHILD_ADJ_FOR           =   ->(nn) { /^SR#{nn}__2dDatumLine__Adjacent$/ }      # <-- Adjacent datum line pattern
+    RIDGE_DATUM_REGEX       =   /^95__ValeRoofLantern__2dRidgeBeamDatumLine__(\d{2})$/i     # <-- Ridge beam datum pattern
+    HIP_DATUM_REGEX         =   /^95__ValeRoofLantern__2dHipRafterDatumLine__(\d{2})$/i     # <-- Hip rafter datum pattern
+    PERIM_REGEX             =   /^95__ValeRoofLantern__2dPerimeterOutlineDatumLine__(\d{2})$/i  # <-- Perimeter outline pattern
+    # ------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Global Helper Functions - Geometry and Conversion
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Convert Degrees to Radians
+    # ---------------------------------------------------------------
+    def self.mathConversion__DegreesToRadians(degrees)
+        degrees * DEG_TO_RAD_FACTOR                                            # <-- Apply conversion factor
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Get Z-Axis Unit Vector
+    # ---------------------------------------------------------------
+    def self.queryUtility__Get_ZAxisVector
+        Geom::Vector3d.new(0, 0, 1)                                            # <-- Return vertical unit vector
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Check if Edge Has Zero Length
+    # ---------------------------------------------------------------
+    def self.queryUtility__IsZeroLength?(edge)
+        edge.length <= 0.0                                                     # <-- Test for degenerate edge
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Check if Edge is Planar on XY Plane
+    # ---------------------------------------------------------------
+    def self.queryUtility__IsPlanar_xy?(edge, tolerance = TOLERANCE_MM)
+        start_position = edge.start.position                                   # <-- Get edge start point
+        end_position   = edge.end.position                                     # <-- Get edge end point
+        start_position.z.abs <= tolerance && end_position.z.abs <= tolerance   # <-- Validate Z coordinates within tolerance
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Format Index as Zero-Padded String
+    # ---------------------------------------------------------------
+    def self.queryUtility__FormatIndexString(number)
+        number.to_s.rjust(2, "0")                                              # <-- Convert to 2-digit zero-padded string
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Convert Inches to Millimeters
+    # ---------------------------------------------------------------
+    def self.mm(val_in_inches)
+        (val_in_inches * INCH_TO_MM).to_f                                      # <-- Convert SketchUp inches to millimeters
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Create Millimeter Coordinate Object from 3D Point
+    # ---------------------------------------------------------------
+    def self.xy_obj_mm(pt3d_world)
+        {                                                                       # <-- Create coordinate hash object
+          "PosX"  => mm(pt3d_world.x).round(3),                                # <-- X position in millimeters
+          "PosY"  => mm(pt3d_world.y).round(3),                                # <-- Y position in millimeters
+          "PosZ"  => 0.0                                                        # <-- Z position fixed at zero
+        }
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Tag Handling Functions - Create Tag and Apply Dashed Line Style
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Ensure All Required Tags Exist With Appropriate Line Styles
+    # ---------------------------------------------------------------
+    def self.tagManagement__EnsureTags
+        # Create dash-dot style tags (datum lines)
+        tagManagement__EnsureTagWithLineStyle(TAG__2D_DATUM_LINE_STANDARD_RAFTER, "dash_dot")  # <-- Standard rafter datum line
+        tagManagement__EnsureTagWithLineStyle(TAG__2D_DATUM_LINE_HIP_RAFTER, "dash_dot")       # <-- Hip rafter datum line
+        tagManagement__EnsureTagWithLineStyle(TAG__2D_DATUM_LINE_RIDGE_BEAM, "dash_dot")       # <-- Ridge beam datum line
+        
+        # Create dashed style tag (triangles)
+        tagManagement__EnsureTagWithDashedLinestyle(TAG__SETTING_OUT_TRIANGLES)                  # <-- Setting-out triangles
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Ensure Tag Exists With Specified Line Style
+    # ---------------------------------------------------------------
+    def self.tagManagement__EnsureTagWithLineStyle(tag_name, style_type)
+        model       = Sketchup.active_model                                         # <-- Active model reference
+        layers      = model.layers                                                  # <-- Tags collection
+        line_styles = model.line_styles                                             # <-- Line styles manager
+
+        tag = layers.add(tag_name)                                                  # <-- Create or fetch tag
+
+        # Apply appropriate line style based on type
+        case style_type
+        when "dash_dot"
+            preferred_names = ["Dash-Dot", "DashDot", "Dash Dot"]                  # <-- Dash-dot style names
+            fallback_check = ->(name) { name.include?("dash") && name.include?("dot") }  # <-- Dash-dot fallback logic
+        when "dashed"
+            preferred_names = ["Dash", "Dashed"]                                   # <-- Dashed style names
+            fallback_check = ->(name) { name.include?("dash") }                     # <-- Dashed fallback logic
+        else
+            return tag                                                              # <-- Return tag without style if unknown type
+        end
+
+        # Find and apply line style
+        style = preferred_names.find { |name| line_styles[name] }                   # <-- Try preferred names first
+        style ||= line_styles.names.find { |n| fallback_check.call(n.to_s.downcase) }  # <-- Fallback search
+        
+        tag.line_style = line_styles[style] if style                               # <-- Apply style if found
+        tag                                                                         # <-- Return tag
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Ensure Tag Exists With Dashed Line Style
+    # ---------------------------------------------------------------
+    def self.tagManagement__EnsureTagWithDashedLinestyle(tag_name)
+        model       = Sketchup.active_model                                         # <-- Active model reference
+        layers      = model.layers                                                  # <-- Tags collection (API Layer)
+        line_styles = model.line_styles                                             # <-- Line styles manager
+
+        layer = layers.add(tag_name)                                                # <-- Create or fetch layer by name
+
+        preferred_names = ["Dash", "Dashed"]                                       # <-- Preferred dashed style names
+
+        style = nil                                                                 # <-- Resolved line style
+        preferred_names.each do |name|
+            style ||= line_styles[name]
+            break if style
+        end
+
+        if style.nil?                                                               # <-- Fallback: find first style containing 'dash'
+            dashed_name = line_styles.names.find { |n| n.to_s.downcase.include?("dash") }
+            style = dashed_name ? line_styles[dashed_name] : nil
+        end
+
+        layer.line_style = style if style                                           # <-- Apply dashed style if available
+        layer                                                                       # <-- Return the ensured layer
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Assign Tag To Group And Its Direct Children
+    # ---------------------------------------------------------------
+    def self.tagManagement__AssignGroupAndChildrenToTag(parent_group, layer)
+        return unless parent_group && layer                                         # <-- Validate inputs
+
+        parent_group.layer = layer                                                  # <-- Tag top-level group
+
+        child_groups = parent_group.entities.grep(Sketchup::Group)                  # <-- Direct child groups only
+        child_groups.each { |g| g.layer = layer }                                    # <-- Tag children for visible dashed edges
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Model Search and Discovery Functions
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Find Descendant Group Matching Regex Pattern
+    # ---------------------------------------------------------------
+    def self.find_descendant_group_with_world_tr(parent_group, parent_world_tr, regex)
+        stack = [[parent_group.definition.entities, parent_world_tr]]          # <-- Initialize search stack
+        while (frame = stack.pop)                                              # <-- Process stack frames
+          ents, base_tr = frame                                                # <-- Extract entities and transform
+          ents.each do |ent|                                                   # <-- Iterate through entities
+            case ent
+            when Sketchup::Group, Sketchup::ComponentInstance                  # <-- Check for group types
+              tr = base_tr * ent.transformation                                # <-- Calculate world transform
+              if ent.is_a?(Sketchup::Group) && ent.name =~ regex              # <-- Match group name to regex
+                return [ent, tr]                                               # <-- Return matching group
+              end
+              stack << [ent.definition.entities, tr]                          # <-- Add children to search stack
+            end
+          end
+        end
+        [nil, nil]                                                             # <-- Return nil if no match found
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Recursively Find All Groups Matching Name Pattern
+    # ---------------------------------------------------------------
+    def self.find_groups_with_world_tr(entities, name_regex, tr_acc = Geom::Transformation.new, out = [])
+        entities.each do |ent|                                                 # <-- Iterate through all entities
+          case ent
+          when Sketchup::Group, Sketchup::ComponentInstance                    # <-- Check for group types
+            world_tr = tr_acc * ent.transformation                             # <-- Calculate world transformation
+            if ent.is_a?(Sketchup::Group) && ent.name =~ name_regex           # <-- Match group name to regex
+              out << [ent, world_tr]                                           # <-- Add to output collection
+            end
+            find_groups_with_world_tr(ent.definition.entities, name_regex, world_tr, out)  # <-- Recurse into children
+          end
+        end
+        out                                                                    # <-- Return collected groups
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Find Group by Name in Model Hierarchy
+    # ---------------------------------------------------------------
+    def self.find_group_by_name(entities, name, tr_acc = Geom::Transformation.new)
+        entities.each do |ent|                                                 # <-- Iterate through entities
+          case ent
+          when Sketchup::Group, Sketchup::ComponentInstance                    # <-- Check for group types
+            return ent if ent.is_a?(Sketchup::Group) && ent.name == name      # <-- Return if name matches
+            found = find_group_by_name(ent.definition.entities, name, tr_acc * ent.transformation)  # <-- Recurse into children
+            return found if found                                              # <-- Return if found in children
+          end
+        end
+        nil                                                                    # <-- Return nil if not found
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Coordinate Extraction Functions
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Extract Single Z=0 Point from Group Geometry
+    # ---------------------------------------------------------------
+    def self.z0_xy_for_group_world(child_group, world_tr)
+        verts = []                                                             # <-- Initialize vertex collection
+        child_group.entities.grep(Sketchup::Edge).each do |e|                 # <-- Process all edges in group
+          verts << e.start.position.transform(world_tr)                       # <-- Transform start vertex to world
+          verts << e.end.position.transform(world_tr)                         # <-- Transform end vertex to world
+        end
+        return nil if verts.empty?                                             # <-- Return nil if no vertices found
+
+        z0 = verts.select { |p| p.z.abs <= Z_TOL_IN }                         # <-- Filter vertices at Z=0 plane
+        if z0.empty?                                                           # <-- Handle case with no Z=0 vertices
+          closest = verts.min_by { |p| p.z.abs }                              # <-- Find closest vertex to Z=0
+          return nil unless closest && closest.z.abs <= (Z_TOL_IN * 10.0)     # <-- Validate tolerance
+          return Geom::Point3d.new(closest.x, closest.y, 0.0)                 # <-- Project to Z=0 plane
+        end
+
+        by_xy = {}                                                             # <-- Initialize deduplication hash
+        z0.each do |p|                                                         # <-- Process Z=0 vertices
+          key = [p.x.round(XY_KEY_DP), p.y.round(XY_KEY_DP)]                  # <-- Create deduplication key
+          by_xy[key] ||= Geom::Point3d.new(p.x, p.y, 0.0)                     # <-- Store unique vertex
+        end
+        by_xy.values.first                                                     # <-- Return first unique vertex
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Extract Line Endpoints from Group at Z=0 Plane
+    # ---------------------------------------------------------------
+    def self.z0_line_endpoints_for_group_world(group, world_tr)
+        verts = []                                                             # <-- Initialize vertex collection
+        group.entities.grep(Sketchup::Edge).each do |e|                       # <-- Process all edges in group
+          verts << e.start.position.transform(world_tr)                       # <-- Transform start vertex to world
+          verts << e.end.position.transform(world_tr)                         # <-- Transform end vertex to world
+        end
+        return [nil, nil] if verts.empty?                                      # <-- Return nil pair if no vertices
+
+        z0 = verts.select { |p| p.z.abs <= Z_TOL_IN }                         # <-- Filter vertices at Z=0 plane
+        if z0.length < 2                                                       # <-- Handle insufficient Z=0 vertices
+          verts_sorted = verts.sort_by { |p| p.z.abs }                        # <-- Sort by Z distance
+          z0 = verts_sorted.first(2)                                           # <-- Take closest two vertices
+          return [nil, nil] unless z0.length == 2 && z0.all? { |p| p.z.abs <= (Z_TOL_IN * 10.0) }  # <-- Validate
+          return Geom::Point3d.new(z0[0].x, z0[0].y, 0.0), Geom::Point3d.new(z0[1].x, z0[1].y, 0.0)  # <-- Project to Z=0
+        end
+
+        uniq = {}                                                              # <-- Initialize deduplication hash
+        z0.each do |p|                                                         # <-- Process Z=0 vertices
+          key = [p.x.round(XY_KEY_DP), p.y.round(XY_KEY_DP)]                  # <-- Create deduplication key
+          uniq[key] ||= Geom::Point3d.new(p.x, p.y, 0.0)                      # <-- Store unique vertex
+        end
+        pts = uniq.values                                                      # <-- Get unique vertices
+        return [nil, nil] if pts.length < 2                                    # <-- Validate minimum vertex count
+
+        best_pair = nil                                                        # <-- Initialize best endpoint pair
+        best_d2   = -1.0                                                       # <-- Initialize best distance squared
+        pts.each_with_index do |a, i|                                          # <-- Iterate through vertex pairs
+          (i + 1...pts.length).each do |j|                                     # <-- Check all pair combinations
+            b = pts[j]                                                         # <-- Get second vertex
+            d2 = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)       # <-- Calculate distance squared
+            if d2 > best_d2                                                    # <-- Check if best distance so far
+              best_d2 = d2                                                     # <-- Update best distance
+              best_pair = [a, b]                                               # <-- Update best endpoint pair
+            end
+          end
+        end
+        best_pair || [nil, nil]                                                # <-- Return best pair or nil
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Extract Ordered Polyline Vertices at Z=0 Plane
+    # ---------------------------------------------------------------
+    def self.ordered_z0_polyline_vertices(group, world_tr)
+        node_map = {}                                                          # <-- Initialize vertex node mapping
+        edges_xy = []                                                          # <-- Initialize edge connectivity
+
+        group.entities.grep(Sketchup::Edge).each do |e|                       # <-- Process all edges in group
+          p1 = e.start.position.transform(world_tr)                           # <-- Transform start vertex to world
+          p2 = e.end.position.transform(world_tr)                             # <-- Transform end vertex to world
+
+          next unless p1.z.abs <= Z_TOL_IN && p2.z.abs <= Z_TOL_IN           # <-- Skip non-Z=0 edges
+
+          k1 = [p1.x.round(XY_KEY_DP), p1.y.round(XY_KEY_DP)]                # <-- Create vertex key for p1
+          k2 = [p2.x.round(XY_KEY_DP), p2.y.round(XY_KEY_DP)]                # <-- Create vertex key for p2
+
+          node_map[k1] ||= Geom::Point3d.new(p1.x, p1.y, 0.0)                # <-- Store vertex in node map
+          node_map[k2] ||= Geom::Point3d.new(p2.x, p2.y, 0.0)                # <-- Store vertex in node map
+          edges_xy << [k1, k2]                                                # <-- Record edge connectivity
+        end
+
+        return [] if node_map.empty?                                           # <-- Return empty if no vertices
+
+        adj = Hash.new { |h, k| h[k] = [] }                                    # <-- Initialize adjacency hash
+        edges_xy.each do |a, b|                                               # <-- Build adjacency graph
+          adj[a] << b unless adj[a].include?(b)                               # <-- Add forward edge connection
+          adj[b] << a unless adj[b].include?(a)                               # <-- Add reverse edge connection
+        end
+
+        start_key = adj.keys.find { |k| adj[k].length == 1 } || adj.keys.first  # <-- Find start vertex (degree 1 or any)
+
+        ordered_keys = []                                                      # <-- Initialize ordered vertex keys
+        visited = {}                                                           # <-- Initialize visited tracking
+        prev = nil                                                             # <-- Initialize previous vertex
+        cur  = start_key                                                       # <-- Set current vertex to start
+
+        loop do                                                                # <-- Trace polyline path
+          ordered_keys << cur                                                  # <-- Add current vertex to path
+          visited[cur] = true                                                  # <-- Mark current vertex as visited
+          nxts = adj[cur].reject { |k| k == prev }                            # <-- Find unvisited neighbors
+          break if nxts.empty?                                                 # <-- Break if no more neighbors
+          prev = cur                                                           # <-- Update previous vertex
+          cur  = nxts.first                                                    # <-- Move to next vertex
+          break if visited[cur]                                                # <-- Break if loop detected
+        end
+
+        if ordered_keys.length < node_map.length                              # <-- Handle incomplete traversal
+          ordered_keys = node_map.keys                                         # <-- Fall back to all vertices
+        end
+
+        ordered_keys.map { |k| node_map[k] }                                   # <-- Return ordered vertex points
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Calculate Adjacent Line Midpoint in World Space
+    # ---------------------------------------------------------------
+    def self.adjacent_midpoint_world(parent_group, sr_code)
+        rx = CHILD_ADJ_FOR.call(sr_code.gsub(/^SR/, ""))                       # <-- Create regex for adjacent child
+        child, child_tr_world = find_descendant_group_with_world_tr(parent_group, parent_group.transformation, rx)  # <-- Find adjacent child group
+        return nil unless child                                                # <-- Return nil if child not found
+
+        a, b = z0_line_endpoints_world(child, child_tr_world)                  # <-- Extract line endpoints
+        return nil unless a && b                                               # <-- Return nil if endpoints missing
+        Geom::Point3d.new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, 0.0)         # <-- Calculate and return midpoint
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Extract Z=0 Line Endpoints in World Space
+    # ---------------------------------------------------------------
+    def self.z0_line_endpoints_world(group, world_tr)
+        pts = []                                                               # <-- Initialize point collection
+        group.entities.grep(Sketchup::Edge).each do |e|                       # <-- Process all edges in group
+          pts << e.start.position.transform(world_tr)                         # <-- Transform start point to world
+          pts << e.end.position.transform(world_tr)                           # <-- Transform end point to world
+        end
+        z0 = pts.select { |p| p.z.abs <= 0.001 }                              # <-- Filter points at Z=0 plane
+        return [nil, nil] if z0.length < 2                                     # <-- Return nil if insufficient points
+
+        uniq = {}                                                              # <-- Initialize deduplication hash
+        z0.each do |p|                                                         # <-- Process Z=0 points
+          key = [p.x.round(9), p.y.round(9)]                                  # <-- Create deduplication key
+          uniq[key] ||= Geom::Point3d.new(p.x, p.y, 0.0)                      # <-- Store unique point
+        end
+        arr = uniq.values                                                      # <-- Get unique points
+        return [nil, nil] if arr.length < 2                                    # <-- Return nil if insufficient unique points
+
+        best = nil                                                             # <-- Initialize best endpoint pair
+        best_d2 = -1.0                                                         # <-- Initialize best distance squared
+        arr.each_with_index do |a, i|                                          # <-- Iterate through point pairs
+          (i + 1...arr.length).each do |j|                                     # <-- Check all pair combinations
+            b = arr[j]                                                         # <-- Get second point
+            d2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2                         # <-- Calculate distance squared
+            if d2 > best_d2                                                    # <-- Check if best distance so far
+              best_d2 = d2                                                     # <-- Update best distance
+              best = [a, b]                                                    # <-- Update best endpoint pair
+            end
+          end
+        end
+        best || [nil, nil]                                                     # <-- Return best pair or nil
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Distance Calculation Functions
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Find Nearest Vertex Distance from Point
+    # ---------------------------------------------------------------
+    def self.nearest_vertex_distance(p, verts)
+        return nil if verts.empty?                                             # <-- Return nil if no vertices
+        verts.map { |q| p.distance(q) }.min                                    # <-- Find minimum distance to vertices
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Find Nearest Segment Distance from Point
+    # ---------------------------------------------------------------
+    def self.nearest_segment_distance(p, segs)
+        return Float::INFINITY if segs.empty?                                  # <-- Return infinity if no segments
+        segs.map { |a, b| point_to_segment_distance_2d(p, a, b) }.min          # <-- Find minimum distance to segments
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Calculate 2D Point to Segment Distance
+    # ---------------------------------------------------------------
+    def self.point_to_segment_distance_2d(p, a, b)
+        ax, ay = a.x, a.y                                                      # <-- Extract segment start coordinates
+        bx, by = b.x, b.y                                                      # <-- Extract segment end coordinates
+        px, py = p.x, p.y                                                      # <-- Extract point coordinates
+
+        vx = bx - ax; vy = by - ay                                             # <-- Calculate segment vector
+        wx = px - ax; wy = py - ay                                             # <-- Calculate point vector
+
+        vlen2 = vx * vx + vy * vy                                              # <-- Calculate segment length squared
+        return p.distance(a) if vlen2 <= 0.0                                   # <-- Return distance to start if degenerate
+
+        t = (wx * vx + wy * vy) / vlen2                                        # <-- Calculate projection parameter
+        t = [[t, 0.0].max, 1.0].min                                            # <-- Clamp parameter to [0,1] range
+
+        cx = ax + t * vx                                                       # <-- Calculate closest point X
+        cy = ay + t * vy                                                       # <-- Calculate closest point Y
+        Math.sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy))              # <-- Return distance to closest point
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Data Processing Functions
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Build Triangle Item Data Structure from Parent Group
+    # ------------------------------------------------------------
+    def self.build_triangle_item(parent, parent_tr)
+        sr_num  = parent.name[PARENT_TRI_REGEX, 1]                             # <-- Extract standard rafter number
+        opp_g, opp_tr = find_descendant_group_with_world_tr(parent, parent_tr, CHILD_OPP_FOR.call(sr_num))  # <-- Find opposite group
+        adj_g, adj_tr = find_descendant_group_with_world_tr(parent, parent_tr, CHILD_ADJ_FOR.call(sr_num))  # <-- Find adjacent group
+
+        opp_xy = opp_g ? z0_xy_for_group_world(opp_g, opp_tr) : nil           # <-- Extract opposite coordinates
+        adj_xy = adj_g ? z0_xy_for_group_world(adj_g, adj_tr) : nil           # <-- Extract adjacent coordinates
+
+        {                                                                      # <-- Create triangle item hash
+          "ParentGroup"  => parent.name,                                       # <-- Store parent group name
+          "SRCode"       => "SR#{sr_num}",                                     # <-- Store standard rafter code
+          "children"     => {                                                  # <-- Store child data
+            "Opposite"   => opp_xy ? xy_obj_mm(opp_xy) : nil,                 # <-- Opposite coordinates in mm
+            "Adjacent"   => adj_xy ? xy_obj_mm(adj_xy) : nil                   # <-- Adjacent coordinates in mm
+          },
+          "_group_ref"   => parent                                             # <-- Store group reference for internal use
+        }
+    end
+    # ---------------------------------------------------------------
+
+
+    # FUNCTION | Collect Line Item Data from Groups Matching Pattern
+    # ------------------------------------------------------------
+    def self.collect_line_items(root_entities, name_regex)
+        groups = find_groups_with_world_tr(root_entities, name_regex)          # <-- Find matching groups
+        groups.sort_by! { |g, _tr| g.name[name_regex, 1].to_i }               # <-- Sort by extracted index number
+
+        groups.map do |grp, world_tr|                                          # <-- Process each group
+          a, b = z0_line_endpoints_for_group_world(grp, world_tr)              # <-- Extract line endpoints
+          {                                                                    # <-- Create line item hash
+            "Name"   => grp.name,                                              # <-- Store group name
+            "Index"  => grp.name[name_regex, 1],                              # <-- Store extracted index
+            "Line"   => (a && b) ? { "Start" => xy_obj_mm(a), "End" => xy_obj_mm(b) } : nil  # <-- Store line data
+          }
+        end
+    end
+    # ---------------------------------------------------------------
+
+
+    # FUNCTION | Collect Perimeter Item Data with Ordered Polyline Vertices
+    # ------------------------------------------------------------
+    def self.collect_perimeter_items(root_entities, name_regex)
+        groups = find_groups_with_world_tr(root_entities, name_regex)          # <-- Find matching groups
+        groups.sort_by! { |g, _tr| g.name[name_regex, 1].to_i }               # <-- Sort by extracted index number
+
+        groups.map do |grp, world_tr|                                          # <-- Process each group
+          ordered = ordered_z0_polyline_vertices(grp, world_tr)                # <-- Extract ordered vertices
+          {                                                                    # <-- Create perimeter item hash
+            "Name"          => grp.name,                                       # <-- Store group name
+            "Index"         => grp.name[name_regex, 1],                       # <-- Store extracted index
+            "Polyline"      => {                                               # <-- Store polyline data
+              "vertex_count" => ordered.length,                               # <-- Store vertex count
+              "vertices"     => ordered.map { |p| xy_obj_mm(p) }              # <-- Store vertices in mm
+            }
+          }
+        end
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Extract Perimeter Vertices from Items
+    # ---------------------------------------------------------------
+    def self.perim_vertices(perim_items)
+        list = []                                                              # <-- Initialize vertex collection
+        perim_items.each do |item|                                             # <-- Process each perimeter item
+          verts = Array(item.dig("Polyline", "vertices"))                      # <-- Extract vertex array
+          verts.each do |v|                                                    # <-- Process each vertex
+            list << Geom::Point3d.new(                                         # <-- Create 3D point
+              v["PosX"].to_f * INCH_PER_MM,                                    # <-- Convert X coordinate to inches
+              v["PosY"].to_f * INCH_PER_MM,                                    # <-- Convert Y coordinate to inches
+              0.0                                                              # <-- Set Z to zero
+            )
+          end
+        end
+        list                                                                   # <-- Return vertex collection
+    end
+    # ---------------------------------------------------------------
+
+
+    # HELPER FUNCTION | Extract Ridge Segments from Items
+    # ---------------------------------------------------------------
+    def self.ridge_segments(ridge_items)
+        segs = []                                                              # <-- Initialize segment collection
+        ridge_items.each do |it|                                               # <-- Process each ridge item
+          line = it["Line"]                                                    # <-- Extract line data
+          next unless line                                                     # <-- Skip if no line data
+          s = line["Start"]; e = line["End"]                                   # <-- Extract start and end points
+          next unless s && e                                                   # <-- Skip if incomplete line data
+          a = Geom::Point3d.new(                                               # <-- Create start point
+            s["PosX"].to_f * INCH_PER_MM,                                      # <-- Convert start X to inches
+            s["PosY"].to_f * INCH_PER_MM,                                      # <-- Convert start Y to inches
+            0.0                                                                # <-- Set start Z to zero
+          )
+          b = Geom::Point3d.new(                                               # <-- Create end point
+            e["PosX"].to_f * INCH_PER_MM,                                      # <-- Convert end X to inches
+            e["PosY"].to_f * INCH_PER_MM,                                      # <-- Convert end Y to inches
+            0.0                                                                # <-- Set end Z to zero
+          )
+          segs << [a, b]                                                       # <-- Add segment to collection
+        end
+        segs                                                                   # <-- Return segment collection
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Triangle Generation Functions
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Generate Setting-Out Triangles from Selected Edges
+    # ------------------------------------------------------------
+    def self.routine__BuildSettingOutTriangles
+        model      = Sketchup.active_model                                     # <-- Get active SketchUp model
+        entities   = model.active_entities                                     # <-- Get model entities collection
+        selection  = model.selection                                           # <-- Get current selection
+
+        selected_edges = selection.grep(Sketchup::Edge)                        # <-- Filter selection for edges only
+
+        # Validate selection contains edges
+        if selected_edges.empty?                                               # <-- Check for empty selection
+            UI.messagebox("Select one or more 2D edges on the XY plane, then run again.")
+            return false                                                       # <-- Exit with failure status
+        end
+
+        # Validate edge quality and positioning
+        invalid_edges = selected_edges.select { |edge| queryUtility__IsZeroLength?(edge) || !queryUtility__IsPlanar_xy?(edge) }  # <-- Find invalid edges
+        unless invalid_edges.empty?                                            # <-- Check for invalid edges
+            UI.messagebox("Selection must be non-zero edges lying on the XY plane. Remove invalid items and retry.")
+            return false                                                       # <-- Exit with failure status
+        end
+
+        angle_radians = mathConversion__DegreesToRadians(ROOF_ANGLE_DEG)                                # <-- Convert angle to radians
+        z_axis_vector = queryUtility__Get_ZAxisVector                          # <-- Get vertical direction vector
+
+        triangle_counter = 0                                                   # <-- Initialize triangle counter
+
+        # Ensure all required tags exist with appropriate line styles
+        tagManagement__EnsureTags                                                     # <-- Create all required tags
+        target_layer = Sketchup.active_model.layers[TAG__SETTING_OUT_TRIANGLES]      # <-- Get setting-out triangles tag
+
+        selected_edges.each do |edge|                                          # <-- Process each selected edge
+            triangle_counter += 1                                              # <-- Increment triangle counter
+            index_string = queryUtility__FormatIndexString(triangle_counter)     # <-- Format counter as string
+            rafter_tag   = "#{GROUPNAME_PREFIX__SR}#{index_string}"                        # <-- Create rafter identification tag
+
+            plan_run      = edge.length                                        # <-- Adjacent length (plan run)
+            vertical_rise = plan_run * Math.tan(angle_radians)                 # <-- Opposite length (rise)
+
+            start_point = edge.start.position                                  # <-- Edge start position
+            end_point   = edge.end.position                                    # <-- Edge end position
+            apex_point  = end_point.offset(z_axis_vector, vertical_rise)       # <-- Triangle apex point
+
+            # Parent container for this triangle
+            parent_group = entities.add_group                                  # <-- Create parent container group
+            parent_group.name = "RoofAngleTriangle__StandardRafter-#{index_string}"  # <-- Set descriptive parent name
+
+            # Child: Adjacent (copied 2D datum)
+            adjacent_group = parent_group.entities.add_group                   # <-- Create adjacent edge container
+            adjacent_group.entities.add_line(start_point, end_point)           # <-- Add horizontal datum line
+            adjacent_group.name = "#{rafter_tag}__2dDatumLine__Adjacent"        # <-- Name adjacent group
+
+            # Child: Opposite (vertical rise at far end)
+            opposite_group = parent_group.entities.add_group                   # <-- Create opposite edge container
+            opposite_group.entities.add_line(end_point, apex_point)            # <-- Add vertical rise line
+            opposite_group.name = "#{rafter_tag}__3dDatumLine__Opposite"        # <-- Name opposite group
+
+            # Child: Hypotenuse (rafter line)
+            hypotenuse_group = parent_group.entities.add_group                 # <-- Create hypotenuse edge container
+            hypotenuse_group.entities.add_line(start_point, apex_point)        # <-- Add rafter slope line
+            hypotenuse_group.name = "#{rafter_tag}__3dDatumLine__Hypotenuse"    # <-- Name hypotenuse group
+
+            # Apply dashed tag to the parent and children for visible dashed edges
+            tagManagement__AssignGroupAndChildrenToTag(parent_group, target_layer)        # <-- Tag hierarchy with dashed style
+        end
+
+        return true                                                            # <-- Return success status
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Proximity Analysis Functions
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Analyze Proximity Data and Build Internal Structure
+    # ------------------------------------------------------------
+    def self.routine__AnalyzeProximityData
+        puts "🔍 Analyzing roof geometry for proximity data..." if PRINT_LOGS  # <-- Log analysis start
+        
+        model = Sketchup.active_model                                          # <-- Get active SketchUp model
+
+        tri_parents = find_groups_with_world_tr(model.entities, PARENT_TRI_REGEX)  # <-- Find roof triangle groups
+        tri_parents.sort_by! { |g, _tr| g.name[PARENT_TRI_REGEX, 1].to_i }    # <-- Sort triangles by number
+        tri_items = tri_parents.map { |parent, parent_tr| build_triangle_item(parent, parent_tr) }  # <-- Process triangles
+
+        ridge_items = collect_line_items(model.entities, RIDGE_DATUM_REGEX)    # <-- Collect ridge beam data
+        hip_items   = collect_line_items(model.entities,   HIP_DATUM_REGEX)    # <-- Collect hip rafter data
+        perim_items = collect_perimeter_items(model.entities, PERIM_REGEX)     # <-- Collect perimeter data
+
+        # Build internal data structure (no file I/O needed)
+        proximity_data = {                                                     # <-- Create proximity data structure
+          "roof_triangles" => {                                                # <-- Roof triangle data section
+            "count"  => tri_items.length,                                      # <-- Triangle count
+            "items"  => tri_items                                              # <-- Triangle data array with group refs
+          },
+          "ridge_beam_datum_lines" => {                                        # <-- Ridge beam data section
+            "count"  => ridge_items.length,                                    # <-- Ridge beam count
+            "items"  => ridge_items                                              # <-- Ridge beam data array
+          },
+          "hip_rafter_datum_lines" => {                                        # <-- Hip rafter data section
+            "count"  => hip_items.length,                                      # <-- Hip rafter count
+            "items"  => hip_items                                              # <-- Hip rafter data array
+          },
+          "perimeter_outline_datum_lines" => {                                 # <-- Perimeter data section
+            "count"  => perim_items.length,                                    # <-- Perimeter count
+            "items"  => perim_items                                              # <-- Perimeter data array
+          }
+        }
+        
+        if proximity_data && proximity_data["roof_triangles"]                  # <-- Check if data generated successfully
+            triangle_count = proximity_data["roof_triangles"]["count"]        # <-- Get triangle count
+            puts "✅ Proximity analysis complete - #{triangle_count} triangles analyzed"  # <-- Log success
+            return proximity_data                                              # <-- Return proximity data
+        else
+            puts "❌ Proximity analysis failed - no triangle data generated"   # <-- Log failure
+            return nil                                                         # <-- Return nil on failure
+        end
+    rescue => e
+        puts "❌ Error during proximity analysis: #{e.message}"               # <-- Log error details
+        return nil                                                             # <-- Return nil on error
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Orientation Correction Functions
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Correct Rafter Orientations Based on Proximity Data
+    # ------------------------------------------------------------
+    def self.routine__CorrectRafterOrientations(proximity_data)
+        puts "🔄 Starting automatic rafter orientation correction..." if PRINT_LOGS  # <-- Log correction start
+        
+        unless proximity_data                                                  # <-- Check if data exists
+          puts "❌ No proximity data available for orientation correction" if PRINT_LOGS  # <-- Log missing data
+          return []                                                            # <-- Return empty array on failure
+        end
+
+        rafters  = Array(proximity_data.dig("roof_triangles", "items"))       # <-- Extract rafter data
+        ridges   = Array(proximity_data.dig("ridge_beam_datum_lines", "items"))  # <-- Extract ridge data
+        hips     = Array(proximity_data.dig("hip_rafter_datum_lines", "items"))   # <-- Extract hip data
+        perims   = Array(proximity_data.dig("perimeter_outline_datum_lines", "items"))  # <-- Extract perimeter data
+
+        if rafters.empty? || perims.empty?                                     # <-- Check for required data
+          puts "Missing rafters or perimeter data." if PRINT_LOGS             # <-- Log missing data error
+          return []                                                            # <-- Return empty array on failure
+        end
+
+        perim_pts = perim_vertices(perims)                                     # <-- Build perimeter vertex array
+        ridge_segs = ridge_segments(ridges)                                    # <-- Build ridge segment array
+        hip_segs = ridge_segments(hips)                                        # <-- Build hip segment array (using same function)
+
+        tol_in = PERIM_DIST_TOL_MM * INCH_PER_MM                              # <-- Convert tolerance to inches
+
+        rotated = []                                                           # <-- Initialize rotated rafters list
+
+        rafters.sort_by { |r| r["ParentGroup"].to_s }.each do |r|             # <-- Process rafters in sorted order
+          parent_name = r["ParentGroup"].to_s                                  # <-- Extract parent group name
+          sr_code     = r["SRCode"].to_s                                       # <-- Extract standard rafter code
+          opp_xy      = r.dig("children", "Opposite")                         # <-- Extract opposite coordinates
+          grp         = r["_group_ref"]                                        # <-- Get group reference from internal data
+          
+          next unless opp_xy && grp                                            # <-- Skip if no opposite data or group
+
+          opp_pt = Geom::Point3d.new(                                          # <-- Create opposite point
+            opp_xy["PosX"].to_f * INCH_PER_MM,                                 # <-- Convert X coordinate to inches
+            opp_xy["PosY"].to_f * INCH_PER_MM,                                 # <-- Convert Y coordinate to inches
+            0.0                                                                # <-- Set Z coordinate to zero
+          )
+
+          # Calculate distances to all reference lines
+          d_perim = nearest_vertex_distance(opp_pt, perim_pts)                 # <-- Calculate distance to perimeter
+          d_ridge = nearest_segment_distance(opp_pt, ridge_segs)               # <-- Calculate distance to ridge
+          d_hip   = nearest_segment_distance(opp_pt, hip_segs)                 # <-- Calculate distance to hip
+
+          # Determine if rotation needed using enhanced logic
+          needs_flip = routine__DetermineRafterFlipRequired(opp_pt, d_perim, d_ridge, d_hip, tol_in, parent_name)
+
+          if needs_flip                                                        # <-- Check if rotation needed
+            pivot = adjacent_midpoint_world(grp, sr_code)                      # <-- Calculate rotation pivot
+            unless pivot                                                       # <-- Check if pivot found
+              puts "Skip: No Adjacent midpoint for #{parent_name}" if PRINT_LOGS  # <-- Log missing pivot
+              next                                                             # <-- Skip to next rafter
+            end
+
+            rot = Geom::Transformation.rotation(pivot, Z_AXIS, Math::PI)       # <-- Create 180-degree rotation
+            grp.transform!(rot)                                                # <-- Apply rotation to group
+            rotated << parent_name                                             # <-- Add to rotated list
+            puts "Rotated 180: #{parent_name}" if PRINT_LOGS                  # <-- Log rotation action
+          else
+            puts "No rotate:   #{parent_name}" if PRINT_LOGS                  # <-- Log no rotation needed
+          end
+        end
+
+        if rotated.empty?                                                      # <-- Check if any rotations made
+            puts "✅ Orientation check complete - all rafters correctly oriented" if PRINT_LOGS  # <-- Log no changes
+        else
+            puts "✅ Orientation correction complete - #{rotated.length} rafters rotated:" if PRINT_LOGS  # <-- Log rotations
+            rotated.each { |name| puts "   • #{name}" } if PRINT_LOGS         # <-- List rotated rafters
+        end
+
+        rotated                                                                # <-- Return list of rotated rafters
+    rescue => e
+        puts "❌ Error during orientation correction: #{e.message}" if PRINT_LOGS  # <-- Log error details
+        []                                                                     # <-- Return empty array on error
+    end
+    # ---------------------------------------------------------------
+
+
+    # SUB FUNCTION | Enhanced Logic to Determine if Rafter Needs Flipping
+    # ---------------------------------------------------------------
+    # 1. Identifies Jack vs Main Rafters - Determines if rafter is closer to hip (jack) or ridge (main).
+    # 2. Applies Correct Logic - Jack rafters compare perimeter vs hip distance; main rafters use ridge distance.
+    # 3. Returns Flip Decision - Flips when "Opposite" point is closer to perimeter than target line.
+
+    def self.routine__DetermineRafterFlipRequired(opp_pt, d_perim, d_ridge, d_hip, tol_in, rafter_name)
+        # Handle cases where distances are not available
+        return false unless d_perim                                            # <-- Skip if no perimeter distance
+        
+        # Initialize decision flags
+        closer_to_perim_than_ridge = false                                     # <-- Flag for perimeter vs ridge comparison
+        closer_to_perim_than_hip = false                                       # <-- Flag for perimeter vs hip comparison
+        
+        # Standard ridge-based logic (original logic)
+        if d_ridge && d_ridge != Float::INFINITY                               # <-- Check if ridge distance available
+            closer_to_perim_than_ridge = (d_perim < d_ridge - tol_in)          # <-- Compare perimeter vs ridge distance
+        end
+        
+        # Enhanced hip-based logic for jack rafters
+        if d_hip && d_hip != Float::INFINITY                                   # <-- Check if hip distance available
+            closer_to_perim_than_hip = (d_perim < d_hip - tol_in)              # <-- Compare perimeter vs hip distance
+            
+            # Special handling for hip-adjacent rafters (jack rafters)
+            if d_hip < d_ridge || d_ridge == Float::INFINITY                    # <-- Check if closer to hip than ridge
+                # This is likely a jack rafter - use hip comparison
+                decision = closer_to_perim_than_hip                             # <-- Use hip-based decision
+                puts "Hip-adjacent rafter #{rafter_name}: d_perim=#{d_perim.round(3)}, d_hip=#{d_hip.round(3)}, flip=#{decision}" if PRINT_LOGS
+                return decision                                                 # <-- Return hip-based decision
+            end
+        end
+        
+        # Fall back to ridge-based logic for main rafters
+        if closer_to_perim_than_ridge                                          # <-- Check ridge-based decision
+            puts "Ridge-adjacent rafter #{rafter_name}: d_perim=#{d_perim.round(3)}, d_ridge=#{d_ridge.round(3)}, flip=true" if PRINT_LOGS
+            return true                                                        # <-- Return ridge-based decision
+        end
+        
+        # Default: no flip needed
+        puts "Correctly oriented rafter #{rafter_name}: distances OK, flip=false" if PRINT_LOGS
+        return false                                                           # <-- Return no flip needed
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# REGION | Entry Point Functions
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Main Entry Point - Execute Complete Triangle Generation Workflow
+    # ------------------------------------------------------------
+    def self.execute_RoofTriangleGeneration
+        puts "🚀 Starting complete roof triangle generation with automatic orientation correction..." if PRINT_LOGS # <-- Log workflow start
+        
+        model = Sketchup.active_model                                          # <-- Get active SketchUp model
+        model.start_operation("Complete Roof Triangle Generation with Orientation Correction", true)  # <-- Start single operation for entire workflow
+        
+        begin
+            # Step 1: Generate the triangles
+            generation_success = routine__BuildSettingOutTriangles                    # <-- Execute triangle generation
+            
+            unless generation_success                                                 # <-- Check generation success
+                puts "❌ Complete workflow failed - triangle generation unsuccessful" if PRINT_LOGS # <-- Log failure
+                model.abort_operation                                                 # <-- Abort operation on failure
+                return false                                                          # <-- Return failure status
+            end
+            
+            puts "✅ Triangle generation complete, proceeding to orientation analysis..." if PRINT_LOGS # <-- Log progress
+            
+            # Step 2: Analyze proximity data (internal, no file I/O)
+            proximity_data = routine__AnalyzeProximityData                           # <-- Execute proximity analysis
+            
+            unless proximity_data                                                    # <-- Check analysis success
+                puts "⚠️  Triangles generated but proximity analysis failed" if PRINT_LOGS  # <-- Log partial success
+                model.commit_operation                                               # <-- Commit what we have
+                return false                                                         # <-- Return failure status
+            end
+            
+            # Step 3: Correct orientations based on proximity data
+            rotated_rafters = routine__CorrectRafterOrientations(proximity_data)     # <-- Execute orientation correction
+            
+            puts "🎉 Complete workflow successful - triangles generated and oriented correctly!" if PRINT_LOGS  # <-- Log complete success
+            model.commit_operation                                                    # <-- Commit successful operation
+            return true                                                              # <-- Return success status
+            
+        rescue => e
+            puts "❌ Error in complete workflow: #{e.message}" if PRINT_LOGS        # <-- Log error details
+            puts e.backtrace.first(5) if PRINT_LOGS                                 # <-- Log stack trace
+            model.abort_operation                                                    # <-- Abort operation on error
+            return false                                                             # <-- Return failure status
+        end
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+end
+
+
+# -----------------------------------------------------------------------------
+# AUTO-EXECUTION | Run Triangle Generation Immediately
+# -----------------------------------------------------------------------------
+RoofLanternTools.execute_RoofTriangleGeneration

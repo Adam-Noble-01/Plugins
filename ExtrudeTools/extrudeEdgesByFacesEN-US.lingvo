@@ -1,0 +1,37 @@
+Extrude Edges by Faces<==>Extrude Edges by Faces
+Extrude Edges by Faces<==>Extrude Edges by Faces
+Extrude Edges by Faces: Select the 'Profile' Face...<==>Extrude Edges by Faces: Select the 'Profile' Face...
+Pick Profile Face<==>Pick Profile Face
+Pick Rail Curve<==>Pick Rail Curve
+
+Extrude Edges by Faces: Select the 'Rail' Curve...<==>Extrude Edges by Faces: Select the 'Rail' Curve...
+
+Extrude Edges by Faces: Making Mesh from Face Profiles and Rail Curve...<==>Extrude Edges by Faces: Making Mesh from Face Profiles and Rail Curve...
+
+Extrude Edges by Faces:<==>Extrude Edges by Faces:
+
+Extrude Edges by Faces: Formating Mesh... Please Wait...<==>Extrude Edges by Faces: Formating Mesh... Please Wait...
+Extrude Edges by Faces: Reverse <==>Extrude Edges by Faces: Reverse 
+ Faces ?<==> Faces ?
+Extrude Edges by Faces: Reversing Face <==>Extrude Edges by Faces: Reversing Face 
+ of <==> of 
+Reverse Faces ?<==>Reverse Faces ?
+Extrude Edges by Faces: Erase Coplanar Edges ?<==>Extrude Edges by Faces: Erase Coplanar Edges ?
+Erase Coplanar Edges ?<==>Erase Coplanar Edges ?
+Extrude Edges by Faces: Coplanar Edges Erased= <==>Extrude Edges by Faces: Coplanar Edges Erased= 
+Extrude Edges by Faces: Intersect Mesh with Self ?<==>Extrude Edges by Faces: Intersect Mesh with Self ?
+Intersect Mesh with Self ?<==>Intersect Mesh with Self ?
+This is only necessary with convoluted meshes...<==>This is only necessary with convoluted meshes...
+Extrude Edges by Faces: Intersecting Mesh with Self... Please Wait...<==>Extrude Edges by Faces: Intersecting Mesh with Self... Please Wait...
+Extrude Edges by Faces: Smooth <==>Extrude Edges by Faces: Smooth 
+ Edges ?<==> Edges ?
+Smooth Edges ?<==>Smooth Edges ?
+Extrude Edges by Faces: Smoothing Edge <==>Extrude Edges by Faces: Smoothing Edge 
+
+Extrude Edges by Faces: <==>Extrude Edges by Faces: 
+Making Profile <==>Making Profile 
+Making Face <==>Making Face 
+Pick Melding Profile Face<==>Pick Melding Profile Face
+Extrude Edges by Faces: Select the 'Melding-Profile' Face...<==>Extrude Edges by Faces: Select the 'Melding-Profile' Face...
+Orienting Faces<==>Orienting Faces
+: Pick Profile-Face, Rail.Curve & Melding-Profile-Face. Makes Mesh. Follow Prompts...<==>: Pick Profile-Face, Rail.Curve & Melding-Profile-Face. Makes Mesh. Follow Prompts...

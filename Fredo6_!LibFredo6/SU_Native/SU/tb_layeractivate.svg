@@ -1,0 +1,55 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!--Generator: Xara Designer (www.xara.com), SVG filter version: 6.5.0.22-->
+<svg fill="none" fill-rule="evenodd" stroke="black" stroke-width="0.501" stroke-linejoin="bevel" stroke-miterlimit="10" font-family="Times New Roman" font-size="16" style="font-variant-ligatures:none" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" version="1.1" overflow="visible" width="72pt" height="72pt" viewBox="0 -72 72 72">
+ <defs>
+	</defs>
+ <g id="Layer 1" transform="scale(1 -1)">
+  <g id="Group" stroke-linejoin="miter">
+   <path d="M 56.735,39.193 L 50.074,35.771 L 26.253,23.553 L 16.161,40.753 L 11.382,48.9 L 38.871,60.391 L 56.735,39.193" stroke="none" fill="#ffffff" stroke-width="2.949"/>
+   <path d="M 49.821,36.06 L 38.206,50.906" fill="none" stroke="#7d7d7d" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 45.12,33.038 L 37.931,42.797" fill="none" stroke="#7d7d7d" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 38.345,50.906 L 16.082,41.01" fill="none" stroke="#7d7d7d" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 16.255,40.596 L 26.341,23.4 L 50.143,35.614 L 53.971,30.723 L 48.999,28.061 L 27.5,16.541 L 17.935,33.32 L 14.285,39.717 L 16.255,40.596" stroke="none" fill="#ffffff" stroke-width="2.949"/>
+   <path d="M 17.943,33.723 L 27.5,17.026 L 48.979,28.491 L 51.76,24.75 L 28.378,11.871 L 16.499,33.046 L 17.943,33.723" stroke="none" fill="#ffffff" stroke-width="2.949"/>
+   <path d="M 38.899,60.391 L 11.382,48.982" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 56.874,39.224 L 39.037,60.391" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 53.971,30.973 L 50.101,35.923" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 16.219,40.596 L 14.285,39.771" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 51.76,24.514 L 48.992,28.225" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 17.943,33.723 L 16.499,33.046 L 28.378,11.871 L 51.76,24.75" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 11.382,49.12 L 16.161,40.99 L 26.253,23.827 L 50.074,36.022 L 56.735,39.431" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 27.56,16.953 L 49.012,28.451 L 53.971,31.114" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 14.285,39.913 L 17.95,33.536 L 27.56,16.817" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 37.931,42.797 L 19.818,34.273" stroke="none" fill="#7d7d7d" stroke-width="2.949"/>
+   <path d="M 37.931,42.797 L 19.818,34.273" fill="none" stroke="#7d7d7d" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 48.992,28.225 L 45.258,33.313" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+   <path d="M 20.095,34.409 L 18.018,33.448" fill="none" stroke="#000000" stroke-width="1.475" stroke-linecap="round"/>
+  </g>
+ </g>
+ <g id="Menu icon" transform="scale(1 -1)">
+  <g id="Group_1" stroke-linejoin="miter" stroke="none">
+   <rect x="39.607" y="10.912" width="21.481" height="26.379" fill="#ffffff" stroke-linecap="round" stroke-width="0.75"/>
+   <g id="Group_2" stroke-width="2.331">
+    <path d="M 28.985,32.575 L 28.985,38.258 L 61.034,38.258 L 61.034,32.575 L 28.985,32.575 Z" fill="#ffffff" marker-start="none" marker-end="none"/>
+    <path d="M 29.952,37.291 L 29.952,33.542 L 60.067,33.542 L 60.067,37.291 L 29.952,37.291 Z" fill="#000000" marker-start="none" marker-end="none"/>
+   </g>
+   <g id="Group_3" stroke-width="2.331">
+    <path d="M 28.985,16.189 L 28.985,21.872 L 61.034,21.872 L 61.034,16.189 L 28.985,16.189 Z" fill="#ffffff" marker-start="none" marker-end="none"/>
+    <path d="M 29.952,20.905 L 29.952,17.156 L 60.067,17.156 L 60.067,20.905 L 29.952,20.905 Z" fill="#000000" marker-start="none" marker-end="none"/>
+   </g>
+   <g id="Group_4" stroke-width="1.917">
+    <path d="M 40.233,27.335 L 40.233,32.352 L 61.034,32.352 L 61.034,27.335 L 40.233,27.335 Z" fill="#ffffff" marker-start="none" marker-end="none"/>
+    <path d="M 41.2,31.385 L 41.2,28.302 L 60.067,28.302 L 60.067,31.385 L 41.2,31.385 Z" fill="#ff0000" marker-start="none" marker-end="none"/>
+   </g>
+   <g id="Group_5" stroke-width="1.917">
+    <path d="M 40.233,22.095 L 40.233,27.112 L 61.034,27.112 L 61.034,22.095 L 40.233,22.095 Z" fill="#ffffff" marker-start="none" marker-end="none"/>
+    <path d="M 41.2,26.145 L 41.2,23.062 L 60.067,23.062 L 60.067,26.145 L 41.2,26.145 Z" fill="#ff0000" marker-start="none" marker-end="none"/>
+   </g>
+   <g id="Group_6" stroke-width="1.917">
+    <path d="M 40.233,10.949 L 40.233,15.966 L 61.034,15.966 L 61.034,10.949 L 40.233,10.949 Z" fill="#ffffff" marker-start="none" marker-end="none"/>
+    <path d="M 41.2,14.999 L 41.2,11.916 L 60.067,11.916 L 60.067,14.999 L 41.2,14.999 Z" fill="#ff0000" marker-start="none" marker-end="none"/>
+   </g>
+  </g>
+ </g>
+</svg>

@@ -1,0 +1,11 @@
+Extrude Edges by Face<==>Solevar Cara por Recorrido
+Extrude Edges by Face:<==>Solevar Cara por Recorrido:
+Extrude Edges by Face<==>Solevar Cara por Recorrido
+Select a 'Flat' Face and Edge(s) BEFORE using.<==>Selecciona una Cara 'Plana' y las Aristas del Recorrido ANTES de Usar.
+Error: Extrusion NOT Possible...<==>Error: NO es Posible Hacer la Extrusión...
+Path is Discontinuous or Branched.<==>El Recorrido esta Discontinuo o Ramificado.
+Yes = Process Extrusions in Pieces<==>Sí = Procesar Extrusión en Piezas
+No = Exit...<==>No = Salir...
+Making Extrusion <==>Haciendo Extrusión 
+ of <==> de 
+: Pick a Face [+ optional Cpoint] and Curve/Edges: Activate Tool...<==>: Pre-Selecciona 1 Cara-Plana [+ Punto Opcional] + Curva/Aristas: Activar Herramienta...

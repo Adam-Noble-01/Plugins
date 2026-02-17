@@ -1,0 +1,34 @@
+====================================================
+Color File Specifications for LibFredo6 Color Scales
+====================================================
+
+Color files are TEXT files and MUST follow a strict formatting.
+
+FIRST LINE
+----------
+name: <name of the color palette>	#this is the text of the dialog tab
+
+Exemple: 
+Name: Pastel colors
+
+
+SECOND LINE
+----------
+description: <description of the color palette>		#this is the tooltip of the dialog tab
+
+Exemple: 
+Description: set of nice Pastel colors
+
+
+SUBSEQUENT LINES
+----------------
+one line per color as: R G B <optional color name>
+
+Separators are space or tab
+
+R, G, B are the RGB values of the color, as integers between 0 and 255
+
+Optionally you can append a name for the color (make sure it is unique)
+
+Exemple: 
+255 182 193 nice pink

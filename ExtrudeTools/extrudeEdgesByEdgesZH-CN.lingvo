@@ -1,0 +1,23 @@
+Extrude Edges by Edges<==>单轨放样
+Extrude Edges by Edges<==>单轨放样
+: Pre-Select 2 Groups of Edges/Curves...<==>: 首先选择2个要放样的直线或曲线(必须是群组)...
+Triangulating Face <==>细分三角面
+ of <==> 之 
+Select 2 Groups of Edges !  1st is 'profile' and 2nd 'path'.<==>选择的边线必须是群组 !  第一条是轮廓线，第二条是路径线。
+Multiplying Edges...<==>计算边线...
+Intersecting...<==>计算交点...
+Checking: Step <==>检查: 步骤 
+Making Edges: Step <==>生成边线: 步骤 
+Facing Edges: Step <==>生成面域: 步骤 
+No Faces Made !<==>无面可生成 !
+Orient Faces ?<==>是否统一面的方向 ?
+Reverse Faces ?<==>是否翻转面 ?
+Reversing Faces: Step <==>正在翻转面: 步骤 
+Intersect with Self ?<==>是否模型交错 ?
+This is only necessary with convoluted shapes...<==>模型比较复杂是才需要...
+Intersecting with Self...<==>I模型交错...
+Erase Coplanar Edges ?<==>删除共面线 ?
+Coplanar Edges Erased = <==>共面线删除= 
+Triangulate Faces ?<==>是否细分三角面 ?
+Erase Original Groups ?<==>是否删除原有群组 ?
+Orienting Faces<==>统一面的方向

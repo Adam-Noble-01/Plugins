@@ -1,0 +1,88 @@
+# SketchUp RubyScript Developer
+# -------------------------------------
+## ROLE    |  Highly Experienced RubyScript SketchUp Plugin Developer
+## PROJECT |  Vale Design Suite; Specifically the Framework Tools Section of the plugin
+## CONTEXT |  This tool will be used to configure the framework of a Vale Garden Houses Structure within the Vale Design Suite SketchUp Plugin.
+## TASK    |  Carefully review the existing framework configurator scripts logic and handling.
+
+- You are tasked with generating a **Complete, Self-contained Ruby Script** 
+- for SketchUp (targeting SketchUp 2024 / 2025 APIs).
+- This script should implement a simple configurable bench builder using a UI::HtmlDialog with full two-way real-time interactivity.
+- Ensure you reference the existing bench script and adapt it for the window tool.
+-This is a detailed specification for developing a new parametric 3D window component, modeled in reference to an existing working bench script.
+-The design incorporates adjustable vertical and horizontal glaze bars to simulate multi-pane Georgian-style windows.
+-Emphasis is placed on using visual sliders and typed input, separating this from the bench tool in both logic and dictionary.
+-Geometry must adapt dynamically with constraints and maintain correct spatial logic for fitting glass panes and frame components.
+  
+**Existing Bench Script : `ATest01_-_BenchConfigurator.rb`**
+
+**New Window Script     : `ATest01_-_WindowConfigurator.rb`**
+
+WINDOW FRAME COMPONENTS
+
+-Create a new product script for a window component, separate from the bench script.
+-Component includes:
+
+  -Left jamb positioned at X:0 Y:0 Z:0 acting as axis benchmark.
+  -Right jamb offset along X-axis dynamically via configurator input.
+  -Bottom rail and top rail components.
+-All four frame sides (top, bottom, left, right) should have:
+
+  -Depth of 50 mm along Y-axis.
+  -Adjustable visual thickness along Z-axis (profile depth from front view) defaulting to 90 mm.
+  -Thickness must be adjustable between 40 mm and 120 mm.
+
+GLASS PANES
+
+-A single 20 mm Y-depth glass pane is required by default.
+-Glass positioning:
+
+  -Positioned 15 mm from front face of window (Y-axis).
+  -20 mm thickness in Y.
+  -Remaining 15 mm space behind the glass (total 50 mm Y depth).
+
+GLAZE BARS (GEORGIAN STYLE DIVIDERS)
+
+-Input boxes required for:
+
+  -Vertical glaze bars (min: 0, max: 8).
+  -Horizontal glaze bars (min: 1, max: 8).
+-Glaze bars should:
+
+  -Be dynamically created based on input.
+  -Divide the glass pane area into appropriately sized sub-panes.
+  -Be 30 mm in thickness between panes.
+  -Have dimensions:
+
+    -20 mm along X.
+    -50 mm along Y.
+    -Z-dimension is parametric based on frame thickness.
+-Glaze bars must fit between inner boundaries of the outer frame and be nested properly within.
+
+INPUT & INTERFACE
+
+-Incorporate sliders for both vertical and horizontal glaze bar counts.
+-Sliders must restrict input to between 0–8 vertical and 1–8 horizontal.
+-Allow numeric input override for precision.
+-Ensure dynamic visual update of the component in real-time (as with the bench tool).
+
+TEXTURES & VISUALS
+
+-Apply a glass texture to glass panes.
+-Reuse existing wood texturing from the bench tool but rename it to avoid conflict.
+-Glass should render semi-transparent or fully transparent as per material logic.
+
+LOGIC & INTEGRATION
+
+-Create a new dictionary specifically for the window tool to ensure:
+
+  -No UI conflicts with the bench tool.
+  -Tool remains modular and separate in function.
+-Do not rewrite existing logic that works from the bench tool; instead adapt and repurpose.
+-Design must be capable of building a new JSON structure for window geometry.
+-All spacing and scaling logic must ensure:
+
+  -Glass panes fit cleanly between glaze bars.
+  -Glaze bars adjust with number inputs.
+  -All elements remain parametric and visually consistent.
+

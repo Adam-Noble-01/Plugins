@@ -1,0 +1,13 @@
+Extrude Edges by Face<==>Extruder une face le long d'arêtes
+Extrude Edges by Face:<==>Extruder une face le long d'arêtes:
+Extrude Edges by Face<==>Extruder une face le long d'arêtes
+Select a 'Flat' Face and Edge(s) BEFORE using.<==>Sélectionnez une face horizontale et quelques arêtes avant d'utiliser cet outil.
+Error: Extrusion NOT Possible...<==>Erreur: extrusion impossible...
+Path is Discontinuous or Branched.<==>Le chemin est discontinu ou ramifié.
+Yes = Process Extrusions in Pieces<==>Oui = Extrusions par parties
+No = Exit...<==>Non = Quitter...
+Making Extrusion <==>Effectuer l'extrusion 
+ of <==> de 
+: Pick a Face [+ optional Cpoint] and Curve/Edges: Activate Tool...<==>: Sélectionnez une face [+ point guide facultatif] et des courbes / arêtes: Activez l'outil...
+
+

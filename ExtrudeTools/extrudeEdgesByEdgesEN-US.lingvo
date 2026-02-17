@@ -1,0 +1,23 @@
+Extrude Edges by Edges<==>Extrude Edges by Edges
+Extrude Edges by Edges<==>Extrude Edges by Edges
+: Pre-Select 2 Groups of Edges/Curves...<==>: Pre-Select 2 Groups of Edges/Curves...
+Triangulating Face <==>Triangulating Face 
+ of <==> of 
+Select 2 Groups of Edges !  1st is 'profile' and 2nd 'path'.<==>Select 2 Groups of Edges !  1st is 'profile' and 2nd 'path'.
+Multiplying Edges...<==>Multiplying Edges...
+Intersecting...<==>Intersecting...
+Checking: Step <==>Checking: Step 
+Making Edges: Step <==>Making Edges: Step 
+Facing Edges: Step <==>Facing Edges: Step 
+No Faces Made !<==>No Faces Made !
+Orient Faces ?<==>Orient Faces ?
+Reverse Faces ?<==>Reverse Faces ?
+Reversing Faces: Step <==>Reversing Faces: Step 
+Intersect with Self ?<==>Intersect with Self ?
+This is only necessary with convoluted shapes...<==>This is only necessary with convoluted shapes...
+Intersecting with Self...<==>Intersecting with Self...
+Erase Coplanar Edges ?<==>Erase Coplanar Edges ?
+Coplanar Edges Erased = <==>Coplanar Edges Erased = 
+Triangulate Faces ?<==>Triangulate Faces ?
+Erase Original Groups ?<==>Erase Original Groups ?
+Orienting Faces<==>Orienting Faces

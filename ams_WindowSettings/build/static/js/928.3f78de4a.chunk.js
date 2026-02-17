@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunksu_full_screen_ui=self.webpackChunksu_full_screen_ui||[]).push([[928],{25928:function(u,e,s){s.r(e);s(9950);var n=s(57754),c=s(44414);e.default=function(u){return(0,c.jsx)(n.A,{})}}}]);

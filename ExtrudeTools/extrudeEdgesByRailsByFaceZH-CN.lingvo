@@ -1,0 +1,36 @@
+Select a 'Flat' Face [and perhaps a Cpoint] BEFORE using.<==>使用前先选择一个红绿轴上的面[或者一个结构点]和一条或多条边线。
+Extrude Edges by Rails by Face: Formating Ribs... Please Wait...<==>曲面网架: 格式化肋间网架...请稍候...
+Extrude Edges by Rails by Face<==>曲面网架
+Extrusion Type<==>放样类型
+Rib from: <==>肋间网架从: 
+Profiles<==>轮廓
+Profiles & Rails<==>轮廓 & 路径
+Rails<==>路径
+Making Extrusion <==>开始放样
+Extrude Edges by Rails by Face: Select the 'Profile' Curve...<==>曲面网架: 选择开始轮廓曲线...
+Pick Profile<==>选择开始轮廓线
+Pick 1st Rail<==>选择[路径1]
+Pick 2nd Rail<==>选择[路径2]
+Extrude Edges by Rails by Face: Select the 1st 'Rail' Curve...<==>曲面网架: 选择路径1曲线...
+Extrude Edges by Rails by Face: Select the 2nd 'Rail' Curve...<==>曲面网架: 选择路径2曲线...
+Extrude Edges by Rails by Face: Making Mesh from Profile and 1 Rail.<==>曲面网架: 从路径1和轮廓线生成网格
+Extrude Edges by Rails by Face: Making Mesh from Profile and 2 Rails.<==>曲面网架: 从路径2和轮廓线生成网格
+Extrude Edges by Rails by Face: Reverse Rail-1's Direction ?<==>曲面网架: 是否翻转路径1方向 ?
+Extrude Edges by Rails by Face:<==>曲面网架:
+Reverse Rail-1's Direction ?<==>是否翻转路径1方向 ?
+This is only necessary with twisted meshes...<==>只在网格扭曲时使用...
+Extrude Edges by Rails by Face: Reversing Rail-1's Direction...<==>曲面网架: 正在翻转路径1方向...
+ of <==> 之 
+Extrude Edges by Rails by Face: Erase Original Curves ?<==>曲面网架: 是否删除原有曲线 ?
+Erase Original Curves ?<==>是否删除原有曲线 ?
+Extrude Edges by Rails by Face: <==>曲面网架: 
+Making Profile <==>生成轮廓
+Making Face <==>生成面
+Pick Melding Profile<==>选择结束轮廓线
+Extrude Edges by Rails by Face: Select the 'Melding-Profile' Curve...<==>曲面网架: 选择结束轮廓线...
+Orienting Faces<==>统一面的方向
+Extrude Edges by Rails by Face<==>曲面网架
+: Preselect Face [+ perhaps Cpoint]: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Makes Ribs. Follow Prompts....<==>: 预选面 [+ 或者结构点]: 选择曲线: 开始轮廓线, 路径-1, 路径-2 和 结束轮廓线. 生成肋间网架. 按照提示做....
+
+
+

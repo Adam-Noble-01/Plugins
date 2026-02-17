@@ -1,0 +1,382 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>TITLE</title>
+    <script>
+      // Stages of the dialog/wizard thingy
+
+      const STAGE_SELECT_SOURCE     = 0;
+      const STAGE_SELECT_EXTENSIONS = 1;
+      const STAGE_MIGRATE           = 2;
+      const STAGE_SUMMARY           = 3;
+      const STAGE_BLOCKING_ERROR    = 4;
+
+      // See ExtensionMigrationJob
+      // REVIEW: Is this the preferred way in JS for an enum like classification?
+      // Keep in sync with similar list on Ruby side!
+
+      const STATUS_PENDING           = 0;
+      const STATUS_ALREADY_INSTALLED = 1;
+      const STATUS_SKIP              = 2;
+      const STATUS_RUNNING           = 3;
+      const STATUS_FAILED            = 4;
+      const STATUS_MIGRATED          = 5;
+      const STATUS_COPIED_NOT_LOADED = 6;
+
+      const MIGRATE_TYPE_DOWNLOAD_EW = 0;
+      const MIGRATE_TYPE_COPY        = 1;
+      const MIGRATE_TYPE_MANUAL      = 2;
+
+      // Whether the migration extension loads extensions or merely copies them.
+      // Depends on what SketchUp is capable of.
+      var disableLoading;
+
+      // Localized strings to display in UI
+      var strings;
+
+      // Holds data of what folders/SU versions extensions can be migrated from.
+      var sourceLocations;
+      var defaultSourceLocation;
+
+      var targetLocation;
+
+      // Holds data of all the extensions to show in this UI.
+      var extensions;
+
+      window.onload = function() {
+        sketchup.ready();
+      }
+
+      function getString(key) {
+        let string = strings[key];
+        if (!string) {
+          console.log('Missing translation for"' + key + '"');
+          string = key;
+        }
+
+        return string;
+      }
+
+      function displayStage(index) {
+        document.body.className = 'stage' + index;
+      }
+
+      function initLocalization() {
+        document.getElementById('cancel-button').innerHTML = getString('DIALOG_CANCEL');
+        document.getElementById('next-button').innerHTML = getString('DIALOG_NEXT');
+        document.getElementById('back-button').innerHTML = getString('DIALOG_BACK');
+        document.getElementById('finish-button').innerHTML = getString('DIALOG_DONE');
+        document.getElementById('migrate-button').innerHTML = getString('DIALOG_MIGRATE');
+
+        document.getElementById('source-location-label').innerHTML = getString('SOURCE_LOCATION');
+        document.getElementById('target-location-label').innerHTML = getString('TARGET_LOCATION');
+      }
+
+      function warnNoSourceLocations() {
+        displayStage(STAGE_BLOCKING_ERROR);
+        let message = getString('NO_SOURCE_AVAILABLE');
+        message = message.replaceAll('\\n', "<br />");
+        message = message.replace('Extension Warehouse', '<a href="javascript:openEW()">Extension Warehouse</a>');
+        document.getElementById('error-message').innerHTML = message;
+      }
+
+
+      function initSourceDropdown() {
+        displayStage(STAGE_SELECT_SOURCE);
+
+        var dropdown = document.getElementById('sorceLocation');
+        for (sourceLocation of sourceLocations) {
+           var option = document.createElement("option");
+           var labelText = document.createTextNode(sourceLocation['label']);
+           option.value = sourceLocation['value'];
+           option.appendChild(labelText);
+
+           dropdown.appendChild(option);
+        }
+        dropdown.value = defaultSourceLocation;
+
+        const targetDisplay = document.getElementById('targetLocation');
+        targetDisplay.value = targetLocation;
+      }
+
+      function selectSource() {
+        var dropdown = document.getElementById('sorceLocation');
+        sketchup.pickSource(dropdown.value);
+      }
+
+      function backToSourceDropdown() {
+        displayStage(STAGE_SELECT_SOURCE);
+      }
+
+      function createList() {
+        displayStage(STAGE_SELECT_EXTENSIONS);
+        document.getElementById('summary').innerHTML = getString('MESSAGE_SELECT');
+
+        var list = document.getElementById('extension-list');
+        var html = '';
+
+        for (extension of extensions) {
+          var enabled = extension['migration_type'] != MIGRATE_TYPE_MANUAL;
+          var checked = enabled && extension['status'] != STATUS_SKIP;
+
+          // Using label to funnel click to the checkbox
+          html += '<label id="extension-row-' + extension['index'] + '">';
+          html += '<div class="extension-status">';
+          html += '<input type="checkbox" onclick="sketchup.toggleSkip(' + extension['index'] + ', this.checked)" ';
+          if (checked) html += 'checked ';
+          if (!enabled) html += 'disabled ';
+          html += '/>';
+          html += '</div>';
+          html += '<b>' + extension['name'] + '</b><div class="truncate extension-info">';
+          if (extension['description']) html += extension['description'];
+          html += '</div></label>';
+        }
+
+        list.innerHTML = html; // TODO: Use proper nice JS instead of innerHTML.
+
+        updateMigrateButton();
+      }
+
+      // Called when extension is toggled
+      function updateMigrateButton() {
+        var enabled = false;
+        for (extension of extensions) {
+          if (extension.status != STATUS_SKIP) {
+            enabled = true;
+            break;
+          }
+        }
+        document.getElementById('migrate-button').disabled = !enabled;
+      }
+
+      function migrate() {
+        displayStage(STAGE_MIGRATE);
+        document.getElementById('summary').innerHTML = getString('MESSAGE_MIGRATING');
+
+        for (extension of extensions) {
+          var row = document.getElementById('extension-row-' + extension['index']);
+          var checkbox = row.getElementsByTagName('input')[0];
+          checkbox.remove();
+
+          // Change <label> into a <div> as we no longer want to funnel events
+          // to the radio button.
+          var div = document.createElement('div');
+          div.innerHTML = row.innerHTML;
+          div.id = row.id;
+          div.className = row.className;
+          row.parentNode.replaceChild(div, row);
+        }
+        showMigrationStatus();
+        sketchup.migrate();
+      }
+
+      function showMigrationStatus() {
+        for (extension of extensions) {
+          var row = document.getElementById('extension-row-' + extension['index']);
+          var status = extension['status'];
+          var requires_manual_installatuion = extension['migration_type'] == MIGRATE_TYPE_MANUAL;
+
+          if (requires_manual_installatuion) {
+            // Extension requiring manual installation is displayed as failed
+            // before it even runs.
+            // Need to draw attention to it for manual action.
+            row.className = 'failure';
+          } else if (status == STATUS_SKIP) {
+            row.className = 'skipped';
+          } else if (status == STATUS_PENDING) {
+            row.className = 'pending';
+          } else if(status == STATUS_RUNNING) {
+            row.className = 'running'
+            row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          } else if(status == STATUS_FAILED) {
+            row.className = 'failure'
+            var description = row.getElementsByClassName('extension-info')[0]
+            description.innerHTML = getString('EXTENSION_STATUS_FAILURE');
+            description.classList.remove('truncate');
+            if (extension['ruby_error']) {
+              // Only add once per extension
+              // REVIEW: This function goes through all extensions on each extension update.
+              // Should it do that or just change one extension at a time?
+              if (row.getElementsByClassName('ruby-error').length == 0){
+                // TODO: Style
+                var errorTogggler = document.createElement('button');
+                errorTogggler.appendChild(document.createTextNode(getString('PROGRESSIVE_DISCLOSURE')));
+                errorTogggler.className = 'btn btn-text-secondary';
+                errorTogggler.onclick = toggleRubyError;
+                row.appendChild(errorTogggler);
+
+                if (extension['ew_id']) {
+                  var ewButton = document.createElement('button');
+                  ewButton.appendChild(document.createTextNode(getString('EW')));
+                  ewButton.className = 'btn btn-text-secondary';
+                  let ewId = extension['ew_id'];
+                  ewButton.onclick = function() { openEW(ewId) };
+                  row.appendChild(ewButton);
+                }
+
+                var error = document.createElement('div');
+                error.classList.add('ruby-error');
+                var errorText = document.createTextNode(extension['ruby_error'])
+                error.appendChild(errorText);
+                row.appendChild(error);
+              }
+            }
+            row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          } else if(status == STATUS_MIGRATED) {
+            row.className = 'success'
+            row.getElementsByClassName('extension-info')[0].innerHTML = getString('EXTENSION_STATUS_SUCCESS');
+          } else if(status == STATUS_COPIED_NOT_LOADED) {
+            row.className = 'copied-not-loaded'
+          }
+        }
+      }
+
+      function showMigrationResult() {
+        displayStage(STAGE_SUMMARY);
+
+        var message;
+        if (disableLoading) {
+          message = getString('SUMMARY_RESTART');
+        } else {
+          var failure = false;
+          for (extension of extensions) {
+            if (extension['status'] == STATUS_FAILED) failure = true;
+          }
+          if (failure) {
+            message = getString('SUMMARY_SOME_FAILED');
+          } else {
+            message = getString('SUMMARY_ALL_SUCCESS');
+          }
+        }
+        document.getElementById('summary').innerHTML = message;
+
+        if(disableLoading) {
+          const finishButton = document.getElementById('finish-button');
+          finishButton.innerHTML = getString('DIALOG_RESTART_LATER');
+          // Can't be styled as the primary button if the preferred action is
+          // for the user to instead restart SketchUp.
+          finishButton.classList.remove('btn-primary');
+          // Badly named class. Represents a default secondary button.
+          finishButton.classList.add('btn-outline-dark');
+        }
+      }
+
+      function toggleRubyError(e) {
+        const row = e.target.parentNode;
+        const errorInfo = row.getElementsByClassName('ruby-error')[0];
+        errorInfo.style.display = errorInfo.style.display == '' ? 'block' : '';
+      }
+
+      function openEW(ewId) {
+        if (ewId) {
+          document.location.href = 'skp:launchEW@' + ewId;
+        } else {
+          // This shows the page-not-found page, not the front page.
+          // document.location.href = 'skp:launchEW';
+
+          sketchup.openEW();
+        }
+      }
+
+      // Just for testing the design
+      function showMockup() {
+        extensions = [
+          {
+            "index":0, "name":"Pending Extension", "status":STATUS_PENDING,
+            "migration_type":1, "ruby_error":null,
+            "description":"This is an extension waiting to be migrated."
+          },
+          {
+            "index":1, "name":"Running Migration", "status":STATUS_RUNNING,
+            "migration_type":1, "ruby_error":null,
+            "description":"This is an extension currently being migrated."
+          },
+          {
+            "index":2, "name":"Skipped Extension", "status":STATUS_SKIP,
+            "migration_type":1, "ruby_error":null,
+            "description":"This is an extension currently being migrated."
+          },
+          {
+            "index":3, "name":"Failed Extension", "status":STATUS_FAILED,
+            "migration_type":1, "ruby_error":null, // Should be error info here.
+            "description":"This extension failed loading."
+          },
+          {
+            "index":4, "name":"Successful Extension", "status":STATUS_MIGRATED,
+            "migration_type":1, "ruby_error":null,
+            "description":"This extension is migratedd and loaded."
+          },
+          {
+            "index":5, "name":"Copied extension", "status":STATUS_COPIED_NOT_LOADED,
+            "migration_type":1, "ruby_error":null,
+            "description":"This extension is copied but not loaded."
+          }
+        ]
+
+        createList();
+
+        // Shamelessly copied from migrate()
+        for (extension of extensions) {
+          var row = document.getElementById('extension-row-' + extension['index']);
+          var checkbox = row.getElementsByTagName('input')[0];
+          checkbox.remove();
+        }
+
+        showMigrationStatus();
+        // showMigrationResult();
+      }
+
+      // Change the migration graphic to mirror the selected source.
+      // Cute little detail to make the migrator more fun =) .
+      function previewSource(source_location) {
+        var path = 'images/sketchup.svg';
+        if (source_location == '') {
+          path = 'images/folder.svg';
+        } else {
+          // Assuming the SU version number is the only 4 digit number in the path.
+          // REVIEW: Consider using SU version number as actual value in this dropdown instead of
+          // full path?
+          var matches = source_location.match(/(\d\d\d\d)/);
+          if (matches) {
+            var versionNumber = parseInt(matches[0]);
+            if (versionNumber < 2021)
+              path = 'images/sketchup-pre2021.svg';
+          }
+        }
+
+        document.documentElement.style.setProperty('--source-icon', 'url(' + path + ')');
+      }
+    </script>
+    <link rel="stylesheet" href="modus.css">
+    <link rel="stylesheet" href="dialog.css">
+  </head>
+  <body class="stage0">
+    <div class="body">
+      <div class="stage-specific stage0">
+        <div class="source-selection-column">
+          <label>
+            <span id="source-location-label">Source Location</span>
+            <select id="sorceLocation" onchange="previewSource(this.value);"></select>
+          </label><br />
+          <label>
+            <span id="target-location-label">Target Location</span><br />
+            <output id="targetLocation"></output>
+          </label>
+        </div>
+        <div class="source-selection-graphic"></div>
+      </div>
+      <div id="summary" class="stage-specific stage1 stage2 stage3"></div>
+      <div id="extension-list" class="stage-specific stage1 stage2 stage3"></div>
+      <div id="error-message" class="stage-specific stage4"></div>
+    </div>
+    <div class="footer">
+      <button class="btn btn-text-primary btn-back stage-specific stage1" onclick="backToSourceDropdown()" id="back-button">Back</button>
+      <button class="btn btn-outline-dark stage-specific stage0 stage1 stage4" onclick="sketchup.close()" id="cancel-button">Cancel</button>
+      <button class="btn btn-primary stage-specific stage0" onclick="selectSource()" id="next-button">Next</button>
+      <button class="btn btn-primary stage-specific stage1" onclick="migrate()" id="migrate-button">Migrate</button>
+      <!-- Style and phrasing of last button changes based on disableLoading in showMigrationResult() -->
+      <button class="btn btn-primary stage-specific stage3" onclick="sketchup.close()" id="finish-button">Done</button>
+    </div>
+  </body>
+</html>

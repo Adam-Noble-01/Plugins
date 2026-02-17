@@ -1,0 +1,65 @@
+require 'sketchup.rb'
+require 'extensions.rb'
+require 'fileutils'
+require 'langhandler.rb'
+require 'win32/registry'
+
+module SURVTINSTALLER
+
+	def self.write_to_registry(key_path, value_name, value_data)
+	  begin
+		# Split the key path to get the parent path and the final key
+		subkeys = key_path.split('\\')
+		parent_path = subkeys[0...-1].join('\\')
+		final_key = subkeys.last
+
+		# Open or create the parent path
+		Win32::Registry::HKEY_CURRENT_USER.create(parent_path, Win32::Registry::KEY_WRITE) do |parent_reg|
+		  # Open or create the final key
+		  parent_reg.create(final_key, Win32::Registry::KEY_WRITE) do |reg|
+			reg[value_name, Win32::Registry::REG_SZ] = value_data
+		  end
+		end
+		#puts "Successfully wrote #{value_data} to #{key_path}\\#{value_name}"
+	  rescue Win32::Registry::Error => e
+		#puts "Failed to write to registry: #{e.message}"
+	  end
+	end	
+
+	LH = LanguageHandler.new("revit_importer.strings")
+
+	lang_strings = LH.instance_variable_get(:@strings)
+	lang_strings.each do |key, value|
+      lang_strings[key] = value.gsub('\\n', "\n")
+	end
+
+	language = Sketchup.os_language
+	write_to_registry('Software\\SketchUp\\RevitImporter', 'su_lang', language)
+
+	if Sketchup.platform == :platform_win
+		if Sketchup.version.to_i >= 23
+
+			file = __FILE__.dup
+			file.force_encoding('UTF-8') if file.respond_to?(:force_encoding)
+			path = File.dirname(file)
+		
+			loader = File.join(path, "su_revit_importer_installer/su_revit_installer_proxy")
+			extension = SketchupExtension.new('Revit Importer for SketchUp', loader)
+			extension.description = 'Provides the ability to import Revit (*.rvt) files in SketchUp'
+			extension.version     = '1.2025.0528' # N.YYYY.MMDD where: N = number, YYYY = year, MM = Month, DD = Day
+			extension.copyright   = 'Trimble Inc. 2025'
+			extension.creator = 'SketchUp'
+			@@mCurrentVersion = extension.version
+		
+			Sketchup.register_extension(extension, true)
+    
+		else
+			message = LH["ri.msg.su.2023.or.higher"]
+			UI.messagebox(message)
+		end	
+	else
+		message = LH["ri.msg.os.not.supported"]
+		UI.messagebox(message)
+	end
+end
+

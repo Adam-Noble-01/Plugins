@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "Helyszínhozzáadás",
+  "EXTENSION.DESCRIPTION": "Nagyobb területek importálása. Szabályozza a domborzat hálósűrűségét. Észak és az aktuális SketchU-helyszín megtekintése.",
+  "EXTENSION.COMPATIBILITY_ISSUE": "Figyelem: Helyszínhozzáadás kompatibilitási probléma.\n\nA Helyszínhozzáadás jelenleg ebben a SketchUp-verzióban tiltott.\nA bővítmény a legújabb verzióhoz készült.\nJavasoljuk, hogy frissítsen a legújabb SketchUp-verzióra, hogy az összes funkció optimálisan működjön.\nA legfrissebb verzió letölthető a SketchUp hivatalos webhelyéről.\nHa kérdése merül fel vagy hibát tapasztal a frissítési műveletsor közben, szíveskedjék ügyfélszolgálatunkhoz fordulni segítségért.",
+  "TOOLBAR_TITLE": "Helyszínhozzáadás",
+  "TOOLBAR_TOOL_NAME": "Helyszínhozzáadás",
+  "TOOLBAR_TOOL_DESCRIPTION": "Helyszínbeállítás térképek és domborzat importálásával",
+  "TOOLBAR_TOOL_TOOLTIP": "Helyszínhozzáadás",
+  "MENU_ITEM_NAME": "Helyszínhozzáadás",
+  "WINDOW_TITLE": "Helyszínhozzáadás",
+  "TRUE_NORTH_MENU_ITEM_NAME": "Valódi-észak",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "Átváltás valóságos északi irány megjelenítésére a modellen",
+  "MAP_PIN_MENU_ITEM_NAME": "Helyjelölő",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "Átváltás valóságos koordinátapont megjelenítésére a modellen",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "A helyjelölővel a SketchUp-modell origója hozzárendelhető egy valóságos ponthoz",
+  "MAP_PIN_OVERLAY_NAME": "Helyjelölő",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "Geolokáció visszaállítása",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "Helyjelölő megjelenítése",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "Helyjelölő elrejtése",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "Visszaállítás geolokációra"
+}

@@ -1,0 +1,10 @@
+Orienting Faces<==>Orienting Faces
+Extrude Edges by Vector to Object<==>Extrude Edges by Vector to Object
+: Reverse Extrusion's Faces ?<==>: Reverse Extrusion's Faces ?
+: Explode Extrusion's Group ?<==>: Explode Extrusion's Group ?
+Extrude Edges by Vector to Object: Pick Second Point of Vector...<==>Extrude Edges by Vector to Object: Pick Second Point of Vector...
+Extrude Edges by Vector to Object: Cannot Convert <==>Extrude Edges by Vector to Object: Cannot Convert 
+ to a Length.<==> to a Length.
+Extrude Edges by Vector to Object: No Edge in Selection.<==>Extrude Edges by Vector to Object: No Edge in Selection.
+Extrude Edges by Vector to Object: Pick First Point of Vector...<==>Extrude Edges by Vector to Object: Pick First Point of Vector...
+: Pre-Select Edges/Curves/Face, Pick Vector Start & End...<==>: Pre-Select Edges/Curves/Face, Pick Vector Start & End...

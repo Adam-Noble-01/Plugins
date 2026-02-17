@@ -1,0 +1,12 @@
+Extrusion Tools<==>Outils d'extrusion
+Extrude Edges by Rails<==>Extruder des arêtes sur des chemins
+Extrude Edges by Rails to Lattice<==>Extruder des arêtes sur des chemins d'un treillis
+Extrude Edges by Loft<==>Extruder des arêtes par profilage entre courbes
+Extrude Edges by Edges<==>Extruder des arêtes le long d'arêtes
+Extrude Edges by Vector<==>Extruder des arêtes par un vecteur
+Extrude Edges by Vector to Object<==>Extruder des arêtes par un vecteur à des objets
+Extrude Edges by Lathe<==>Extruder par révolution
+Extrude Edges by Rails by Face<==>Extruder des arêtes par chemin et par face
+Extrude Edges by Faces<==>Extruder des arêtes par des faces
+Extrude Edges by Face<==>Extruder une face le long d'arêtes
+Extrude Edges by Offset<==>Extruder des arêtes par un décalage

@@ -1,0 +1,44 @@
+Extrude Edges by Rails<==>Extrude Edges by Rails
+Extrude Edges by Rails<==>Extrude Edges by Rails
+Extrude Edges by Rails: Select the 'Profile' Curve...<==>Extrude Edges by Rails: Select the 'Profile' Curve...
+Pick Profile<==>Pick Profile
+Pick 1st Rail<==>Pick 1st Rail
+Pick 2nd Rail<==>Pick 2nd Rail
+Extrude Edges by Rails: Select the 1st 'Rail' Curve...<==>Extrude Edges by Rails: Select the 1st 'Rail' Curve...
+Extrude Edges by Rails: Select the 2nd 'Rail' Curve...<==>Extrude Edges by Rails: Select the 2nd 'Rail' Curve...
+Extrude Edges by Rails: Making Mesh from Profile and 1 Rail.<==>Extrude Edges by Rails: Making Mesh from Profile and 1 Rail.
+Extrude Edges by Rails: Making Mesh from Profile and 2 Rails.<==>Extrude Edges by Rails: Making Mesh from Profile and 2 Rails.
+Extrude Edges by Rails: Reverse Rail-1's Direction ?<==>Extrude Edges by Rails: Reverse Rail-1's Direction ?
+Extrude Edges by Rails:<==>Extrude Edges by Rails:
+Reverse Rail-1's Direction ?<==>Reverse Rail-1's Direction ?
+This is only necessary with twisted meshes...<==>This is only necessary with twisted meshes...
+Extrude Edges by Rails: Reversing Rail-1's Direction...<==>Extrude Edges by Rails: Reversing Rail-1's Direction...
+Extrude Edges by Rails: Formating Mesh... Please Wait...<==>Extrude Edges by Rails: Formating Mesh... Please Wait...
+Extrude Edges by Rails: Reverse <==>Extrude Edges by Rails: Reverse 
+ Faces ?<==> Faces ?
+Extrude Edges by Rails: Reversing Face <==>Extrude Edges by Rails: Reversing Face 
+ of <==> of 
+Reverse Faces ?<==>Reverse Faces ?
+Extrude Edges by Rails: Erase Coplanar Edges ?<==>Extrude Edges by Rails: Erase Coplanar Edges ?
+Erase Coplanar Edges ?<==>Erase Coplanar Edges ?
+Extrude Edges by Rails: Coplanar Edges Erased= <==>Extrude Edges by Rails: Coplanar Edges Erased= 
+Extrude Edges by Rails: Intersect Mesh with Self ?<==>Extrude Edges by Rails: Intersect Mesh with Self ?
+Intersect Mesh with Self ?<==>Intersect Mesh with Self ?
+This is only necessary with convoluted meshes...<==>This is only necessary with convoluted meshes...
+Extrude Edges by Rails: Intersecting Mesh with Self... Please Wait...<==>Extrude Edges by Rails: Intersecting Mesh with Self... Please Wait...
+Extrude Edges by Rails: Smooth <==>Extrude Edges by Rails: Smooth 
+ Edges ?<==> Edges ?
+Smooth Edges ?<==>Smooth Edges ?
+Extrude Edges by Rails: Smoothing Edge <==>Extrude Edges by Rails: Smoothing Edge 
+Extrude Edges by Rails: Erase Original Curves ?<==>Extrude Edges by Rails: Erase Original Curves ?
+Erase Original Curves ?<==>Erase Original Curves ?
+Extrude Edges by Rails: <==>Extrude Edges by Rails: 
+Making Profile <==>Making Profile 
+Making Face <==>Making Face 
+Pick Melding Profile<==>Pick Melding Profile
+Extrude Edges by Rails: Select the 'Melding-Profile' Curve...<==>Extrude Edges by Rails: Select the 'Melding-Profile' Curve...
+Orienting Faces<==>Orienting Faces
+: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Makes Mesh. Follow Prompts...<==>: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Makes Mesh. Follow Prompts...
+
+Quad Faces ?<==>Quad Faces ?
+Extrude Edges by Rails: Quad Face <==>Extrude Edges by Rails: Quad Face 

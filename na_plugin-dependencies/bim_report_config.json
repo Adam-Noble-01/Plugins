@@ -1,0 +1,115 @@
+[
+  {
+    "id": "entity_name",
+    "label": "Entity Name",
+    "key": null,
+    "group": "Basic Properties",
+    "selected": true
+  },
+  {
+    "id": "b1_ent_floor",
+    "label": "Element Floor Level",
+    "key": [
+      "b1_ent_floor"
+    ],
+    "group": "Basic Properties",
+    "selected": true
+  },
+  {
+    "id": "b2_ent_status",
+    "label": "Element Status",
+    "key": [
+      "b2_ent_status"
+    ],
+    "group": "Basic Properties",
+    "selected": true
+  },
+  {
+    "id": "b3_ent_type",
+    "label": "Element Type",
+    "key": [
+      "b3_ent_type"
+    ],
+    "group": "Basic Properties",
+    "selected": true
+  },
+  {
+    "id": "b4_ent_id_code",
+    "label": "Element ID Code",
+    "key": [
+      "b4_ent_id_code"
+    ],
+    "group": "Basic Properties",
+    "selected": true
+  },
+  {
+    "id": "b5_ent_elevation",
+    "label": "Element Elevation",
+    "key": [
+      "b5_ent_elevation"
+    ],
+    "group": "Basic Properties",
+    "selected": true
+  },
+  {
+    "id": "nesting_level",
+    "label": "Nesting Level",
+    "key": null,
+    "group": "Other Attributes",
+    "selected": true
+  },
+  {
+    "id": "c1_element_material",
+    "label": "Element Material",
+    "key": [
+      "c1_element_material"
+    ],
+    "group": "Physical Properties",
+    "selected": true
+  },
+  {
+    "id": "c2_element_finish",
+    "label": "Element Finish",
+    "key": [
+      "c2_element_finish"
+    ],
+    "group": "Physical Properties",
+    "selected": true
+  },
+  {
+    "id": "c3_element_product",
+    "label": "Element Product",
+    "key": [
+      "c3_element_product"
+    ],
+    "group": "Physical Properties",
+    "selected": true
+  },
+  {
+    "id": "d1_length",
+    "label": "Length (mm)",
+    "key": [
+      "d1_length"
+    ],
+    "group": "Dimensions",
+    "selected": true
+  },
+  {
+    "id": "d2_width",
+    "label": "Width (mm)",
+    "key": [
+      "d2_width"
+    ],
+    "group": "Dimensions",
+    "selected": true
+  },
+  {
+    "id": "d3_height",
+    "label": "Height (mm)",
+    "key": [
+      "d3_height"
+    ],
+    "group": "Dimensions",
+    "selected": true
+  }
+]

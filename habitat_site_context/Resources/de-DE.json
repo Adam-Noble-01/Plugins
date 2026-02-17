@@ -1,0 +1,21 @@
+{
+  "EXTENSION.NAME": "Ort hinzufügen",
+  "EXTENSION.DESCRIPTION": "Importieren Sie große Bereiche. Steuern Sie die Vermaschungsdichte des Geländes. Zeigen Sie Norden und Ihren Standort in SketchUp an",
+  "EXTENSION.COMPATIBILITY_ISSUE": "Achtung: Kompatibilitätsproblem mit „Ort hinzufügen“.\n\n„Ort hinzufügen“ ist in Ihrer SketchUp-Version derzeit deaktiviert.\nDie Erweiterung wurde für die neueste Version konzipiert.\nWir empfehlen, Ihre SketchUp-Anwendung auf die neueste Version zu aktualisieren, um eine optimale Leistung und Zugriff auf alle Funktionen sicherzustellen.\nSie können die neueste Version über die offizielle SketchUp-Website herunterladen.\nWenn Sie Fragen haben oder während der Aktualisierung auf Problem stoßen, wenden Sie sich bitte an unser Support-Team.",
+  "TOOLBAR_TITLE": "Ort hinzufügen",
+  "TOOLBAR_TOOL_NAME": "Ort hinzufügen",
+  "TOOLBAR_TOOL_DESCRIPTION": "Ort festlegen und Karten und Gelände importieren",
+  "TOOLBAR_TOOL_TOOLTIP": "Ort hinzufügen",
+  "MENU_ITEM_NAME": "Ort hinzufügen",
+  "WINDOW_TITLE": "Ort hinzufügen",
+  "TRUE_NORTH_MENU_ITEM_NAME": "Geografischer Norden",
+  "TRUE_NORTH_MENU_ITEM_DESCRIPTION": "Anzeige der realen Nordrichtung auf Ihrem Modell ein-/ausschalten",
+  "MAP_PIN_MENU_ITEM_NAME": "Standortnadel",
+  "MAP_PIN_MENU_ITEM_DESCRIPTION": "Anzeige des realen Koordinatenpunkts auf Ihrem Modell ein-/ausschalten",
+  "MAP_PIN_OVERLAY_DESCRIPTION": "Die Standortnadel assoziert den Nullpunkt des SketchUp-Modells mit einem realen Ort.",
+  "MAP_PIN_OVERLAY_NAME": "Standortnadel",
+  "SITE_DEFINITION.CLEAR.OPERATION_NAME": "Geostandort zurücksetzen",
+  "MAP_PIN_OVERLAY.SHOW.OPERATION_NAME": "Standortnadel anzeigen",
+  "MAP_PIN_OVERLAY.HIDE.OPERATION_NAME": "Standortnadel ausblenden",
+  "CONTEXT_MENU.AXES.RESET_TO_GEOLOCATION": "Auf Geostandort zurücksetzen"
+}

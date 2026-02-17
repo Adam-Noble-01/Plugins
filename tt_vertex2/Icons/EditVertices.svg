@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 19.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 32 32" enable-background="new 0 0 32 32" xml:space="preserve">
+<g id="Surface_Background">
+	<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="13.1992" y1="18.997" x2="25.0739" y2="13.1483">
+		<stop  offset="0.307" style="stop-color:#FFFFFF"/>
+		<stop  offset="1" style="stop-color:#999999"/>
+	</linearGradient>
+	<path fill="url(#SVGID_1_)" d="M6,18.5l8-7.3c0,0,2.5,0.6,6-0.3c3.9-1,6.6-2.9,6.6-2.9s-1,4.9-2.5,8.2S20,23,20,23L6,18.5z"/>
+</g>
+<g id="Surface_Inner_Border">
+	<g opacity="0.5">
+		<path fill="#FFFFFF" d="M23.6,11.9c-0.4,1.2-0.8,2.5-1.3,3.5c-0.9,2-2.2,4-3.1,5.2l-9.3-3l4.7-4.3c0.4,0,1,0.1,1.7,0.1
+			c1.4,0,2.8-0.2,4.2-0.5C21.6,12.7,22.7,12.3,23.6,11.9 M26.6,8.1c0,0-2.7,2-6.6,2.9c-1.4,0.4-2.7,0.5-3.7,0.5
+			c-1.4,0-2.3-0.2-2.3-0.2l-8,7.3L20,23c0,0,2.6-3.4,4.1-6.7S26.6,8.1,26.6,8.1L26.6,8.1z"/>
+	</g>
+</g>
+<g id="Surface_Border">
+	<path fill="none" stroke="#333333" stroke-linejoin="round" stroke-miterlimit="10" d="M6,18.5l8-7.3c0,0,2.5,0.6,6-0.3
+		c3.9-1,6.6-2.9,6.6-2.9s-1,4.9-2.5,8.2S20,23,20,23L6,18.5z"/>
+</g>
+<g id="Vertices">
+	<circle fill="#FF0000" stroke="#960000" stroke-miterlimit="10" cx="14.5" cy="10.5" r="1.5"/>
+	<circle fill="#FF0000" stroke="#960000" stroke-miterlimit="10" cx="6.5" cy="18.5" r="1.5"/>
+	<circle fill="#FF0000" stroke="#960000" stroke-miterlimit="10" cx="19.5" cy="23.5" r="1.5"/>
+	<circle fill="#FF0000" stroke="#960000" stroke-miterlimit="10" cx="25.5" cy="8.5" r="1.5"/>
+</g>
+</svg>

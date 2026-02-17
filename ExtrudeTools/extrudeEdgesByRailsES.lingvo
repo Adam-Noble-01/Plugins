@@ -1,0 +1,44 @@
+Extrude Edges by Rails<==>Barrido de Curvas por Rieles
+Extrude Edges by Rails<==>Barrido de Curvas por Rieles
+Extrude Edges by Rails: Select the 'Profile' Curve...<==>Barrido de Curvas por Rieles: Selecciona la Curva para el Perfil...
+Pick Profile<==>Haz Clic en el Perfil
+Pick 1st Rail<==>Haz Clic en el Riel 1
+Pick 2nd Rail<==>Haz Clic en el Riel 2
+Extrude Edges by Rails: Select the 1st 'Rail' Curve...<==>Barrido de Curvas por Rieles: Selecciona la Curva para el Primer Riel...
+Extrude Edges by Rails: Select the 2nd 'Rail' Curve...<==>Barrido de Curvas por Rieles: Selecciona la Curva para el Segundo Riel...
+Extrude Edges by Rails: Making Mesh from Profile and 1 Rail.<==>Barrido de Curvas por Rieles: Haciendo la Malla desde el Perfil con el Riel 1.
+Extrude Edges by Rails: Making Mesh from Profile and 2 Rails.<==>Barrido de Curvas por Rieles: Haciendo la Malla desde el Perfil con los 2 Rieles.
+Extrude Edges by Rails: Reverse Rail-1's Direction ?<==>Barrido de Curvas por Rieles: ¿Deseas Invertir la Dirección del Primer Riel?
+Extrude Edges by Rails:<==>Barrido de Curvas por Rieles:
+Reverse Rail-1's Direction ?<==>¿Deseas Invertir la Dirección del Primer Riel?
+This is only necessary with twisted meshes...<==>Esto (solo) es Necesario en Mallas con Torsión...
+Extrude Edges by Rails: Reversing Rail-1's Direction...<==>Barrido de Curvas por Rieles: Invirtiendo la Dirección del Primer Riel...
+Extrude Edges by Rails: Formating Mesh... Please Wait...<==>Barrido de Curvas por Rieles: Formateando la Malla... Espera un Momento...
+Extrude Edges by Rails: Reverse <==>Barrido de Curvas por Rieles: Invertir las 
+ Faces ?<==> Caras?
+Extrude Edges by Rails: Reversing Face <==>Barrido de Curvas por Rieles: Invirtiendo Cara 
+ of <==> de 
+Reverse Faces ?<==>¿Deseas Invertir las Caras?
+Extrude Edges by Rails: Erase Coplanar Edges ?<==>Barrido de Curvas por Rieles: ¿Deseas Borrar las Aristas Coplanares?
+Erase Coplanar Edges ?<==>¿Deseas Borrar las Aristas Coplanares?
+Extrude Edges by Rails: Coplanar Edges Erased= <==>Barrido de Curvas por Rieles: Aristas Coplanares Borrandas = 
+Extrude Edges by Rails: Intersect Mesh with Self ?<==>Barrido de Curvas por Rieles: ¿Deseas Intersecar la Malla con si Misma?
+Intersect Mesh with Self ?<==>¿Deseas Intersecar la Malla con si Misma?
+This is only necessary with convoluted meshes...<==>Esto (solo) es Necesario en Mallas Complejas...
+Extrude Edges by Rails: Intersecting Mesh with Self... Please Wait...<==>Barrido de Curvas por Rieles: Intersecando la Malla con si Misma... Espera un Momento...
+Extrude Edges by Rails: Smooth <==>Barrido de Curvas por Rieles: Suavizar las 
+ Edges ?<==> Aristas?
+Smooth Edges ?<==>¿Deseas Suavizar las Aristas?
+Extrude Edges by Rails: Smoothing Edge <==>Barrido de Curvas por Rieles: Suavizando Arista 
+Extrude Edges by Rails: Erase Original Curves ?<==>=>Barrido de Curvas por Rieles: ¿Deseas Borrar las Curvas Originales?
+Erase Original Curves ?<==>¿Deseas Borrar las Curvas Originales?
+Extrude Edges by Rails: <==>Barrido de Curvas por Rieles: 
+Making Profile <==>Haciendo Perfil 
+Making Face <==>Haciendo Cara 
+Pick Melding Profile<==>Haz Clic en el Perfil->Fusión
+Extrude Edges by Rails: Select the 'Melding-Profile' Curve...<==>Barrido de Curvas por Rieles: Selecciona la Curva para el Perfil de Fusión...
+Orienting Faces<==>Orientando las Caras
+: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Makes Mesh. Follow Prompts...<==>: Selecciona Curvas: Perfil, Riel-1, Riel-2 & Perfil-Fusión. Crear Malla. Seguir Indicaciones...
+
+Quad Faces ?<==>¿Generar como Caras Cuadrangulares?
+Extrude Edges by Rails: Quad Face <==>Barrido de Curvas por Rieles: Cara Cuadrangular 

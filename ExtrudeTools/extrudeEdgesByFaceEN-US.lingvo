@@ -1,0 +1,13 @@
+Extrude Edges by Face<==>Extrude Edges by Face
+Extrude Edges by Face:<==>Extrude Edges by Face:
+Extrude Edges by Face<==>Extrude Edges by Face
+Select a 'Flat' Face and Edge(s) BEFORE using.<==>Select a 'Flat' Face and Edge(s) BEFORE using.
+Error: Extrusion NOT Possible...<==>Error: Extrusion NOT Possible...
+Path is Discontinuous or Branched.<==>Path is Discontinuous or Branched.
+Yes = Process Extrusions in Pieces<==>Yes = Process Extrusions in Pieces
+No = Exit...<==>No = Exit...
+Making Extrusion <==>Making Extrusion 
+ of <==> of 
+: Pick a Face [+ optional Cpoint] and Curve/Edges: Activate Tool...<==>: Pick a Face [+ optional Cpoint] and Curve/Edges: Activate Tool...
+
+

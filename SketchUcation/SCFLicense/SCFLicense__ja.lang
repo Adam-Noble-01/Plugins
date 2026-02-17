@@ -1,0 +1,84 @@
+#Language: JAPANESE (by AlphaCox)
+
+mnu_global_status			= SCFLicense : グローバル ステータス
+mnu_mylicenses				= SCFLicense : ライセンス情報：%1
+lst_months					= Jan-Feb-Mar-Apr-May-Jun-Jul-Aug-Sep-Oct-Nov-Dec
+lst_week_days				= Mon-Tue-Wed-Thu-Fri-Sat-Sun
+tit_open_panel				= %1プラグインライセンス
+msg_license_invalid			= 無効なライセンス
+msg_license_not_for_plugin	= ライセンスファイルが%1プライグイン用ではありません。
+title						= プラグインライセンス: %1
+txt_history					= 履歴...
+tip_history_button			= ライセンスイベントの履歴を表示
+txt_seat					= シート数...
+tip_seat_button				= ライセンスシート数の最新状況を確認
+txt_purchase				= ライセンス購入
+txt_validate				= ライセンス認証
+txt_release					= ライセンス削除
+txt_close					= 閉じる
+txt_mylicenses				= %1で取得したライセンス
+txt_help					= ヘルプ
+txt_file_location			= ライセンスファイルの場所
+txt_ok						= OK
+txt_no						= ライセンスがありません
+txt_expired					= 期限切れ
+txt_license_for				= %1ライセンス情報
+msg_connected				= ライセンスの購入･認証･解除を行うにはインターネット接続が必要です。
+msg_check					= Sketchucationでライセンスを確認....
+msg_release_confirm			= %1ライセンスを削除しますか？
+msg_error_fetch				= 申し訳ございません - Sketchucationとの通信にエラーが発生しました。
+msg_wrong_answer_SCF		= Sketchucationからの情報が正しくありません。
+msg_no_writable_directory	= ライセンス情報を格納する書き込み可能なディレクトリが見つかりません。
+msg_signature_critical		= コンピュータのライセンス署名ファイルに関する問題
+msg_license_file_not_exist	= ファイルが存在しないか、または無効です。
+msg_response_SCF			= Sketchucationからの回答
+msg_request_SCF				= Sketchucationへ確認
+msg_validate_error			= ライセンス認証エラー
+msg_release_error			= ライセンス解除エラー
+msg_seat_error				= ライセンス数チェックエラー
+tip_goto_page				= Sketchucationの%1ページを開きます。
+txt_history_title			= ライセンス移動履歴
+txt_details					= 詳細
+
+#----------------------------------------
+# Main fields of the license information
+#----------------------------------------
+
+txt_date_purchase			= 購入日:
+txt_duration				= 有効期限:
+txt_infinite				= なし
+txt_days					= 日
+txt_seats					= シート数:
+txt_max						= 総数
+txt_left					= 未使用
+txt_taken					= 利用中
+txt_expires_on				= 利用期限
+txt_plugin 					= プラグイン名:
+txt_license_type			= ライセンス種類:
+txt_email					= email:
+txt_scf_user				= SCFユーザー名:
+txt_license_id				= ライセンス ID:
+txt_global_status			= SCFライセンス内のプラグイン状況
+txt_hwid					= HW ID*:
+	
+#----------------------------------------
+# Error messages
+#----------------------------------------
+
+error_open_signature_folder	= 署名ファイルが入っているフォルダを開きますか?
+error_open_mylicences		= SketchucationのMyLicensesのページを開きますか?
+
+error_A0C_1					= コンピュータ名の不一致 - 署名ファイルを消去し、再度確認を行ってください。
+error_F07_1					= 誤ったライセンスファイル - 正しいライセンスを認証したか確認してください。
+error_F07_2					= SketchucationのMyLicensesページを確認し、正しいライセンスファイルをダウンロードしてください。
+error_F09_1					= 別のプラグインのライセンスファイル - 正しいライセンスを認証しているか確認が必要です。
+error_F09_2					= SketchucationのMyLicensesページを確認し、このプラグインに応じたライセンスファイルをダウンロードしてください。
+error_A04_1					= 署名ファイルの相違 - コンピューター名が変更されている可能性があります。
+error_A04_2					= 署名ファイルを消去して、再度認証することをお勧めします
+error_B03_1					= 署名ファイルの作成に関する問題
+error_B03_2					= これは、お使いのコンピュータ名に発音区別符号が含まれていることが原因である可能性があります。
+error_B03_3					= コンピュータ名をASCII文字のみに変更し、署名ファイルを消去した後、再度認証してください。
+error_U01					= ライセンスを更新することをお勧めします
+error_U02					= ライセンスが無効です。
+error_U03					= アップデートしますか
+	

@@ -1,0 +1,57 @@
+Extrude Edges by Rails to Lattice<==>双轨放样转网格
+Extrude Edges by Rails To Lattice<==>双轨放样转网格
+Extrude Edges by Rails To Lattice<==>双轨放样转网格
+Extrude Edges by Rails To Lattice: Select the 'Profile' Curve...<==>双轨放样转网格: 选择开始轮廓曲线...
+Pick Profile<==>选择开始轮廓线
+Pick 1st Rail<==>选择路径1
+Pick 2nd Rail<==>选择路径2
+Extrude Edges by Rails To Lattice: Select the 1st 'Rail' Curve...<==>双轨放样转网格: 选择路径1曲线...
+Extrude Edges by Rails To Lattice: Select the 2nd 'Rail' Curve...<==>双轨放样转网格: 选择路径2曲线...
+Extrude Edges by Rails To Lattice: Making Mesh from Profile and 1 Rail.<==>双轨放样转网格: 从路径1和轮廓线生成网格
+Extrude Edges by Rails To Lattice: Making Mesh from Profile and 2 Rails.<==>双轨放样转网格: 从路径2和轮廓线生成网格
+Extrude Edges by Rails To Lattice: Formating Mesh... Please Wait...<==>双轨放样转网格: 格式化网格...请稍候...
+Extrude Edges by Rails To Lattice: Reverse <==>双轨放样转网格: 是否翻转 
+ Faces ?<==> 面 ?
+Extrude Edges by Rails To Lattice: Reversing Face <==>双轨放样转网格: 正在翻转面
+ of <==> 之 
+Reverse Faces ?<==>是否翻转面 ?
+Extrude Edges by Rails To Lattice: Erase Highlighted Coplanar Edges ?<==>双轨放样转网格: 是否删除高亮共面线 ?
+Erase Highlighted Coplanar Edges ?<==>是否删除高亮共面线 ?
+Extrude Edges by Rails To Lattice: Erase Original Curves ?<==>双轨放样转网格: 是否删除共面线 ?
+Erase Original Curves ?<==>是否删除共面线 ?
+Extrude Edges by Rails To Lattice:<==>双轨放样转网格:
+Making Profile <==>正在生成轮廓
+Making Face <==>正在生成面
+Pick Melding Profile<==>选择结束轮廓线
+Extrude Edges by Rails To Lattice: Select the 'Melding-Profile' Curve...<==>双轨放样转网格: 选择结束轮廓线...
+
+Extrusion Type<==>放样类型
+Lattice from:<==>外框从:
+Profiles<==>轮廓
+Profiles/Rails<==>轮廓/路径
+Rails<==>路径
+Diagonals<==>对角线
+Lattice Type<==>外框类型
+Lattice as:<==>外框作为:
+Lines<==>直线
+3D<==>3D
+
+
+Extrude Edges by Rails To Lattice: Offsetting <==>双轨放样转网格: 正在偏移 
+Lattice Properties<==>网格属性
+<Default><==><默认>
+<None><==><无>
+'Glass'<==>'玻璃'
+Width: <==>宽度: 
+Depth: <==>深度: 
+Pane Inset: <==>窗格凹陷: 
+Pane Thickness: <==>窗格厚度: 
+Lattice Material: <==>外框材质: 
+Pane Material: <==>窗格材质: 
+Processing<==>正在计算
+Processing... Please Wait...<==>计算中... 请稍等...
+: Pick Curves: Profile, Rail-1, Rail-2 & Melding-Profile. Follow Prompts. Makes Lattice...<==>: 选择曲线: 开始轮廓线, 路径-1, 路径-2 和 结束轮廓线. 按照提示做. 生成外框...
+
+
+
+
