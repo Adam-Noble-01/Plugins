@@ -3,6 +3,112 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Version 0.9.5 - 26-Feb-2026 - Casements Per Opening (Multi-Panel)
+
+### Feature 01 - Casements Per Opening Slider (Replaces Twin Casements Toggle)
+- **Breaking Change:** Removed the `twin_casements` boolean toggle from the Options section.
+- **New Feature:** "Casements Per Opening" slider added to the Advanced Casement Controls expandable section.
+- **Purpose:** Allow 1-6 casement panels per opening span, enabling bifold/concertina/multi-folding panel systems. Previously only 1 or 2 casements were supported.
+
+### Config Schema Change:
+| Old Field | New Field | Default | Min | Max |
+|-----------|-----------|---------|-----|-----|
+| `twin_casements` (boolean) | `casements_per_opening` (integer) | 1 | 1 | 6 |
+
+### Backward Compatibility:
+- `GeometryEngine` and `DxfExporterLogic` detect legacy `twin_casements: true` configs (from saved windows) and automatically convert to `casements_per_opening: 2`.
+
+### Geometry Refactor:
+- `na_create_twin_casement_opening` and `na_create_single_casement_opening` replaced with unified `na_create_multi_casement_opening` that loops N panels.
+- Each panel gets `panel_width = opening_width / casements_per_opening`.
+- Panel IDs use `opening_index * num_panels + panel_index` to ensure unique group names.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`** - Removed `twin_casements` toggle from `NA_OPTIONS_CONFIG`, added `casements_per_opening` slider to `advanced_casement_controls` children
+2. **`Na__WindowConfiguratorTool__Main__.rb`** - Replaced `twin_casements: false` with `casements_per_opening: 1` in default config JSON
+3. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`** - Replaced twin/single branching with unified `na_create_multi_casement_opening`, added backward compat migration in `na_parse_config`
+4. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`** - Replaced `twinCasements` boolean with `casementsPerOpening` integer loop for N panels
+5. **`Na__WindowConfiguratorTool__Viewport__Validation__.js`** - Replaced `twinCasements` with `casementsPerOpening` for opening width validation
+6. **`Na__WindowConfiguratorTool__DxfExporterLogic__.rb`** - Replaced `twin_casements` branching with `casements_per_opening` loop, added backward compat
+7. **`Na__WindowConfiguratorTool__Styles__.css`** - Removed `twin_casements` special toggle styling
+8. **`Na__WindowConfiguratorTool__Architecture__.md`** - Updated config schema and feature documentation
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+## Version 0.9.4 - 26-Feb-2026 - Glaze Bar Inset
+
+### Feature 01 - Configurable Glaze Bar Inset
+- **New Feature:** "Glaze Bar Inset" slider added to the Advanced Casement Controls expandable section.
+- **Purpose:** Replace the hardcoded 3mm glaze bar extension with a configurable inset from the front and back of the casement (or frame for direct-glazed). Bar depth = casement_depth - (2 * inset).
+
+### New Parameter:
+| Parameter | Default | Min | Max | Replaces |
+|-----------|---------|-----|-----|----------|
+| Glaze Bar Inset | 10mm | 0mm | 20mm (dynamic) | Hardcoded `3.mm` offset and `glass_thickness + 6.mm` depth |
+
+### Dynamic Guard:
+- Max value is clamped at runtime to `(casement_depth - glass_thickness) / 2` to prevent the bar depth from being smaller than the glass thickness.
+- Example: casement_depth=40, glass_thickness=20 => max inset = 10mm (even if slider allows 20).
+- Guard runs in `na_onConfigChange()` and auto-updates the slider when dependent values change.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`** - Added `glazebar_inset_mm` slider to `advanced_casement_controls` children
+2. **`Na__WindowConfiguratorTool__Main__.rb`** - Added `NA_DEFAULT_GLAZEBAR_INSET = 10` constant and `glazebar_inset_mm` to default config JSON
+3. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`** - Parses `glazebar_inset_mm`, passes to all `na_create_glazebar_geometry` calls
+4. **`Na__WindowConfiguratorTool__GeometryBuilders__.rb`** - `na_create_glazebar_geometry` uses `glazebar_inset` for Y positioning and bar depth instead of hardcoded values
+5. **`Na__WindowConfiguratorTool__UiLogic__.js`** - Added dynamic guard in `na_onConfigChange()` to clamp `glazebar_inset_mm`
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+## Version 0.9.3 - 26-Feb-2026 - Advanced Casement Controls
+
+### Feature 01 - Advanced Casement Controls (New Expandable Section)
+- **New Feature:** Three new configurable parameters for casement geometry, exposed in a collapsible "Advanced Casement Controls" panel in the UI.
+- **Purpose:** Replace hardcoded casement depth (was `frame_depth * 0.7`), casement inset (was `6mm`), and expose the previously hidden glass thickness as user-configurable sliders.
+
+### New Parameters:
+| Parameter | Default | Min | Max | Replaces |
+|-----------|---------|-----|-----|----------|
+| Casement Depth | 55mm | 40mm | 100mm | `frame_depth * 0.7` (hardcoded) |
+| Casement Frame Inset | 10mm | 0mm | 100mm | `6.mm` (hardcoded) |
+| Glazing Thickness | 20mm | 5mm | 35mm | `glass_thickness_mm: 24` (hidden) |
+
+### Glass Centering Logic:
+- **With casement:** Glass panel is centered on the casement midpoint (`wall_inset + casement_inset + (casement_depth - glass_thickness) / 2`)
+- **Direct-glazed (no casement):** Glass remains centered on frame depth (unchanged behavior)
+- Glaze bars follow the same centering logic as the glass they overlay.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`**
+   - Added `advanced_casement_controls` expandable with 3 child sliders after "Individual Casement Sizes"
+
+2. **`Na__WindowConfiguratorTool__Main__.rb`**
+   - Added constants: `NA_DEFAULT_CASEMENT_DEPTH = 55`, `NA_DEFAULT_CASEMENT_INSET = 10`
+   - Changed `NA_DEFAULT_GLASS_THICKNESS` from `24` to `20`
+   - Added `casement_depth_mm` and `casement_inset_mm` to `NA_DEFAULT_CONFIG_JSON`
+
+3. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`**
+   - `na_parse_config`: parses `casement_depth_mm` and `casement_inset_mm`, adds to params hash
+   - `na_create_opening`: uses `params[:casement_depth]` instead of `params[:frame_depth] * 0.7`
+   - `na_create_single_casement_opening` / `na_create_twin_casement_opening`: passes casement context to builders
+
+4. **`Na__WindowConfiguratorTool__GeometryBuilders__.rb`**
+   - `na_create_casement_geometry_individual`: accepts `casement_inset` param, replaces hardcoded `6.mm`
+   - `na_create_casement_geometry` (legacy): same change for consistency
+   - `na_create_glass_geometry`: accepts optional `casement_depth`/`casement_inset`, centers glass on casement when present
+   - `na_create_glazebar_geometry`: same pattern for glaze bar Y positioning
+
+### Design Notes:
+- No changes to SVG preview, DXF export, or GeometryHelpers -- depth/inset are Y-axis properties invisible in 2D
+- Existing expandable UI control type handles the new section automatically (no new control type needed)
+- Direct-glazed openings (casement removed) keep frame-centered glass behavior unchanged
+- The `UiLogic__.js` `na_setDefaults()` and `na_updateControlValue()` already handle expandable children generically
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
 ## Version 0.9.2 - 26-Feb-2026 - Frameless Mode
 
 ### Feature 01 - Frameless Mode (Frame Thickness = 0)

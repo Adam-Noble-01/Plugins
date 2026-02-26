@@ -142,10 +142,11 @@ module Na__WindowConfiguratorTool
         # @param offset_z [Float] Z offset from frame origin
         # @param material [Sketchup::Material] Material to apply
         # @param wall_inset [Float] Y offset for frame
-        def self.na_create_casement_geometry(entities, opening_index, cas_width, cas_height, thickness, depth, offset_x, offset_z, material, wall_inset = 0)
+        # @param casement_inset [Float] Casement inset from frame face
+        def self.na_create_casement_geometry(entities, opening_index, cas_width, cas_height, thickness, depth, offset_x, offset_z, material, wall_inset = 0, casement_inset = 10.mm)
             DebugTools.na_debug_geometry("Creating casement #{opening_index} at offset (#{offset_x.to_mm.round}, #{offset_z.to_mm.round})")
             
-            y_offset = wall_inset + 6.mm  # Slightly inset from outer frame in Y direction
+            y_offset = wall_inset + casement_inset
             
             # Left stile - FULL HEIGHT of casement
             GeometryHelpers.na_create_casement_stile(entities, opening_index, "Left", offset_x, y_offset, offset_z, thickness, depth, cas_height, material)
@@ -179,12 +180,13 @@ module Na__WindowConfiguratorTool
         # @param offset_z [Float] Z offset from frame origin
         # @param material [Sketchup::Material] Material to apply
         # @param wall_inset [Float] Y offset for frame
-        def self.na_create_casement_geometry_individual(entities, opening_index, cas_width, cas_height, top_rail, bottom_rail, left_stile, right_stile, depth, offset_x, offset_z, material, wall_inset = 0)
+        # @param casement_inset [Float] Casement inset from frame face
+        def self.na_create_casement_geometry_individual(entities, opening_index, cas_width, cas_height, top_rail, bottom_rail, left_stile, right_stile, depth, offset_x, offset_z, material, wall_inset = 0, casement_inset = 10.mm)
             DebugTools.na_debug_geometry("Creating casement #{opening_index} with individual sizes at offset (#{offset_x.to_mm.round}, #{offset_z.to_mm.round})")
             DebugTools.na_debug_geometry("  - Top Rail: #{top_rail.to_mm.round}mm, Bottom Rail: #{bottom_rail.to_mm.round}mm")
             DebugTools.na_debug_geometry("  - Left Stile: #{left_stile.to_mm.round}mm, Right Stile: #{right_stile.to_mm.round}mm")
             
-            y_offset = wall_inset + 6.mm  # Slightly inset from outer frame in Y direction
+            y_offset = wall_inset + casement_inset
             
             # Left stile - FULL HEIGHT of casement
             GeometryHelpers.na_create_casement_stile(entities, opening_index, "Left", offset_x, y_offset, offset_z, left_stile, depth, cas_height, material)
@@ -215,14 +217,21 @@ module Na__WindowConfiguratorTool
         # @param thickness [Float] Glass thickness
         # @param offset_x [Float] X offset
         # @param offset_z [Float] Z offset
-        # @param frame_depth [Float] Frame depth (for centering glass)
+        # @param frame_depth [Float] Frame depth (for centering glass when direct-glazed)
         # @param material [Sketchup::Material] Material to apply
         # @param wall_inset [Float] Y offset for frame
-        def self.na_create_glass_geometry(entities, opening_index, glass_width, glass_height, thickness, offset_x, offset_z, frame_depth, material, wall_inset = 0)
+        # @param casement_depth [Float, nil] Casement depth (when glass inside casement, centers on casement)
+        # @param casement_inset [Float, nil] Casement inset from frame face
+        def self.na_create_glass_geometry(entities, opening_index, glass_width, glass_height, thickness, offset_x, offset_z, frame_depth, material, wall_inset = 0, casement_depth = nil, casement_inset = nil)
             DebugTools.na_debug_geometry("Creating glass pane #{opening_index}: #{glass_width.to_mm.round}x#{glass_height.to_mm.round}mm")
             
-            # Center glass in frame depth, offset by wall inset
-            y_offset = wall_inset + (frame_depth - thickness) / 2.0
+            if casement_depth && casement_inset
+                # Glass centered on casement midpoint
+                y_offset = wall_inset + casement_inset + (casement_depth - thickness) / 2.0
+            else
+                # Direct-glazed: center glass in frame depth
+                y_offset = wall_inset + (frame_depth - thickness) / 2.0
+            end
             
             GeometryHelpers.na_create_glass_pane(entities, opening_index, offset_x, y_offset, offset_z, glass_width, thickness, glass_height, material)
         end
@@ -242,12 +251,22 @@ module Na__WindowConfiguratorTool
         # @param frame_depth [Float] Frame depth
         # @param material [Sketchup::Material] Material to apply
         # @param wall_inset [Float] Y offset for frame
-        def self.na_create_glazebar_geometry(entities, opening_index, glass_width, glass_height, h_bars, v_bars, bar_width, glass_thickness, offset_x, offset_z, frame_depth, material, wall_inset = 0)
+        # @param casement_depth [Float, nil] Casement depth (when bars inside casement)
+        # @param casement_inset [Float, nil] Casement inset from frame face
+        # @param glazebar_inset [Float] Glaze bar inset from front/back of casement (or frame)
+        def self.na_create_glazebar_geometry(entities, opening_index, glass_width, glass_height, h_bars, v_bars, bar_width, glass_thickness, offset_x, offset_z, frame_depth, material, wall_inset = 0, casement_depth = nil, casement_inset = nil, glazebar_inset = 0)
             DebugTools.na_debug_geometry("Creating glaze bars for opening #{opening_index}: #{h_bars}H x #{v_bars}V")
             
-            # Position bars at glass depth, slightly proud, offset by wall inset
-            y_offset = wall_inset + (frame_depth - glass_thickness) / 2.0 - 3.mm
-            bar_depth = glass_thickness + 6.mm
+            if casement_depth && casement_inset
+                # Bars inset from casement faces
+                y_offset = wall_inset + casement_inset + glazebar_inset
+                bar_depth = casement_depth - (2 * glazebar_inset)
+            else
+                # Direct-glazed: inset from frame depth
+                y_offset = wall_inset + glazebar_inset
+                bar_depth = frame_depth - (2 * glazebar_inset)
+            end
+            bar_depth = [bar_depth, glass_thickness].max
             
             # Horizontal bars
             if h_bars > 0

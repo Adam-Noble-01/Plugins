@@ -141,6 +141,17 @@ const Na_DynamicUI = (function() {
             }
         }
         
+        // Guard: clamp glazebar_inset to prevent impossible geometry
+        // bar_depth = casement_depth - 2*inset must be >= glass_thickness
+        const casementDepth = _config.casement_depth_mm || 55;
+        const glassThickness = _config.glass_thickness_mm || 20;
+        const maxGlazebarInset = Math.floor((casementDepth - glassThickness) / 2);
+        const clampedMax = Math.max(0, Math.min(20, maxGlazebarInset));
+        if ((_config.glazebar_inset_mm || 0) > clampedMax) {
+            _config.glazebar_inset_mm = clampedMax;
+            na_updateControlValue('glazebar_inset_mm', clampedMax);
+        }
+        
         // Clean up removed_casements: remove indices that exceed current opening count
         const numOpenings = (_config.mullions || 0) + 1;
         if (_config.removed_casements && _config.removed_casements.length > 0) {

@@ -202,14 +202,14 @@ JavaScript: Config → Controls, Events → UiLogic → Viewport modules → Exp
 │  │  │  • num_openings = mullions + 1                                 │ │    │
 │  │  │  • inner_width = width - (2 * frame_thickness)                 │ │    │
 │  │  │  • opening_width = available_width / num_openings              │ │    │
-│  │  │  • Twin casements: half_width = opening_width / 2              │ │    │
+│  │  │  • Multi-casement: panel_width = opening_width / panels_count   │ │    │
 │  │  └────────────────────────────────────────────────────────────────┘ │    │
 │  │                                                                     │    │
 │  │  Create geometry via GeometryBuilders:                              │    │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │    │
 │  │  │ Outer Frame  │  │   Mullions   │  │  Casements   │               │    │
 │  │  │ (4 pieces)   │  │ (0-6 pieces) │  │ (per opening)│               │    │
-│  │  │              │  │              │  │ 1 or 2 per   │               │    │
+│  │  │              │  │              │  │ 1-6 per      │               │    │
 │  │  │ Left Stile   │  │  Mullion_1   │  │ opening      │               │    │
 │  │  │ Right Stile  │  │  Mullion_2   │  │ (4 pieces ea)│               │    │
 │  │  │ Bottom Rail  │  │  ...         │  │ Individual   │               │    │
@@ -337,7 +337,9 @@ windowConfiguration: {
     casement_bottom_rail_mm: 65,// Bottom rail width (when individual)
     casement_left_stile_mm: 65, // Left stile width (when individual)
     casement_right_stile_mm: 65,// Right stile width (when individual)
-    twin_casements: false,      // Two casements per opening
+    casement_depth_mm: 55,      // Casement profile depth (Y direction, 40-100mm)
+    casement_inset_mm: 10,      // Casement inset from frame face (0=flush, 0-100mm)
+    casements_per_opening: 1,   // Casement panels per opening (1-6, for bifold/concertina systems)
     removed_casements: [],      // Array of opening indices with casements removed
     
     // Mullions (vertical dividers)
@@ -345,12 +347,13 @@ windowConfiguration: {
     mullion_width_mm: 40,       // Mullion member width
     
     // Glass
-    glass_thickness_mm: 24,     // Glass unit thickness
+    glass_thickness_mm: 20,     // Glazing panel thickness (5-35mm, centered on casement)
     
     // Glaze Bars
     horizontal_glaze_bars: 0,   // Horizontal bars per opening
     vertical_glaze_bars: 0,     // Vertical bars per opening
     glaze_bar_width_mm: 25,     // Glaze bar width
+    glazebar_inset_mm: 10,      // Glaze bar inset from casement face (0-20mm, dynamic max)
     
     // Cill & Frame
     has_cill: true,             // Include cill
@@ -454,12 +457,12 @@ CURRENT (casement_width_mm = 65):        PROPOSED (individual sizes):
 
 ---
 
-## PROPOSED FEATURE 2: Twin Casements Toggle
+## IMPLEMENTED FEATURE: Casements Per Opening (Multi-Panel Support)
 
 ### Concept
 
 ```
-CURRENT (Single Casement per Opening):
+1 CASEMENT PER OPENING (Default):
 
     Frame Opening
 ┌─────────────────────────┐
@@ -476,89 +479,80 @@ CURRENT (Single Casement per Opening):
 │ └─────────────────────┘ │
 └─────────────────────────┘
 
-PROPOSED (Twin Casements - When Toggle Enabled):
+2 CASEMENTS PER OPENING (Double Doors / French Doors):
 
     Frame Opening
 ┌─────────────────────────┐
 │ ┌──────────┐┌──────────┐│
 │ │          ││          ││
-│ │  Casement││ Casement ││   ← Two casements
-│ │    A     ││    B     ││     meeting in middle
+│ │  Panel A ││ Panel B  ││
 │ │ ┌──────┐ ││ ┌──────┐ ││
 │ │ │GLASS │ ││ │GLASS │ ││
-│ │ │      │ ││ │      │ ││
 │ │ └──────┘ ││ └──────┘ ││
-│ │          ││          ││
 │ └──────────┘└──────────┘│
 └─────────────────────────┘
     No mullion between!
+
+4 CASEMENTS PER OPENING (Bifold / Concertina):
+
+    Frame Opening
+┌──────────────────────────────────────────┐
+│ ┌────────┐┌────────┐┌────────┐┌────────┐│
+│ │ Panel  ││ Panel  ││ Panel  ││ Panel  ││
+│ │   A    ││   B    ││   C    ││   D    ││
+│ │┌──────┐││┌──────┐││┌──────┐││┌──────┐││
+│ ││GLASS │││|GLASS │││|GLASS │││|GLASS │││
+│ │└──────┘││└──────┘││└──────┘││└──────┘││
+│ └────────┘└────────┘└────────┘└────────┘│
+└──────────────────────────────────────────┘
 ```
 
 ### Use Cases
 
 ```
-DOUBLE DOORS (No Mullions, Twin Casements):
+DOUBLE DOORS (No Mullions, 2 Casements Per Opening):
 
 ┌─────────────────────────────────────────┐
 │ ┌─────────────────┐┌─────────────────┐  │
-│ │                 ││                 │  │
 │ │    LEFT DOOR    ││   RIGHT DOOR    │  │
-│ │                 ││                 │  │
 │ │   ┌─────────┐   ││   ┌─────────┐   │  │
-│ │   │         │   ││   │         │   │  │
 │ │   │  GLASS  │   ││   │  GLASS  │   │  │
-│ │   │         │   ││   │         │   │  │
 │ │   └─────────┘   ││   └─────────┘   │  │
-│ │                 ││                 │  │
 │ │   ═══════════   ││   ═══════════   │  │  ← Wide bottom rails (220mm)
 │ └─────────────────┘└─────────────────┘  │
 └─────────────────────────────────────────┘
 
 
-TRIPLE OPENING WITH TWIN CASEMENTS (2 Mullions):
+QUAD BIFOLD (No Mullions, 4 Casements Per Opening):
 
-┌────────────────────────────────────────────────────────────────────┐
-│                                                                    │
-│ ┌────────────────┐   ┌────────────────┐   ┌────────────────┐      │
-│ │ ┌────┐┌────┐   │   │ ┌────┐┌────┐   │   │ ┌────┐┌────┐   │      │
-│ │ │    ││    │   │ M │ │    ││    │   │ M │ │    ││    │   │      │
-│ │ │ A  ││ B  │   │ U │ │ A  ││ B  │   │ U │ │ A  ││ B  │   │      │
-│ │ │    ││    │   │ L │ │    ││    │   │ L │ │    ││    │   │      │
-│ │ └────┘└────┘   │ L │ └────┘└────┘   │ L │ └────┘└────┘   │      │
-│ └────────────────┘ I └────────────────┘ I └────────────────┘      │
-│                    O                    O                          │
-│                    N                    N                          │
-└────────────────────────────────────────────────────────────────────┘
-       Opening 1            Opening 2            Opening 3
-       (2 casements)        (2 casements)        (2 casements)
+┌──────────────────────────────────────────────────────────┐
+│ ┌────────────┐┌────────────┐┌────────────┐┌────────────┐│
+│ │  Panel 1   ││  Panel 2   ││  Panel 3   ││  Panel 4   ││
+│ │ ┌────────┐ ││ ┌────────┐ ││ ┌────────┐ ││ ┌────────┐ ││
+│ │ │ GLASS  │ ││ │ GLASS  │ ││ │ GLASS  │ ││ │ GLASS  │ ││
+│ │ └────────┘ ││ └────────┘ ││ └────────┘ ││ └────────┘ ││
+│ └────────────┘└────────────┘└────────────┘└────────────┘│
+└──────────────────────────────────────────────────────────┘
 ```
 
-### New Config Field
+### Config Field
 
 ```javascript
-// NEW FIELD:
-twin_casements: false,    // When true, each opening has 2 casements
+casements_per_opening: 1,    // 1-6 casement panels per opening (slider in Advanced Casement Controls)
 ```
 
-### Geometry Calculation Change
+### Geometry Calculation
 
 ```ruby
-# CURRENT:
 num_openings = num_mullions + 1
-# Each opening = 1 casement
-
-# PROPOSED (when twin_casements = true):
-num_openings = num_mullions + 1
-casements_per_opening = twin_casements ? 2 : 1
-# Each opening = 2 casements (meeting at center, no mullion)
-
-# Casement width calculation:
+casements_per_opening = config["casements_per_opening"].clamp(1, 6)
 opening_width = available_width / num_openings
-if twin_casements
-    casement_A_width = opening_width / 2
-    casement_B_width = opening_width / 2
-else
-    casement_width = opening_width
+panel_width = opening_width / casements_per_opening
+
+# Each panel gets equal width within the opening
+(0...casements_per_opening).each do |p|
+    panel_x = opening_x + (p * panel_width)
+    # Create casement frame, glass, and glaze bars at panel_x
 end
 ```
 
@@ -686,5 +680,5 @@ end
 ---
 
 *Document created: February 3, 2026*
-*Last updated: February 26, 2026 (v0.9.2 - Frameless Mode: frame_thickness_mm=0 skips outer frame)*
+*Last updated: February 26, 2026 (v0.9.5 - Casements Per Opening: multi-panel support replacing twin casements toggle)*
 *Author: Noble Architecture*

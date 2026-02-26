@@ -247,7 +247,11 @@ module Na__WindowConfiguratorTool
             frame_thickness = config["frame_thickness_mm"] || 50
             casement_width = config["casement_width_mm"] || 65
             show_casements = config["show_casements"] != false
-            twin_casements = config["twin_casements"] == true
+            casements_per_opening = if config.key?("twin_casements") && !config.key?("casements_per_opening")
+                config["twin_casements"] == true ? 2 : 1
+            else
+                (config["casements_per_opening"] || 1).to_i.clamp(1, 6)
+            end
             num_mullions = config["mullions"] || 0
             mullion_width = config["mullion_width_mm"] || 40
             h_bars = config["horizontal_glaze_bars"] || 0
@@ -295,42 +299,21 @@ module Na__WindowConfiguratorTool
             (0...num_openings).each do |i|
                 opening_x = frame_thickness + (i * (opening_width + mullion_width))
                 opening_y = frame_thickness
+                panel_width = opening_width / casements_per_opening.to_f
                 
                 if show_casements
-                    if twin_casements
-                        # TWIN CASEMENTS: Two casements per opening, meeting at center
-                        half_width = opening_width / 2.0
-                        
-                        # Left casement of the pair
+                    (0...casements_per_opening).each do |p|
+                        panel_x = opening_x + (p * panel_width)
                         entities += na_generate_casement_dxf(
-                            opening_x, opening_y, half_width, inner_height,
-                            cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
-                            h_bars, v_bars, bar_width
-                        )
-                        
-                        # Right casement of the pair
-                        entities += na_generate_casement_dxf(
-                            opening_x + half_width, opening_y, half_width, inner_height,
-                            cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
-                            h_bars, v_bars, bar_width
-                        )
-                    else
-                        # SINGLE CASEMENT: One casement per opening
-                        entities += na_generate_casement_dxf(
-                            opening_x, opening_y, opening_width, inner_height,
+                            panel_x, opening_y, panel_width, inner_height,
                             cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
                             h_bars, v_bars, bar_width
                         )
                     end
                 else
-                    # Direct glazed - glass sits directly in opening
-                    if twin_casements
-                        # Even without casements showing, twin mode splits glass
-                        half_width = opening_width / 2.0
-                        entities += na_dxf_rect(opening_x, opening_y, half_width, inner_height, NA_LAYER_GLASS)
-                        entities += na_dxf_rect(opening_x + half_width, opening_y, half_width, inner_height, NA_LAYER_GLASS)
-                    else
-                        entities += na_dxf_rect(opening_x, opening_y, opening_width, inner_height, NA_LAYER_GLASS)
+                    (0...casements_per_opening).each do |p|
+                        panel_x = opening_x + (p * panel_width)
+                        entities += na_dxf_rect(panel_x, opening_y, panel_width, inner_height, NA_LAYER_GLASS)
                     end
                 end
             end

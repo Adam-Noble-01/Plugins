@@ -116,6 +116,64 @@ const NA_UI_CONFIG = [
         ]
     },
     {
+        id      :  'advanced_casement_controls',
+        label   :  'Advanced Casement Controls',
+        type    :  'expandable',
+        default :  false,
+        children: [
+            {
+                id      :  'casement_depth_mm',
+                label   :  'Casement Depth',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  40,
+                max     :  100,
+                step    :  5,
+                default :  55
+            },
+            {
+                id      :  'casement_inset_mm',
+                label   :  'Casement Frame Inset',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  0,
+                max     :  100,
+                step    :  1,
+                default :  10
+            },
+            {
+                id      :  'glass_thickness_mm',
+                label   :  'Glazing Thickness',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  5,
+                max     :  35,
+                step    :  1,
+                default :  20
+            },
+            {
+                id      :  'glazebar_inset_mm',
+                label   :  'Glaze Bar Inset',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  0,
+                max     :  20,
+                step    :  1,
+                default :  10
+            },
+            {
+                id      :  'casements_per_opening',
+                label   :  'Casements Per Opening',
+                unit    :  '',
+                type    :  'slider',
+                min     :  1,
+                max     :  6,
+                step    :  1,
+                default :  1
+            }
+        ]
+    },
+    {
         id      :  'mullions',
         label   :  'Mullions',
         unit    :  '',
@@ -243,12 +301,6 @@ const NA_OPTIONS_CONFIG = [
         label   :  'Show Casements',
         type    :  'toggle',
         default :  true
-    },
-    {
-        id      :  'twin_casements',
-        label   :  'Twin Casements',
-        type    :  'toggle',
-        default :  false
     },
     {
         id      :  'has_cill',

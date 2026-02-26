@@ -91,8 +91,11 @@ module Na__WindowConfiguratorTool
     NA_DEFAULT_HEIGHT          = 1200                               # Default window height
     NA_DEFAULT_FRAME_THICKNESS = 50                                 # Default frame thickness
     NA_DEFAULT_CASEMENT_WIDTH  = 65                                 # Default casement profile width
-    NA_DEFAULT_GLASS_THICKNESS = 24                                 # Default glass unit thickness
+    NA_DEFAULT_CASEMENT_DEPTH  = 55                                 # Default casement depth (Y direction)
+    NA_DEFAULT_CASEMENT_INSET  = 10                                 # Default casement inset from frame face
+    NA_DEFAULT_GLASS_THICKNESS = 20                                 # Default glazing panel thickness
     NA_DEFAULT_GLAZE_BAR_WIDTH = 25                                 # Default glaze bar width
+    NA_DEFAULT_GLAZEBAR_INSET  = 10                                 # Default glaze bar inset from casement face
     NA_DEFAULT_CILL_DEPTH      = 50                                 # Default cill projection
     NA_DEFAULT_CILL_HEIGHT     = 50                                 # Default cill height
     NA_DEFAULT_FRAME_DEPTH     = 70                                 # Default frame depth (Y direction)
@@ -135,13 +138,16 @@ module Na__WindowConfiguratorTool
             "casement_bottom_rail_mm": 65,
             "casement_left_stile_mm": 65,
             "casement_right_stile_mm": 65,
-            "twin_casements": false,
+            "casement_depth_mm": 55,
+            "casement_inset_mm": 10,
+            "casements_per_opening": 1,
             "mullion_width_mm": 40,
             "mullions": 0,
-            "glass_thickness_mm": 24,
+            "glass_thickness_mm": 20,
             "horizontal_glaze_bars": 0,
             "vertical_glaze_bars": 0,
             "glaze_bar_width_mm": 25,
+            "glazebar_inset_mm": 10,
             "has_cill": true,
             "cill_depth_mm": 50,
             "cill_height_mm": 50,

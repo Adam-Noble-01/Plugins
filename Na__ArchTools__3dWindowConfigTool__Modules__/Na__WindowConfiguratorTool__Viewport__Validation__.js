@@ -39,7 +39,7 @@ const Na__Viewport__Validation = (function() {
         const frameThickness = config.frame_thickness_mm || 0;
         const casementWidth = config.casement_width_mm || 65;
         const showCasements = config.show_casements !== false;
-        const twinCasements = config.twin_casements === true;
+        const casementsPerOpening = Math.max(1, Math.min(6, config.casements_per_opening || 1));
         const numMullions = config.mullions || 0;
         const mullionWidth = config.mullion_width_mm || 40;
         
@@ -64,8 +64,7 @@ const Na__Viewport__Validation = (function() {
         const availableWidth = innerWidth - totalMullionWidth;
         let openingWidth = availableWidth / numOpenings;
         
-        // For twin casements, each casement is half the opening width
-        const casementUnitWidth = twinCasements ? (openingWidth / 2) : openingWidth;
+        const casementUnitWidth = openingWidth / casementsPerOpening;
         
         // Check that frame and mullions don't exceed window size
         const minCasementWidth = showCasements ? (casLeftStile + casRightStile) + 50 : 50;

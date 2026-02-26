@@ -847,13 +847,6 @@ body {
     color: var(--na-text-muted);
 }
 
-/* =============================================================================
-   TWIN CASEMENTS TOGGLE SPECIAL STYLING
-   ============================================================================= */
-
-.na-control-item[data-control-id="twin_casements"] .na-toggle-container {
-    padding: var(--na-spacing-xs) 0;
-}
 
 /* =============================================================================
    SUBSECTION DIVIDER

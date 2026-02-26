@@ -15,7 +15,7 @@
 # - Parses configuration and converts units (mm → inches)
 # - Calculates opening layouts (mullions, casement counts)
 # - Delegates actual geometry creation to GeometryBuilders module
-# - Handles both single and twin casement modes
+# - Handles multi-casement openings (1-6 panels per opening)
 # - Supports per-opening casement removal
 #
 # NAMING CONVENTION:
@@ -55,8 +55,11 @@ module Na__WindowConfiguratorTool
                 default_height: parent::NA_DEFAULT_HEIGHT,
                 default_frame_thickness: parent::NA_DEFAULT_FRAME_THICKNESS,
                 default_casement_width: parent::NA_DEFAULT_CASEMENT_WIDTH,
+                default_casement_depth: parent::NA_DEFAULT_CASEMENT_DEPTH,
+                default_casement_inset: parent::NA_DEFAULT_CASEMENT_INSET,
                 default_glass_thickness: parent::NA_DEFAULT_GLASS_THICKNESS,
                 default_glaze_bar_width: parent::NA_DEFAULT_GLAZE_BAR_WIDTH,
+                default_glazebar_inset: parent::NA_DEFAULT_GLAZEBAR_INSET,
                 default_cill_depth: parent::NA_DEFAULT_CILL_DEPTH,
                 default_cill_height: parent::NA_DEFAULT_CILL_HEIGHT,
                 default_frame_depth: parent::NA_DEFAULT_FRAME_DEPTH,
@@ -99,7 +102,7 @@ module Na__WindowConfiguratorTool
                 # Extract and convert configuration values
                 params = na_parse_config(config, constants)
                 
-                DebugTools.na_debug_geometry("Creating window: #{params[:width].to_mm.round}mm x #{params[:height].to_mm.round}mm, #{params[:num_openings]} opening(s), twin_casements: #{params[:twin_casements]}, frame_depth: #{params[:frame_depth].to_mm.round}mm, wall_inset: #{params[:frame_wall_inset].to_mm.round}mm")
+                DebugTools.na_debug_geometry("Creating window: #{params[:width].to_mm.round}mm x #{params[:height].to_mm.round}mm, #{params[:num_openings]} opening(s), casements_per_opening: #{params[:casements_per_opening]}, frame_depth: #{params[:frame_depth].to_mm.round}mm, wall_inset: #{params[:frame_wall_inset].to_mm.round}mm")
                 
                 # Create component definition with unique AWN name
                 component_name = "#{window_id}__Window__"
@@ -196,7 +199,7 @@ module Na__WindowConfiguratorTool
                 # Build window geometry
                 na_build_window_elements(window_entities, params, frame_material, glass_material, cill_material)
                 
-                DebugTools.na_debug_geometry("Updated window geometry (twin_casements: #{params[:twin_casements]}, frame_depth: #{params[:frame_depth].to_mm.round}mm, wall_inset: #{params[:frame_wall_inset].to_mm.round}mm)")
+                DebugTools.na_debug_geometry("Updated window geometry (casements_per_opening: #{params[:casements_per_opening]}, frame_depth: #{params[:frame_depth].to_mm.round}mm, wall_inset: #{params[:frame_wall_inset].to_mm.round}mm)")
                 
             rescue => e
                 DebugTools.na_debug_error("Error in na_update_window_geometry", e)
@@ -262,12 +265,20 @@ module Na__WindowConfiguratorTool
             height = (config["height_mm"] || constants[:default_height]).to_f * mm_to_inch
             frame_thickness = (config["frame_thickness_mm"] || constants[:default_frame_thickness]).to_f * mm_to_inch
             casement_width = (config["casement_width_mm"] || constants[:default_casement_width]).to_f * mm_to_inch
+            casement_depth = (config["casement_depth_mm"] || constants[:default_casement_depth]).to_f * mm_to_inch
+            casement_inset = (config["casement_inset_mm"] || constants[:default_casement_inset]).to_f * mm_to_inch
             
             # Flags
             show_casements = config["show_casements"] != false
-            twin_casements = config["twin_casements"] == true
             has_cill = config["has_cill"] != false
             use_individual_sizes = config["casement_sizes_individual"] == true
+            
+            # Casements per opening (backward compat: twin_casements true → 2)
+            if config.key?("twin_casements") && !config.key?("casements_per_opening")
+                casements_per_opening = config["twin_casements"] == true ? 2 : 1
+            else
+                casements_per_opening = (config["casements_per_opening"] || 1).to_i.clamp(1, 6)
+            end
             
             # Mullions
             num_mullions = (config["mullions"] || constants[:default_mullion_count]).to_i
@@ -278,6 +289,7 @@ module Na__WindowConfiguratorTool
             h_bars = (config["horizontal_glaze_bars"] || 0).to_i
             v_bars = (config["vertical_glaze_bars"] || 0).to_i
             bar_width = (config["glaze_bar_width_mm"] || constants[:default_glaze_bar_width]).to_f * mm_to_inch
+            glazebar_inset = (config["glazebar_inset_mm"] || constants[:default_glazebar_inset]).to_f * mm_to_inch
             
             # Cill
             cill_depth = (config["cill_depth_mm"] || constants[:default_cill_depth]).to_f * mm_to_inch
@@ -324,12 +336,14 @@ module Na__WindowConfiguratorTool
                 frame_material_id: frame_material_id,
                 paint_cill: paint_cill,
                 casement_width: casement_width,
+                casement_depth: casement_depth,
+                casement_inset: casement_inset,
                 cas_top_rail: cas_top_rail,
                 cas_bottom_rail: cas_bottom_rail,
                 cas_left_stile: cas_left_stile,
                 cas_right_stile: cas_right_stile,
                 show_casements: show_casements,
-                twin_casements: twin_casements,
+                casements_per_opening: casements_per_opening,
                 removed_casements: removed_casements,
                 num_mullions: num_mullions,
                 mullion_width: mullion_width,
@@ -341,6 +355,7 @@ module Na__WindowConfiguratorTool
                 h_bars: h_bars,
                 v_bars: v_bars,
                 bar_width: bar_width,
+                glazebar_inset: glazebar_inset,
                 has_cill: has_cill,
                 cill_depth: cill_depth,
                 cill_height: cill_height
@@ -393,7 +408,8 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Create Single Opening (Casement + Glass + Glaze Bars)
         # ------------------------------------------------------------
-        # Creates geometry for one opening, handling both single and twin casement modes.
+        # Creates geometry for one opening with N casement panels.
+        # Supports 1-6 casements per opening (bifold/concertina panels).
         # Respects the removed_casements array for per-opening casement toggling.
         # 
         # @param entities [Sketchup::Entities] Target entities collection
@@ -404,108 +420,77 @@ module Na__WindowConfiguratorTool
         def self.na_create_opening(entities, opening_index, params, frame_material, glass_material)
             opening_x = params[:frame_thickness] + (opening_index * (params[:opening_width] + params[:mullion_width]))
             opening_z = params[:frame_thickness]
-            casement_depth = params[:frame_depth] * 0.7
+            casement_depth = params[:casement_depth]
             
-            # Check if this opening has its casement removed
             opening_has_casement = params[:show_casements] && !params[:removed_casements].include?(opening_index)
             
-            if params[:twin_casements]
-                na_create_twin_casement_opening(
-                    entities, opening_index, opening_x, opening_z, casement_depth, 
-                    opening_has_casement, params, frame_material, glass_material
-                )
-            else
-                na_create_single_casement_opening(
-                    entities, opening_index, opening_x, opening_z, casement_depth, 
-                    opening_has_casement, params, frame_material, glass_material
-                )
-            end
+            na_create_multi_casement_opening(
+                entities, opening_index, opening_x, opening_z, casement_depth,
+                opening_has_casement, params, frame_material, glass_material
+            )
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Create Twin Casement Opening
+        # FUNCTION | Create Multi-Casement Opening
         # ------------------------------------------------------------
-        def self.na_create_twin_casement_opening(entities, opening_index, opening_x, opening_z, casement_depth, opening_has_casement, params, frame_material, glass_material)
-            half_width = params[:opening_width] / 2.0
+        # Unified method for creating N casement panels within an opening.
+        # When casements_per_opening=1 this produces a single casement,
+        # when >1 it produces N equal-width panels (bifold/concertina style).
+        def self.na_create_multi_casement_opening(entities, opening_index, opening_x, opening_z, casement_depth, opening_has_casement, params, frame_material, glass_material)
+            num_panels = params[:casements_per_opening]
+            panel_width = params[:opening_width] / num_panels.to_f
             
             if opening_has_casement
-                # Create left casement of the pair (index opening_index*2)
-                GeometryBuilders.na_create_casement_geometry_individual(
-                    entities, opening_index * 2, half_width, params[:inner_height],
-                    params[:cas_top_rail], params[:cas_bottom_rail], params[:cas_left_stile], params[:cas_right_stile],
-                    casement_depth, opening_x, opening_z, frame_material, params[:frame_wall_inset]
-                )
-                
-                # Create right casement of the pair (index opening_index*2+1)
-                GeometryBuilders.na_create_casement_geometry_individual(
-                    entities, opening_index * 2 + 1, half_width, params[:inner_height],
-                    params[:cas_top_rail], params[:cas_bottom_rail], params[:cas_left_stile], params[:cas_right_stile],
-                    casement_depth, opening_x + half_width, opening_z, frame_material, params[:frame_wall_inset]
-                )
-                
-                # Glass inside left casement
-                glass_offset_x_left = opening_x + params[:cas_left_stile]
-                glass_offset_z = opening_z + params[:cas_bottom_rail]
-                glass_w_left = half_width - params[:cas_left_stile] - params[:cas_right_stile]
-                glass_h = params[:inner_height] - params[:cas_top_rail] - params[:cas_bottom_rail]
-                
-                GeometryBuilders.na_create_glass_geometry(entities, opening_index * 2, glass_w_left, glass_h, params[:glass_thickness], glass_offset_x_left, glass_offset_z, params[:frame_depth], glass_material, params[:frame_wall_inset])
-                
-                # Glass inside right casement
-                glass_offset_x_right = opening_x + half_width + params[:cas_left_stile]
-                glass_w_right = half_width - params[:cas_left_stile] - params[:cas_right_stile]
-                
-                GeometryBuilders.na_create_glass_geometry(entities, opening_index * 2 + 1, glass_w_right, glass_h, params[:glass_thickness], glass_offset_x_right, glass_offset_z, params[:frame_depth], glass_material, params[:frame_wall_inset])
-                
-                # Glaze bars for both casements
-                if params[:h_bars] > 0 || params[:v_bars] > 0
-                    GeometryBuilders.na_create_glazebar_geometry(entities, opening_index * 2, glass_w_left, glass_h, params[:h_bars], params[:v_bars], params[:bar_width], params[:glass_thickness], glass_offset_x_left, glass_offset_z, params[:frame_depth], frame_material, params[:frame_wall_inset])
-                    GeometryBuilders.na_create_glazebar_geometry(entities, opening_index * 2 + 1, glass_w_right, glass_h, params[:h_bars], params[:v_bars], params[:bar_width], params[:glass_thickness], glass_offset_x_right, glass_offset_z, params[:frame_depth], frame_material, params[:frame_wall_inset])
+                (0...num_panels).each do |p|
+                    panel_x = opening_x + (p * panel_width)
+                    panel_id = opening_index * num_panels + p
+                    
+                    GeometryBuilders.na_create_casement_geometry_individual(
+                        entities, panel_id, panel_width, params[:inner_height],
+                        params[:cas_top_rail], params[:cas_bottom_rail], params[:cas_left_stile], params[:cas_right_stile],
+                        casement_depth, panel_x, opening_z, frame_material, params[:frame_wall_inset], params[:casement_inset]
+                    )
+                    
+                    glass_offset_x = panel_x + params[:cas_left_stile]
+                    glass_offset_z = opening_z + params[:cas_bottom_rail]
+                    glass_w = panel_width - params[:cas_left_stile] - params[:cas_right_stile]
+                    glass_h = params[:inner_height] - params[:cas_top_rail] - params[:cas_bottom_rail]
+                    
+                    GeometryBuilders.na_create_glass_geometry(
+                        entities, panel_id, glass_w, glass_h, params[:glass_thickness],
+                        glass_offset_x, glass_offset_z, params[:frame_depth], glass_material,
+                        params[:frame_wall_inset], casement_depth, params[:casement_inset]
+                    )
+                    
+                    if params[:h_bars] > 0 || params[:v_bars] > 0
+                        GeometryBuilders.na_create_glazebar_geometry(
+                            entities, panel_id, glass_w, glass_h, params[:h_bars], params[:v_bars],
+                            params[:bar_width], params[:glass_thickness], glass_offset_x, glass_offset_z,
+                            params[:frame_depth], frame_material, params[:frame_wall_inset],
+                            casement_depth, params[:casement_inset], params[:glazebar_inset]
+                        )
+                    end
                 end
             else
-                # Direct glazed twin - two glass panes (casement removed or globally off)
-                GeometryBuilders.na_create_glass_geometry(entities, opening_index * 2, half_width, params[:inner_height], params[:glass_thickness], opening_x, opening_z, params[:frame_depth], glass_material, params[:frame_wall_inset])
-                GeometryBuilders.na_create_glass_geometry(entities, opening_index * 2 + 1, half_width, params[:inner_height], params[:glass_thickness], opening_x + half_width, opening_z, params[:frame_depth], glass_material, params[:frame_wall_inset])
-                
-                # Glaze bars for direct-glazed twin panes
-                if params[:h_bars] > 0 || params[:v_bars] > 0
-                    GeometryBuilders.na_create_glazebar_geometry(entities, opening_index * 2, half_width, params[:inner_height], params[:h_bars], params[:v_bars], params[:bar_width], params[:glass_thickness], opening_x, opening_z, params[:frame_depth], frame_material, params[:frame_wall_inset])
-                    GeometryBuilders.na_create_glazebar_geometry(entities, opening_index * 2 + 1, half_width, params[:inner_height], params[:h_bars], params[:v_bars], params[:bar_width], params[:glass_thickness], opening_x + half_width, opening_z, params[:frame_depth], frame_material, params[:frame_wall_inset])
+                # Direct glazed - N glass panes without casement frames
+                (0...num_panels).each do |p|
+                    panel_x = opening_x + (p * panel_width)
+                    panel_id = opening_index * num_panels + p
+                    
+                    GeometryBuilders.na_create_glass_geometry(
+                        entities, panel_id, panel_width, params[:inner_height], params[:glass_thickness],
+                        panel_x, opening_z, params[:frame_depth], glass_material, params[:frame_wall_inset]
+                    )
+                    
+                    if params[:h_bars] > 0 || params[:v_bars] > 0
+                        GeometryBuilders.na_create_glazebar_geometry(
+                            entities, panel_id, panel_width, params[:inner_height], params[:h_bars], params[:v_bars],
+                            params[:bar_width], params[:glass_thickness], panel_x, opening_z,
+                            params[:frame_depth], frame_material, params[:frame_wall_inset],
+                            nil, nil, params[:glazebar_inset]
+                        )
+                    end
                 end
-            end
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Create Single Casement Opening
-        # ------------------------------------------------------------
-        def self.na_create_single_casement_opening(entities, opening_index, opening_x, opening_z, casement_depth, opening_has_casement, params, frame_material, glass_material)
-            if opening_has_casement
-                # Create casement frame with individual sizes
-                GeometryBuilders.na_create_casement_geometry_individual(
-                    entities, opening_index, params[:opening_width], params[:inner_height],
-                    params[:cas_top_rail], params[:cas_bottom_rail], params[:cas_left_stile], params[:cas_right_stile],
-                    casement_depth, opening_x, opening_z, frame_material, params[:frame_wall_inset]
-                )
-                
-                # Glass inside casement
-                glass_offset_x = opening_x + params[:cas_left_stile]
-                glass_offset_z = opening_z + params[:cas_bottom_rail]
-                glass_width = params[:opening_width] - params[:cas_left_stile] - params[:cas_right_stile]
-                glass_height = params[:inner_height] - params[:cas_top_rail] - params[:cas_bottom_rail]
-            else
-                # Direct glazed - glass sits directly in opening
-                glass_offset_x = opening_x
-                glass_offset_z = opening_z
-                glass_width = params[:opening_width]
-                glass_height = params[:inner_height]
-            end
-            
-            # Create glass pane
-            GeometryBuilders.na_create_glass_geometry(entities, opening_index, glass_width, glass_height, params[:glass_thickness], glass_offset_x, glass_offset_z, params[:frame_depth], glass_material, params[:frame_wall_inset])
-            
-            # Create glaze bars for this opening
-            if params[:h_bars] > 0 || params[:v_bars] > 0
-                GeometryBuilders.na_create_glazebar_geometry(entities, opening_index, glass_width, glass_height, params[:h_bars], params[:v_bars], params[:bar_width], params[:glass_thickness], glass_offset_x, glass_offset_z, params[:frame_depth], frame_material, params[:frame_wall_inset])
             end
         end
         # ---------------------------------------------------------------

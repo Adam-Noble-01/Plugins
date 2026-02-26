@@ -10,7 +10,7 @@
    DESCRIPTION:
    - Generates SVG markup from window configuration
    - Supports frames, mullions, casements, and glaze bars
-   - Twin casement and single casement modes
+   - Multi-casement openings (1-6 panels per opening)
    - Individual casement rail/stile sizing
    - Clickable casement removal targets
    - Dimension annotations
@@ -55,7 +55,7 @@ const Na__Viewport__SvgGenerator = (function() {
         const frameThickness = (config.frame_thickness_mm != null) ? config.frame_thickness_mm : 50;
         const casementWidth = config.casement_width_mm || 65;
         const showCasements = config.show_casements !== false;
-        const twinCasements = config.twin_casements === true;
+        const casementsPerOpening = Math.max(1, Math.min(6, config.casements_per_opening || 1));
         const numMullions = config.mullions || 0;
         const mullionWidth = config.mullion_width_mm || 40;
         const hBars = config.horizontal_glaze_bars || 0;
@@ -111,60 +111,23 @@ const Na__Viewport__SvgGenerator = (function() {
             const openingHasCasement = showCasements && !isCasementRemoved;
             
             if (openingHasCasement) {
-                if (twinCasements) {
-                    // TWIN CASEMENTS: Two casements per opening, meeting at center
-                    const halfWidth = openingWidth / 2;
-                    
-                    // Left casement of the pair
+                const panelWidth = openingWidth / casementsPerOpening;
+                for (let p = 0; p < casementsPerOpening; p++) {
                     svg += na_generateSingleCasementSvg(
-                        openingX, openingY, halfWidth, innerHeight,
-                        casTopRail, casBottomRail, casLeftStile, casRightStile,
-                        frameColor, hBars, vBars, barWidth
-                    );
-                    
-                    // Right casement of the pair
-                    svg += na_generateSingleCasementSvg(
-                        openingX + halfWidth, openingY, halfWidth, innerHeight,
-                        casTopRail, casBottomRail, casLeftStile, casRightStile,
-                        frameColor, hBars, vBars, barWidth
-                    );
-                } else {
-                    // SINGLE CASEMENT: One casement per opening
-                    svg += na_generateSingleCasementSvg(
-                        openingX, openingY, openingWidth, innerHeight,
+                        openingX + (p * panelWidth), openingY, panelWidth, innerHeight,
                         casTopRail, casBottomRail, casLeftStile, casRightStile,
                         frameColor, hBars, vBars, barWidth
                     );
                 }
             } else {
-                // Direct glazed - glass sits directly in opening (no casement frame)
-                const glassX = openingX;
-                const glassY = openingY;
-                let glassWidth, glassHeight;
-                
-                if (twinCasements) {
-                    // Even without casements showing, twin mode splits glass
-                    const halfWidth = openingWidth / 2;
-                    glassWidth = halfWidth;
-                    glassHeight = innerHeight;
+                // Direct glazed - N glass panes without casement frames
+                const panelWidth = openingWidth / casementsPerOpening;
+                for (let p = 0; p < casementsPerOpening; p++) {
+                    const panelX = openingX + (p * panelWidth);
+                    svg += na_svgRect(panelX, openingY, panelWidth, innerHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
                     
-                    // Two glass panes
-                    svg += na_svgRect(glassX, glassY, glassWidth, glassHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
-                    svg += na_svgRect(glassX + halfWidth, glassY, glassWidth, glassHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
-                    
-                    // Glaze bars for both halves
                     if (hBars > 0 || vBars > 0) {
-                        svg += na_generateGlazeBarsSvg(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, frameColor);
-                        svg += na_generateGlazeBarsSvg(glassX + halfWidth, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, frameColor);
-                    }
-                } else {
-                    glassWidth = openingWidth;
-                    glassHeight = innerHeight;
-                    svg += na_svgRect(glassX, glassY, glassWidth, glassHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
-                    
-                    // Glaze bars for the full opening
-                    if (hBars > 0 || vBars > 0) {
-                        svg += na_generateGlazeBarsSvg(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, frameColor);
+                        svg += na_generateGlazeBarsSvg(panelX, openingY, panelWidth, innerHeight, hBars, vBars, barWidth, frameColor);
                     }
                 }
             }
