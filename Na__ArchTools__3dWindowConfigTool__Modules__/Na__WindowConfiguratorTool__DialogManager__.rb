@@ -494,17 +494,19 @@ module Na__WindowConfiguratorTool
         def self.na_handle_measure_opening
             DebugTools.na_debug_method("DialogManager.na_handle_measure_opening")
             
-            # Get cill height from current config (mirrors UI state)
+            # Get cill height and frame thickness from current config (mirrors UI state)
             cill_height_mm = 50  # Default fallback
+            frame_thickness_mm = 50  # Default fallback
             if @config && @config["windowConfiguration"]
                 cill_height_mm = @config["windowConfiguration"]["cill_height_mm"] || 50
+                frame_thickness_mm = @config["windowConfiguration"]["frame_thickness_mm"] || 50
             end
             
-            # Activate the Measure Opening Tool
-            measure_tool = Na__MeasureOpeningTool.new(self, cill_height_mm)
+            # Activate the Measure Opening Tool (tool handles frameless logic internally)
+            measure_tool = Na__MeasureOpeningTool.new(self, cill_height_mm, frame_thickness_mm)
             Sketchup.active_model.select_tool(measure_tool)
             
-            DebugTools.na_debug_success("Measure Opening tool activated (cill_height=#{cill_height_mm}mm)")
+            DebugTools.na_debug_success("Measure Opening tool activated (cill_height=#{cill_height_mm}mm, frame_thickness=#{frame_thickness_mm}mm)")
         end
         # ---------------------------------------------------------------
 

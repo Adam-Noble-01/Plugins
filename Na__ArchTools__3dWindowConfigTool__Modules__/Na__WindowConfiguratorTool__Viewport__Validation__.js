@@ -52,7 +52,9 @@ const Na__Viewport__Validation = (function() {
         
         if (width < 200) errors.push('Width must be at least 200mm');
         if (height < 200) errors.push('Height must be at least 200mm');
-        if (frameThickness < 20) errors.push('Frame thickness must be at least 20mm');
+        if (frameThickness < 0) errors.push('Frame thickness cannot be negative');
+        
+        const isFrameless = frameThickness === 0;
         
         // Calculate opening dimensions
         const numOpenings = numMullions + 1;
@@ -74,7 +76,7 @@ const Na__Viewport__Validation = (function() {
         // Check inner height
         const minInnerHeight = showCasements ? (casTopRail + casBottomRail) + 50 : 50;
         if (innerHeight < minInnerHeight) {
-            errors.push('Window too short for frame and casement');
+            errors.push(isFrameless ? 'Window too short for casement' : 'Window too short for frame and casement');
         }
         
         return {

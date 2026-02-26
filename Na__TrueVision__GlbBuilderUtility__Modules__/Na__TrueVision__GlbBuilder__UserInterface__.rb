@@ -288,6 +288,26 @@ module TrueVision3D
                 
                 <div class="option-group">
                     <label>
+                        <input type="checkbox" id="export-materials" onchange="Na__TrueVision__GlbBuilder__ToggleMaterials()">
+                        Export Materials
+                    </label>
+                    <div class="info-text">
+                        When unchecked, all meshes export with a default whitecard material for clean massing models.
+                    </div>
+                </div>
+
+                <div class="option-group" id="indexed-materials-group" style="opacity: 0.4; pointer-events: none;">
+                    <label>
+                        <input type="checkbox" id="export-indexed-only" checked>
+                        Export Standard Indexed Materials Only
+                    </label>
+                    <div class="info-text">
+                        Only export materials matching the standard naming convention (MAT001__, MAT101__, etc.) from the materials library. Custom materials are replaced with the default whitecard. Uncheck to export all SketchUp materials.
+                    </div>
+                </div>
+
+                <div class="option-group">
+                    <label>
                         <input type="checkbox" id="downscale-textures" checked disabled>
                         Optimize Large Textures (Temporarily Disabled)
                     </label>
@@ -308,6 +328,14 @@ module TrueVision3D
                     <button onclick="Na__TrueVision__GlbBuilder__CancelExport()">Cancel</button>
                 </div>
                 
+                <!-- Model Setup Utilities -->
+                <div class="button-group" style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px;">
+                    <div style="font-size: 11px; color: #888; margin-bottom: 8px; text-align: left; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Model Setup</div>
+                    <button onclick="Na__TrueVision__GlbBuilder__CreateStandardisedTags()" style="background: #2c6e49;">
+                        Create Standardised Tags From Index
+                    </button>
+                </div>
+                
                 <!-- Developer Tools -->
                 <div class="button-group" style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px;">
                     <button onclick="Na__TrueVision__GlbBuilder__ReloadScripts()" style="background: #95a5a6; border-color: #7f8c8d;">
@@ -316,23 +344,46 @@ module TrueVision3D
                 </div>
                 
                 <script>
+                    function Na__TrueVision__GlbBuilder__ToggleMaterials() {
+                        var exportMaterials     = document.getElementById('export-materials').checked;
+                        var indexedGroup        = document.getElementById('indexed-materials-group');
+                        if (exportMaterials) {
+                            indexedGroup.style.opacity       = '1.0';
+                            indexedGroup.style.pointerEvents = 'auto';
+                        } else {
+                            indexedGroup.style.opacity       = '0.4';
+                            indexedGroup.style.pointerEvents = 'none';
+                        }
+                    }
+
                     function Na__TrueVision__GlbBuilder__PerformExport() {
-                        var selectionOnly = false;  // Always export by tags
-                        // DEBUG MODE: texture pipeline disabled while geometry export is being stabilized.
-                        var downscaleTextures = false;
+                        var selectionOnly       = false;
+                        var downscaleTextures   = false;
+                        var exportMaterials     = document.getElementById('export-materials').checked;
+                        var indexedOnly         = document.getElementById('export-indexed-only').checked;
+
+                        var materialExportMode  = 'no_materials';
+                        if (exportMaterials && indexedOnly) {
+                            materialExportMode  = 'indexed_only';
+                        } else if (exportMaterials && !indexedOnly) {
+                            materialExportMode  = 'all_materials';
+                        }
                         
-                        // Pass parameters through the callback URL
                         var params = {
-                            selectionOnly: selectionOnly,
-                            downscaleTextures: downscaleTextures
+                            selectionOnly        : selectionOnly,
+                            downscaleTextures    : downscaleTextures,
+                            materialExportMode   : materialExportMode
                         };
                         
-                        // Encode parameters and trigger callback
                         window.location = 'skp:Na__TrueVision__GlbBuilder__Export@' + JSON.stringify(params);
                     }
                     
                     function Na__TrueVision__GlbBuilder__CancelExport() {
                         window.location = 'skp:Na__TrueVision__GlbBuilder__Cancel';
+                    }
+                    
+                    function Na__TrueVision__GlbBuilder__CreateStandardisedTags() {
+                        window.location = 'skp:Na__TrueVision__GlbBuilder__CreateTags';
                     }
                     
                     function Na__TrueVision__GlbBuilder__ReloadScripts() {
@@ -356,6 +407,19 @@ module TrueVision3D
         # FUNCTION | Add Dialog Callbacks with Robust Event Handling
         # ---------------------------------------------------------------
         def self.Na__UserInterface__AddDialogCallbacks(dialog)
+            # Callback: Create Standardised Tags From Index
+            dialog.add_action_callback("Na__TrueVision__GlbBuilder__CreateTags") do |action_context|
+                begin
+                    puts "    Tags button clicked - creating standardised tags..."
+                    TrueVision3D::GlbBuilderUtility.Na__PublicApi__CreateStandardisedTags
+                    puts "    ✓ Create standardised tags callback executed"
+                rescue => e
+                    puts "    ✗ Error in create tags callback: #{e.message}"
+                    puts e.backtrace.join("\n")
+                    UI.messagebox("Error creating tags: #{e.message}")
+                end
+            end
+
             # Callback: Reload Scripts (Developer Feature)
             dialog.add_action_callback("Na__TrueVision__GlbBuilder__Reload") do |action_context|
                 begin
@@ -378,14 +442,18 @@ module TrueVision3D
                     if params_string && !params_string.empty?
                         puts "Parameters received: #{params_string}"
                         params = JSON.parse(params_string)                            # Parse JSON
-                        @export_selection_only = params['selectionOnly']            # Set selection flag  
-                        # DEBUG MODE: Texture export is intentionally disabled until core geometry is resolved.
-                        @downscale_textures = false
-                        puts "Parsed parameters: selection=#{@export_selection_only}, downscale=false (texture export disabled for debugging)"
+                        @export_selection_only = params['selectionOnly']               # Set selection flag
+                        @downscale_textures = false                                    # Texture export disabled
+
+                        # MATERIAL EXPORT MODE
+                        mode_string = params['materialExportMode'] || 'no_materials'
+                        mode_sym = mode_string.to_sym                                 # <-- Convert to symbol
+                        self.Na__MaterialEngine__SetExportMode(mode_sym)               # <-- Set on MaterialEngine
+                        puts "Parsed parameters: selection=#{@export_selection_only}, materialMode=#{mode_sym}"
                     else
-                        # Default values if no parameters
-                        @export_selection_only = false                                # Default values
-                        @downscale_textures = false                                   # DEBUG default: texture export disabled
+                        @export_selection_only = false                                 # Default values
+                        @downscale_textures = false                                    # Texture export disabled
+                        self.Na__MaterialEngine__SetExportMode(:no_materials)          # <-- Default: no materials
                         puts "Using default parameters"
                     end
                     
@@ -394,7 +462,8 @@ module TrueVision3D
                     puts "Error class: #{e.class}"
                     puts "Backtrace: #{e.backtrace.first(3).join("\n")}"
                     @export_selection_only = false                                     # Default values
-                    @downscale_textures = false                                        # DEBUG fallback: texture export disabled
+                    @downscale_textures = false                                        # Texture export disabled
+                    self.Na__MaterialEngine__SetExportMode(:no_materials)              # <-- Safe fallback
                 end
                 
                 dialog.close                                                           # Close dialog

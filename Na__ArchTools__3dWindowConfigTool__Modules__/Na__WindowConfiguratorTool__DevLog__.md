@@ -3,6 +3,96 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Version 0.9.2 - 26-Feb-2026 - Frameless Mode
+
+### Feature 01 - Frameless Mode (Frame Thickness = 0)
+- **New Feature:** Setting Frame Thickness to 0mm now produces a frameless window -- just casements, mullions, glass, and glaze bars with no outer frame.
+- **Purpose:** When using the built-in Opening Tool, users can create casements and mullions for existing window frames/openings without generating an outer frame.
+- **Activation:** Slide the Frame Thickness slider to 0. No separate toggle needed.
+
+### How It Works:
+1. The Frame Thickness slider minimum changed from 30mm to 0mm.
+2. When set to 0, the outer frame (4 stiles/rails) is skipped entirely.
+3. Casements, mullions, glass, and glaze bars fill the full window dimensions.
+4. Cill is automatically forced off and its toggle disabled -- no cill without a frame.
+5. All outputs affected: SVG preview, 3D SketchUp geometry, and DXF export.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`**
+   - Changed `frame_thickness_mm` slider `min` from `30` to `0`
+
+2. **`Na__WindowConfiguratorTool__Viewport__Validation__.js`**
+   - Changed validation from `frameThickness < 20` to `frameThickness < 0`
+   - Adjusted error messages for frameless context
+
+3. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`**
+   - Wrapped outer frame drawing in `if (frameThickness > 0)` guard
+   - Opening positions naturally start at x=0, y=0 when frame is 0
+
+4. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`**
+   - Wrapped `na_create_frame_geometry()` call in `if params[:frame_thickness] > 0` guard
+   - All opening/mullion calculations already work correctly with frame_thickness=0
+
+5. **`Na__WindowConfiguratorTool__DxfExporterLogic__.rb`**
+   - Wrapped frame rectangle DXF output in `if frame_thickness > 0` guard
+
+6. **`Na__WindowConfiguratorTool__Export__Dxf__.js`**
+   - Wrapped frame rectangle in `if (frameThickness > 0)` guard
+
+### Design Notes:
+- No new config fields required -- frameless mode is implicit when `frame_thickness_mm === 0`
+- All existing calculations (`inner_width = width - 2*frame_thickness`) naturally resolve to full dimensions when frame_thickness is 0
+- FuseParts module already handles missing frame groups gracefully (< 2 groups = skip fusion)
+- Mullions continue to work in frameless mode, dividing the full width into openings
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+## Version 0.9.2a - 26-Feb-2026 - Frameless Mode Bugfixes
+
+### Bug Fix 01 - SVG Preview Still Showing Frame at Thickness 0 (Critical)
+- **Problem:** Setting Frame Thickness to 0 removed the frame in 3D but the 2D SVG preview still showed a framed window.
+- **Root Cause:** JavaScript falsy-zero bug. The line `const frameThickness = config.frame_thickness_mm || 50;` treats `0` as falsy, so it fell back to `50`.
+- **Fix:** Changed to `const frameThickness = (config.frame_thickness_mm != null) ? config.frame_thickness_mm : 50;` which correctly handles `0` as a valid value.
+- **File Modified:** `Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js` (line 55)
+
+### Bug Fix 02 - Cill Not Auto-Disabling in Frameless Mode
+- **Problem:** The cill remained visible when in frameless mode (frame thickness = 0), which doesn't make sense without a frame.
+- **Fix:** Added frameless mode logic in `na_onConfigChange()` that:
+  1. Forces `has_cill` to `false` when `frame_thickness_mm === 0`
+  2. Updates the cill toggle UI to reflect the forced-off state
+  3. Visually disables the cill toggle (reduced opacity, no pointer events)
+  4. Re-enables the cill toggle when frame thickness goes back above 0
+- **Belt-and-suspenders:** Also added `frame_thickness > 0` guards on cill rendering in SVG generator, Ruby GeometryEngine, and Ruby DXF exporter to prevent cill output in frameless mode regardless of config.
+- **Files Modified:**
+  - `Na__WindowConfiguratorTool__UiLogic__.js` - Frameless cill enforcement in `na_onConfigChange()`
+  - `Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js` - Cill guard
+  - `Na__WindowConfiguratorTool__GeometryEngine__.rb` - Cill guard in `na_build_window_elements()`
+  - `Na__WindowConfiguratorTool__DxfExporterLogic__.rb` - Cill guard
+
+### Status: FIXED - READY FOR TESTING
+
+# ---------------------------------------------------------
+## Version 0.9.2b - 26-Feb-2026 - Frameless Mode: Measure Opening Height Fix
+
+### Bug Fix 01 - Measure Opening Tool Returning Heights 50mm Too Short in Frameless Mode
+- **Problem:** When using Measure Opening in frameless mode (frame thickness = 0), the measured height sent to the dialog was 50mm too short.
+- **Root Cause:** The Measure Opening Tool always deducts `cill_height_mm` from the measured Z height, regardless of whether there is a cill. In frameless mode, there is no cill, so no deduction should occur. The DialogManager was passing the cill height (default 50mm) even when frameless.
+- **Fix:** The `Na__MeasureOpeningTool` class now accepts `frame_thickness_mm` as a third constructor parameter. Inside `initialize`, if `frame_thickness_mm == 0`, `@is_frameless` is set to `true` and `@cill_height_mm` is forced to `0`. This zero propagates automatically through all three places that use it: `na_complete_measurement`, `na_draw_dimension_text`, and `na_update_status_text`.
+- **Files Modified:**
+  - `Na__WindowConfiguratorTool__MeasureOpeningTool__.rb`
+    - Added `frame_thickness_mm` parameter to `initialize` (default `50` for backwards compatibility)
+    - Added `@is_frameless` flag
+    - Forces `@cill_height_mm = 0` when frameless
+    - Updated debug log to include frameless state
+    - Updated `na_complete_measurement` debug log to show "Cill Deduction" label
+  - `Na__WindowConfiguratorTool__DialogManager__.rb`
+    - Reads `frame_thickness_mm` from `@config` in `na_handle_measure_opening`
+    - Passes it as third argument to `Na__MeasureOpeningTool.new`
+
+### Status: FIXED - READY FOR TESTING
+
+# ---------------------------------------------------------
 ## Version 0.8.1 - 16-Feb-2026 - Material & Fuse Parts Bug Fixes
 
 ### Bug Fix 01 - Default Material Crash (Critical)

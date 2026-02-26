@@ -35,13 +35,13 @@ const Na__Export__Dxf = (function() {
         
         const width = config.width_mm || 900;
         const height = config.height_mm || 1200;
-        const frameThickness = config.frame_thickness_mm || 50;
+        const frameThickness = config.frame_thickness_mm || 0;
         
-        // Outer frame rectangle
-        dxf += na_dxfRect(0, 0, width, height);
-        
-        // Inner frame opening
-        dxf += na_dxfRect(frameThickness, frameThickness, width - frameThickness, height - frameThickness);
+        // Outer frame rectangle (skip in frameless mode)
+        if (frameThickness > 0) {
+            dxf += na_dxfRect(0, 0, width, height);
+            dxf += na_dxfRect(frameThickness, frameThickness, width - frameThickness, height - frameThickness);
+        }
         
         dxf += '0\nENDSEC\n0\nEOF\n';
         

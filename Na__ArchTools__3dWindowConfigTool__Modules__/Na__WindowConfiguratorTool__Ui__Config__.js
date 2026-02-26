@@ -52,7 +52,7 @@ const NA_UI_CONFIG = [
         label   :  'Frame Thickness',
         unit    :  'mm',
         type    :  'slider',
-        min     :  30,
+        min     :  0,
         max     :  120,
         step    :  5,
         default :  50

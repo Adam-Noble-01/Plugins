@@ -359,11 +359,13 @@ module Na__WindowConfiguratorTool
         # @param glass_material [Sketchup::Material] Glass material
         # @param cill_material [Sketchup::Material] Cill material
         def self.na_build_window_elements(entities, params, frame_material, glass_material, cill_material)
-            # Create outer frame
-            GeometryBuilders.na_create_frame_geometry(
-                entities, params[:width], params[:height], params[:frame_thickness], 
-                params[:frame_depth], frame_material, params[:frame_wall_inset]
-            )
+            # Create outer frame (skip in frameless mode when frame_thickness is 0)
+            if params[:frame_thickness] > 0
+                GeometryBuilders.na_create_frame_geometry(
+                    entities, params[:width], params[:height], params[:frame_thickness], 
+                    params[:frame_depth], frame_material, params[:frame_wall_inset]
+                )
+            end
             
             # Create mullions
             (1..params[:num_mullions]).each do |m|
@@ -379,8 +381,8 @@ module Na__WindowConfiguratorTool
                 na_create_opening(entities, i, params, frame_material, glass_material)
             end
             
-            # Create cill
-            if params[:has_cill]
+            # Create cill (skip in frameless mode -- no cill without a frame)
+            if params[:has_cill] && params[:frame_thickness] > 0
                 GeometryBuilders.na_create_cill_geometry(
                     entities, params[:width], params[:cill_depth], params[:cill_height], 
                     params[:frame_depth], cill_material, params[:frame_wall_inset]

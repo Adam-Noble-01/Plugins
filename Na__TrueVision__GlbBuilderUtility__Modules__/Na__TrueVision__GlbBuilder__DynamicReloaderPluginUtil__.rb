@@ -31,6 +31,11 @@ module TrueVision3D
                     TrueVision3D::GlbBuilderUtility.Na__PublicApi__StartExport
                 }
 
+                # Add standardised tags creation menu item
+                truevision_submenu.add_item("Create Standardised Tags From Index") {
+                    TrueVision3D::GlbBuilderUtility.Na__PublicApi__CreateStandardisedTags
+                }
+
                 @menu_registered = true
                 puts "✓ TrueVision3D GLB Builder Utility menu registered via Na__DynamicReloader__RegisterMenu"
             rescue => e

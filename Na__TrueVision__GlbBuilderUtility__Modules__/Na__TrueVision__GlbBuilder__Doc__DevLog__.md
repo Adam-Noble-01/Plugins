@@ -8,6 +8,25 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 1.7.0 - 23-Feb-2026
+- **Material Lookup System** (new module `Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__.rb`): fetches `Na__AppConfig__MaterialsLibrary.json` from GitHub Pages over HTTPS; builds a flat `{ SketchUpName => config_hash }` index for O(1) material lookups; caches both raw data and index in module state for the session.
+- **Indexed material detection**: `Na__MaterialLookup__IsIndexedMaterial?(name)` — regex `/^MAT\d{3}__/` check with no dependency on the library being loaded.
+- **Library index queries**: `Na__MaterialLookup__InLibrary?(name)` and `Na__MaterialLookup__GetConfig(name)` for O(1) exact-key lookups against the built index.
+- **glTF material enrichment**: `Na__MaterialLookup__EnrichGltfMaterial(gltf_material, config)` patches a glTF material hash in-place using `config.key?()` guards so sparse library entries (materials with only a subset of keys defined) are handled safely. Sets `metallicFactor`, `roughnessFactor`, `baseColorFactor` (with alpha from `Opacity`), `alphaMode: "BLEND"` when opacity < 1, `doubleSided` from `IsDoubleSided`, and `emissiveFactor`.
+- **IsDoubleSided support**: when a library entry carries `"IsDoubleSided": true`, the enrichment sets `"doubleSided": true` on the glTF material so the exported GLB itself carries the double-sided flag — glass and mirror faces render correctly from both sides in any glTF viewer without requiring WebApp-side overrides.
+- **Three material export modes**: `Na__MaterialEngine__SetExportMode(mode)` in `MaterialHandling__.rb` accepts `:no_materials`, `:all_materials`, or `:indexed_only`.
+  - `:no_materials` — only the default whitecard material (index 0) is emitted; all mesh primitives reference it. Produces a sanitised whitecard GLB identical to previous behavior.
+  - `:all_materials` — all unique SketchUp materials exported with their face colours; indexed materials additionally enriched with PBR values from the library.
+  - `:indexed_only` — only materials matching `/^MAT\d{3}__/` and present in the library index are exported; non-indexed materials fall back to index 0 (whitecard). Avoids bloating the GLB with unnamed or custom materials.
+- **UI — Export Materials toggle** (Toggle 1): unchecked by default; when unchecked, export mode is `:no_materials`. No library fetch is performed.
+- **UI — Export Standard Indexed Materials Only toggle** (Toggle 2): greyed out (`opacity: 0.4`, `pointer-events: none`) when Toggle 1 is unchecked; re-enabled when Toggle 1 is checked; checked by default. Resolves to `:indexed_only` when checked, `:all_materials` when unchecked.
+- **Three possible export combinations**: (1) Toggle 1 OFF → whitecard only; (2) Toggle 1 ON + Toggle 2 ON → indexed PBR materials only; (3) Toggle 1 ON + Toggle 2 OFF → all SketchUp materials exported.
+- **Callback parameter**: export JS callback passes `materialExportMode` string in JSON params; Ruby callback converts to symbol and calls `Na__MaterialEngine__SetExportMode` before invoking export; parse errors fall back safely to `:no_materials`.
+- **Module load order**: `Na__TrueVision__GlbBuilder__Main__.rb` now requires `MaterialLookupSystem` immediately after `MaterialHandling` so the enrichment API is available when material handling runs.
+- **Sparse library authoring**: `MaterialsLibrary.json` v2.1.0 uses the `MAT001__Default` entry as the full key reference template; all other materials only define keys that differ from defaults. `EnrichGltfMaterial` `config.key?()` guards ensure missing keys are silently skipped.
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 1.6.1 - 15-Feb-2026
 - **Staircase support in storey-based export**: Added tags 16 (ExistingStairs) and 26 (ProposedStairs) to STOREY_ELEMENT_TAG_MAP
 - **TAG_RANGES expansion**: Split ExistingStairs (16) and ProposedStairs (26) as dedicated entries instead of being in "Other" ranges

@@ -1,1 +1,1 @@
-{"@slice_inside":1,"@plane_type":2,"@section_type":1,"@hidden_line":0,"@slice_mode":1}
+{"@slice_inside":1,"@plane_type":0,"@section_type":1,"@hidden_line":0,"@slice_mode":2}

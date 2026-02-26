@@ -1,0 +1,30 @@
+{
+    "tags": [
+        { "name": "00__Standards",                      "description": "Standards and annotation layer" },
+        { "name": "01__OrbitHelperCube",                "description": "Camera orbit pivot for Web 3D Viewer App" },
+        { "name": "07__Landscape",                      "description": "Landscape and site elements" },
+
+        { "name": "10__ExistingBuilding",               "description": "Existing building - whole massing flag" },
+        { "name": "11__ExistingBuilding__Walls",        "description": "Existing building walls" },
+        { "name": "12__ExistingBuilding__Floors",       "description": "Existing building floors" },
+        { "name": "13__ExistingBuilding__Roofs",        "description": "Existing building roofs" },
+        { "name": "14__ExistingBuilding__Windows",      "description": "Existing building windows" },
+        { "name": "15__ExistingBuilding__Doors",        "description": "Existing building doors" },
+        { "name": "16__ExistingBuilding__Staircase",    "description": "Existing building staircases" },
+
+        { "name": "20__ProposedBuilding",               "description": "Proposed building - whole massing flag" },
+        { "name": "21__ProposedBuilding__Walls",        "description": "Proposed building walls" },
+        { "name": "22__ProposedBuilding__Floors",       "description": "Proposed building floors" },
+        { "name": "23__ProposedBuilding__Roofs",        "description": "Proposed building roofs" },
+        { "name": "24__ProposedBuilding__Windows",      "description": "Proposed building windows" },
+        { "name": "25__ProposedBuilding__Doors",        "description": "Proposed building doors (ADR assemblies)" },
+        { "name": "26__ProposedBuilding__Staircase",    "description": "Proposed building staircases" },
+        { "name": "27__ProposedBuilding__Fixtures",     "description": "Proposed building fixtures and fittings" },
+        { "name": "28__ProposedBuilding__Furniture",    "description": "Proposed building furniture" },
+
+        { "name": "90__Storey__GroundFloor",            "description": "Storey container - Ground Floor" },
+        { "name": "91__Storey__FirstFloor",             "description": "Storey container - First Floor" },
+        { "name": "92__Storey__SecondFloor",            "description": "Storey container - Second Floor" },
+        { "name": "93__Storey__ThirdFloor",             "description": "Storey container - Third Floor" }
+    ]
+}

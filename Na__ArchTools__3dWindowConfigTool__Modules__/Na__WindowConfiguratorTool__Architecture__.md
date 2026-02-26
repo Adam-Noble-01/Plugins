@@ -328,7 +328,7 @@ windowConfiguration: {
     // Primary Dimensions
     width_mm: 900,              // Overall window width
     height_mm: 1200,            // Overall window height
-    frame_thickness_mm: 50,     // Outer frame member thickness
+    frame_thickness_mm: 50,     // Outer frame member thickness (0 = frameless mode: no outer frame)
     
     // Casement
     casement_width_mm: 65,      // Default casement profile width (all sides)
@@ -686,5 +686,5 @@ end
 ---
 
 *Document created: February 3, 2026*
-*Last updated: February 16, 2026 (v0.8.0 - Fuse Parts system: boolean fusion of frame/casement/glaze bars, glass panel trimming)*
+*Last updated: February 26, 2026 (v0.9.2 - Frameless Mode: frame_thickness_mm=0 skips outer frame)*
 *Author: Noble Architecture*

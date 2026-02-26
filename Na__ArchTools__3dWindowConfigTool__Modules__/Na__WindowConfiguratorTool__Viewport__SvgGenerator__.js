@@ -52,7 +52,7 @@ const Na__Viewport__SvgGenerator = (function() {
     function na_generateWindowSvg(config) {
         const width = config.width_mm || 900;
         const height = config.height_mm || 1200;
-        const frameThickness = config.frame_thickness_mm || 50;
+        const frameThickness = (config.frame_thickness_mm != null) ? config.frame_thickness_mm : 50;
         const casementWidth = config.casement_width_mm || 65;
         const showCasements = config.show_casements !== false;
         const twinCasements = config.twin_casements === true;
@@ -84,11 +84,14 @@ const Na__Viewport__SvgGenerator = (function() {
         const availableWidth = innerWidth - totalMullionWidth;
         const openingWidth = availableWidth / numOpenings;
         
-        // Outer frame (4 rectangles) - JOINERY CONVENTION: Stiles full height, rails inset
-        svg += na_svgRect(0, 0, frameThickness, height, frameColor, '#000', 1); // Left stile (full height)
-        svg += na_svgRect(width - frameThickness, 0, frameThickness, height, frameColor, '#000', 1); // Right stile (full height)
-        svg += na_svgRect(frameThickness, 0, innerWidth, frameThickness, frameColor, '#000', 1); // Bottom rail (inset)
-        svg += na_svgRect(frameThickness, height - frameThickness, innerWidth, frameThickness, frameColor, '#000', 1); // Top rail (inset)
+        // Outer frame (4 rectangles) - skip in frameless mode (frameThickness === 0)
+        if (frameThickness > 0) {
+            // JOINERY CONVENTION: Stiles full height, rails inset
+            svg += na_svgRect(0, 0, frameThickness, height, frameColor, '#000', 1); // Left stile (full height)
+            svg += na_svgRect(width - frameThickness, 0, frameThickness, height, frameColor, '#000', 1); // Right stile (full height)
+            svg += na_svgRect(frameThickness, 0, innerWidth, frameThickness, frameColor, '#000', 1); // Bottom rail (inset)
+            svg += na_svgRect(frameThickness, height - frameThickness, innerWidth, frameThickness, frameColor, '#000', 1); // Top rail (inset)
+        }
         
         // Draw mullions
         for (let m = 1; m <= numMullions; m++) {
@@ -178,8 +181,8 @@ const Na__Viewport__SvgGenerator = (function() {
             }
         }
         
-        // Cill
-        if (hasCill) {
+        // Cill (skip in frameless mode)
+        if (hasCill && frameThickness > 0) {
             const cillDepth = config.cill_depth_mm || 50;
             const cillHeight = config.cill_height_mm || 50;
             svg += na_svgRect(0, -cillHeight, width, cillHeight, '#A0908A', '#000', 1);

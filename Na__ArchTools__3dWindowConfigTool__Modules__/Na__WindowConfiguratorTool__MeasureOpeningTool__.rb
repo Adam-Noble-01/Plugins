@@ -49,9 +49,12 @@ module Na__WindowConfiguratorTool
         # ------------------------------------------------------------
         # @param dialog_manager [Module] Reference to the DialogManager module
         # @param cill_height_mm [Numeric] Current cill height from UI config (in mm)
-        def initialize(dialog_manager, cill_height_mm)
+        # @param frame_thickness_mm [Numeric] Current frame thickness from UI config (in mm)
+        def initialize(dialog_manager, cill_height_mm, frame_thickness_mm = 50)
             @dialog_manager = dialog_manager
-            @cill_height_mm = cill_height_mm || 50
+            @frame_thickness_mm = frame_thickness_mm || 50
+            @is_frameless = @frame_thickness_mm == 0
+            @cill_height_mm = @is_frameless ? 0 : (cill_height_mm || 50)
 
             @ip = Sketchup::InputPoint.new
             @ip_start = Sketchup::InputPoint.new
@@ -60,7 +63,7 @@ module Na__WindowConfiguratorTool
             @current_point = nil
             @state = :picking_point_a
 
-            Na__DebugTools.na_debug_method("MeasureOpeningTool initialized (cill_height=#{@cill_height_mm}mm)")
+            Na__DebugTools.na_debug_method("MeasureOpeningTool initialized (cill_height=#{@cill_height_mm}mm, frame_thickness=#{@frame_thickness_mm}mm, frameless=#{@is_frameless})")
         end
         # ---------------------------------------------------------------
 
@@ -282,8 +285,8 @@ module Na__WindowConfiguratorTool
 
             Na__DebugTools.na_debug_success(
                 "Measurement complete: Width=#{width_mm}mm, " \
-                "Raw Height=#{height_mm}mm, Cill=#{@cill_height_mm}mm, " \
-                "Adjusted Height=#{adjusted_height_mm}mm"
+                "Raw Height=#{height_mm}mm, Cill Deduction=#{@cill_height_mm}mm, " \
+                "Adjusted Height=#{adjusted_height_mm}mm, Frameless=#{@is_frameless}"
             )
 
             # Send measurement back to the HTML dialog

@@ -272,15 +272,18 @@ module Na__WindowConfiguratorTool
             available_width = inner_width - total_mullion_width
             opening_width = available_width.to_f / num_openings
             
-            # Draw outer frame (4 rectangles) - JOINERY CONVENTION: Stiles full height, rails inset
-            # Left stile (full height)
-            entities += na_dxf_rect(0, 0, frame_thickness, height, NA_LAYER_FRAME)
-            # Right stile (full height)
-            entities += na_dxf_rect(width - frame_thickness, 0, frame_thickness, height, NA_LAYER_FRAME)
-            # Bottom rail (inset between stiles)
-            entities += na_dxf_rect(frame_thickness, 0, inner_width, frame_thickness, NA_LAYER_FRAME)
-            # Top rail (inset between stiles)
-            entities += na_dxf_rect(frame_thickness, height - frame_thickness, inner_width, frame_thickness, NA_LAYER_FRAME)
+            # Draw outer frame (4 rectangles) - skip in frameless mode (frame_thickness == 0)
+            if frame_thickness > 0
+                # JOINERY CONVENTION: Stiles full height, rails inset
+                # Left stile (full height)
+                entities += na_dxf_rect(0, 0, frame_thickness, height, NA_LAYER_FRAME)
+                # Right stile (full height)
+                entities += na_dxf_rect(width - frame_thickness, 0, frame_thickness, height, NA_LAYER_FRAME)
+                # Bottom rail (inset between stiles)
+                entities += na_dxf_rect(frame_thickness, 0, inner_width, frame_thickness, NA_LAYER_FRAME)
+                # Top rail (inset between stiles)
+                entities += na_dxf_rect(frame_thickness, height - frame_thickness, inner_width, frame_thickness, NA_LAYER_FRAME)
+            end
             
             # Draw mullions
             (1..num_mullions).each do |m|
@@ -332,8 +335,8 @@ module Na__WindowConfiguratorTool
                 end
             end
             
-            # Draw cill
-            if has_cill
+            # Draw cill (skip in frameless mode)
+            if has_cill && frame_thickness > 0
                 entities += na_dxf_rect(0, -cill_height, width, cill_height, NA_LAYER_CILL)
             end
             

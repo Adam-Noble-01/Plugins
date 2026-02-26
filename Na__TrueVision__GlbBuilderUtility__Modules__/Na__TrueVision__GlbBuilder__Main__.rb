@@ -44,11 +44,13 @@ require 'fileutils'                                                             
 require_relative 'Na__TrueVision__GlbBuilder__CoreExport__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__MaterialHandling__'
+require_relative 'Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__LineworkModelHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__UserInterface__'
 require_relative 'Na__TrueVision__GlbBuilder__DynamicReloaderPluginUtil__'
+require_relative 'Na__TrueVision__GlbBuilder__TagsManager__'
 
 module TrueVision3D
     module GlbBuilderUtility
@@ -78,30 +80,32 @@ module TrueVision3D
         # This allows precise control of the camera rotation center for better UX.
         # ------------------------------------------------------------
         TAG_RANGES = {
-            "01__OrbitHelperCube"                         => [1],                   # <-- Camera orbit pivot for Web 3D Viewer App
-            "NaModel__LandscapeEnvironment"               => (7..9),                # <-- Landscape & Environment
-            "NaModel__MainBuildingModel__Existing"        => [10],                  # <-- Existing Main Building Flag (whole building in simplified Massing Models)
-            "NaModel__MainBuildingModel__ExistingWalls"   => [11],                  # <-- Existing Building Walls
-            "NaModel__MainBuildingModel__ExistingFloors"  => [12],                  # <-- Existing Building Floors
-            "NaModel__MainBuildingModel__ExistingRoofs"   => [13],                  # <-- Existing Building Roofs
-            "NaModel__MainBuildingModel__ExistingWindows" => [14],                  # <-- Existing Building Windows
-            "NaModel__MainBuildingModel__ExistingDoors"   => [15],                  # <-- Existing Building Doors
-            "NaModel__MainBuildingModel__ExistingStairs"  => [16],                  # <-- Existing Building Staircases
-            "NaModel__MainBuildingModel__ExistingOther"   => (17..19),              # <-- Existing Other Elements
-            "NaModel__MainBuildingModel__Proposed"        => [20],                  # <-- Proposed Main Building Flag (whole building in simplified Massing Models)
-            "NaModel__MainBuildingModel__ProposedWalls"   => [21],                  # <-- Proposed Building Walls
-            "NaModel__MainBuildingModel__ProposedFloors"  => [22],                  # <-- Proposed Building Floors
-            "NaModel__MainBuildingModel__ProposedRoofs"   => [23],                  # <-- Proposed Building Roofs
-            "NaModel__MainBuildingModel__ProposedWindows" => [24],                  # <-- Proposed Building Windows
-            "NaModel__MainBuildingModel__ProposedDoors"   => [25],                  # <-- Proposed Building Doors (ADR assemblies)
-            "NaModel__MainBuildingModel__ProposedStairs"  => [26],                  # <-- Proposed Building Staircases
-            "NaModel__MainBuildingModel__ProposedOther"   => (27..29),              # <-- Proposed Other Elements
-            "NaModel__GroundFloorFurniture"               => (30..38),              # <-- Ground Floor Furniture
-            "NaModel__GroundFloorDecor"                   => [39],                  # <-- Ground Floor High Detail
-            "NaModel__FirstFloorFurniture"                => (40..48),              # <-- First Floor Furniture
-            "NaModel__FirstFloorDecor"                    => [49],                  # <-- First Floor High Detail
-            "NaModel__Vegetation"                         => (50..59),              # <-- Vegetation
-            "NaModel__SceneContextual"                    => (60..70)               # <-- Scene Context (people, vehicles)
+            "01__OrbitHelperCube"                           => [1],                   # <-- Camera orbit pivot for Web 3D Viewer App
+            "NaModel__LandscapeEnvironment"                 => (7..9),                # <-- Landscape & Environment
+            "NaModel__MainBuildingModel__Existing"          => [10],                  # <-- Existing Main Building Flag (whole building in simplified Massing Models)
+            "NaModel__MainBuildingModel__ExistingWalls"     => [11],                  # <-- Existing Building Walls
+            "NaModel__MainBuildingModel__ExistingFloors"    => [12],                  # <-- Existing Building Floors
+            "NaModel__MainBuildingModel__ExistingRoofs"     => [13],                  # <-- Existing Building Roofs
+            "NaModel__MainBuildingModel__ExistingWindows"   => [14],                  # <-- Existing Building Windows
+            "NaModel__MainBuildingModel__ExistingDoors"     => [15],                  # <-- Existing Building Doors
+            "NaModel__MainBuildingModel__ExistingStairs"    => [16],                  # <-- Existing Building Staircases
+            "NaModel__MainBuildingModel__ExistingOther"     => (17..19),              # <-- Existing Other Elements
+            "NaModel__MainBuildingModel__Proposed"          => [20],                  # <-- Proposed Main Building Flag (whole building in simplified Massing Models)
+            "NaModel__MainBuildingModel__ProposedWalls"     => [21],                  # <-- Proposed Building Walls
+            "NaModel__MainBuildingModel__ProposedFloors"    => [22],                  # <-- Proposed Building Floors
+            "NaModel__MainBuildingModel__ProposedRoofs"     => [23],                  # <-- Proposed Building Roofs
+            "NaModel__MainBuildingModel__ProposedWindows"   => [24],                  # <-- Proposed Building Windows
+            "NaModel__MainBuildingModel__ProposedDoors"     => [25],                  # <-- Proposed Building Doors (ADR assemblies)
+            "NaModel__MainBuildingModel__ProposedStairs"    => [26],                  # <-- Proposed Building Staircases
+            "NaModel__MainBuildingModel__ProposedFixtures"  => [27],                  # <-- Proposed Building Fixtures and Fittings
+            "NaModel__MainBuildingModel__ProposedFurniture" => [28],                  # <-- Proposed Building Furniture
+            "NaModel__MainBuildingModel__ProposedOther"     => [29],                  # <-- Proposed Other Elements
+            "NaModel__GroundFloorFurniture"                 => (30..38),              # <-- Ground Floor Furniture
+            "NaModel__GroundFloorDecor"                     => [39],                  # <-- Ground Floor High Detail
+            "NaModel__FirstFloorFurniture"                  => (40..48),              # <-- First Floor Furniture
+            "NaModel__FirstFloorDecor"                      => [49],                  # <-- First Floor High Detail
+            "NaModel__Vegetation"                           => (50..59),              # <-- Vegetation
+            "NaModel__SceneContextual"                      => (60..70)               # <-- Scene Context (people, vehicles)
         }
         SKIP_RANGES             =   [0, 2, 3, 4, 5, 6]                            # <-- Ignored tags - DO NOT EXPORT (tag 01 is now exported as OrbitHelperCube)
         MAX_NESTING_DEPTH       =   4                                             # <-- Maximum nesting depth for validation (4 to support storey container nesting)
@@ -138,7 +142,9 @@ module TrueVision3D
             23 => "ProposedRoofs",                                                 # <-- Proposed Building Roofs
             24 => "ProposedWindows",                                               # <-- Proposed Building Windows
             25 => "ProposedDoors",                                                 # <-- Proposed Building Doors
-            26 => "ProposedStairs"                                                 # <-- Proposed Building Staircases
+            26 => "ProposedStairs",                                                # <-- Proposed Building Staircases
+            27 => "ProposedFixtures",                                              # <-- Proposed Building Fixtures and Fittings
+            28 => "ProposedFurniture"                                              # <-- Proposed Building Furniture
         }
         # ------------------------------------------------------------
     
@@ -197,6 +203,13 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__PublicApi__PerformExport(export_dir)
             self.Na__ExportCore__PerformExport(export_dir)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Create Standardised Tags From Index (called from UI or menu)
+        # ---------------------------------------------------------------
+        def self.Na__PublicApi__CreateStandardisedTags
+            self.Na__TagsManager__CreateStandardisedTags
         end
         # ---------------------------------------------------------------
 

@@ -122,6 +122,25 @@ const Na_DynamicUI = (function() {
     // FUNCTION | Called When Any Config Value Changes
     // ------------------------------------------------------------
     function na_onConfigChange() {
+        // Frameless mode: force cill off and disable toggle when frame thickness is 0
+        const isFrameless = _config.frame_thickness_mm === 0;
+        const cillToggle = document.getElementById('has_cill-toggle');
+        if (isFrameless) {
+            if (_config.has_cill !== false) {
+                _config.has_cill = false;
+                na_updateControlValue('has_cill', false);
+            }
+            if (cillToggle) {
+                cillToggle.style.opacity = '0.4';
+                cillToggle.style.pointerEvents = 'none';
+            }
+        } else {
+            if (cillToggle) {
+                cillToggle.style.opacity = '';
+                cillToggle.style.pointerEvents = '';
+            }
+        }
+        
         // Clean up removed_casements: remove indices that exceed current opening count
         const numOpenings = (_config.mullions || 0) + 1;
         if (_config.removed_casements && _config.removed_casements.length > 0) {
