@@ -82,7 +82,7 @@ module TrueVision3D
         # @param buckets          [Hash]                    BucketManager geometry store
         # @param door_assemblies  [Array|nil]               Collected door records (nil = disabled)
         # ---------------------------------------------------------------
-        def self.Na__GlbEngine__TraverseEntities(entities, parent_transform, parent_layer, buckets, door_assemblies = nil)
+        def self.Na__GlbEngine__TraverseEntities(entities, parent_transform, parent_layer, buckets, door_assemblies = nil, instanced_skip_set = nil)
             # Pre-compute mirror state and normal matrix once for this transform level.
             # All faces/edges at this level share the same accumulated transform.
             is_mirrored   = Na__GlbEngine__CalcDeterminant3x3(parent_transform) < 0
@@ -104,6 +104,8 @@ module TrueVision3D
                     end
 
                 elsif entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+                    next if instanced_skip_set && instanced_skip_set.key?(entity.object_id)
+
                     # Accumulate transform: M_child_global = M_parent_global * M_child_local
                     child_transform = parent_transform * entity.transformation
                     # Layer inheritance: Layer0 containers inherit parent layer
@@ -120,7 +122,7 @@ module TrueVision3D
                     end
 
                     # Recurse into the definition's entities (normal flattening path)
-                    Na__GlbEngine__TraverseEntities(entity.definition.entities, child_transform, child_layer, buckets, door_assemblies)
+                    Na__GlbEngine__TraverseEntities(entity.definition.entities, child_transform, child_layer, buckets, door_assemblies, instanced_skip_set)
                 end
             end
         end

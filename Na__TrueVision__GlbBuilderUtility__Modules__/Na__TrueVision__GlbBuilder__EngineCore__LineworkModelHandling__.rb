@@ -45,7 +45,7 @@ module TrueVision3D
         # @param colors          [Array<Float>]            Flat [r,g,b,a, r,g,b,a, ...] output
         # @param door_assemblies  [Array|nil]               Collected door records (nil = disabled)
         # ---------------------------------------------------------------
-        def self.Na__LineworkEngine__TraverseEdges(entities, parent_transform, parent_layer, positions, colors, door_assemblies = nil)
+        def self.Na__LineworkEngine__TraverseEdges(entities, parent_transform, parent_layer, positions, colors, door_assemblies = nil, instanced_skip_set = nil)
             entities.each do |entity|
                 next if Na__Helpers__EntityExcluded?(entity)
 
@@ -80,6 +80,7 @@ module TrueVision3D
                 elsif entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
                     next if entity.hidden?
                     next unless entity.layer.visible?
+                    next if instanced_skip_set && instanced_skip_set.key?(entity.object_id)
 
                     child_transform = parent_transform * entity.transformation
                     child_layer = (entity.layer.name == "Layer0") ? parent_layer : entity.layer
@@ -94,7 +95,7 @@ module TrueVision3D
                         next                                                  # <-- Skip normal flattening for this subtree
                     end
 
-                    Na__LineworkEngine__TraverseEdges(entity.definition.entities, child_transform, child_layer, positions, colors, door_assemblies)
+                    Na__LineworkEngine__TraverseEdges(entity.definition.entities, child_transform, child_layer, positions, colors, door_assemblies, instanced_skip_set)
                 end
             end
         end
@@ -182,10 +183,15 @@ module TrueVision3D
                 root_transform   = parent_transform ? Z_UP_TO_Y_UP_MATRIX * parent_transform : Z_UP_TO_Y_UP_MATRIX  # <-- Include parent (e.g. storey) transform when present
                 entity_count     = 0
 
+                # Recursive pre-scan for instanced ComponentDefinitions (same scan as mesh export)
+                instanced_groups, instanced_skip_set = Na__Instancing__ScanForInstancedDefinitions(entities, root_transform)
+
                 entities.each do |entity|
                     next if Na__Helpers__EntityExcluded?(entity)
 
                     if entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+                        next if instanced_skip_set.key?(entity.object_id)
+
                         entity_count += 1
                         entity_name = Na__GlbEngine__SanitizeEntityName(entity)
                         puts "    Traversing linework: #{entity_name}..."
@@ -209,7 +215,8 @@ module TrueVision3D
                             entity_layer,
                             positions,
                             colors,
-                            door_assemblies                                   # <-- Pass door collector for nested ADR detection
+                            door_assemblies,                                  # <-- Pass door collector for nested ADR detection
+                            instanced_skip_set                                # <-- Skip nested instanced components
                         )
 
                     elsif entity.is_a?(Sketchup::Edge)
@@ -246,14 +253,14 @@ module TrueVision3D
                 end
 
                 # Build glTF structure from collected edges (if any)
-                if positions.empty? && door_assemblies.empty?
-                    puts "  No visible edges or door assemblies found - skipping linework file"
+                if positions.empty? && door_assemblies.empty? && instanced_groups.empty?
+                    puts "  No visible edges, door assemblies, or instanced components found - skipping linework file"
                     return false
                 end
 
-                # Build glTF structure (initialize even if no non-door edges)
+                # Build glTF structure (initialize even if no flat-traversal edges)
                 if positions.empty?
-                    # No non-door edges, but we have door assemblies — initialize minimal glTF
+                    # No flat edges, but we have door assemblies or instanced components — initialize minimal glTF
                     gltf = {
                         "asset"       => { "version" => "2.0", "generator" => "TrueVision3D GLB Builder Linework v1.5.0" },
                         "scene"       => 0,
@@ -269,6 +276,9 @@ module TrueVision3D
                     # Normal linework export with edges
                     gltf, bin_buffer = Na__LineworkEngine__BuildGltfFromEdgeData(positions, colors)
                 end
+
+                # Append instanced shared linework meshes and per-instance nodes
+                Na__Instancing__ProcessAllInstancedLinework(instanced_groups, gltf, bin_buffer)
 
                 # Export door assemblies with preserved hierarchy (if any detected)
                 if door_assemblies.any?

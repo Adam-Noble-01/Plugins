@@ -49,13 +49,23 @@ module TrueVision3D
                 root_transform   = parent_transform ? Z_UP_TO_Y_UP_MATRIX * parent_transform : Z_UP_TO_Y_UP_MATRIX  # <-- Include parent (e.g. storey) transform when present
                 entity_count     = 0
 
+                # Phase 1b: Recursive pre-scan for instanced ComponentDefinitions
+                # Walks the full entity tree (including inside Groups) to find
+                # ComponentDefinitions with 2+ instances. Returns a skip_set of
+                # object_ids so the flat traversal skips instanced entities.
+                instanced_groups, instanced_skip_set = Na__Instancing__ScanForInstancedDefinitions(entities, root_transform)
+
                 # Phase 2: Traverse each top-level entity into the bucket store
                 # Door assemblies (ADR-prefixed) are detected inline and diverted
                 # to door_assemblies list instead of being flattened into buckets.
+                # The instanced_skip_set is passed through so nested instanced
+                # components are skipped during recursive traversal.
                 entities.each do |entity|
                     next if Na__Helpers__EntityExcluded?(entity)
 
                     if entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+                        next if instanced_skip_set.key?(entity.object_id)
+
                         entity_count += 1
                         entity_name = Na__GlbEngine__SanitizeEntityName(entity)
                         puts "    Traversing: #{entity_name}..."
@@ -81,7 +91,8 @@ module TrueVision3D
                             accumulated_transform,
                             entity_layer,
                             buckets,
-                            door_assemblies                                   # <-- Pass door collector for nested ADR detection
+                            door_assemblies,                                  # <-- Pass door collector for nested ADR detection
+                            instanced_skip_set                                # <-- Skip nested instanced components
                         )
 
                     elsif entity.is_a?(Sketchup::Face)
@@ -115,6 +126,9 @@ module TrueVision3D
 
                 # Phase 3: Build glTF structure and pack binary buffers (non-door geometry)
                 gltf, bin_buffer = Na__GlbEngine__BuildGltfFromBuckets(buckets)
+
+                # Phase 3a: Append instanced shared meshes and per-instance nodes
+                Na__Instancing__ProcessAllInstanced(instanced_groups, gltf, bin_buffer)
 
                 # Phase 3b: Export door assemblies with preserved hierarchy (if any detected)
                 if door_assemblies.any?

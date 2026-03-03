@@ -617,7 +617,7 @@ module TrueVision3D
                     puts "  #{range_label} = #{group_name}.glb"
                 end
                 
-                puts "\nExample tag names: '01__OrbitHelperCube', '10__Existing__Walls', '30__Furniture__Chairs', '60__Scene__People'"
+                puts "\nExample tag names: '01__OrbitHelperCube', '11__ExistingBuilding__Walls', '19__ExistingBuilding__InteriorDecor', '29__ProposedBuilding__InteriorDecor'"
                 puts "================================================\n"
                 
                 UI.messagebox("No entities found with valid '##__' tag prefixes for export.\n\nPlease check the Ruby Console for required tag naming.")

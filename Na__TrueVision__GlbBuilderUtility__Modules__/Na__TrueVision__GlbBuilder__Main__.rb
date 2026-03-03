@@ -43,6 +43,7 @@ require 'fileutils'                                                             
 # Load dependent modules
 require_relative 'Na__TrueVision__GlbBuilder__CoreExport__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__'
+require_relative 'Na__TrueVision__GlbBuilder__EngineCore__ComponentInstancing__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__MaterialHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__'
@@ -81,31 +82,33 @@ module TrueVision3D
         # ------------------------------------------------------------
         TAG_RANGES = {
             "01__OrbitHelperCube"                           => [1],                   # <-- Camera orbit pivot for Web 3D Viewer App
-            "NaModel__LandscapeEnvironment"                 => (7..9),                # <-- Landscape & Environment
-            "NaModel__MainBuildingModel__Existing"          => [10],                  # <-- Existing Main Building Flag (whole building in simplified Massing Models)
-            "NaModel__MainBuildingModel__ExistingWalls"     => [11],                  # <-- Existing Building Walls
-            "NaModel__MainBuildingModel__ExistingFloors"    => [12],                  # <-- Existing Building Floors
-            "NaModel__MainBuildingModel__ExistingRoofs"     => [13],                  # <-- Existing Building Roofs
-            "NaModel__MainBuildingModel__ExistingWindows"   => [14],                  # <-- Existing Building Windows
-            "NaModel__MainBuildingModel__ExistingDoors"     => [15],                  # <-- Existing Building Doors
-            "NaModel__MainBuildingModel__ExistingStairs"    => [16],                  # <-- Existing Building Staircases
-            "NaModel__MainBuildingModel__ExistingOther"     => (17..19),              # <-- Existing Other Elements
-            "NaModel__MainBuildingModel__Proposed"          => [20],                  # <-- Proposed Main Building Flag (whole building in simplified Massing Models)
-            "NaModel__MainBuildingModel__ProposedWalls"     => [21],                  # <-- Proposed Building Walls
-            "NaModel__MainBuildingModel__ProposedFloors"    => [22],                  # <-- Proposed Building Floors
-            "NaModel__MainBuildingModel__ProposedRoofs"     => [23],                  # <-- Proposed Building Roofs
-            "NaModel__MainBuildingModel__ProposedWindows"   => [24],                  # <-- Proposed Building Windows
-            "NaModel__MainBuildingModel__ProposedDoors"     => [25],                  # <-- Proposed Building Doors (ADR assemblies)
-            "NaModel__MainBuildingModel__ProposedStairs"    => [26],                  # <-- Proposed Building Staircases
-            "NaModel__MainBuildingModel__ProposedFixtures"  => [27],                  # <-- Proposed Building Fixtures and Fittings
-            "NaModel__MainBuildingModel__ProposedFurniture" => [28],                  # <-- Proposed Building Furniture
-            "NaModel__MainBuildingModel__ProposedOther"     => [29],                  # <-- Proposed Other Elements
-            "NaModel__GroundFloorFurniture"                 => (30..38),              # <-- Ground Floor Furniture
-            "NaModel__GroundFloorDecor"                     => [39],                  # <-- Ground Floor High Detail
-            "NaModel__FirstFloorFurniture"                  => (40..48),              # <-- First Floor Furniture
-            "NaModel__FirstFloorDecor"                      => [49],                  # <-- First Floor High Detail
-            "NaModel__Vegetation"                           => (50..59),              # <-- Vegetation
-            "NaModel__SceneContextual"                      => (60..70)               # <-- Scene Context (people, vehicles)
+            "TrueVision__LandscapeEnvironment"              => (7..9),                # <-- Landscape & Environment
+            "TrueVision__MainBuildingModel__Existing"       => [10],                  # <-- Existing Main Building Flag (whole building in simplified Massing Models)
+            "TrueVision__MainBuildingModel__ExistingWalls"  => [11],                  # <-- Existing Building Walls
+            "TrueVision__MainBuildingModel__ExistingFloors" => [12],                  # <-- Existing Building Floors
+            "TrueVision__MainBuildingModel__ExistingRoofs"  => [13],                  # <-- Existing Building Roofs
+            "TrueVision__MainBuildingModel__ExistingWindows"=> [14],                  # <-- Existing Building Windows
+            "TrueVision__MainBuildingModel__ExistingDoors"  => [15],                  # <-- Existing Building Doors
+            "TrueVision__MainBuildingModel__ExistingStairs" => [16],                  # <-- Existing Building Staircases
+            "TrueVision__MainBuildingModel__ExistingFixtures" => [17],                # <-- Existing Building Fixtures and Fittings
+            "TrueVision__MainBuildingModel__ExistingFurniture" => [18],               # <-- Existing Building Furniture
+            "TrueVision__MainBuildingModel__ExistingInteriorDecor" => [19],           # <-- Existing Building Interior Decor
+            "TrueVision__MainBuildingModel__Proposed"       => [20],                  # <-- Proposed Main Building Flag (whole building in simplified Massing Models)
+            "TrueVision__MainBuildingModel__ProposedWalls"  => [21],                  # <-- Proposed Building Walls
+            "TrueVision__MainBuildingModel__ProposedFloors" => [22],                  # <-- Proposed Building Floors
+            "TrueVision__MainBuildingModel__ProposedRoofs"  => [23],                  # <-- Proposed Building Roofs
+            "TrueVision__MainBuildingModel__ProposedWindows"=> [24],                  # <-- Proposed Building Windows
+            "TrueVision__MainBuildingModel__ProposedDoors"  => [25],                  # <-- Proposed Building Doors (ADR assemblies)
+            "TrueVision__MainBuildingModel__ProposedStairs" => [26],                  # <-- Proposed Building Staircases
+            "TrueVision__MainBuildingModel__ProposedFixtures" => [27],                # <-- Proposed Building Fixtures and Fittings
+            "TrueVision__MainBuildingModel__ProposedFurniture" => [28],               # <-- Proposed Building Furniture
+            "TrueVision__MainBuildingModel__ProposedInteriorDecor" => [29],           # <-- Proposed Building Interior Decor
+            "TrueVision__GroundFloorFurniture"              => (30..38),              # <-- Ground Floor Furniture
+            "TrueVision__GroundFloorDecor"                  => [39],                  # <-- Ground Floor High Detail
+            "TrueVision__FirstFloorFurniture"               => (40..48),              # <-- First Floor Furniture
+            "TrueVision__FirstFloorDecor"                   => [49],                  # <-- First Floor High Detail
+            "TrueVision__Vegetation"                        => (50..59),              # <-- Vegetation
+            "TrueVision__SceneContextual"                   => (60..70)               # <-- Scene Context (people, vehicles)
         }
         SKIP_RANGES             =   [0, 2, 3, 4, 5, 6]                            # <-- Ignored tags - DO NOT EXPORT (tag 01 is now exported as OrbitHelperCube)
         MAX_NESTING_DEPTH       =   4                                             # <-- Maximum nesting depth for validation (4 to support storey container nesting)
@@ -137,6 +140,9 @@ module TrueVision3D
             14 => "ExistingWindows",                                               # <-- Existing Building Windows
             15 => "ExistingDoors",                                                 # <-- Existing Building Doors
             16 => "ExistingStairs",                                                # <-- Existing Building Staircases
+            17 => "ExistingFixtures",                                              # <-- Existing Building Fixtures and Fittings
+            18 => "ExistingFurniture",                                             # <-- Existing Building Furniture
+            19 => "ExistingInteriorDecor",                                         # <-- Existing Building Interior Decor
             21 => "ProposedWalls",                                                 # <-- Proposed Building Walls
             22 => "ProposedFloors",                                                # <-- Proposed Building Floors
             23 => "ProposedRoofs",                                                 # <-- Proposed Building Roofs
@@ -144,7 +150,8 @@ module TrueVision3D
             25 => "ProposedDoors",                                                 # <-- Proposed Building Doors
             26 => "ProposedStairs",                                                # <-- Proposed Building Staircases
             27 => "ProposedFixtures",                                              # <-- Proposed Building Fixtures and Fittings
-            28 => "ProposedFurniture"                                              # <-- Proposed Building Furniture
+            28 => "ProposedFurniture",                                             # <-- Proposed Building Furniture
+            29 => "ProposedInteriorDecor"                                          # <-- Proposed Building Interior Decor
         }
         # ------------------------------------------------------------
     

@@ -2,11 +2,23 @@
 	"folders": [
 	  {
         "name": "SketchUp-2026__LocalPluginsFolder",
-		"path": "C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins"
+		"path": "./",
+        "description": "Local Plugins RootFolder"
 	  },
 	  {
         "name": "ValeDesignSuite_LocalMasterProjectFolder",
-		"path": "./ValeDesignSuite"
+		"path": "./ValeDesignSuite",
+        "description": "ValeDesignSuite Plugin RootFolder"
+	  },
+	  {
+        "name": "Na__ArchTools__3dWindowConfigTool__Modules__",
+		"path": "./Na__ArchTools__3dWindowConfigTool__Modules__",
+        "description": "Window Configurator Plugin RootFolder"
+	  },
+      {
+        "name": "Na__TrueVision__GlbBuilderUtility__Modules__",
+		"path": "./Na__TrueVision__GlbBuilderUtility__Modules__",
+        "description": "SketchUp TrueVision Glb Builder Utility Plugin RootFolder"
 	  }
 	],
 	"settings": {

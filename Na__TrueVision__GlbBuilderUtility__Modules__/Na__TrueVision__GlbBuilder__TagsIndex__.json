@@ -1,6 +1,5 @@
 {
     "tags": [
-        { "name": "00__Standards",                      "description": "Standards and annotation layer" },
         { "name": "01__OrbitHelperCube",                "description": "Camera orbit pivot for Web 3D Viewer App" },
         { "name": "07__Landscape",                      "description": "Landscape and site elements" },
 
@@ -11,6 +10,9 @@
         { "name": "14__ExistingBuilding__Windows",      "description": "Existing building windows" },
         { "name": "15__ExistingBuilding__Doors",        "description": "Existing building doors" },
         { "name": "16__ExistingBuilding__Staircase",    "description": "Existing building staircases" },
+        { "name": "17__ExistingBuilding__Fixtures",     "description": "Existing building fixtures and fittings" },
+        { "name": "18__ExistingBuilding__Furniture",    "description": "Existing building furniture" },
+        { "name": "19__ExistingBuilding__InteriorDecor","description": "Existing building interior decor" },
 
         { "name": "20__ProposedBuilding",               "description": "Proposed building - whole massing flag" },
         { "name": "21__ProposedBuilding__Walls",        "description": "Proposed building walls" },
@@ -21,6 +23,7 @@
         { "name": "26__ProposedBuilding__Staircase",    "description": "Proposed building staircases" },
         { "name": "27__ProposedBuilding__Fixtures",     "description": "Proposed building fixtures and fittings" },
         { "name": "28__ProposedBuilding__Furniture",    "description": "Proposed building furniture" },
+        { "name": "29__ProposedBuilding__InteriorDecor","description": "Proposed building interior decor" },
 
         { "name": "90__Storey__GroundFloor",            "description": "Storey container - Ground Floor" },
         { "name": "91__Storey__FirstFloor",             "description": "Storey container - First Floor" },

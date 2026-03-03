@@ -8,6 +8,72 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 1.9.1 - 28-Feb-2026
+- **Linework alignment fix for instanced components**: `BuildSharedLinework` now mirrors `BuildSharedMesh` exactly — uses the same `local_root` transform calculation (including mirrored partition handling via `MirroredLocalTransform`) instead of hardcoding `Z_UP_TO_Y_UP_MATRIX`. This ensures instanced component linework and mesh GLBs are extracted in identical coordinate space, fixing a spatial offset where linework was shifted relative to mesh geometry.
+- **Signature change**: `Na__Instancing__BuildSharedLinework` now accepts `is_mirrored` parameter (matching `BuildSharedMesh`).
+- **Linework deduplication key updated**: `ProcessAllInstancedLinework` now caches by `[definition, is_mirrored]` pair instead of `definition` alone, matching the mesh orchestrator's per-partition approach.
+- **Root cause**: `BuildSharedMesh` computed `local_root = is_mirrored ? MirroredLocalTransform() : Z_UP_TO_Y_UP_MATRIX` while `BuildSharedLinework` always used `Z_UP_TO_Y_UP_MATRIX`. The mismatch meant linework geometry was extracted in a different coordinate space than the mesh geometry for the same instanced definition, causing the per-instance node transform to place linework at an offset position.
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+## GLB Builder Utility v1.9.0  -  28-Feb-2026
+### Component Instancing — 449 MB → 1 MB GLB Export Optimisation
+
+**This entry documents an upstream SketchUp plugin change that directly benefits TrueVision3D load times and runtime performance. No TrueVision app code changes were required.**
+
+**Result: >99% reduction in exported GLB file size on production architectural model.**
+
+The GLB Builder Utility plugin (`Na__TrueVision__GlbBuilder__EngineCore__ComponentInstancing__.rb`) was extended with a full Component Instancing system. SketchUp "Components" (as distinct from "Groups") are shared-definition objects — editing one updates all. The exporter now respects this: instead of flattening every component instance into duplicated vertex data, each unique `ComponentDefinition` is written to the GLB binary buffer exactly once, and multiple glTF nodes reference it with per-instance transform matrices.
+
+**Why TrueVision benefits automatically (zero code changes):**
+- Three.js `GLTFLoader` automatically shares a single `BufferGeometry` instance in GPU memory when multiple nodes reference the same mesh index (confirmed Three.js issue #29768). No `InstancedMesh` required for the GPU memory savings.
+- Material traversal in `Na__ModelLoader__MultiModel.js` operates per-node (`node.material.name`), not per-geometry, so all existing material cloning, PBR swap, and shadow setup work identically for instanced nodes.
+- Walk mode collision, door animation (ADR entities excluded from instancing), storey visibility toggles — all operate by scene traversal and are unaffected by the new node structure.
+
+**Future opportunity:** Converting shared-mesh node groups into `THREE.InstancedMesh` on load would reduce these to a single draw call per definition, delivering a further GPU render performance improvement on top of the memory savings already achieved.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 1.8.0 - 28-Feb-2026
+#### Component Instancing — Shared Mesh GLB Export
+
+**Production Result: ~449 MB → ~1 MB (>99% file size reduction)**
+
+The single most impactful optimisation added to the export pipeline. Before this change, every placed SketchUp Component was individually flattened by `TraverseEntities` — 100 identical chairs produced 100 full copies of chair vertex data in the binary buffer. After this change, chair geometry is written once; 100 glTF nodes reference that one mesh with individual world-space transforms. Three.js `GLTFLoader` automatically shares a single `BufferGeometry` in GPU memory across all nodes (confirmed Three.js issue #29768).
+
+**New Module:** `Na__TrueVision__GlbBuilder__EngineCore__ComponentInstancing__.rb`
+- `Na__Instancing__ScanForInstancedDefinitions` — public entry point; runs the recursive scan then builds `instanced_groups` and a `skip_set` of object_ids
+- `Na__Instancing__RecursiveScan` — DFS walk into the full entity tree (including inside Groups at any depth); collects `ComponentInstance` entities grouped by `ComponentDefinition` object identity
+- `Na__Instancing__BuildSharedMesh` — extracts definition geometry once in local Y-up space; uses existing `TraverseEntities` engine (no skip_set — full definition contents needed)
+- `Na__Instancing__MirroredLocalTransform` — prepends a -1 X scale so `AddFaceToBucket` reverses winding/normals for mirrored instances
+- `Na__Instancing__PackBucketsToMesh` — packs local geometry buckets into a single glTF mesh entry (no node; nodes are per-instance)
+- `Na__Instancing__BuildSharedLinework` — parallel function for edge-only GLBs; extracts visible edges from definition in local Y-up space
+- `Na__Instancing__EmitInstanceNodes` — creates one glTF node per instance referencing the shared mesh index with a conjugated world-space matrix (same pattern as `DoorHandler`)
+- `Na__Instancing__RegisterInstancedMaterials` — ensures instanced component materials are present in `@material_map` / `gltf["materials"]` before geometry packing
+- `Na__Instancing__ProcessAllInstanced` — mesh orchestrator; calls BuildSharedMesh + EmitInstanceNodes per instanced group
+- `Na__Instancing__ProcessAllInstancedLinework` — linework orchestrator; deduplicates by definition so normal+mirrored partitions share one linework mesh
+
+**Key design decisions:**
+- Groups are recursed into but never instanced; only `Sketchup::ComponentInstance` entities are candidates
+- ADR door assemblies excluded from instancing; they continue through `DoorHandler` for animation hierarchy
+- Minimum threshold: 2+ instances in the same mirror partition to qualify (single-use components fall through unchanged)
+- Mirrored instances (negative determinant transform from SketchUp "Flip Along") are partitioned into a separate shared mesh with reversed winding and negated normals, avoiding the cross-renderer winding bug with shared meshes under negative-scale transforms
+- `skip_set` mechanism: instanced entity `object_id`s are passed into `TraverseEntities`/`TraverseEdges` so they are skipped during flat traversal — no geometry duplication, no structural changes to the traversal engines
+- Materials on instanced definitions registered on-the-fly before geometry packing if not already in `@material_map`
+- Linework early-exit guard updated to account for `instanced_groups` so linework-only-component scenes still produce a file
+
+**Files Modified:**
+- `Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__.rb`: `Na__GlbEngine__TraverseEntities` gains optional `instanced_skip_set` 6th parameter; skips instanced entities and propagates the set through recursive calls
+- `Na__TrueVision__GlbBuilder__EngineCore__LineworkModelHandling__.rb`: `Na__LineworkEngine__TraverseEdges` gains optional `instanced_skip_set` 7th parameter with same propagation; `ExportLineworkToGlb` early-exit guard updated; `ProcessAllInstancedLinework` called after glTF build
+- `Na__TrueVision__GlbBuilder__EngineCore__.rb`: `ExportEntitiesToGlb` Phase 1b now runs `ScanForInstancedDefinitions` (recursive); receives `skip_set` not `remaining_entities`; top-level loop iterates all entities with skip_set guard; passes skip_set into `TraverseEntities`; calls `ProcessAllInstanced` as Phase 3a
+- `Na__TrueVision__GlbBuilder__Main__.rb`: added `require_relative` for new instancing module between GeometryHandling and MaterialHandling requires
+
+**Downstream TrueVision App — zero changes required:**
+- `GLTFLoader` shares `BufferGeometry` automatically; materials are cloned per-node not per-geometry
+- Material swap by `node.material.name` works independently per instance
+- Shadow settings, walk mode collision, door animation, storey visibility toggles — all unaffected
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 1.7.0 - 23-Feb-2026
 - **Material Lookup System** (new module `Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__.rb`): fetches `Na__AppConfig__MaterialsLibrary.json` from GitHub Pages over HTTPS; builds a flat `{ SketchUpName => config_hash }` index for O(1) material lookups; caches both raw data and index in module state for the session.
 - **Indexed material detection**: `Na__MaterialLookup__IsIndexedMaterial?(name)` — regex `/^MAT\d{3}__/` check with no dependency on the library being loaded.
