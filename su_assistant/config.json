@@ -1,0 +1,69 @@
+{
+  "agents": [
+    {
+      "agent": "AUTO_AGENT",
+      "tag": "auto",
+      "tooltip": "Auto job finder",
+      "icon": "header-icons/auto-agent-new.svg",
+      "access": {
+        "isAccessible": false,
+        "roles": ["admin", "user"]
+      },
+      "suggestions": [
+        "How to renew my SketchUp pro license?",
+        "Sofa, bed and chair by Herman Miller",
+        "Create H shaped profile",
+        "Scale the selected component by 10 cm along the x-axis, rotate 45 degrees and copy it twice",
+        "Paint the selected component in blue, and move it 40cm along z-axis"
+      ]
+    },
+    {
+      "agent": "HELP_AGENT",
+      "tag": "help_desktop",
+      "tooltip": "Help center",
+      "icon": "header-icons/help-new.svg",
+      "access": {
+        "isAccessible": true,
+        "roles": ["admin", "user", "guest"]
+      },
+      "suggestions": [
+        "How do i use the follow me tool?",
+        "how do i purge unused components?",
+        "How do i renew my SketchUp pro license?",
+        "What are some workflow tips for elevations?"
+      ]
+    },
+    {
+      "agent": "RUBY_AGENT",
+      "tag": "ruby",
+      "tooltip": "Creating a custom tool",
+      "icon": "header-icons/creating-tool.svg",
+      "access": {
+        "isAccessible": true,
+        "roles": ["admin"]
+      },
+      "suggestions": [
+        "Create an extension that copies an object 10 times",
+        "Create an H shaped Profile",
+        "Create materials from the color swatches in the attached moodboard;;",
+        "Write ruby code to create 10 spheres in a row"
+      ]
+    },
+    {
+      "agent": "TEXT_TO_3D_AGENT",
+      "tag": "generate3d",
+      "tooltip": "Convert text to 3D",
+      "icon": "header-icons/text-to-3d.svg",
+      "access": {
+        "isAccessible": true,
+        "roles": ["admin", "user"]
+      },
+      "suggestions": [
+        "Generate 3D model from the attached image",
+        "Aged leather sofa for a cigar room",
+        "Modern lighting fixture for dining room",
+        "Funky outdoor bench"
+      ]
+    }
+  ]
+}

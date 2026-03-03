@@ -55,6 +55,8 @@ const Na__Viewport__SvgGenerator = (function() {
         const frameThickness = (config.frame_thickness_mm != null) ? config.frame_thickness_mm : 50;
         const casementWidth = config.casement_width_mm || 65;
         const showCasements = config.show_casements !== false;
+        const slidingSashWindow = config.sliding_sash_window === true;
+        const slidingSashOverlap = Math.max(0, Math.min(60, config.sliding_sash_overlap_mm || 20));
         const casementsPerOpening = Math.max(1, Math.min(6, config.casements_per_opening || 1));
         const numMullions = config.mullions || 0;
         const mullionWidth = config.mullion_width_mm || 40;
@@ -113,11 +115,20 @@ const Na__Viewport__SvgGenerator = (function() {
             if (openingHasCasement) {
                 const panelWidth = openingWidth / casementsPerOpening;
                 for (let p = 0; p < casementsPerOpening; p++) {
-                    svg += na_generateSingleCasementSvg(
-                        openingX + (p * panelWidth), openingY, panelWidth, innerHeight,
-                        casTopRail, casBottomRail, casLeftStile, casRightStile,
-                        frameColor, hBars, vBars, barWidth
-                    );
+                    const panelX = openingX + (p * panelWidth);
+                    if (slidingSashWindow) {
+                        svg += na_generateSlidingSashPanelSvg(
+                            panelX, openingY, panelWidth, innerHeight,
+                            casTopRail, casBottomRail, casLeftStile, casRightStile,
+                            frameColor, hBars, vBars, barWidth, slidingSashOverlap
+                        );
+                    } else {
+                        svg += na_generateSingleCasementSvg(
+                            panelX, openingY, panelWidth, innerHeight,
+                            casTopRail, casBottomRail, casLeftStile, casRightStile,
+                            frameColor, hBars, vBars, barWidth
+                        );
+                    }
                 }
             } else {
                 // Direct glazed - N glass panes without casement frames
@@ -200,24 +211,44 @@ const Na__Viewport__SvgGenerator = (function() {
         // Glass pane
         svg += na_svgRect(glassX, glassY, glassWidth, glassHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
         
-        // Horizontal glaze bars for this casement
-        if (hBars > 0) {
-            const sectionHeight = glassHeight / (hBars + 1);
-            for (let b = 1; b <= hBars; b++) {
-                const barY = glassY + (sectionHeight * b) - (barWidth / 2);
-                svg += na_svgRect(glassX, barY, glassWidth, barWidth, frameColor, '#000', 0.5);
-            }
+        // Reuse glaze bar helper so direct-glazed and casement paths stay consistent.
+        if (hBars > 0 || vBars > 0) {
+            svg += na_generateGlazeBarsSvg(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, frameColor);
         }
         
-        // Vertical glaze bars for this casement
-        if (vBars > 0) {
-            const sectionWidth = glassWidth / (vBars + 1);
-            for (let b = 1; b <= vBars; b++) {
-                const barX = glassX + (sectionWidth * b) - (barWidth / 2);
-                svg += na_svgRect(barX, glassY, barWidth, glassHeight, frameColor, '#000', 0.5);
-            }
-        }
-        
+        return svg;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Sliding Sash SVG for One Panel
+    // ------------------------------------------------------------
+    // Draws top and bottom casements stacked vertically.
+    // Bottom sash gets a subtle shading overlay to indicate setback depth.
+    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm) {
+        let svg = '';
+
+        const sashHeight = height / 2;
+        const sashOverlap = Math.max(0, Math.min(overlapMm || 0, sashHeight - 1));
+        const bottomSashY = y;
+        const topSashY = y + sashHeight;
+
+        // Bottom sash extends behind the top sash to represent weathering overlap.
+        svg += na_generateSingleCasementSvg(
+            x, bottomSashY, width, sashHeight + sashOverlap,
+            topRail, bottomRail, leftStile, rightStile,
+            frameColor, hBars, vBars, barWidth
+        );
+
+        // Reduced by 50% from previous 0.2 intensity.
+        svg += na_svgRect(x, bottomSashY, width, sashHeight + sashOverlap, 'rgba(0, 0, 0, 0.1)', 'none', 0);
+
+        // Draw top sash last so it visually sits in front.
+        svg += na_generateSingleCasementSvg(
+            x, topSashY, width, sashHeight,
+            topRail, bottomRail, leftStile, rightStile,
+            frameColor, hBars, vBars, barWidth
+        );
+
         return svg;
     }
     // ---------------------------------------------------------------
@@ -305,6 +336,7 @@ const Na__Viewport__SvgGenerator = (function() {
     return {
         na_generateWindowSvg: na_generateWindowSvg,
         na_generateSingleCasementSvg: na_generateSingleCasementSvg,
+        na_generateSlidingSashPanelSvg: na_generateSlidingSashPanelSvg,
         na_generateGlazeBarsSvg: na_generateGlazeBarsSvg,
         na_svgRect: na_svgRect,
         na_svgDimensions: na_svgDimensions,

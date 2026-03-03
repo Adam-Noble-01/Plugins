@@ -184,6 +184,16 @@ const NA_UI_CONFIG = [
         default :  0
     },
     {
+        id      :  'sliding_sash_overlap_mm',
+        label   :  'Sliding Sash Overlap',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  0,
+        max     :  60,
+        step    :  1,
+        default :  20
+    },
+    {
         id      :  'mullion_width_mm',
         label   :  'Mullion Width',
         unit    :  'mm',
@@ -323,6 +333,12 @@ const NA_OPTIONS_CONFIG = [
     {
         id      :  'paint_cill',
         label   :  'Paint Cill',
+        type    :  'toggle',
+        default :  false
+    },
+    {
+        id      :  'sliding_sash_window',
+        label   :  'Sliding Sash Window',
         type    :  'toggle',
         default :  false
     },

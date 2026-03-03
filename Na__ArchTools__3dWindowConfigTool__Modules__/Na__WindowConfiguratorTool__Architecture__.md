@@ -340,6 +340,7 @@ windowConfiguration: {
     casement_depth_mm: 55,      // Casement profile depth (Y direction, 40-100mm)
     casement_inset_mm: 10,      // Casement inset from frame face (0=flush, 0-100mm)
     casements_per_opening: 1,   // Casement panels per opening (1-6, for bifold/concertina systems)
+    sliding_sash_overlap_mm: 20,// Extra height added to lower sash in sliding mode (0-60mm)
     removed_casements: [],      // Array of opening indices with casements removed
     
     // Mullions (vertical dividers)
@@ -365,6 +366,7 @@ windowConfiguration: {
     // Display Options
     show_dimensions: true,         // Show dimension annotations
     show_casements: true,          // Show casement frames
+    sliding_sash_window: false,    // Sliding sash mode: two stacked casements per panel, lower sash set back in 3D
     
     // Material Selection (v0.9.0)
     frame_material_id: "MAT120__GenericWood",  // Frame finish from MaterialsLibrary
@@ -386,6 +388,31 @@ windowConfiguration: {
 // Cill:   MAT541__Timber__Sapele (when paint_cill is false)
 //         OR same as frame_material_id (when paint_cill is true)
 ```
+
+---
+
+## IMPLEMENTED FEATURE: Sliding Sash Window Mode
+
+### Concept
+
+```
+STANDARD CASEMENT MODE (sliding_sash_window = false):
+Each horizontal panel in an opening has one full-height casement.
+
+SLIDING SASH MODE (sliding_sash_window = true):
+Each horizontal panel in an opening has:
+  - Top sash casement
+  - Bottom sash casement
+Bottom sash is set back by casement_depth in 3D to simulate real sash overlap.
+```
+
+### Behavior Summary
+
+- Uses existing `casements_per_opening` horizontal panelization (1-6) and applies sash stacking inside each panel.
+- 2D preview draws two stacked casements per panel, with a 20% black shade over the lower sash for depth cue.
+- 3D geometry creates two casements per panel; lower sash uses `frame_wall_inset + casement_depth`.
+- Glaze bars are generated per sash via existing casement glass/bar pipeline (no duplicate bar logic).
+- Backward compatibility is maintained: missing `sliding_sash_window` defaults to `false`.
 
 ---
 
@@ -680,5 +707,5 @@ end
 ---
 
 *Document created: February 3, 2026*
-*Last updated: February 26, 2026 (v0.9.5 - Casements Per Opening: multi-panel support replacing twin casements toggle)*
+*Last updated: March 3, 2026 (v0.9.6 - Sliding Sash Window mode with stacked sashes per panel)*
 *Author: Noble Architecture*

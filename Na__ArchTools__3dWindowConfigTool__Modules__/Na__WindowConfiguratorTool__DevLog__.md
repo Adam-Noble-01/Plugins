@@ -3,6 +3,89 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Version 0.9.7 - 03-Mar-2026 - DXF Sliding Sash Export
+
+### Update 01 - DXF Export Supports Sliding Sash Mode
+- Updated Ruby DXF exporter to match sliding sash geometry behavior.
+- New config support:
+  - `sliding_sash_window` toggle
+  - `sliding_sash_overlap_mm` overlap amount
+- For each opening panel in DXF:
+  - Standard mode exports one casement per panel (existing behavior).
+  - Sliding sash mode exports two stacked sashes per panel.
+  - Bottom sash height is extended by overlap amount to represent weathering tuck-behind detail.
+- Existing casement/glass/glaze bar DXF generation is reused to avoid duplicate logic.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__DxfExporterLogic__.rb`**
+   - Added sliding sash config parsing in `na_generate_entities`
+   - Added branch to export stacked sashes when enabled
+   - Added `na_generate_sliding_sash_panel_dxf` helper
+2. **`Na__WindowConfiguratorTool__Export__Dxf__.js`**
+   - Updated browser fallback exporter to mirror sliding sash panel generation and overlap behavior
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+## Version 0.9.6 - 03-Mar-2026 - Sliding Sash Window Mode
+
+### Feature 01 - Sliding Sash Window Toggle
+- **New Feature:** Added `Sliding Sash Window` toggle in the Options section.
+- **Default:** OFF (`sliding_sash_window: false`) for full backward compatibility.
+- **Purpose:** Add British sliding sash style behavior while preserving existing standard casement workflows.
+
+### 2D Preview Behavior:
+- When enabled, each horizontal panel (`casements_per_opening`) renders as two stacked casements (top + bottom).
+- Lower sash receives a `rgba(0,0,0,0.2)` overlay to indicate visual setback depth.
+- Glaze bars are generated per sash using shared glaze bar helper logic (no duplicate bar implementation).
+
+### 3D Geometry Behavior:
+- GeometryEngine now branches per opening:
+  - Standard path: existing multi-casement generation.
+  - Sliding sash path: two vertically stacked sashes per horizontal panel.
+- Lower sash is inset by one `casement_depth`:
+  - top sash wall inset = `frame_wall_inset`
+  - bottom sash wall inset = `frame_wall_inset + casement_depth`
+- Existing casement/glass/glaze bar builders are reused for both sashes.
+
+### Refactor / Deduplication:
+- Added shared `na_render_opening_panel_geometry` in `GeometryEngine` to unify:
+  - casement frame creation
+  - glass creation
+  - glaze bar creation
+- SVG casement rendering now reuses `na_generateGlazeBarsSvg` helper for both casement and direct-glazed paths.
+
+### Validation Update:
+- Added sliding sash height validation in `Viewport__Validation__.js` so each sash can fit rails + glazing area.
+
+### Update 02 - Sliding Sash Overlap + Softer Preview Shade
+- Added `Sliding Sash Overlap` slider (0-60mm, default 20mm), shown only when `Sliding Sash Window` is enabled.
+- Overlap increases lower sash height so it tucks behind the upper sash, matching common weathering detail.
+- Applied in both:
+  - `Viewport__SvgGenerator__.js` (2D preview sash overlap)
+  - `GeometryEngine__.rb` (3D lower sash height)
+- Reduced lower-sash shading intensity by 50% (`rgba(0,0,0,0.2)` → `rgba(0,0,0,0.1)`).
+
+### Config Schema Change:
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `sliding_sash_window` | boolean | `false` | Enables two stacked sashes per horizontal panel opening |
+| `sliding_sash_overlap_mm` | number | `20` | Extra lower-sash height in sliding mode (0-60mm) |
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`** - Added `sliding_sash_window` toggle
+2. **`Na__WindowConfiguratorTool__Main__.rb`** - Added `sliding_sash_window` to default config JSON
+3. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`** - Added sliding sash opening path and shared panel renderer
+4. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`** - Added stacked sash rendering and lower-sash shading
+5. **`Na__WindowConfiguratorTool__Viewport__Validation__.js`** - Added sliding sash minimum height validation
+6. **`Na__WindowConfiguratorTool__Architecture__.md`** - Updated schema and feature documentation
+
+### Out of Scope (Deferred):
+- DXF export updates for sliding sash mode intentionally deferred to follow-up phase.
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
 ## Version 0.9.5 - 26-Feb-2026 - Casements Per Opening (Multi-Panel)
 
 ### Feature 01 - Casements Per Opening Slider (Replaces Twin Casements Toggle)

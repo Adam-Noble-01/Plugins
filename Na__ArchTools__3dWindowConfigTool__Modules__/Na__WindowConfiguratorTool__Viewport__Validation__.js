@@ -39,6 +39,7 @@ const Na__Viewport__Validation = (function() {
         const frameThickness = config.frame_thickness_mm || 0;
         const casementWidth = config.casement_width_mm || 65;
         const showCasements = config.show_casements !== false;
+        const slidingSashWindow = config.sliding_sash_window === true;
         const casementsPerOpening = Math.max(1, Math.min(6, config.casements_per_opening || 1));
         const numMullions = config.mullions || 0;
         const mullionWidth = config.mullion_width_mm || 40;
@@ -73,9 +74,16 @@ const Na__Viewport__Validation = (function() {
         }
         
         // Check inner height
-        const minInnerHeight = showCasements ? (casTopRail + casBottomRail) + 50 : 50;
+        const minSingleSashHeight = (casTopRail + casBottomRail) + 50;
+        const minInnerHeight = showCasements
+            ? (slidingSashWindow ? (minSingleSashHeight * 2) : minSingleSashHeight)
+            : 50;
         if (innerHeight < minInnerHeight) {
-            errors.push(isFrameless ? 'Window too short for casement' : 'Window too short for frame and casement');
+            if (slidingSashWindow && showCasements) {
+                errors.push(isFrameless ? 'Window too short for sliding sash casements' : 'Window too short for frame and sliding sash casements');
+            } else {
+                errors.push(isFrameless ? 'Window too short for casement' : 'Window too short for frame and casement');
+            }
         }
         
         return {

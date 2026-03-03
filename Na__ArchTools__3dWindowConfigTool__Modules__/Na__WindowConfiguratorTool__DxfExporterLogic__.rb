@@ -247,6 +247,8 @@ module Na__WindowConfiguratorTool
             frame_thickness = config["frame_thickness_mm"] || 50
             casement_width = config["casement_width_mm"] || 65
             show_casements = config["show_casements"] != false
+            sliding_sash_window = config["sliding_sash_window"] == true
+            sliding_sash_overlap = (config["sliding_sash_overlap_mm"] || 20).to_f.clamp(0.0, 60.0)
             casements_per_opening = if config.key?("twin_casements") && !config.key?("casements_per_opening")
                 config["twin_casements"] == true ? 2 : 1
             else
@@ -304,11 +306,19 @@ module Na__WindowConfiguratorTool
                 if show_casements
                     (0...casements_per_opening).each do |p|
                         panel_x = opening_x + (p * panel_width)
-                        entities += na_generate_casement_dxf(
-                            panel_x, opening_y, panel_width, inner_height,
-                            cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
-                            h_bars, v_bars, bar_width
-                        )
+                        if sliding_sash_window
+                            entities += na_generate_sliding_sash_panel_dxf(
+                                panel_x, opening_y, panel_width, inner_height,
+                                cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
+                                h_bars, v_bars, bar_width, sliding_sash_overlap
+                            )
+                        else
+                            entities += na_generate_casement_dxf(
+                                panel_x, opening_y, panel_width, inner_height,
+                                cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
+                                h_bars, v_bars, bar_width
+                            )
+                        end
                     end
                 else
                     (0...casements_per_opening).each do |p|
@@ -376,6 +386,34 @@ module Na__WindowConfiguratorTool
                 end
             end
             
+            dxf
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Generate DXF for Sliding Sash Panel
+        # ------------------------------------------------------------
+        # Draws two stacked casements in one panel.
+        # Bottom sash is extended by overlap amount to represent weathering tuck-under.
+        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm)
+            dxf = ""
+
+            sash_height = height.to_f / 2.0
+            sash_overlap = [[overlap_mm.to_f, sash_height - 1.0].min, 0.0].max
+
+            # Bottom sash (drawn first): extended upward by overlap amount.
+            dxf += na_generate_casement_dxf(
+                x, y, width, sash_height + sash_overlap,
+                top_rail, bottom_rail, left_stile, right_stile,
+                h_bars, v_bars, bar_width
+            )
+
+            # Top sash (drawn second): standard half-height sash.
+            dxf += na_generate_casement_dxf(
+                x, y + sash_height, width, sash_height,
+                top_rail, bottom_rail, left_stile, right_stile,
+                h_bars, v_bars, bar_width
+            )
+
             dxf
         end
         # ---------------------------------------------------------------

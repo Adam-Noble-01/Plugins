@@ -141,6 +141,7 @@ module Na__WindowConfiguratorTool
             "casement_depth_mm": 55,
             "casement_inset_mm": 10,
             "casements_per_opening": 1,
+            "sliding_sash_overlap_mm": 20,
             "mullion_width_mm": 40,
             "mullions": 0,
             "glass_thickness_mm": 20,
@@ -158,6 +159,7 @@ module Na__WindowConfiguratorTool
             "paint_cill": false,
             "show_dimensions": true,
             "show_casements": true,
+            "sliding_sash_window": false,
             "fuse_parts": false
         }
     }

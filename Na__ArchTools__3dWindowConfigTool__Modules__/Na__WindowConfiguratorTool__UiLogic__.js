@@ -122,6 +122,8 @@ const Na_DynamicUI = (function() {
     // FUNCTION | Called When Any Config Value Changes
     // ------------------------------------------------------------
     function na_onConfigChange() {
+        na_updateSlidingSashOverlapVisibility();
+
         // Frameless mode: force cill off and disable toggle when frame thickness is 0
         const isFrameless = _config.frame_thickness_mm === 0;
         const cillToggle = document.getElementById('has_cill-toggle');
@@ -173,6 +175,17 @@ const Na_DynamicUI = (function() {
         if (typeof na_sendLiveUpdate === 'function') {
             na_sendLiveUpdate();
         }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Sliding Sash Overlap Slider Visibility
+    // ------------------------------------------------------------
+    function na_updateSlidingSashOverlapVisibility() {
+        const overlapControl = document.querySelector('[data-control-id="sliding_sash_overlap_mm"]');
+        if (!overlapControl) return;
+
+        const showOverlapControl = _config.sliding_sash_window === true;
+        overlapControl.style.display = showOverlapControl ? '' : 'none';
     }
     // ---------------------------------------------------------------
     
