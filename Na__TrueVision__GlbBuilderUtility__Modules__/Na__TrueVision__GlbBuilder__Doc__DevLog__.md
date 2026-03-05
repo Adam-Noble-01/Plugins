@@ -8,6 +8,16 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 1.9.3 - 05-Mar-2026
+- **Inherited material propagation for mesh export**: `Na__GlbEngine__TraverseEntities` and `Na__GlbEngine__AddFaceToBucket` now carry an optional inherited material so explicit face paint still wins, but unpainted faces can inherit the nearest painted parent group/component material.
+- **Effective face material rule**: Added `Na__GlbEngine__ResolveEffectiveFaceMaterial(face, inherited_material)` with the resolution order `face.material || face.back_material || inherited_material`. This preserves indexed materials such as `MAT101__Glass__ClearDefault` even when geometry is nested inside painted containers.
+- **Door material parity with all other mesh exports**: Door child/direct mesh extraction now passes inherited material through the same geometry traversal path, and door mesh build no longer uses a door-specific material registration branch. Door meshes now resolve material indices through the same shared `Na__MaterialEngine__ResolveMaterialIndexForGroup(..., gltf)` path as flat and instanced mesh exports.
+- **Instancing correctness over deduplication for painted containers**: `Na__Instancing__RecursiveScan` now tracks inherited material during scan. Component instances carrying inherited material are left on the normal flattening path instead of being claimed by shared-mesh instancing, preventing per-instance container materials from being lost in the exported GLB.
+- **Unified indexed material application path**: Flat geometry, doors, and instanced meshes now all flow through the shared MaterialEngine entry point. If an indexed material exists in the library, the same lookup/enrichment rules apply regardless of object type; door/object-specific modules remain responsible only for hierarchy, transforms, and interaction metadata.
+- **Result**: Indexed materials such as `MAT101__Glass__ClearDefault` now preserve their exact material identity more reliably across nesting, door assemblies, and repeated component workflows, while keeping one consistent library-driven PBR material pipeline for all mesh models.
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 1.9.2 - 05-Mar-2026
 - **Recursive ignore for technical 02 linework tags**: Added a global always-excluded tag list for `02__Linetype__DoorSwings` and `02__ClearanceLines`.
 - **Nesting-safe exclusion behavior**: The two tags are now injected into `@excluded_layers` during exclusion scan, so existing recursive checks in mesh, linework, instancing, storey, and door handling paths automatically skip them at any depth.

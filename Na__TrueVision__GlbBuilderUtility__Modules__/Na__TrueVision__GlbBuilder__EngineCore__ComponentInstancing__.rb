@@ -125,28 +125,35 @@ module TrueVision3D
         # @param parent_transform [Geom::Transformation]   Accumulated transform
         # @param definition_map [Hash] Shared collector across recursion
         # ---------------------------------------------------------------
-        def self.Na__Instancing__RecursiveScan(entities, parent_transform, definition_map)
+        def self.Na__Instancing__RecursiveScan(entities, parent_transform, definition_map, inherited_material = nil)
             entities.each do |entity|
                 next if Na__Helpers__EntityExcluded?(entity)
                 next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
                 next if Na__DoorHandler__IsDoorAssembly?(entity)
 
                 accumulated_transform = parent_transform * entity.transformation
+                child_inherited_material = entity.material || inherited_material
 
                 if entity.is_a?(Sketchup::Group)
-                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map)
+                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map, child_inherited_material)
                 else
                     definition = entity.definition
                     is_mirrored = Na__GlbEngine__CalcDeterminant3x3(accumulated_transform) < 0
+                    has_inherited_material = !child_inherited_material.nil?
 
-                    definition_map[definition] ||= { normal: [], mirrored: [] }
-                    partition_key = is_mirrored ? :mirrored : :normal
-                    definition_map[definition][partition_key] << {
-                        entity:                entity,
-                        accumulated_transform: accumulated_transform
-                    }
+                    # Shared-mesh instancing cannot preserve per-instance container materials.
+                    # Keep those instances on the normal flattening path so inherited indexed
+                    # materials (such as MAT101 glass) survive into the exported mesh.
+                    unless has_inherited_material
+                        definition_map[definition] ||= { normal: [], mirrored: [] }
+                        partition_key = is_mirrored ? :mirrored : :normal
+                        definition_map[definition][partition_key] << {
+                            entity:                entity,
+                            accumulated_transform: accumulated_transform
+                        }
+                    end
 
-                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map)
+                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map, child_inherited_material)
                 end
             end
         end
@@ -231,7 +238,7 @@ module TrueVision3D
                 next if bucket[:positions].empty?
 
                 material_index = if respond_to?(:Na__MaterialEngine__ResolveMaterialIndexForGroup)
-                    Na__MaterialEngine__ResolveMaterialIndexForGroup(bucket)
+                    Na__MaterialEngine__ResolveMaterialIndexForGroup(bucket, gltf)
                 else
                     0
                 end

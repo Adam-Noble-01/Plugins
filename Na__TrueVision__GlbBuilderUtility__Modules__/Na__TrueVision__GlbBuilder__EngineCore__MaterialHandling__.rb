@@ -206,13 +206,18 @@ module TrueVision3D
         # ---------------------------------------------------------------
         # Returns the glTF material index for a face group's material.
         # Returns 0 (default whitecard) if the material was not exported
-        # or if no-materials mode is active.
+        # or if no-materials mode is active. When gltf is provided, the
+        # shared material engine will register the material on demand so
+        # all mesh export paths use the same indexed-material rules.
         # ---------------------------------------------------------------
-        def self.Na__MaterialEngine__ResolveMaterialIndexForGroup(group_data)
+        def self.Na__MaterialEngine__ResolveMaterialIndexForGroup(group_data, gltf = nil)
             return 0 if @export_mode == :no_materials                         # <-- All meshes use default
 
             material = group_data[:material]
             return 0 unless material
+            if gltf
+                return self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf)
+            end
             return 0 unless @material_map && @material_map.has_key?(material)
             @material_map[material]
         end

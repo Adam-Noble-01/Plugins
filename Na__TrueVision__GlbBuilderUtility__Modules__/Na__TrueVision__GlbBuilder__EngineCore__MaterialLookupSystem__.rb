@@ -37,7 +37,7 @@ module TrueVision3D
 
         # MODULE CONSTANTS | Materials Library URL and Pattern
         # ------------------------------------------------------------
-        MATERIALS_LIBRARY_URL  = "https://adam-noble-01.github.io/ValeCodebase/WebApps/ValeVision3D/src__AppConfig/Na__AppConfig__MaterialsLibrary.json"
+        MATERIALS_LIBRARY_URL  = "https://adam-noble-01.github.io/WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json"
         INDEXED_MATERIAL_REGEX = /^MAT\d{3}__/                               # <-- Matches MAT + 3 digits + __
         # ------------------------------------------------------------
 
