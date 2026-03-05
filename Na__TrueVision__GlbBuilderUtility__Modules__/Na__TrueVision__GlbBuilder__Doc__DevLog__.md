@@ -8,6 +8,13 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 1.9.2 - 05-Mar-2026
+- **Recursive ignore for technical 02 linework tags**: Added a global always-excluded tag list for `02__Linetype__DoorSwings` and `02__ClearanceLines`.
+- **Nesting-safe exclusion behavior**: The two tags are now injected into `@excluded_layers` during exclusion scan, so existing recursive checks in mesh, linework, instancing, storey, and door handling paths automatically skip them at any depth.
+- **Documentation alignment**: README now explicitly states this nesting exception to avoid ambiguity with top-level tag range segmentation.
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 1.9.1 - 28-Feb-2026
 - **Linework alignment fix for instanced components**: `BuildSharedLinework` now mirrors `BuildSharedMesh` exactly — uses the same `local_root` transform calculation (including mirrored partition handling via `MirroredLocalTransform`) instead of hardcoding `Z_UP_TO_Y_UP_MATRIX`. This ensures instanced component linework and mesh GLBs are extracted in identical coordinate space, fixing a spatial offset where linework was shifted relative to mesh geometry.
 - **Signature change**: `Na__Instancing__BuildSharedLinework` now accepts `is_mirrored` parameter (matching `BuildSharedMesh`).

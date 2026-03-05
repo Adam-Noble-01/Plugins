@@ -66,6 +66,10 @@ module TrueVision3D
         TEXTURE_SCALE_FACTOR        =   0.25                                      # <-- Scale factor for texture downscaling (25%)
         EXCLUDED_LAYER_PATTERN      =   /^TrueVision_.*_DoNotExportGLTF$/         # <-- Regex pattern for excluded layers
         EXCLUDED_LAYER_DESCRIPTION  =   "TrueVision_*_DoNotExportGLTF".freeze     # <-- Human-readable description for excluded layers
+        ALWAYS_EXCLUDED_LAYER_NAMES =   [
+            "02__Linetype__DoorSwings",
+            "02__ClearanceLines"
+        ].freeze                                                                   # <-- Always excluded at any nesting depth
         INCHES_TO_METERS            =   0.0254                                    # <-- Unit conversion factor: inches → meters
         DEFAULT_EXPORT_NAME         =   "SketchUpExport"                          # <-- Default filename for exports
         GLB_FILE_EXTENSION          =   ".glb"                                    # <-- GLB file extension

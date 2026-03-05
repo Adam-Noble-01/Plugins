@@ -147,57 +147,6 @@ module TrueVision3D
 
 
     # -------------------------------------------------------------------------
-    # REGION | Material Registration for Door Geometry
-    # -------------------------------------------------------------------------
-
-        # FUNCTION | Ensure Material is Registered in glTF Structure
-        # ---------------------------------------------------------------
-        # Checks if a bucket's SketchUp material is already registered
-        # in the @material_map. If not, appends a new PBR material entry
-        # to gltf["materials"] and records the index in @material_map.
-        # Returns the material index for use in mesh primitives.
-        #
-        # @param bucket [Hash] Geometry bucket with :material key
-        # @param gltf   [Hash] glTF JSON structure
-        # @return       [Integer] Material index in gltf["materials"]
-        # ---------------------------------------------------------------
-        def self.Na__DoorHandler__EnsureMaterialRegistered(bucket, gltf)
-            material = bucket[:material]
-            return 0 unless material                                          # <-- Default material if nil
-
-            @material_map ||= {}
-            return @material_map[material] if @material_map.key?(material)    # <-- Already registered
-
-            # Register new material
-            material_index = gltf["materials"].length                         # <-- Next available index
-            @material_map[material] = material_index                          # <-- Record mapping
-
-            rgba = if material.respond_to?(:color) && material.color
-                c = material.color
-                [c.red.to_f / 255.0, c.green.to_f / 255.0, c.blue.to_f / 255.0, 1.0]
-            else
-                [0.8, 0.8, 0.8, 1.0]                                         # <-- Fallback grey
-            end
-
-            gltf["materials"] << {
-                "name" => material.display_name,
-                "pbrMetallicRoughness" => {
-                    "baseColorFactor" => rgba,
-                    "metallicFactor"  => 0.0,
-                    "roughnessFactor" => 1.0
-                }
-            }
-
-            puts "          [DoorHandler] Registered new material: #{material.display_name} (index #{material_index})"
-            material_index
-        end
-        # ---------------------------------------------------------------
-
-    # endregion ---------------------------------------------------------------
-
-
-
-    # -------------------------------------------------------------------------
     # REGION | Door Assembly Export Orchestration
     # -------------------------------------------------------------------------
 
@@ -533,8 +482,12 @@ module TrueVision3D
                 mesh_index = gltf["meshes"].length
                 primitives = []
 
-                # Resolve or register material
-                material_index = Na__DoorHandler__EnsureMaterialRegistered(bucket, gltf)
+                # Resolve/register through shared MaterialEngine logic for parity with windows.
+                material_index = if respond_to?(:Na__MaterialEngine__EnsureMaterialRegistered)
+                    Na__MaterialEngine__EnsureMaterialRegistered(bucket[:material], gltf)
+                else
+                    0
+                end
 
                 # --- TRIANGLES primitive (mode 4) ---
                 pos_accessor  = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:positions], 5126, "VEC3", 34962)

@@ -417,7 +417,7 @@ module TrueVision3D
         # PackBucketsToMesh can resolve correct material indices.
         # ---------------------------------------------------------------
         def self.Na__Instancing__RegisterInstancedMaterials(instanced_groups, gltf, _bin_buffer)
-            return unless respond_to?(:Na__MaterialEngine__ResolveMaterialIndexForGroup)
+            return unless respond_to?(:Na__MaterialEngine__EnsureMaterialRegistered)
 
             @material_map ||= {}
             seen_definitions = {}
@@ -431,26 +431,11 @@ module TrueVision3D
                     material = face.material
                     next unless material
                     next if @material_map.key?(material)
-
-                    material_name = material.respond_to?(:display_name) ? material.display_name : ""
-                    rgba = if material.respond_to?(:color) && material.color
-                        c = material.color
-                        [c.red.to_f / 255.0, c.green.to_f / 255.0, c.blue.to_f / 255.0, 1.0]
-                    else
-                        [0.8, 0.8, 0.8, 1.0]
+                    material_name  = material.respond_to?(:display_name) ? material.display_name : ""
+                    material_index = Na__MaterialEngine__EnsureMaterialRegistered(material, gltf)
+                    if material_index > 0 && @material_map.key?(material)
+                        puts "      [Instancing] Registered new material: #{material_name} (index #{material_index})"
                     end
-
-                    material_index = gltf["materials"].length
-                    gltf["materials"] << {
-                        "name" => material_name,
-                        "pbrMetallicRoughness" => {
-                            "baseColorFactor" => rgba,
-                            "metallicFactor"  => 0.0,
-                            "roughnessFactor" => 1.0
-                        }
-                    }
-                    @material_map[material] = material_index
-                    puts "      [Instancing] Registered new material: #{material_name} (index #{material_index})"
                 end
             end
         end

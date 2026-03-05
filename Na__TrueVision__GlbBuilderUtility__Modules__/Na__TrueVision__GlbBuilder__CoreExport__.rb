@@ -380,7 +380,7 @@ module TrueVision3D
             @excluded_layers = []                                                  # Reset excluded layers array
             
             model.layers.each do |layer|
-                if layer.name =~ EXCLUDED_LAYER_PATTERN                           # Check against pattern
+                if layer.name =~ EXCLUDED_LAYER_PATTERN || ALWAYS_EXCLUDED_LAYER_NAMES.include?(layer.name)
                     @excluded_layers << layer.name                                 # Add to excluded list
                 end
             end

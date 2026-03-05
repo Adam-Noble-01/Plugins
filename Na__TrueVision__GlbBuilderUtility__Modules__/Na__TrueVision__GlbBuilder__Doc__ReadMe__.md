@@ -22,6 +22,7 @@
 **What If Items Are Nested? Then What?**
 - The below Tag Range Definitions apply ONLY to the top nesting level of each group / component / entity in the SketchUp model.
   - Children of the group / component / entity even if on a different layer series are still exported as part of the parent group / component / entity.
+- Exception: entities on tags `02__Linetype__DoorSwings` and `02__ClearanceLines` are always excluded at any nesting depth.
 
 #### Tag Range Definitions for Segmentation
 `NameSpace: NaModel__`                       *Prefix / Number Range:*   Description:

@@ -79,6 +79,66 @@ module TrueVision3D
     # REGION | Material Processing
     # -----------------------------------------------------------------------------
 
+        # FUNCTION | Ensure Single Material Is Registered for Export
+        # ---------------------------------------------------------------
+        # Registers a SketchUp material into gltf["materials"] according
+        # to the current export mode, reusing @material_map if already
+        # registered. Applies MaterialLookup enrichment for indexed
+        # materials when lookup data is available.
+        #
+        # @param material [Sketchup::Material|nil]
+        # @param gltf     [Hash] glTF JSON structure
+        # @return         [Integer] glTF material index (0 = default fallback)
+        # ---------------------------------------------------------------
+        def self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf)
+            return 0 if @export_mode == :no_materials
+            return 0 unless material
+
+            @material_map ||= {}
+            return @material_map[material] if @material_map.key?(material)
+
+            material_name = material.respond_to?(:display_name) ? material.display_name : ""
+            is_indexed    = self.Na__MaterialLookup__IsIndexedMaterial?(material_name)
+
+            # Indexed-only mode excludes non-indexed materials.
+            return 0 if @export_mode == :indexed_only && !is_indexed
+
+            rgba = if material.respond_to?(:color) && material.color
+                c = material.color
+                [c.red.to_f / 255.0, c.green.to_f / 255.0, c.blue.to_f / 255.0, 1.0]
+            else
+                [0.8, 0.8, 0.8, 1.0]
+            end
+
+            gltf_material = {
+                "name" => material_name,
+                "pbrMetallicRoughness" => {
+                    "baseColorFactor" => rgba,
+                    "metallicFactor"  => 0.0,
+                    "roughnessFactor" => 1.0
+                }
+            }
+
+            # Enrich indexed materials with PBR metadata when lookup is available.
+            if is_indexed && (@export_mode == :indexed_only || @export_mode == :all_materials)
+                library_data = self.Na__MaterialLookup__FetchLibrary
+                if library_data
+                    self.Na__MaterialLookup__BuildIndex
+                    config = self.Na__MaterialLookup__GetConfig(material_name)
+                    if config
+                        self.Na__MaterialLookup__EnrichGltfMaterial(gltf_material, config)
+                        puts "    [MaterialEngine] Enriched: #{material_name}"
+                    end
+                end
+            end
+
+            material_index = gltf["materials"].length
+            gltf["materials"] << gltf_material
+            @material_map[material] = material_index
+            material_index
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Prepare Materials for GLB Export
         # ---------------------------------------------------------------
         # Builds the glTF materials array based on the current export
@@ -117,60 +177,20 @@ module TrueVision3D
             end
 
             # BUILD LOOKUP INDEX (fetch library if not already cached)
-            lookup_available = false
             if @export_mode == :indexed_only || @export_mode == :all_materials
                 library_data = self.Na__MaterialLookup__FetchLibrary
                 if library_data
                     self.Na__MaterialLookup__BuildIndex
-                    lookup_available = true
                 end
             end
 
             # PROCESS EACH UNIQUE MATERIAL
-            material_index = 0
             unique_materials.each do |material|
-                material_name = material.respond_to?(:display_name) ? material.display_name : ""
-                is_indexed    = self.Na__MaterialLookup__IsIndexedMaterial?(material_name)
-
-                # INDEXED-ONLY MODE: skip non-indexed materials
-                if @export_mode == :indexed_only && !is_indexed
-                    next
-                end
-
-                material_index += 1
-                @material_map[material] = material_index
-
-                # EXTRACT BASE COLOUR FROM SKETCHUP MATERIAL
-                rgba = if material.respond_to?(:color) && material.color
-                    c = material.color
-                    [c.red.to_f / 255.0, c.green.to_f / 255.0, c.blue.to_f / 255.0, 1.0]
-                else
-                    [0.8, 0.8, 0.8, 1.0]
-                end
-
-                gltf_material = {
-                    "name" => material_name,
-                    "pbrMetallicRoughness" => {
-                        "baseColorFactor" => rgba,
-                        "metallicFactor"  => 0.0,
-                        "roughnessFactor" => 1.0
-                    }
-                }
-
-                # ENRICH WITH PBR VALUES FROM LIBRARY (if indexed and lookup available)
-                if is_indexed && lookup_available
-                    config = self.Na__MaterialLookup__GetConfig(material_name)
-                    if config
-                        self.Na__MaterialLookup__EnrichGltfMaterial(gltf_material, config)
-                        puts "    [MaterialEngine] Enriched: #{material_name}"
-                    end
-                end
-
-                gltf["materials"] << gltf_material
+                self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf)
             end
 
             mode_label = (@export_mode == :indexed_only) ? "indexed-only" : "all-materials"
-            puts "    [MaterialEngine] #{mode_label} mode: #{material_index} material(s) exported"
+            puts "    [MaterialEngine] #{mode_label} mode: #{@material_map.length} material(s) exported"
             true
         end
         # ---------------------------------------------------------------
