@@ -3,6 +3,38 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Version 0.9.9 - 04-Mar-2026 - Height Limit Increase
+
+### Update 01 - Increase Window Height Slider Max to 2600mm
+- Increased `height_mm` slider maximum from `2500mm` to `2600mm`.
+- Purpose: allow taller door/window configurations without manual config editing.
+- Existing default remains unchanged (`1200mm`) for backward compatibility.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`**
+   - Updated `height_mm` slider `max` from `2500` to `2600`.
+2. **`Na__WindowConfiguratorTool__Architecture__.md`**
+   - Updated schema note and document "Last updated" footer for the new height range.
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+## Version 0.9.8 - 04-Mar-2026 - Bottom Rail Limit Increase
+
+### Update 01 - Increase Bottom Rail Slider Max to 500mm
+- Increased `casement_bottom_rail_mm` slider maximum from `350mm` to `500mm` in the Individual Casement Sizes panel.
+- Purpose: allow oversized bottom rail configurations (e.g., door-style casements) beyond previous UI cap.
+- Existing defaults remain unchanged (`65mm`) for backward compatibility.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`**
+   - Updated `casement_bottom_rail_mm` slider `max` from `350` to `500`.
+2. **`Na__WindowConfiguratorTool__Architecture__.md`**
+   - Updated schema note and document "Last updated" footer for the new limit.
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
 ## Version 0.9.7 - 03-Mar-2026 - DXF Sliding Sash Export
 
 ### Update 01 - DXF Export Supports Sliding Sash Mode

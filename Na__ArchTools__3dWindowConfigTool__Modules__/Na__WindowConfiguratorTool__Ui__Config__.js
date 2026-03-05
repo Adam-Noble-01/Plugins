@@ -43,7 +43,7 @@ const NA_UI_CONFIG = [
         unit    :  'mm',
         type    :  'slider',
         min     :  300,
-        max     :  2500,
+        max     :  2600,
         step    :  10,
         default :  1200
     },
@@ -89,7 +89,7 @@ const NA_UI_CONFIG = [
                 unit    :  'mm',
                 type    :  'slider',
                 min     :  20,
-                max     :  350,
+                max     :  500,
                 step    :  5,
                 default :  65
             },

@@ -327,14 +327,14 @@ windowMetadata: [{
 windowConfiguration: {
     // Primary Dimensions
     width_mm: 900,              // Overall window width
-    height_mm: 1200,            // Overall window height
+    height_mm: 1200,            // Overall window height (300-2600mm in UI)
     frame_thickness_mm: 50,     // Outer frame member thickness (0 = frameless mode: no outer frame)
     
     // Casement
     casement_width_mm: 65,      // Default casement profile width (all sides)
     casement_sizes_individual: false, // Toggle for individual sizing
     casement_top_rail_mm: 65,   // Top rail width (when individual)
-    casement_bottom_rail_mm: 65,// Bottom rail width (when individual)
+    casement_bottom_rail_mm: 65,// Bottom rail width (when individual, 20-500mm in UI)
     casement_left_stile_mm: 65, // Left stile width (when individual)
     casement_right_stile_mm: 65,// Right stile width (when individual)
     casement_depth_mm: 55,      // Casement profile depth (Y direction, 40-100mm)
@@ -707,5 +707,5 @@ end
 ---
 
 *Document created: February 3, 2026*
-*Last updated: March 3, 2026 (v0.9.6 - Sliding Sash Window mode with stacked sashes per panel)*
+*Last updated: March 4, 2026 (v0.9.9 - Height slider max increased to 2600mm)*
 *Author: Noble Architecture*
