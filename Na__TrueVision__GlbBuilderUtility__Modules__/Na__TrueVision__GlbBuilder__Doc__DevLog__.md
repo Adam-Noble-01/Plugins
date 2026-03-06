@@ -8,6 +8,17 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 1.9.4 - 06-Mar-2026
+- **Face-front-only mesh material resolution**: Replaced inherited/container-based mesh material fallback with a single authoritative rule in `Na__GlbEngine__ResolveEffectiveFaceMaterial(face)`. Mesh export now reads only `face.material`; `face.back_material`, group materials, and component materials are ignored for mesh material assignment.
+- **Definitive lowest-level geometry behavior**: Nested geometry now uses the material painted directly on the lowest-level face as the source of truth. If a face has no front material, the exporter falls back to the default GLB material instead of inheriting glass or any other material from parent containers.
+- **Depth limit applied to real export traversal**: Raised `MAX_NESTING_DEPTH` from `4` to `6` and enforced it in the actual mesh traversal, linework traversal, and instancing scan paths. Validation/counting already used the shared constant, so exporter behavior and validation behavior are now aligned.
+- **Door mesh path aligned with core material policy**: Door child/direct mesh extraction no longer seeds container-applied material inheritance. Door meshes now obey the same face-front-only material rule as the main flat export path.
+- **Instancing logic simplified for the new rule**: Removed special-case logic that avoided instancing for components carrying inherited container material. Instancing now follows the same face-driven material semantics as all other mesh export paths.
+- **Duplicate mesh primitive code reduced**: Added shared helper `Na__GlbEngine__BuildTrianglePrimitive(...)` and reused it from the main mesh builder, instanced mesh builder, and door mesh builder so material index resolution and triangle primitive packing happen through one common path.
+- **Result**: Incorrect glass assignment caused by painted groups/components is eliminated for mesh GLB export, deeply nested face materials remain authoritative up to 6 levels, and the mesh material pipeline is now more centralized and predictable.
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 1.9.3 - 05-Mar-2026
 - **Inherited material propagation for mesh export**: `Na__GlbEngine__TraverseEntities` and `Na__GlbEngine__AddFaceToBucket` now carry an optional inherited material so explicit face paint still wins, but unpainted faces can inherit the nearest painted parent group/component material.
 - **Effective face material rule**: Added `Na__GlbEngine__ResolveEffectiveFaceMaterial(face, inherited_material)` with the resolution order `face.material || face.back_material || inherited_material`. This preserves indexed materials such as `MAT101__Glass__ClearDefault` even when geometry is nested inside painted containers.

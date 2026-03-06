@@ -84,7 +84,7 @@ module TrueVision3D
         def self.Na__Instancing__ScanForInstancedDefinitions(entities, root_transform)
             definition_map = {}                                               # <-- { ComponentDefinition => { normal: [], mirrored: [] } }
 
-            Na__Instancing__RecursiveScan(entities, root_transform, definition_map)
+            Na__Instancing__RecursiveScan(entities, root_transform, definition_map, 1)
 
             instanced_groups = []
             skip_set = {}
@@ -124,36 +124,32 @@ module TrueVision3D
         # @param entities       [Sketchup::Entities|Array] Entities to scan
         # @param parent_transform [Geom::Transformation]   Accumulated transform
         # @param definition_map [Hash] Shared collector across recursion
+        # @param depth          [Integer] Current container nesting depth
         # ---------------------------------------------------------------
-        def self.Na__Instancing__RecursiveScan(entities, parent_transform, definition_map, inherited_material = nil)
+        def self.Na__Instancing__RecursiveScan(entities, parent_transform, definition_map, depth = 0)
+            return if depth > MAX_NESTING_DEPTH
+
             entities.each do |entity|
                 next if Na__Helpers__EntityExcluded?(entity)
                 next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
                 next if Na__DoorHandler__IsDoorAssembly?(entity)
 
                 accumulated_transform = parent_transform * entity.transformation
-                child_inherited_material = entity.material || inherited_material
 
                 if entity.is_a?(Sketchup::Group)
-                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map, child_inherited_material)
+                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map, depth + 1)
                 else
                     definition = entity.definition
                     is_mirrored = Na__GlbEngine__CalcDeterminant3x3(accumulated_transform) < 0
-                    has_inherited_material = !child_inherited_material.nil?
 
-                    # Shared-mesh instancing cannot preserve per-instance container materials.
-                    # Keep those instances on the normal flattening path so inherited indexed
-                    # materials (such as MAT101 glass) survive into the exported mesh.
-                    unless has_inherited_material
-                        definition_map[definition] ||= { normal: [], mirrored: [] }
-                        partition_key = is_mirrored ? :mirrored : :normal
-                        definition_map[definition][partition_key] << {
-                            entity:                entity,
-                            accumulated_transform: accumulated_transform
-                        }
-                    end
+                    definition_map[definition] ||= { normal: [], mirrored: [] }
+                    partition_key = is_mirrored ? :mirrored : :normal
+                    definition_map[definition][partition_key] << {
+                        entity:                entity,
+                        accumulated_transform: accumulated_transform
+                    }
 
-                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map, child_inherited_material)
+                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map, depth + 1)
                 end
             end
         end
@@ -190,7 +186,10 @@ module TrueVision3D
                 definition.entities,
                 local_root,
                 definition.entities.parent.respond_to?(:layer) ? definition.entities.parent.layer : Sketchup.active_model.layers["Layer0"],
-                local_buckets
+                local_buckets,
+                nil,
+                nil,
+                1
             )
 
             mesh_index = Na__Instancing__PackBucketsToMesh(
@@ -235,32 +234,8 @@ module TrueVision3D
             mirror_label = is_mirrored ? "_Mirrored" : ""
 
             buckets.each do |bucket_key, bucket|
-                next if bucket[:positions].empty?
-
-                material_index = if respond_to?(:Na__MaterialEngine__ResolveMaterialIndexForGroup)
-                    Na__MaterialEngine__ResolveMaterialIndexForGroup(bucket, gltf)
-                else
-                    0
-                end
-
-                pos_accessor  = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:positions], 5126, "VEC3", 34962)
-                norm_accessor = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:normals],   5126, "VEC3", 34962)
-                uv_accessor   = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:uvs],       5126, "VEC2", 34962)
-
-                max_index = bucket[:indices].max || 0
-                idx_type  = (max_index < 65535) ? 5123 : 5125
-                idx_accessor = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:indices], idx_type, "SCALAR", 34963)
-
-                primitives << {
-                    "attributes" => {
-                        "POSITION"   => pos_accessor,
-                        "NORMAL"     => norm_accessor,
-                        "TEXCOORD_0" => uv_accessor
-                    },
-                    "indices"  => idx_accessor,
-                    "material" => material_index,
-                    "mode"     => 4
-                }
+                triangle_primitive = Na__GlbEngine__BuildTrianglePrimitive(bucket, gltf, bin_buffer)
+                primitives << triangle_primitive if triangle_primitive
             end
 
             return nil if primitives.empty?
@@ -312,7 +287,10 @@ module TrueVision3D
                 local_root,
                 definition.entities.parent.respond_to?(:layer) ? definition.entities.parent.layer : Sketchup.active_model.layers["Layer0"],
                 positions,
-                colors
+                colors,
+                nil,
+                nil,
+                1
             )
 
             return nil if positions.empty?
