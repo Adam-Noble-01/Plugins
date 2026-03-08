@@ -44,11 +44,8 @@ module TrueVision3D
         # @param positions        [Array<Float>]            Flat [x,y,z, x,y,z, ...] output
         # @param colors          [Array<Float>]            Flat [r,g,b,a, r,g,b,a, ...] output
         # @param door_assemblies  [Array|nil]               Collected door records (nil = disabled)
-        # @param depth            [Integer]                 Current container nesting depth
         # ---------------------------------------------------------------
-        def self.Na__LineworkEngine__TraverseEdges(entities, parent_transform, parent_layer, positions, colors, door_assemblies = nil, instanced_skip_set = nil, depth = 0)
-            return if depth > MAX_NESTING_DEPTH
-
+        def self.Na__LineworkEngine__TraverseEdges(entities, parent_transform, parent_layer, positions, colors, door_assemblies = nil, instanced_skip_set = nil)
             entities.each do |entity|
                 next if Na__Helpers__EntityExcluded?(entity)
 
@@ -98,7 +95,7 @@ module TrueVision3D
                         next                                                  # <-- Skip normal flattening for this subtree
                     end
 
-                    Na__LineworkEngine__TraverseEdges(entity.definition.entities, child_transform, child_layer, positions, colors, door_assemblies, instanced_skip_set, depth + 1)
+                    Na__LineworkEngine__TraverseEdges(entity.definition.entities, child_transform, child_layer, positions, colors, door_assemblies, instanced_skip_set)
                 end
             end
         end
@@ -219,8 +216,7 @@ module TrueVision3D
                             positions,
                             colors,
                             door_assemblies,                                  # <-- Pass door collector for nested ADR detection
-                            instanced_skip_set,                               # <-- Skip nested instanced components
-                            1                                                 # <-- Top-level export container depth
+                            instanced_skip_set                                # <-- Skip nested instanced components
                         )
 
                     elsif entity.is_a?(Sketchup::Edge)

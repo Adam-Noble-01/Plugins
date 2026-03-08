@@ -115,7 +115,7 @@ module TrueVision3D
             "TrueVision__SceneContextual"                   => (60..70)               # <-- Scene Context (people, vehicles)
         }
         SKIP_RANGES             =   [0, 2, 3, 4, 5, 6]                            # <-- Ignored tags - DO NOT EXPORT (tag 01 is now exported as OrbitHelperCube)
-        MAX_NESTING_DEPTH       =   6                                             # <-- Maximum nesting depth for export, linework, instancing, and validation
+        MAX_NESTING_DEPTH       =   4                                             # <-- Maximum nesting depth for validation (4 to support storey container nesting)
         
         # ------------------------------------------------------------
     

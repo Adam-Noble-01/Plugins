@@ -92,8 +92,7 @@ module TrueVision3D
                             entity_layer,
                             buckets,
                             door_assemblies,                                  # <-- Pass door collector for nested ADR detection
-                            instanced_skip_set,                               # <-- Skip nested instanced components
-                            1                                                 # <-- Top-level export container depth
+                            instanced_skip_set                                # <-- Skip nested instanced components
                         )
 
                     elsif entity.is_a?(Sketchup::Face)

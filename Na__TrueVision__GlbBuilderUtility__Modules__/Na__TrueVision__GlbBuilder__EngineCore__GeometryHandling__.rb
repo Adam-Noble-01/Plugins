@@ -81,11 +81,9 @@ module TrueVision3D
         # @param parent_layer     [Sketchup::Layer]         Inherited layer context
         # @param buckets          [Hash]                    BucketManager geometry store
         # @param door_assemblies  [Array|nil]               Collected door records (nil = disabled)
-        # @param depth            [Integer]                 Current container nesting depth
+        # @param inherited_material [Sketchup::Material|nil] Effective parent/container material
         # ---------------------------------------------------------------
-        def self.Na__GlbEngine__TraverseEntities(entities, parent_transform, parent_layer, buckets, door_assemblies = nil, instanced_skip_set = nil, depth = 0)
-            return if depth > MAX_NESTING_DEPTH
-
+        def self.Na__GlbEngine__TraverseEntities(entities, parent_transform, parent_layer, buckets, door_assemblies = nil, instanced_skip_set = nil, inherited_material = nil)
             # Pre-compute mirror state and normal matrix once for this transform level.
             # All faces/edges at this level share the same accumulated transform.
             is_mirrored   = Na__GlbEngine__CalcDeterminant3x3(parent_transform) < 0
@@ -97,7 +95,7 @@ module TrueVision3D
                 if entity.is_a?(Sketchup::Face)
                     # Layer inheritance: Layer0 entities inherit the parent container's layer
                     layer_name = (entity.layer.name == "Layer0") ? parent_layer.name : entity.layer.name
-                    Na__GlbEngine__AddFaceToBucket(entity, parent_transform, normal_matrix, is_mirrored, layer_name, buckets)
+                    Na__GlbEngine__AddFaceToBucket(entity, parent_transform, normal_matrix, is_mirrored, layer_name, buckets, inherited_material)
 
                 elsif entity.is_a?(Sketchup::Edge) && MESH_MODEL_INCLUDE_EDGES
                     # Only export hard edges (not soft, not smooth) as LINES primitives when enabled
@@ -113,6 +111,7 @@ module TrueVision3D
                     child_transform = parent_transform * entity.transformation
                     # Layer inheritance: Layer0 containers inherit parent layer
                     child_layer = (entity.layer.name == "Layer0") ? parent_layer : entity.layer
+                    child_inherited_material = entity.material || inherited_material
 
                     # Door assembly detection: divert ADR-prefixed entities
                     if door_assemblies && Na__DoorHandler__IsDoorAssembly?(entity)
@@ -125,7 +124,7 @@ module TrueVision3D
                     end
 
                     # Recurse into the definition's entities (normal flattening path)
-                    Na__GlbEngine__TraverseEntities(entity.definition.entities, child_transform, child_layer, buckets, door_assemblies, instanced_skip_set, depth + 1)
+                    Na__GlbEngine__TraverseEntities(entity.definition.entities, child_transform, child_layer, buckets, door_assemblies, instanced_skip_set, child_inherited_material)
                 end
             end
         end
@@ -253,15 +252,16 @@ module TrueVision3D
 
         # FUNCTION | Resolve Effective Face Material
         # ---------------------------------------------------------------
-        # Uses only the face's explicit front material. Container-applied
-        # materials and back-face materials are intentionally ignored so the
-        # lowest-level visible face geometry is the single source of truth.
+        # Prefers the face's explicit front/back material assignment, then
+        # falls back to the inherited material from the nearest painted
+        # parent group/component container.
         #
-        # @param face [Sketchup::Face]
-        # @return     [Sketchup::Material|nil]
+        # @param face               [Sketchup::Face]
+        # @param inherited_material [Sketchup::Material|nil]
+        # @return                   [Sketchup::Material|nil]
         # ---------------------------------------------------------------
-        def self.Na__GlbEngine__ResolveEffectiveFaceMaterial(face)
-            face.material
+        def self.Na__GlbEngine__ResolveEffectiveFaceMaterial(face, inherited_material = nil)
+            face.material || face.back_material || inherited_material
         end
         # ---------------------------------------------------------------
 
@@ -279,9 +279,10 @@ module TrueVision3D
         # @param is_mirrored    [Boolean]               true if det(M) < 0
         # @param layer_name     [String]                Resolved layer name
         # @param buckets        [Hash]                  BucketManager store
+        # @param inherited_material [Sketchup::Material|nil] Effective parent/container material
         # ---------------------------------------------------------------
-        def self.Na__GlbEngine__AddFaceToBucket(face, transform, normal_matrix, is_mirrored, layer_name, buckets)
-            material = Na__GlbEngine__ResolveEffectiveFaceMaterial(face)
+        def self.Na__GlbEngine__AddFaceToBucket(face, transform, normal_matrix, is_mirrored, layer_name, buckets, inherited_material = nil)
+            material = Na__GlbEngine__ResolveEffectiveFaceMaterial(face, inherited_material)
             material_name = material ? material.display_name : "Default"
             bucket_key = "#{layer_name}::#{material_name}"
             bucket = Na__GlbEngine__GetOrCreateBucket(buckets, bucket_key, material)
@@ -582,10 +583,36 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__GlbEngine__BuildMeshPrimitive(bucket_key, bucket, gltf, bin_buffer)
             mesh_index = gltf["meshes"].length
-            triangle_primitive = Na__GlbEngine__BuildTrianglePrimitive(bucket, gltf, bin_buffer)
-            return unless triangle_primitive
+            primitives = []
 
-            primitives = [triangle_primitive]
+            # Resolve material index from MaterialHandling module
+            material_index = if respond_to?(:Na__MaterialEngine__ResolveMaterialIndexForGroup)
+                Na__MaterialEngine__ResolveMaterialIndexForGroup(bucket, gltf)
+            else
+                0
+            end
+
+            # --- TRIANGLES primitive (mode 4) ---
+            pos_accessor  = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:positions], 5126, "VEC3", 34962)
+            norm_accessor = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:normals],   5126, "VEC3", 34962)
+            uv_accessor   = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:uvs],       5126, "VEC2", 34962)
+
+            # Index type: UNSIGNED_SHORT (5123) if < 65535 vertices, else UNSIGNED_INT (5125)
+            max_index = bucket[:indices].max || 0
+            idx_type  = (max_index < 65535) ? 5123 : 5125
+            idx_accessor = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:indices], idx_type, "SCALAR", 34963)
+
+            tri_primitive = {
+                "attributes" => {
+                    "POSITION"   => pos_accessor,
+                    "NORMAL"     => norm_accessor,
+                    "TEXCOORD_0" => uv_accessor
+                },
+                "indices"  => idx_accessor,
+                "material" => material_index,
+                "mode"     => 4                 # TRIANGLES
+            }
+            primitives << tri_primitive
 
             # --- LINES primitive (mode 1) for hard edges (when MESH_MODEL_INCLUDE_EDGES is true) ---
             if MESH_MODEL_INCLUDE_EDGES && bucket[:edge_positions] && !bucket[:edge_positions].empty?
@@ -617,41 +644,6 @@ module TrueVision3D
                 "extras" => { "generator" => "TrueVision3D_VirtualFlattening" }
             }
             gltf["scenes"][0]["nodes"] << node_index
-        end
-        # ---------------------------------------------------------------
-
-        # HELPER | Build a TRIANGLES Primitive for a Bucket
-        # ---------------------------------------------------------------
-        # Centralizes mesh primitive packing so the main exporter, instancing,
-        # and door export paths all resolve material indices the same way.
-        # ---------------------------------------------------------------
-        def self.Na__GlbEngine__BuildTrianglePrimitive(bucket, gltf, bin_buffer)
-            return nil if bucket[:positions].empty?
-
-            material_index = if respond_to?(:Na__MaterialEngine__ResolveMaterialIndexForGroup)
-                Na__MaterialEngine__ResolveMaterialIndexForGroup(bucket, gltf)
-            else
-                0
-            end
-
-            pos_accessor  = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:positions], 5126, "VEC3", 34962)
-            norm_accessor = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:normals],   5126, "VEC3", 34962)
-            uv_accessor   = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:uvs],       5126, "VEC2", 34962)
-
-            max_index = bucket[:indices].max || 0
-            idx_type  = (max_index < 65535) ? 5123 : 5125
-            idx_accessor = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:indices], idx_type, "SCALAR", 34963)
-
-            {
-                "attributes" => {
-                    "POSITION"   => pos_accessor,
-                    "NORMAL"     => norm_accessor,
-                    "TEXCOORD_0" => uv_accessor
-                },
-                "indices"  => idx_accessor,
-                "material" => material_index,
-                "mode"     => 4
-            }
         end
         # ---------------------------------------------------------------
 

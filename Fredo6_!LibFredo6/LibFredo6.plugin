@@ -1,10 +1,10 @@
 # Plugin Registration
 # Reserved to the Plugin Developer
-# Copyright © 2008-2025 Fredo6 - Designed and written by Fredo6
+# Copyright © 2008-2026 Fredo6 - Designed and written by Fredo6
 
-VERSION = 15.5a
-DATE = 08 Oct 25
-COPYRIGHT = © 2008-2025
+VERSION = 15.8e
+DATE = 15 Feb 26
+COPYRIGHT = © 2008-2026
 SKETCHUP_VERSION = 17
 
 CREDITS = Edson and Regis: for helping me adapting web dialogs to Mac platform
@@ -34,4 +34,4 @@ WEB_SUPPORT_LINK = https://sketchucation.com/plugin/903-libfredo6
 UPD_WEBSITE = Sketchucation Forum
 ##UPD_URL = https://sketchucation.com/forums/viewtopic.php?f=180&t=3263
 UPD_URL = https://community.sketchucation.com/topic/99246/checkforupdate-for-script-publishing
-MENUCODES = 670,1049,902,874,1058
+MENUCODES = 1232,1262,664,1220,750

@@ -8,14 +8,13 @@
 ## Version History
 
 # ---------------------------------------------------------
-### GLB Builder Utility - Version 1.9.4 - 06-Mar-2026
-- **Face-front-only mesh material resolution**: Replaced inherited/container-based mesh material fallback with a single authoritative rule in `Na__GlbEngine__ResolveEffectiveFaceMaterial(face)`. Mesh export now reads only `face.material`; `face.back_material`, group materials, and component materials are ignored for mesh material assignment.
-- **Definitive lowest-level geometry behavior**: Nested geometry now uses the material painted directly on the lowest-level face as the source of truth. If a face has no front material, the exporter falls back to the default GLB material instead of inheriting glass or any other material from parent containers.
-- **Depth limit applied to real export traversal**: Raised `MAX_NESTING_DEPTH` from `4` to `6` and enforced it in the actual mesh traversal, linework traversal, and instancing scan paths. Validation/counting already used the shared constant, so exporter behavior and validation behavior are now aligned.
-- **Door mesh path aligned with core material policy**: Door child/direct mesh extraction no longer seeds container-applied material inheritance. Door meshes now obey the same face-front-only material rule as the main flat export path.
-- **Instancing logic simplified for the new rule**: Removed special-case logic that avoided instancing for components carrying inherited container material. Instancing now follows the same face-driven material semantics as all other mesh export paths.
-- **Duplicate mesh primitive code reduced**: Added shared helper `Na__GlbEngine__BuildTrianglePrimitive(...)` and reused it from the main mesh builder, instanced mesh builder, and door mesh builder so material index resolution and triangle primitive packing happen through one common path.
-- **Result**: Incorrect glass assignment caused by painted groups/components is eliminated for mesh GLB export, deeply nested face materials remain authoritative up to 6 levels, and the mesh material pipeline is now more centralized and predictable.
+### TrueVision3D App - Door Animation v1.2.0 - 06-Mar-2026
+- **Negative rotation degree support**: MOD object names now accept a leading `-` on the degree value (e.g. `MOD001__ROT__-90-Deg__DoorPanel`). This reverses the swing direction, allowing left-hand and right-hand doors to be modelled correctly without mirroring the hinge geometry.
+- **No plugin changes required**: The GLB Builder already exports MOD node names verbatim; a name such as `MOD001__ROT__-90-Deg__DoorPanel` is written into the GLB unchanged and is valid in SketchUp.
+- **App changes** (`3dObjectIInteraction__Animation__ClickToOpenDoors__.js`):
+  - Regex updated: `/(\d+)-Deg/i` → `/(-?\d+)-Deg/i` to capture the optional minus sign.
+  - Validation guard updated: `degrees > 0` → `degrees !== 0` to permit negative values while still rejecting zero.
+  - Downstream animation logic (`ApplyPivotRotation`) was already sign-agnostic — a negative `angleRad` passed to `THREE.Quaternion.setFromAxisAngle` naturally rotates in the opposite direction with no further changes needed.
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------

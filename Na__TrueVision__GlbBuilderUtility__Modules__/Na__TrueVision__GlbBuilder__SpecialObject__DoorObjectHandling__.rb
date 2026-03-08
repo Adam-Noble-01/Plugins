@@ -312,11 +312,12 @@ module TrueVision3D
         def self.Na__DoorHandler__ExtractChildGeometry(child_entity, parent_node_index, gltf, bin_buffer)
             # Create isolated bucket store for this child's geometry
             local_buckets = Na__GlbEngine__CreateBuckets()
+            inherited_material = child_entity.material
 
             # Traverse child entities with Z_UP_TO_Y_UP as root transform.
             # This produces vertices in Y-up local space, in meters.
-            # Mesh material resolution stays face-front-only here as well:
-            # no door-local container material inheritance is passed through.
+            # The 5th argument (door_assemblies) is omitted → defaults to nil,
+            # so no further door detection occurs inside the child subtree.
             Na__GlbEngine__TraverseEntities(
                 child_entity.definition.entities,                             # <-- Child's entities
                 Z_UP_TO_Y_UP_MATRIX,                                          # <-- Root: Y-up conversion
@@ -324,7 +325,7 @@ module TrueVision3D
                 local_buckets,                                                # <-- Isolated bucket store
                 nil,                                                          # <-- No door detection inside a door child subtree
                 nil,                                                          # <-- No instancing skip set for local extraction
-                1                                                             # <-- Child entity is depth level 1 for local traversal
+                inherited_material                                            # <-- Preserve child-applied material inheritance
             )
 
             # Build mesh primitives from local buckets and attach to parent node
@@ -350,17 +351,14 @@ module TrueVision3D
 
             # Traverse child entities with Z_UP_TO_Y_UP as root transform.
             # This produces edge endpoints in Y-up local space, in meters.
-            # Door detection and instancing skips remain disabled for this
-            # local extraction, while depth limits still match the main path.
+            # The 6th argument (door_assemblies) is omitted → defaults to nil,
+            # so no further door detection occurs inside the child subtree.
             Na__LineworkEngine__TraverseEdges(
                 child_entity.definition.entities,                             # <-- Child's entities
                 Z_UP_TO_Y_UP_MATRIX,                                          # <-- Root: Y-up conversion
                 child_entity.layer,                                           # <-- Layer context
                 positions,                                                    # <-- Edge positions array
-                colors,                                                       # <-- Edge colors array
-                nil,
-                nil,
-                1
+                colors                                                        # <-- Edge colors array
             )
 
             # Build LINES primitives from edge data and attach to parent node
@@ -388,6 +386,7 @@ module TrueVision3D
             local_buckets = Na__GlbEngine__CreateBuckets()
             is_mirrored   = Na__GlbEngine__CalcDeterminant3x3(Z_UP_TO_Y_UP_MATRIX) < 0
             normal_matrix = Na__GlbEngine__CalcNormalMatrix(Z_UP_TO_Y_UP_MATRIX)
+            inherited_material = entity.material
 
             entity.definition.entities.each do |face_entity|
                 next unless face_entity.is_a?(Sketchup::Face)
@@ -400,7 +399,8 @@ module TrueVision3D
                     normal_matrix,
                     is_mirrored,
                     layer_name,
-                    local_buckets
+                    local_buckets,
+                    inherited_material
                 )
             end
 
@@ -486,13 +486,41 @@ module TrueVision3D
                 next if bucket[:positions].empty?                             # <-- Skip empty buckets
 
                 mesh_index = gltf["meshes"].length
-                triangle_primitive = Na__GlbEngine__BuildTrianglePrimitive(bucket, gltf, bin_buffer)
-                next unless triangle_primitive
+                primitives = []
+
+                # Resolve/register through the same shared MaterialEngine path used by all mesh exports.
+                material_index = if respond_to?(:Na__MaterialEngine__ResolveMaterialIndexForGroup)
+                    Na__MaterialEngine__ResolveMaterialIndexForGroup(bucket, gltf)
+                else
+                    0
+                end
+
+                # --- TRIANGLES primitive (mode 4) ---
+                pos_accessor  = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:positions], 5126, "VEC3", 34962)
+                norm_accessor = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:normals],   5126, "VEC3", 34962)
+                uv_accessor   = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:uvs],       5126, "VEC2", 34962)
+
+                # Index type: UNSIGNED_SHORT (5123) if < 65535 vertices, else UNSIGNED_INT (5125)
+                max_index    = bucket[:indices].max || 0
+                idx_type     = (max_index < 65535) ? 5123 : 5125
+                idx_accessor = Na__GltfHelpers__AddAccessor(gltf, bin_buffer, bucket[:indices], idx_type, "SCALAR", 34963)
+
+                tri_primitive = {
+                    "attributes" => {
+                        "POSITION"   => pos_accessor,
+                        "NORMAL"     => norm_accessor,
+                        "TEXCOORD_0" => uv_accessor
+                    },
+                    "indices"  => idx_accessor,
+                    "material" => material_index,
+                    "mode"     => 4                                           # <-- TRIANGLES
+                }
+                primitives << tri_primitive
 
                 # Create mesh entry
                 gltf["meshes"] << {
                     "name"       => "DoorMesh_#{mesh_index}_#{bucket_key}",
-                    "primitives" => [triangle_primitive]
+                    "primitives" => primitives
                 }
 
                 # Create mesh node as child of parent
