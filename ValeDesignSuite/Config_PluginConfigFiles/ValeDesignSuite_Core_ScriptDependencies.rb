@@ -79,11 +79,6 @@ module ValeDesignSuite
               path: 'Tools_FrameworkTools/ValeDesignSuite_Tools_FrameworkCoordinationManager.rb',
               required: true,
               description: 'Framework Coordination Manager'
-          },
-          paint_edges_tool: {
-              path: 'UtilScripts__MaterialUtilitiesAndTools/MaterialsUtilScripts__PaintDeepNestedEdges.rb',
-              required: false,
-              description: 'Material Utilities - Paint Deep Nested Edges Tool'
           }
       }
       # ------------------------------------------------------------

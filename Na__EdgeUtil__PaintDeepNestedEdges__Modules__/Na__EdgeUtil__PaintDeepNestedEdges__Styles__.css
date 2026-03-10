@@ -1,0 +1,70 @@
+/* CSS Variables - Na Edge Util Paint Deep Nested Edges */
+:root {
+    --NaEdgeUtil_FontColour_MainText  : #1e1e1e;
+    --NaEdgeUtil_FontColour_MutedText : #555555;
+    --NaEdgeUtil_BackgroundColour     : #ffffff;
+    --NaEdgeUtil_BorderColour         : #cccccc;
+    --NaEdgeUtil_ButtonPadding        : 8px 18px;
+    --NaEdgeUtil_ButtonMargin         : 14px 0 0 0;
+    --NaEdgeUtil_FontSize_MainText    : 14px;
+    --NaEdgeUtil_FontSize_SmallText   : 13px;
+}
+
+/* Base Layout Styles */
+html, body {
+    margin            : 0;
+    padding           : 0;
+    background-color  : var(--NaEdgeUtil_BackgroundColour);
+}
+
+body {
+    font-family       : Arial, Helvetica, sans-serif;
+    color             : var(--NaEdgeUtil_FontColour_MainText);
+    padding           : 18px 22px 18px 22px;
+    box-sizing        : border-box;
+}
+
+/* Form Element Styles */
+label,
+select,
+button {
+    font-size         : var(--NaEdgeUtil_FontSize_MainText);
+}
+
+label {
+    display           : inline-block;
+    margin-bottom     : 10px;
+}
+
+select {
+    width             : 100%;
+    padding           : 8px 10px;
+    border            : 1px solid var(--NaEdgeUtil_BorderColour);
+    box-sizing        : border-box;
+    background-color  : #ffffff;
+}
+
+/* Information Display Styles */
+#info {
+    margin-top        : 16px;
+    margin-bottom     : 12px;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+}
+
+/* Button Layout and Styling */
+#btnRow {
+    display           : flex;
+    gap               : 14px;
+    margin-top        : 10px;
+    flex-wrap         : wrap;
+}
+
+button {
+    margin            : var(--NaEdgeUtil_ButtonMargin);
+    padding           : var(--NaEdgeUtil_ButtonPadding);
+    border            : 1px solid var(--NaEdgeUtil_BorderColour);
+    background-color  : #ffffff;
+    cursor            : pointer;
+    min-width         : 160px;
+}

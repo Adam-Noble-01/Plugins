@@ -1,0 +1,29 @@
+{
+    "extension_name"           : "Na Edge Util - Paint Deep Nested Edges",
+    "extension_version"        : "1.0.0",
+    "dialog_preferences_key"   : "Na__EdgeUtil__PaintDeepNestedEdges",
+    "command_name"             : "Na Edge Util - Paint Deep Nested Edges",
+    "command_tooltip"          : "Open the Paint Deep Nested Edges dialogue for edge colour management",
+    "command_status_bar_text"  : "Paint selected nested SketchUp edges using predefined linework colours",
+    "menu_text"                : "Na Edge Util - Paint Deep Nested Edges",
+    "dialog_title"             : "Na Edge Util - Paint Deep Nested Edges",
+    "dialog_width"             : 460,
+    "dialog_height"            : 260,
+    "default_colour_key"       : "Default",
+    "colours" : {
+        "Default"                                 : "default",
+        "00_01__LineColour__AbsoluteBlack"        : "#000000",
+        "00_02__LineColour__SoftBlack__L20"       : "#333333",
+        "00_03__LineColour__DarkGrey__L40"        : "#666666",
+        "00_04__LineColour__MidGrey__L60"         : "#999999",
+        "00_05__LineColour__LightMidGrey__L70"    : "#B4B4B4",
+        "00_06__LineColour__NearWhiteGrey__L80"   : "#CCCCCC",
+        "00_07__LineColour__LightGrey__L85"       : "#D9D9D9",
+        "00_08__LineColour__VeryLightGrey__L95"   : "#F2F2F2",
+        "00_09__LineColour__White"                : "#FFFFFF",
+        "00_10__LineColour__Red"                  : "#E53935",
+        "00_11__LineColour__Green"                : "#43A047",
+        "00_12__LineColour__Yellow"               : "#FDD835",
+        "00_14__LineColour__Purple"               : "#8E24AA"
+    }
+}

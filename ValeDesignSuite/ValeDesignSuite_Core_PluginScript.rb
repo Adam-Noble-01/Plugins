@@ -125,15 +125,6 @@ module ValeDesignSuite
             Config::DebugConfiguration.debug_error("Failed to load WatercolourRenderingTools", e)
         end
 
-        # LOAD MODULE |  Load & Validate the Material Utilities - Paint Deep Nested Edges
-        # -------------------------------------------------------------
-        begin
-            require_relative 'UtilScripts__MaterialUtilitiesAndTools/MaterialsUtilScripts__PaintDeepNestedEdges'
-            Config::DebugConfiguration.debug_log("Successfully loaded PaintDeepNestedEdges", "LOAD")
-        rescue LoadError => e
-            Config::DebugConfiguration.debug_error("Failed to load PaintDeepNestedEdges", e)
-        end
-
         # LOAD MODULE |  Load & Validate the Path to Continuous Profile Tool
         # -------------------------------------------------------------
         begin

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{DIALOG_TITLE}}</title>
+    <style>
+{{STYLESHEET_CONTENT}}
+    </style>
+</head>
+
+<!-- ----------------------------------------------------------------- -->
+<!-- REGION | User Interface HTML Layout & Elements                    -->
+<!-- ----------------------------------------------------------------- -->
+
+<body>
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- UI MENU | Colour Selection and Edge Information Display           -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <label for="colour">Choose edge colour:</label>
+    <select id="colour">{{OPTIONS_HTML}}</select>
+    <p id="info">{{INITIAL_INFO}}</p>
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- UI MENU | Action Button Controls                                  -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <div id="btnRow">
+        <button onclick="sketchup.fetch_selection()">Refresh Selection</button>
+        <button onclick="sketchup.apply_colour(document.getElementById('colour').value)"><strong>Paint Edges</strong></button>
+    </div>
+
+</body>
+
+<!-- endregion ----------------------------------------------------------------- -->
+</html>

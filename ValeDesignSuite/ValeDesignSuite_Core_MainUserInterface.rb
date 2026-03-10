@@ -442,56 +442,6 @@ module MainUserInterface
                 end
             end
             
-            # Clean up Plugins menu for deep nested edges script
-            plugins_menu = UI.menu("Plugins")                                   # <-- Get Plugins menu reference
-            if plugins_menu
-                begin
-                    if plugins_menu.respond_to?(:instance_variable_get)
-                        items = plugins_menu.instance_variable_get(:@items) rescue nil
-                        
-                        if items && items.respond_to?(:each)
-                            # Look for Vale-related submenu duplicates
-                            vale_submenu_items = []
-                            
-                            items.each_with_index do |item, index|
-                                item_text = ""
-                                
-                                if item.respond_to?(:text)
-                                    item_text = item.text
-                                elsif item.respond_to?(:name)
-                                    item_text = item.name
-                                elsif item.respond_to?(:caption)
-                                    item_text = item.caption
-                                end
-                                
-                                # Look for Paint Deep Nested Edges and similar Vale tools
-                                if item_text.match(/Vale.*Material|Paint.*Deep.*Nested|ValeDesignSuite/i)
-                                    vale_submenu_items << { item: item, index: index, text: item_text }
-                                end
-                            end
-                            
-                            # Remove duplicate submenus
-                            seen_names = []
-                            vale_submenu_items.reverse.each do |submenu_item|
-                                if seen_names.include?(submenu_item[:text])
-                                    begin
-                                        items.delete_at(submenu_item[:index]) if submenu_item[:index] < items.length
-                                        removed_count += 1
-                                        puts "  → Removed duplicate from Plugins: '#{submenu_item[:text]}'"
-                                    rescue => e
-                                        puts "  → Failed to remove from Plugins '#{submenu_item[:text]}': #{e.message}"
-                                    end
-                                else
-                                    seen_names << submenu_item[:text]
-                                end
-                            end
-                        end
-                    end
-                rescue => e
-                    puts "  → Plugins menu cleanup failed: #{e.message}"
-                end
-            end
-            
             puts "  → Successfully removed #{removed_count} duplicate menu items"
             
             # Note about complete cleanup
