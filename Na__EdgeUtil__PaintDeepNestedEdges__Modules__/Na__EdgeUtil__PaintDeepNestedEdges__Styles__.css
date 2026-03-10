@@ -52,6 +52,56 @@ select {
     color             : var(--NaEdgeUtil_FontColour_MutedText);
 }
 
+/* Dynamic Palette Styles */
+.naQuickPalettePanel {
+    margin-top        : 8px;
+}
+
+.naQuickPalettePanel__Title {
+    margin            : 0 0 8px 0;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+}
+
+#quickPaletteRow {
+    display           : flex;
+    gap               : 12px;
+    flex-wrap         : wrap;
+}
+
+.naQuickPaletteSwatch {
+    width             : 48px;
+    min-width         : 48px;
+    height            : 48px;
+    margin            : 0;
+    padding           : 4px;
+    border            : 1px solid var(--NaEdgeUtil_BorderColour);
+    background-color  : #ffffff;
+    display           : flex;
+    align-items       : center;
+    justify-content   : center;
+    position          : relative;
+}
+
+.naQuickPaletteSwatch__Colour {
+    width             : 100%;
+    height            : 100%;
+    display           : block;
+    border            : 1px solid #b5b5b5;
+    box-sizing        : border-box;
+}
+
+.naQuickPaletteSwatch__Label {
+    position          : absolute;
+    right             : 4px;
+    bottom            : 2px;
+    font-size         : 10px;
+    line-height       : 1;
+    color             : #555555;
+    background-color  : rgba(255, 255, 255, 0.85);
+    padding           : 1px 3px;
+}
+
 /* Button Layout and Styling */
 #btnRow {
     display           : flex;

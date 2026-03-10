@@ -21,6 +21,7 @@ require 'sketchup.rb'
 require 'json'
 
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__HotkeyBinder__'
+require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__PaletteManager__'
 
 module Na__EdgeUtil__PaintDeepNestedEdges
 
@@ -119,6 +120,26 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     # ---------------------------------------------------------------
     def self.na_default_colour_key
         na_edge_config_data.fetch('default_colour_key', 'Default')
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Default Quick Palette Colour Key
+    # ---------------------------------------------------------------
+    def self.na_dynamic_palette_default_key
+        configured_default_key = na_edge_config_data.fetch('dynamic_palette_default_key', '')
+        return configured_default_key if na_colours.key?(configured_default_key)
+
+        detected_white_key = na_colours.find { |_colour_key, colour_spec| colour_spec.to_s.upcase == '#FFFFFF' }
+        return detected_white_key[0] if detected_white_key
+
+        return na_default_colour_key
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Quick Palette Slot Count
+    # ---------------------------------------------------------------
+    def self.na_dynamic_palette_slot_count
+        na_edge_config_data.fetch('dynamic_palette_slot_count', 4).to_i
     end
     # ---------------------------------------------------------------
 
@@ -230,6 +251,32 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     end
     # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Convert RGB Values to Hexadecimal Colour
+    # ---------------------------------------------------------------
+    def self.na_rgb_to_hex(red, green, blue)
+        format('#%02X%02X%02X', red.to_i, green.to_i, blue.to_i)
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Colour Hexadecimal For Colour Key
+    # ---------------------------------------------------------------
+    def self.na_colour_hex_for_key(colour_key)
+        return '#FFFFFF' if colour_key == na_default_colour_key
+
+        colour_specification = na_colours[colour_key]
+        return '#FFFFFF' if colour_specification.nil? || colour_specification == 'default'
+        return colour_specification if colour_specification.is_a?(String)
+
+        rgb_values = na_hsl_to_rgb(
+            colour_specification['h'],
+            colour_specification['s'],
+            colour_specification['l']
+        )
+
+        return na_rgb_to_hex(*rgb_values)
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Create or Retrieve Material For Colour Key
     # ------------------------------------------------------------
     def self.na_material_for_key(model, colour_key)
@@ -268,13 +315,13 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     # ------------------------------------------------------------
     def self.na_paint_edges(colour_key)
         model = Sketchup.active_model
-        return unless model
+        return false unless model
 
         selection = model.selection
 
         if selection.empty?
             UI.messagebox('Select something first.')
-            return
+            return false
         end
 
         edges = []
@@ -282,7 +329,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
 
         if edges.empty?
             UI.messagebox('No edges found in selection.')
-            return
+            return false
         end
 
         model.start_operation("PaintDeepNestedEdges #{colour_key}", true)
@@ -291,9 +338,11 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             material = na_material_for_key(model, colour_key)
             edges.each { |edge| edge.material = material }
             model.commit_operation
+            return true
         rescue => error
             model.abort_operation
             UI.messagebox("Failed to paint edges.\n\n#{error.message}")
+            return false
         end
     end
     # ---------------------------------------------------------------
@@ -308,6 +357,18 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     # ---------------------------------------------------------------
     def self.na_build_options_html
         na_colours.keys.map { |colour_key| "<option value=\"#{colour_key}\">#{colour_key}</option>" }.join
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Escape Text For Safe Html Output
+    # ---------------------------------------------------------------
+    def self.na_escape_html(text)
+        text.to_s
+            .gsub('&', '&amp;')
+            .gsub('<', '&lt;')
+            .gsub('>', '&gt;')
+            .gsub('"', '&quot;')
+            .gsub("'", '&#39;')
     end
     # ---------------------------------------------------------------
 
@@ -333,8 +394,24 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         return na_dialog_template_html
             .gsub('{{DIALOG_TITLE}}', na_dialog_title)
             .gsub('{{STYLESHEET_CONTENT}}', na_dialog_stylesheet_content)
+            .gsub('{{DYNAMIC_PALETTE_HTML}}', Na__PaletteManager.na_build_palette_html)
             .gsub('{{OPTIONS_HTML}}', na_build_options_html)
             .gsub('{{INITIAL_INFO}}', initial_info)
+    end
+    # ---------------------------------------------------------------
+
+    # SUB FUNCTION | Refresh Dialog Info and Dynamic Palette Content
+    # ---------------------------------------------------------------
+    def self.na_refresh_dialog_state(dialog, selected_colour_key = nil)
+        selection_info_text = "#{na_edge_count_selection} edges selected."
+        palette_html = Na__PaletteManager.na_build_palette_html
+
+        dialog.execute_script("document.getElementById('info').textContent=#{selection_info_text.to_json};")
+        dialog.execute_script("document.getElementById('quickPaletteRow').innerHTML=#{palette_html.to_json};")
+
+        if selected_colour_key
+            dialog.execute_script("document.getElementById('colour').value=#{selected_colour_key.to_json};")
+        end
     end
     # ---------------------------------------------------------------
 
@@ -342,13 +419,21 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     # ---------------------------------------------------------------
     def self.na_setup_dialog_callbacks(dialog)
         dialog.add_action_callback('apply_colour') do |_context, colour_key|
-            na_paint_edges(colour_key)
-            dialog.close
+            if na_paint_edges(colour_key)
+                Na__PaletteManager.na_remember_colour(colour_key)
+                na_refresh_dialog_state(dialog, colour_key)
+            end
+        end
+
+        dialog.add_action_callback('apply_palette_colour') do |_context, colour_key|
+            if na_paint_edges(colour_key)
+                Na__PaletteManager.na_remember_colour(colour_key)
+                na_refresh_dialog_state(dialog, colour_key)
+            end
         end
 
         dialog.add_action_callback('fetch_selection') do |_context, _value|
-            selection_count = na_edge_count_selection
-            dialog.execute_script("document.getElementById('info').textContent='#{selection_count} edges selected.';")
+            na_refresh_dialog_state(dialog)
         end
     end
     # ---------------------------------------------------------------

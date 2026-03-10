@@ -7,9 +7,11 @@
     "command_status_bar_text"  : "Paint selected nested SketchUp edges using predefined linework colours",
     "menu_text"                : "Na Edge Util - Paint Deep Nested Edges",
     "dialog_title"             : "Na Edge Util - Paint Deep Nested Edges",
-    "dialog_width"             : 460,
-    "dialog_height"            : 260,
+    "dialog_width"             : 400,
+    "dialog_height"            : 350,
     "default_colour_key"       : "Default",
+    "dynamic_palette_slot_count" : 4,
+    "dynamic_palette_default_key" : "00_09__LineColour__White",
     "colours" : {
         "Default"                                 : "default",
         "00_01__LineColour__AbsoluteBlack"        : "#000000",

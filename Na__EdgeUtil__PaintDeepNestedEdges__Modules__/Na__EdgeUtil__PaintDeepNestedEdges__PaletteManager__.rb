@@ -31,9 +31,16 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         NA_DYNAMIC_PALETTE_STORAGE_KEY = 'dynamic_palette_colour_keys'.freeze
         # ------------------------------------------------------------
 
+        # MODULE VARIABLES | Dynamic Palette State
+        # ------------------------------------------------------------
+        @na_palette_keys = nil
+        # ------------------------------------------------------------
+
         # HELPER FUNCTION | Load Persisted Dynamic Palette Keys
         # ---------------------------------------------------------------
         def self.na_load_palette_keys
+            return @na_palette_keys if @na_palette_keys
+
             stored_palette_json = Sketchup.read_default(
                 Na__EdgeUtil__PaintDeepNestedEdges.na_dialog_preferences_key,
                 NA_DYNAMIC_PALETTE_STORAGE_KEY,
@@ -41,9 +48,11 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             ).to_s
 
             parsed_palette_keys = stored_palette_json.empty? ? [] : JSON.parse(stored_palette_json)
-            return na_sanitise_palette_keys(parsed_palette_keys)
+            @na_palette_keys = na_sanitise_palette_keys(parsed_palette_keys)
+            return @na_palette_keys
         rescue
-            return na_default_palette_keys
+            @na_palette_keys = na_default_palette_keys
+            return @na_palette_keys
         end
         # ---------------------------------------------------------------
 
@@ -60,10 +69,12 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         # HELPER FUNCTION | Persist Dynamic Palette Keys
         # ---------------------------------------------------------------
         def self.na_save_palette_keys(palette_keys)
+            @na_palette_keys = na_sanitise_palette_keys(palette_keys)
+
             Sketchup.write_default(
                 Na__EdgeUtil__PaintDeepNestedEdges.na_dialog_preferences_key,
                 NA_DYNAMIC_PALETTE_STORAGE_KEY,
-                JSON.generate(na_sanitise_palette_keys(palette_keys))
+                JSON.generate(@na_palette_keys)
             )
         end
         # ---------------------------------------------------------------
@@ -91,7 +102,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             return if colour_key.to_s.empty?
             return if colour_key == Na__EdgeUtil__PaintDeepNestedEdges.na_default_colour_key
 
-            palette_keys = na_load_palette_keys
+            palette_keys = na_load_palette_keys.dup
             palette_keys.delete(colour_key)
             palette_keys.unshift(colour_key)
 
