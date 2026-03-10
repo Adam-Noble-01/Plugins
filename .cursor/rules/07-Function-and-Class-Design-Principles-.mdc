@@ -1,0 +1,24 @@
+---
+description: Function and class design principles enforcing single responsibility and controlled state usage
+alwaysApply: true
+---
+
+## Function and Class Design Principles
+
+**Core Rule:** One responsibility per function.
+
+**Function Guidelines:**
+- Each function must perform one clearly defined task.
+- Do not mix unrelated concerns within a single function.
+- If additional behaviour is required, extract it into helper functions.
+- Prefer small, composable, independently testable functions.
+
+**Class Usage Rule:**
+- Introduce a class only when multiple related functions require shared state.
+- Use a class when behaviour must be grouped around a specific data structure.
+- Do not create classes for simple procedural grouping.
+
+**Intent:**
+- Maximise clarity and maintainability.
+- Reduce hidden side effects.
+- Keep logic modular and predictable.

@@ -15,7 +15,7 @@ module HabitatSiteContext
     EXTENSION.creator = "SketchUp"
     EXTENSION.description = TRANSLATIONS.get("EXTENSION.DESCRIPTION")
     # ensure that if we ever change where the version is defined that the build script is also updated
-    EXTENSION.version = "1.7.8".freeze
+    EXTENSION.version = "1.8.2".freeze
     EXTENSION.copyright = "#{EXTENSION.creator} 2025"
     Sketchup.register_extension(EXTENSION, true)
 

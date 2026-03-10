@@ -1,0 +1,9 @@
+---
+description: Clean code principles enforcing readability, modularity, and maintainability
+alwaysApply: true
+---
+
+## Clean Code Principles
+- **Small Functions:** Focus on exactly one task per function.
+- **Meaningful Names:** Use clear, descriptive names that accurately reflect the purpose of variables, functions, and classes, these names are to be namespaced and structured in my Style of three stage deliniator seported naming convention, e.g. Na__(SystemOrBroaderGrouping)__(ExactPurposeOrFunctionName).
+- **Avoid Duplicates (DRY):** Reuse logic through abstraction or helper functions to reduce redundancy.
