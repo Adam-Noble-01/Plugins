@@ -121,39 +121,36 @@ module TrueVision3D
         # transforms at each level so each discovered instance carries
         # its full world-space transform.
         #
-        # @param entities       [Sketchup::Entities|Array] Entities to scan
-        # @param parent_transform [Geom::Transformation]   Accumulated transform
-        # @param definition_map [Hash] Shared collector across recursion
+        # Material resolution is face-only so container materials are not
+        # tracked. All ComponentInstances are eligible for instancing
+        # regardless of whether their parent has a material.
+        #
+        # @param entities        [Sketchup::Entities|Array] Entities to scan
+        # @param parent_transform [Geom::Transformation]    Accumulated transform
+        # @param definition_map  [Hash] Shared collector across recursion
         # ---------------------------------------------------------------
-        def self.Na__Instancing__RecursiveScan(entities, parent_transform, definition_map, inherited_material = nil)
+        def self.Na__Instancing__RecursiveScan(entities, parent_transform, definition_map)
             entities.each do |entity|
                 next if Na__Helpers__EntityExcluded?(entity)
                 next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
                 next if Na__DoorHandler__IsDoorAssembly?(entity)
 
                 accumulated_transform = parent_transform * entity.transformation
-                child_inherited_material = entity.material || inherited_material
 
                 if entity.is_a?(Sketchup::Group)
-                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map, child_inherited_material)
+                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map)
                 else
                     definition = entity.definition
                     is_mirrored = Na__GlbEngine__CalcDeterminant3x3(accumulated_transform) < 0
-                    has_inherited_material = !child_inherited_material.nil?
 
-                    # Shared-mesh instancing cannot preserve per-instance container materials.
-                    # Keep those instances on the normal flattening path so inherited indexed
-                    # materials (such as MAT101 glass) survive into the exported mesh.
-                    unless has_inherited_material
-                        definition_map[definition] ||= { normal: [], mirrored: [] }
-                        partition_key = is_mirrored ? :mirrored : :normal
-                        definition_map[definition][partition_key] << {
-                            entity:                entity,
-                            accumulated_transform: accumulated_transform
-                        }
-                    end
+                    definition_map[definition] ||= { normal: [], mirrored: [] }
+                    partition_key = is_mirrored ? :mirrored : :normal
+                    definition_map[definition][partition_key] << {
+                        entity:                entity,
+                        accumulated_transform: accumulated_transform
+                    }
 
-                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map, child_inherited_material)
+                    Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map)
                 end
             end
         end
@@ -238,7 +235,7 @@ module TrueVision3D
                 next if bucket[:positions].empty?
 
                 material_index = if respond_to?(:Na__MaterialEngine__ResolveMaterialIndexForGroup)
-                    Na__MaterialEngine__ResolveMaterialIndexForGroup(bucket, gltf)
+                    Na__MaterialEngine__ResolveMaterialIndexForGroup(bucket, gltf, bin_buffer)
                 else
                     0
                 end
@@ -423,7 +420,7 @@ module TrueVision3D
         # flat-traversal buckets). Registers any new materials so that
         # PackBucketsToMesh can resolve correct material indices.
         # ---------------------------------------------------------------
-        def self.Na__Instancing__RegisterInstancedMaterials(instanced_groups, gltf, _bin_buffer)
+        def self.Na__Instancing__RegisterInstancedMaterials(instanced_groups, gltf, bin_buffer)
             return unless respond_to?(:Na__MaterialEngine__EnsureMaterialRegistered)
 
             @material_map ||= {}
@@ -439,7 +436,7 @@ module TrueVision3D
                     next unless material
                     next if @material_map.key?(material)
                     material_name  = material.respond_to?(:display_name) ? material.display_name : ""
-                    material_index = Na__MaterialEngine__EnsureMaterialRegistered(material, gltf)
+                    material_index = Na__MaterialEngine__EnsureMaterialRegistered(material, gltf, bin_buffer)
                     if material_index > 0 && @material_map.key?(material)
                         puts "      [Instancing] Registered new material: #{material_name} (index #{material_index})"
                     end

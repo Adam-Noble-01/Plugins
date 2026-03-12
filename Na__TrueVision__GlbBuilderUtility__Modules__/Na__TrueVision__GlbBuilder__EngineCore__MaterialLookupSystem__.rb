@@ -39,6 +39,7 @@ module TrueVision3D
         # ------------------------------------------------------------
         MATERIALS_LIBRARY_URL  = "https://adam-noble-01.github.io/WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json"
         INDEXED_MATERIAL_REGEX = /^MAT\d{3}__/                               # <-- Matches MAT + 3 digits + __
+        EXEMPT_MATERIAL_REGEX  = /^MAT000E__/                                # <-- "Material Exempt" prefix for indexed_only inclusion
         # ------------------------------------------------------------
 
     # endregion -------------------------------------------------------------------
@@ -161,7 +162,20 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__MaterialLookup__IsIndexedMaterial?(material_name)
             return false unless material_name.is_a?(String)
-            INDEXED_MATERIAL_REGEX.match?(material_name)                      # <-- Test against regex
+            INDEXED_MATERIAL_REGEX.match?(material_name)
+        end
+        # ---------------------------------------------------------------
+
+
+        # HELPER FUNCTION | Check If Material Name Is Exempt
+        # ---------------------------------------------------------------
+        # Returns true if the name matches the MAT000E__ prefix.
+        # Exempt materials are included in indexed_only mode but
+        # do NOT receive PBR enrichment from the library.
+        # ---------------------------------------------------------------
+        def self.Na__MaterialLookup__IsExemptMaterial?(material_name)
+            return false unless material_name.is_a?(String)
+            EXEMPT_MATERIAL_REGEX.match?(material_name)
         end
         # ---------------------------------------------------------------
 

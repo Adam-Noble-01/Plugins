@@ -13,10 +13,12 @@
 # - Supports three material export modes controlled via the UI:
 #   :no_materials   - Sanitised whitecard export (all meshes use default)
 #   :all_materials  - All SketchUp materials exported with PBR enrichment
-#   :indexed_only   - Only standard indexed materials (MAT___) exported
+#   :indexed_only   - Only standard indexed materials (MAT___) and exempt
+#                     materials (MAT000E__) exported
 # - Integrates with MaterialLookupSystem for PBR enrichment of indexed
 #   materials, injecting opacity, metallic, roughness, and doubleSided
 #   directly into the glTF material entries.
+# - Integrates with TextureHandling to embed texture images in GLB binary.
 #
 # -----------------------------------------------------------------------------
 #
@@ -29,6 +31,12 @@
 # - Integrated MaterialLookupSystem for PBR enrichment of indexed materials.
 # - Added IsDoubleSided support for glTF doubleSided flag.
 #
+# 12-Mar-2026 - Version 3.0.0
+# - Integrated TextureHandling for PNG texture embedding in GLB binary.
+# - Added bin_buffer parameter to EnsureMaterialRegistered and callers.
+# - Added MAT000E__ exempt prefix support in indexed_only mode.
+# - Face-only material resolution (no group/component inheritance).
+#
 # =============================================================================
 
 module TrueVision3D
@@ -38,11 +46,8 @@ module TrueVision3D
     # REGION | Module State
     # -----------------------------------------------------------------------------
 
-        # MODULE VARIABLES | Material Export State
-        # ------------------------------------------------------------
-        @material_map  = {}                                                   # <-- { SketchUp::Material => glTF index }
-        @export_mode   = :no_materials                                        # <-- Current export mode
-        # ------------------------------------------------------------
+        @material_map  = {}
+        @export_mode   = :no_materials
 
     # endregion -------------------------------------------------------------------
 
@@ -82,15 +87,16 @@ module TrueVision3D
         # FUNCTION | Ensure Single Material Is Registered for Export
         # ---------------------------------------------------------------
         # Registers a SketchUp material into gltf["materials"] according
-        # to the current export mode, reusing @material_map if already
+        # to the current export mode. Reuses @material_map if already
         # registered. Applies MaterialLookup enrichment for indexed
-        # materials when lookup data is available.
+        # materials and embeds textures via TextureEngine when present.
         #
-        # @param material [Sketchup::Material|nil]
-        # @param gltf     [Hash] glTF JSON structure
-        # @return         [Integer] glTF material index (0 = default fallback)
+        # @param material   [Sketchup::Material|nil]
+        # @param gltf       [Hash]    glTF JSON structure
+        # @param bin_buffer  [String]  Binary buffer for texture embedding (ASCII-8BIT)
+        # @return           [Integer]  glTF material index (0 = default fallback)
         # ---------------------------------------------------------------
-        def self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf)
+        def self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf, bin_buffer = nil)
             return 0 if @export_mode == :no_materials
             return 0 unless material
 
@@ -99,9 +105,9 @@ module TrueVision3D
 
             material_name = material.respond_to?(:display_name) ? material.display_name : ""
             is_indexed    = self.Na__MaterialLookup__IsIndexedMaterial?(material_name)
+            is_exempt     = self.Na__MaterialLookup__IsExemptMaterial?(material_name)
 
-            # Indexed-only mode excludes non-indexed materials.
-            return 0 if @export_mode == :indexed_only && !is_indexed
+            return 0 if @export_mode == :indexed_only && !is_indexed && !is_exempt
 
             rgba = if material.respond_to?(:color) && material.color
                 c = material.color
@@ -119,7 +125,7 @@ module TrueVision3D
                 }
             }
 
-            # Enrich indexed materials with PBR metadata when lookup is available.
+            # Enrich indexed materials with PBR metadata (not exempt materials).
             if is_indexed && (@export_mode == :indexed_only || @export_mode == :all_materials)
                 library_data = self.Na__MaterialLookup__FetchLibrary
                 if library_data
@@ -128,6 +134,19 @@ module TrueVision3D
                     if config
                         self.Na__MaterialLookup__EnrichGltfMaterial(gltf_material, config)
                         puts "    [MaterialEngine] Enriched: #{material_name}"
+                    end
+                end
+            end
+
+            # Embed texture when material has a valid texture and bin_buffer is available.
+            if bin_buffer && material.respond_to?(:texture) && material.texture && material.texture.valid?
+                if respond_to?(:Na__TextureEngine__ExtractAndEmbedTexture)
+                    texture_index = self.Na__TextureEngine__ExtractAndEmbedTexture(material, gltf, bin_buffer)
+                    if texture_index
+                        gltf_material["pbrMetallicRoughness"]["baseColorTexture"] = {
+                            "index"    => texture_index,
+                            "texCoord" => 0
+                        }
                     end
                 end
             end
@@ -143,17 +162,21 @@ module TrueVision3D
         # ---------------------------------------------------------------
         # Builds the glTF materials array based on the current export
         # mode. Always provides a default whitecard material at index 0.
+        # Resets TextureEngine state for a clean export run.
         #
         # Modes:
         #   :no_materials  - Only the default material, all meshes use index 0
         #   :all_materials - All unique materials exported, indexed ones enriched
-        #   :indexed_only  - Only indexed materials exported, others use default
+        #   :indexed_only  - Only indexed/exempt materials exported, others default
         # ---------------------------------------------------------------
-        def self.Na__MaterialEngine__PrepareMaterialsForExport(face_groups, gltf, _binary_buffer)
+        def self.Na__MaterialEngine__PrepareMaterialsForExport(face_groups, gltf, binary_buffer)
             @material_map ||= {}
             @material_map.clear
 
-            # DEFAULT FALLBACK MATERIAL (always at index 0)
+            if respond_to?(:Na__TextureEngine__ResetState)
+                self.Na__TextureEngine__ResetState
+            end
+
             gltf["materials"] << {
                 "name" => "Default",
                 "pbrMetallicRoughness" => {
@@ -168,7 +191,6 @@ module TrueVision3D
                 return true
             end
 
-            # COLLECT UNIQUE MATERIALS FROM FACE GROUPS
             unique_materials = []
             face_groups.each_value do |group_data|
                 material = group_data[:material]
@@ -176,7 +198,6 @@ module TrueVision3D
                 unique_materials << material unless unique_materials.include?(material)
             end
 
-            # BUILD LOOKUP INDEX (fetch library if not already cached)
             if @export_mode == :indexed_only || @export_mode == :all_materials
                 library_data = self.Na__MaterialLookup__FetchLibrary
                 if library_data
@@ -184,9 +205,8 @@ module TrueVision3D
                 end
             end
 
-            # PROCESS EACH UNIQUE MATERIAL
             unique_materials.each do |material|
-                self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf)
+                self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf, binary_buffer)
             end
 
             mode_label = (@export_mode == :indexed_only) ? "indexed-only" : "all-materials"
@@ -206,17 +226,17 @@ module TrueVision3D
         # ---------------------------------------------------------------
         # Returns the glTF material index for a face group's material.
         # Returns 0 (default whitecard) if the material was not exported
-        # or if no-materials mode is active. When gltf is provided, the
-        # shared material engine will register the material on demand so
-        # all mesh export paths use the same indexed-material rules.
+        # or if no-materials mode is active. When gltf and bin_buffer are
+        # provided, registers the material on demand so all mesh export
+        # paths use the same indexed-material rules.
         # ---------------------------------------------------------------
-        def self.Na__MaterialEngine__ResolveMaterialIndexForGroup(group_data, gltf = nil)
-            return 0 if @export_mode == :no_materials                         # <-- All meshes use default
+        def self.Na__MaterialEngine__ResolveMaterialIndexForGroup(group_data, gltf = nil, bin_buffer = nil)
+            return 0 if @export_mode == :no_materials
 
             material = group_data[:material]
             return 0 unless material
             if gltf
-                return self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf)
+                return self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf, bin_buffer)
             end
             return 0 unless @material_map && @material_map.has_key?(material)
             @material_map[material]

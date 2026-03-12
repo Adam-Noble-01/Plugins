@@ -70,13 +70,11 @@ module TrueVision3D
             puts "DEBUG: Calling Na__ExportCore__IdentifyExcludedLayers"
             self.Na__ExportCore__IdentifyExcludedLayers(model)                         # Identify layers to exclude
             
-            # Virtual flattening export works with any geometry, not just manifold solids
-            puts "\n=== Starting TrueVision GLB Export (Virtual Flattening) ==="   # Console header
+            puts "\n=== Starting TrueVision GLB Export (Virtual Flattening) ==="
             puts "Using non-destructive recursive traversal for world-space coordinates"
-            
-            # DEBUG MODE: Texture export pipeline is disabled while resolving core geometry.
-            # Cache folder setup is intentionally skipped until texture exporting is re-enabled.
-            puts "DEBUG: Texture export disabled; skipping texture cache folder setup."
+
+            FileUtils.mkdir_p(@texture_cache_folder) unless Dir.exist?(@texture_cache_folder)
+            puts "Texture cache folder: #{@texture_cache_folder}"
             
             puts "DEBUG: Calling Na__UserInterface__ShowExportDialog"
             self.Na__UserInterface__ShowExportDialog                                    # Show export options dialog
@@ -175,19 +173,16 @@ module TrueVision3D
         # HELPER FUNCTION | Cleanup Texture Cache
         # ---------------------------------------------------------------
         def self.Na__Helpers__CleanupTextureCache
-            # DEBUG MODE: Texture exporting is disabled while resolving core geometry.
-            # Keeping this function as a no-op preserves call compatibility.
-            puts "      Texture cache cleanup bypassed (texture export disabled)."
-            return
+            return unless @texture_cache_folder && Dir.exist?(@texture_cache_folder)
 
-            return unless Dir.exist?(@texture_cache_folder)
-            
             Dir.glob(File.join(@texture_cache_folder, "*")).each do |file|
                 File.delete(file) if File.file?(file)
             end
-            
-            Dir.rmdir(@texture_cache_folder) if Dir.empty?(@texture_cache_folder)
+
+            Dir.rmdir(@texture_cache_folder) if Dir.exist?(@texture_cache_folder) && Dir.empty?(@texture_cache_folder)
             puts "      Cleaned up texture cache folder"
+        rescue => e
+            puts "      Texture cache cleanup warning: #{e.message}"
         end
         # ---------------------------------------------------------------
     
@@ -723,9 +718,7 @@ module TrueVision3D
 
                 success_count = mesh_success + linework_success
 
-                # DEBUG MODE: Texture export pipeline is disabled while resolving core geometry.
-                # No texture cache cleanup needed while texture exporting is bypassed.
-                puts "DEBUG: Texture export disabled; skipping texture cache cleanup."
+                self.Na__Helpers__CleanupTextureCache
 
                 # Open output folder
                 if success_count > 0

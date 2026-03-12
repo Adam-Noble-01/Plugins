@@ -160,3 +160,37 @@ When children are nested inside a storey container (90-93), the following child 
 
 
 # ---------------------------------------------------------
+
+## Material and Texture Export System
+
+### Material Export Modes
+Three modes are available, controlled via the UI:
+
+1. **No Materials** (`:no_materials`) - All meshes use a default whitecard material. Produces clean massing models.
+2. **All Materials** (`:all_materials`) - Every unique SketchUp face material is exported. Indexed materials receive PBR enrichment from the online library.
+3. **Indexed Only** (`:indexed_only`) - Only materials matching `MAT###__` (standard indexed) or `MAT000E__` (exempt) patterns are exported. All others fall back to whitecard.
+
+### Face-Only Material Resolution
+Materials are resolved per-face only. Group/component container materials are NOT inherited.
+- `face.material` (front face) is checked first
+- `face.back_material` is used as fallback
+- If neither exists, the face uses the default whitecard material (index 0)
+
+### MAT000E__ Material Exempt Prefix
+Materials prefixed with `MAT000E__` ("Material Exempt") are always included in `:indexed_only` mode alongside standard indexed materials. They export with their SketchUp color and texture but do NOT receive PBR enrichment from the online library. This allows custom materials to be included in the GLB without being registered in the standard materials library.
+
+### Texture Embedding
+When a material has a valid texture, the PNG image data is embedded directly in the GLB binary buffer:
+- Extracted via `texture.write(path, true)` for colorized output
+- Packed into GLB binary with 4-byte alignment
+- Linked through the glTF chain: image -> sampler -> texture -> material.baseColorTexture
+- Textures are cached per-material to avoid re-processing duplicates
+- Optional downscaling available via "Optimize Large Textures" checkbox
+
+### Module Files
+- `Na__TrueVision__GlbBuilder__EngineCore__MaterialHandling__.rb` - Material registration and mode control
+- `Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__.rb` - Online library fetch and PBR enrichment
+- `Na__TrueVision__GlbBuilder__EngineCore__TextureHandling__.rb` - Texture extraction and GLB binary embedding
+
+
+# ---------------------------------------------------------

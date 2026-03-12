@@ -288,31 +288,35 @@ module TrueVision3D
                 
                 <div class="option-group">
                     <label>
-                        <input type="checkbox" id="export-materials" onchange="Na__TrueVision__GlbBuilder__ToggleMaterials()">
+                        <input type="checkbox" id="export-materials" checked onchange="Na__TrueVision__GlbBuilder__ToggleMaterials()">
                         Export Materials
                     </label>
                     <div class="info-text">
                         When unchecked, all meshes export with a default whitecard material for clean massing models.
+                        Materials are resolved per-face only (group/component materials are not inherited).
                     </div>
                 </div>
 
-                <div class="option-group" id="indexed-materials-group" style="opacity: 0.4; pointer-events: none;">
+                <div class="option-group" id="indexed-materials-group">
                     <label>
                         <input type="checkbox" id="export-indexed-only" checked>
                         Export Standard Indexed Materials Only
                     </label>
                     <div class="info-text">
-                        Only export materials matching the standard naming convention (MAT001__, MAT101__, etc.) from the materials library. Custom materials are replaced with the default whitecard. Uncheck to export all SketchUp materials.
+                        Only export materials matching the standard naming convention (MAT001__, MAT101__, etc.)
+                        from the materials library, plus exempt materials (MAT000E__). Custom materials are replaced
+                        with the default whitecard. Uncheck to export all SketchUp materials.
                     </div>
                 </div>
 
                 <div class="option-group">
                     <label>
-                        <input type="checkbox" id="downscale-textures" checked disabled>
-                        Optimize Large Textures (Temporarily Disabled)
+                        <input type="checkbox" id="downscale-textures">
+                        Optimize Large Textures
                     </label>
                     <div class="info-text">
-                        Texture exporting is temporarily disabled until the core geometry engine is resolved.
+                        Downscale textures larger than 1024px for smaller GLB file sizes.
+                        Uncheck for full-resolution texture export.
                     </div>
                 </div>
                 
@@ -358,7 +362,7 @@ module TrueVision3D
 
                     function Na__TrueVision__GlbBuilder__PerformExport() {
                         var selectionOnly       = false;
-                        var downscaleTextures   = false;
+                        var downscaleTextures   = document.getElementById('downscale-textures').checked;
                         var exportMaterials     = document.getElementById('export-materials').checked;
                         var indexedOnly         = document.getElementById('export-indexed-only').checked;
 
@@ -441,19 +445,18 @@ module TrueVision3D
                 begin
                     if params_string && !params_string.empty?
                         puts "Parameters received: #{params_string}"
-                        params = JSON.parse(params_string)                            # Parse JSON
-                        @export_selection_only = params['selectionOnly']               # Set selection flag
-                        @downscale_textures = false                                    # Texture export disabled
+                        params = JSON.parse(params_string)
+                        @export_selection_only = params['selectionOnly']
+                        @downscale_textures = params['downscaleTextures'] == true
 
-                        # MATERIAL EXPORT MODE
                         mode_string = params['materialExportMode'] || 'no_materials'
-                        mode_sym = mode_string.to_sym                                 # <-- Convert to symbol
-                        self.Na__MaterialEngine__SetExportMode(mode_sym)               # <-- Set on MaterialEngine
-                        puts "Parsed parameters: selection=#{@export_selection_only}, materialMode=#{mode_sym}"
+                        mode_sym = mode_string.to_sym
+                        self.Na__MaterialEngine__SetExportMode(mode_sym)
+                        puts "Parsed parameters: selection=#{@export_selection_only}, materialMode=#{mode_sym}, downscaleTextures=#{@downscale_textures}"
                     else
-                        @export_selection_only = false                                 # Default values
-                        @downscale_textures = false                                    # Texture export disabled
-                        self.Na__MaterialEngine__SetExportMode(:no_materials)          # <-- Default: no materials
+                        @export_selection_only = false
+                        @downscale_textures = false
+                        self.Na__MaterialEngine__SetExportMode(:no_materials)
                         puts "Using default parameters"
                     end
                     
@@ -461,9 +464,9 @@ module TrueVision3D
                     puts "Parameter parsing error: #{e.message}"
                     puts "Error class: #{e.class}"
                     puts "Backtrace: #{e.backtrace.first(3).join("\n")}"
-                    @export_selection_only = false                                     # Default values
-                    @downscale_textures = false                                        # Texture export disabled
-                    self.Na__MaterialEngine__SetExportMode(:no_materials)              # <-- Safe fallback
+                    @export_selection_only = false
+                    @downscale_textures = false
+                    self.Na__MaterialEngine__SetExportMode(:no_materials)
                 end
                 
                 dialog.close                                                           # Close dialog

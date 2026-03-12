@@ -8,6 +8,33 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.0.0 - 12-Mar-2026
+#### Material & Texture Export Overhaul
+
+- **Texture embedding in GLB binary**: New `Na__TrueVision__GlbBuilder__EngineCore__TextureHandling__.rb` module extracts colorized textures from SketchUp materials via `texture.write(path, true)`, packs PNG binary data into the GLB buffer, and creates the full glTF chain (image -> sampler -> texture -> baseColorTexture). Textures are cached per-material to avoid re-processing duplicates.
+- **Face-only material resolution**: `Na__GlbEngine__ResolveEffectiveFaceMaterial` now returns only `face.material || face.back_material`. The `inherited_material` parameter has been removed from `TraverseEntities`, `AddFaceToBucket`, and `ResolveEffectiveFaceMaterial`. Group/component container materials are no longer inherited by child faces — unpainted faces resolve to the default whitecard material.
+- **MAT000E__ "Material Exempt" prefix**: New `EXEMPT_MATERIAL_REGEX = /^MAT000E__/` in MaterialLookupSystem. In `:indexed_only` mode, materials matching the exempt prefix are included in the export alongside standard indexed materials (MAT###__). Exempt materials retain their SketchUp color and texture but do not receive PBR enrichment from the library.
+- **bin_buffer propagation**: `Na__MaterialEngine__EnsureMaterialRegistered` and `Na__MaterialEngine__ResolveMaterialIndexForGroup` now accept an optional `bin_buffer` parameter for texture embedding. All callers in GeometryHandling, ComponentInstancing, and DoorObjectHandling updated to pass `bin_buffer` through.
+- **Texture optimization checkbox re-enabled**: UI checkbox for "Optimize Large Textures" is now functional. When checked, textures exceeding `MAX_TEXTURE_SIZE` (1024px) are downscaled via ImageRep.
+- **Export Materials checkbox defaults to checked**: UI now defaults to exporting materials with the indexed-only sub-option visible immediately.
+- **Component instancing simplified**: `Na__Instancing__RecursiveScan` no longer tracks `inherited_material`. All ComponentInstances are eligible for shared-mesh instancing regardless of container material, since face-only resolution makes container materials irrelevant.
+- **Texture cache lifecycle**: Texture cache folder is created at export start and cleaned up after export completes. TextureEngine state is reset at the beginning of each `PrepareMaterialsForExport` call.
+
+**Files Created:**
+- `Na__TrueVision__GlbBuilder__EngineCore__TextureHandling__.rb`
+
+**Files Modified:**
+- `Na__TrueVision__GlbBuilder__EngineCore__MaterialHandling__.rb` (texture integration, exempt prefix, bin_buffer param)
+- `Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__.rb` (EXEMPT_MATERIAL_REGEX, IsExemptMaterial?)
+- `Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__.rb` (face-only materials, bin_buffer passthrough)
+- `Na__TrueVision__GlbBuilder__EngineCore__ComponentInstancing__.rb` (removed inherited_material, bin_buffer passthrough)
+- `Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__.rb` (removed inherited_material, bin_buffer passthrough)
+- `Na__TrueVision__GlbBuilder__UserInterface__.rb` (UI defaults, texture checkbox, downscaleTextures param)
+- `Na__TrueVision__GlbBuilder__Main__.rb` (require_relative TextureHandling)
+- `Na__TrueVision__GlbBuilder__CoreExport__.rb` (texture cache lifecycle re-enabled)
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### TrueVision3D App - Door Animation v1.2.0 - 06-Mar-2026
 - **Negative rotation degree support**: MOD object names now accept a leading `-` on the degree value (e.g. `MOD001__ROT__-90-Deg__DoorPanel`). This reverses the swing direction, allowing left-hand and right-hand doors to be modelled correctly without mirroring the hinge geometry.
 - **No plugin changes required**: The GLB Builder already exports MOD node names verbatim; a name such as `MOD001__ROT__-90-Deg__DoorPanel` is written into the GLB unchanged and is valid in SketchUp.

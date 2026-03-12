@@ -312,20 +312,16 @@ module TrueVision3D
         def self.Na__DoorHandler__ExtractChildGeometry(child_entity, parent_node_index, gltf, bin_buffer)
             # Create isolated bucket store for this child's geometry
             local_buckets = Na__GlbEngine__CreateBuckets()
-            inherited_material = child_entity.material
-
             # Traverse child entities with Z_UP_TO_Y_UP as root transform.
             # This produces vertices in Y-up local space, in meters.
-            # The 5th argument (door_assemblies) is omitted → defaults to nil,
-            # so no further door detection occurs inside the child subtree.
+            # Material resolution is face-only (no container inheritance).
             Na__GlbEngine__TraverseEntities(
                 child_entity.definition.entities,                             # <-- Child's entities
                 Z_UP_TO_Y_UP_MATRIX,                                          # <-- Root: Y-up conversion
                 child_entity.layer,                                           # <-- Layer context
                 local_buckets,                                                # <-- Isolated bucket store
                 nil,                                                          # <-- No door detection inside a door child subtree
-                nil,                                                          # <-- No instancing skip set for local extraction
-                inherited_material                                            # <-- Preserve child-applied material inheritance
+                nil                                                           # <-- No instancing skip set for local extraction
             )
 
             # Build mesh primitives from local buckets and attach to parent node
@@ -386,7 +382,6 @@ module TrueVision3D
             local_buckets = Na__GlbEngine__CreateBuckets()
             is_mirrored   = Na__GlbEngine__CalcDeterminant3x3(Z_UP_TO_Y_UP_MATRIX) < 0
             normal_matrix = Na__GlbEngine__CalcNormalMatrix(Z_UP_TO_Y_UP_MATRIX)
-            inherited_material = entity.material
 
             entity.definition.entities.each do |face_entity|
                 next unless face_entity.is_a?(Sketchup::Face)
@@ -395,12 +390,11 @@ module TrueVision3D
                 layer_name = (face_entity.layer.name == "Layer0") ? entity.layer.name : face_entity.layer.name
                 Na__GlbEngine__AddFaceToBucket(
                     face_entity,
-                    Z_UP_TO_Y_UP_MATRIX,                                      # <-- Y-up conversion
+                    Z_UP_TO_Y_UP_MATRIX,
                     normal_matrix,
                     is_mirrored,
                     layer_name,
-                    local_buckets,
-                    inherited_material
+                    local_buckets
                 )
             end
 
@@ -488,9 +482,8 @@ module TrueVision3D
                 mesh_index = gltf["meshes"].length
                 primitives = []
 
-                # Resolve/register through the same shared MaterialEngine path used by all mesh exports.
                 material_index = if respond_to?(:Na__MaterialEngine__ResolveMaterialIndexForGroup)
-                    Na__MaterialEngine__ResolveMaterialIndexForGroup(bucket, gltf)
+                    Na__MaterialEngine__ResolveMaterialIndexForGroup(bucket, gltf, bin_buffer)
                 else
                     0
                 end

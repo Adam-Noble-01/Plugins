@@ -46,6 +46,7 @@ require_relative 'Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__ComponentInstancing__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__MaterialHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__'
+require_relative 'Na__TrueVision__GlbBuilder__EngineCore__TextureHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__LineworkModelHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__'
@@ -178,7 +179,7 @@ module TrueVision3D
         # ------------------------------------------------------------
         @export_dialog          =   nil                                           # <-- HTML dialog for export options
         @export_selection_only  =   false                                         # <-- Flag for selection-only export
-        @downscale_textures     =   false                                         # <-- DEBUG: Texture processing disabled until core geometry engine is resolved
+        @downscale_textures     =   false                                         # <-- Set by UI: downscale textures > MAX_TEXTURE_SIZE
         @excluded_layers        =   []                                            # <-- Array of excluded layer names
         @material_map           =   {}                                            # <-- Material to index mapping
         @texture_map            =   {}                                            # <-- Texture to index mapping
