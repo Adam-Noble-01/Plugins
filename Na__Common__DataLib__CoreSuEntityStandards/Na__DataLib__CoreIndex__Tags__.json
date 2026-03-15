@@ -39,6 +39,74 @@
             }
         },
 
+
+        "03__LayoutDrawingLineworkTags__": {
+            "Description": "Tags for 2D Drafting Linework in `Layout` SketchUps 2D Drafting Tool, the EdgePaint Plugin uses edge colours to auto apply the corresponding linework style tag so Layout has full control of the linework styles such as line thickness for depth cueing etc.",
+            "03__LineThickness__01.00pt": {
+                "TagName"            : "03__LineworkStyle__01.00pt",
+                "Description"        : "Layout renders 1 point linework thickness on final PDF Document exported from Layout.",
+                "Usage"              : "Rarely used, but renders the default linework thickness for the model.",
+                "ExportRangeNums"    : [3],
+                "AlwaysExcluded"     : false,
+                "EdgeColourID"       : "MTE101__LineColour__AbsoluteBlack"
+            },
+            "03__LineThickness__00.75pt": {
+                "TagName"            : "03__LineworkStyle__00.80pt",
+                "Description"        : "Layout renders 0.80 point linework thickness on final PDF Document exported from Layout.",
+                "Usage"              : "Used for Items you want to be visible but not too thick, such as columns on an elevation drawing etc, makes them pop but not too dominating on the drawing.",
+                "ExportRangeNums"    : [3],
+                "AlwaysExcluded"     : false,
+                "EdgeColourID"       : "MTE102__LineColour__SoftBlack__L20"
+            },
+            "03__LineThickness__00.50pt": {
+                "TagName"            : "03__LineworkStyle__00.50pt",
+                "Description"        : "Layout renders 0.5 point linework thickness on final PDF Document exported from Layout.",
+                "Usage"              : "Used for Items that should be clearly visible but not too thick, such as window frames on an elevation drawing etc.",
+                "ExportRangeNums"    : [3],
+                "AlwaysExcluded"     : false,
+                "EdgeColourID"       : "MTE103__LineColour__DarkGrey__L40"
+            },
+            "03__LineThickness__00.40pt": {
+                "TagName"            : "03__LineworkStyle__00.40pt",
+                "Description"        : "Layout renders 0.40 point linework thickness on final PDF Document exported from Layout.",
+                "Usage"              : "Used for Items that should be backed off a bit more and less visible, such as subtle building motifs or door handles on elevations drawings etc.",
+                "ExportRangeNums"    : [3],
+                "AlwaysExcluded"     : false,
+                "EdgeColourID"       : "MTE104__LineColour__MidGrey__L60"
+            },
+            "03__LineThickness__00.35pt": {
+                "TagName"            : "03__LineworkStyle__00.35pt",
+                "Description"        : "Layout renders 0.35 point linework thickness on final PDF Document exported from Layout.",
+                "Usage"              : "Used for Items that are backed off significantly where you don't want to express them much at all such as background foliage on and elevation drawing etc..",
+                "ExportRangeNums"    : [3],
+                "AlwaysExcluded"     : false,
+                "EdgeColourID"       : "MTE105__LineColour__LightMidGrey__L70"
+            },
+            "03__LineThickness__00.25pt": {
+                "TagName"            : "03__LineworkStyle__00.25pt",
+                "Description"        : "Layout renders 0.25 point linework thickness on final PDF Document exported from Layout.",
+                "Usage"              : "Barely used, but renders almost invisible linework.",
+                "ExportRangeNums"    : [3],
+                "AlwaysExcluded"     : false,
+                "EdgeColourID"       : "MTE106__LineColour__NearWhiteGrey__L80"
+            },
+            "03__LineThickness__00.20pt": {
+                "TagName"            : "03__LineworkStyle__00.20pt",
+                "Description"        : "0.20 point linework style.",
+                "ExportRangeNums"    : [3],
+                "AlwaysExcluded"     : false,
+                "EdgeColourID"       : "MTE107__LineColour__LightGrey__L85"
+            },
+            "03__LineThickness__00.15pt": {
+                "TagName"            : "03__LineworkStyle__00.15pt",
+                "Description"        : "0.015625 point linework style.",
+                "ExportRangeNums"    : [3],
+                "AlwaysExcluded"     : false,
+                "EdgeColourID"       : "MTE108__LineColour__VeryLightGrey__L95"
+            }
+        },
+
+
         "07__EnvironmentTags__": {
             "07__Landscape": {
                 "TagName"            : "07__Landscape",
@@ -47,6 +115,7 @@
                 "AlwaysExcluded"     : false
             }
         },
+
 
         "10_19__ExistingBuildingTags__": {
             "10__ExistingBuilding": {
@@ -111,6 +180,7 @@
             }
         },
 
+
         "20_29__ProposedBuildingTags__": {
             "20__ProposedBuilding": {
                 "TagName"            : "20__ProposedBuilding",
@@ -173,6 +243,7 @@
                 "AlwaysExcluded"     : false
             }
         },
+
 
         "30_70__FurnitureAndContextTags__": {
             "30_38__GroundFloorFurniture": {
@@ -242,8 +313,9 @@
 
     },
 
+
     "ExportExclusions": {
-        "Description"              : "Tags and patterns used by the GlbBuilder to exclude entities from GLB export. Sourced from EXCLUDED_LAYER_PATTERN and ALWAYS_EXCLUDED_LAYER_NAMES constants in Na__TrueVision__GlbBuilder__Main__.rb.",
+        "Description" : "Tags and patterns used by the GlbBuilder to exclude entities from GLB export. Sourced from EXCLUDED_LAYER_PATTERN and ALWAYS_EXCLUDED_LAYER_NAMES constants in Na__TrueVision__GlbBuilder__Main__.rb.",
         "PatternExclusionRegex"    : "^TrueVision_.*_DoNotExportGLTF$",
         "PatternExclusionNote"     : "Any tag matching this pattern (TrueVision_{wildcard}_DoNotExportGLTF) is excluded from export at all nesting depths. Allows tagging temporary or annotation geometry without affecting the export.",
         "AlwaysExcludedTagNames"   : [
