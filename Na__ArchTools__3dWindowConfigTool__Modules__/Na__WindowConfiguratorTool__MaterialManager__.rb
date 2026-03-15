@@ -25,6 +25,7 @@
 
 require 'sketchup.rb'
 require 'json'
+require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module Na__WindowConfiguratorTool
     module Na__MaterialManager
@@ -42,37 +43,40 @@ module Na__WindowConfiguratorTool
 # REGION | Initialization
 # -----------------------------------------------------------------------------
 
-        # FUNCTION | Load Materials Library
+        # MODULE CONSTANTS | Materials Library Root Key
         # ------------------------------------------------------------
-        # Loads and parses the materials library JSON file.
+        NA_MATERIALS_ROOT_KEY = "Na__DataLib__CoreIndex__Materials".freeze
+        # ------------------------------------------------------------
+
+        # FUNCTION | Load Materials Library via DataLib
+        # ------------------------------------------------------------
+        # Loads the materials library from the centralised Na__DataLib
+        # via URL/cache/fallback. No file path needed.
         # 
-        # @param library_path [String] Path to the materials library JSON file
+        # @param _library_path [String, nil] Ignored (kept for backward compatibility)
         # @return [Hash, nil] Parsed materials library or nil if error
-        def self.na_load_materials_library(library_path)
+        def self.na_load_materials_library(_library_path = nil)
             begin
-                unless File.exist?(library_path)
-                    puts "ERROR: Materials library not found: #{library_path}"
+                puts "    [MaterialManager] Loading materials library via DataLib..."
+                data = Na__DataLib__CacheData.Na__Cache__LoadData(:materials)
+
+                unless data
+                    puts "    [MaterialManager] ERROR: DataLib returned nil for :materials"
                     return nil
                 end
-                
-                json_content = File.read(library_path)
-                parsed = JSON.parse(json_content)
-                
-                @na_materials_library = parsed["Na__AppConfig__MaterialsLibrary"]
-                
+
+                @na_materials_library = data[NA_MATERIALS_ROOT_KEY]
+
                 if @na_materials_library.nil?
-                    puts "ERROR: Invalid materials library structure"
+                    puts "    [MaterialManager] ERROR: Invalid materials library structure (missing #{NA_MATERIALS_ROOT_KEY})"
                     return nil
                 end
-                
-                puts "SUCCESS: Loaded materials library with #{na_count_materials} materials"
+
+                puts "    [MaterialManager] SUCCESS: Loaded materials library with #{na_count_materials} materials"
                 return @na_materials_library
-                
-            rescue JSON::ParserError => e
-                puts "ERROR: Failed to parse materials library JSON: #{e.message}"
-                return nil
+
             rescue => e
-                puts "ERROR: Failed to load materials library: #{e.message}"
+                puts "    [MaterialManager] ERROR: Failed to load materials library: #{e.message}"
                 return nil
             end
         end
@@ -83,13 +87,12 @@ module Na__WindowConfiguratorTool
         # Creates all standard materials from the library in SketchUp.
         # Should be called once at plugin initialization.
         # 
-        # @param library_path [String] Path to the materials library JSON file
+        # @param _library_path [String, nil] Ignored (kept for backward compatibility)
         # @return [Boolean] Success status
-        def self.na_initialize_standard_materials(library_path)
+        def self.na_initialize_standard_materials(_library_path = nil)
             begin
-                # Load library if not already loaded
                 if @na_materials_library.nil?
-                    na_load_materials_library(library_path)
+                    na_load_materials_library
                     return false if @na_materials_library.nil?
                 end
                 

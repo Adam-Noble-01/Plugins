@@ -10,7 +10,7 @@
 # CREATED    : 23-Feb-2026
 #
 # DESCRIPTION:
-# - Fetches Na__AppConfig__MaterialsLibrary.json from the GitHub Pages URL.
+# - Loads materials library from the centralised Na__DataLib via URL/cache/fallback.
 # - Builds a Hash index keyed by SketchUpName for O(1) material lookups.
 # - Provides methods to check if a material is indexed and retrieve its config.
 # - Enriches glTF material hashes with PBR values from the library.
@@ -19,13 +19,17 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 15-Mar-2026 - Version 1.1.0
+# - Migrated from bespoke GitHub Pages HTTP fetch to centralised Na__DataLib
+#   cache system (URL -> temp cache -> local fallback).
+# - Root key updated from Na__AppConfig__MaterialsLibrary to
+#   Na__DataLib__CoreIndex__Materials.
+#
 # 23-Feb-2026 - Version 1.0.0
 # - Initial implementation with URL fetch, index build, and PBR enrichment.
 #
 # =============================================================================
 
-require 'net/http'
-require 'uri'
 require 'json'
 
 module TrueVision3D
@@ -35,9 +39,9 @@ module TrueVision3D
     # REGION | Module Constants
     # -----------------------------------------------------------------------------
 
-        # MODULE CONSTANTS | Materials Library URL and Pattern
+        # MODULE CONSTANTS | Materials Library Pattern Matching
         # ------------------------------------------------------------
-        MATERIALS_LIBRARY_URL  = "https://adam-noble-01.github.io/WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json"
+        MATERIALS_ROOT_KEY     = "Na__DataLib__CoreIndex__Materials".freeze   # <-- Root key in centralised JSON
         INDEXED_MATERIAL_REGEX = /^MAT\d{3}__/                               # <-- Matches MAT + 3 digits + __
         EXEMPT_MATERIAL_REGEX  = /^MAT000E__/                                # <-- "Material Exempt" prefix for indexed_only inclusion
         # ------------------------------------------------------------
@@ -62,42 +66,35 @@ module TrueVision3D
     # REGION | Library Fetch and Parse
     # -----------------------------------------------------------------------------
 
-        # FUNCTION | Fetch Materials Library JSON from URL
+        # FUNCTION | Fetch Materials Library via DataLib (URL/Cache/Fallback)
         # ---------------------------------------------------------------
-        # Performs an HTTP GET to fetch the materials library JSON.
-        # Returns the parsed Hash on success, nil on failure.
-        # Caches the result for the session. Pass force_reload=true
-        # to re-fetch from the server.
+        # Loads the materials library via the centralised Na__DataLib
+        # cache system. Returns the parsed Hash on success, nil on failure.
+        # Caches the result in session state. Pass force_reload=true
+        # to force a fresh DataLib fetch.
         # ---------------------------------------------------------------
         def self.Na__MaterialLookup__FetchLibrary(force_reload = false)
             if @material_library_data && !force_reload
-                return @material_library_data                                 # <-- Return cached data
+                return @material_library_data
             end
 
             begin
-                puts "    [MaterialLookup] Fetching materials library from URL..."
-                uri      = URI.parse(MATERIALS_LIBRARY_URL)
-                http     = Net::HTTP.new(uri.host, uri.port)
-                http.use_ssl     = true                                       # <-- HTTPS required
-                http.open_timeout = 10                                        # <-- 10 second connection timeout
-                http.read_timeout = 15                                        # <-- 15 second read timeout
+                puts "    [MaterialLookup] Loading materials library via DataLib..."
+                data = Na__DataLib__CacheData.Na__Cache__LoadData(:materials, force_reload)
 
-                request  = Net::HTTP::Get.new(uri.request_uri)
-                response = http.request(request)
-
-                unless response.is_a?(Net::HTTPSuccess)
-                    puts "    [MaterialLookup] HTTP #{response.code}: #{response.message}"
+                unless data
+                    puts "    [MaterialLookup] DataLib returned nil for :materials"
                     return nil
                 end
 
-                @material_library_data = JSON.parse(response.body)            # <-- Parse JSON response
-                @material_lookup_index = nil                                   # <-- Invalidate index on reload
+                @material_library_data = data
+                @material_lookup_index = nil
 
-                puts "    [MaterialLookup] Materials library fetched successfully"
+                puts "    [MaterialLookup] Materials library loaded successfully via DataLib"
                 @material_library_data
 
             rescue StandardError => e
-                puts "    [MaterialLookup] Failed to fetch library: #{e.message}"
+                puts "    [MaterialLookup] Failed to load library via DataLib: #{e.message}"
                 nil
             end
         end
@@ -120,13 +117,13 @@ module TrueVision3D
             return @material_lookup_index if @material_lookup_index            # <-- Return cached index
 
             library_data = @material_library_data
-            unless library_data && library_data["Na__AppConfig__MaterialsLibrary"]
+            unless library_data && library_data[MATERIALS_ROOT_KEY]
                 puts "    [MaterialLookup] No library data to index"
                 return {}
             end
 
             index   = {}
-            library = library_data["Na__AppConfig__MaterialsLibrary"]         # <-- Root library hash
+            library = library_data[MATERIALS_ROOT_KEY]
 
             library.each do |_series_key, series|
                 next unless series.is_a?(Hash)

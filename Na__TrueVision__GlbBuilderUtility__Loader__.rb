@@ -62,7 +62,8 @@ unless file_loaded?(__FILE__)
         begin
             if defined?(Na__DataLib__CacheData)
                 Na__DataLib__CacheData.Na__Cache__LoadData(:tags)
-                Na__DataLib__CacheData.Na__Cache__PrintStartupReport([:tags])
+                Na__DataLib__CacheData.Na__Cache__LoadData(:materials)
+                Na__DataLib__CacheData.Na__Cache__PrintStartupReport([:tags, :materials])
             end
         rescue => error
             puts "⚠ [GlbBuilder] Data preload warning: #{error.message}"

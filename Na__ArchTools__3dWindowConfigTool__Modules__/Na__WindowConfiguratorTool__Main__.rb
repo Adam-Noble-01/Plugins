@@ -79,7 +79,6 @@ module Na__WindowConfiguratorTool
     # ------------------------------------------------------------
     NA_PLUGIN_ROOT = File.dirname(__FILE__).freeze                  # Plugin root directory
     NA_HTML_FILE   = File.join(NA_PLUGIN_ROOT, 'Na__WindowConfiguratorTool__UiLayout__.html').freeze
-    NA_MATERIALS_LIBRARY = File.join(NA_PLUGIN_ROOT, 'Na__AppConfig__MaterialsLibrary.json').freeze
     
     # CONSTANTS | Dictionary Names (reference from DataSerializer)
     # ------------------------------------------------------------
@@ -196,7 +195,7 @@ module Na__WindowConfiguratorTool
         # Initialize materials library
         DebugTools.na_debug_info("Initializing materials library...")
         begin
-            materials_loaded = MaterialManager.na_initialize_standard_materials(NA_MATERIALS_LIBRARY)
+            materials_loaded = MaterialManager.na_initialize_standard_materials
             
             if materials_loaded
                 DebugTools.na_debug_success("Materials library initialized successfully")

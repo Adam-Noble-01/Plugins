@@ -99,6 +99,14 @@ module TrueVision3D
     # REGION | DataLib-Driven Export Configuration Loader
     # -----------------------------------------------------------------------------
 
+        # FUNCTION | Force Reload Export Configuration (clears cached state)
+        # ------------------------------------------------------------
+        def self.Na__ExportConfig__ForceReload
+            @na_datalib_loaded = false
+            self.Na__ExportConfig__LoadFromDataLib
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Load Export Configuration from Centralised Tags JSON
         # ------------------------------------------------------------
         def self.Na__ExportConfig__LoadFromDataLib
@@ -112,11 +120,15 @@ module TrueVision3D
                     meta       = tags_data["meta"]
 
                     if exclusions.is_a?(Hash)
-                        pattern_str = exclusions["PatternExclusionRegex"]
-                        @na_datalib_exclusion_pattern = pattern_str ? Regexp.new(pattern_str) : EXCLUDED_LAYER_PATTERN
-                        @na_datalib_fully_excluded    = Array(exclusions["FullyExcludedTagNames"])
-                        @na_datalib_treat_as_untagged = Array(exclusions["TreatAsUntaggedTagNames"])
-                        puts "    [GlbBuilder] DataLib exclusions loaded: #{@na_datalib_fully_excluded.size} fully excluded, #{@na_datalib_treat_as_untagged.size} treat-as-untagged"
+                        pattern_str    = exclusions["PatternExclusionRegex"]
+                        fully_excluded = Array(exclusions["FullyExcludedTagNames"])
+                        treat_untagged = Array(exclusions["TreatAsUntaggedTagNames"])
+
+                        @na_datalib_exclusion_pattern = pattern_str ? Regexp.new(pattern_str) : nil
+                        @na_datalib_fully_excluded    = fully_excluded.empty? ? nil : fully_excluded
+                        @na_datalib_treat_as_untagged = treat_untagged.empty? ? nil : treat_untagged
+
+                        puts "    [GlbBuilder] DataLib exclusions loaded: #{(fully_excluded).size} fully excluded, #{(treat_untagged).size} treat-as-untagged"
                     end
 
                     if meta.is_a?(Hash) && meta["skipRanges"].is_a?(Array)
@@ -174,12 +186,19 @@ module TrueVision3D
                 end
             end
 
-            @na_datalib_tag_ranges         = tag_ranges
-            @na_datalib_storey_tag_map     = storey_tag_map
-            @na_datalib_storey_element_map = storey_element_map
-            @na_datalib_storey_tag_range   = storey_tag_range
-
-            puts "    [GlbBuilder] DataLib tag ranges built: #{tag_ranges.size} export groups, #{storey_tag_map.size} storey containers, #{storey_element_map.size} storey elements"
+            if tag_ranges.empty?
+                puts "    [GlbBuilder] WARNING: DataLib tag ranges empty (JSON may use old field names), using hardcoded fallbacks"
+                @na_datalib_tag_ranges         = nil
+                @na_datalib_storey_tag_map     = nil
+                @na_datalib_storey_element_map = nil
+                @na_datalib_storey_tag_range   = nil
+            else
+                @na_datalib_tag_ranges         = tag_ranges
+                @na_datalib_storey_tag_map     = storey_tag_map
+                @na_datalib_storey_element_map = storey_element_map
+                @na_datalib_storey_tag_range   = storey_tag_range
+                puts "    [GlbBuilder] DataLib tag ranges built: #{tag_ranges.size} export groups, #{storey_tag_map.size} storey containers, #{storey_element_map.size} storey elements"
+            end
         end
         # ---------------------------------------------------------------
 
