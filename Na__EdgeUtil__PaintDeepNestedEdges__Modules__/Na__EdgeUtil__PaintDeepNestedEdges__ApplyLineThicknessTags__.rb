@@ -72,12 +72,12 @@ module Na__EdgeUtil__PaintDeepNestedEdges
 
             linework_section.each do |_key, entry|
                 next unless entry.is_a?(Hash)
-                next unless entry["EdgeColourID"] && entry["TagName"]
+                next unless entry["Layout__EdgeColourID"] && entry["Tag__SketchUpName"]
 
-                colour_id = entry["EdgeColourID"]
-                tag_name  = entry["TagName"]
+                colour_id = entry["Layout__EdgeColourID"]
+                tag_name  = entry["Tag__SketchUpName"]
                 lookup[colour_id] = tag_name
-                entries << { colour_id: colour_id, tag_name: tag_name, description: entry["Description"] || "" }
+                entries << { colour_id: colour_id, tag_name: tag_name, description: entry["Tag__Description"] || "" }
             end
 
             @na_colour_to_tag_lookup = lookup
@@ -112,7 +112,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         # HELPER FUNCTION | Ensure All Required Linework Tags Exist in Model
         # ---------------------------------------------------------------
         def self.Na__LineTags__EnsureTagsExist(model)
-            lookup       = Na__LineTags__Lookup
+            lookup       = self.Na__LineTags__Lookup
             created_tags = []
 
             lookup.each_value do |tag_name|
@@ -153,7 +153,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
                 return { applied: 0, skipped: 0, tags_created: 0, total_edges: 0, errors: ["No active model"] }
             end
 
-            lookup = Na__LineTags__Lookup
+            lookup = self.Na__LineTags__Lookup
             if lookup.empty?
                 return { applied: 0, skipped: 0, tags_created: 0, total_edges: 0, errors: ["No colour-to-tag mappings loaded"] }
             end
@@ -161,33 +161,36 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             model.start_operation("Apply Line Thickness Tags", true)
 
             begin
-                created_tags = Na__LineTags__EnsureTagsExist(model)
-                edges        = Na__LineTags__CollectAllModelEdges(model)
+                created_tags = self.Na__LineTags__EnsureTagsExist(model)
+                edges        = self.Na__LineTags__CollectAllModelEdges(model)
                 applied      = 0
                 skipped      = 0
                 errors       = []
 
+                untagged_layer = model.layers["Layer0"] || model.layers["Untagged"]
+                untagged_count = 0
+
                 edges.each do |edge|
                     mat_name = edge.material ? edge.material.display_name : nil
-                    next unless mat_name
-
-                    tag_name = lookup[mat_name]
-                    unless tag_name
-                        skipped += 1
-                        next
-                    end
+                    tag_name = mat_name ? lookup[mat_name] : nil
 
                     begin
-                        target_layer = model.layers[tag_name]
-                        if target_layer
-                            edge.layer = target_layer
-                            applied += 1
+                        if tag_name
+                            target_layer = model.layers[tag_name]
+                            if target_layer
+                                edge.layer = target_layer
+                                applied += 1
+                            else
+                                edge.layer = untagged_layer if untagged_layer
+                                untagged_count += 1
+                            end
                         else
-                            skipped += 1
+                            edge.layer = untagged_layer if untagged_layer
+                            untagged_count += 1
                         end
                     rescue => e
                         skipped += 1
-                        errors << "#{mat_name}: #{e.message}" if errors.length < 10
+                        errors << "#{mat_name || 'no material'}: #{e.message}" if errors.length < 10
                     end
                 end
 
@@ -195,13 +198,14 @@ module Na__EdgeUtil__PaintDeepNestedEdges
 
                 summary = {
                     applied:      applied,
+                    untagged:     untagged_count,
                     skipped:      skipped,
                     tags_created: created_tags.length,
                     total_edges:  edges.length,
                     errors:       errors
                 }
 
-                puts "    [LineTags] Complete: #{applied} edges tagged, #{skipped} skipped, #{created_tags.length} tags created (#{edges.length} total edges scanned)"
+                puts "    [LineTags] Complete: #{applied} tagged, #{untagged_count} moved to Untagged, #{skipped} skipped, #{created_tags.length} tags created (#{edges.length} total)"
                 summary
 
             rescue => e

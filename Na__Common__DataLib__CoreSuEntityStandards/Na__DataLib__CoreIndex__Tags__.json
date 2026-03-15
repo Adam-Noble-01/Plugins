@@ -1,15 +1,16 @@
 {
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
-        "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Used by TrueVision3D GlbBuilder to create standardised tags in the active model and to segment GLB exports by numeric tag range. Each tag entry includes the canonical SketchUp tag name, description, and where applicable the numeric export range used by the GLB exporter.",
-        "version"           : "1.0.0",
+        "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout).",
+        "version"           : "2.0.0",
         "lastUpdated"       : "15-Mar-2026",
-        "sourceFiles"       : [
-            "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__TagsIndex__.json",
-            "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__Main__.rb (TAG_RANGES constant)"
-        ],
         "namingConvention"  : "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
-        "exportNote"        : "ExportRangeNums lists the integer tag numbers that the GlbBuilder uses to segment GLB output files. Tags with ExportRangeNums are exported as separate GLB segments. Tags with no range are either utility tags or storey containers.",
+        "fieldPrefixes"     : {
+            "Tag__"    : "Core SketchUp tag identity (name, description)",
+            "Glb__"    : "GLB exporter behaviour (export ranges, exclusion, filename stem)",
+            "Storey__" : "Storey-based export system (container flag, element name)",
+            "Layout__" : "SketchUp Layout integration (edge colour mapping, usage notes)"
+        },
         "skipRanges"        : [0, 2, 3, 4, 5, 6],
         "skipRangesNote"    : "Tags with these numeric IDs are ignored by the GLB exporter and not exported.",
         "GitHub__RepoUrl"   : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
@@ -20,307 +21,368 @@
 
         "00__SystemAndUtilityTags__": {
             "01__OrbitHelperCube": {
-                "TagName"            : "01__OrbitHelperCube",
-                "Description"        : "Camera orbit pivot point for the Web 3D Viewer App. A small cube component placed at the desired camera rotation centre.",
-                "ExportRangeNums"    : [1],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "01__OrbitHelperCube",
+                "Tag__Description"           : "Camera orbit pivot point for the Web 3D Viewer App. A small cube component placed at the desired camera rotation centre.",
+                "Glb__ExportRangeNumbers"    : [1],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "01__OrbitHelperCube"
             },
             "02__Linetype__DoorSwings": {
-                "TagName"            : "02__Linetype__DoorSwings",
-                "Description"        : "2D door swing arc linework. Always excluded from GLB export at any nesting depth.",
-                "ExportRangeNums"    : null,
-                "AlwaysExcluded"     : true
+                "Tag__SketchUpName"          : "02__Linetype__DoorSwings",
+                "Tag__Description"           : "2D door swing arc linework. Always excluded from GLB export at any nesting depth.",
+                "Glb__ExportRangeNumbers"    : null,
+                "Glb__FullyExcluded"         : true
             },
             "02__ClearanceLines": {
-                "TagName"            : "02__ClearanceLines",
-                "Description"        : "Clearance zone linework (e.g. furniture clearances, accessibility zones). Always excluded from GLB export.",
-                "ExportRangeNums"    : null,
-                "AlwaysExcluded"     : true
+                "Tag__SketchUpName"          : "02__ClearanceLines",
+                "Tag__Description"           : "Clearance zone linework (e.g. furniture clearances, accessibility zones). Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"    : null,
+                "Glb__FullyExcluded"         : true
             }
         },
-
 
         "03__LayoutDrawingLineworkTags__": {
-            "Description": "Tags for 2D Drafting Linework in `Layout` SketchUps 2D Drafting Tool, the EdgePaint Plugin uses edge colours to auto apply the corresponding linework style tag so Layout has full control of the linework styles such as line thickness for depth cueing etc.",
+            "Tag__Description"               : "Tags for 2D Drafting Linework in Layout (SketchUps 2D Drafting Tool). The EdgePaint Plugin uses edge colours to auto-apply the corresponding linework style tag so Layout has full control of line thickness for depth cueing.",
             "03__LineThickness__01.00pt": {
-                "TagName"            : "03__LineworkStyle__01.00pt",
-                "Description"        : "Layout renders 1 point linework thickness on final PDF Document exported from Layout.",
-                "Usage"              : "Rarely used, but renders the default linework thickness for the model.",
-                "ExportRangeNums"    : [3],
-                "AlwaysExcluded"     : false,
-                "EdgeColourID"       : "MTE101__LineColour__AbsoluteBlack"
+                "Tag__SketchUpName"          : "03__LineworkStyle__01.00pt",
+                "Tag__Description"           : "Layout renders 1 point linework thickness on final PDF Document exported from Layout.",
+                "Glb__ExportRangeNumbers"    : [3],
+                "Glb__FullyExcluded"         : false,
+                "Layout__EdgeColourID"       : "MTE101__LineColour__AbsoluteBlack",
+                "Layout__UsageNote"          : "Rarely used, but renders the default linework thickness for the model."
             },
-            "03__LineThickness__00.75pt": {
-                "TagName"            : "03__LineworkStyle__00.80pt",
-                "Description"        : "Layout renders 0.80 point linework thickness on final PDF Document exported from Layout.",
-                "Usage"              : "Used for Items you want to be visible but not too thick, such as columns on an elevation drawing etc, makes them pop but not too dominating on the drawing.",
-                "ExportRangeNums"    : [3],
-                "AlwaysExcluded"     : false,
-                "EdgeColourID"       : "MTE102__LineColour__SoftBlack__L20"
+            "03__LineThickness__00.80pt": {
+                "Tag__SketchUpName"          : "03__LineworkStyle__00.80pt",
+                "Tag__Description"           : "Layout renders 0.80 point linework thickness on final PDF Document exported from Layout.",
+                "Glb__ExportRangeNumbers"    : [3],
+                "Glb__FullyExcluded"         : false,
+                "Layout__EdgeColourID"       : "MTE102__LineColour__SoftBlack__L20",
+                "Layout__UsageNote"          : "Used for items you want to be visible but not too thick, such as columns on an elevation drawing."
             },
             "03__LineThickness__00.50pt": {
-                "TagName"            : "03__LineworkStyle__00.50pt",
-                "Description"        : "Layout renders 0.5 point linework thickness on final PDF Document exported from Layout.",
-                "Usage"              : "Used for Items that should be clearly visible but not too thick, such as window frames on an elevation drawing etc.",
-                "ExportRangeNums"    : [3],
-                "AlwaysExcluded"     : false,
-                "EdgeColourID"       : "MTE103__LineColour__DarkGrey__L40"
+                "Tag__SketchUpName"          : "03__LineworkStyle__00.50pt",
+                "Tag__Description"           : "Layout renders 0.5 point linework thickness on final PDF Document exported from Layout.",
+                "Glb__ExportRangeNumbers"    : [3],
+                "Glb__FullyExcluded"         : false,
+                "Layout__EdgeColourID"       : "MTE103__LineColour__DarkGrey__L40",
+                "Layout__UsageNote"          : "Used for items that should be clearly visible but not too thick, such as window frames on an elevation drawing."
             },
             "03__LineThickness__00.40pt": {
-                "TagName"            : "03__LineworkStyle__00.40pt",
-                "Description"        : "Layout renders 0.40 point linework thickness on final PDF Document exported from Layout.",
-                "Usage"              : "Used for Items that should be backed off a bit more and less visible, such as subtle building motifs or door handles on elevations drawings etc.",
-                "ExportRangeNums"    : [3],
-                "AlwaysExcluded"     : false,
-                "EdgeColourID"       : "MTE104__LineColour__MidGrey__L60"
+                "Tag__SketchUpName"          : "03__LineworkStyle__00.40pt",
+                "Tag__Description"           : "Layout renders 0.40 point linework thickness on final PDF Document exported from Layout.",
+                "Glb__ExportRangeNumbers"    : [3],
+                "Glb__FullyExcluded"         : false,
+                "Layout__EdgeColourID"       : "MTE104__LineColour__MidGrey__L60",
+                "Layout__UsageNote"          : "Used for items that should be backed off a bit more, such as subtle building motifs or door handles on elevation drawings."
             },
             "03__LineThickness__00.35pt": {
-                "TagName"            : "03__LineworkStyle__00.35pt",
-                "Description"        : "Layout renders 0.35 point linework thickness on final PDF Document exported from Layout.",
-                "Usage"              : "Used for Items that are backed off significantly where you don't want to express them much at all such as background foliage on and elevation drawing etc..",
-                "ExportRangeNums"    : [3],
-                "AlwaysExcluded"     : false,
-                "EdgeColourID"       : "MTE105__LineColour__LightMidGrey__L70"
+                "Tag__SketchUpName"          : "03__LineworkStyle__00.35pt",
+                "Tag__Description"           : "Layout renders 0.35 point linework thickness on final PDF Document exported from Layout.",
+                "Glb__ExportRangeNumbers"    : [3],
+                "Glb__FullyExcluded"         : false,
+                "Layout__EdgeColourID"       : "MTE105__LineColour__LightMidGrey__L70",
+                "Layout__UsageNote"          : "Used for items backed off significantly, such as background foliage on elevation drawings."
             },
             "03__LineThickness__00.25pt": {
-                "TagName"            : "03__LineworkStyle__00.25pt",
-                "Description"        : "Layout renders 0.25 point linework thickness on final PDF Document exported from Layout.",
-                "Usage"              : "Barely used, but renders almost invisible linework.",
-                "ExportRangeNums"    : [3],
-                "AlwaysExcluded"     : false,
-                "EdgeColourID"       : "MTE106__LineColour__NearWhiteGrey__L80"
+                "Tag__SketchUpName"          : "03__LineworkStyle__00.25pt",
+                "Tag__Description"           : "Layout renders 0.25 point linework thickness on final PDF Document exported from Layout.",
+                "Glb__ExportRangeNumbers"    : [3],
+                "Glb__FullyExcluded"         : false,
+                "Layout__EdgeColourID"       : "MTE106__LineColour__NearWhiteGrey__L80",
+                "Layout__UsageNote"          : "Barely used, renders almost invisible linework."
             },
             "03__LineThickness__00.20pt": {
-                "TagName"            : "03__LineworkStyle__00.20pt",
-                "Description"        : "0.20 point linework style.",
-                "ExportRangeNums"    : [3],
-                "AlwaysExcluded"     : false,
-                "EdgeColourID"       : "MTE107__LineColour__LightGrey__L85"
+                "Tag__SketchUpName"          : "03__LineworkStyle__00.20pt",
+                "Tag__Description"           : "0.20 point linework style.",
+                "Glb__ExportRangeNumbers"    : [3],
+                "Glb__FullyExcluded"         : false,
+                "Layout__EdgeColourID"       : "MTE107__LineColour__LightGrey__L85"
             },
             "03__LineThickness__00.15pt": {
-                "TagName"            : "03__LineworkStyle__00.15pt",
-                "Description"        : "0.015625 point linework style.",
-                "ExportRangeNums"    : [3],
-                "AlwaysExcluded"     : false,
-                "EdgeColourID"       : "MTE108__LineColour__VeryLightGrey__L95"
+                "Tag__SketchUpName"          : "03__LineworkStyle__00.15pt",
+                "Tag__Description"           : "0.15 point linework style.",
+                "Glb__ExportRangeNumbers"    : [3],
+                "Glb__FullyExcluded"         : false,
+                "Layout__EdgeColourID"       : "MTE108__LineColour__VeryLightGrey__L95"
             }
         },
-
 
         "07__EnvironmentTags__": {
             "07__Landscape": {
-                "TagName"            : "07__Landscape",
-                "Description"        : "Landscape and site context elements including ground surface, planting, paving, and site boundaries.",
-                "ExportRangeNums"    : [7, 8, 9],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "07__Landscape",
+                "Tag__Description"           : "Landscape and site context elements including ground surface, planting, paving, and site boundaries.",
+                "Glb__ExportRangeNumbers"    : [7, 8, 9],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__LandscapeEnvironment",
+                "Storey__ElementExportName"  : "LandscapeEnvironment"
             }
         },
-
 
         "10_19__ExistingBuildingTags__": {
             "10__ExistingBuilding": {
-                "TagName"            : "10__ExistingBuilding",
-                "Description"        : "Existing building - whole massing flag. Used for simplified massing models where the entire existing building is a single object.",
-                "ExportRangeNums"    : [10],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "10__ExistingBuilding",
+                "Tag__Description"           : "Existing building - whole massing flag. Used for simplified massing models where the entire existing building is a single object.",
+                "Glb__ExportRangeNumbers"    : [10],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__Existing"
             },
             "11__ExistingBuilding__Walls": {
-                "TagName"            : "11__ExistingBuilding__Walls",
-                "Description"        : "Existing building walls.",
-                "ExportRangeNums"    : [11],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "11__ExistingBuilding__Walls",
+                "Tag__Description"           : "Existing building walls.",
+                "Glb__ExportRangeNumbers"    : [11],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ExistingWalls",
+                "Storey__ElementExportName"  : "ExistingWalls"
             },
             "12__ExistingBuilding__Floors": {
-                "TagName"            : "12__ExistingBuilding__Floors",
-                "Description"        : "Existing building floor slabs and finishes.",
-                "ExportRangeNums"    : [12],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "12__ExistingBuilding__Floors",
+                "Tag__Description"           : "Existing building floor slabs and finishes.",
+                "Glb__ExportRangeNumbers"    : [12],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ExistingFloors",
+                "Storey__ElementExportName"  : "ExistingFloors"
             },
             "13__ExistingBuilding__Roofs": {
-                "TagName"            : "13__ExistingBuilding__Roofs",
-                "Description"        : "Existing building roof structures.",
-                "ExportRangeNums"    : [13],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "13__ExistingBuilding__Roofs",
+                "Tag__Description"           : "Existing building roof structures.",
+                "Glb__ExportRangeNumbers"    : [13],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ExistingRoofs",
+                "Storey__ElementExportName"  : "ExistingRoofs"
             },
             "14__ExistingBuilding__Windows": {
-                "TagName"            : "14__ExistingBuilding__Windows",
-                "Description"        : "Existing building window assemblies.",
-                "ExportRangeNums"    : [14],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "14__ExistingBuilding__Windows",
+                "Tag__Description"           : "Existing building window assemblies.",
+                "Glb__ExportRangeNumbers"    : [14],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ExistingWindows",
+                "Storey__ElementExportName"  : "ExistingWindows"
             },
             "15__ExistingBuilding__Doors": {
-                "TagName"            : "15__ExistingBuilding__Doors",
-                "Description"        : "Existing building door assemblies.",
-                "ExportRangeNums"    : [15],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "15__ExistingBuilding__Doors",
+                "Tag__Description"           : "Existing building door assemblies.",
+                "Glb__ExportRangeNumbers"    : [15],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ExistingDoors",
+                "Storey__ElementExportName"  : "ExistingDoors"
             },
             "16__ExistingBuilding__Staircase": {
-                "TagName"            : "16__ExistingBuilding__Staircase",
-                "Description"        : "Existing building staircases.",
-                "ExportRangeNums"    : [16],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "16__ExistingBuilding__Staircase",
+                "Tag__Description"           : "Existing building staircases.",
+                "Glb__ExportRangeNumbers"    : [16],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ExistingStairs",
+                "Storey__ElementExportName"  : "ExistingStairs"
             },
             "17__ExistingBuilding__Fixtures": {
-                "TagName"            : "17__ExistingBuilding__Fixtures",
-                "Description"        : "Existing building fixtures and fittings (sanitary, kitchen, etc.).",
-                "ExportRangeNums"    : [17],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "17__ExistingBuilding__Fixtures",
+                "Tag__Description"           : "Existing building fixtures and fittings (sanitary, kitchen, etc.).",
+                "Glb__ExportRangeNumbers"    : [17],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ExistingFixtures",
+                "Storey__ElementExportName"  : "ExistingFixtures"
             },
             "18__ExistingBuilding__Furniture": {
-                "TagName"            : "18__ExistingBuilding__Furniture",
-                "Description"        : "Existing building furniture.",
-                "ExportRangeNums"    : [18],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "18__ExistingBuilding__Furniture",
+                "Tag__Description"           : "Existing building furniture.",
+                "Glb__ExportRangeNumbers"    : [18],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ExistingFurniture",
+                "Storey__ElementExportName"  : "ExistingFurniture"
             },
             "19__ExistingBuilding__InteriorDecor": {
-                "TagName"            : "19__ExistingBuilding__InteriorDecor",
-                "Description"        : "Existing building interior decor and soft furnishings.",
-                "ExportRangeNums"    : [19],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "19__ExistingBuilding__InteriorDecor",
+                "Tag__Description"           : "Existing building interior decor and soft furnishings.",
+                "Glb__ExportRangeNumbers"    : [19],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ExistingInteriorDecor",
+                "Storey__ElementExportName"  : "ExistingInteriorDecor"
             }
         },
-
 
         "20_29__ProposedBuildingTags__": {
             "20__ProposedBuilding": {
-                "TagName"            : "20__ProposedBuilding",
-                "Description"        : "Proposed building - whole massing flag. Used for simplified massing models where the entire proposed building is a single object.",
-                "ExportRangeNums"    : [20],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "20__ProposedBuilding",
+                "Tag__Description"           : "Proposed building - whole massing flag. Used for simplified massing models where the entire proposed building is a single object.",
+                "Glb__ExportRangeNumbers"    : [20],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__Proposed"
             },
             "21__ProposedBuilding__Walls": {
-                "TagName"            : "21__ProposedBuilding__Walls",
-                "Description"        : "Proposed building walls.",
-                "ExportRangeNums"    : [21],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "21__ProposedBuilding__Walls",
+                "Tag__Description"           : "Proposed building walls.",
+                "Glb__ExportRangeNumbers"    : [21],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ProposedWalls",
+                "Storey__ElementExportName"  : "ProposedWalls"
             },
             "22__ProposedBuilding__Floors": {
-                "TagName"            : "22__ProposedBuilding__Floors",
-                "Description"        : "Proposed building floor slabs and finishes.",
-                "ExportRangeNums"    : [22],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "22__ProposedBuilding__Floors",
+                "Tag__Description"           : "Proposed building floor slabs and finishes.",
+                "Glb__ExportRangeNumbers"    : [22],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ProposedFloors",
+                "Storey__ElementExportName"  : "ProposedFloors"
             },
             "23__ProposedBuilding__Roofs": {
-                "TagName"            : "23__ProposedBuilding__Roofs",
-                "Description"        : "Proposed building roof structures.",
-                "ExportRangeNums"    : [23],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "23__ProposedBuilding__Roofs",
+                "Tag__Description"           : "Proposed building roof structures.",
+                "Glb__ExportRangeNumbers"    : [23],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ProposedRoofs",
+                "Storey__ElementExportName"  : "ProposedRoofs"
             },
             "24__ProposedBuilding__Windows": {
-                "TagName"            : "24__ProposedBuilding__Windows",
-                "Description"        : "Proposed building window assemblies (AWN-series components).",
-                "ExportRangeNums"    : [24],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "24__ProposedBuilding__Windows",
+                "Tag__Description"           : "Proposed building window assemblies (AWN-series components).",
+                "Glb__ExportRangeNumbers"    : [24],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ProposedWindows",
+                "Storey__ElementExportName"  : "ProposedWindows"
             },
             "25__ProposedBuilding__Doors": {
-                "TagName"            : "25__ProposedBuilding__Doors",
-                "Description"        : "Proposed building door assemblies (ADR-series components).",
-                "ExportRangeNums"    : [25],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "25__ProposedBuilding__Doors",
+                "Tag__Description"           : "Proposed building door assemblies (ADR-series components).",
+                "Glb__ExportRangeNumbers"    : [25],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ProposedDoors",
+                "Storey__ElementExportName"  : "ProposedDoors"
             },
             "26__ProposedBuilding__Staircase": {
-                "TagName"            : "26__ProposedBuilding__Staircase",
-                "Description"        : "Proposed building staircases.",
-                "ExportRangeNums"    : [26],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "26__ProposedBuilding__Staircase",
+                "Tag__Description"           : "Proposed building staircases.",
+                "Glb__ExportRangeNumbers"    : [26],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ProposedStairs",
+                "Storey__ElementExportName"  : "ProposedStairs"
             },
             "27__ProposedBuilding__Fixtures": {
-                "TagName"            : "27__ProposedBuilding__Fixtures",
-                "Description"        : "Proposed building fixtures and fittings (sanitary, kitchen, etc.).",
-                "ExportRangeNums"    : [27],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "27__ProposedBuilding__Fixtures",
+                "Tag__Description"           : "Proposed building fixtures and fittings (sanitary, kitchen, etc.).",
+                "Glb__ExportRangeNumbers"    : [27],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ProposedFixtures",
+                "Storey__ElementExportName"  : "ProposedFixtures"
             },
             "28__ProposedBuilding__Furniture": {
-                "TagName"            : "28__ProposedBuilding__Furniture",
-                "Description"        : "Proposed building furniture.",
-                "ExportRangeNums"    : [28],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "28__ProposedBuilding__Furniture",
+                "Tag__Description"           : "Proposed building furniture.",
+                "Glb__ExportRangeNumbers"    : [28],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ProposedFurniture",
+                "Storey__ElementExportName"  : "ProposedFurniture"
             },
             "29__ProposedBuilding__InteriorDecor": {
-                "TagName"            : "29__ProposedBuilding__InteriorDecor",
-                "Description"        : "Proposed building interior decor and soft furnishings.",
-                "ExportRangeNums"    : [29],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "29__ProposedBuilding__InteriorDecor",
+                "Tag__Description"           : "Proposed building interior decor and soft furnishings.",
+                "Glb__ExportRangeNumbers"    : [29],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__MainBuildingModel__ProposedInteriorDecor",
+                "Storey__ElementExportName"  : "ProposedInteriorDecor"
             }
         },
 
-
         "30_70__FurnitureAndContextTags__": {
             "30_38__GroundFloorFurniture": {
-                "TagName"            : "30_38__GroundFloorFurniture",
-                "Description"        : "Ground floor furniture range (tags 30 through 38). Individual items placed on tags 30-38 within this range.",
-                "ExportRangeNums"    : [30, 31, 32, 33, 34, 35, 36, 37, 38],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "30_38__GroundFloorFurniture",
+                "Tag__Description"           : "Ground floor furniture range (tags 30 through 38).",
+                "Glb__ExportRangeNumbers"    : [30, 31, 32, 33, 34, 35, 36, 37, 38],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__GroundFloorFurniture"
             },
             "39__GroundFloorDecor": {
-                "TagName"            : "39__GroundFloorDecor",
-                "Description"        : "Ground floor high detail decor items.",
-                "ExportRangeNums"    : [39],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "39__GroundFloorDecor",
+                "Tag__Description"           : "Ground floor high detail decor items.",
+                "Glb__ExportRangeNumbers"    : [39],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__GroundFloorDecor"
             },
             "40_48__FirstFloorFurniture": {
-                "TagName"            : "40_48__FirstFloorFurniture",
-                "Description"        : "First floor furniture range (tags 40 through 48).",
-                "ExportRangeNums"    : [40, 41, 42, 43, 44, 45, 46, 47, 48],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "40_48__FirstFloorFurniture",
+                "Tag__Description"           : "First floor furniture range (tags 40 through 48).",
+                "Glb__ExportRangeNumbers"    : [40, 41, 42, 43, 44, 45, 46, 47, 48],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__FirstFloorFurniture"
             },
             "49__FirstFloorDecor": {
-                "TagName"            : "49__FirstFloorDecor",
-                "Description"        : "First floor high detail decor items.",
-                "ExportRangeNums"    : [49],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "49__FirstFloorDecor",
+                "Tag__Description"           : "First floor high detail decor items.",
+                "Glb__ExportRangeNumbers"    : [49],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__FirstFloorDecor"
             },
             "50_59__Vegetation": {
-                "TagName"            : "50_59__Vegetation",
-                "Description"        : "Vegetation - trees, shrubs, planting (tags 50 through 59).",
-                "ExportRangeNums"    : [50, 51, 52, 53, 54, 55, 56, 57, 58, 59],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "50_59__Vegetation",
+                "Tag__Description"           : "Vegetation - trees, shrubs, planting (tags 50 through 59).",
+                "Glb__ExportRangeNumbers"    : [50, 51, 52, 53, 54, 55, 56, 57, 58, 59],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__Vegetation"
             },
             "60_70__SceneContextual": {
-                "TagName"            : "60_70__SceneContextual",
-                "Description"        : "Scene context objects - people, vehicles, site elements (tags 60 through 70).",
-                "ExportRangeNums"    : [60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"          : "60_70__SceneContextual",
+                "Tag__Description"           : "Scene context objects - people, vehicles, site elements (tags 60 through 70).",
+                "Glb__ExportRangeNumbers"    : [60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__SceneContextual"
             }
         },
 
         "90_93__StoreyContainerTags__": {
             "90__Storey__GroundFloor": {
-                "TagName"            : "90__Storey__GroundFloor",
-                "Description"        : "Storey container tag - Ground Floor. Groups all ground floor geometry for storey-level visibility control.",
-                "ExportRangeNums"    : null,
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"            : "90__Storey__GroundFloor",
+                "Tag__Description"             : "Storey container tag - Ground Floor. Groups all ground floor geometry for storey-level visibility control.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : false,
+                "Storey__IsContainer"          : true,
+                "Storey__ContainerExportName"  : "Storey__GroundFloor"
             },
             "91__Storey__FirstFloor": {
-                "TagName"            : "91__Storey__FirstFloor",
-                "Description"        : "Storey container tag - First Floor.",
-                "ExportRangeNums"    : null,
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"            : "91__Storey__FirstFloor",
+                "Tag__Description"             : "Storey container tag - First Floor.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : false,
+                "Storey__IsContainer"          : true,
+                "Storey__ContainerExportName"  : "Storey__FirstFloor"
             },
             "92__Storey__SecondFloor": {
-                "TagName"            : "92__Storey__SecondFloor",
-                "Description"        : "Storey container tag - Second Floor.",
-                "ExportRangeNums"    : null,
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"            : "92__Storey__SecondFloor",
+                "Tag__Description"             : "Storey container tag - Second Floor.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : false,
+                "Storey__IsContainer"          : true,
+                "Storey__ContainerExportName"  : "Storey__SecondFloor"
             },
             "93__Storey__ThirdFloor": {
-                "TagName"            : "93__Storey__ThirdFloor",
-                "Description"        : "Storey container tag - Third Floor.",
-                "ExportRangeNums"    : null,
-                "AlwaysExcluded"     : false
+                "Tag__SketchUpName"            : "93__Storey__ThirdFloor",
+                "Tag__Description"             : "Storey container tag - Third Floor.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : false,
+                "Storey__IsContainer"          : true,
+                "Storey__ContainerExportName"  : "Storey__ThirdFloor"
             }
         }
 
     },
 
-
     "ExportExclusions": {
-        "Description" : "Tags and patterns used by the GlbBuilder to exclude entities from GLB export. Sourced from EXCLUDED_LAYER_PATTERN and ALWAYS_EXCLUDED_LAYER_NAMES constants in Na__TrueVision__GlbBuilder__Main__.rb.",
+        "Description"              : "Tags and patterns used by the GlbBuilder to control entity visibility during GLB export. FullyExcludedTagNames are completely invisible in the GLB. TreatAsUntaggedTagNames are exported as Layer0 geometry (visible in 3D viewer but not segmented by tag).",
         "PatternExclusionRegex"    : "^TrueVision_.*_DoNotExportGLTF$",
-        "PatternExclusionNote"     : "Any tag matching this pattern (TrueVision_{wildcard}_DoNotExportGLTF) is excluded from export at all nesting depths. Allows tagging temporary or annotation geometry without affecting the export.",
-        "AlwaysExcludedTagNames"   : [
+        "PatternExclusionNote"     : "Any tag matching this pattern (TrueVision_{wildcard}_DoNotExportGLTF) is excluded from export at all nesting depths.",
+        "FullyExcludedTagNames"    : [
             "02__Linetype__DoorSwings",
             "02__ClearanceLines"
-        ]
+        ],
+        "FullyExcludedNote"        : "Entities on these tags are completely skipped during GLB export at any nesting depth.",
+        "TreatAsUntaggedTagNames"  : [
+            "03__LineworkStyle__01.00pt",
+            "03__LineworkStyle__00.80pt",
+            "03__LineworkStyle__00.50pt",
+            "03__LineworkStyle__00.40pt",
+            "03__LineworkStyle__00.35pt",
+            "03__LineworkStyle__00.25pt",
+            "03__LineworkStyle__00.20pt",
+            "03__LineworkStyle__00.15pt"
+        ],
+        "TreatAsUntaggedNote"      : "Entities on these tags are exported in the GLB but treated as Layer0/Untagged for segmentation. Edge vertex colours (MTE greyscale) are preserved for downstream depth cueing."
     }
 }

@@ -47,15 +47,30 @@ unless file_loaded?(__FILE__)
                 end
             rescue => e
                 puts "✗ Error loading TrueVision3D GLB Builder Utility: #{e.message}"
-                puts e.backtrace.join("\n")
+                puts e.backtrace.first(5).join("\n")
             end
         else
             puts "✗ TrueVision3D GLB Builder Utility main file not found at: #{main_file}"
         end
     
     # endregion -------------------------------------------------------------------
+
+    # -----------------------------------------------------------------------------
+    # REGION | Startup Data Preload and Status Report
+    # -----------------------------------------------------------------------------
+
+        begin
+            if defined?(Na__DataLib__CacheData)
+                Na__DataLib__CacheData.Na__Cache__LoadData(:tags)
+                Na__DataLib__CacheData.Na__Cache__PrintStartupReport([:tags])
+            end
+        rescue => error
+            puts "⚠ [GlbBuilder] Data preload warning: #{error.message}"
+        end
+
+    # endregion -------------------------------------------------------------------
     
-    file_loaded(__FILE__)                                                                         # <-- Mark file as loaded
+    file_loaded(__FILE__)
 end
 
 # =============================================================================

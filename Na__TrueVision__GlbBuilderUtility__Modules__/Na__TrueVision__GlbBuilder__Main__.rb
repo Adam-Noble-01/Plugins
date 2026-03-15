@@ -53,6 +53,7 @@ require_relative 'Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling_
 require_relative 'Na__TrueVision__GlbBuilder__UserInterface__'
 require_relative 'Na__TrueVision__GlbBuilder__DynamicReloaderPluginUtil__'
 require_relative 'Na__TrueVision__GlbBuilder__TagsManager__'
+require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module TrueVision3D
     module GlbBuilderUtility
@@ -65,18 +66,192 @@ module TrueVision3D
         # ------------------------------------------------------------
         MAX_TEXTURE_SIZE            =   1024                                      # <-- Maximum texture dimension before downscaling
         TEXTURE_SCALE_FACTOR        =   0.25                                      # <-- Scale factor for texture downscaling (25%)
-        EXCLUDED_LAYER_PATTERN      =   /^TrueVision_.*_DoNotExportGLTF$/         # <-- Regex pattern for excluded layers
+        EXCLUDED_LAYER_PATTERN      =   /^TrueVision_.*_DoNotExportGLTF$/         # <-- Regex pattern for excluded layers (hardcoded fallback)
         EXCLUDED_LAYER_DESCRIPTION  =   "TrueVision_*_DoNotExportGLTF".freeze     # <-- Human-readable description for excluded layers
         ALWAYS_EXCLUDED_LAYER_NAMES =   [
             "02__Linetype__DoorSwings",
             "02__ClearanceLines"
-        ].freeze                                                                   # <-- Always excluded at any nesting depth
+        ].freeze                                                                   # <-- Hardcoded fallback - overridden by DataLib at runtime
+        TREAT_AS_UNTAGGED_DEFAULTS  =   [].freeze                                 # <-- Hardcoded fallback - overridden by DataLib at runtime
         INCHES_TO_METERS            =   0.0254                                    # <-- Unit conversion factor: inches → meters
         DEFAULT_EXPORT_NAME         =   "SketchUpExport"                          # <-- Default filename for exports
         GLB_FILE_EXTENSION          =   ".glb"                                    # <-- GLB file extension
         MESH_MODEL_SUFFIX           =   "__MeshModel__"                           # <-- Suffix for mesh GLB (face geometry)
         LINEWORK_MODEL_SUFFIX       =   "__LineworkModel__"                       # <-- Suffix for linework GLB (edge geometry)
         # ------------------------------------------------------------
+
+        # MODULE VARIABLES | DataLib-Driven Export Configuration
+        # ------------------------------------------------------------
+        @na_datalib_exclusion_pattern     = nil                                   # <-- Regex from Tags JSON ExportExclusions
+        @na_datalib_fully_excluded        = nil                                   # <-- Array of fully excluded tag names
+        @na_datalib_treat_as_untagged     = nil                                   # <-- Array of treat-as-untagged tag names
+        @na_datalib_skip_ranges           = nil                                   # <-- Array of skipped tag range numbers
+        @na_datalib_tag_ranges            = nil                                   # <-- { Glb__ExportFileNameStem => [range_nums] } replaces TAG_RANGES
+        @na_datalib_storey_tag_map        = nil                                   # <-- { tag_number => Storey__ContainerExportName } replaces STOREY_TAG_MAP
+        @na_datalib_storey_element_map    = nil                                   # <-- { tag_number => Storey__ElementExportName } replaces STOREY_ELEMENT_TAG_MAP
+        @na_datalib_storey_tag_range      = nil                                   # <-- Array of storey container tag numbers replaces STOREY_TAG_RANGE
+        @na_datalib_loaded                = false                                 # <-- Flag to prevent re-loading
+        # ------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+    # -----------------------------------------------------------------------------
+    # REGION | DataLib-Driven Export Configuration Loader
+    # -----------------------------------------------------------------------------
+
+        # FUNCTION | Load Export Configuration from Centralised Tags JSON
+        # ------------------------------------------------------------
+        def self.Na__ExportConfig__LoadFromDataLib
+            return if @na_datalib_loaded
+
+            begin
+                tags_data = Na__DataLib__CacheData.Na__Cache__LoadData(:tags)
+
+                if tags_data
+                    exclusions = tags_data["ExportExclusions"]
+                    meta       = tags_data["meta"]
+
+                    if exclusions.is_a?(Hash)
+                        pattern_str = exclusions["PatternExclusionRegex"]
+                        @na_datalib_exclusion_pattern = pattern_str ? Regexp.new(pattern_str) : EXCLUDED_LAYER_PATTERN
+                        @na_datalib_fully_excluded    = Array(exclusions["FullyExcludedTagNames"])
+                        @na_datalib_treat_as_untagged = Array(exclusions["TreatAsUntaggedTagNames"])
+                        puts "    [GlbBuilder] DataLib exclusions loaded: #{@na_datalib_fully_excluded.size} fully excluded, #{@na_datalib_treat_as_untagged.size} treat-as-untagged"
+                    end
+
+                    if meta.is_a?(Hash) && meta["skipRanges"].is_a?(Array)
+                        @na_datalib_skip_ranges = meta["skipRanges"]
+                    end
+
+                    self.Na__ExportConfig__BuildHashesFromTagEntries(tags_data)
+                end
+            rescue => e
+                puts "    [GlbBuilder] WARNING: DataLib load failed, using hardcoded fallbacks: #{e.message}"
+            end
+
+            @na_datalib_loaded = true
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Walk Tag Entries and Build Runtime Hashes
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__BuildHashesFromTagEntries(tags_data)
+            library = tags_data["Na__DataLib__CoreIndex__Tags"]
+            return unless library.is_a?(Hash)
+
+            tag_ranges         = {}
+            storey_tag_map     = {}
+            storey_element_map = {}
+            storey_tag_range   = []
+
+            library.each do |_section_key, section|
+                next unless section.is_a?(Hash)
+
+                section.each do |_entry_key, entry|
+                    next unless entry.is_a?(Hash)
+
+                    range_nums = entry["Glb__ExportRangeNumbers"]
+                    file_stem  = entry["Glb__ExportFileNameStem"]
+
+                    if file_stem && range_nums.is_a?(Array) && !range_nums.empty?
+                        tag_ranges[file_stem] = range_nums
+                    end
+
+                    if entry["Storey__IsContainer"]
+                        tag_match = entry["Tag__SketchUpName"]&.match(/^(\d{2})__/)
+                        if tag_match
+                            tag_num = tag_match[1].to_i
+                            storey_tag_range << tag_num
+                            container_name = entry["Storey__ContainerExportName"]
+                            storey_tag_map[tag_num] = container_name if container_name
+                        end
+                    end
+
+                    element_name = entry["Storey__ElementExportName"]
+                    if element_name && range_nums.is_a?(Array)
+                        range_nums.each { |num| storey_element_map[num] = element_name }
+                    end
+                end
+            end
+
+            @na_datalib_tag_ranges         = tag_ranges
+            @na_datalib_storey_tag_map     = storey_tag_map
+            @na_datalib_storey_element_map = storey_element_map
+            @na_datalib_storey_tag_range   = storey_tag_range
+
+            puts "    [GlbBuilder] DataLib tag ranges built: #{tag_ranges.size} export groups, #{storey_tag_map.size} storey containers, #{storey_element_map.size} storey elements"
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Fully Excluded Tag Names
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__FullyExcludedTagNames
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_fully_excluded || ALWAYS_EXCLUDED_LAYER_NAMES
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Treat-As-Untagged Tag Names
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__TreatAsUntaggedTagNames
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_treat_as_untagged || TREAT_AS_UNTAGGED_DEFAULTS
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Exclusion Pattern Regex
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__ExclusionPattern
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_exclusion_pattern || EXCLUDED_LAYER_PATTERN
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Skip Ranges Array
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__SkipRanges
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_skip_ranges || SKIP_RANGES
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Tag Ranges Hash (replaces TAG_RANGES)
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__TagRanges
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_tag_ranges || TAG_RANGES
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Storey Tag Map (replaces STOREY_TAG_MAP)
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__StoreyTagMap
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_storey_tag_map || STOREY_TAG_MAP
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Storey Element Tag Map (replaces STOREY_ELEMENT_TAG_MAP)
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__StoreyElementTagMap
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_storey_element_map || STOREY_ELEMENT_TAG_MAP
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Storey Tag Range (replaces STOREY_TAG_RANGE)
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__StoreyTagRange
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_storey_tag_range || STOREY_TAG_RANGE.to_a
+        end
+        # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+    # -----------------------------------------------------------------------------
+    # REGION | Tag Range Definitions
+    # -----------------------------------------------------------------------------
     
         # MODULE CONSTANTS | Tag Range Definitions for Segmentation
         # ------------------------------------------------------------

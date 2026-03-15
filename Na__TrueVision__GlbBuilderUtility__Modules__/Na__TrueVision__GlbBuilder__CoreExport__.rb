@@ -141,6 +141,14 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Check if Layer Should Be Treated as Untagged
+        # ---------------------------------------------------------------
+        def self.Na__Helpers__LayerTreatedAsUntagged?(layer_name)
+            return false unless @treat_as_untagged_layers
+            @treat_as_untagged_layers.include?(layer_name)
+        end
+        # ---------------------------------------------------------------
+
         # HELPER FUNCTION | Extract Project Prefix from SketchUp Filename
         # ---------------------------------------------------------------
         def self.Na__Helpers__ExtractProjectPrefix(model)
@@ -372,15 +380,23 @@ module TrueVision3D
         # SUB FUNCTION | Identify Layers Matching Exclusion Pattern
         # ---------------------------------------------------------------
         def self.Na__ExportCore__IdentifyExcludedLayers(model)
-            @excluded_layers = []                                                  # Reset excluded layers array
-            
+            @excluded_layers          = []                                         # Reset excluded layers array
+            @treat_as_untagged_layers = []                                         # Reset treat-as-untagged array
+
+            exclusion_pattern      = self.Na__ExportConfig__ExclusionPattern
+            fully_excluded_names   = self.Na__ExportConfig__FullyExcludedTagNames
+            treat_as_untagged_names = self.Na__ExportConfig__TreatAsUntaggedTagNames
+
             model.layers.each do |layer|
-                if layer.name =~ EXCLUDED_LAYER_PATTERN || ALWAYS_EXCLUDED_LAYER_NAMES.include?(layer.name)
-                    @excluded_layers << layer.name                                 # Add to excluded list
+                if layer.name =~ exclusion_pattern || fully_excluded_names.include?(layer.name)
+                    @excluded_layers << layer.name
+                elsif treat_as_untagged_names.include?(layer.name)
+                    @treat_as_untagged_layers << layer.name
                 end
             end
-            
-            puts "Excluded layers: #{@excluded_layers.join(', ')}" if @excluded_layers.any?
+
+            puts "    Excluded layers: #{@excluded_layers.join(', ')}" if @excluded_layers.any?
+            puts "    Treat-as-untagged layers: #{@treat_as_untagged_layers.join(', ')}" if @treat_as_untagged_layers.any?
         end
         # ---------------------------------------------------------------
     
@@ -407,20 +423,17 @@ module TrueVision3D
                 
                 tag_number = tag_match[1].to_i                                    # Get tag number
                 
-                # Skip if in skip range
-                if SKIP_RANGES.include?(tag_number)
+                # Skip if in skip range (from DataLib or hardcoded fallback)
+                active_skip_ranges = self.Na__ExportConfig__SkipRanges
+                if active_skip_ranges.include?(tag_number)
                     puts "  Skipping layer '#{layer_name}' (tag #{tag_number} is in ignored range)"
                     next
                 end
                 
-                # Find matching range
-                TAG_RANGES.each do |group_name, range|
-                    if range.is_a?(Range) && range.include?(tag_number)
-                        tag_groups[group_name] ||= []
-                        tag_groups[group_name] << entity
-                        puts "  Found entity on layer '#{layer_name}' -> #{group_name}.glb"
-                        break
-                    elsif range.is_a?(Array) && range.include?(tag_number)
+                active_tag_ranges = self.Na__ExportConfig__TagRanges
+                active_tag_ranges.each do |group_name, range|
+                    range_arr = range.is_a?(Range) ? range.to_a : Array(range)
+                    if range_arr.include?(tag_number)
                         tag_groups[group_name] ||= []
                         tag_groups[group_name] << entity
                         puts "  Found entity on layer '#{layer_name}' -> #{group_name}.glb"
@@ -476,9 +489,10 @@ module TrueVision3D
 
                 tag_number = tag_match[1].to_i                                    # Parse tag number
 
-                # Check if this tag is in the storey range
-                if STOREY_TAG_RANGE.include?(tag_number)
-                    storey_name = STOREY_TAG_MAP[tag_number]                      # Look up storey name
+                active_storey_range = self.Na__ExportConfig__StoreyTagRange
+                active_storey_map  = self.Na__ExportConfig__StoreyTagMap
+                if active_storey_range.include?(tag_number)
+                    storey_name = active_storey_map[tag_number]                   # Look up storey name
                     if storey_name
                         storey_containers[storey_name] = entity                   # Record storey container
                         entity_label = entity.name && !entity.name.empty? ? entity.name : layer_name
@@ -501,7 +515,7 @@ module TrueVision3D
         # FUNCTION | Organize Storey Children by Element Tags
         # ---------------------------------------------------------------
         # Recurses into a storey container entity and groups its children
-        # by their tag numbers using STOREY_ELEMENT_TAG_MAP. Returns a
+        # by their tag numbers using the storey element tag map. Returns a
         # hash mapping element names to arrays of child entities.
         #
         # @param storey_entity [Sketchup::Entity] Storey container group/component
@@ -527,14 +541,15 @@ module TrueVision3D
                 next unless tag_match                                              # Skip if no tag number
 
                 tag_number = tag_match[1].to_i                                    # Parse tag number
-                element_name = STOREY_ELEMENT_TAG_MAP[tag_number]                 # Look up element name
+                active_element_map = self.Na__ExportConfig__StoreyElementTagMap
+                element_name = active_element_map[tag_number]                    # Look up element name
 
                 if element_name
                     element_groups[element_name] ||= []                           # Initialize array if needed
                     element_groups[element_name] << child                         # Add child to group
                     puts "    Found child on layer '#{child_layer}' -> #{storey_name}__#{element_name}"
                 else
-                    puts "    Skipping child on layer '#{child_layer}' (tag #{tag_number} not in STOREY_ELEMENT_TAG_MAP)"
+                    puts "    Skipping child on layer '#{child_layer}' (tag #{tag_number} not in storey element map)"
                 end
             end
 
@@ -582,7 +597,7 @@ module TrueVision3D
                 puts "Storey containers will be exported per-element, not as flat groups."
 
                 # Remove any storey-tagged entities that may have been picked up by OrganizeEntitiesByTags
-                # (storey tags 90-93 are NOT in TAG_RANGES so this is a safety check)
+                # (storey tags 90-93 are not in the export tag ranges so this is a safety check)
                 storey_containers.each do |storey_name, storey_entity|
                     tag_groups.each do |group_name, entities|
                         entities.delete(storey_entity)                             # Remove storey entity from flat groups
@@ -596,19 +611,14 @@ module TrueVision3D
                 puts "\n=== NO ENTITIES FOUND WITH PROPER TAG RANGES ==="
                 puts "Please ensure your top-level objects are on tags using the '##__' prefix format:"
                 
-                # Report ignored tag range based on SKIP_RANGES
-                skip_tags = SKIP_RANGES.map { |v| v.to_s.rjust(2, '0') }.join(", ")
+                active_skip_ranges = self.Na__ExportConfig__SkipRanges
+                skip_tags = active_skip_ranges.map { |v| v.to_s.rjust(2, '0') }.join(", ")
                 puts "  #{skip_tags} = Ignored (not exported)"
                 
-                # Report all defined export ranges from TAG_RANGES
-                TAG_RANGES.each do |group_name, range|
-                    range_label =
-                        if range.is_a?(Range)
-                            "#{range.begin.to_s.rjust(2, '0')}-#{range.end.to_s.rjust(2, '0')}"
-                        else
-                            range.map { |v| v.to_s.rjust(2, '0') }.join(", ")
-                        end
-                    
+                active_tag_ranges = self.Na__ExportConfig__TagRanges
+                active_tag_ranges.each do |group_name, range|
+                    range_arr = range.is_a?(Range) ? range.to_a : Array(range)
+                    range_label = range_arr.map { |v| v.to_s.rjust(2, '0') }.join(", ")
                     puts "  #{range_label} = #{group_name}.glb"
                 end
                 

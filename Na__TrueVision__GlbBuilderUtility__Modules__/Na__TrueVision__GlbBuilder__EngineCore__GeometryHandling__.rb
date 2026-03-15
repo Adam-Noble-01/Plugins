@@ -95,12 +95,14 @@ module TrueVision3D
                 next if Na__Helpers__EntityExcluded?(entity)
 
                 if entity.is_a?(Sketchup::Face)
-                    layer_name = (entity.layer.name == "Layer0") ? parent_layer.name : entity.layer.name
+                    raw_layer = entity.layer.name
+                    layer_name = (raw_layer == "Layer0" || Na__Helpers__LayerTreatedAsUntagged?(raw_layer)) ? parent_layer.name : raw_layer
                     Na__GlbEngine__AddFaceToBucket(entity, parent_transform, normal_matrix, is_mirrored, layer_name, buckets)
 
                 elsif entity.is_a?(Sketchup::Edge) && MESH_MODEL_INCLUDE_EDGES
                     if !entity.soft? && !entity.smooth?
-                        layer_name = (entity.layer.name == "Layer0") ? parent_layer.name : entity.layer.name
+                        raw_layer = entity.layer.name
+                        layer_name = (raw_layer == "Layer0" || Na__Helpers__LayerTreatedAsUntagged?(raw_layer)) ? parent_layer.name : raw_layer
                         Na__GlbEngine__AddEdgeToBucket(entity, parent_transform, layer_name, buckets)
                     end
 
@@ -108,7 +110,8 @@ module TrueVision3D
                     next if instanced_skip_set && instanced_skip_set.key?(entity.object_id)
 
                     child_transform = parent_transform * entity.transformation
-                    child_layer = (entity.layer.name == "Layer0") ? parent_layer : entity.layer
+                    raw_layer = entity.layer.name
+                    child_layer = (raw_layer == "Layer0" || Na__Helpers__LayerTreatedAsUntagged?(raw_layer)) ? parent_layer : entity.layer
 
                     if door_assemblies && Na__DoorHandler__IsDoorAssembly?(entity)
                         door_assemblies << {

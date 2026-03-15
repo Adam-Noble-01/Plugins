@@ -50,12 +50,9 @@ module Na__EdgeUtil__PaintDeepNestedEdges
 
                 parsed_palette_keys = stored_palette_json.empty? ? [] : JSON.parse(stored_palette_json)
                 @na_palette_keys = na_sanitise_palette_keys(parsed_palette_keys)
-            rescue SyntaxError => e
-                puts "    [PaletteManager] Corrupted stored palette (SyntaxError), clearing and using defaults: #{e.message}"
+            rescue Exception => e
+                puts "    [PaletteManager] Corrupted stored palette (#{e.class}), clearing and using defaults: #{e.message}"
                 na_clear_stored_palette
-                @na_palette_keys = na_safe_default_palette_keys
-            rescue => e
-                puts "    [PaletteManager] Failed to load persisted palette, using defaults: #{e.message}"
                 @na_palette_keys = na_safe_default_palette_keys
             end
 

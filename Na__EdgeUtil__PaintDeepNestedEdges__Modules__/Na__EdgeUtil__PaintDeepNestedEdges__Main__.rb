@@ -572,7 +572,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
 
         dialog.add_action_callback('apply_line_tags') do |_context, _value|
             result = Na__ApplyLineThicknessTags.Na__LineTags__ApplyToModel
-            status_text = "#{result[:applied]} edges tagged, #{result[:skipped]} skipped, #{result[:tags_created]} tags created (#{result[:total_edges]} total scanned)"
+            status_text = "#{result[:applied]} tagged, #{result[:untagged]} moved to Untagged, #{result[:skipped]} errors (#{result[:total_edges]} total scanned)"
             status_class = result[:errors].empty? ? "naAdvanced__Status--success" : "naAdvanced__Status--error"
             dialog.execute_script("var el=document.getElementById('advancedStatus'); el.textContent=#{status_text.to_json}; el.className='naAdvanced__Status #{status_class}';")
         end
