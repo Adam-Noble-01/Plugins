@@ -14,7 +14,8 @@
         "exemptNote"        : "MAT000E__ materials are included in indexed_only export mode but do NOT receive PBR enrichment from the library.",
         "defaultMaterial"   : "MAT001__Default is the reference template showing ALL possible keys with their default values. Other materials only need to specify keys that differ. Omitted keys inherit the default at render time.",
         "divergenceNote"    : "Window Configurator (Na__ArchTools__3dWindowConfigTool) maintains a local copy of this library at Na__AppConfig__MaterialsLibrary.json (v1.0.0). That local copy is superseded by this centralised file. The ValeDesignSuite WindowPanelConfigurator uses non-indexed strings 'natural-wood' and 'glass' as ComponentMaterial values - these are not part of the indexed MAT system and require alignment in a future update.",
-        "githubPagesUrl"    : "https://adam-noble-01.github.io/WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json"
+        "repoUrl"           : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
+        "Data__URL"         : "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json"
     },
 
     "Na__DataLib__CoreIndex__Materials": {

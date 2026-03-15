@@ -13,7 +13,9 @@
             "Na__InsertPrimatives__Modules__/Na__InsertPrimatives__Main__.rb"
         ],
         "idFormatNote"      : "The standard Na__ ID pattern is a 3-letter type code + 3-digit zero-padded number, e.g. AWN001, ADR002, PNL003. The ID is followed by __ and a descriptor. This gives 999 unique IDs per type which is sufficient for any single model.",
-        "divergenceNote"    : "The ValeDesignSuite WindowPanelConfigurator uses a PNL prefix and different dictionary name (WindowConfigurator_Config without Na__ prefix) which diverges from the Na__ standard. This is flagged for alignment."
+        "divergenceNote"    : "The ValeDesignSuite WindowPanelConfigurator uses a PNL prefix and different dictionary name (WindowConfigurator_Config without Na__ prefix) which diverges from the Na__ standard. This is flagged for alignment.",
+        "repoUrl"           : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
+        "Data__URL"         : "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Components__.json"
     },
 
     "Na__DataLib__CoreIndex__Components": {
