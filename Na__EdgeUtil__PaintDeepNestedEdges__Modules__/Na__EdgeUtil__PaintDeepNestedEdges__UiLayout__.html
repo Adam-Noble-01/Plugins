@@ -15,30 +15,65 @@
 <body>
 
     <!-- ----------------------------------------------------------------- -->
-    <!-- UI MENU | Colour Selection and Edge Information Display           -->
+    <!-- UI MENU | Tab Navigation Bar                                      -->
     <!-- ----------------------------------------------------------------- -->
 
-    <label for="colour">Choose edge colour:</label>
-    <select id="colour">{{OPTIONS_HTML}}</select>
-    <p id="info">{{INITIAL_INFO}}</p>
-
-    <!-- ----------------------------------------------------------------- -->
-    <!-- UI MENU | Dynamic Quick Palette Swatches                           -->
-    <!-- ----------------------------------------------------------------- -->
-
-    <div class="naQuickPalettePanel">
-        <p class="naQuickPalettePanel__Title">Quick palettes:</p>
-        <div id="quickPaletteRow">{{DYNAMIC_PALETTE_HTML}}</div>
+    <div class="naTabBar">
+        <button class="naTabBtn naTabBtn--active" onclick="naShowTab('main', this)">Main</button>
+        <button class="naTabBtn" onclick="naShowTab('swatches', this)">Swatches</button>
     </div>
 
     <!-- ----------------------------------------------------------------- -->
-    <!-- UI MENU | Action Button Controls                                  -->
+    <!-- UI MENU | Main Tab - Dropdown, Info, Quick Palette, Paint Button  -->
     <!-- ----------------------------------------------------------------- -->
 
-    <div id="btnRow">
-        <button onclick="sketchup.fetch_selection()">Refresh Selection</button>
-        <button onclick="sketchup.apply_colour(document.getElementById('colour').value)"><strong>Paint Edges</strong></button>
+    <div id="tab-main" class="naTabContent naTabContent--active">
+
+        <label for="colour">Choose edge colour:</label>
+        <select id="colour">{{OPTIONS_HTML}}</select>
+        <p id="info">{{INITIAL_INFO}}</p>
+
+        <div class="naQuickPalettePanel">
+            <p class="naQuickPalettePanel__Title">Quick palettes:</p>
+            <div id="quickPaletteRow">{{DYNAMIC_PALETTE_HTML}}</div>
+        </div>
+
+        <div id="btnRow">
+            <button onclick="sketchup.apply_colour(document.getElementById('colour').value)"><strong>Paint Edges</strong></button>
+        </div>
+
     </div>
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- UI MENU | Swatches Tab - Visual Colour Grid with Labels           -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <div id="tab-swatches" class="naTabContent">
+
+        <div class="naSwatchGrid">
+            {{SWATCHES_HTML}}
+        </div>
+
+    </div>
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- UI MENU | Tab Switching Script                                    -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <script>
+        function naShowTab(tabId, btn) {
+            var tabs = document.querySelectorAll('.naTabContent');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('naTabContent--active');
+            }
+            var btns = document.querySelectorAll('.naTabBtn');
+            for (var j = 0; j < btns.length; j++) {
+                btns[j].classList.remove('naTabBtn--active');
+            }
+            document.getElementById('tab-' + tabId).classList.add('naTabContent--active');
+            btn.classList.add('naTabBtn--active');
+        }
+    </script>
 
 </body>
 

@@ -11,7 +11,8 @@
 # DESCRIPTION:
 # - Paints selected nested SketchUp edges using a predefined architectural palette.
 # - Recursively traverses groups and component instances to collect deep nested edges.
-# - Loads colour configuration from external JSON data.
+# - Loads MTE edge colour data from the centralised Na__DataLib via URL/cache/fallback.
+# - Loads plugin UI configuration (dialog size, title, etc.) from local EdgeConfigData JSON.
 # - Loads the HtmlDialog layout from external HTML and CSS files.
 # - Delegates SketchUp menu and shortcut registration to the Hotkey Binder module.
 #
@@ -22,6 +23,7 @@ require 'json'
 
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__HotkeyBinder__'
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__PaletteManager__'
+require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module Na__EdgeUtil__PaintDeepNestedEdges
 
@@ -40,16 +42,20 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     # MODULE VARIABLES | State Management
     # ------------------------------------------------------------
     @na_dialog            = nil
-    @na_edge_config_data  = nil
+    @na_edge_config_data  = nil                                               # <-- Local plugin UI config (dialog size, title, etc.)
+    @na_mte_data          = nil                                               # <-- Centralised MTE edge colour data from DataLib
+    @na_mte_colours       = nil                                               # <-- Flattened { SketchUpName => HexValue } colour hash
+    @na_mte_swatches      = nil                                               # <-- Array of { key, hex, swatch_name } for Swatches tab
+    @na_mte_meta          = nil                                               # <-- MTE meta block (uiDefaults, naming convention, etc.)
     # ------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Configuration Loading and Public Metadata
+# REGION | Local Plugin UI Configuration (dialog size, title, menus)
 # -----------------------------------------------------------------------------
 
-    # HELPER FUNCTION | Load External Edge Configuration Data
+    # HELPER FUNCTION | Load Local Plugin UI Config
     # ---------------------------------------------------------------
     def self.na_edge_config_data
         return @na_edge_config_data if @na_edge_config_data
@@ -57,13 +63,6 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         json_content = File.read(NA_EDGE_CONFIG_FILE)
         @na_edge_config_data = JSON.parse(json_content)
         return @na_edge_config_data
-    end
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | Return Configured Colour Palette
-    # ---------------------------------------------------------------
-    def self.na_colours
-        na_edge_config_data.fetch('colours', {})
     end
     # ---------------------------------------------------------------
 
@@ -116,33 +115,6 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     end
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Return Default Colour Key
-    # ---------------------------------------------------------------
-    def self.na_default_colour_key
-        na_edge_config_data.fetch('default_colour_key', 'Default')
-    end
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | Return Default Quick Palette Colour Key
-    # ---------------------------------------------------------------
-    def self.na_dynamic_palette_default_key
-        configured_default_key = na_edge_config_data.fetch('dynamic_palette_default_key', '')
-        return configured_default_key if na_colours.key?(configured_default_key)
-
-        detected_white_key = na_colours.find { |_colour_key, colour_spec| colour_spec.to_s.upcase == '#FFFFFF' }
-        return detected_white_key[0] if detected_white_key
-
-        return na_default_colour_key
-    end
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | Return Quick Palette Slot Count
-    # ---------------------------------------------------------------
-    def self.na_dynamic_palette_slot_count
-        na_edge_config_data.fetch('dynamic_palette_slot_count', 4).to_i
-    end
-    # ---------------------------------------------------------------
-
     # HELPER FUNCTION | Return Dialog Width
     # ---------------------------------------------------------------
     def self.na_dialog_width
@@ -161,6 +133,117 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     # ------------------------------------------------------------
     def self.na_register_hotkey_and_menu
         Na__HotkeyBinder.na_register_hotkey_and_menu
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Centralised MTE Edge Colour Data (from Na__DataLib)
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Load MTE Edge Colour Data from DataLib
+    # ------------------------------------------------------------
+    def self.na_load_mte_data
+        return @na_mte_data if @na_mte_data
+
+        @na_mte_data = Na__DataLib__CacheData.Na__Cache__LoadData(:edge_materials)
+
+        if @na_mte_data
+            @na_mte_meta    = @na_mte_data["meta"]
+            result          = na_flatten_mte_series(@na_mte_data)
+            @na_mte_colours  = result[:colours]
+            @na_mte_swatches = result[:swatches]
+            puts "    [EdgePainter] MTE data loaded: #{@na_mte_colours.size} colours"
+        else
+            puts "    [EdgePainter] WARNING: MTE data unavailable, colour palette will be empty"
+            @na_mte_meta     = {}
+            @na_mte_colours  = {}
+            @na_mte_swatches = []
+        end
+
+        @na_mte_data
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Flatten MTE Series Groups into Colour Hash and Swatch Array
+    # ---------------------------------------------------------------
+    def self.na_flatten_mte_series(mte_data)
+        flat     = {}
+        swatches = []
+        library  = mte_data["Na__DataLib__CoreIndex__EdgeMaterials"]
+        return { colours: flat, swatches: swatches } unless library.is_a?(Hash)
+
+        library.each do |_series_key, series|
+            next unless series.is_a?(Hash)
+
+            series.each do |_entry_key, config|
+                next unless config.is_a?(Hash)
+
+                if config["IsReserved"] && config["IsDefault"]
+                    flat["Default"] = "default"
+                    swatches << { key: "Default", hex: "#FFFFFF", swatch_name: "Default" }
+                else
+                    sketchup_name = config["SketchUpName"]
+                    next unless sketchup_name && !sketchup_name.empty?
+                    hex_value   = config["HexValue"]
+                    swatch_name = config["SwatchName"] || sketchup_name
+                    flat[sketchup_name] = hex_value
+                    swatches << { key: sketchup_name, hex: hex_value, swatch_name: swatch_name }
+                end
+            end
+        end
+
+        { colours: flat, swatches: swatches }
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Swatch Data Array for Swatches Tab
+    # ---------------------------------------------------------------
+    def self.na_swatches
+        na_load_mte_data unless @na_mte_swatches
+        @na_mte_swatches || []
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Configured MTE Colour Palette
+    # ---------------------------------------------------------------
+    def self.na_colours
+        na_load_mte_data unless @na_mte_colours
+        @na_mte_colours || {}
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Default Colour Key
+    # ---------------------------------------------------------------
+    def self.na_default_colour_key
+        na_load_mte_data unless @na_mte_meta
+        ui_defaults = @na_mte_meta && @na_mte_meta["uiDefaults"]
+        ui_defaults ? ui_defaults.fetch("DefaultColourKey", "Default") : "Default"
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Default Quick Palette Colour Key
+    # ---------------------------------------------------------------
+    def self.na_dynamic_palette_default_key
+        na_load_mte_data unless @na_mte_meta
+        ui_defaults = @na_mte_meta && @na_mte_meta["uiDefaults"]
+        configured_default_key = ui_defaults ? ui_defaults.fetch("DynamicPaletteDefaultKey", "") : ""
+        return configured_default_key if na_colours.key?(configured_default_key)
+
+        detected_white_key = na_colours.find { |_colour_key, colour_spec| colour_spec.to_s.upcase == '#FFFFFF' }
+        return detected_white_key[0] if detected_white_key
+
+        return na_default_colour_key
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Quick Palette Slot Count
+    # ---------------------------------------------------------------
+    def self.na_dynamic_palette_slot_count
+        na_load_mte_data unless @na_mte_meta
+        ui_defaults = @na_mte_meta && @na_mte_meta["uiDefaults"]
+        ui_defaults ? ui_defaults.fetch("DynamicPaletteSlotCount", 4).to_i : 4
     end
     # ---------------------------------------------------------------
 
@@ -360,6 +443,25 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     end
     # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Build Swatches Tab Html Grid From MTE Data
+    # ---------------------------------------------------------------
+    def self.na_build_swatches_html
+        na_swatches.map do |swatch|
+            hex        = swatch[:hex] || "#FFFFFF"
+            key_json   = swatch[:key].to_json
+            label      = na_escape_html(swatch[:swatch_name])
+            border_col = (swatch[:key] == "Default") ? "#b5b5b5" : hex
+
+            <<~HTML_CELL.strip
+            <div class="naSwatchCell" onclick='sketchup.apply_swatch_colour(#{key_json})' title="#{na_escape_html(swatch[:key])}">
+                <div class="naSwatchCell__Colour" style="background-color: #{hex}; border-color: #{border_col};"></div>
+                <span class="naSwatchCell__Name">#{label}</span>
+            </div>
+            HTML_CELL
+        end.join("\n            ")
+    end
+    # ---------------------------------------------------------------
+
     # HELPER FUNCTION | Escape Text For Safe Html Output
     # ---------------------------------------------------------------
     def self.na_escape_html(text)
@@ -396,6 +498,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             .gsub('{{STYLESHEET_CONTENT}}', na_dialog_stylesheet_content)
             .gsub('{{DYNAMIC_PALETTE_HTML}}', Na__PaletteManager.na_build_palette_html)
             .gsub('{{OPTIONS_HTML}}', na_build_options_html)
+            .gsub('{{SWATCHES_HTML}}', na_build_swatches_html)
             .gsub('{{INITIAL_INFO}}', initial_info)
     end
     # ---------------------------------------------------------------
@@ -432,8 +535,11 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             end
         end
 
-        dialog.add_action_callback('fetch_selection') do |_context, _value|
-            na_refresh_dialog_state(dialog)
+        dialog.add_action_callback('apply_swatch_colour') do |_context, colour_key|
+            if na_paint_edges(colour_key)
+                Na__PaletteManager.na_remember_colour(colour_key)
+                na_refresh_dialog_state(dialog, colour_key)
+            end
         end
     end
     # ---------------------------------------------------------------

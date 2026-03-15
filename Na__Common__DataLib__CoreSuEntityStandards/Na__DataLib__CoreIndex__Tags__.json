@@ -12,7 +12,7 @@
         "exportNote"        : "ExportRangeNums lists the integer tag numbers that the GlbBuilder uses to segment GLB output files. Tags with ExportRangeNums are exported as separate GLB segments. Tags with no range are either utility tags or storey containers.",
         "skipRanges"        : [0, 2, 3, 4, 5, 6],
         "skipRangesNote"    : "Tags with these numeric IDs are ignored by the GLB exporter and not exported.",
-        "repoUrl"           : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
+        "GitHub__RepoUrl"   : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
         "Data__URL"         : "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json"
     },
 

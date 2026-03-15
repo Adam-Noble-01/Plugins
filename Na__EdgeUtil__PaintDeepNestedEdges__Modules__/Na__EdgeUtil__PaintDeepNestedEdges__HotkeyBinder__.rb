@@ -36,7 +36,9 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         cmd.status_bar_text = Na__EdgeUtil__PaintDeepNestedEdges.na_command_status_bar_text
         cmd.menu_text       = Na__EdgeUtil__PaintDeepNestedEdges.na_menu_text
 
-        UI.menu("Plugins").add_item(cmd)
+        extensions_menu    = UI.menu("Extensions")
+        na_edge_submenu    = extensions_menu.add_submenu("Na__PaintEdges")
+        na_edge_submenu.add_item(cmd)
 
         @na_command_registered = true
         file_loaded(__FILE__) unless file_loaded?(__FILE__)

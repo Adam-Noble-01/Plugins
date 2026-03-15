@@ -41,18 +41,38 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         def self.na_load_palette_keys
             return @na_palette_keys if @na_palette_keys
 
-            stored_palette_json = Sketchup.read_default(
-                Na__EdgeUtil__PaintDeepNestedEdges.na_dialog_preferences_key,
-                NA_DYNAMIC_PALETTE_STORAGE_KEY,
-                ''
-            ).to_s
+            begin
+                stored_palette_json = Sketchup.read_default(
+                    Na__EdgeUtil__PaintDeepNestedEdges.na_dialog_preferences_key,
+                    NA_DYNAMIC_PALETTE_STORAGE_KEY,
+                    ''
+                ).to_s
 
-            parsed_palette_keys = stored_palette_json.empty? ? [] : JSON.parse(stored_palette_json)
-            @na_palette_keys = na_sanitise_palette_keys(parsed_palette_keys)
+                parsed_palette_keys = stored_palette_json.empty? ? [] : JSON.parse(stored_palette_json)
+                @na_palette_keys = na_sanitise_palette_keys(parsed_palette_keys)
+            rescue => e
+                puts "    [PaletteManager] Failed to load persisted palette, using defaults: #{e.message}"
+                @na_palette_keys = na_safe_default_palette_keys
+            end
+
             return @na_palette_keys
-        rescue
-            @na_palette_keys = na_default_palette_keys
-            return @na_palette_keys
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Safe Default Palette Keys (no cascading calls)
+        # ---------------------------------------------------------------
+        def self.na_safe_default_palette_keys
+            slot_count  = 4
+            default_key = "Default"
+
+            begin
+                slot_count  = Na__EdgeUtil__PaintDeepNestedEdges.na_dynamic_palette_slot_count
+                default_key = Na__EdgeUtil__PaintDeepNestedEdges.na_dynamic_palette_default_key
+            rescue => e
+                puts "    [PaletteManager] MTE data not yet available, using hardcoded defaults: #{e.message}"
+            end
+
+            Array.new(slot_count, default_key)
         end
         # ---------------------------------------------------------------
 
