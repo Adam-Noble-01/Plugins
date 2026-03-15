@@ -8,5 +8,6 @@
     "menu_text"                : "Na Edge Util - Paint Deep Nested Edges",
     "dialog_title"             : "Na Edge Util - Paint Deep Nested Edges",
     "dialog_width"             : 420,
-    "dialog_height"            : 420
+    "dialog_height"            : 420,
+    "dialog_resizable"         : true
 }

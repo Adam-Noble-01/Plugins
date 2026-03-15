@@ -129,6 +129,13 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     end
     # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Return Dialog Resizable Flag
+    # ---------------------------------------------------------------
+    def self.na_dialog_resizable
+        na_edge_config_data.fetch('dialog_resizable', true)
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Register Menu and Shortcut Binder
     # ------------------------------------------------------------
     def self.na_register_hotkey_and_menu
@@ -551,7 +558,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             dialog_title:    na_dialog_title,
             preferences_key: na_dialog_preferences_key,
             scrollable:      false,
-            resizable:       false,
+            resizable:       na_dialog_resizable,
             width:           na_dialog_width,
             height:          na_dialog_height,
             style:           UI::HtmlDialog::STYLE_DIALOG
