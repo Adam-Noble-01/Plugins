@@ -21,6 +21,7 @@
     <div class="naTabBar">
         <button class="naTabBtn naTabBtn--active" onclick="naShowTab('main', this)">Main</button>
         <button class="naTabBtn" onclick="naShowTab('swatches', this)">Swatches</button>
+        <button class="naTabBtn" onclick="naShowTab('advanced', this)">Advanced</button>
     </div>
 
     <!-- ----------------------------------------------------------------- -->
@@ -53,6 +54,39 @@
         <div class="naSwatchGrid">
             {{SWATCHES_HTML}}
         </div>
+
+    </div>
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- UI MENU | Advanced Tab - Line Thickness Tag Assignment            -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <div id="tab-advanced" class="naTabContent">
+
+        <p class="naAdvanced__Description">
+            Scans the entire model for edges painted with greyscale MTE colours
+            and assigns each to the corresponding Layout linework thickness tag.
+            This enables Layout to control line weights for depth cueing on drawings.
+        </p>
+
+        <table class="naAdvanced__MappingTable">
+            <thead>
+                <tr>
+                    <th>Colour</th>
+                    <th>Edge Material</th>
+                    <th>Layout Tag</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{MAPPING_TABLE_HTML}}
+            </tbody>
+        </table>
+
+        <div class="naAdvanced__BtnRow">
+            <button onclick="sketchup.apply_line_tags()"><strong>Apply Line Thickness Tags</strong></button>
+        </div>
+
+        <p id="advancedStatus" class="naAdvanced__Status"></p>
 
     </div>
 

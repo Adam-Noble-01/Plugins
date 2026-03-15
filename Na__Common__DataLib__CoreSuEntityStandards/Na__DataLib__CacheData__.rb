@@ -43,6 +43,21 @@ module Na__DataLib__CacheData
     HTTP_READ_TIMEOUT      = 15                                               # <-- Read timeout (seconds)
     # ------------------------------------------------------------
 
+    # MODULE CONSTANTS | Human-Readable File Key Labels
+    # ------------------------------------------------------------
+    FILE_KEY_LABELS = {
+        :materials      => "Materials",
+        :edge_materials => "Edge Materials",
+        :tags           => "Tags",
+        :components     => "Components"
+    }.freeze
+    # ------------------------------------------------------------
+
+    # MODULE VARIABLES | Last Load Source Tracking
+    # ------------------------------------------------------------
+    @na_last_source = {}                                                      # <-- { file_key => :url | :cache | :local | :failed }
+    # ------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -166,16 +181,64 @@ module Na__DataLib__CacheData
     def self.Na__Cache__LoadData(file_key, force_reload = false)
         unless force_reload
             cached = Na__Cache__ReadIfFresh(file_key)
-            return cached if cached
+            if cached
+                @na_last_source[file_key] = :cache
+                return cached
+            end
         end
 
         fetched = Na__Cache__FetchFromUrl(file_key)
         if fetched
             Na__Cache__WriteToCache(file_key, fetched)
+            @na_last_source[file_key] = :url
             return fetched
         end
 
-        Na__DataLib__LocalFallback.Na__Fallback__LoadLocal(file_key)
+        local = Na__DataLib__LocalFallback.Na__Fallback__LoadLocal(file_key)
+        @na_last_source[file_key] = local ? :local : :failed
+        local
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Return the Source Used for Last Load of a File Key
+    # ------------------------------------------------------------
+    def self.Na__Cache__LastSource(file_key)
+        @na_last_source[file_key]
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Print Startup Status Report for Loaded Data Files
+    # ------------------------------------------------------------
+    def self.Na__Cache__PrintStartupReport(file_keys)
+        puts ""
+        puts "    ┌─────────────────────────────────────────────────────────┐"
+        puts "    │  Na__DataLib - Data File Status Report                  │"
+        puts "    ├─────────────────────────────────────────────────────────┤"
+
+        file_keys.each do |key|
+            label  = FILE_KEY_LABELS[key] || key.to_s
+            source = @na_last_source[key]
+
+            case source
+            when :url
+                icon   = "✓"
+                detail = "loaded from web (URL)"
+            when :cache
+                icon   = "✓"
+                detail = "loaded from cache"
+            when :local
+                icon   = "⚠"
+                detail = "LOCAL FALLBACK (web unavailable)"
+            else
+                icon   = "✗"
+                detail = "FAILED - data unavailable"
+            end
+
+            puts "    │  #{icon} %-18s : %s" % [label, detail]
+        end
+
+        puts "    └─────────────────────────────────────────────────────────┘"
+        puts ""
     end
     # ---------------------------------------------------------------
 

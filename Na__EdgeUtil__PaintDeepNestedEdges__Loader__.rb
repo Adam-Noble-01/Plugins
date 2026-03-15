@@ -11,6 +11,8 @@
 # - This loader script registers the standalone Paint Deep Nested Edges plugin.
 # - Loads the main tool from the Na__EdgeUtil__PaintDeepNestedEdges__Modules__ folder.
 # - Delegates SketchUp menu and shortcut registration to the Hotkey Binder module.
+# - Preloads centralised data files (edge materials, tags) and prints a startup
+#   status report to the Ruby Console showing the source of each data file.
 # - Contains no business logic, only plugin bootstrapping.
 #
 # =============================================================================
@@ -36,20 +38,36 @@ unless file_loaded?(__FILE__)
         if File.exist?(main_file)
             begin
                 require main_file
-                puts "[OK] Na Edge Util Paint Deep Nested Edges loaded successfully"
+                puts "✓ [Na__EdgeUtil] Paint Deep Nested Edges loaded successfully"
 
                 if defined?(Na__EdgeUtil__PaintDeepNestedEdges) &&
                    Na__EdgeUtil__PaintDeepNestedEdges.respond_to?(:na_register_hotkey_and_menu)
                     Na__EdgeUtil__PaintDeepNestedEdges.na_register_hotkey_and_menu
                 else
-                    puts "[WARN] Na__EdgeUtil__PaintDeepNestedEdges.na_register_hotkey_and_menu not available"
+                    puts "⚠ [Na__EdgeUtil] na_register_hotkey_and_menu not available"
                 end
             rescue => error
-                puts "[ERROR] Error loading Na Edge Util Paint Deep Nested Edges: #{error.message}"
-                puts error.backtrace.join("\n")
+                puts "✗ [Na__EdgeUtil] Error loading Paint Deep Nested Edges: #{error.message}"
+                puts error.backtrace.first(5).join("\n")
             end
         else
-            puts "[ERROR] Na Edge Util Paint Deep Nested Edges main file not found at: #{main_file}"
+            puts "✗ [Na__EdgeUtil] Main file not found at: #{main_file}"
+        end
+
+    # endregion -------------------------------------------------------------------
+
+    # -----------------------------------------------------------------------------
+    # REGION | Startup Data Preload and Status Report
+    # -----------------------------------------------------------------------------
+
+        begin
+            if defined?(Na__DataLib__CacheData)
+                Na__DataLib__CacheData.Na__Cache__LoadData(:edge_materials)
+                Na__DataLib__CacheData.Na__Cache__LoadData(:tags)
+                Na__DataLib__CacheData.Na__Cache__PrintStartupReport([:edge_materials, :tags])
+            end
+        rescue => error
+            puts "⚠ [Na__EdgeUtil] Data preload warning: #{error.message}"
         end
 
     # endregion -------------------------------------------------------------------

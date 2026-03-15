@@ -23,6 +23,7 @@ require 'json'
 
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__HotkeyBinder__'
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__PaletteManager__'
+require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__ApplyLineThicknessTags__'
 require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module Na__EdgeUtil__PaintDeepNestedEdges
@@ -469,6 +470,25 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     end
     # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Build Advanced Tab Mapping Table Html
+    # ---------------------------------------------------------------
+    def self.na_build_mapping_table_html
+        entries = Na__ApplyLineThicknessTags.Na__LineTags__TagEntries
+        return "<tr><td colspan='3'>No mapping data available</td></tr>" if entries.empty?
+
+        entries.map do |entry|
+            hex = na_colour_hex_for_key(entry[:colour_id])
+            <<~HTML_ROW.strip
+            <tr>
+                <td><span class="naAdvanced__ColourSwatch" style="background-color: #{hex};"></span></td>
+                <td>#{na_escape_html(entry[:colour_id])}</td>
+                <td>#{na_escape_html(entry[:tag_name])}</td>
+            </tr>
+            HTML_ROW
+        end.join("\n                ")
+    end
+    # ---------------------------------------------------------------
+
     # HELPER FUNCTION | Escape Text For Safe Html Output
     # ---------------------------------------------------------------
     def self.na_escape_html(text)
@@ -506,6 +526,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             .gsub('{{DYNAMIC_PALETTE_HTML}}', Na__PaletteManager.na_build_palette_html)
             .gsub('{{OPTIONS_HTML}}', na_build_options_html)
             .gsub('{{SWATCHES_HTML}}', na_build_swatches_html)
+            .gsub('{{MAPPING_TABLE_HTML}}', na_build_mapping_table_html)
             .gsub('{{INITIAL_INFO}}', initial_info)
     end
     # ---------------------------------------------------------------
@@ -547,6 +568,13 @@ module Na__EdgeUtil__PaintDeepNestedEdges
                 Na__PaletteManager.na_remember_colour(colour_key)
                 na_refresh_dialog_state(dialog, colour_key)
             end
+        end
+
+        dialog.add_action_callback('apply_line_tags') do |_context, _value|
+            result = Na__ApplyLineThicknessTags.Na__LineTags__ApplyToModel
+            status_text = "#{result[:applied]} edges tagged, #{result[:skipped]} skipped, #{result[:tags_created]} tags created (#{result[:total_edges]} total scanned)"
+            status_class = result[:errors].empty? ? "naAdvanced__Status--success" : "naAdvanced__Status--error"
+            dialog.execute_script("var el=document.getElementById('advancedStatus'); el.textContent=#{status_text.to_json}; el.className='naAdvanced__Status #{status_class}';")
         end
     end
     # ---------------------------------------------------------------

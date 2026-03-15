@@ -1,4 +1,7 @@
-/* CSS Variables - Na Edge Util Paint Deep Nested Edges */
+/* ----------------------------------------------------------------- */
+/* REGION | CSS Variables - Na Edge Util Paint Deep Nested Edges */
+/* ----------------------------------------------------------------- */
+
 :root {
     --NaEdgeUtil_FontColour_MainText  : #1e1e1e;
     --NaEdgeUtil_FontColour_MutedText : #555555;
@@ -12,7 +15,12 @@
     --NaEdgeUtil_FontSize_TinyText    : 10px;
 }
 
-/* Base Layout Styles */
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Base Layout Styles */
+/* ----------------------------------------------------------------- */
+
 html, body {
     margin            : 0;
     padding           : 0;
@@ -26,7 +34,12 @@ body {
     box-sizing        : border-box;
 }
 
-/* Tab Bar Styles */
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Navigation - Bar and Buttons */
+/* ----------------------------------------------------------------- */
+
 .naTabBar {
     display           : flex;
     border-bottom     : 2px solid var(--NaEdgeUtil_BorderColour);
@@ -56,7 +69,12 @@ body {
     font-weight       : bold;
 }
 
-/* Tab Content Styles */
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Content Panels */
+/* ----------------------------------------------------------------- */
+
 .naTabContent {
     display           : none;
     padding           : 18px 22px;
@@ -66,7 +84,12 @@ body {
     display           : block;
 }
 
-/* Form Element Styles */
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Form Elements - Labels, Selects, Buttons */
+/* ----------------------------------------------------------------- */
+
 label,
 select,
 button {
@@ -86,7 +109,12 @@ select {
     background-color  : #ffffff;
 }
 
-/* Information Display Styles */
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Information Display */
+/* ----------------------------------------------------------------- */
+
 #info {
     margin-top        : 16px;
     margin-bottom     : 12px;
@@ -94,7 +122,12 @@ select {
     color             : var(--NaEdgeUtil_FontColour_MutedText);
 }
 
-/* Dynamic Palette Styles */
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Quick Palette Panel - Swatches Row */
+/* ----------------------------------------------------------------- */
+
 .naQuickPalettePanel {
     margin-top        : 8px;
 }
@@ -144,7 +177,12 @@ select {
     padding           : 1px 3px;
 }
 
-/* Button Layout and Styling */
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Button Layout and Styling */
+/* ----------------------------------------------------------------- */
+
 #btnRow {
     display           : flex;
     gap               : 14px;
@@ -161,7 +199,12 @@ select {
     min-width         : 160px;
 }
 
-/* Swatches Tab - Grid Layout */
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Swatches Tab - Grid Layout */
+/* ----------------------------------------------------------------- */
+
 .naSwatchGrid {
     display           : grid;
     grid-template-columns : repeat(auto-fill, minmax(72px, 1fr));
@@ -199,3 +242,81 @@ select {
     word-break        : break-word;
     max-width         : 72px;
 }
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Advanced Tab - Mapping Table and Controls */
+/* ----------------------------------------------------------------- */
+
+.naAdvanced__Description {
+    margin            : 0 0 14px 0;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+    line-height       : 1.5;
+}
+
+.naAdvanced__MappingTable {
+    width             : 100%;
+    border-collapse   : collapse;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    margin-bottom     : 14px;
+}
+
+.naAdvanced__MappingTable th {
+    text-align        : left;
+    padding           : 6px 8px;
+    border-bottom     : 2px solid var(--NaEdgeUtil_BorderColour);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+    font-weight       : bold;
+    font-size         : var(--NaEdgeUtil_FontSize_TinyText);
+    text-transform    : uppercase;
+    letter-spacing    : 0.5px;
+}
+
+.naAdvanced__MappingTable td {
+    padding           : 5px 8px;
+    border-bottom     : 1px solid #eeeeee;
+    vertical-align    : middle;
+}
+
+.naAdvanced__MappingTable tr:last-child td {
+    border-bottom     : none;
+}
+
+.naAdvanced__ColourSwatch {
+    display           : inline-block;
+    width             : 18px;
+    height            : 18px;
+    border            : 1px solid #b5b5b5;
+    vertical-align    : middle;
+}
+
+.naAdvanced__BtnRow {
+    margin-top        : 10px;
+}
+
+.naAdvanced__BtnRow button {
+    padding           : var(--NaEdgeUtil_ButtonPadding);
+    border            : 1px solid var(--NaEdgeUtil_BorderColour);
+    background-color  : #ffffff;
+    cursor            : pointer;
+    width             : 100%;
+}
+
+.naAdvanced__Status {
+    margin-top        : 12px;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+    min-height        : 18px;
+}
+
+.naAdvanced__Status--success {
+    color             : #2c6e49;
+}
+
+.naAdvanced__Status--error {
+    color             : #c62828;
+}
+
+/* endregion ----------------------------------------------------------------- */

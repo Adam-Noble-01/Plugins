@@ -50,12 +50,32 @@ module Na__EdgeUtil__PaintDeepNestedEdges
 
                 parsed_palette_keys = stored_palette_json.empty? ? [] : JSON.parse(stored_palette_json)
                 @na_palette_keys = na_sanitise_palette_keys(parsed_palette_keys)
+            rescue SyntaxError => e
+                puts "    [PaletteManager] Corrupted stored palette (SyntaxError), clearing and using defaults: #{e.message}"
+                na_clear_stored_palette
+                @na_palette_keys = na_safe_default_palette_keys
             rescue => e
                 puts "    [PaletteManager] Failed to load persisted palette, using defaults: #{e.message}"
                 @na_palette_keys = na_safe_default_palette_keys
             end
 
             return @na_palette_keys
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Clear Corrupted Stored Palette from Preferences
+        # ---------------------------------------------------------------
+        def self.na_clear_stored_palette
+            begin
+                Sketchup.write_default(
+                    Na__EdgeUtil__PaintDeepNestedEdges.na_dialog_preferences_key,
+                    NA_DYNAMIC_PALETTE_STORAGE_KEY,
+                    ''
+                )
+                puts "    [PaletteManager] Stored palette cleared from preferences"
+            rescue => e
+                puts "    [PaletteManager] Could not clear stored palette: #{e.message}"
+            end
         end
         # ---------------------------------------------------------------
 
