@@ -8,6 +8,30 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.1.0 - 15-Mar-2026
+#### Centralised DataLib Migration — Tags, Materials & Export Config
+
+- **Tags JSON drives all export configuration**: `TAG_RANGES`, `STOREY_TAG_MAP`, `STOREY_ELEMENT_TAG_MAP`, and `STOREY_TAG_RANGE` are no longer hardcoded Ruby constants. All four are now built dynamically at startup from the centralised `Na__DataLib__CoreIndex__Tags__.json` via the DataLib three-stage pipeline (URL -> 30-minute temp cache -> local fallback). Hardcoded constants retained as fallbacks only if DataLib load fails.
+- **Tags JSON v2.0.0 field naming**: All tag entry fields renamed with domain prefixes for clarity: `Tag__SketchUpName`, `Tag__Description`, `Glb__ExportRangeNumbers`, `Glb__FullyExcluded`, `Glb__ExportFileNameStem`, `Storey__IsContainer`, `Storey__ContainerExportName`, `Storey__ElementExportName`, `Layout__EdgeColourID`, `Layout__UsageNote`.
+- **New `Glb__ExportFileNameStem` field**: Each tag entry now carries the GLB filename stem (e.g. `TrueVision__MainBuildingModel__ExistingWalls`) that was previously only in the hardcoded `TAG_RANGES` hash. The Ruby loader walks all entries and builds the equivalent hash at runtime.
+- **Storey detection from data**: `Storey__IsContainer` and `Storey__ContainerExportName` fields on tags 90-93 replace the hardcoded `STOREY_TAG_MAP`. `Storey__ElementExportName` on building element tags replaces `STOREY_ELEMENT_TAG_MAP`.
+- **ExportExclusions restructured**: `AlwaysExcludedTagNames` split into `FullyExcludedTagNames` (02__ linework tags — completely invisible in GLB) and `TreatAsUntaggedTagNames` (03__ Layout linework thickness tags — exported as Layer0, visible in 3D viewer but not segmented). `PatternExclusionRegex` also loaded from DataLib.
+- **Treat-as-untagged layer handling**: New `@treat_as_untagged_layers` array in CoreExport. `Na__Helpers__LayerTreatedAsUntagged?` helper added. GeometryHandling `TraverseEntities` now treats entities on `03__LineworkStyle__` tags as Layer0 during traversal, so they inherit their parent's export group. Edge vertex colours (MTE greyscale) are preserved for downstream depth cueing.
+- **Materials library migrated to DataLib**: `MaterialLookupSystem` now loads materials via `Na__DataLib__CacheData.Na__Cache__LoadData(:materials)` instead of its own bespoke `Net::HTTP` fetch from the old GitHub Pages URL. Root key updated from `Na__AppConfig__MaterialsLibrary` to `Na__DataLib__CoreIndex__Materials`. Session index cache retained; DataLib handles the fetch/cache/fallback.
+- **Startup preload and status reporting**: Loader preloads `:tags` and `:materials` at SketchUp launch. `Na__DataLib__CacheData.Na__Cache__PrintStartupReport` prints a formatted status box to the Ruby Console showing the source of each data file (URL, cache, local fallback, or failed).
+- **Force reload**: New `Na__ExportConfig__ForceReload` method resets `@na_datalib_loaded` flag and re-runs the loader. Callable from the Ruby Console after pushing new JSON to GitHub without restarting SketchUp.
+- **Empty data fallback safety**: If DataLib returns data with old field names (0 tag ranges built), the loader sets runtime variables to `nil` so hardcoded constant fallbacks kick in correctly. Prevents empty-array truthy values from bypassing fallback logic.
+
+**Files Modified:**
+- `Na__TrueVision__GlbBuilder__Main__.rb` (require_relative DataLib, `@na_datalib_*` variables for tag ranges/storey maps, `Na__ExportConfig__LoadFromDataLib` extended with `BuildHashesFromTagEntries`, `Na__ExportConfig__ForceReload`, four new accessor methods for TagRanges/StoreyTagMap/StoreyElementTagMap/StoreyTagRange, `TREAT_AS_UNTAGGED_DEFAULTS` constant)
+- `Na__TrueVision__GlbBuilder__CoreExport__.rb` (all `TAG_RANGES`/`STOREY_TAG_RANGE`/`STOREY_TAG_MAP`/`STOREY_ELEMENT_TAG_MAP` references replaced with DataLib accessor calls, `IdentifyExcludedLayers` uses DataLib exclusions, `@treat_as_untagged_layers` array, `Na__Helpers__LayerTreatedAsUntagged?` helper, `OrganizeEntitiesByTags` uses DataLib skip ranges)
+- `Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__.rb` (layer resolution in `TraverseEntities` checks `Na__Helpers__LayerTreatedAsUntagged?` for faces, edges, and groups/components)
+- `Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__.rb` (removed `net/http`/`uri` requires, replaced `MATERIALS_LIBRARY_URL` with `MATERIALS_ROOT_KEY`, `FetchLibrary` uses `Na__DataLib__CacheData`, `BuildIndex` reads from new root key)
+- `Na__TrueVision__GlbBuilderUtility__Loader__.rb` (startup preload of `:tags` and `:materials`, status report)
+- `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json` (v2.0.0: renamed all fields with `Tag__`/`Glb__`/`Storey__`/`Layout__` prefixes, added `Glb__ExportFileNameStem`, `Storey__IsContainer`, `Storey__ContainerExportName`, `Storey__ElementExportName`, restructured `ExportExclusions` with `FullyExcludedTagNames` + `TreatAsUntaggedTagNames`)
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.0.0 - 12-Mar-2026
 #### Material & Texture Export Overhaul
 
@@ -35,7 +59,7 @@
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
-### TrueVision3D App - Door Animation v1.2.0 - 06-Mar-2026
+### TrueVision3D App - Door Animation v1.9.4 - 06-Mar-2026
 - **Negative rotation degree support**: MOD object names now accept a leading `-` on the degree value (e.g. `MOD001__ROT__-90-Deg__DoorPanel`). This reverses the swing direction, allowing left-hand and right-hand doors to be modelled correctly without mirroring the hinge geometry.
 - **No plugin changes required**: The GLB Builder already exports MOD node names verbatim; a name such as `MOD001__ROT__-90-Deg__DoorPanel` is written into the GLB unchanged and is valid in SketchUp.
 - **App changes** (`3dObjectIInteraction__Animation__ClickToOpenDoors__.js`):

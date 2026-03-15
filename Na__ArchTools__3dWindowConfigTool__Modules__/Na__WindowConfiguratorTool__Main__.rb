@@ -15,6 +15,22 @@
 # - Provides entry point (na_init) and public API
 # - Manages module-level state (@na_dialog, @na_window_component, @na_config)
 #
+# -----------------------------------------------------------------------------
+#
+# DATA SOURCE - SINGLE SOURCE OF TRUTH
+# Materials data is loaded from the centralised Na__DataLib:
+#
+#   Materials Library:
+#     Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json
+#     -> Standard indexed materials (MAT{NNN}__) with SketchUp colours and PBR settings
+#     -> Loaded via Na__DataLib__CacheData.Na__Cache__LoadData(:materials)
+#     -> MaterialManager creates SketchUp materials from this data at plugin init
+#
+# Data is fetched from GitHub (primary), cached locally for 30 minutes,
+# with local plugin folder fallback if the web is unreachable.
+# The old local Na__AppConfig__MaterialsLibrary.json has been removed.
+#
+#
 # MODULE ARCHITECTURE:
 # - DialogManager:     Dialog lifecycle, callbacks, JS ↔ Ruby communication
 # - GeometryEngine:    Window geometry creation and update orchestration

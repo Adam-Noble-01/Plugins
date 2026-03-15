@@ -16,6 +16,26 @@
 # - Loads the HtmlDialog layout from external HTML and CSS files.
 # - Delegates SketchUp menu and shortcut registration to the Hotkey Binder module.
 #
+# -----------------------------------------------------------------------------
+#
+# DATA SOURCE - SINGLE SOURCE OF TRUTH
+# All colour and tag data is loaded from the centralised Na__DataLib:
+#
+#   Edge Materials (MTE colours):
+#     Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__EdgeMaterials__.json
+#     -> MTE{NNN}__ edge colour palette (greyscale + accent colours)
+#     -> Loaded via Na__DataLib__CacheData.Na__Cache__LoadData(:edge_materials)
+#
+#   Tags (Layout linework thickness mapping):
+#     Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json
+#     -> 03__LayoutDrawingLineworkTags__ section maps MTE colours to Layout tags
+#     -> Loaded via Na__DataLib__CacheData.Na__Cache__LoadData(:tags)
+#
+# Data is fetched from GitHub (primary), cached locally for 30 minutes,
+# with local plugin folder fallback if the web is unreachable.
+# Plugin UI config (dialog size, title, menus) remains in local EdgeConfigData.json.
+#
+#
 # =============================================================================
 
 require 'sketchup.rb'

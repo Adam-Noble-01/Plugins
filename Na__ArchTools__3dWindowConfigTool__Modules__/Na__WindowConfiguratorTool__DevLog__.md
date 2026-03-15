@@ -3,6 +3,23 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Version 0.9.10 - 15-Mar-2026 - Materials DataLib Migration
+
+- **Materials library migrated to centralised DataLib**: `MaterialManager` now loads materials via `Na__DataLib__CacheData.Na__Cache__LoadData(:materials)` instead of reading from the local `Na__AppConfig__MaterialsLibrary.json` file. Root key updated from `Na__AppConfig__MaterialsLibrary` to `Na__DataLib__CoreIndex__Materials`. Gets the three-stage loading pipeline (URL -> 30-minute temp cache -> local fallback) for free.
+- **Local MaterialsLibrary JSON deleted**: `Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json` removed. The centralised `Na__DataLib__CoreIndex__Materials__.json` in the DataLib folder is now the single source of truth.
+- **`NA_MATERIALS_LIBRARY` constant removed**: File path constant no longer needed in Main. `na_initialize_standard_materials` parameter changed to optional (backward compatible).
+- **Updated PBR values**: Materials now use the centralised v1.0.0 values (e.g. MAT101 glass roughness 0.05 vs old 0.0, MAT120 wood roughness 0.8 vs old 1.0). These are the same values the GlbBuilder uses for GLB export.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__MaterialManager__.rb`** — added `require_relative` for DataLib, replaced `na_load_materials_library` with DataLib fetch, updated root key, added `NA_MATERIALS_ROOT_KEY` constant
+2. **`Na__WindowConfiguratorTool__Main__.rb`** — removed `NA_MATERIALS_LIBRARY` constant, updated `na_init` call
+
+### Files Deleted:
+1. **`Na__AppConfig__MaterialsLibrary.json`** — superseded by centralised DataLib
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ## Version 0.9.9 - 04-Mar-2026 - Height Limit Increase
 
 ### Update 01 - Increase Window Height Slider Max to 2600mm

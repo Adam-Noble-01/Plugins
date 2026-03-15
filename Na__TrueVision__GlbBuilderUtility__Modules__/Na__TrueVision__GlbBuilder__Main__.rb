@@ -15,6 +15,27 @@
 # - Provides options for exporting selection only or entire model
 # - Integrates with TrueVision3D plugin ecosystem
 #
+# -----------------------------------------------------------------------------
+#
+# DATA SOURCE - SINGLE SOURCE OF TRUTH
+# All export configuration data is loaded from the centralised Na__DataLib:
+#
+#   Tags & Export Config:
+#     Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json
+#     -> TAG_RANGES, SKIP_RANGES, STOREY maps, ExportExclusions
+#     -> Loaded via Na__DataLib__CacheData.Na__Cache__LoadData(:tags)
+#
+#   Materials Library:
+#     Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json
+#     -> PBR material configs for indexed materials (MAT{NNN}__)
+#     -> Loaded via Na__DataLib__CacheData.Na__Cache__LoadData(:materials)
+#
+# Data is fetched from GitHub (primary), cached locally for 30 minutes,
+# with local plugin folder fallback if the web is unreachable.
+# Hardcoded Ruby constants are retained as fallback defaults only.
+#
+# -----------------------------------------------------------------------------
+#
 # TECHNICAL IMPLEMENTATION: See devlog for export method, material handling, and texture support details
 #
 # -----------------------------------------------------------------------------

@@ -8,6 +8,16 @@
 ## Version History
 
 # ---------------------------------------------------------
+### Na Edge Util - Version 1.0.3 - 15-Mar-2026
+#### Tags JSON v2.0.0 Field Rename Alignment
+
+- **Tags JSON v2.0.0 field rename**: `ApplyLineThicknessTags` module updated to read the new domain-prefixed field names from the centralised Tags JSON: `Layout__EdgeColourID` (was `EdgeColourID`), `Tag__SketchUpName` (was `TagName`), `Tag__Description` (was `Description`). No functional change — same data, new field names for cross-plugin consistency.
+
+**Files Modified:**
+- `Na__EdgeUtil__PaintDeepNestedEdges__ApplyLineThicknessTags__.rb` (field name references updated to `Layout__EdgeColourID`, `Tag__SketchUpName`, `Tag__Description`)
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### Na Edge Util - Version 1.0.2 - 15-Mar-2026
 #### Advanced Tab, Line Thickness Tags, Startup Reporting & Bug Fixes
 
