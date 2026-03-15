@@ -1,0 +1,184 @@
+{
+    "meta": {
+        "fileName"          : "Na__DataLib__CoreIndex__Components__.json",
+        "description"       : "Single source of truth for all Noble Architecture standard SketchUp component and group naming conventions. Documents the prefix systems, ID formats, sub-part names, and attribute dictionary keys used across all Na__ plugins. Serves as the reference for any plugin that creates or identifies Na__ components in the model.",
+        "version"           : "1.0.0",
+        "lastUpdated"       : "15-Mar-2026",
+        "sourceFiles"       : [
+            "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__DataSerializer__.rb",
+            "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__GeometryEngine__.rb",
+            "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__.rb",
+            "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__Main__.rb",
+            "ValeDesignSuite/Tools_WindowPanelConfigurator/ValeDesignSuite_Tools_WindowPanelConfigurator.rb",
+            "Na__InsertPrimatives__Modules__/Na__InsertPrimatives__Main__.rb"
+        ],
+        "idFormatNote"      : "The standard Na__ ID pattern is a 3-letter type code + 3-digit zero-padded number, e.g. AWN001, ADR002, PNL003. The ID is followed by __ and a descriptor. This gives 999 unique IDs per type which is sufficient for any single model.",
+        "divergenceNote"    : "The ValeDesignSuite WindowPanelConfigurator uses a PNL prefix and different dictionary name (WindowConfigurator_Config without Na__ prefix) which diverges from the Na__ standard. This is flagged for alignment."
+    },
+
+    "Na__DataLib__CoreIndex__Components": {
+
+        "WindowAssemblies__AWN__": {
+            "Description"           : "Window assembly components created by Na__ArchTools__3dWindowConfigTool. Each window is a self-contained SketchUp component with a unique AWN ID.",
+            "SourcePlugin"          : "Na__ArchTools__3dWindowConfigTool",
+            "PrefixCode"            : "AWN",
+            "IdFormat"              : "AWN{NNN}",
+            "IdFormatExample"       : "AWN001",
+            "ComponentNamePattern"  : "AWN{NNN}__Window__",
+            "ComponentNameExtended" : "AWN{NNN}__Window__{DescriptionOptional}",
+            "Examples"              : [
+                "AWN001__Window__",
+                "AWN002__Window__BayWindow__GroundFloor"
+            ],
+            "SubPartNames"          : {
+                "Window_LeftJamb"   : { "ComponentType" : "Frame_Jamb",   "Description" : "Left vertical frame member" },
+                "Window_RightJamb"  : { "ComponentType" : "Frame_Jamb",   "Description" : "Right vertical frame member" },
+                "Window_TopRail"    : { "ComponentType" : "Frame_Rail",   "Description" : "Top horizontal frame member" },
+                "Window_BottomRail" : { "ComponentType" : "Frame_Rail",   "Description" : "Bottom horizontal frame member (sill rail)" },
+                "Window_Glass"      : { "ComponentType" : "Glass_Panel",  "Description" : "Glazing panel" }
+            },
+            "AttributeDictionaries" : {
+                "OnComponentInstance"   : {
+                    "DictionaryName"    : "Na__WindowConfiguratorInfo",
+                    "Keys"              : {
+                        "WindowID"                  : "The AWN ID string (e.g. AWN001)",
+                        "SketchUpInstanceName"      : "The SketchUp instance name string",
+                        "SketchUpDefinitionName"    : "The SketchUp definition name string"
+                    }
+                },
+                "OnComponentDefinition" : {
+                    "DictionaryName"    : "Na__WindowConfigurator_{WindowID}",
+                    "DictionaryExample" : "Na__WindowConfigurator_AWN001",
+                    "Keys"              : {
+                        "windowMetadata"        : "JSON array - window metadata (UniqueId, Name, Description, dates)",
+                        "windowComponents"      : "JSON array - sub-component config objects",
+                        "windowConfiguration"   : "JSON object - dimension and material configuration"
+                    }
+                }
+            },
+            "LegacyDictionary"      : {
+                "DictionaryName"    : "Na__WindowConfigurator_Config",
+                "Note"              : "Legacy fallback key used in older versions. Defined as NA_WINDOW_DICT_NAME in Na__WindowConfiguratorTool__Main__.rb."
+            }
+        },
+
+        "DoorAssemblies__ADR__": {
+            "Description"           : "Door assembly components detected and exported by TrueVision3D GlbBuilder. The ADR > MOD/ROT hierarchy is preserved as a glTF node subtree for animated door operation in the Web 3D Viewer.",
+            "SourcePlugin"          : "Na__TrueVision__GlbBuilderUtility",
+            "PrefixCode"            : "ADR",
+            "IdFormat"              : "ADR{NNN}",
+            "IdFormatExample"       : "ADR002",
+            "ComponentNamePattern"  : "ADR{NNN}__{BuildingElement}__{Location}",
+            "Examples"              : [
+                "ADR002__InternalDoor__GroundFloor__PorchToLounge"
+            ],
+            "HierarchyNote"         : "Door assemblies contain child objects with MOD (modifier) and ROT (rotation point) prefixes. The GlbBuilder detects ADR-prefixed entities and preserves the parent-child hierarchy in the GLB node tree.",
+            "ChildPrefixes"         : {
+                "MOD" : {
+                    "PrefixCode"    : "MOD",
+                    "Pattern"       : "MOD{NNN}__ROT__{Degrees}Deg__{PartName}",
+                    "Example"       : "MOD001__ROT__90-Deg__DoorPanel",
+                    "Description"   : "Modifier object - a door leaf or panel that rotates about the ROT point"
+                },
+                "ROT" : {
+                    "PrefixCode"    : "ROT",
+                    "Pattern"       : "ROT{NNN}__RotationPoint__{Description}",
+                    "Example"       : "ROT001__RotationPoint__DoorHingeCentre",
+                    "Description"   : "Rotation point marker - defines the hinge axis for door leaf animation"
+                }
+            },
+            "DetectionRegex"        : "^ADR",
+            "AttributeDictionaries" : null
+        },
+
+        "PanelComponents__PNL__": {
+            "Description"           : "Window panel components created by ValeDesignSuite WindowPanelConfigurator (standalone, not the ArchTools version). Used for bespoke one-off window configurations.",
+            "SourcePlugin"          : "ValeDesignSuite::Tools::WindowPanelConfigurator",
+            "PrefixCode"            : "PNL",
+            "IdFormat"              : "PNL{NNN}",
+            "IdFormatExample"       : "PNL001",
+            "ComponentNamePattern"  : "PNL{NNN}__{PartName}",
+            "Examples"              : [
+                "PNL001_LeftJamb",
+                "PNL001_RightJamb",
+                "PNL001_BottomRail",
+                "PNL001_TopRail",
+                "PNL001_Glass"
+            ],
+            "SubPartNames"          : {
+                "Window_LeftJamb"   : { "ComponentType" : "Frame_Jamb",   "Description" : "Left vertical frame member" },
+                "Window_RightJamb"  : { "ComponentType" : "Frame_Jamb",   "Description" : "Right vertical frame member" },
+                "Window_TopRail"    : { "ComponentType" : "Frame_Rail",   "Description" : "Top horizontal frame member" },
+                "Window_BottomRail" : { "ComponentType" : "Frame_Rail",   "Description" : "Bottom horizontal frame member" },
+                "Window_Glass"      : { "ComponentType" : "Glass_Panel",  "Description" : "Glazing panel" }
+            },
+            "AttributeDictionaries" : {
+                "OnComponentDefinition" : {
+                    "DictionaryName" : "WindowConfigurator_Config",
+                    "Note"           : "Does not use Na__ prefix - diverges from standard. Candidate for alignment."
+                }
+            },
+            "DivergenceFlags"       : [
+                "Dictionary name 'WindowConfigurator_Config' lacks the Na__ namespace prefix",
+                "ComponentMaterial values use 'natural-wood' and 'glass' strings rather than MAT-indexed IDs"
+            ]
+        },
+
+        "Primitives__": {
+            "Description"           : "Primitive geometry objects inserted by Na__InsertPrimatives plugin.",
+            "SourcePlugin"          : "Na__InsertPrimatives",
+            "Objects"               : {
+                "PrimitiveCube" : {
+                    "GroupName"     : "01__PrimitiveCube",
+                    "ObjectType"    : "Group",
+                    "Description"   : "Axis-aligned box primitive placed interactively in the model"
+                }
+            }
+        },
+
+        "GlbExportNodes__": {
+            "Description"           : "Internal node name suffixes appended by TrueVision3D GlbBuilder to differentiate the two GLB export segments produced per model.",
+            "SourcePlugin"          : "Na__TrueVision__GlbBuilderUtility",
+            "Suffixes"              : {
+                "__MeshModel__"     : "Appended to the export filename for the face/mesh geometry GLB",
+                "__LineworkModel__" : "Appended to the export filename for the edge/linework geometry GLB"
+            },
+            "SharedLineworkPattern" : "SharedLinework_{DefinitionName}{MirrorLabel}",
+            "SharedLineworkNote"    : "Internal glTF node name for instanced linework geometry. Not a SketchUp entity name."
+        }
+
+    },
+
+    "AttributeDictionaryCatalogue": {
+        "Description"   : "Complete list of all attribute dictionary names used by Noble Architecture plugins across the model. Use this as a reference to avoid naming collisions when adding new dictionary keys.",
+        "Dictionaries"  : {
+            "Na__WindowConfiguratorInfo"            : {
+                "Owner"     : "Na__ArchTools__3dWindowConfigTool",
+                "Target"    : "ComponentInstance",
+                "Purpose"   : "Stores the AWN WindowID and SketchUp entity names on the placed instance"
+            },
+            "Na__WindowConfigurator_{WindowID}"     : {
+                "Owner"     : "Na__ArchTools__3dWindowConfigTool",
+                "Target"    : "ComponentDefinition",
+                "Purpose"   : "Stores full window config JSON (metadata, components, windowConfiguration) keyed by WindowID",
+                "Example"   : "Na__WindowConfigurator_AWN001"
+            },
+            "Na__WindowConfigurator_Config"         : {
+                "Owner"     : "Na__ArchTools__3dWindowConfigTool",
+                "Target"    : "ComponentDefinition",
+                "Purpose"   : "Legacy fallback dictionary name used in older versions of the Window Configurator"
+            },
+            "WindowConfigurator_Config"             : {
+                "Owner"     : "ValeDesignSuite::Tools::WindowPanelConfigurator",
+                "Target"    : "ComponentDefinition",
+                "Purpose"   : "Stores window panel config in the standalone ValeDesignSuite panel configurator. Note: lacks Na__ prefix.",
+                "DivergenceFlag" : true
+            },
+            "BenchConfigurator_Config"              : {
+                "Owner"     : "ValeDesignSuite::BenchConfigurator (documented, not yet in production)",
+                "Target"    : "ComponentDefinition",
+                "Purpose"   : "Stores bench configuration data on a bench component definition"
+            }
+        }
+    }
+}

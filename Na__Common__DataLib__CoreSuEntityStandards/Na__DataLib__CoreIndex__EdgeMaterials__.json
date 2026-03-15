@@ -1,0 +1,103 @@
+{
+    "meta": {
+        "fileName"               : "Na__DataLib__CoreIndex__EdgeMaterials__.json",
+        "description"            : "Single source of truth for all Noble Architecture standard edge linework colours. Used by Na__EdgeUtil__PaintDeepNestedEdges to create SketchUp edge materials and populate the colour palette UI. Each colour key becomes the SketchUp material name when applied to edges.",
+        "version"                : "1.0.0",
+        "lastUpdated"            : "15-Mar-2026",
+        "sourceFiles"            : [
+            "Na__EdgeUtil__PaintDeepNestedEdges__Modules__/Na__EdgeUtil__PaintDeepNestedEdges__EdgeConfigData__.json (v1.0.0)"
+        ],
+        "namingConvention"       : "Current format: 00_XX__LineColour__Descriptor. Series prefix '00_' + 2-digit index + '__LineColour__' + descriptor. The 'Default' key is a special reserved entry that resets the edge to SketchUp's default colour (no material created).",
+        "divergenceNote"         : "This naming format (00_XX__LineColour__) diverges from the MAT face-material convention (MAT{NNN}__). Edge materials are candidates for alignment to a unified prefix scheme (e.g. EMT{NNNN}__) in a future consolidation pass.",
+        "uiDefaults": {
+            "DefaultColourKey"         : "Default",
+            "DynamicPaletteSlotCount"  : 4,
+            "DynamicPaletteDefaultKey" : "00_09__LineColour__White"
+        }
+    },
+
+    "Na__DataLib__CoreIndex__EdgeMaterials": {
+
+        "00__DefaultSeries__": {
+            "Default": {
+                "SketchUpName"   : "Default",
+                "HexValue"       : null,
+                "Description"    : "Reserved key - resets edge to SketchUp default colour. No material is created in the model.",
+                "IsDefault"      : true,
+                "IsReserved"     : true
+            }
+        },
+
+        "00__GreyscaleSeries__": {
+            "00_01__LineColour__AbsoluteBlack": {
+                "SketchUpName"   : "00_01__LineColour__AbsoluteBlack",
+                "HexValue"       : "#000000",
+                "Description"    : "Absolute black - full ink weight linework"
+            },
+            "00_02__LineColour__SoftBlack__L20": {
+                "SketchUpName"   : "00_02__LineColour__SoftBlack__L20",
+                "HexValue"       : "#333333",
+                "Description"    : "Soft black - lightness 20"
+            },
+            "00_03__LineColour__DarkGrey__L40": {
+                "SketchUpName"   : "00_03__LineColour__DarkGrey__L40",
+                "HexValue"       : "#666666",
+                "Description"    : "Dark grey - lightness 40"
+            },
+            "00_04__LineColour__MidGrey__L60": {
+                "SketchUpName"   : "00_04__LineColour__MidGrey__L60",
+                "HexValue"       : "#999999",
+                "Description"    : "Mid grey - lightness 60"
+            },
+            "00_05__LineColour__LightMidGrey__L70": {
+                "SketchUpName"   : "00_05__LineColour__LightMidGrey__L70",
+                "HexValue"       : "#B4B4B4",
+                "Description"    : "Light mid grey - lightness 70"
+            },
+            "00_06__LineColour__NearWhiteGrey__L80": {
+                "SketchUpName"   : "00_06__LineColour__NearWhiteGrey__L80",
+                "HexValue"       : "#CCCCCC",
+                "Description"    : "Near white grey - lightness 80"
+            },
+            "00_07__LineColour__LightGrey__L85": {
+                "SketchUpName"   : "00_07__LineColour__LightGrey__L85",
+                "HexValue"       : "#D9D9D9",
+                "Description"    : "Light grey - lightness 85"
+            },
+            "00_08__LineColour__VeryLightGrey__L95": {
+                "SketchUpName"   : "00_08__LineColour__VeryLightGrey__L95",
+                "HexValue"       : "#F2F2F2",
+                "Description"    : "Very light grey - lightness 95"
+            },
+            "00_09__LineColour__White": {
+                "SketchUpName"   : "00_09__LineColour__White",
+                "HexValue"       : "#FFFFFF",
+                "Description"    : "Pure white - used as dynamic palette default"
+            }
+        },
+
+        "00__AccentColourSeries__": {
+            "00_10__LineColour__Red": {
+                "SketchUpName"   : "00_10__LineColour__Red",
+                "HexValue"       : "#E53935",
+                "Description"    : "Red accent - Material Design Red 600"
+            },
+            "00_11__LineColour__Green": {
+                "SketchUpName"   : "00_11__LineColour__Green",
+                "HexValue"       : "#43A047",
+                "Description"    : "Green accent - Material Design Green 600"
+            },
+            "00_12__LineColour__Yellow": {
+                "SketchUpName"   : "00_12__LineColour__Yellow",
+                "HexValue"       : "#FDD835",
+                "Description"    : "Yellow accent - Material Design Yellow 600"
+            },
+            "00_14__LineColour__Purple": {
+                "SketchUpName"   : "00_14__LineColour__Purple",
+                "HexValue"       : "#8E24AA",
+                "Description"    : "Purple accent - Material Design Purple 800"
+            }
+        }
+
+    }
+}

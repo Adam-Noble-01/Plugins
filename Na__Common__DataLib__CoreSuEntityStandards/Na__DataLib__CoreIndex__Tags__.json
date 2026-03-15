@@ -1,0 +1,287 @@
+{
+    "meta": {
+        "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
+        "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Used by TrueVision3D GlbBuilder to create standardised tags in the active model and to segment GLB exports by numeric tag range. Each tag entry includes the canonical SketchUp tag name, description, and where applicable the numeric export range used by the GLB exporter.",
+        "version"           : "1.0.0",
+        "lastUpdated"       : "15-Mar-2026",
+        "sourceFiles"       : [
+            "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__TagsIndex__.json",
+            "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__Main__.rb (TAG_RANGES constant)"
+        ],
+        "namingConvention"  : "Tags use a two-part format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
+        "divergenceNote"    : "Two formats currently exist in the codebase. (1) Short format used in TagsIndex.json and adopted here: '10__ExistingBuilding', '11__ExistingBuilding__Walls'. (2) Legacy TrueVision__ prefix format used in TAG_RANGES in Main.rb: 'TrueVision__MainBuildingModel__ExistingWalls'. Both formats are documented here for traceability. The short NN__ format is the canonical going-forward convention. The TrueVision__ names are preserved in the LegacyTagName field for migration reference.",
+        "exportNote"        : "ExportRangeNums lists the integer tag numbers that the GlbBuilder uses to segment GLB output files. Tags with ExportRangeNums are exported as separate GLB segments. Tags with no range are either utility tags or storey containers.",
+        "skipRanges"        : [0, 2, 3, 4, 5, 6],
+        "skipRangesNote"    : "Tags with these numeric IDs are ignored by the GLB exporter and not exported."
+    },
+
+    "Na__DataLib__CoreIndex__Tags": {
+
+        "00__SystemAndUtilityTags__": {
+            "01__OrbitHelperCube": {
+                "TagName"            : "01__OrbitHelperCube",
+                "Description"        : "Camera orbit pivot point for the Web 3D Viewer App. A small cube component placed at the desired camera rotation centre.",
+                "ExportRangeNums"    : [1],
+                "LegacyTagName"      : "01__OrbitHelperCube",
+                "AlwaysExcluded"     : false
+            },
+            "02__Linetype__DoorSwings": {
+                "TagName"            : "02__Linetype__DoorSwings",
+                "Description"        : "2D door swing arc linework. Always excluded from GLB export at any nesting depth.",
+                "ExportRangeNums"    : null,
+                "LegacyTagName"      : "02__Linetype__DoorSwings",
+                "AlwaysExcluded"     : true
+            },
+            "02__ClearanceLines": {
+                "TagName"            : "02__ClearanceLines",
+                "Description"        : "Clearance zone linework (e.g. furniture clearances, accessibility zones). Always excluded from GLB export.",
+                "ExportRangeNums"    : null,
+                "LegacyTagName"      : "02__ClearanceLines",
+                "AlwaysExcluded"     : true
+            }
+        },
+
+        "07__EnvironmentTags__": {
+            "07__Landscape": {
+                "TagName"            : "07__Landscape",
+                "Description"        : "Landscape and site context elements including ground surface, planting, paving, and site boundaries.",
+                "ExportRangeNums"    : [7, 8, 9],
+                "LegacyTagName"      : "TrueVision__LandscapeEnvironment",
+                "AlwaysExcluded"     : false
+            }
+        },
+
+        "10_19__ExistingBuildingTags__": {
+            "10__ExistingBuilding": {
+                "TagName"            : "10__ExistingBuilding",
+                "Description"        : "Existing building - whole massing flag. Used for simplified massing models where the entire existing building is a single object.",
+                "ExportRangeNums"    : [10],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__Existing",
+                "AlwaysExcluded"     : false
+            },
+            "11__ExistingBuilding__Walls": {
+                "TagName"            : "11__ExistingBuilding__Walls",
+                "Description"        : "Existing building walls.",
+                "ExportRangeNums"    : [11],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ExistingWalls",
+                "AlwaysExcluded"     : false
+            },
+            "12__ExistingBuilding__Floors": {
+                "TagName"            : "12__ExistingBuilding__Floors",
+                "Description"        : "Existing building floor slabs and finishes.",
+                "ExportRangeNums"    : [12],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ExistingFloors",
+                "AlwaysExcluded"     : false
+            },
+            "13__ExistingBuilding__Roofs": {
+                "TagName"            : "13__ExistingBuilding__Roofs",
+                "Description"        : "Existing building roof structures.",
+                "ExportRangeNums"    : [13],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ExistingRoofs",
+                "AlwaysExcluded"     : false
+            },
+            "14__ExistingBuilding__Windows": {
+                "TagName"            : "14__ExistingBuilding__Windows",
+                "Description"        : "Existing building window assemblies.",
+                "ExportRangeNums"    : [14],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ExistingWindows",
+                "AlwaysExcluded"     : false
+            },
+            "15__ExistingBuilding__Doors": {
+                "TagName"            : "15__ExistingBuilding__Doors",
+                "Description"        : "Existing building door assemblies.",
+                "ExportRangeNums"    : [15],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ExistingDoors",
+                "AlwaysExcluded"     : false
+            },
+            "16__ExistingBuilding__Staircase": {
+                "TagName"            : "16__ExistingBuilding__Staircase",
+                "Description"        : "Existing building staircases.",
+                "ExportRangeNums"    : [16],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ExistingStairs",
+                "AlwaysExcluded"     : false
+            },
+            "17__ExistingBuilding__Fixtures": {
+                "TagName"            : "17__ExistingBuilding__Fixtures",
+                "Description"        : "Existing building fixtures and fittings (sanitary, kitchen, etc.).",
+                "ExportRangeNums"    : [17],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ExistingFixtures",
+                "AlwaysExcluded"     : false
+            },
+            "18__ExistingBuilding__Furniture": {
+                "TagName"            : "18__ExistingBuilding__Furniture",
+                "Description"        : "Existing building furniture.",
+                "ExportRangeNums"    : [18],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ExistingFurniture",
+                "AlwaysExcluded"     : false
+            },
+            "19__ExistingBuilding__InteriorDecor": {
+                "TagName"            : "19__ExistingBuilding__InteriorDecor",
+                "Description"        : "Existing building interior decor and soft furnishings.",
+                "ExportRangeNums"    : [19],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ExistingInteriorDecor",
+                "AlwaysExcluded"     : false
+            }
+        },
+
+        "20_29__ProposedBuildingTags__": {
+            "20__ProposedBuilding": {
+                "TagName"            : "20__ProposedBuilding",
+                "Description"        : "Proposed building - whole massing flag. Used for simplified massing models where the entire proposed building is a single object.",
+                "ExportRangeNums"    : [20],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__Proposed",
+                "AlwaysExcluded"     : false
+            },
+            "21__ProposedBuilding__Walls": {
+                "TagName"            : "21__ProposedBuilding__Walls",
+                "Description"        : "Proposed building walls.",
+                "ExportRangeNums"    : [21],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ProposedWalls",
+                "AlwaysExcluded"     : false
+            },
+            "22__ProposedBuilding__Floors": {
+                "TagName"            : "22__ProposedBuilding__Floors",
+                "Description"        : "Proposed building floor slabs and finishes.",
+                "ExportRangeNums"    : [22],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ProposedFloors",
+                "AlwaysExcluded"     : false
+            },
+            "23__ProposedBuilding__Roofs": {
+                "TagName"            : "23__ProposedBuilding__Roofs",
+                "Description"        : "Proposed building roof structures.",
+                "ExportRangeNums"    : [23],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ProposedRoofs",
+                "AlwaysExcluded"     : false
+            },
+            "24__ProposedBuilding__Windows": {
+                "TagName"            : "24__ProposedBuilding__Windows",
+                "Description"        : "Proposed building window assemblies (AWN-series components).",
+                "ExportRangeNums"    : [24],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ProposedWindows",
+                "AlwaysExcluded"     : false
+            },
+            "25__ProposedBuilding__Doors": {
+                "TagName"            : "25__ProposedBuilding__Doors",
+                "Description"        : "Proposed building door assemblies (ADR-series components).",
+                "ExportRangeNums"    : [25],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ProposedDoors",
+                "AlwaysExcluded"     : false
+            },
+            "26__ProposedBuilding__Staircase": {
+                "TagName"            : "26__ProposedBuilding__Staircase",
+                "Description"        : "Proposed building staircases.",
+                "ExportRangeNums"    : [26],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ProposedStairs",
+                "AlwaysExcluded"     : false
+            },
+            "27__ProposedBuilding__Fixtures": {
+                "TagName"            : "27__ProposedBuilding__Fixtures",
+                "Description"        : "Proposed building fixtures and fittings (sanitary, kitchen, etc.).",
+                "ExportRangeNums"    : [27],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ProposedFixtures",
+                "AlwaysExcluded"     : false
+            },
+            "28__ProposedBuilding__Furniture": {
+                "TagName"            : "28__ProposedBuilding__Furniture",
+                "Description"        : "Proposed building furniture.",
+                "ExportRangeNums"    : [28],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ProposedFurniture",
+                "AlwaysExcluded"     : false
+            },
+            "29__ProposedBuilding__InteriorDecor": {
+                "TagName"            : "29__ProposedBuilding__InteriorDecor",
+                "Description"        : "Proposed building interior decor and soft furnishings.",
+                "ExportRangeNums"    : [29],
+                "LegacyTagName"      : "TrueVision__MainBuildingModel__ProposedInteriorDecor",
+                "AlwaysExcluded"     : false
+            }
+        },
+
+        "30_70__FurnitureAndContextTags__": {
+            "30_38__GroundFloorFurniture": {
+                "TagName"            : "30_38__GroundFloorFurniture",
+                "Description"        : "Ground floor furniture range (tags 30 through 38). Individual items placed on tags 30-38 within this range.",
+                "ExportRangeNums"    : [30, 31, 32, 33, 34, 35, 36, 37, 38],
+                "LegacyTagName"      : "TrueVision__GroundFloorFurniture",
+                "AlwaysExcluded"     : false
+            },
+            "39__GroundFloorDecor": {
+                "TagName"            : "39__GroundFloorDecor",
+                "Description"        : "Ground floor high detail decor items.",
+                "ExportRangeNums"    : [39],
+                "LegacyTagName"      : "TrueVision__GroundFloorDecor",
+                "AlwaysExcluded"     : false
+            },
+            "40_48__FirstFloorFurniture": {
+                "TagName"            : "40_48__FirstFloorFurniture",
+                "Description"        : "First floor furniture range (tags 40 through 48).",
+                "ExportRangeNums"    : [40, 41, 42, 43, 44, 45, 46, 47, 48],
+                "LegacyTagName"      : "TrueVision__FirstFloorFurniture",
+                "AlwaysExcluded"     : false
+            },
+            "49__FirstFloorDecor": {
+                "TagName"            : "49__FirstFloorDecor",
+                "Description"        : "First floor high detail decor items.",
+                "ExportRangeNums"    : [49],
+                "LegacyTagName"      : "TrueVision__FirstFloorDecor",
+                "AlwaysExcluded"     : false
+            },
+            "50_59__Vegetation": {
+                "TagName"            : "50_59__Vegetation",
+                "Description"        : "Vegetation - trees, shrubs, planting (tags 50 through 59).",
+                "ExportRangeNums"    : [50, 51, 52, 53, 54, 55, 56, 57, 58, 59],
+                "LegacyTagName"      : "TrueVision__Vegetation",
+                "AlwaysExcluded"     : false
+            },
+            "60_70__SceneContextual": {
+                "TagName"            : "60_70__SceneContextual",
+                "Description"        : "Scene context objects - people, vehicles, site elements (tags 60 through 70).",
+                "ExportRangeNums"    : [60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
+                "LegacyTagName"      : "TrueVision__SceneContextual",
+                "AlwaysExcluded"     : false
+            }
+        },
+
+        "90_93__StoreyContainerTags__": {
+            "90__Storey__GroundFloor": {
+                "TagName"            : "90__Storey__GroundFloor",
+                "Description"        : "Storey container tag - Ground Floor. Groups all ground floor geometry for storey-level visibility control.",
+                "ExportRangeNums"    : null,
+                "LegacyTagName"      : "90__Storey__GroundFloor",
+                "AlwaysExcluded"     : false
+            },
+            "91__Storey__FirstFloor": {
+                "TagName"            : "91__Storey__FirstFloor",
+                "Description"        : "Storey container tag - First Floor.",
+                "ExportRangeNums"    : null,
+                "LegacyTagName"      : "91__Storey__FirstFloor",
+                "AlwaysExcluded"     : false
+            },
+            "92__Storey__SecondFloor": {
+                "TagName"            : "92__Storey__SecondFloor",
+                "Description"        : "Storey container tag - Second Floor.",
+                "ExportRangeNums"    : null,
+                "LegacyTagName"      : "92__Storey__SecondFloor",
+                "AlwaysExcluded"     : false
+            },
+            "93__Storey__ThirdFloor": {
+                "TagName"            : "93__Storey__ThirdFloor",
+                "Description"        : "Storey container tag - Third Floor.",
+                "ExportRangeNums"    : null,
+                "LegacyTagName"      : "93__Storey__ThirdFloor",
+                "AlwaysExcluded"     : false
+            }
+        }
+
+    },
+
+    "ExportExclusions": {
+        "Description"              : "Tags and patterns used by the GlbBuilder to exclude entities from GLB export. Sourced from EXCLUDED_LAYER_PATTERN and ALWAYS_EXCLUDED_LAYER_NAMES constants in Na__TrueVision__GlbBuilder__Main__.rb.",
+        "PatternExclusionRegex"    : "^TrueVision_.*_DoNotExportGLTF$",
+        "PatternExclusionNote"     : "Any tag matching this pattern (TrueVision_{wildcard}_DoNotExportGLTF) is excluded from export at all nesting depths. Allows tagging temporary or annotation geometry without affecting the export.",
+        "AlwaysExcludedTagNames"   : [
+            "02__Linetype__DoorSwings",
+            "02__ClearanceLines"
+        ]
+    }
+}

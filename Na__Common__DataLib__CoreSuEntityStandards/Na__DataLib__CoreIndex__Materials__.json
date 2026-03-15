@@ -1,0 +1,118 @@
+{
+    "meta": {
+        "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
+        "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
+        "version"           : "1.0.0",
+        "lastUpdated"       : "15-Mar-2026",
+        "sourceFiles"       : [
+            "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
+            "Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json (v1.0.0)"
+        ],
+        "namingConvention"  : "SketchUpName must match the SketchUp material display_name exactly. Format: MAT{NNN}__{Category}__{Variant}. The prefix MAT + 3 digits + __ is required for the lookup system to recognise a material as indexed.",
+        "indexPattern"      : "^MAT\\d{3}__",
+        "exemptPrefix"      : "MAT000E__",
+        "exemptNote"        : "MAT000E__ materials are included in indexed_only export mode but do NOT receive PBR enrichment from the library.",
+        "defaultMaterial"   : "MAT001__Default is the reference template showing ALL possible keys with their default values. Other materials only need to specify keys that differ. Omitted keys inherit the default at render time.",
+        "divergenceNote"    : "Window Configurator (Na__ArchTools__3dWindowConfigTool) maintains a local copy of this library at Na__AppConfig__MaterialsLibrary.json (v1.0.0). That local copy is superseded by this centralised file. The ValeDesignSuite WindowPanelConfigurator uses non-indexed strings 'natural-wood' and 'glass' as ComponentMaterial values - these are not part of the indexed MAT system and require alignment in a future update.",
+        "githubPagesUrl"    : "https://adam-noble-01.github.io/WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json"
+    },
+
+    "Na__DataLib__CoreIndex__Materials": {
+
+        "MAT000__DefaultSeries__": {
+            "MAT001__Default": {
+                "SketchUpName"      : "__SKETCHUP_DEFAULT__",
+                "Description"       : "Reference template -- shows ALL possible keys with default values. Other materials only need keys that differ from these.",
+                "IsDefault"         : true,
+                "BaseColor"         : "rgb(255, 255, 255)",
+                "Opacity"           : 1.0,
+                "Transparent"       : false,
+                "IsDoubleSided"     : false,
+                "PbrRoughness"      : 1.0,
+                "PbrMetallic"       : 0.0,
+                "EmissiveFactor"    : "rgb(0, 0, 0)",
+                "EmissiveIntensity" : 0.0,
+                "NormalScale"       : 1.0,
+                "OcclusionStrength" : 1.0,
+                "AlphaTest"         : 0.0,
+                "DepthWrite"        : true,
+                "EnvMapIntensity"   : 0.0,
+                "TextureMaps": {
+                    "BaseColorUrl"  : null,
+                    "NormalUrl"     : null,
+                    "RoughnessUrl"  : null,
+                    "MetallicUrl"   : null,
+                    "EmissiveUrl"   : null,
+                    "OcclusionUrl"  : null,
+                    "AlphaUrl"      : null
+                }
+            }
+        },
+
+        "MAT100__BasicSeries__": {
+            "MAT101__GenericGlass": {
+                "SketchUpName"      : "MAT101__Glass__ClearDefault",
+                "Description"       : "Clear glass pane with slight blue tint",
+                "BaseColor"         : "rgb(230, 240, 255)",
+                "Opacity"           : 0.2,
+                "Transparent"       : true,
+                "IsDoubleSided"     : true,
+                "PbrRoughness"      : 0.05,
+                "DepthWrite"        : false,
+                "EnvMapIntensity"   : 0.8
+            },
+            "MAT120__GenericWood": {
+                "SketchUpName"      : "MAT120__Wood__TimberDefault",
+                "Description"       : "Generic light timber with natural grain",
+                "BaseColor"         : "rgb(210, 180, 140)",
+                "PbrRoughness"      : 0.8
+            },
+            "MAT140__GenericMirror": {
+                "SketchUpName"      : "MAT140__Mirror__ClearDefault",
+                "Description"       : "Highly reflective mirror surface",
+                "BaseColor"         : "rgb(240, 240, 240)",
+                "IsDoubleSided"     : true,
+                "PbrRoughness"      : 0.0,
+                "PbrMetallic"       : 1.0,
+                "EnvMapIntensity"   : 1.0
+            }
+        },
+
+        "MAT300__PaintSeries__": {
+            "MAT301__Paint__FarrowAndBall__Ammonite": {
+                "SketchUpName"      : "MAT301__Paint__Farrow&Ball__Ammonite",
+                "Description"       : "Farrow & Ball Ammonite - warm neutral stone",
+                "BaseColor"         : "rgb(221, 216, 207)",
+                "PbrRoughness"      : 0.9
+            },
+            "MAT302__Paint__FarrowAndBall__Wevet": {
+                "SketchUpName"      : "MAT302__Paint__Farrow&Ball__Wevet",
+                "Description"       : "Farrow & Ball Wevet - soft warm white",
+                "BaseColor"         : "rgb(238, 233, 231)",
+                "PbrRoughness"      : 0.9
+            },
+            "MAT303__Paint__FarrowAndBall__Mizzle": {
+                "SketchUpName"      : "MAT303__Paint__Farrow&Ball__Mizzle",
+                "Description"       : "Farrow & Ball Mizzle - muted sage green",
+                "BaseColor"         : "rgb(192, 194, 179)",
+                "PbrRoughness"      : 0.9
+            },
+            "MAT304__Paint__FarrowAndBall__DownPipe": {
+                "SketchUpName"      : "MAT304__Paint__Farrow&Ball__Down Pipe",
+                "Description"       : "Farrow & Ball Down Pipe - dark charcoal grey",
+                "BaseColor"         : "rgb(98, 102, 100)",
+                "PbrRoughness"      : 0.9
+            }
+        },
+
+        "MAT500__TimberSeries__": {
+            "MAT541__Timber__Sapele": {
+                "SketchUpName"      : "MAT541__Timber__Sapele",
+                "Description"       : "Sapele hardwood - warm reddish-brown grain",
+                "BaseColor"         : "rgb(180, 160, 140)",
+                "PbrRoughness"      : 0.75
+            }
+        }
+
+    }
+}

@@ -2,23 +2,44 @@
 	"folders": [
 	  {
         "name": "SketchUp-2026__LocalPluginsFolder",
-		"path": "./",
+		"path": "C:/Users/Administrator/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins",
+		"path": "C:/Users/Administrator/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins",
         "description": "Local Plugins RootFolder"
 	  },
 	  {
-        "name": "ValeDesignSuite_LocalMasterProjectFolder",
-		"path": "./ValeDesignSuite",
-        "description": "ValeDesignSuite Plugin RootFolder"
+        "name": "Common__Na__DataLib__CoreSuEntityStandards",
+		"path": "./Na__Common__DataLib__CoreSuEntityStandards",
+        "description": "A common data library for SketchUp entities standards such as Material Names, Tag (Layer) Names, Component Names etc. Thi is the definitive source of truth for all SketchUp entity standards used by Noble Architectures Plugins ecosystem, all data is stored in in Json Files here by category and the directory also contains helper scripts for managing the data such as URL Generator, Cache Management & Local fallback data logic etc."
+	  },
+	  {
+        "name": "Common__Na__PluginDependencies__",
+		"path": "./Na__Common__PluginDependencies",
+        "description": "A common library for Noble Architecture Plugins ecosystem, this contains graphical assets such as branded icons, logos, images, etc."
 	  },
 	  {
         "name": "Na__ArchTools__3dWindowConfigTool__Modules__",
 		"path": "./Na__ArchTools__3dWindowConfigTool__Modules__",
-        "description": "Window Configurator Plugin RootFolder"
+        "description": "Window Configurator Plugin RootFolder, A plugin for configuring 3d windows and doors parametrically in SketchUp"
 	  },
       {
         "name": "Na__TrueVision__GlbBuilderUtility__Modules__",
 		"path": "./Na__TrueVision__GlbBuilderUtility__Modules__",
-        "description": "SketchUp TrueVision Glb Builder Utility Plugin RootFolder"
+        "description": "SketchUp TrueVision Glb Builder Utility Plugin RootFolder, A plugin for building GLB files from SketchUp models for both TrueVision3D, ValeVision3D, & other 3D Web Applications"
+	  },
+      {
+        "name": "ValeDesignSuite__PluginRootFolder__",
+		"path": "./ValeDesignSuite",
+        "description": "ValeDesignSuite Plugin RootFolder"
+	  },
+      {
+        "name": "REFERENCE__TrueVision3D__WebApplication__",
+		"path": "D:/WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode",
+        "description": "Reference Folder for the TrueVision3D Web Application, DO NOT EDIT THIS FOLDER OR ANY FILES WITHIN IT."
+	  },
+      {
+        "name": "REFERENCE__ValeVision3D__WebApplication__",
+		"path": "D:/80__External__LiveRepos/ValeCodebase/WebApps/ValeVision3D",
+        "description": "Reference Folder for the ValeVision3D Web Application, DO NOT EDIT THIS FOLDER OR ANY FILES WITHIN IT."
 	  }
 	],
 	"settings": {
