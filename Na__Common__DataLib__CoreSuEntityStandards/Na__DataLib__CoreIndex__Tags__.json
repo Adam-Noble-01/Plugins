@@ -72,10 +72,18 @@
                 "Tag__Description"           : "Layout renders 0.40 point linework thickness on final PDF Document exported from Layout.",
                 "Glb__ExportRangeNumbers"    : [3],
                 "Glb__FullyExcluded"         : false,
+                "Layout__EdgeColourID"       : "MTE103__LineColour__MediumDarkGrey__L45",
+                "Layout__UsageNote"          : "Used for items such as items in plan view such as furniture etc."
+            },
+            "03__LineThickness__00.35pt": {
+                "Tag__SketchUpName"          : "03__LineworkStyle__00.35pt",
+                "Tag__Description"           : "Layout renders 0.35 point linework thickness on final PDF Document exported from Layout.",
+                "Glb__ExportRangeNumbers"    : [3],
+                "Glb__FullyExcluded"         : false,
                 "Layout__EdgeColourID"       : "MTE104__LineColour__MidGrey__L60",
                 "Layout__UsageNote"          : "Used for items that should be backed off a bit more, such as subtle building motifs or door handles on elevation drawings."
             },
-            "03__LineThickness__00.35pt": {
+            "03__LineThickness__00.30pt": {
                 "Tag__SketchUpName"          : "03__LineworkStyle__00.35pt",
                 "Tag__Description"           : "Layout renders 0.35 point linework thickness on final PDF Document exported from Layout.",
                 "Glb__ExportRangeNumbers"    : [3],
@@ -374,14 +382,15 @@
         ],
         "FullyExcludedNote"        : "Entities on these tags are completely skipped during GLB export at any nesting depth.",
         "TreatAsUntaggedTagNames"  : [
-            "03__LineworkStyle__01.00pt",
-            "03__LineworkStyle__00.80pt",
-            "03__LineworkStyle__00.50pt",
-            "03__LineworkStyle__00.40pt",
-            "03__LineworkStyle__00.35pt",
-            "03__LineworkStyle__00.25pt",
-            "03__LineworkStyle__00.20pt",
-            "03__LineworkStyle__00.15pt"
+            "03__LineThickness__01.00pt",
+            "03__LineThickness__00.80pt",
+            "03__LineThickness__00.50pt",
+            "03__LineThickness__00.40pt",
+            "03__LineThickness__00.35pt",
+            "03__LineThickness__00.30pt",
+            "03__LineThickness__00.25pt",
+            "03__LineThickness__00.20pt",
+            "03__LineThickness__00.15pt"
         ],
         "TreatAsUntaggedNote"      : "Entities on these tags are exported in the GLB but treated as Layer0/Untagged for segmentation. Edge vertex colours (MTE greyscale) are preserved for downstream depth cueing."
     }

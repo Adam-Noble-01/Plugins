@@ -68,6 +68,14 @@
                 "Description"    : "Dark grey - lightness 40",
                 "SwatchName"     : "Dark Grey"
             },
+            "MTE103__LineColour__MediumDarkGrey__L50": {
+                "SketchUpName"   : "MTE103__LineColour__MediumDarkGrey__L45",
+                "HexValue"       : "#737373",
+                "RgbValue"       : [115, 115, 115],
+                "HsbValue"       : [0, 0, 45],
+                "Description"    : "Medium-dark grey - lightness 45",
+                "SwatchName"     : "Medium Dark Grey"
+            },
             "MTE104__LineColour__MidGrey__L60": {
                 "SketchUpName"   : "MTE104__LineColour__MidGrey__L60",
                 "HexValue"       : "#999999",
