@@ -8,6 +8,26 @@
 ## Version History
 
 # ---------------------------------------------------------
+### Na Edge Util - Version 1.0.4 - 16-Mar-2026
+#### Settings Tab - Reload Plugin Data
+
+- **Settings tab added**: New fourth tab "Settings" in the dialog. Contains a description of the reload operation and a single "Reload Plugin Data" button. Status feedback is displayed inline after execution (green on success, red on any error).
+- **New module `Na__EdgeUtil__PaintDeepNestedEdges__RefreshPluginData__.rb`**: Dedicated module `Na__RefreshPluginData` containing two independent regions:
+  - **REGION 1 — Web Data Re-Fetch**: `Na__Refresh__FetchWebData` clears all four in-memory MTE state variables (`@na_mte_data`, `@na_mte_colours`, `@na_mte_swatches`, `@na_mte_meta`) on the main module, then calls `Na__DataLib__CacheData.Na__Cache__LoadData` with `force_reload: true` for both `:edge_materials` and `:tags`, bypassing the 30-minute TTL to pull fresh JSON from the GitHub URL immediately. Returns `{ edge_materials: source, tags: source }`.
+  - **REGION 2 — Plugin Files Reload**: `Na__Refresh__ReloadRubyFiles` globs all `.rb` files in the plugin module folder and `load`s each one for in-session hot reloading without restarting SketchUp. Also reloads the top-level `Na__EdgeUtil__PaintDeepNestedEdges__Loader__.rb` from the plugins root. Returns `{ reload_count:, error_count: }`.
+- **`reload_plugin_data` callback in `Main__.rb`**: Wired to the Settings tab button. Sets `#settingsStatus` to "Reloading..." immediately, runs both refresh operations sequentially, then writes a combined result string (e.g. `Web data: edge_materials: url, tags: url | Ruby: 5 files reloaded, 0 errors`) back to `#settingsStatus`. Calls `na_load_mte_data` after the re-fetch to repopulate the in-memory state.
+- **CSS — Settings tab styles**: New region in `Styles__.css` with `.naSettings__Description`, `.naSettings__BtnRow button`, `.naSettings__Status`, `--success`, and `--error` modifier classes, mirroring the Advanced tab style.
+
+**Files Created:**
+- `Na__EdgeUtil__PaintDeepNestedEdges__RefreshPluginData__.rb`
+
+**Files Modified:**
+- `Na__EdgeUtil__PaintDeepNestedEdges__Main__.rb` (require_relative new module, `reload_plugin_data` callback)
+- `Na__EdgeUtil__PaintDeepNestedEdges__UiLayout__.html` (Settings tab button, `tab-settings` panel with description, button, status element)
+- `Na__EdgeUtil__PaintDeepNestedEdges__Styles__.css` (Settings tab region appended)
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### Na Edge Util - Version 1.0.3 - 15-Mar-2026
 #### Tags JSON v2.0.0 Field Rename Alignment
 

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>{{DIALOG_TITLE}}</title>
     <style>
-{{STYLESHEET_CONTENT}}
+    {{STYLESHEET_CONTENT}}
     </style>
 </head>
 
@@ -22,6 +22,7 @@
         <button class="naTabBtn naTabBtn--active" onclick="naShowTab('main', this)">Main</button>
         <button class="naTabBtn" onclick="naShowTab('swatches', this)">Swatches</button>
         <button class="naTabBtn" onclick="naShowTab('advanced', this)">Advanced</button>
+        <button class="naTabBtn" onclick="naShowTab('settings', this)">Settings</button>
     </div>
 
     <!-- ----------------------------------------------------------------- -->
@@ -87,6 +88,26 @@
         </div>
 
         <p id="advancedStatus" class="naAdvanced__Status"></p>
+
+    </div>
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- UI MENU | Settings Tab - Reload Plugin Data                      -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <div id="tab-settings" class="naTabContent">
+
+        <p class="naSettings__Description">
+            Reloads all web data files from the Na__DataLib source URL, bypassing
+            the cache, and hot-reloads all plugin Ruby scripts in the current
+            SketchUp session without requiring a restart.
+        </p>
+
+        <div class="naSettings__BtnRow">
+            <button onclick="sketchup.reload_plugin_data()"><strong>Reload Plugin Data</strong></button>
+        </div>
+
+        <p id="settingsStatus" class="naSettings__Status"></p>
 
     </div>
 

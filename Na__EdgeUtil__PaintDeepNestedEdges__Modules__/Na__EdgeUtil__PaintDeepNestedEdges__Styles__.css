@@ -320,3 +320,48 @@ select {
 }
 
 /* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Settings Tab - Reload Plugin Data Controls */
+/* ----------------------------------------------------------------- */
+
+.naSettings__Description {
+    margin            : 0 0 18px 0;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+    line-height       : 1.5;
+}
+
+.naSettings__BtnRow {
+    margin-top        : 4px;
+}
+
+.naSettings__BtnRow button {
+    padding           : var(--NaEdgeUtil_ButtonPadding);
+    border            : 1px solid var(--NaEdgeUtil_BorderColour);
+    background-color  : #ffffff;
+    cursor            : pointer;
+    width             : 100%;
+    font-size         : var(--NaEdgeUtil_FontSize_MainText);
+}
+
+.naSettings__BtnRow button:hover {
+    background-color  : #f5f5f5;
+}
+
+.naSettings__Status {
+    margin-top        : 14px;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+    min-height        : 18px;
+}
+
+.naSettings__Status--success {
+    color             : #2c6e49;
+}
+
+.naSettings__Status--error {
+    color             : #c62828;
+}
+
+/* endregion ----------------------------------------------------------------- */

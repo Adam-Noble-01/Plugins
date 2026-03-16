@@ -44,6 +44,7 @@ require 'json'
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__HotkeyBinder__'
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__PaletteManager__'
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__ApplyLineThicknessTags__'
+require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__RefreshPluginData__'
 require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module Na__EdgeUtil__PaintDeepNestedEdges
@@ -595,6 +596,23 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             status_text = "#{result[:applied]} tagged, #{result[:untagged]} moved to Untagged, #{result[:skipped]} errors (#{result[:total_edges]} total scanned)"
             status_class = result[:errors].empty? ? "naAdvanced__Status--success" : "naAdvanced__Status--error"
             dialog.execute_script("var el=document.getElementById('advancedStatus'); el.textContent=#{status_text.to_json}; el.className='naAdvanced__Status #{status_class}';")
+        end
+
+        dialog.add_action_callback('reload_plugin_data') do |_context, _value|
+            dialog.execute_script("document.getElementById('settingsStatus').textContent='Reloading...'; document.getElementById('settingsStatus').className='naSettings__Status';")
+
+            web_result  = Na__RefreshPluginData.Na__Refresh__FetchWebData     # <-- Force re-fetch web data files
+            rb_result   = Na__RefreshPluginData.Na__Refresh__ReloadRubyFiles  # <-- Hot-reload all plugin Ruby files
+
+            web_sources = web_result.map { |key, source| "#{key}: #{source}" }.join(', ')
+            rb_summary  = "#{rb_result[:reload_count]} files reloaded, #{rb_result[:error_count]} errors"
+            status_text  = "Web data: #{web_sources} | Ruby: #{rb_summary}"
+            has_error    = web_result.values.any? { |s| s == :failed } || rb_result[:error_count] > 0
+            status_class = has_error ? "naSettings__Status--error" : "naSettings__Status--success"
+
+            dialog.execute_script("var el=document.getElementById('settingsStatus'); el.textContent=#{status_text.to_json}; el.className='naSettings__Status #{status_class}';")
+
+            na_load_mte_data                                                   # <-- Re-populate in-memory MTE state
         end
     end
     # ---------------------------------------------------------------
