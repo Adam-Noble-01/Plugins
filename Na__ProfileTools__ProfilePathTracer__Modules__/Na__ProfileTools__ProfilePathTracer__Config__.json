@@ -1,0 +1,21 @@
+{
+    "meta" : {
+        "schemaVersion" : "0.1.0",
+        "pluginName"    : "Na__ProfileTools__ProfilePathTracer",
+        "description"   : "Scaffold config for Profile Path Tracer plugin."
+    },
+    "defaults" : {
+        "profileKey"        : null,
+        "pathMode"          : "selection",
+        "isPreviewEnabled"  : true,
+        "isHeadless"        : false
+    },
+    "headlessPresets" : [
+        {
+            "presetKey"  : "DefaultPreset",
+            "profileKey" : null,
+            "pathMode"   : "selection",
+            "notes"      : "Placeholder preset for ecosystem API calls."
+        }
+    ]
+}

@@ -1,0 +1,89 @@
+{
+    "meta" : {
+        "schemaVersion" : "0.1.0",
+        "libraryName"   : "Na__ProfileTools__ProfilePathTracer__ProfileLibrary"
+    },
+    "profiles" : [
+        {
+            "profileKey"   : "PROFILE__Rect__Placeholder",
+            "displayName"  : "Rect Placeholder",
+            "category"     : "General",
+            "isEnabled"    : true,
+            "profileData"  : {
+                "type"   : "polyline2d",
+                "points" : [
+                    [0, 0],
+                    [40, 0],
+                    [40, 20],
+                    [0, 20],
+                    [0, 0]
+                ],
+                "units"  : "mm"
+            }
+        },
+        {
+            "profileKey"   : "PROFILE__Gutter__Box__200x100",
+            "displayName"  : "Gutter Box (200x100)",
+            "category"     : "Gutters",
+            "isEnabled"    : true,
+            "profileData"  : {
+                "type"   : "polyline2d",
+                "points" : [
+                    [0, 0],
+                    [200, 0],
+                    [200, 100],
+                    [0, 100],
+                    [0, 0]
+                ],
+                "units"  : "mm"
+            }
+        },
+        {
+            "profileKey"   : "PROFILE__Gutter__HalfRound__Dia150",
+            "displayName"  : "Gutter Half-Round (Ø150)",
+            "category"     : "Gutters",
+            "isEnabled"    : true,
+            "profileData"  : {
+                "type"   : "polyline2d",
+                "points" : [
+                    [0, 75],
+                    [5.72, 104.13],
+                    [21.97, 128.03],
+                    [46.87, 144.28],
+                    [76.0, 150.0],
+                    [105.13, 144.28],
+                    [130.03, 128.03],
+                    [146.28, 104.13],
+                    [152.0, 75.0],
+                    [0, 75]
+                ],
+                "units"  : "mm"
+            }
+        },
+        {
+            "profileKey"   : "PROFILE__Gutter__KStyle__125x80__Simplified",
+            "displayName"  : "Gutter K-Style (125x80) Simplified",
+            "category"     : "Gutters",
+            "isEnabled"    : true,
+            "profileData"  : {
+                "type"   : "polyline2d",
+                "points" : [
+                    [0, 0],
+                    [125, 0],
+                    [125, 60],
+                    [118, 66],
+                    [112, 73],
+                    [104, 77],
+                    [92, 80],
+                    [70, 78],
+                    [52, 72],
+                    [34, 60],
+                    [20, 42],
+                    [10, 22],
+                    [0, 0]
+                ],
+                "units"  : "mm"
+            }
+        }
+    ]
+}

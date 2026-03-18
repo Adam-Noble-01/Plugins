@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Na Profile Path Tracer</title>
+    <link rel="stylesheet" href="Na__ProfileTools__ProfilePathTracer__Styles__.css">
+</head>
+<body>
+    <!-- ------------------------------------------------------------------ -->
+    <!-- REGION | App Layout Root -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <main class="naApp">
+        <header class="naHeader">
+            <h1>Na Profile Path Tracer</h1>
+            <p>Profile tracing with 2D preview and SketchUp placement workflow.</p>
+        </header>
+
+        <section class="naPanel">
+            <h2>Controls</h2>
+            <div id="naControlsRoot"></div>
+        </section>
+
+        <section class="naPanel">
+            <h2>Profile Preview (2D)</h2>
+            <div class="naViewportWrap">
+                <svg id="naProfileViewportSvg" class="naViewportSvg" viewBox="-120 -120 240 240" preserveAspectRatio="xMidYMid meet"></svg>
+            </div>
+        </section>
+
+        <section class="naPanel">
+            <h2>Status</h2>
+            <div id="naStatusRoot" class="naStatus">Waiting for bootstrap...</div>
+        </section>
+    </main>
+
+    <!-- endregion ---------------------------------------------------------- -->
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- REGION | Script Loading Order (Config -> Controls -> Events -> Viewport -> Logic -> Bridge) -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <script src="Na__ProfileTools__ProfilePathTracer__Ui__Config__.js"></script>
+    <script src="Na__ProfileTools__ProfilePathTracer__Ui__Controls__.js"></script>
+    <script src="Na__ProfileTools__ProfilePathTracer__Ui__Events__.js"></script>
+    <script src="Na__ProfileTools__ProfilePathTracer__Viewport__SvgGenerator__.js"></script>
+    <script src="Na__ProfileTools__ProfilePathTracer__UiLogic__.js"></script>
+    <script src="Na__ProfileTools__ProfilePathTracer__UiEventToRubyApiBridge__.js"></script>
+
+    <!-- endregion ---------------------------------------------------------- -->
+</body>
+</html>
