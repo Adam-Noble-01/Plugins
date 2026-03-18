@@ -1,0 +1,9 @@
+---
+description: Require DataLib cache usage for SketchUp tag and material standards
+alwaysApply: false
+---
+# Core Entity Standards Integration
+- Pull tag/material standards from `Na__Common__DataLib__CoreSuEntityStandards`.
+- Load via `Na__DataLib__CacheData.Na__Cache__LoadData(...)` from plugin modules.
+- Treat DataLib JSON as source of truth for SketchUp naming standards.
+- Use hardcoded defaults only as fallback when DataLib is unavailable.

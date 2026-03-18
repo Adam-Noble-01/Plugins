@@ -1,0 +1,10 @@
+---
+description: Keep Cursor rule files concise, scoped, and non-redundant
+alwaysApply: false
+---
+# Rule Authoring Quality
+- One concern per rule file; split mixed concerns.
+- Keep rules short, explicit, and action-oriented.
+- Prefer scoped `globs` and avoid unnecessary `alwaysApply: true`.
+- Reference canonical project files instead of copying large examples.
+- Update rules when repeated agent mistakes appear; avoid edge-case bloat.

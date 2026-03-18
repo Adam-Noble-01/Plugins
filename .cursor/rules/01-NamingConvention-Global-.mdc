@@ -1,6 +1,6 @@
 ---
-description: Global naming convention for the project.
-alwaysApply: true
+description: Naming Convention When Creating New Files Or Refactoring
+alwaysApply: false
 ---
 **Global Naming Convention**
 - This convention is mandatory and is intended to clearly distinguish Noble Architecture code from third-party libraries.

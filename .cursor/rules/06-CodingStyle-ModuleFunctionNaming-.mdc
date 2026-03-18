@@ -1,7 +1,7 @@
-description: Three-part naming convention for module functions
-alwaysApply: true
 ---
-
+description: When Naming New Functions Or Refactoring Use This Three-part Naming Convention For Module Functions, Classes, Methods Etc
+alwaysApply: false
+---
 ## Module Function Naming Convention
 
 **Pattern:** `Na__Domain__FunctionName`

@@ -1,0 +1,8 @@
+---
+alwaysApply: false
+---
+**Root Loader Pattern**
+- Put one loader file in root `Plugins` folder for each plugin.
+- Loader only does: path setup, `require` main module, UI command/menu/toolbar/hotkey registration, startup status logs.
+- Keep business logic out of loader; place it in `__Modules__`.
+- Use `Na__` namespacing in loader file and command identifiers.

@@ -1,0 +1,8 @@
+---
+alwaysApply: false
+---
+# Modules Folder Pattern
+- Keep plugin logic inside one `Feature__Modules__` folder.
+- Include one `Feature__Main__.rb` orchestrator as the module entrypoint.
+- `__Main__` wires modules, constants, and public API only.
+- Split features into small single-purpose files (UI, geometry, data, tools, observers).

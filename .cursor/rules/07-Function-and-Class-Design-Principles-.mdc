@@ -2,7 +2,6 @@
 description: Function and class design principles enforcing single responsibility and controlled state usage
 alwaysApply: true
 ---
-
 ## Function and Class Design Principles
 
 **Core Rule:** One responsibility per function.
