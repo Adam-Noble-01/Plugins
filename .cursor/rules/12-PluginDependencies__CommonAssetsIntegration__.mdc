@@ -1,9 +1,7 @@
 ---
 description: Standardize shared asset usage via Na__Common__PluginDependencies
-globs: "*__Modules__/**/*.rb"
 alwaysApply: false
 ---
-
 # Common Assets Integration
 - For shared icons/graphics/templates, load from sibling `Na__Common__PluginDependencies`.
 - Use explicit `require_relative` or absolute path construction from plugin root.

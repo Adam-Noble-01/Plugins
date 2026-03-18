@@ -1,4 +1,5 @@
 ---
+globs: *.rb
 alwaysApply: false
 ---
 # Modules Folder Pattern

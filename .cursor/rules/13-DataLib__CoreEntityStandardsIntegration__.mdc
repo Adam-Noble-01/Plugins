@@ -1,5 +1,6 @@
 ---
 description: Require DataLib cache usage for SketchUp tag and material standards
+globs: *.rb
 alwaysApply: false
 ---
 # Core Entity Standards Integration

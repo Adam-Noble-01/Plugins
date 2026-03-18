@@ -1,5 +1,6 @@
 ---
 description: Keep Cursor rule files concise, scoped, and non-redundant
+globs: *.mdc
 alwaysApply: false
 ---
 # Rule Authoring Quality
