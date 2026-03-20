@@ -378,6 +378,7 @@
         "PatternExclusionNote"     : "Any tag matching this pattern (TrueVision_{wildcard}_DoNotExportGLTF) is excluded from export at all nesting depths.",
         "FullyExcludedTagNames"    : [
             "02__Linetype__DoorSwings",
+            "00__Util__Linework__ColumnBackers",
             "02__ClearanceLines"
         ],
         "FullyExcludedNote"        : "Entities on these tags are completely skipped during GLB export at any nesting depth.",

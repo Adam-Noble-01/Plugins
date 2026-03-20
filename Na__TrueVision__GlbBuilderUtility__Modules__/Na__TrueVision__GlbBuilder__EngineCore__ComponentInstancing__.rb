@@ -88,19 +88,31 @@ module TrueVision3D
 
             instanced_groups = []
             skip_set = {}
+            mirrored_unique_fallback_count = 0
 
             definition_map.each do |definition, partitions|
-                [:normal, :mirrored].each do |partition_key|
-                    instances = partitions[partition_key]
-                    next if instances.length < 2
-
+                normal_instances = partitions[:normal]
+                if normal_instances.length >= 2
                     instanced_groups << {
                         definition:  definition,
-                        is_mirrored: (partition_key == :mirrored),
-                        instances:   instances
+                        is_mirrored: false,
+                        instances:   normal_instances
                     }
+                    normal_instances.each { |inst| skip_set[inst[:entity].object_id] = true }
+                end
 
-                    instances.each { |inst| skip_set[inst[:entity].object_id] = true }
+                mirrored_signature_groups = Na__Instancing__PartitionMirroredInstancesBySignature(partitions[:mirrored])
+                mirrored_signature_groups.each_value do |mirrored_instances|
+                    if mirrored_instances.length >= 2
+                        instanced_groups << {
+                            definition:  definition,
+                            is_mirrored: true,
+                            instances:   mirrored_instances
+                        }
+                        mirrored_instances.each { |inst| skip_set[inst[:entity].object_id] = true }
+                    else
+                        mirrored_unique_fallback_count += mirrored_instances.length
+                    end
                 end
             end
 
@@ -108,6 +120,9 @@ module TrueVision3D
                 total_instances = instanced_groups.sum { |g| g[:instances].length }
                 unique_defs     = instanced_groups.map { |g| g[:definition] }.uniq.length
                 puts "    [Instancing] Found #{total_instances} instanced placements across #{unique_defs} definition(s) (#{instanced_groups.length} mesh group(s))"
+            end
+            if mirrored_unique_fallback_count > 0
+                puts "    [Instancing] Mirrored fallback-to-unique count: #{mirrored_unique_fallback_count} placement(s)"
             end
 
             [instanced_groups, skip_set]
@@ -141,7 +156,7 @@ module TrueVision3D
                     Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map)
                 else
                     definition = entity.definition
-                    is_mirrored = Na__GlbEngine__CalcDeterminant3x3(accumulated_transform) < 0
+                    is_mirrored = Na__Instancing__TransformIsMirrored?(accumulated_transform)
 
                     definition_map[definition] ||= { normal: [], mirrored: [] }
                     partition_key = is_mirrored ? :mirrored : :normal
@@ -153,6 +168,53 @@ module TrueVision3D
                     Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map)
                 end
             end
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER | Robust Mirrored Transform Check
+        # ---------------------------------------------------------------
+        # Uses determinant sign with epsilon tolerance to classify a
+        # transform as mirrored (negative determinant).
+        # ---------------------------------------------------------------
+        def self.Na__Instancing__TransformIsMirrored?(transform, epsilon = 1.0e-9)
+            determinant = Na__GlbEngine__CalcDeterminant3x3(transform).to_f
+            determinant < -epsilon
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER | Partition Mirrored Instances by Linear Transform Signature
+        # ---------------------------------------------------------------
+        # Prevents unsafe mirrored mesh sharing across non-equivalent
+        # mirrored transforms. Any singleton signature falls back to
+        # unique export through the normal flat traversal path.
+        # ---------------------------------------------------------------
+        def self.Na__Instancing__PartitionMirroredInstancesBySignature(mirrored_instances)
+            grouped = {}
+
+            mirrored_instances.each do |inst|
+                signature = Na__Instancing__BuildLinearTransformSignature(inst[:accumulated_transform])
+                grouped[signature] ||= []
+                grouped[signature] << inst
+            end
+
+            grouped
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER | Build Stable Signature from 3x3 Linear Transform
+        # ---------------------------------------------------------------
+        # Uses the upper-left 3x3 (rotation/scale/shear) only so
+        # translation differences do not affect grouping.
+        # ---------------------------------------------------------------
+        def self.Na__Instancing__BuildLinearTransformSignature(transform)
+            m = transform.to_a
+            linear_values = [m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]]
+            quantised = linear_values.map do |value|
+                v = value.to_f
+                v = 0.0 if v.abs < 1.0e-9
+                v.round(6)
+            end
+            quantised.join('|')
         end
         # ---------------------------------------------------------------
 
@@ -370,11 +432,17 @@ module TrueVision3D
         def self.Na__Instancing__EmitInstanceNodes(instances, mesh_index, is_mirrored, gltf)
             return unless mesh_index
 
+            mirror_undo = Geom::Transformation.scaling(-1, 1, 1)
+
             instances.each do |inst_data|
                 entity    = inst_data[:entity]
                 acc_trans = inst_data[:accumulated_transform]
 
-                gltf_transform = acc_trans * Y_UP_TO_Z_UP_MATRIX
+                gltf_transform = if is_mirrored
+                    acc_trans * mirror_undo * Y_UP_TO_Z_UP_MATRIX
+                else
+                    acc_trans * Y_UP_TO_Z_UP_MATRIX
+                end
                 gltf_matrix    = Na__Instancing__TransformToGltfMatrix(gltf_transform)
 
                 node_name = Na__GlbEngine__SanitizeEntityName(entity)

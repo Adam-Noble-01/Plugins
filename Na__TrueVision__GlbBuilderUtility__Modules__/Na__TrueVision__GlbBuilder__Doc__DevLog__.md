@@ -8,6 +8,21 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.1.1 - 19-Mar-2026
+#### Mirrored Component Instancing Robustness Fix
+
+- **Mirrored node transform correction**: `Na__Instancing__EmitInstanceNodes` now applies mirrored compensation (`mirror_undo`) when emitting nodes for mirrored shared meshes. This aligns node transform math with mirrored shared-mesh extraction and prevents mirrored components appearing visually flipped in ValeVision.
+- **Robust mirrored classification**: Added `Na__Instancing__TransformIsMirrored?` with determinant epsilon tolerance so tiny floating-point drift around zero does not misclassify handedness.
+- **Safe mirrored instancing partitioning**: Mirrored instances are now partitioned by a 3x3 linear transform signature (`Na__Instancing__BuildLinearTransformSignature` + `Na__Instancing__PartitionMirroredInstancesBySignature`). Only equivalent mirrored transforms share a mirrored mesh.
+- **Automatic fallback to unique export for unsafe mirrors**: Mirrored signature groups with fewer than 2 equivalent instances are intentionally left on the normal flat traversal path (not claimed by instancing), ensuring correctness for mixed mirror-axis cases.
+- **Linework and mesh parity preserved**: The same instanced grouping output is consumed by both `Na__Instancing__ProcessAllInstanced` and `Na__Instancing__ProcessAllInstancedLinework`, keeping coordinates and linework alignment consistent with mesh placement.
+- **Diagnostics added**: Export log now reports mirrored fallback-to-unique counts for easier verification in production models.
+
+**Files Modified:**
+- `Na__TrueVision__GlbBuilder__EngineCore__ComponentInstancing__.rb` (mirrored transform check helper, mirrored signature partitioning, mirrored fallback-to-unique behavior, mirrored node matrix correction)
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.1.0 - 15-Mar-2026
 #### Centralised DataLib Migration — Tags, Materials & Export Config
 
