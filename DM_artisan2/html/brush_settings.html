@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link type="text/css" rel="StyleSheet" href="css/font.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/bootstrap.min.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/artisan-bootstrap.css"/>
+    <title>Brush Settings</title>
+</head>
+
+<body>
+
+<div class="container px-3 small">
+    <!-- Brush Picker Start -->
+    <div class="row pt-2">
+        <div class="col-12">
+            <form>
+                <div class="form-row align-items-center">
+                    <div class="col-6">
+                        <label for="current_brush" class="localize">Brush</label>
+                        <select class="form-control form-control-sm" id="current_brush">
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label for>&nbsp;</label>
+                        <button id="symmetrize_mesh" class="btn btn-info btn-block btn-sm localize">Symmetry</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Brush Picker End -->
+    <!-- Brush Settings Start -->
+    <div class="row">
+        <div class="col-12 mt-2">
+            <form>
+                <div class="form-row">
+                    <div class="col-6">
+                        <label class="localize">Radius</label>
+                        <input id="falloff_slider" type="range" min="1" max="1200" class="form-control custom-range" oninput="sketchup.on_radius_slider_changed($(this).val())">
+                    </div>
+                    <div class="col-3">
+                        <label for="falloff">&nbsp;</label>
+                        <input id="falloff" class="form-control form-control-xs text-center" type="text">
+                    </div>
+                    <div class="col-3">
+                        <label for="falloff_units_in_pixels">&nbsp;</label>
+                        <div class="custom-control custom-switch">
+                            <input id="falloff_units_in_pixels" type="checkbox" class="custom-control-input">
+                            <label class="custom-control-label localize" for="falloff_units_in_pixels">Pixels</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row pt-2">
+                    <div class="col-6">
+                        <label class="localize">Strength</label>
+                        <input id="strength_slider" type="range" min="1" max="100" class="form-control custom-range" oninput="tellSU2('strength', $(this).val())">
+                    </div>
+                    <div class="col-3">
+                        <label for="strength">&nbsp;</label>
+                        <input id="strength" class="form-control form-control-xs text-center" type="text">
+                    </div>
+                    <div class="col-3">
+                        <label for="invert_strength">&nbsp;</label>
+                        <div class="custom-control custom-switch">
+                            <input id="invert_strength" type="checkbox" class="custom-control-input" onchange="sketchup.toggle_invert_strength()">
+                            <label class="custom-control-label localize" for="invert_strength">Invert</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row pt-2">
+                    <div class="col-6">
+                        <label class="localize">Detail Size</label>
+                        <input id="detail_size_slider" type="range" min="10" max="50" class="form-control custom-range" oninput="tellSU2('detail_size', $(this).val())">
+                    </div>
+                    <div class="col-3">
+                        <label for="detail_size">&nbsp;</label>
+                        <input id="detail_size" class="form-control form-control-xs text-center" type="text">
+                    </div>
+                    <div class="col-3">
+                        <label for="add_detail">&nbsp;</label>
+                        <div class="custom-control custom-switch">
+                            <input id="add_detail" type="checkbox" class="custom-control-input">
+                            <label class="custom-control-label localize" for="add_detail">Add</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row pt-2 d-none">
+                    <div class="col-6">
+                        <label>Spacing</label>
+                        <input id="spacing_slider" type="range" min="0.01" max="2" step="0.01" class="form-control custom-range" oninput="tellSU2('spacing', $(this).val())">
+                    </div>
+                    <div class="col-3">
+                        <label for="spacing">&nbsp;</label>
+                        <input id="spacing" class="form-control form-control-xs" type="text">
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Brush Settings End -->
+    <hr>
+    <!-- Advanced Toggles Start -->
+    <div class="row">
+        <div class="col-12">
+            <div class="form-row">
+                <div class="col-6">
+                    <div class="custom-control custom-switch">
+                        <input id="autosmooth" type="checkbox" class="custom-control-input">
+                        <label for="autosmooth" class="custom-control-label localize">Auto-smooth</label>
+                    </div>
+                    <div class="custom-control custom-switch">
+                        <input id="lock_boundary" type="checkbox" class="custom-control-input">
+                        <label for="lock_boundary" class="custom-control-label localize">Lock Boundary</label>
+                    </div>
+                    <div class="custom-control custom-switch">
+                        <input id="smooth_normals" type="checkbox" class="custom-control-input">
+                        <label for="smooth_normals" class="custom-control-label localize">Smooth Normals</label>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="custom-control custom-switch">
+                        <input id="optimize_mesh" type="checkbox" class="custom-control-input">
+                        <label for="optimize_mesh" class="custom-control-label localize">Optimize Mesh</label>
+                    </div>
+                    <div class="custom-control custom-switch">
+                        <input id="sculpt_shading_mode" type="checkbox" class="custom-control-input">
+                        <label for="sculpt_shading_mode" class="custom-control-label localize">Sculpt Shading</label>
+                    </div>
+                    <div class="custom-control custom-switch">
+                        <input id="display_edges" type="checkbox" class="custom-control-input">
+                        <label for="display_edges" class="custom-control-label localize">Display Edges</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Advanced Toggles End -->
+
+    <!-- Restore Button Start -->
+    <div class="row mt-3">
+        <div class="col-12">
+            <button id="restore_defaults" class="btn btn-outline-secondary btn-block btn-sm localize">Restore Defaults</button>
+        </div>
+    </div>
+    <!-- Restore Button End -->
+</div>
+
+
+</body>
+<script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+<script type="text/javascript" src="js/bootstrap.bundle.min.js"></script>
+<script type="text/javascript" src="js/main.js"></script>
+<script>
+    // Changes the maximum value of a slider input if it is larger than
+    // the current value
+    function updateSliderMax(id, max) {
+        var el = document.getElementById(id);
+        if (el.max < max) {
+            el.max = max;
+        }
+    }
+
+    // Forces the slider maximum value to a specific value
+    function setSliderMax(id, max) {
+        var el = document.getElementById(id);
+        el.max = max;
+    }
+
+    // Make the SU window gain focus when the mouse leaves the dialog window
+    $(".container").mouseleave(function(){
+        sketchup.focus();
+    });
+    ready();
+
+</script>
+</html>

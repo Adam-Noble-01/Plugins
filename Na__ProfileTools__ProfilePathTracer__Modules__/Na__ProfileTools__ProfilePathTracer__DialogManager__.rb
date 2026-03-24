@@ -83,6 +83,8 @@ module Na__ProfileTools__ProfilePathTracer
                         'profileKey' => '',
                         'pathMode' => 'selection',
                         'isPreviewEnabled' => true,
+                        'toggleDefinitions' => {},
+                        'toggleStates' => {},
                         'profileOptions' => [],
                         'profilesByKey' => {},
                         'isBootstrapError' => true,
@@ -122,6 +124,29 @@ module Na__ProfileTools__ProfilePathTracer
                     { 'isStarted' => false, 'statusMessage' => "Preview tool activation failed: #{error.message}" }
                 )
             end
+
+            dialog.add_action_callback('na_profilepathtracer_validate_for_export') do |_context|
+                validation = Na__ProfileExporter.Na__Exporter__ValidateSelection
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveExportValidation', validation)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Export validation callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveExportValidation',
+                    { 'isValid' => false, 'reason' => "Validation failed: #{error.message}" }
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_save_profile') do |_context, json_payload|
+                meta_fields = JSON.parse(json_payload.to_s)
+                save_result = self.Na__Dialog__HandleSaveProfileRequest(meta_fields)
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveSaveProfileResult', save_result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Save profile callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveSaveProfileResult',
+                    { 'isSaved' => false, 'reason' => "Save failed: #{error.message}" }
+                )
+            end
         end
 
     # endregion ----------------------------------------------------------------
@@ -136,9 +161,26 @@ module Na__ProfileTools__ProfilePathTracer
 
             default_run_config.merge(
                 'profileKey'      => default_run_config['profileKey'] || default_profile_key,
+                'toggleDefinitions' => Na__ProfileTools__ProfilePathTracer.Na__Config__ToggleDefinitions,
                 'profileOptions'  => Na__ProfileLibrary.Na__ProfileLibrary__UiProfileOptions,
                 'profilesByKey'   => Na__ProfileLibrary.Na__ProfileLibrary__ProfilesByKey
             )
+        end
+
+        def self.Na__Dialog__HandleSaveProfileRequest(meta_fields)
+            save_result = Na__ProfileExporter.Na__Exporter__RunExport(meta_fields)
+
+            if save_result['isSaved']
+                updated_bootstrap = self.Na__Dialog__BuildBootstrapPayload
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveBootstrap', updated_bootstrap)
+            end
+
+            {
+                'isSaved'       => save_result['isSaved'],
+                'reason'        => save_result['reason'],
+                'filePath'      => save_result['filePath'],
+                'statusMessage' => save_result['isSaved'] ? "Profile saved: #{save_result['filePath']}" : "Save failed: #{save_result['reason']}"
+            }
         end
 
         def self.Na__Dialog__HandleGenerateRequest(generate_config)
@@ -155,7 +197,8 @@ module Na__ProfileTools__ProfilePathTracer
             model = Sketchup.active_model
             path_data = validation['pathData']
             profile_data = validation['profileData']
-            preview_tool = Na__PathSelectionTool.new(profile_key, profile_data, path_data)
+            toggle_states = self.Na__Dialog__NormalizedToggleStates(generate_config)
+            preview_tool = Na__PathSelectionTool.new(profile_key, profile_data, path_data, toggle_states)
             model.select_tool(preview_tool)
 
             {
@@ -173,6 +216,20 @@ module Na__ProfileTools__ProfilePathTracer
         def self.Na__Dialog__SendToJs(function_name, payload)
             return unless @na_dialog
             @na_dialog.execute_script("window.#{function_name}(#{payload.to_json});")
+        end
+
+        def self.Na__Dialog__NormalizedToggleStates(generate_config)
+            incoming_toggle_states = generate_config['toggleStates']
+            default_toggle_states = Na__ProfileTools__ProfilePathTracer.Na__Config__ToggleDefaults
+            return default_toggle_states unless incoming_toggle_states.is_a?(Hash)
+
+            default_toggle_states.each_with_object({}) do |(toggle_key, default_value), normalized|
+                if incoming_toggle_states.key?(toggle_key)
+                    normalized[toggle_key] = incoming_toggle_states[toggle_key] == true
+                else
+                    normalized[toggle_key] = default_value
+                end
+            end
         end
 
     # endregion ----------------------------------------------------------------

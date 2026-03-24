@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 64 64" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <g transform="matrix(1,0,0,1,-466,-897.5)">
+        <g transform="matrix(1,0,0,1,157,403.5)">
+            <g id="artisanTransform">
+                <rect id="makeplanar_tb" x="309" y="494" width="64" height="64" style="fill:none;"/>
+                <g id="makeplanar_tb1" serif:id="makeplanar_tb">
+                    <g transform="matrix(0.922313,-0.922313,0.922313,0.922313,273.671,528.767)">
+                        <g transform="matrix(1.15,0,0,1.27273,-433.5,-7.63636)">
+                            <path d="M430,28L416.087,28L416.087,33.5L404.783,33.5L404.783,28L390,28L390,39L430,39L430,28Z" style="fill:white;stroke:white;stroke-width:3.95px;"/>
+                        </g>
+                        <g transform="matrix(1,0,0,1.25,-370,-8.25)">
+                            <rect x="402" y="29" width="13" height="4" style="fill:rgb(138,213,244);stroke:white;stroke-width:4.23px;"/>
+                        </g>
+                        <g transform="matrix(1,0,0,1.25,-370,-8.25)">
+                            <rect x="402" y="29" width="13" height="4" style="fill:rgb(138,213,244);stroke:black;stroke-width:0.85px;"/>
+                        </g>
+                        <g transform="matrix(1.15,0,0,1.27273,-433.5,-7.63636)">
+                            <path d="M430,28L416.087,28L416.087,33.5L404.783,33.5L404.783,28L390,28L390,39L430,39L430,28Z" style="fill:rgb(24,171,234);stroke:black;stroke-width:1.32px;"/>
+                        </g>
+                        <g transform="matrix(-1,1.22465e-16,-1.22465e-16,-1,449.337,60)">
+                            <path d="M408.232,32C408.408,31.696 408.5,31.351 408.5,31C408.5,29.896 407.604,29 406.5,29C405.396,29 404.5,29.896 404.5,31C404.5,31.351 404.592,31.696 404.768,32L408.232,32Z" style="fill:white;stroke:black;stroke-width:0.96px;"/>
+                        </g>
+                        <g transform="matrix(0.836364,0,0,0.836364,-295.709,-44.0909)">
+                            <circle cx="382" cy="94.565" r="3" style="fill:white;stroke:black;stroke-width:1.15px;"/>
+                        </g>
+                        <g transform="matrix(0.836364,0,0,0.836364,-267.273,-44.0909)">
+                            <circle cx="382" cy="94.565" r="3" style="fill:white;stroke:black;stroke-width:1.15px;"/>
+                        </g>
+                    </g>
+                </g>
+            </g>
+        </g>
+        <g id="artisanSubdivide">
+        </g>
+    </g>
+</svg>

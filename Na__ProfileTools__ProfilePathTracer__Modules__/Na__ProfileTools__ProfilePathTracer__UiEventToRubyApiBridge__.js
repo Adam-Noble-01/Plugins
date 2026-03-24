@@ -55,6 +55,8 @@
             profileKey: '',
             pathMode: 'selection',
             isPreviewEnabled: true,
+            toggleDefinitions: {},
+            toggleStates: {},
             profileOptions: [],
             profilesByKey: {},
             isBootstrapError: true,
@@ -98,6 +100,33 @@
         });
     }
 
+    function Na__ProfilePathTracer__Bridge__ValidateForExport() {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_validate_for_export')) {
+            Na__Bridge__SetStatus('Validating selection for export...');
+            window.sketchup.na_profilepathtracer_validate_for_export();
+            return;
+        }
+
+        window.Na__ProfilePathTracer__ReceiveExportValidation({
+            isValid: false,
+            reason: 'SketchUp bridge not available (export validation fallback).'
+        });
+    }
+
+    function Na__ProfilePathTracer__Bridge__SaveProfile(metaFields) {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_save_profile')) {
+            Na__Bridge__SetStatus('Saving profile data...');
+            window.sketchup.na_profilepathtracer_save_profile(JSON.stringify(metaFields || {}));
+            return;
+        }
+
+        window.Na__ProfilePathTracer__ReceiveSaveProfileResult({
+            isSaved: false,
+            reason: 'SketchUp bridge not available (save profile fallback).',
+            statusMessage: 'SketchUp bridge not available.'
+        });
+    }
+
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
@@ -108,6 +137,8 @@
     window.Na__ProfilePathTracer__Bridge__RunHeadless = Na__ProfilePathTracer__Bridge__RunHeadless;
     window.Na__ProfilePathTracer__Bridge__Generate = Na__ProfilePathTracer__Bridge__Generate;
     window.Na__ProfilePathTracer__Bridge__ActivatePreviewTool = Na__ProfilePathTracer__Bridge__ActivatePreviewTool;
+    window.Na__ProfilePathTracer__Bridge__ValidateForExport = Na__ProfilePathTracer__Bridge__ValidateForExport;
+    window.Na__ProfilePathTracer__Bridge__SaveProfile = Na__ProfilePathTracer__Bridge__SaveProfile;
 
     // endregion ----------------------------------------------------------------
 

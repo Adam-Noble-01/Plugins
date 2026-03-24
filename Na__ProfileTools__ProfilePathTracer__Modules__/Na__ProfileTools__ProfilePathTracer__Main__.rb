@@ -16,6 +16,7 @@ require_relative 'Na__ProfileTools__ProfilePathTracer__DebugTools__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__DependencyBootstrap__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__AssetResolver__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__ProfileLibrary__'
+require_relative 'Na__ProfileTools__ProfilePathTracer__MirrorProfile__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__GeometryBuilders__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__PathAnalysis__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__ProfilePlacementEngine__'
@@ -24,6 +25,7 @@ require_relative 'Na__ProfileTools__ProfilePathTracer__KeyboardHandlers__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__PathSelectionTool__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__HeadlessRunner__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__Observers__'
+require_relative 'Na__ProfileTools__ProfilePathTracer__ProfileExporter__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__DialogManager__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__PublicApi__'
 
@@ -35,19 +37,51 @@ module Na__ProfileTools__ProfilePathTracer
 
     NA_PLUGIN_ROOT = File.dirname(__FILE__).freeze
     NA_HTML_FILE   = File.join(NA_PLUGIN_ROOT, 'Na__ProfileTools__ProfilePathTracer__UiLayout__.html').freeze
+    NA_CONFIG_FILE = File.join(NA_PLUGIN_ROOT, 'Na__ProfileTools__ProfilePathTracer__Config__.json').freeze
 
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | Default State and Bootstrap Surface
+    # REGION | Config + Default State and Bootstrap Surface
     # -------------------------------------------------------------------------
 
-    NA_DEFAULT_RUN_CONFIG = {
+    NA_FALLBACK_RUN_CONFIG = {
         'profileKey'        => nil,
         'pathMode'          => 'selection',
         'isPreviewEnabled'  => true,
         'isHeadless'        => false
     }.freeze
+
+    def self.Na__Config__Data
+        @na_config_data ||= self.Na__Config__ReadFromFile
+    end
+
+    def self.Na__Config__ReadFromFile
+        return {} unless File.exist?(NA_CONFIG_FILE)
+        file_contents = File.read(NA_CONFIG_FILE)
+        parsed = JSON.parse(file_contents)
+        parsed.is_a?(Hash) ? parsed : {}
+    rescue => error
+        Na__DebugTools.Na__Debug__Warn("Config load failed: #{error.message}")
+        {}
+    end
+
+    def self.Na__Config__Defaults
+        defaults = self.Na__Config__Data['defaults']
+        defaults.is_a?(Hash) ? defaults : {}
+    end
+
+    def self.Na__Config__ToggleDefinitions
+        toggles = self.Na__Config__Data['toggles']
+        return {} unless toggles.is_a?(Hash)
+        toggles
+    end
+
+    def self.Na__Config__ToggleDefaults
+        self.Na__Config__ToggleDefinitions.each_with_object({}) do |(toggle_key, toggle_definition), state|
+            state[toggle_key] = toggle_definition.is_a?(Hash) ? (toggle_definition['default'] == true) : false
+        end
+    end
 
     # Keep bootstrap concerns in one place for loader and future hot reloads.
     def self.Na__Bootstrap__PreloadData
@@ -55,7 +89,9 @@ module Na__ProfileTools__ProfilePathTracer
     end
 
     def self.Na__State__DefaultRunConfig
-        NA_DEFAULT_RUN_CONFIG.dup
+        NA_FALLBACK_RUN_CONFIG.merge(self.Na__Config__Defaults).merge(
+            'toggleStates' => self.Na__Config__ToggleDefaults
+        )
     end
 
     # endregion ----------------------------------------------------------------

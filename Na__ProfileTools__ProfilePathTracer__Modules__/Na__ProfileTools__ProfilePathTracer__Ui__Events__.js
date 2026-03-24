@@ -55,6 +55,36 @@
                 handlers.Na__Events__OnRunHeadless();
             });
         }
+
+        var btnCreateProfile = document.getElementById('naBtnCreateProfile');
+        if (btnCreateProfile) {
+            btnCreateProfile.addEventListener('click', function() {
+                handlers.Na__Events__OnCreateProfile();
+            });
+        }
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Create Profile Form Event Wiring
+    // -------------------------------------------------------------------------
+
+    function Na__Ui__AttachCreateProfileFormEvents(handlers) {
+        var btnSave = document.getElementById('naBtnSaveProfile');
+        var btnCancel = document.getElementById('naBtnCancelCreateProfile');
+
+        if (btnSave) {
+            btnSave.addEventListener('click', function() {
+                handlers.Na__Events__OnSaveProfile();
+            });
+        }
+
+        if (btnCancel) {
+            btnCancel.addEventListener('click', function() {
+                handlers.Na__Events__OnCancelCreateProfile();
+            });
+        }
     }
 
     // endregion ----------------------------------------------------------------
@@ -64,7 +94,8 @@
     // -------------------------------------------------------------------------
 
     window.Na__ProfilePathTracer__Ui__Events = {
-        Na__Ui__AttachEvents: Na__Ui__AttachEvents
+        Na__Ui__AttachEvents: Na__Ui__AttachEvents,
+        Na__Ui__AttachCreateProfileFormEvents: Na__Ui__AttachCreateProfileFormEvents
     };
 
     // endregion ----------------------------------------------------------------

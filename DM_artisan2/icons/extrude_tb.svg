@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" fill-rule="evenodd" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="1.5" clip-rule="evenodd" viewBox="0 0 64 64">
+  <g transform="matrix(1,0,0,1,-380,-585.5) matrix(1,0,0,1,380,585.5)">
+    <g>
+      <path fill="#fff" stroke="#fff" stroke-width="5.8" d="m58 46 2-16c-2-3-3-5-7-8l-7-4-23 2v6l-5 2c-4 3-14 6-14 6a91 91 0 0 0 7 13l4 12 18-4c4-1 9-5 13-7 8-3 12-2 12-2Z"/>
+      <path fill="#18abea" stroke="#000" stroke-width="1.9" d="m58 46 2-16c-2-3-3-5-7-8l-7-4-23 2v6l-5 2c-4 3-14 6-14 6a91 91 0 0 0 7 13l4 12 18-4c4-1 9-5 13-7 8-3 12-2 12-2Z"/>
+      <path fill="#0177ad" d="M23 20v16l4 8 6 11V40l-5-11-5-9Z"/>
+      <path fill="#18abea" stroke="#010001" stroke-miterlimit="1" stroke-width="2.2" d="m46 18-23 2 5 9 5 11 15-7c7-4 12-3 12-3-2-3-3-5-7-8l-7-4Z"/>
+      <path fill="none" stroke="#000" stroke-width="1.2" d="M33 40v15l-6-11-4-8V20m-5 8 5 8-8 2-7 2"/>
+      <path fill="none" stroke="#000" stroke-width="1.2" d="m11 47 9-1 7-2 1-15s7-5 13-6l13-1"/>
+      <path fill="none" stroke="#000" stroke-width="1.2" d="m35 19 6 4 7 10-2 15"/>
+      <path fill="none" stroke="#fff" stroke-linejoin="miter" stroke-miterlimit="4" stroke-width="4.4" d="M227 22h8v-9h4l-8-12-8 12h4v9Z" transform="matrix(1.02927,0,0,1.02927,-0.216768,-2.40883) matrix(0.957637,0,-2.22045e-16,0.916808,10.4002,6.59232) matrix(1,0,0,1,-201.175,0)"/>
+      <path fill="#e23836" d="M36 25h8v-8h4L40 5l-8 12h4v8Z"/>
+    </g>
+  </g>
+</svg>

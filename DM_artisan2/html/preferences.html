@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link type="text/css" rel="StyleSheet" href="css/font.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/bootstrap.min.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/artisan-bootstrap.css"/>
+    <title>Preferences</title>
+</head>
+<body>
+
+<div class="container px-3 small">
+    <div class="row pt-2">
+        <div class="col-12">
+            <form>
+                <div class="form-row pt-3">
+                    <div class="col-6 pt-2">
+                        <label for="language" class="localize">Language</label>
+                    </div>
+                    <div class="col-6">
+                        <select id="language" class="form-control form-control-sm">
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <hr>
+
+    <div class="row mt-3">
+        <div class="col-6">
+            <button onclick="sketchup.save()" class="btn btn-info btn-block btn-sm"><span class="localize">OK</span></button>
+        </div>
+        <div class="col-6">
+            <button onclick="sketchup.cancel()" class="btn btn-outline-secondary btn-block btn-sm"><span class="localize">Cancel</span></button>
+        </div>
+    </div>
+
+</div>
+
+</body>
+<script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+<script type="text/javascript" src="js/bootstrap.bundle.min.js"></script>
+<script type="text/javascript" src="js/main.js"></script>
+<script>
+    ready();
+
+</script>
+</html>

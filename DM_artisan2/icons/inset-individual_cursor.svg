@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 64 64" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <g transform="matrix(1,0,0,1,-604.671,-331.5)">
+        <g id="transform">
+        </g>
+        <g id="subdivide" transform="matrix(1,0,0,1,160,585.5)">
+            <g id="crease">
+            </g>
+            <g id="extrudeFace">
+            </g>
+            <g id="extrudeNormal" transform="matrix(1,0,0,1,444.671,-254)">
+                <rect x="0" y="0" width="64" height="64" style="fill:none;"/>
+                <g id="pointer" transform="matrix(1,0,0,1,-221,-241)">
+                    <path d="M223.5,265.5L240.5,257.5L223.5,243.5L223.5,265.5Z" style="fill:none;stroke:white;stroke-width:4.17px;"/>
+                    <path d="M223.5,265.5L240.5,257.5L223.5,243.5L223.5,265.5Z"/>
+                </g>
+                <g transform="matrix(0.825393,0,0,0.825393,6.797,8.69284)">
+                    <g transform="matrix(1,0,0,1,-444,0)">
+                        <path d="M448.575,18.705L457.796,54.867L503.612,40.172L485.891,8.908L448.575,18.705Z" style="fill:none;stroke:white;stroke-width:7.57px;"/>
+                    </g>
+                    <g transform="matrix(1,0,0,1,-444,0)">
+                        <path d="M448.575,18.705L457.796,54.867L503.612,40.172L485.891,8.908L448.575,18.705Z" style="fill:rgb(24,171,234);stroke:black;stroke-width:2.52px;"/>
+                    </g>
+                    <g>
+                        <g transform="matrix(1,0,0,1,-444,0)">
+                            <path d="M457.796,54.867L467.629,38.757" style="fill:none;stroke:black;stroke-width:1.51px;"/>
+                        </g>
+                        <g transform="matrix(1,0,0,1,-444,0)">
+                            <path d="M448.575,18.705L464.182,25.235" style="fill:none;stroke:black;stroke-width:1.51px;"/>
+                        </g>
+                        <g transform="matrix(1,0,0,1,-444,0)">
+                            <path d="M485.891,8.908L478.134,21.571" style="fill:none;stroke:black;stroke-width:1.51px;"/>
+                        </g>
+                        <g transform="matrix(1,0,0,1,-444,0)">
+                            <path d="M503.612,40.172L484.761,33.262" style="fill:none;stroke:black;stroke-width:1.51px;"/>
+                        </g>
+                        <g transform="matrix(0.373923,0,0,0.373923,-147.551,18.2406)">
+                            <path d="M448.575,18.705L457.796,54.867L503.612,40.172L485.891,8.908L448.575,18.705Z" style="fill:rgb(24,171,234);stroke:white;stroke-width:20.25px;"/>
+                        </g>
+                        <g transform="matrix(0.373923,0,0,0.373923,-147.551,18.2406)">
+                            <path d="M448.575,18.705L457.796,54.867L503.612,40.172L485.891,8.908L448.575,18.705Z" style="fill:none;stroke:rgb(226,56,54);stroke-width:6.75px;"/>
+                        </g>
+                    </g>
+                </g>
+                <g transform="matrix(0.5,0,0,0.5,-357.685,-8.5)">
+                    <rect x="826.371" y="128" width="13" height="13" style="fill:rgb(226,56,54);stroke:black;stroke-width:4.17px;"/>
+                </g>
+                <g transform="matrix(0.5,0,0,0.5,-357.685,-19)">
+                    <rect x="826.371" y="128" width="13" height="13" style="fill:rgb(226,56,54);stroke:black;stroke-width:4.17px;"/>
+                </g>
+                <g transform="matrix(0.5,0,0,0.5,-368.185,-8.5)">
+                    <rect x="826.371" y="128" width="13" height="13" style="fill:rgb(226,56,54);stroke:black;stroke-width:4.17px;"/>
+                </g>
+            </g>
+        </g>
+        <g id="sculpt">
+        </g>
+    </g>
+</svg>

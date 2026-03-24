@@ -143,6 +143,101 @@ body {
 /* endregion ----------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------- */
+/* REGION | Create Profile Form */
+/* ----------------------------------------------------------------- */
+
+.naCreateProfilePanel {
+    border-color       : #008f5a;
+}
+
+.naCreateProfileForm .naFormRow {
+    margin-bottom      : 10px;
+}
+
+.naCreateProfileForm .naFormRow label {
+    grid-column        : 1;
+}
+
+.naTextarea {
+    width              : 100%;
+    padding            : 7px 8px;
+    border             : 1px solid var(--na-border);
+    border-radius      : 4px;
+    background         : #fff;
+    font-family        : inherit;
+    resize             : vertical;
+    min-height         : 48px;
+}
+
+.naInputReadonly {
+    width              : 100%;
+    padding            : 7px 8px;
+    border             : 1px solid var(--na-border);
+    border-radius      : 4px;
+    background         : #f0f1f3;
+    color              : var(--na-subtle);
+}
+
+.naCreateProfileActions {
+    display            : flex;
+    gap                : 8px;
+    margin-top         : 12px;
+}
+
+.naButtonSuccess {
+    border             : 1px solid #008f5a;
+    background         : #008f5a;
+    color              : #fff;
+    border-radius      : 4px;
+    padding            : 8px 16px;
+    cursor             : pointer;
+    font-weight        : 600;
+}
+
+.naButtonSuccess:hover {
+    background         : #00734a;
+    border-color       : #00734a;
+}
+
+.naButtonSecondary {
+    border             : 1px solid var(--na-border);
+    background         : var(--na-panel);
+    color              : var(--na-text);
+    border-radius      : 4px;
+    padding            : 8px 16px;
+    cursor             : pointer;
+}
+
+.naButtonSecondary:hover {
+    background         : var(--na-bg);
+}
+
+.naButtonCreate {
+    border             : 1px solid #6c47b8;
+    background         : #6c47b8;
+    color              : #fff;
+    border-radius      : 4px;
+    padding            : 8px 12px;
+    cursor             : pointer;
+}
+
+.naButtonCreate:hover {
+    background         : #583a99;
+    border-color       : #583a99;
+}
+
+.naValidationSummary {
+    padding            : 8px;
+    margin-bottom      : 10px;
+    border-radius      : 4px;
+    background         : #eef8f3;
+    color              : #1a5e3a;
+    font-size          : 13px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
 /* REGION | Preview + Status */
 /* ----------------------------------------------------------------- */
 

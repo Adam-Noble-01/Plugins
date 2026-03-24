@@ -3,6 +3,50 @@
 ## Version History
 
 # =======================================================================================
+## ProfileTools Version 0.1.1 - 24-Mar-2026
+
+### Create New Profile / Rich JSON Export Feature
+
+- Added `Na__ProfileTools__ProfilePathTracer__ProfileExporter__.rb`:
+  - Validates current SketchUp selection (faces, edges, loose geometry).
+  - Collects geometry relative to model origin in millimetres.
+  - Builds rich JSON payload with `meta`, `vertices`, `edges`, `faces` sections.
+  - Prompts user with OS save dialog (default: `01__ProfileDataFiles/`).
+  - Writes formatted JSON matching the standardised profile data schema.
+
+- Modified `Na__ProfileTools__ProfilePathTracer__ProfileLibrary__.rb`:
+  - Added `NA_PROFILE_DATA_DIR` constant pointing to `01__ProfileDataFiles/`.
+  - Added `Na__ProfileLibrary__ScanDataFiles` to recursively glob `*.json` from data dir.
+  - Added `Na__ProfileLibrary__ParseDataFile` to convert rich JSON files to internal profile format with `profileData.type = "rich_geometry"`.
+  - `Na__ProfileLibrary__Load` now merges library profiles with scanned data-file profiles.
+
+- Modified `Na__ProfileTools__ProfilePathTracer__GeometryBuilders__.rb`:
+  - Added `Na__Geometry__ProfileType` for format detection.
+  - Added `Na__Geometry__BuildLocalPointsFromRichData` to extract face outer-loop vertices from rich data.
+  - Added `Na__Geometry__BuildRichProfileAlongPath` for full rich geometry `followme` build with inner loop (hole) support.
+  - Added `Na__Geometry__RichDataPreviewPoints` for 2D SVG preview extraction.
+  - `BuildProfileAlongPath` and `BuildLocalProfilePoints` now branch on `profileData.type`.
+
+- Modified `Na__ProfileTools__ProfilePathTracer__DialogManager__.rb`:
+  - Added `na_profilepathtracer_validate_for_export` callback.
+  - Added `na_profilepathtracer_save_profile` callback.
+  - Added `Na__Dialog__HandleSaveProfileRequest` which runs export, then reloads bootstrap on success.
+
+- Modified UI layer:
+  - Added "Create New Profile" button (purple) to controls panel.
+  - Added hidden `#naCreateProfilePanel` section with form root.
+  - Added meta form renderer: Profile Name, Description, Keywords, Profile ID, auto-filled Timestamp and Units.
+  - Added "Save Profile Data File" (green) and "Cancel" buttons on form.
+  - Added export validation and save profile bridge calls.
+  - Updated `Viewport__SvgGenerator` to render `rich_geometry` profiles in 2D SVG preview.
+  - Added CSS styles for create profile form, validation summary, success/secondary buttons.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__Main__.rb`:
+  - Added `require_relative` for `ProfileExporter__`.
+
+- Updated Architecture and DEVLOG documentation.
+
+# =======================================================================================
 ## ProfileTools Version 0.1.0 - 18-Mar-2026
 
 ### First Stable Foundation Release

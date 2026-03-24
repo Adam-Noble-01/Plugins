@@ -12,6 +12,7 @@
 - `Na__ProfileTools__ProfilePathTracer__AssetResolver__.rb`
 - `Na__ProfileTools__ProfilePathTracer__DialogManager__.rb`
 - `Na__ProfileTools__ProfilePathTracer__ProfileLibrary__.rb`
+- `Na__ProfileTools__ProfilePathTracer__ProfileExporter__.rb`
 - `Na__ProfileTools__ProfilePathTracer__PathSelectionTool__.rb`
 - `Na__ProfileTools__ProfilePathTracer__PathAnalysis__.rb`
 - `Na__ProfileTools__ProfilePathTracer__ProfilePlacementEngine__.rb`
@@ -35,6 +36,7 @@
 ### Data/Docs
 - `Na__ProfileTools__ProfilePathTracer__Config__.json`
 - `Na__ProfileTools__ProfilePathTracer__ProfileLibrary__.json`
+- `01__ProfileDataFiles/` (user-created rich JSON profile files, scanned recursively)
 - `Na__ProfileTools__ProfilePathTracer__README__.md`
 - `Na__ProfileTools__ProfilePathTracer__DEVLOG__.md`
 - `Na__ProfileTools__ProfilePathTracer__Architecture__.md`
@@ -48,6 +50,7 @@ main --> dep[DependencyBootstrap]
 main --> dialog[DialogManager]
 main --> api[PublicApi]
 main --> lib[ProfileLibrary]
+main --> exporter[ProfileExporter]
 main --> pathTool[PathSelectionTool]
 pathTool --> keyboard[KeyboardHandlers]
 pathTool --> preview[PreviewGraphics]
@@ -58,6 +61,8 @@ api --> headless[HeadlessRunner]
 headless --> engine
 main --> observers[Observers]
 main --> assets[AssetResolver]
+lib --> dataFiles["01__ProfileDataFiles/**/*.json"]
+dialog --> exporter
 ```
 
 ## JavaScript Dependency Graph
@@ -87,6 +92,27 @@ bridge --> uiLogic
 5. Generate callback validates strict path selection and launches `PathSelectionTool`.
 6. In SketchUp tool: red crosshair + TAB rotation + click vertex start.
 7. Placement engine commits profile generation along ordered path (open chain or closed loop).
+
+### Create New Profile Flow
+
+1. User clicks "Create New Profile" button in the dialog.
+2. JS bridge calls `na_profilepathtracer_validate_for_export` -> Ruby `Na__ProfileExporter.Na__Exporter__ValidateSelection`.
+3. If valid, JS shows the meta form panel with fields: Profile Name, Description, Keywords, Profile ID, auto-filled Timestamp and Units.
+4. User fills in fields and clicks "Save Profile Data File".
+5. JS bridge calls `na_profilepathtracer_save_profile` with meta fields JSON.
+6. Ruby `Na__ProfileExporter.Na__Exporter__RunExport` collects geometry from selection, builds rich JSON payload, opens OS save dialog (default: `01__ProfileDataFiles/`), writes file.
+7. On success, `DialogManager` reloads bootstrap payload (re-scans `01__ProfileDataFiles`) and sends updated profile list to JS.
+8. UI hides the form panel and refreshes the profile dropdown.
+
+### Profile Data Format (rich_geometry)
+
+Individual profile files in `01__ProfileDataFiles/` use the rich geometry JSON format:
+- `meta`: ProfileName, Description, Timestamp, GlobalUnits, Keywords, ProfileId
+- `vertices`: count + items array (VertexId, PosX, PosY, PosZ, W in millimetres)
+- `edges`: count + items array (v1, v2, direction, length_mm, soft, smooth, hidden)
+- `faces`: count + items array (outer loop indices, inner loops, normal, area_mm2)
+
+`ProfileLibrary` scans this directory recursively and converts each file to the internal profile format with `profileData.type = "rich_geometry"`. `GeometryBuilders` branches on this type to build faces directly from vertex/face data.
 
 ### Headless Flow
 

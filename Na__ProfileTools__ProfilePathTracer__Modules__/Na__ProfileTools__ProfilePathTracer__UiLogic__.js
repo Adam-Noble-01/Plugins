@@ -10,7 +10,9 @@
         pathMode: 'selection',
         isPreviewEnabled: true,
         profiles: {},
-        lastGeneratePayload: null
+        lastGeneratePayload: null,
+        isCreateProfileFormVisible: false,
+        lastExportValidation: null
     };
 
     // endregion ----------------------------------------------------------------
@@ -65,6 +67,62 @@
         if (!previewResult.isValid) {
             Na__Ui__SetStatus('Preview unavailable: ' + previewResult.reason);
         }
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Create Profile Form Helpers
+    // -------------------------------------------------------------------------
+
+    function Na__Ui__ShowCreateProfilePanel(validationResult) {
+        var panel = document.getElementById('naCreateProfilePanel');
+        var formRoot = document.getElementById('naCreateProfileFormRoot');
+        if (!panel || !formRoot) return;
+
+        formRoot.innerHTML = window.Na__ProfilePathTracer__Ui__Controls.Na__Ui__RenderCreateProfileForm(validationResult);
+        panel.style.display = '';
+
+        window.Na__ProfilePathTracer__Ui__Events.Na__Ui__AttachCreateProfileFormEvents({
+            Na__Events__OnSaveProfile: function() {
+                var profileName = (document.getElementById('naMetaProfileName') || {}).value || '';
+                var description = (document.getElementById('naMetaDescription') || {}).value || '';
+                var keywordsRaw = (document.getElementById('naMetaKeywords') || {}).value || '';
+                var profileId   = (document.getElementById('naMetaProfileId') || {}).value || '';
+
+                var keywords = keywordsRaw.split(',').map(function(k) { return k.trim(); }).filter(function(k) { return k.length > 0; });
+
+                var metaFields = {
+                    Meta_ProfileName: profileName,
+                    Meta_Description: description,
+                    Meta_Keywords: keywords,
+                    Meta_ProfileId: profileId
+                };
+
+                if (!profileName && !profileId) {
+                    Na__Ui__SetStatus('Profile Name or Profile ID is required.');
+                    return;
+                }
+
+                Na__Ui__SetStatus('Saving profile...');
+                if (window.Na__ProfilePathTracer__Bridge__SaveProfile) {
+                    window.Na__ProfilePathTracer__Bridge__SaveProfile(metaFields);
+                }
+            },
+            Na__Events__OnCancelCreateProfile: function() {
+                Na__Ui__HideCreateProfilePanel();
+                Na__Ui__SetStatus('Create profile cancelled.');
+            }
+        });
+
+        Na__UiState.isCreateProfileFormVisible = true;
+    }
+
+    function Na__Ui__HideCreateProfilePanel() {
+        var panel = document.getElementById('naCreateProfilePanel');
+        if (panel) panel.style.display = 'none';
+        Na__UiState.isCreateProfileFormVisible = false;
+        Na__Ui__RenderProfilePreview();
     }
 
     // endregion ----------------------------------------------------------------
@@ -129,6 +187,14 @@
                 if (window.Na__ProfilePathTracer__Bridge__RunHeadless) {
                     window.Na__ProfilePathTracer__Bridge__RunHeadless(Na__UiState);
                 }
+            },
+            Na__Events__OnCreateProfile: function() {
+                Na__Ui__SetStatus('Validating selection for profile export...');
+                if (window.Na__ProfilePathTracer__Bridge__ValidateForExport) {
+                    window.Na__ProfilePathTracer__Bridge__ValidateForExport();
+                } else {
+                    Na__Ui__SetStatus('Export validation bridge is not available.');
+                }
             }
         });
     }
@@ -185,6 +251,53 @@
         Na__Ui__SetStatus(result.statusMessage || 'Generate callback complete.');
     }
 
+    function Na__ProfilePathTracer__ReceiveExportValidation(result) {
+        if (!result || typeof result !== 'object') {
+            Na__Ui__SetStatus('Export validation returned no result.');
+            return;
+        }
+
+        if (!result.isValid) {
+            Na__Ui__SetStatus('Cannot create profile: ' + (result.reason || 'Unknown error.'));
+            return;
+        }
+
+        Na__UiState.lastExportValidation = result;
+
+        if (Array.isArray(result.previewPoints) && result.previewPoints.length >= 2) {
+            var exportPreviewRecord = {
+                profileData: {
+                    type: 'polyline2d',
+                    points: result.previewPoints
+                }
+            };
+            var viewportSvg = document.getElementById('naProfileViewportSvg');
+            if (viewportSvg) {
+                var previewResult = window.Na__ProfilePathTracer__Viewport__SvgGenerator.Na__Svg__GenerateProfile(exportPreviewRecord);
+                viewportSvg.setAttribute('viewBox', previewResult.viewBox || '-120 -120 240 240');
+                viewportSvg.innerHTML = previewResult.svg || '';
+            }
+        }
+
+        Na__Ui__ShowCreateProfilePanel(result);
+        Na__Ui__SetStatus('Selection validated. Fill in the profile details below.');
+    }
+
+    function Na__ProfilePathTracer__ReceiveSaveProfileResult(result) {
+        if (!result || typeof result !== 'object') {
+            Na__Ui__SetStatus('Save returned no result.');
+            return;
+        }
+
+        Na__Ui__HideCreateProfilePanel();
+
+        if (result.isSaved) {
+            Na__Ui__SetStatus(result.statusMessage || 'Profile saved successfully.');
+        } else {
+            Na__Ui__SetStatus(result.statusMessage || 'Profile save failed.');
+        }
+    }
+
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
@@ -194,6 +307,8 @@
     window.Na__ProfilePathTracer__ReceiveBootstrap = Na__ProfilePathTracer__ReceiveBootstrap;
     window.Na__ProfilePathTracer__ReceiveHeadlessResult = Na__ProfilePathTracer__ReceiveHeadlessResult;
     window.Na__ProfilePathTracer__ReceiveGenerateResult = Na__ProfilePathTracer__ReceiveGenerateResult;
+    window.Na__ProfilePathTracer__ReceiveExportValidation = Na__ProfilePathTracer__ReceiveExportValidation;
+    window.Na__ProfilePathTracer__ReceiveSaveProfileResult = Na__ProfilePathTracer__ReceiveSaveProfileResult;
     window.Na__ProfilePathTracer__Ui__Render = Na__Ui__Render;
     window.Na__ProfilePathTracer__Ui__SetStatusFromBridge = Na__Ui__SetStatusFromBridge;
 

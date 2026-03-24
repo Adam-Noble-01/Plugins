@@ -79,19 +79,50 @@
     // REGION | Profile SVG Generation
     // -------------------------------------------------------------------------
 
+    function Na__Svg__ExtractPointsFromRichData(profileData) {
+        var vertices = (profileData.vertices || {}).items || [];
+        var faces    = (profileData.faces || {}).items || [];
+
+        if (vertices.length === 0 || faces.length === 0) return [];
+
+        var outerIndices = faces[0].outer || [];
+        if (outerIndices.length < 3) return [];
+
+        return outerIndices.map(function(idx) {
+            var v = vertices[idx];
+            if (!v) return null;
+            return [Number(v.PosX), Number(v.PosY)];
+        }).filter(function(p) { return p !== null; });
+    }
+
     function Na__Svg__GenerateProfile(profileRecord) {
-        if (!profileRecord || !profileRecord.profileData || !Array.isArray(profileRecord.profileData.points)) {
+        if (!profileRecord || !profileRecord.profileData) {
             return {
                 isValid: false,
-                reason: 'Profile data missing points array.',
+                reason: 'Profile data missing.',
                 viewBox: NA_DEFAULT_VIEWBOX,
                 svg: ''
             };
         }
 
-        const points = profileRecord.profileData.points
-            .filter(function(point) { return Array.isArray(point) && point.length >= 2; })
-            .map(function(point) { return [Number(point[0]), Number(point[1])]; });
+        var profileData = profileRecord.profileData;
+        var points;
+
+        if (profileData.type === 'rich_geometry') {
+            points = Na__Svg__ExtractPointsFromRichData(profileData);
+        } else {
+            if (!Array.isArray(profileData.points)) {
+                return {
+                    isValid: false,
+                    reason: 'Profile data missing points array.',
+                    viewBox: NA_DEFAULT_VIEWBOX,
+                    svg: ''
+                };
+            }
+            points = profileData.points
+                .filter(function(point) { return Array.isArray(point) && point.length >= 2; })
+                .map(function(point) { return [Number(point[0]), Number(point[1])]; });
+        }
 
         if (points.length < 2 || points.some(function(point) { return Number.isNaN(point[0]) || Number.isNaN(point[1]); })) {
             return {

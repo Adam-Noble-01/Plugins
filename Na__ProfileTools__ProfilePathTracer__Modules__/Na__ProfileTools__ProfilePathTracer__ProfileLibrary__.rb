@@ -18,6 +18,7 @@ module Na__ProfileTools__ProfilePathTracer
     # -------------------------------------------------------------------------
 
         NA_PROFILE_LIBRARY_FILENAME = 'Na__ProfileTools__ProfilePathTracer__ProfileLibrary__.json'.freeze
+        NA_PROFILE_DATA_DIR         = File.join(File.dirname(__FILE__), '01__ProfileDataFiles').freeze
 
     # endregion ----------------------------------------------------------------
 
@@ -44,12 +45,73 @@ module Na__ProfileTools__ProfilePathTracer
 
         def self.Na__ProfileLibrary__Load
             json_content = self.Na__ProfileLibrary__ReadFileContents
-            return {} unless json_content
+            data = json_content ? JSON.parse(json_content) : {}
+            library_profiles = data.fetch('profiles', [])
 
-            JSON.parse(json_content)
+            scanned_profiles = self.Na__ProfileLibrary__ScanDataFiles
+            data['profiles'] = library_profiles + scanned_profiles
+            data
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Profile library load failed: #{error.message}")
             {}
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Data File Scanner (01__ProfileDataFiles)
+    # -------------------------------------------------------------------------
+
+        def self.Na__ProfileLibrary__ScanDataFiles
+            return [] unless File.directory?(NA_PROFILE_DATA_DIR)
+
+            json_files = Dir.glob(File.join(NA_PROFILE_DATA_DIR, '**', '*.json'))
+            profiles = []
+
+            json_files.each do |file_path|
+                profile = self.Na__ProfileLibrary__ParseDataFile(file_path)
+                profiles << profile if profile
+            end
+
+            profiles
+        end
+
+        def self.Na__ProfileLibrary__ParseDataFile(file_path)
+            content = File.read(file_path)
+            data = JSON.parse(content)
+
+            meta     = data['meta'] || {}
+            vertices = data['vertices']
+            edges    = data['edges']
+            faces    = data['faces']
+
+            return nil unless vertices && edges && faces
+
+            profile_key  = meta['Meta_ProfileId'].to_s
+            profile_key  = File.basename(file_path, '.json') if profile_key.strip.empty?
+            display_name = meta['Meta_ProfileName'].to_s
+            display_name = profile_key if display_name.strip.empty?
+
+            keywords = Array(meta['Meta_Keywords'])
+            category = keywords.first || 'User Profiles'
+
+            {
+                'profileKey'  => profile_key,
+                'displayName' => display_name,
+                'category'    => category,
+                'isEnabled'   => true,
+                'sourceFile'  => file_path,
+                'profileData' => {
+                    'type'     => 'rich_geometry',
+                    'vertices' => vertices,
+                    'edges'    => edges,
+                    'faces'    => faces,
+                    'units'    => 'mm'
+                }
+            }
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Failed to parse profile data file: #{file_path} - #{error.message}")
+            nil
         end
 
     # endregion ----------------------------------------------------------------

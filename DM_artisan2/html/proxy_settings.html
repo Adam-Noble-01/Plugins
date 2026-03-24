@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link type="text/css" rel="StyleSheet" href="css/font.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/bootstrap.min.css"/>
+    <link type="text/css" rel="StyleSheet" href="css/artisan-bootstrap.css"/>
+    <title>Proxy Settings</title>
+</head>
+
+<body>
+
+<div class="container px-3 small">
+    <div class="row pt-2">
+        <div class="col-12">
+            <div class="form-row">
+                <div class="col-7 pt-2">
+                    <label for="Iterations" class="localize" title="Number of Subdivision Iterations">Iterations</label>
+                </div>
+                <div class="col-5">
+                    <div class="d-flex flex-row">
+                        <button id="decreaseIterations" onclick="sketchup.change_iterations(false)" class="btn btn-info btn-sm">-</button>
+                        <input type="text" class="form-control form-control-sm text-center p-1"  id="iterations">
+                        <button id="increaseIterations" onclick="sketchup.change_iterations(true)" class="btn btn-info btn-sm">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row pt-3">
+                <div class="col-12">
+                    <label for="edgeVisibilitySelector" class="localize">Edge Display</label>
+                </div>
+            </div>
+            <div class="form-row">
+                <div id="edgeVisibilitySelector" class="btn-group btn-group-toggle col-12" data-toggle="buttons">
+                    <label class="btn btn-outline-secondary btn-sm">
+                        <input type="radio" name="edge_visibility" id="subsurfEdges_none" value="0"><span class="localize">None</span>
+                    </label>
+                    <label class="btn btn-outline-secondary btn-sm">
+                        <input type="radio" name="edge_visibility" id="subsurfEdges_original" value="1"><span class="localize">Original</span>
+                    </label>
+                    <label class="btn btn-outline-secondary btn-sm">
+                        <input type="radio" name="edge_visibility" id="showSubsurf_quads" value="2"><span class="localize">Quads</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-row pt-3">
+                <div class="col-12">
+                    <label for="visibilitySelector" class="localize">Show</label>
+                </div>
+            </div>
+            <div class="form-row">
+                <div id="visibilitySelector" class="btn-group btn-group-toggle col-12" data-toggle="buttons" title="Backtick ` toggles subsurf when using Artisan tools">
+                    <label class="btn btn-outline-secondary btn-sm">
+                        <input type="radio" name="show_subsurf" id="showSubsurf_subsurf" value="0"><span class="localize">Subsurf</span>
+                    </label>
+                    <label class="btn btn-outline-secondary btn-sm">
+                        <input type="radio" name="show_subsurf" id="showSubsurf_proxy" value="1"><span class="localize">Proxy</span>
+                    </label>
+                    <label class="btn btn-outline-secondary btn-sm">
+                        <input type="radio" name="show_subsurf" id="showSubsurf_both"value="2"><span class="localize">Both</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-row pt-3">
+                <div class="col-8">
+                    <label class="localize">Subsurf Opacity</label>
+                    <input id="subsurf_transparency_slider" type="range" min="0" max="100" class="form-control custom-range" oninput="on_subsurf_transparency_input($(this).val())" onchange="tellSU2('subsurf_transparency', $(this).val())">
+                </div>
+                <div class="col-4">
+                    <label for="subsurf_transparency">&nbsp;</label>
+                    <input id="subsurf_transparency" class="form-control form-control-xs" type="text">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <div class="row mt-3">
+        <div class="col-6">
+            <button id="commit_subsurface" class="btn btn-info btn-block btn-sm"><span class="localize">Commit</span></button>
+        </div>
+        <div class="col-6">
+            <button id="remove_subsurface" class="btn btn-outline-secondary btn-block btn-sm"><span class="localize">Remove</span></button>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript" src="js/jquery-3.5.1.slim.min.js"></script>
+<script type="text/javascript" src="js/bootstrap.bundle.min.js"></script>
+<script type="text/javascript" src="js/main.js"></script>
+<script type="text/javascript">
+
+    // Make the SU window gain focus when the mouse leaves the dialog window
+    $(".container").mouseleave(function(){
+        sketchup.focus();
+    });
+
+    $(document).keydown(function(e){
+        if (e.keyCode === 192) {
+            sketchup.toggle_show_subsurf();
+        }
+    });
+
+    ready();
+
+    function on_subsurf_transparency_input(value) {
+        // Since it gets saved to the definition, it would be slow if we called the ruby method for setting subsurf_transparency.
+        // This will update the input box, and when the user releases the slider, then it will update the actual value.
+        $('#subsurf_transparency').val(`${value}%`);
+    }
+
+</script>
+
+
+</body>
