@@ -22,8 +22,9 @@ module Na__ProfileTools__ProfilePathTracer
         def self.Na__Headless__Run(config_hash = {})
             profile_key = config_hash['profileKey']
             selected_entities = config_hash['pathEntities'] || []
+            toggle_states = config_hash['toggleStates'] || {}
 
-            result = Na__ProfilePlacementEngine.Na__Engine__BuildFromSelection(profile_key, selected_entities)
+            result = Na__ProfilePlacementEngine.Na__Engine__BuildFromSelection(profile_key, selected_entities, toggle_states)
             result.merge('mode' => NA_HEADLESS_MODE_KEY)
         rescue => error
             Na__DebugTools.Na__Debug__Error('Headless run failed.', error)

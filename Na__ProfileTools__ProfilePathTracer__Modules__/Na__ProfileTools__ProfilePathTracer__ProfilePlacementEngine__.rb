@@ -38,7 +38,7 @@ module Na__ProfileTools__ProfilePathTracer
             }
         end
 
-        def self.Na__Engine__BuildFromSelection(profile_key, selected_entities)
+        def self.Na__Engine__BuildFromSelection(profile_key, selected_entities, toggle_states = {})
             path_result = Na__PathAnalysis.Na__Path__BuildSegments(selected_entities)
             return { 'isBuilt' => false, 'reason' => path_result[:reason] } unless path_result[:isValid]
 
@@ -56,11 +56,12 @@ module Na__ProfileTools__ProfilePathTracer
                     is_closed_loop: path_result[:isClosedLoop]
                 },
                 start_point: start_point,
-                rotation_step: 0
+                rotation_step: 0,
+                toggle_states: toggle_states
             )
         end
 
-        def self.Na__Engine__GenerateFromPathData(profile_key:, profile_data:, path_data:, start_point:, rotation_step:)
+        def self.Na__Engine__GenerateFromPathData(profile_key:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {})
             model = Sketchup.active_model
             reordered_path = Na__PathAnalysis.Na__Path__ReorderPathFromStart(path_data, start_point)
             unless reordered_path[:isValid]
@@ -75,7 +76,8 @@ module Na__ProfileTools__ProfilePathTracer
                 profile_data: profile_data.merge('profileKey' => profile_key),
                 path_data: reordered_path[:pathData],
                 start_point: start_point,
-                rotation_step: rotation_step
+                rotation_step: rotation_step,
+                toggle_states: toggle_states
             )
 
             if result['isBuilt']

@@ -9,6 +9,8 @@
         profileKey: '',
         pathMode: 'selection',
         isPreviewEnabled: true,
+        toggleDefinitions: {},
+        toggleStates: {},
         profiles: {},
         lastGeneratePayload: null,
         isCreateProfileFormVisible: false,
@@ -59,7 +61,9 @@
         }
 
         const selectedProfile = Na__Ui__SelectedProfileRecord();
-        const previewResult = window.Na__ProfilePathTracer__Viewport__SvgGenerator.Na__Svg__GenerateProfile(selectedProfile);
+        const previewResult = window.Na__ProfilePathTracer__Viewport__SvgGenerator.Na__Svg__GenerateProfile(selectedProfile, {
+            toggleStates: Na__UiState.toggleStates
+        });
 
         viewportSvg.setAttribute('viewBox', previewResult.viewBox || '-120 -120 240 240');
         viewportSvg.innerHTML = previewResult.svg || '';
@@ -135,7 +139,8 @@
         return {
             profileKey: Na__UiState.profileKey,
             pathMode: Na__UiState.pathMode,
-            isPreviewEnabled: Na__UiState.isPreviewEnabled
+            isPreviewEnabled: Na__UiState.isPreviewEnabled,
+            toggleStates: Na__UiState.toggleStates
         };
     }
 
@@ -164,6 +169,12 @@
                 Na__UiState.isPreviewEnabled = isEnabled;
                 Na__Ui__RenderProfilePreview();
                 Na__Ui__SetStatus('Preview ' + (isEnabled ? 'enabled' : 'disabled') + '.');
+            },
+            Na__Events__OnToggleChange: function(toggleKey, isEnabled) {
+                if (!toggleKey) return;
+                Na__UiState.toggleStates[toggleKey] = isEnabled;
+                Na__Ui__RenderProfilePreview();
+                Na__Ui__SetStatus('Toggle updated: ' + toggleKey + ' = ' + (isEnabled ? 'ON' : 'OFF'));
             },
             Na__Events__OnGenerate: function() {
                 Na__UiState.lastGeneratePayload = Na__Ui__BuildGeneratePayload();
@@ -219,6 +230,21 @@
             Na__UiState.profileKey = payload.profileKey || '';
             Na__UiState.pathMode = payload.pathMode || 'selection';
             Na__UiState.isPreviewEnabled = payload.isPreviewEnabled !== false;
+            Na__UiState.toggleDefinitions = payload.toggleDefinitions || {};
+
+            var defaultToggleStates = payload.toggleStates || {};
+            var nextToggleStates = {};
+            Object.keys(Na__UiState.toggleDefinitions || {}).forEach(function(toggleKey) {
+                if (Object.prototype.hasOwnProperty.call(defaultToggleStates, toggleKey)) {
+                    nextToggleStates[toggleKey] = defaultToggleStates[toggleKey] === true;
+                } else {
+                    nextToggleStates[toggleKey] = false;
+                }
+            });
+            Na__UiState.toggleStates = nextToggleStates;
+
+            window.Na__ProfilePathTracer__Ui__Config.toggleDefinitions = Na__UiState.toggleDefinitions;
+            window.Na__ProfilePathTracer__Ui__Config.defaults.toggleStates = Na__UiState.toggleStates;
 
             if (payload.isBootstrapError) {
                 bootstrapStatusMessage = payload.statusMessage || 'Bootstrap failed.';
@@ -273,7 +299,9 @@
             };
             var viewportSvg = document.getElementById('naProfileViewportSvg');
             if (viewportSvg) {
-                var previewResult = window.Na__ProfilePathTracer__Viewport__SvgGenerator.Na__Svg__GenerateProfile(exportPreviewRecord);
+                    var previewResult = window.Na__ProfilePathTracer__Viewport__SvgGenerator.Na__Svg__GenerateProfile(exportPreviewRecord, {
+                        toggleStates: Na__UiState.toggleStates
+                    });
                 viewportSvg.setAttribute('viewBox', previewResult.viewBox || '-120 -120 240 240');
                 viewportSvg.innerHTML = previewResult.svg || '';
             }

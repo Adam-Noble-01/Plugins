@@ -26,11 +26,12 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Initialization / State
     # -------------------------------------------------------------------------
 
-        def initialize(profile_key, profile_data, path_data)
+        def initialize(profile_key, profile_data, path_data, toggle_states = {})
             @na_profile_key      = profile_key
             @na_profile_data     = profile_data || {}
             @na_path_data        = path_data || {}
             @na_ordered_points   = @na_path_data[:ordered_points] || @na_path_data['ordered_points'] || []
+            @na_toggle_states    = toggle_states || {}
 
             @na_input_point      = Sketchup::InputPoint.new
             @na_cursor_point     = nil
@@ -88,7 +89,8 @@ module Na__ProfileTools__ProfilePathTracer
                 profile_data: @na_profile_data,
                 path_data: @na_path_data,
                 start_point: start_vertex,
-                rotation_step: @na_rotation_step
+                rotation_step: @na_rotation_step,
+                toggle_states: @na_toggle_states
             )
 
             Sketchup::set_status_text(result['statusMessage'].to_s, NA_STATUS_PROMPT_KEY)
@@ -114,7 +116,8 @@ module Na__ProfileTools__ProfilePathTracer
                 profile_data: @na_profile_data,
                 path_data: @na_path_data,
                 start_point: @na_candidate_vertex,
-                rotation_step: @na_rotation_step
+                rotation_step: @na_rotation_step,
+                toggle_states: @na_toggle_states
             )
             Na__PreviewGraphics.Na__Preview__DrawProfileGhost(view, preview_polyline)
         end

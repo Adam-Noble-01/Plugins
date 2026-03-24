@@ -9,6 +9,7 @@
         profileOptions: [
             { value: '', label: 'Select profile (placeholder)' }
         ],
+        toggleDefinitions: {},
         pathModeOptions: [
             { value: 'selection', label: 'Use current selection' },
             { value: 'interactive', label: 'Interactive path picking' }
@@ -16,7 +17,8 @@
         defaults: {
             profileKey: '',
             pathMode: 'selection',
-            isPreviewEnabled: true
+            isPreviewEnabled: true,
+            toggleStates: {}
         }
     };
 

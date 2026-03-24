@@ -73,6 +73,40 @@
         };
     }
 
+    function Na__Svg__FlipAcrossXAtY(points, axisY) {
+        return points.map(function(point) {
+            return [Number(point[0]), (2 * Number(axisY)) - Number(point[1])];
+        });
+    }
+
+    function Na__Svg__FlipAcrossYAtX(points, axisX) {
+        return points.map(function(point) {
+            return [(2 * Number(axisX)) - Number(point[0]), Number(point[1])];
+        });
+    }
+
+    function Na__Svg__ApplyMirrorToggles(points, toggleStates) {
+        if (!Array.isArray(points) || points.length === 0) return [];
+        var mirroredPoints = points.map(function(point) { return [Number(point[0]), Number(point[1])]; });
+        var flags = toggleStates || {};
+        var bounds = Na__Svg__Bounds(mirroredPoints);
+
+        if (flags.flipXCenter === true) {
+            mirroredPoints = Na__Svg__FlipAcrossXAtY(mirroredPoints, bounds.centerY);
+        }
+        if (flags.flipYCenter === true) {
+            mirroredPoints = Na__Svg__FlipAcrossYAtX(mirroredPoints, bounds.centerX);
+        }
+        if (flags.flipXWorld === true) {
+            mirroredPoints = Na__Svg__FlipAcrossXAtY(mirroredPoints, 0);
+        }
+        if (flags.flipYWorld === true) {
+            mirroredPoints = Na__Svg__FlipAcrossYAtX(mirroredPoints, 0);
+        }
+
+        return mirroredPoints;
+    }
+
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
@@ -95,7 +129,7 @@
         }).filter(function(p) { return p !== null; });
     }
 
-    function Na__Svg__GenerateProfile(profileRecord) {
+    function Na__Svg__GenerateProfile(profileRecord, options) {
         if (!profileRecord || !profileRecord.profileData) {
             return {
                 isValid: false,
@@ -132,6 +166,9 @@
                 svg: ''
             };
         }
+
+        var toggleStates = (options && options.toggleStates) ? options.toggleStates : {};
+        points = Na__Svg__ApplyMirrorToggles(points, toggleStates);
 
         const bounds = Na__Svg__Bounds(points);
         const profileLine = Na__Svg__Polyline(points, 'naProfileLine');

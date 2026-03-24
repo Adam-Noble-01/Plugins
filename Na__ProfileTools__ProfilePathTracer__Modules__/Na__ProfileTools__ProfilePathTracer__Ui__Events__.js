@@ -32,6 +32,16 @@
             });
         }
 
+        var toggleInputs = document.querySelectorAll('.naToggleInput[data-na-toggle-key]');
+        if (toggleInputs && toggleInputs.length > 0) {
+            Array.prototype.forEach.call(toggleInputs, function(toggleInput) {
+                toggleInput.addEventListener('change', function() {
+                    var toggleKey = toggleInput.getAttribute('data-na-toggle-key') || '';
+                    handlers.Na__Events__OnToggleChange(toggleKey, !!toggleInput.checked);
+                });
+            });
+        }
+
         if (btnGenerate) {
             btnGenerate.addEventListener('click', function() {
                 handlers.Na__Events__OnGenerate();

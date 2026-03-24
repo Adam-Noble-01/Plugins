@@ -136,24 +136,31 @@ module Na__ProfileTools__ProfilePathTracer
             local_points.map { |point| point.transform(frame_transform).transform(rotation) }
         end
 
-        def self.Na__Geometry__BuildPreviewProfilePolyline(profile_data:, path_data:, start_point:, rotation_step:)
+        def self.Na__Geometry__ApplyMirrorToggles(local_points, toggle_states = {})
+            Na__MirrorProfile.Na__Mirror__ApplyToggles(local_points, toggle_states || {})
+        end
+
+        def self.Na__Geometry__BuildPreviewProfilePolyline(profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {})
             local_profile_points = self.Na__Geometry__BuildLocalProfilePoints(profile_data)
+            local_profile_points = self.Na__Geometry__ApplyMirrorToggles(local_profile_points, toggle_states)
             frame_transform = self.Na__Geometry__BuildPathFrame(start_point, path_data)
             self.Na__Geometry__TransformProfilePoints(local_profile_points, frame_transform, rotation_step)
         end
 
-        def self.Na__Geometry__BuildProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:)
+        def self.Na__Geometry__BuildProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {})
             return { 'isBuilt' => false, 'reason' => 'No active model.' } unless model
 
             if self.Na__Geometry__ProfileType(profile_data) == 'rich_geometry'
                 return self.Na__Geometry__BuildRichProfileAlongPath(
                     model: model, profile_data: profile_data,
                     path_data: path_data, start_point: start_point,
-                    rotation_step: rotation_step
+                    rotation_step: rotation_step,
+                    toggle_states: toggle_states
                 )
             end
 
             local_profile_points = self.Na__Geometry__BuildLocalProfilePoints(profile_data)
+            local_profile_points = self.Na__Geometry__ApplyMirrorToggles(local_profile_points, toggle_states)
             return { 'isBuilt' => false, 'reason' => 'Selected profile has invalid points.' } if local_profile_points.length < 3
 
             frame_transform = self.Na__Geometry__BuildPathFrame(start_point, path_data)
@@ -206,8 +213,9 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Rich Geometry Profile Along Path
     # -------------------------------------------------------------------------
 
-        def self.Na__Geometry__BuildRichProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:)
+        def self.Na__Geometry__BuildRichProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {})
             all_local_points = self.Na__Geometry__RichDataAllPoints(profile_data)
+            all_local_points = self.Na__Geometry__ApplyMirrorToggles(all_local_points, toggle_states)
             face_records     = self.Na__Geometry__RichDataFaceRecords(profile_data)
 
             return { 'isBuilt' => false, 'reason' => 'Rich profile has no vertex data.' } if all_local_points.empty?

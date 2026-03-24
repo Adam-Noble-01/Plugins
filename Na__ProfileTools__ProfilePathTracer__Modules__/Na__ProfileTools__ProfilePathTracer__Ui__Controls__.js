@@ -12,6 +12,27 @@
         }).join('');
     }
 
+    function Na__Ui__BuildToggleRowsHtml(toggleDefinitions, toggleStates) {
+        const toggleKeys = Object.keys(toggleDefinitions || {});
+        if (toggleKeys.length === 0) return '';
+
+        return toggleKeys.map(function(toggleKey) {
+            const toggleMeta = toggleDefinitions[toggleKey] || {};
+            const isChecked = !!toggleStates[toggleKey];
+            const checkedAttr = isChecked ? ' checked' : '';
+            const safeLabel = toggleMeta.text || toggleKey;
+            const safeDescription = toggleMeta.description || '';
+            const id = 'naToggle__' + toggleKey;
+
+            return [
+                '<div class="naFormRow">',
+                '  <label for="' + id + '">' + safeLabel + '</label>',
+                '  <input class="naInput naToggleInput" data-na-toggle-key="' + toggleKey + '" id="' + id + '" type="checkbox"' + checkedAttr + ' title="' + safeDescription + '">',
+                '</div>'
+            ].join('');
+        }).join('');
+    }
+
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
@@ -23,6 +44,8 @@
         const profileValue = state.profileKey || config.defaults.profileKey;
         const pathModeValue = state.pathMode || config.defaults.pathMode;
         const previewChecked = state.isPreviewEnabled ? ' checked' : '';
+        const toggleDefinitions = state.toggleDefinitions || config.toggleDefinitions || {};
+        const toggleStates = state.toggleStates || config.defaults.toggleStates || {};
 
         return [
             '<div class="naFormRow">',
@@ -41,6 +64,7 @@
             '  <label for="naPreviewEnabled">Preview</label>',
             '  <input class="naInput" id="naPreviewEnabled" type="checkbox"' + previewChecked + '>',
             '</div>',
+            Na__Ui__BuildToggleRowsHtml(toggleDefinitions, toggleStates),
             '<div class="naActions">',
             '  <button class="naButton naButtonPrimary" id="naBtnGenerate">Generate</button>',
             '  <button class="naButton" id="naBtnRequestBootstrap">Reload Bootstrap</button>',

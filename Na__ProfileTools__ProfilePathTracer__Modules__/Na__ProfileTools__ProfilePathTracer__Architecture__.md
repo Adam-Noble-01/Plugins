@@ -13,6 +13,7 @@
 - `Na__ProfileTools__ProfilePathTracer__DialogManager__.rb`
 - `Na__ProfileTools__ProfilePathTracer__ProfileLibrary__.rb`
 - `Na__ProfileTools__ProfilePathTracer__ProfileExporter__.rb`
+- `Na__ProfileTools__ProfilePathTracer__MirrorProfile__.rb`
 - `Na__ProfileTools__ProfilePathTracer__PathSelectionTool__.rb`
 - `Na__ProfileTools__ProfilePathTracer__PathAnalysis__.rb`
 - `Na__ProfileTools__ProfilePathTracer__ProfilePlacementEngine__.rb`
@@ -51,12 +52,14 @@ main --> dialog[DialogManager]
 main --> api[PublicApi]
 main --> lib[ProfileLibrary]
 main --> exporter[ProfileExporter]
+main --> mirror[MirrorProfile]
 main --> pathTool[PathSelectionTool]
 pathTool --> keyboard[KeyboardHandlers]
 pathTool --> preview[PreviewGraphics]
 main --> engine[ProfilePlacementEngine]
 engine --> pathAnalysis[PathAnalysis]
 engine --> geometry[GeometryBuilders]
+geometry --> mirror
 api --> headless[HeadlessRunner]
 headless --> engine
 main --> observers[Observers]
@@ -89,9 +92,10 @@ bridge --> uiLogic
 2. Public API opens HtmlDialog via `DialogManager`.
 3. JS bridge requests bootstrap payload from Ruby (profiles/options from JSON library).
 4. UI renders profile selector and 2D SVG preview using `Viewport__SvgGenerator`.
-5. Generate callback validates strict path selection and launches `PathSelectionTool`.
-6. In SketchUp tool: red crosshair + TAB rotation + click vertex start.
-7. Placement engine commits profile generation along ordered path (open chain or closed loop).
+5. Toggle metadata/defaults load from `Config__.json` and are included in bootstrap payload.
+6. Generate callback sends current toggle states, validates strict path selection, and launches `PathSelectionTool`.
+7. In SketchUp tool: red crosshair + TAB rotation + click vertex start.
+8. Placement engine applies mirror toggles via `MirrorProfile` before final transform and commits profile generation along ordered path (open chain or closed loop).
 
 ### Create New Profile Flow
 
@@ -119,7 +123,7 @@ Individual profile files in `01__ProfileDataFiles/` use the rich geometry JSON f
 1. External caller invokes `Na__PublicApi__RunHeadless(config_hash)`.
 2. `HeadlessRunner` passes payload into `ProfilePlacementEngine`.
 3. Path analysis enforces strict non-branching path rules.
-4. Geometry builders transform profile and build result group via follow-path generation.
+4. Geometry builders apply mirror toggles (`flipXCenter`, `flipYCenter`, `flipXWorld`, `flipYWorld`) and build result group via follow-path generation.
 
 ## External Dependencies
 

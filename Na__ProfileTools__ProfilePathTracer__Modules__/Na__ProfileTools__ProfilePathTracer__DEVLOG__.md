@@ -3,6 +3,49 @@
 ## Version History
 
 # =======================================================================================
+## ProfileTools Version 0.1.2 - 24-Mar-2026
+
+### Profile Flip Toggles (Center + World Origin)
+
+- Updated `Na__ProfileTools__ProfilePathTracer__Config__.json`:
+  - Replaced ambiguous flip keys with explicit toggles:
+    - `flipXCenter`
+    - `flipYCenter`
+    - `flipXWorld`
+    - `flipYWorld`
+  - Added labels/descriptions for all four toggles.
+
+- Added `Na__ProfileTools__ProfilePathTracer__MirrorProfile__.rb`:
+  - Implemented deterministic mirror pipeline for profile local points.
+  - Supports center-axis mirrors (profile bounds center) and world-origin mirrors (`X=0` / `Y=0`).
+  - Exposes one public apply method reused across preview/build flows.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__Main__.rb`:
+  - Added `require_relative` for `MirrorProfile__`.
+  - Added config JSON load helpers and toggle default extraction helpers.
+  - Default run config now includes config-driven `toggleStates`.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__DialogManager__.rb`:
+  - Bootstrap payload now includes `toggleDefinitions` and `toggleStates`.
+  - Generate flow now normalizes/passes toggle states into `PathSelectionTool`.
+
+- Updated generation pipeline:
+  - `Na__ProfileTools__ProfilePathTracer__PathSelectionTool__.rb` now stores/passes `toggleStates` for ghost preview and click-to-build.
+  - `Na__ProfileTools__ProfilePathTracer__ProfilePlacementEngine__.rb` now accepts/passes `toggle_states`.
+  - `Na__ProfileTools__ProfilePathTracer__HeadlessRunner__.rb` now forwards `toggleStates`.
+  - `Na__ProfileTools__ProfilePathTracer__GeometryBuilders__.rb` now applies mirror transforms before path frame/rotation for both polyline and rich-geometry branches.
+
+- Updated UI + preview parity:
+  - `Na__ProfileTools__ProfilePathTracer__UiLogic__.js` now tracks toggle defs/states, includes toggles in generate payload, and re-renders preview on toggle change.
+  - `Na__ProfileTools__ProfilePathTracer__Ui__Controls__.js` now renders toggle controls dynamically from config metadata.
+  - `Na__ProfileTools__ProfilePathTracer__Ui__Events__.js` now binds toggle change events.
+  - `Na__ProfileTools__ProfilePathTracer__UiEventToRubyApiBridge__.js` bootstrap fallback now includes toggle fields.
+  - `Na__ProfileTools__ProfilePathTracer__Viewport__SvgGenerator__.js` now applies the same four mirror transforms, matching Ruby generation behavior.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__Architecture__.md`:
+  - Added `MirrorProfile__` module and toggle-aware runtime flow.
+
+# =======================================================================================
 ## ProfileTools Version 0.1.1 - 24-Mar-2026
 
 ### Create New Profile / Rich JSON Export Feature
