@@ -1,0 +1,318 @@
+{
+  "meta"  :  {
+    "Meta_ProfileName"  :  "General__Gutter__HalfRound__w120mm_x_h60mm",
+    "Meta_Description"  :  "A Standard Half Round Gutter for most domestic projects, widely used.",
+    "Meta_Timestamp"  :  "25-Mar-2026__09:34",
+    "Meta_GlobalUnits"  :  "millimetres",
+    "Meta_Keywords"  :  [
+      "Gutter",
+      "HalfRound",
+      "w120mm",
+      "h60mm",
+      "General",
+      "Standard"
+    ],
+    "Meta_ProfileId"  :  "PRF051_General__Gutter__HalfRound__w120mm_x_h60mm"
+  },
+  "vertices"  :  {
+    "count"  :  13,
+    "items"  :  [
+      {
+        "VertexId"  :  null,
+        "PosX"  :  120.0,
+        "PosY"  :  60.0,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  0.0,
+        "PosY"  :  60.0,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  2.04445,
+        "PosY"  :  44.470857,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  8.038476,
+        "PosY"  :  30.0,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  17.573593,
+        "PosY"  :  17.573593,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  30.0,
+        "PosY"  :  8.038476,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  44.470857,
+        "PosY"  :  2.04445,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  60.0,
+        "PosY"  :  0.0,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  75.529143,
+        "PosY"  :  2.04445,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  90.0,
+        "PosY"  :  8.038476,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  102.426407,
+        "PosY"  :  17.573593,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  111.961524,
+        "PosY"  :  30.0,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      },
+      {
+        "VertexId"  :  null,
+        "PosX"  :  117.95555,
+        "PosY"  :  44.470857,
+        "PosZ"  :  0.0,
+        "W"  :  0.0
+      }
+    ]
+  },
+  "edges"  :  {
+    "count"  :  13,
+    "items"  :  [
+      {
+        "v1"  :  1,
+        "v2"  :  0,
+        "direction"  :  [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "length_mm"  :  120.0,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  2,
+        "v2"  :  1,
+        "direction"  :  [
+          -0.130526,
+          0.991445,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  3,
+        "v2"  :  2,
+        "direction"  :  [
+          -0.382683,
+          0.92388,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  4,
+        "v2"  :  3,
+        "direction"  :  [
+          -0.608761,
+          0.793353,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  5,
+        "v2"  :  4,
+        "direction"  :  [
+          -0.793353,
+          0.608761,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  6,
+        "v2"  :  5,
+        "direction"  :  [
+          -0.92388,
+          0.382683,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  7,
+        "v2"  :  6,
+        "direction"  :  [
+          -0.991445,
+          0.130526,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  8,
+        "v2"  :  7,
+        "direction"  :  [
+          -0.991445,
+          -0.130526,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  9,
+        "v2"  :  8,
+        "direction"  :  [
+          -0.92388,
+          -0.382683,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  10,
+        "v2"  :  9,
+        "direction"  :  [
+          -0.793353,
+          -0.608761,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  11,
+        "v2"  :  10,
+        "direction"  :  [
+          -0.608761,
+          -0.793353,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  12,
+        "v2"  :  11,
+        "direction"  :  [
+          -0.382683,
+          -0.92388,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      },
+      {
+        "v1"  :  0,
+        "v2"  :  12,
+        "direction"  :  [
+          -0.130526,
+          -0.991445,
+          0.0
+        ],
+        "length_mm"  :  15.663143,
+        "soft"  :  false,
+        "smooth"  :  false,
+        "hidden"  :  false
+      }
+    ]
+  },
+  "faces"  :  {
+    "count"  :  1,
+    "items"  :  [
+      {
+        "outer"  :  [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "inners"  :  [
+
+        ],
+        "normal"  :  [
+          -0.0,
+          -0.0,
+          1.0
+        ],
+        "area_mm2"  :  5590.491374
+      }
+    ]
+  }
+}
