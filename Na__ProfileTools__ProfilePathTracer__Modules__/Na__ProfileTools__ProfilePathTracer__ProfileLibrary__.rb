@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # FILE       : Na__ProfileTools__ProfilePathTracer__ProfileLibrary__.rb
-# PURPOSE    : Read profile library metadata/configuration
+# PURPOSE    : Load profiles from 01__ProfileDataFiles (recursive *.json)
 # CREATED    : 2026
 #
 # =============================================================================
@@ -17,25 +17,7 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | File Paths
     # -------------------------------------------------------------------------
 
-        NA_PROFILE_LIBRARY_FILENAME = 'Na__ProfileTools__ProfilePathTracer__ProfileLibrary__.json'.freeze
-        NA_PROFILE_DATA_DIR         = File.join(File.dirname(__FILE__), '01__ProfileDataFiles').freeze
-
-    # endregion ----------------------------------------------------------------
-
-    # -------------------------------------------------------------------------
-    # REGION | File IO
-    # -------------------------------------------------------------------------
-
-        def self.Na__ProfileLibrary__FilePath
-            File.join(File.dirname(__FILE__), NA_PROFILE_LIBRARY_FILENAME)
-        end
-
-        def self.Na__ProfileLibrary__ReadFileContents
-            file_path = self.Na__ProfileLibrary__FilePath
-            return nil unless File.exist?(file_path)
-
-            File.read(file_path)
-        end
+        NA_PROFILE_DATA_DIR = File.join(File.dirname(__FILE__), '01__ProfileDataFiles').freeze
 
     # endregion ----------------------------------------------------------------
 
@@ -44,13 +26,8 @@ module Na__ProfileTools__ProfilePathTracer
     # -------------------------------------------------------------------------
 
         def self.Na__ProfileLibrary__Load
-            json_content = self.Na__ProfileLibrary__ReadFileContents
-            data = json_content ? JSON.parse(json_content) : {}
-            library_profiles = data.fetch('profiles', [])
-
             scanned_profiles = self.Na__ProfileLibrary__ScanDataFiles
-            data['profiles'] = library_profiles + scanned_profiles
-            data
+            { 'profiles' => scanned_profiles }
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Profile library load failed: #{error.message}")
             {}
