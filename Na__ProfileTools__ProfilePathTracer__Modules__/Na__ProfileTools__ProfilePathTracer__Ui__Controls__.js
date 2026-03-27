@@ -67,9 +67,6 @@
             Na__Ui__BuildToggleRowsHtml(toggleDefinitions, toggleStates),
             '<div class="naActions">',
             '  <button class="naButton naButtonPrimary" id="naBtnGenerate">Generate</button>',
-            '  <button class="naButton" id="naBtnRequestBootstrap">Reload Bootstrap</button>',
-            '  <button class="naButton" id="naBtnPickPath">Pick Path</button>',
-            '  <button class="naButton" id="naBtnRunHeadless">Run Headless</button>',
             '  <button class="naButton naButtonCreate" id="naBtnCreateProfile">Create New Profile</button>',
             '</div>'
         ].join('');

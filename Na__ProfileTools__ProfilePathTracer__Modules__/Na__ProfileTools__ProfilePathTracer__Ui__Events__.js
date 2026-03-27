@@ -1,5 +1,6 @@
 (function() {
     'use strict';
+    let na_is_header_reload_bound = false;
 
     // -------------------------------------------------------------------------
     // REGION | DOM Event Wiring
@@ -10,9 +11,6 @@
         const pathModeSelect = document.getElementById('naPathModeSelect');
         const previewEnabled = document.getElementById('naPreviewEnabled');
         const btnGenerate = document.getElementById('naBtnGenerate');
-        const btnBootstrap = document.getElementById('naBtnRequestBootstrap');
-        const btnPickPath = document.getElementById('naBtnPickPath');
-        const btnRunHeadless = document.getElementById('naBtnRunHeadless');
 
         if (profileSelect) {
             profileSelect.addEventListener('change', function() {
@@ -48,30 +46,24 @@
             });
         }
 
-        if (btnBootstrap) {
-            btnBootstrap.addEventListener('click', function() {
-                handlers.Na__Events__OnRequestBootstrap();
-            });
-        }
-
-        if (btnPickPath) {
-            btnPickPath.addEventListener('click', function() {
-                handlers.Na__Events__OnPickPath();
-            });
-        }
-
-        if (btnRunHeadless) {
-            btnRunHeadless.addEventListener('click', function() {
-                handlers.Na__Events__OnRunHeadless();
-            });
-        }
-
         var btnCreateProfile = document.getElementById('naBtnCreateProfile');
         if (btnCreateProfile) {
             btnCreateProfile.addEventListener('click', function() {
                 handlers.Na__Events__OnCreateProfile();
             });
         }
+    }
+
+    function Na__Ui__AttachHeaderEvents(handlers) {
+        if (na_is_header_reload_bound) return;
+
+        const btnReloadPlugin = document.getElementById('naBtnReloadPlugin');
+        if (!btnReloadPlugin) return;
+
+        btnReloadPlugin.addEventListener('click', function() {
+            handlers.Na__Events__OnReloadPlugin();
+        });
+        na_is_header_reload_bound = true;
     }
 
     // endregion ----------------------------------------------------------------
@@ -105,6 +97,7 @@
 
     window.Na__ProfilePathTracer__Ui__Events = {
         Na__Ui__AttachEvents: Na__Ui__AttachEvents,
+        Na__Ui__AttachHeaderEvents: Na__Ui__AttachHeaderEvents,
         Na__Ui__AttachCreateProfileFormEvents: Na__Ui__AttachCreateProfileFormEvents
     };
 

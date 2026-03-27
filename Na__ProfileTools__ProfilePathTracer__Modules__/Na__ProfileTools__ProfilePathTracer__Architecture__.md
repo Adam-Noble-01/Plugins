@@ -14,6 +14,7 @@
 - `Na__ProfileTools__ProfilePathTracer__ProfileLibrary__.rb`
 - `Na__ProfileTools__ProfilePathTracer__ProfileExporter__.rb`
 - `Na__ProfileTools__ProfilePathTracer__MirrorProfile__.rb`
+- `Na__ProfileTools__ProfilePathTracer__PluginReloader__.rb`
 - `Na__ProfileTools__ProfilePathTracer__PathSelectionTool__.rb`
 - `Na__ProfileTools__ProfilePathTracer__PathAnalysis__.rb`
 - `Na__ProfileTools__ProfilePathTracer__ProfilePlacementEngine__.rb`
@@ -53,6 +54,7 @@ main --> api[PublicApi]
 main --> lib[ProfileLibrary]
 main --> exporter[ProfileExporter]
 main --> mirror[MirrorProfile]
+main --> reloader[PluginReloader]
 main --> pathTool[PathSelectionTool]
 pathTool --> keyboard[KeyboardHandlers]
 pathTool --> preview[PreviewGraphics]
@@ -66,6 +68,7 @@ main --> observers[Observers]
 main --> assets[AssetResolver]
 lib --> dataFiles["01__ProfileDataFiles/**/*.json"]
 dialog --> exporter
+dialog --> reloader
 ```
 
 ## JavaScript Dependency Graph
@@ -93,9 +96,19 @@ bridge --> uiLogic
 3. JS bridge requests bootstrap payload from Ruby (profiles/options from JSON library).
 4. UI renders profile selector and 2D SVG preview using `Viewport__SvgGenerator`.
 5. Toggle metadata/defaults load from `Config__.json` and are included in bootstrap payload.
-6. Generate callback sends current toggle states, validates strict path selection, and launches `PathSelectionTool`.
-7. In SketchUp tool: red crosshair + TAB rotation + click vertex start.
-8. Placement engine applies mirror toggles via `MirrorProfile` before final transform and commits profile generation along ordered path (open chain or closed loop).
+6. Controls panel is user-focused: `Generate` and `Create New Profile`; `Reload Plugin` lives in the header as a developer action (headless remains API-only).
+7. Generate callback sends current toggle states, validates strict path selection, and launches `PathSelectionTool`.
+8. In SketchUp tool: red crosshair + TAB rotation + click vertex start.
+9. Placement engine applies mirror toggles via `MirrorProfile` before final transform and commits profile generation along ordered path (open chain or closed loop).
+
+### Developer Hot Reload Flow
+
+1. User clicks "Reload Plugin" in the dialog.
+2. JS bridge calls `na_profilepathtracer_reload_plugin`.
+3. Ruby `DialogManager` delegates to `Na__PluginReloader.Na__Reload__PluginFiles`.
+4. All Ruby files in the module folder are `load`ed and expected JS assets are validated.
+5. Callback captures the previous dialog reference before reload, then closes/reopens deterministically so module ivar resets do not strand status updates.
+6. Final reload status is posted into the reopened dialog (success/warning text with first issue details when applicable).
 
 ### Create New Profile Flow
 

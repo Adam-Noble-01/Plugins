@@ -58,6 +58,19 @@ body {
     color              : var(--na-subtle);
 }
 
+.naHeader {
+    display            : flex;
+    align-items        : flex-start;
+    justify-content    : space-between;
+    gap                : 12px;
+}
+
+.naHeaderControls {
+    display            : flex;
+    align-items        : center;
+    gap                : 8px;
+}
+
 /* endregion ----------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------- */
@@ -138,6 +151,10 @@ body {
 .naButton:hover {
     background         : var(--na-accent-hover);
     border-color       : var(--na-accent-hover);
+}
+
+.naButtonHeader {
+    margin-top         : 2px;
 }
 
 /* endregion ----------------------------------------------------------------- */

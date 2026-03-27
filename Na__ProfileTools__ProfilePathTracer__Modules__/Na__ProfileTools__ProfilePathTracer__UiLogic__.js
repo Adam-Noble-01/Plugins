@@ -150,64 +150,54 @@
     // REGION | UI Rendering + Event Wiring
     // -------------------------------------------------------------------------
 
+    const Na__UiEventHandlers = {
+        Na__Events__OnProfileChange: function(profileKey) {
+            Na__UiState.profileKey = profileKey;
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus('Profile selected: ' + (profileKey || '[none]'));
+        },
+        Na__Events__OnPathModeChange: function(pathMode) {
+            Na__UiState.pathMode = pathMode;
+            Na__Ui__SetStatus('Path mode changed: ' + pathMode);
+        },
+        Na__Events__OnPreviewToggle: function(isEnabled) {
+            Na__UiState.isPreviewEnabled = isEnabled;
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus('Preview ' + (isEnabled ? 'enabled' : 'disabled') + '.');
+        },
+        Na__Events__OnToggleChange: function(toggleKey, isEnabled) {
+            if (!toggleKey) return;
+            Na__UiState.toggleStates[toggleKey] = isEnabled;
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus('Toggle updated: ' + toggleKey + ' = ' + (isEnabled ? 'ON' : 'OFF'));
+        },
+        Na__Events__OnGenerate: function() {
+            Na__UiState.lastGeneratePayload = Na__Ui__BuildGeneratePayload();
+            if (window.Na__ProfilePathTracer__Bridge__Generate) {
+                window.Na__ProfilePathTracer__Bridge__Generate(Na__UiState.lastGeneratePayload);
+            }
+        },
+        Na__Events__OnReloadPlugin: function() {
+            if (window.Na__ProfilePathTracer__Bridge__ReloadPlugin) {
+                window.Na__ProfilePathTracer__Bridge__ReloadPlugin();
+            }
+        },
+        Na__Events__OnCreateProfile: function() {
+            Na__Ui__SetStatus('Validating selection for profile export...');
+            if (window.Na__ProfilePathTracer__Bridge__ValidateForExport) {
+                window.Na__ProfilePathTracer__Bridge__ValidateForExport();
+            } else {
+                Na__Ui__SetStatus('Export validation bridge is not available.');
+            }
+        }
+    };
+
     function Na__Ui__Render() {
         const controlsRoot = document.getElementById('naControlsRoot');
         if (!controlsRoot) return;
 
         controlsRoot.innerHTML = window.Na__ProfilePathTracer__Ui__Controls.Na__Ui__RenderControls(Na__UiState);
-        window.Na__ProfilePathTracer__Ui__Events.Na__Ui__AttachEvents({
-            Na__Events__OnProfileChange: function(profileKey) {
-                Na__UiState.profileKey = profileKey;
-                Na__Ui__RenderProfilePreview();
-                Na__Ui__SetStatus('Profile selected: ' + (profileKey || '[none]'));
-            },
-            Na__Events__OnPathModeChange: function(pathMode) {
-                Na__UiState.pathMode = pathMode;
-                Na__Ui__SetStatus('Path mode changed: ' + pathMode);
-            },
-            Na__Events__OnPreviewToggle: function(isEnabled) {
-                Na__UiState.isPreviewEnabled = isEnabled;
-                Na__Ui__RenderProfilePreview();
-                Na__Ui__SetStatus('Preview ' + (isEnabled ? 'enabled' : 'disabled') + '.');
-            },
-            Na__Events__OnToggleChange: function(toggleKey, isEnabled) {
-                if (!toggleKey) return;
-                Na__UiState.toggleStates[toggleKey] = isEnabled;
-                Na__Ui__RenderProfilePreview();
-                Na__Ui__SetStatus('Toggle updated: ' + toggleKey + ' = ' + (isEnabled ? 'ON' : 'OFF'));
-            },
-            Na__Events__OnGenerate: function() {
-                Na__UiState.lastGeneratePayload = Na__Ui__BuildGeneratePayload();
-                if (window.Na__ProfilePathTracer__Bridge__Generate) {
-                    window.Na__ProfilePathTracer__Bridge__Generate(Na__UiState.lastGeneratePayload);
-                }
-            },
-            Na__Events__OnRequestBootstrap: function() {
-                if (window.Na__ProfilePathTracer__Bridge__RequestBootstrap) {
-                    window.Na__ProfilePathTracer__Bridge__RequestBootstrap();
-                }
-            },
-            Na__Events__OnPickPath: function() {
-                if (window.Na__ProfilePathTracer__Bridge__ActivatePreviewTool) {
-                    window.Na__ProfilePathTracer__Bridge__ActivatePreviewTool(Na__Ui__BuildGeneratePayload());
-                } else {
-                    Na__Ui__SetStatus('Pick path callback is not available.');
-                }
-            },
-            Na__Events__OnRunHeadless: function() {
-                if (window.Na__ProfilePathTracer__Bridge__RunHeadless) {
-                    window.Na__ProfilePathTracer__Bridge__RunHeadless(Na__UiState);
-                }
-            },
-            Na__Events__OnCreateProfile: function() {
-                Na__Ui__SetStatus('Validating selection for profile export...');
-                if (window.Na__ProfilePathTracer__Bridge__ValidateForExport) {
-                    window.Na__ProfilePathTracer__Bridge__ValidateForExport();
-                } else {
-                    Na__Ui__SetStatus('Export validation bridge is not available.');
-                }
-            }
-        });
+        window.Na__ProfilePathTracer__Ui__Events.Na__Ui__AttachEvents(Na__UiEventHandlers);
     }
 
     // endregion ----------------------------------------------------------------
@@ -347,6 +337,7 @@
     // -------------------------------------------------------------------------
 
     document.addEventListener('DOMContentLoaded', function() {
+        window.Na__ProfilePathTracer__Ui__Events.Na__Ui__AttachHeaderEvents(Na__UiEventHandlers);
         Na__Ui__Render();
     });
 

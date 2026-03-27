@@ -101,6 +101,22 @@ module Na__ProfileTools__ProfilePathTracer
                 Na__DebugTools.Na__Debug__Error('Headless callback failed.', error)
             end
 
+            dialog.add_action_callback('na_profilepathtracer_reload_plugin') do |_context|
+                dialog_reference = dialog
+                reload_result = Na__PluginReloader.Na__Reload__PluginFiles(Na__ProfileTools__ProfilePathTracer::NA_PLUGIN_ROOT)
+                self.Na__Dialog__HandleReloadCompletion(dialog_reference, reload_result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Plugin reload callback failed.', error)
+                self.Na__Dialog__HandleReloadCompletion(
+                    dialog,
+                    {
+                        'isSuccess' => false,
+                        'statusMessage' => "Reload failed: #{error.message}",
+                        'issues' => [error.message]
+                    }
+                )
+            end
+
             dialog.add_action_callback('na_profilepathtracer_generate') do |_context, json_payload|
                 generate_config = JSON.parse(json_payload.to_s)
                 generate_result = self.Na__Dialog__HandleGenerateRequest(generate_config)
@@ -110,18 +126,6 @@ module Na__ProfileTools__ProfilePathTracer
                 self.Na__Dialog__SendToJs(
                     'Na__ProfilePathTracer__ReceiveGenerateResult',
                     { 'isStarted' => false, 'statusMessage' => "Generate failed: #{error.message}" }
-                )
-            end
-
-            dialog.add_action_callback('na_profilepathtracer_activate_preview_tool') do |_context, json_payload|
-                tool_config = JSON.parse(json_payload.to_s)
-                tool_result = self.Na__Dialog__HandleGenerateRequest(tool_config)
-                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveGenerateResult', tool_result)
-            rescue => error
-                Na__DebugTools.Na__Debug__Error('Preview tool activation failed.', error)
-                self.Na__Dialog__SendToJs(
-                    'Na__ProfilePathTracer__ReceiveGenerateResult',
-                    { 'isStarted' => false, 'statusMessage' => "Preview tool activation failed: #{error.message}" }
                 )
             end
 
@@ -205,6 +209,52 @@ module Na__ProfileTools__ProfilePathTracer
                 'isStarted' => true,
                 'statusMessage' => 'Preview tool active. Click a path vertex to set start point, TAB to rotate.'
             }
+        end
+
+        def self.Na__Dialog__HandleReloadCompletion(previous_dialog, reload_result)
+            status_payload = self.Na__Dialog__BuildReloadStatusPayload(reload_result)
+
+            begin
+                previous_dialog.close if previous_dialog && previous_dialog.visible?
+            rescue => error
+                Na__DebugTools.Na__Debug__Warn("Reload close warning: #{error.message}")
+            end
+
+            self.Na__Dialog__Show
+            self.Na__Dialog__SendReloadStatus(status_payload)
+        end
+
+        def self.Na__Dialog__BuildReloadStatusPayload(reload_result)
+            status_message = 'Reload complete.'
+            is_success = true
+            issues = []
+
+            if reload_result.is_a?(Hash)
+                status_message = reload_result['statusMessage'].to_s.strip
+                status_message = 'Reload complete.' if status_message.empty?
+                is_success = reload_result['isSuccess'] != false
+                issues = reload_result['issues'].is_a?(Array) ? reload_result['issues'] : []
+            else
+                is_success = false
+                status_message = 'Reload finished with unknown response.'
+            end
+
+            if !is_success && !issues.empty?
+                status_message = "#{status_message} First issue: #{issues.first}"
+            end
+
+            {
+                'statusMessage' => status_message,
+                'isSuccess' => is_success
+            }
+        end
+
+        def self.Na__Dialog__SendReloadStatus(status_payload)
+            return unless @na_dialog
+
+            status_message = status_payload['statusMessage'].to_s
+            escaped_status = status_message.gsub('\\', '\\\\').gsub("'", "\\\\'")
+            @na_dialog.execute_script("window.setTimeout(function(){ if (window.Na__ProfilePathTracer__Ui__SetStatusFromBridge) { window.Na__ProfilePathTracer__Ui__SetStatusFromBridge('#{escaped_status}'); } }, 700);")
         end
 
     # endregion ----------------------------------------------------------------

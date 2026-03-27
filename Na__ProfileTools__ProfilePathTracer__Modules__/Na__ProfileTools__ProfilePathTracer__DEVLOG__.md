@@ -3,6 +3,78 @@
 ## Version History
 
 # =======================================================================================
+## ProfileTools Version 0.1.4 - 26-Mar-2026
+
+### Reload Completion Fix + Header Relocation
+
+- Updated `Na__ProfileTools__ProfilePathTracer__DialogManager__.rb`:
+  - Reload callback now captures a stable dialog reference before `load` cycle begins.
+  - Added deterministic reload-completion path that closes the previous dialog, reopens the tool dialog, and posts final status to the reopened UI.
+  - Added reload status payload normalization so failure states include clearer diagnostics and first issue context.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__UiLayout__.html`:
+  - Moved **Reload Plugin** button from Controls section to header-level developer controls (aligned with Window Config Tool UX pattern).
+
+- Updated `Na__ProfileTools__ProfilePathTracer__Ui__Controls__.js`:
+  - Removed in-panel reload button from controls action row.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__Ui__Events__.js`:
+  - Added one-time header event binding (`Na__Ui__AttachHeaderEvents`) to prevent duplicate click handlers on persistent header controls.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__UiLogic__.js`:
+  - Centralized event handler map for reuse across render cycles.
+  - Header reload binding now runs once on DOM ready while controls bindings remain rerender-safe.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__Styles__.css`:
+  - Added header layout and header controls styling for relocated reload action.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__Architecture__.md`:
+  - Corrected control placement documentation (header reload + user controls split).
+  - Documented robust post-reload status flow.
+
+# =======================================================================================
+## ProfileTools Version 0.1.3 - 26-Mar-2026
+
+### UI Cleanup + True Plugin Hot Reload
+
+- Added `Na__ProfileTools__ProfilePathTracer__PluginReloader__.rb`:
+  - New dedicated reload module for development-time hot reload.
+  - Reloads all Ruby modules in `Na__ProfileTools__ProfilePathTracer__Modules__` via `load`.
+  - Validates expected JS UI assets and returns structured reload status.
+  - Triggers `UI.refresh_inspectors` when available.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__Main__.rb`:
+  - Added `require_relative` for `PluginReloader__`.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__DialogManager__.rb`:
+  - Added `na_profilepathtracer_reload_plugin` callback.
+  - Added `Na__Dialog__HandleReloadCompletion` to close/reopen dialog after reload so JS/CSS/HTML refresh without SketchUp restart.
+  - Removed redundant `na_profilepathtracer_activate_preview_tool` callback (duplicate of generate behavior).
+
+- Updated UI controls and event wiring:
+  - `Na__ProfileTools__ProfilePathTracer__Ui__Controls__.js`:
+    - Replaced **Reload Bootstrap** with **Reload Plugin**.
+    - Removed **Pick Path** button.
+    - Removed **Run Headless** button.
+  - `Na__ProfileTools__ProfilePathTracer__Ui__Events__.js`:
+    - Removed pick-path/headless/bootstrap button hooks.
+    - Added reload-plugin hook.
+  - `Na__ProfileTools__ProfilePathTracer__UiLogic__.js`:
+    - Removed duplicate pick-path action path.
+    - Removed UI-triggered headless action.
+    - Added reload-plugin action binding.
+  - `Na__ProfileTools__ProfilePathTracer__UiEventToRubyApiBridge__.js`:
+    - Added `Na__ProfilePathTracer__Bridge__ReloadPlugin`.
+    - Removed obsolete UI bridge methods for pick-path activation and run-headless.
+
+- Updated `Na__ProfileTools__ProfilePathTracer__PublicApi__.rb`:
+  - Added `Na__PublicApi__ReloadPluginFiles` for external/scriptable reload entrypoint.
+
+- Updated architecture documentation:
+  - Added `PluginReloader__` module and developer hot reload flow.
+  - Documented simplified user control intent (Generate + Reload Plugin + Create New Profile, with headless API-only).
+
+# =======================================================================================
 ## ProfileTools Version 0.1.2 - 24-Mar-2026
 
 ### Profile Flip Toggles (Center + World Origin)

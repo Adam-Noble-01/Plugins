@@ -64,16 +64,14 @@
         });
     }
 
-    function Na__ProfilePathTracer__Bridge__RunHeadless(state) {
-        if (Na__Bridge__HasCallback('na_profilepathtracer_run_headless')) {
-            window.sketchup.na_profilepathtracer_run_headless(JSON.stringify(state || {}));
+    function Na__ProfilePathTracer__Bridge__ReloadPlugin() {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_reload_plugin')) {
+            Na__Bridge__SetStatus('Reloading plugin files...');
+            window.sketchup.na_profilepathtracer_reload_plugin();
             return;
         }
-        window.Na__ProfilePathTracer__ReceiveHeadlessResult({
-            isBuilt: false,
-            mode: 'headless',
-            reason: 'SketchUp bridge not available (fallback response).'
-        });
+
+        Na__Bridge__SetStatus('Reload callback is not available.');
     }
 
     function Na__ProfilePathTracer__Bridge__Generate(state) {
@@ -85,18 +83,6 @@
         window.Na__ProfilePathTracer__ReceiveGenerateResult({
             isStarted: false,
             statusMessage: 'SketchUp bridge not available (generate fallback response).'
-        });
-    }
-
-    function Na__ProfilePathTracer__Bridge__ActivatePreviewTool(state) {
-        if (Na__Bridge__HasCallback('na_profilepathtracer_activate_preview_tool')) {
-            window.sketchup.na_profilepathtracer_activate_preview_tool(JSON.stringify(state || {}));
-            return;
-        }
-
-        window.Na__ProfilePathTracer__ReceiveGenerateResult({
-            isStarted: false,
-            statusMessage: 'SketchUp bridge not available (preview-tool fallback response).'
         });
     }
 
@@ -134,9 +120,8 @@
     // -------------------------------------------------------------------------
 
     window.Na__ProfilePathTracer__Bridge__RequestBootstrap = Na__ProfilePathTracer__Bridge__RequestBootstrap;
-    window.Na__ProfilePathTracer__Bridge__RunHeadless = Na__ProfilePathTracer__Bridge__RunHeadless;
+    window.Na__ProfilePathTracer__Bridge__ReloadPlugin = Na__ProfilePathTracer__Bridge__ReloadPlugin;
     window.Na__ProfilePathTracer__Bridge__Generate = Na__ProfilePathTracer__Bridge__Generate;
-    window.Na__ProfilePathTracer__Bridge__ActivatePreviewTool = Na__ProfilePathTracer__Bridge__ActivatePreviewTool;
     window.Na__ProfilePathTracer__Bridge__ValidateForExport = Na__ProfilePathTracer__Bridge__ValidateForExport;
     window.Na__ProfilePathTracer__Bridge__SaveProfile = Na__ProfilePathTracer__Bridge__SaveProfile;
 
