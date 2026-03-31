@@ -49,12 +49,12 @@ module Na__WindowConfiguratorTool
         # ------------------------------------------------------------
         # @param dialog_manager [Module] Reference to the DialogManager module
         # @param cill_height_mm [Numeric] Current cill height from UI config (in mm)
-        # @param frame_thickness_mm [Numeric] Current frame thickness from UI config (in mm)
-        def initialize(dialog_manager, cill_height_mm, frame_thickness_mm = 50)
+        # @param frame_bottom_thickness_mm [Numeric] Current bottom frame thickness from UI config (in mm)
+        def initialize(dialog_manager, cill_height_mm, frame_bottom_thickness_mm = 50)
             @dialog_manager = dialog_manager
-            @frame_thickness_mm = frame_thickness_mm || 50
-            @is_frameless = @frame_thickness_mm == 0
-            @cill_height_mm = @is_frameless ? 0 : (cill_height_mm || 50)
+            @frame_bottom_thickness_mm = frame_bottom_thickness_mm || 50
+            @is_bottom_frameless = @frame_bottom_thickness_mm == 0
+            @cill_height_mm = @is_bottom_frameless ? 0 : (cill_height_mm || 50)
 
             @ip = Sketchup::InputPoint.new
             @ip_start = Sketchup::InputPoint.new
@@ -63,7 +63,7 @@ module Na__WindowConfiguratorTool
             @current_point = nil
             @state = :picking_point_a
 
-            Na__DebugTools.na_debug_method("MeasureOpeningTool initialized (cill_height=#{@cill_height_mm}mm, frame_thickness=#{@frame_thickness_mm}mm, frameless=#{@is_frameless})")
+            Na__DebugTools.na_debug_method("MeasureOpeningTool initialized (cill_height=#{@cill_height_mm}mm, frame_bottom_thickness=#{@frame_bottom_thickness_mm}mm, bottom_frameless=#{@is_bottom_frameless})")
         end
         # ---------------------------------------------------------------
 
@@ -286,7 +286,7 @@ module Na__WindowConfiguratorTool
             Na__DebugTools.na_debug_success(
                 "Measurement complete: Width=#{width_mm}mm, " \
                 "Raw Height=#{height_mm}mm, Cill Deduction=#{@cill_height_mm}mm, " \
-                "Adjusted Height=#{adjusted_height_mm}mm, Frameless=#{@is_frameless}"
+                "Adjusted Height=#{adjusted_height_mm}mm, BottomFrameless=#{@is_bottom_frameless}"
             )
 
             # Send measurement back to the HTML dialog

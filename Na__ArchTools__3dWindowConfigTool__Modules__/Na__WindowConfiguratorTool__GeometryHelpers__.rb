@@ -154,6 +154,14 @@ module Na__WindowConfiguratorTool
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Create Transom
+        # ------------------------------------------------------------
+        def self.na_create_transom(entities, identifier, x, y, z, width, depth, height, material)
+            group_name = "Na_Transom_#{identifier}"
+            na_create_grouped_box(entities, group_name, x, y, z, width, depth, height, material)
+        end
+        # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

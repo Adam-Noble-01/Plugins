@@ -58,6 +58,54 @@ const NA_UI_CONFIG = [
         default :  50
     },
     {
+        id      :  'advanced_frame_controls',
+        label   :  'Advanced Frame Controls',
+        type    :  'expandable',
+        default :  false,
+        children: [
+            {
+                id      :  'frame_top_thickness_mm',
+                label   :  'Top Frame',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  0,
+                max     :  150,
+                step    :  5,
+                default :  50
+            },
+            {
+                id      :  'frame_bottom_thickness_mm',
+                label   :  'Bottom Frame',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  0,
+                max     :  150,
+                step    :  5,
+                default :  50
+            },
+            {
+                id      :  'frame_left_thickness_mm',
+                label   :  'Left Frame',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  0,
+                max     :  150,
+                step    :  5,
+                default :  50
+            },
+            {
+                id      :  'frame_right_thickness_mm',
+                label   :  'Right Frame',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  0,
+                max     :  150,
+                step    :  5,
+                default :  50
+            }
+        ]
+    },
+    {
         id      :  'casement_width_mm',
         label   :  'Casement Width',
         unit    :  'mm',
@@ -184,16 +232,6 @@ const NA_UI_CONFIG = [
         default :  0
     },
     {
-        id      :  'sliding_sash_overlap_mm',
-        label   :  'Sliding Sash Overlap',
-        unit    :  'mm',
-        type    :  'slider',
-        min     :  0,
-        max     :  60,
-        step    :  1,
-        default :  20
-    },
-    {
         id      :  'mullion_width_mm',
         label   :  'Mullion Width',
         unit    :  'mm',
@@ -202,6 +240,66 @@ const NA_UI_CONFIG = [
         max     :  120,
         step    :  5,
         default :  40
+    },
+    {
+        id      :  'transoms',
+        label   :  'Transoms',
+        unit    :  '',
+        type    :  'slider',
+        min     :  0,
+        max     :  3,
+        step    :  1,
+        default :  0
+    },
+    {
+        id      :  'transom_width_mm',
+        label   :  'Transom Width',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  30,
+        max     :  120,
+        step    :  5,
+        default :  40
+    },
+    {
+        id      :  'transom_1_y_mm',
+        label   :  'Transom 1 Height',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  50,
+        max     :  2400,
+        step    :  10,
+        default :  300
+    },
+    {
+        id      :  'transom_2_y_mm',
+        label   :  'Transom 2 Height',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  50,
+        max     :  2400,
+        step    :  10,
+        default :  600
+    },
+    {
+        id      :  'transom_3_y_mm',
+        label   :  'Transom 3 Height',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  50,
+        max     :  2400,
+        step    :  10,
+        default :  900
+    },
+    {
+        id      :  'sliding_sash_overlap_mm',
+        label   :  'Sliding Sash Overlap',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  0,
+        max     :  60,
+        step    :  1,
+        default :  20
     }
 ];
 
@@ -220,7 +318,7 @@ const NA_GLAZEBAR_CONFIG = [
         unit    :  '',
         type    :  'slider',
         min     :  0,
-        max     :  6,
+        max     :  8,
         step    :  1,
         default :  0
     },
@@ -230,7 +328,7 @@ const NA_GLAZEBAR_CONFIG = [
         unit    :  '',
         type    :  'slider',
         min     :  0,
-        max     :  6,
+        max     :  8,
         step    :  1,
         default :  0
     },

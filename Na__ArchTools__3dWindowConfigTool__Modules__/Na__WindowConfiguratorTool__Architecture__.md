@@ -4,6 +4,134 @@
 
 This document provides a comprehensive diagram of how the Window Configurator Tool works, including data flow, file relationships, and the planned feature additions.
 
+## Feature Addendum - Reset Hidden Elements Action (v0.9.12b)
+
+### UI / State Notes
+
+- The 2D preview toolbar now includes a `Reset Elements` button next to the viewport actions.
+- The button clears all current hidden-element state in one action by resetting:
+  - `removed_casements`
+  - `removed_transom_segments`
+  - `removed_glazebars`
+- The button is disabled when there are no hidden elements to restore.
+- Resetting flows through the normal `UiLogic _config -> render -> live update` path, so the preview, live SketchUp model, saved config, and DXF exports all return to the fully visible state together.
+
+## Feature Addendum - Individual Glaze Bar Toggles (v0.9.12a)
+
+### New Shared Config Fields
+
+The glaze bar system now supports per-visible-bar removal keys in addition to the existing global horizontal and vertical bar counts:
+
+- `removed_glazebars` - array of `"openingIndex:cellIndex:panelIndex:sashIndex:orientation:barIndex"` keys for individual bars that should be suppressed
+
+This value now flows through the same shared configuration path as the existing removal systems:
+
+`UiLogic _config` -> `Viewport__SvgGenerator__` / `Viewport__Controls__` -> `UiEventToRubyApiBridge__` -> `DialogManager__.rb` -> `GeometryEngine__.rb` / `GeometryBuilders__.rb` -> `DxfExporterLogic__.rb` / `Export__Dxf__.js`
+
+### Layout / Identity Behaviour
+
+- `openingIndex` identifies the mullion span.
+- `cellIndex` identifies the transom-aware stacked cell inside that span.
+- `panelIndex` identifies the horizontal panel when `casements_per_opening > 1`.
+- `sashIndex` distinguishes top vs bottom sash in sliding sash mode.
+- `orientation` is either `horizontal` or `vertical`.
+- `barIndex` stays `1`-based to match the existing bar-spacing loops in both JavaScript and Ruby.
+
+### UI / Preview Notes
+
+- Individual glaze bars are now toggleable directly from the SVG preview.
+- Each bar position has a dedicated transparent click rectangle rendered above the opening/transom overlays so bar clicks win reliably inside the SketchUp HtmlDialog renderer.
+- Click rectangles remain active even when the visible bar has been removed, allowing the same location to be clicked again to restore the bar.
+- `UiLogic__.js` now cleans stale `removed_glazebars` keys whenever the current opening/cell/panel/sash layout changes.
+
+### Geometry / Export Notes
+
+- `GeometryEngine__.rb` now carries opening, cell, panel, and sash identity through to the glaze bar builder.
+- `GeometryBuilders__.rb` now skips only the specific keyed bars that were removed instead of suppressing whole bar rows/columns globally.
+- `DxfExporterLogic__.rb` and `Export__Dxf__.js` now skip the same keyed bars so exported drawings stay aligned with the preview and live 3D model.
+
+## Feature Addendum - Advanced Frame Controls (v0.9.12)
+
+### New Shared Config Fields
+
+The frame system now supports an optional per-side override layer on top of the existing uniform frame thickness:
+
+- `advanced_frame_controls` - enables per-side frame thickness overrides when `true`
+- `frame_top_thickness_mm`
+- `frame_bottom_thickness_mm`
+- `frame_left_thickness_mm`
+- `frame_right_thickness_mm`
+
+These values now flow through the same full-config path used by the other advanced override systems:
+
+`Ui__Config__` -> `UiLogic _config` -> `Viewport__Validation__` / `Viewport__SvgGenerator__` -> `UiEventToRubyApiBridge__` -> `DialogManager__.rb` -> `GeometryEngine__.rb` / `DxfExporterLogic__.rb`
+
+### Behaviour Notes
+
+- `frame_thickness_mm` remains the base slider and backward-compatible fallback for saved windows.
+- When `advanced_frame_controls` is `false`, all four effective frame sides use `frame_thickness_mm`.
+- When `advanced_frame_controls` is `true`, the top/bottom/left/right override sliders drive the effective inner opening rectangle.
+- Asymmetric frames now shift the opening origin and inner clear size:
+  - `inner_width = width - left_frame - right_frame`
+  - `inner_height = height - top_frame - bottom_frame`
+- Cills and opening-measurement deductions now depend on the effective bottom frame thickness instead of assuming one uniform frame member all round.
+
+### Geometry / Export Notes
+
+- `GeometryBuilders__.rb` now builds the outer frame from separate left/right stile widths and top/bottom rail heights.
+- `GeometryEngine__.rb`, `Viewport__SvgGenerator__.js`, `Viewport__Validation__.js`, and both DXF exporters all use the same effective per-side frame logic.
+- A `0mm` side value now creates a frameless edge on that side only; the other sides can still render normally.
+
+## Feature Addendum - Transom System (v0.9.11)
+
+### New Shared Config Fields
+
+The transom system extends the shared `windowConfiguration` contract with:
+
+- `transoms` - number of active transom levels (`0-3`)
+- `transom_width_mm` - transom member height/thickness in the 2D/3D layouts
+- `transom_1_y_mm`
+- `transom_2_y_mm`
+- `transom_3_y_mm`
+- `removed_transom_segments` - array of `"openingIndex:transomIndex"` keys for spans where a transom segment is intentionally suppressed
+
+These values now flow through the same full-config path used by mullions:
+
+`Ui__Config__` -> `UiLogic _config` -> `Viewport__Validation__` / `Viewport__SvgGenerator__` -> `UiEventToRubyApiBridge__` -> `DialogManager__.rb` -> `GeometryEngine__.rb` / `DxfExporterLogic__.rb`
+
+### Layout Behaviour
+
+- Mullions still split the window horizontally into opening spans.
+- Transoms now split each opening span vertically into stacked cells.
+- Transom levels are shared globally by slider value, but each span can suppress an individual transom segment via `removed_transom_segments`.
+- When a transom segment is removed in one span, the adjacent cells merge in that span only.
+- Casements, direct glazing, glaze bars, sliding sash rendering, 3D geometry, and DXF output are all generated from these merged cells rather than from one full-height opening rectangle.
+
+### UI / Preview Notes
+
+- The new transom controls live in `Na__WindowConfiguratorTool__Ui__Config__.js` after the mullion controls.
+- `UiLogic__.js` now handles:
+  - visibility of transom width / height sliders
+  - ordering and clamping of active transom heights
+  - one-transom default seeding at roughly one-third of the inner frame height when first enabled
+  - flipped UI coordinate conversion so transom sliders are shown in top-origin terms while the internal config stays bottom-origin
+  - cleanup of stale `removed_transom_segments`
+- `Viewport__Controls__.js` now routes both opening click targets and transom-segment click targets.
+- Transom click targets use a minimally painted overlay in the SVG so segment toggling remains reliable inside the SketchUp HtmlDialog renderer.
+
+### Geometry / Export Notes
+
+- `GeometryHelpers__.rb` and `GeometryBuilders__.rb` now include a dedicated transom primitive/builder.
+- `GeometryEngine__.rb` now builds per-opening transom segments first, then renders merged opening cells.
+- `FuseParts__.rb` now includes `Na_Transom_*` groups in the frame fusion pass so transoms are fused with the rest of the frame assembly.
+- `DxfExporterLogic__.rb` and `Export__Dxf__.js` now mirror the same transom-aware cell layout.
+- DXF now includes a dedicated `NA_TRANSOM` layer for horizontal transom members.
+
+### Related Slider Limit Update
+
+- `horizontal_glaze_bars` max increased from `6` to `8`
+- `vertical_glaze_bars` max increased from `6` to `8`
+
 ---
 
 ## File Structure Diagram (Version 0.6.0 - Modular Architecture)
@@ -200,9 +328,10 @@ JavaScript: Config → Controls, Events → UiLogic → Viewport modules → Exp
 │  │  ┌────────────────────────────────────────────────────────────────┐ │    │
 │  │  │ Calculate dimensions from config:                              │ │    │
 │  │  │  • num_openings = mullions + 1                                 │ │    │
-│  │  │  • inner_width = width - (2 * frame_thickness)                 │ │    │
+│  │  │  • inner_width = width - left_frame - right_frame              │ │    │
+│  │  │  • inner_height = height - top_frame - bottom_frame            │ │    │
 │  │  │  • opening_width = available_width / num_openings              │ │    │
-│  │  │  • Multi-casement: panel_width = opening_width / panels_count   │ │    │
+│  │  │  • Multi-casement: panel_width = opening_width / panels_count  │ │    │
 │  │  └────────────────────────────────────────────────────────────────┘ │    │
 │  │                                                                     │    │
 │  │  Create geometry via GeometryBuilders:                              │    │
@@ -328,7 +457,12 @@ windowConfiguration: {
     // Primary Dimensions
     width_mm: 900,              // Overall window width
     height_mm: 1200,            // Overall window height (300-2600mm in UI)
-    frame_thickness_mm: 50,     // Outer frame member thickness (0 = frameless mode: no outer frame)
+    frame_thickness_mm: 50,     // Base outer frame member thickness fallback
+    advanced_frame_controls: false, // Toggle for per-side frame thickness overrides
+    frame_top_thickness_mm: 50, // Top frame thickness when advanced override is enabled
+    frame_bottom_thickness_mm: 50, // Bottom frame thickness when advanced override is enabled
+    frame_left_thickness_mm: 50, // Left frame thickness when advanced override is enabled
+    frame_right_thickness_mm: 50, // Right frame thickness when advanced override is enabled
     
     // Casement
     casement_width_mm: 65,      // Default casement profile width (all sides)
@@ -707,5 +841,5 @@ end
 ---
 
 *Document created: February 3, 2026*
-*Last updated: March 4, 2026 (v0.9.9 - Height slider max increased to 2600mm)*
+*Last updated: March 31, 2026 (v0.9.12b - Reset hidden elements action)*
 *Author: Noble Architecture*

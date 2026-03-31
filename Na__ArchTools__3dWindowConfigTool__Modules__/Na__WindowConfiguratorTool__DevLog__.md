@@ -3,6 +3,223 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Version 0.9.12b - 31-Mar-2026 - Reset Hidden Elements Action
+
+### Feature 01 - Reset Elements Button
+- **New Feature:** Added a `Reset Elements` button to the 2D preview toolbar.
+- **Purpose:** Restore all currently hidden preview/model elements in one action after casements, transom segments, or glaze bars have been toggled off.
+- **Behaviour:** The reset action clears `removed_casements`, `removed_transom_segments`, and `removed_glazebars`, then triggers the normal preview/live-update pipeline so all supported elements become visible again.
+
+### UI Notes
+- The button sits alongside `Reset View` and `Export DXF`.
+- The button is disabled when there are no hidden elements to restore.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__UiLayout__.html`**
+   - Added the `Reset Elements` button to the viewport toolbar
+2. **`Na__WindowConfiguratorTool__UiLogic__.js`**
+   - Added hidden-element reset logic plus button enabled/disabled state handling
+3. **`Na__WindowConfiguratorTool__UiEventToRubyApiBridge__.js`**
+   - Added the toolbar callback and user status messaging for reset actions
+4. **`Na__WindowConfiguratorTool__Architecture__.md`**
+   - Documented the reset-elements flow and state-clearing behaviour
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+## Version 0.9.12a - 31-Mar-2026 - Individual Glaze Bar Toggles
+
+### Feature 01 - Per-Visible Glaze Bar Removal
+- **New Feature:** Added per-visible glaze bar toggling in the SVG preview using persistent top-layer click targets over each glaze bar position.
+- **Purpose:** Allow upper transom lights, side panels, and sliding sash sections to have different bar patterns without reducing the global bar-count sliders for the whole window.
+- **Behaviour:** Clicking a glaze bar toggles a stable `removed_glazebars` key in the shared configuration, and the same keyed removal now applies to the SVG preview, live SketchUp geometry, saved config, and both DXF exporters.
+
+### Identity / Interaction Notes
+- `removed_glazebars` keys now use the format `openingIndex:cellIndex:panelIndex:sashIndex:orientation:barIndex`.
+- Click targets stay active even after a bar is removed, so clicking the same bar slot restores it.
+- Bar click targets are rendered above the existing opening/transom overlays so individual bar toggling wins reliably inside the HtmlDialog viewport.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__Main__.rb`**
+   - Added `removed_glazebars` to the default shared configuration schema
+2. **`Na__WindowConfiguratorTool__UiLogic__.js`**
+   - Added glaze bar toggle state handling, stale-key cleanup, and viewport callback wiring
+3. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`**
+   - Added keyed glaze bar rendering, persistent bar click targets, and valid-key collection helper logic
+4. **`Na__WindowConfiguratorTool__Viewport__Controls__.js`**
+   - Added delegated click handling for individual glaze bar targets
+5. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`**
+   - Threaded opening/cell/panel/sash identity through to the glaze bar geometry pass
+6. **`Na__WindowConfiguratorTool__GeometryBuilders__.rb`**
+   - Added keyed glaze bar suppression checks during 3D geometry creation
+7. **`Na__WindowConfiguratorTool__Export__Dxf__.js`**
+   - Updated browser fallback DXF export to skip keyed removed glaze bars
+8. **`Na__WindowConfiguratorTool__DxfExporterLogic__.rb`**
+   - Updated Ruby DXF export to skip keyed removed glaze bars
+9. **`Na__WindowConfiguratorTool__Architecture__.md`**
+   - Documented the new individual glaze bar toggle flow and shared config schema
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+## Version 0.9.12 - 31-Mar-2026 - Advanced Frame Controls
+
+### Feature 01 - Advanced Frame Controls Override Panel
+- **New Feature:** Added an expandable `Advanced Frame Controls` panel after the main `Frame Thickness` slider.
+- **Purpose:** Allow per-side frame thickness overrides for the top, bottom, left, and right frame members instead of being restricted to one uniform frame size.
+- **Behaviour:** `Frame Thickness` remains the base fallback value. When `advanced_frame_controls` is enabled, the per-side sliders drive the effective frame layout across the UI preview, DXF export, and Ruby geometry.
+- **Range / Defaults:** Each side allows `0-150mm` with a default of `50mm`.
+
+### Geometry / Layout Behaviour
+- Inner opening width now resolves as `width - left_frame - right_frame`.
+- Inner opening height now resolves as `height - top_frame - bottom_frame`.
+- Mullions, transoms, casements, direct glazing, and glaze bars now align to the asymmetric inner aperture rather than assuming equal frame members all round.
+- The outer frame builder now creates left/right stiles and top/bottom rails from separate thickness values.
+- A `0mm` side now produces a frameless edge on that side only; the remaining frame sides can still render.
+
+### Measurement / Cill Behaviour
+- Cills now depend on the effective bottom frame thickness rather than only the uniform frame slider.
+- Measure Opening now deducts cill height only when a bottom frame/cill is actually active, so asymmetric bottom-frameless layouts do not over-deduct the measured height.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`**
+   - Added `advanced_frame_controls` expandable plus top/bottom/left/right frame thickness sliders
+2. **`Na__WindowConfiguratorTool__UiLogic__.js`**
+   - Added shared effective-frame resolver and updated cill/framing state logic to use per-side frame values
+3. **`Na__WindowConfiguratorTool__Viewport__Validation__.js`**
+   - Updated validation to use asymmetric inner frame width/height calculations
+4. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`**
+   - Updated SVG frame, mullion, opening, and cill layout to use effective per-side frame thicknesses
+5. **`Na__WindowConfiguratorTool__Export__Dxf__.js`**
+   - Updated browser fallback DXF export to match the new asymmetric frame layout
+6. **`Na__WindowConfiguratorTool__Main__.rb`**
+   - Added advanced frame override fields to the default configuration schema
+7. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`**
+   - Added effective-frame parsing and asymmetric opening origin/inner-size calculations
+8. **`Na__WindowConfiguratorTool__GeometryBuilders__.rb`**
+   - Refactored outer frame builder to support separate top/bottom/left/right frame members
+9. **`Na__WindowConfiguratorTool__DxfExporterLogic__.rb`**
+   - Updated Ruby DXF generation to use the same per-side frame calculations
+10. **`Na__WindowConfiguratorTool__DialogManager__.rb`**
+    - Updated Measure Opening setup to pass effective bottom-frame state
+11. **`Na__WindowConfiguratorTool__MeasureOpeningTool__.rb`**
+    - Updated cill deduction logic for bottom-frameless configurations
+12. **`Na__WindowConfiguratorTool__Architecture__.md`**
+    - Documented the new advanced frame override flow and schema
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+## Version 0.9.11c - 31-Mar-2026 - FuseParts Transom Coverage
+
+### Update 01 - Include Transoms in Frame Fusion
+- Updated `FuseParts__.rb` so the frame fusion pass now collects `Na_Transom_*` groups alongside `Na_Frame_*` and `Na_Mullion_*`.
+- Purpose: ensure transom members are included when `Fuse Parts` is enabled, rather than being left as separate unfused solids.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__FuseParts__.rb`**
+   - Added `Na_Transom_*` group collection to the frame fusion pass
+2. **`Na__WindowConfiguratorTool__Architecture__.md`**
+   - Documented that transoms are now covered by the fuse system
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+## Version 0.9.11b - 31-Mar-2026 - Flipped Transom UI Coordinates
+
+### Update 01 - Transom Slider Coordinate Flip
+- Updated the transom height sliders so the UI now works in flipped top-origin coordinates.
+- Internal geometry/render/export config still remains bottom-origin for consistency across the 2D preview, Ruby geometry, and DXF generation.
+- Purpose: match how window designers typically think about top-light / transom placement in the configurator UI.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__UiLogic__.js`**
+   - Added UI-to-internal and internal-to-UI conversion for transom height sliders
+   - Refreshed transom slider displays when dependent dimensions change
+2. **`Na__WindowConfiguratorTool__Architecture__.md`**
+   - Documented the flipped UI coordinate behaviour
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+## Version 0.9.11a - 31-Mar-2026 - Transom UX Follow-up
+
+### Update 01 - One-Transom Default Position
+- When `Transoms` is changed from `0` to `1`, `Transom 1 Height` is now seeded to approximately one-third of the current inner frame height.
+- Purpose: make common top-light / transom layouts look sensible immediately without extra slider adjustment.
+
+### Update 02 - Transom Segment Click Reliability
+- Adjusted the SVG transom click-target overlay to use a minimally painted fill instead of a fully transparent fill.
+- Purpose: improve click registration inside the SketchUp HtmlDialog renderer so transom segments can be toggled off reliably in the 2D preview.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__UiLogic__.js`**
+   - Added one-transom default seeding logic when first enabled
+2. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`**
+   - Updated transom click-target overlay fill for more reliable pointer events
+3. **`Na__WindowConfiguratorTool__Architecture__.md`**
+   - Added notes for one-transom defaults and click-target reliability
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+## Version 0.9.11 - 31-Mar-2026 - Transom System + Glaze Bar Limit Increase
+
+### Feature 01 - Segmented Transom System
+- **New Feature:** Added `Transoms` slider (`0-3`) plus `Transom Width`, `Transom 1 Height`, `Transom 2 Height`, and `Transom 3 Height` controls.
+- **Purpose:** Support horizontal divider members like the reference sketch, while allowing each divider to be removed per span between mullions.
+- **Behaviour:** Transom levels are shared by slider position, but each opening span can suppress a specific transom segment via `removed_transom_segments`.
+- **2D Preview:** The SVG generator now works from merged opening cells instead of one full-height opening rectangle, so hidden transom segments merge adjacent cells in that span only.
+- **3D Geometry:** GeometryEngine now creates transom members per opening span and renders casements/glass/glaze bars/sliding sashes per merged cell.
+- **DXF Export:** Both Ruby DXF export and browser fallback DXF now include the transom-aware merged cell layout.
+
+### Feature 02 - Glaze Bar Slider Limit Increase
+- Increased both `horizontal_glaze_bars` and `vertical_glaze_bars` slider maximums from `6` to `8`.
+- Purpose: allow denser glazing layouts without manual config editing.
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`**
+   - Added transom controls and increased both glaze bar slider caps to `8`
+2. **`Na__WindowConfiguratorTool__UiLogic__.js`**
+   - Added transom slider visibility, transom height ordering/clamping, transom segment cleanup, and transom toggle handling
+3. **`Na__WindowConfiguratorTool__Viewport__Controls__.js`**
+   - Added transom segment click-target routing
+4. **`Na__WindowConfiguratorTool__Viewport__Validation__.js`**
+   - Added transom layout height validation
+5. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`**
+   - Refactored preview generation into transom-aware merged opening cells
+6. **`Na__WindowConfiguratorTool__Export__Dxf__.js`**
+   - Updated browser fallback DXF export to match the transom-aware cell layout
+7. **`Na__WindowConfiguratorTool__Main__.rb`**
+   - Added transom defaults and config schema fields
+8. **`Na__WindowConfiguratorTool__GeometryHelpers__.rb`**
+   - Added transom primitive helper
+9. **`Na__WindowConfiguratorTool__GeometryBuilders__.rb`**
+   - Added transom geometry builder
+10. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`**
+    - Added transom parsing, per-span merged-cell layout, and transom geometry creation
+11. **`Na__WindowConfiguratorTool__DxfExporterLogic__.rb`**
+    - Added transom DXF export and merged-cell generation
+12. **`Na__WindowConfiguratorTool__Architecture__.md`**
+    - Added transom architecture/config addendum and glaze-bar limit note
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ## Version 0.9.10 - 15-Mar-2026 - Materials DataLib Migration
 
 - **Materials library migrated to centralised DataLib**: `MaterialManager` now loads materials via `Na__DataLib__CacheData.Na__Cache__LoadData(:materials)` instead of reading from the local `Na__AppConfig__MaterialsLibrary.json` file. Root key updated from `Na__AppConfig__MaterialsLibrary` to `Na__DataLib__CoreIndex__Materials`. Gets the three-stage loading pipeline (URL -> 30-minute temp cache -> local fallback) for free.

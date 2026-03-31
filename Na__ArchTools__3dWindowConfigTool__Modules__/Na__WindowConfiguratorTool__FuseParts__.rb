@@ -13,7 +13,7 @@
 #
 # DESCRIPTION:
 # - Standalone post-processing module called AFTER geometry creation
-# - Fuses frame stiles/rails/mullions into one Frame Solid
+# - Fuses frame stiles/rails/mullions/transoms into one Frame Solid
 # - Fuses casement stiles/rails into one Casement Solid per opening
 # - Fuses horizontal/vertical glaze bars into one GlazeBar Solid per opening
 # - Trims glass panes using fused glaze bars for clean individual panels
@@ -97,7 +97,7 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Fuse Frame Parts
         # ------------------------------------------------------------
-        # Collects all Na_Frame_* and Na_Mullion_* groups and fuses them
+        # Collects all Na_Frame_*, Na_Mullion_*, and Na_Transom_* groups and fuses them
         # into a single frame solid using sequential outer_shell.
         #
         # @param entities [Sketchup::Entities] The component definition entities
@@ -107,10 +107,11 @@ module Na__WindowConfiguratorTool
 
             result = { fused: 0, failed: 0, skipped: 0 }
 
-            # Collect frame stiles, rails, and mullions
+            # Collect frame stiles, rails, mullions, and transoms
             frame_groups = na_collect_groups_by_prefix(entities, "Na_Frame_")
             mullion_groups = na_collect_groups_by_prefix(entities, "Na_Mullion_")
-            all_frame_groups = frame_groups + mullion_groups
+            transom_groups = na_collect_groups_by_prefix(entities, "Na_Transom_")
+            all_frame_groups = frame_groups + mullion_groups + transom_groups
 
             if all_frame_groups.length < 2
                 DebugTools.na_debug_geometry("Frame: fewer than 2 groups, skipping fusion")

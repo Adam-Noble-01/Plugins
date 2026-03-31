@@ -134,7 +134,9 @@ const Na__Viewport__Controls = (function() {
     // @param {HTMLElement} svgElement - The SVG element
     // @param {Object} interactionState - Interaction state { didPan }
     // @param {Function} clickCallback - Callback function(openingIndex) called when opening is clicked
-    function na_setupCasementClickTargets(svgElement, interactionState, clickCallback) {
+    // @param {Function} transomClickCallback - Callback function(openingIndex, transomIndex)
+    // @param {Function} glazebarClickCallback - Callback function(openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex)
+    function na_setupCasementClickTargets(svgElement, interactionState, clickCallback, transomClickCallback, glazebarClickCallback) {
         if (!svgElement) return;
         
         // Remove previous listener if it exists
@@ -149,6 +151,40 @@ const Na__Viewport__Controls = (function() {
             
             // Check if clicked element is a click-target
             const target = e.target;
+            if (target.classList.contains('na-glazebar-click-target')) {
+                const openingIndex = parseInt(target.dataset.openingIndex, 10);
+                const cellIndex = parseInt(target.dataset.cellIndex, 10);
+                const panelIndex = parseInt(target.dataset.panelIndex, 10);
+                const sashIndex = parseInt(target.dataset.sashIndex, 10);
+                const barIndex = parseInt(target.dataset.barIndex, 10);
+                const orientation = target.dataset.orientation;
+
+                if (isNaN(openingIndex) ||
+                    isNaN(cellIndex) ||
+                    isNaN(panelIndex) ||
+                    isNaN(sashIndex) ||
+                    isNaN(barIndex) ||
+                    (orientation !== 'horizontal' && orientation !== 'vertical')) {
+                    return;
+                }
+
+                if (glazebarClickCallback) {
+                    glazebarClickCallback(openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex);
+                }
+                return;
+            }
+
+            if (target.classList.contains('na-transom-click-target')) {
+                const openingIndex = parseInt(target.dataset.openingIndex, 10);
+                const transomIndex = parseInt(target.dataset.transomIndex, 10);
+                if (isNaN(openingIndex) || isNaN(transomIndex)) return;
+
+                if (transomClickCallback) {
+                    transomClickCallback(openingIndex, transomIndex);
+                }
+                return;
+            }
+
             if (!target.classList.contains('na-opening-click-target')) return;
             
             const openingIndex = parseInt(target.dataset.openingIndex, 10);

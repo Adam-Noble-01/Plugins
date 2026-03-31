@@ -489,24 +489,36 @@ module Na__WindowConfiguratorTool
         # FUNCTION | Handle Measure Opening Callback
         # ------------------------------------------------------------
         # Activates the MeasureOpeningTool in the 3D viewport.
-        # Passes the current cill_height_mm from config so the tool can
-        # deduct it from the measured Z height.
+        # Passes the active cill height plus the effective bottom frame thickness
+        # so the tool can respect asymmetric frameless-bottom configurations.
         def self.na_handle_measure_opening
             DebugTools.na_debug_method("DialogManager.na_handle_measure_opening")
             
-            # Get cill height and frame thickness from current config (mirrors UI state)
+            # Get cill height and bottom frame thickness from current config (mirrors UI state)
             cill_height_mm = 50  # Default fallback
-            frame_thickness_mm = 50  # Default fallback
+            frame_bottom_thickness_mm = 50  # Default fallback
             if @config && @config["windowConfiguration"]
-                cill_height_mm = @config["windowConfiguration"]["cill_height_mm"] || 50
-                frame_thickness_mm = @config["windowConfiguration"]["frame_thickness_mm"] || 50
+                window_config = @config["windowConfiguration"]
+                uniform_frame_thickness_mm = window_config.key?("frame_thickness_mm") ? window_config["frame_thickness_mm"].to_f : 50.0
+                use_advanced_frame_controls = window_config["advanced_frame_controls"] == true
+                frame_bottom_thickness_mm = if use_advanced_frame_controls && window_config.key?("frame_bottom_thickness_mm")
+                    window_config["frame_bottom_thickness_mm"].to_f
+                else
+                    uniform_frame_thickness_mm
+                end
+
+                if window_config["has_cill"] != false && frame_bottom_thickness_mm > 0
+                    cill_height_mm = window_config["cill_height_mm"] || 50
+                else
+                    cill_height_mm = 0
+                end
             end
             
-            # Activate the Measure Opening Tool (tool handles frameless logic internally)
-            measure_tool = Na__MeasureOpeningTool.new(self, cill_height_mm, frame_thickness_mm)
+            # Activate the Measure Opening Tool (tool handles bottom-frame logic internally)
+            measure_tool = Na__MeasureOpeningTool.new(self, cill_height_mm, frame_bottom_thickness_mm)
             Sketchup.active_model.select_tool(measure_tool)
             
-            DebugTools.na_debug_success("Measure Opening tool activated (cill_height=#{cill_height_mm}mm, frame_thickness=#{frame_thickness_mm}mm)")
+            DebugTools.na_debug_success("Measure Opening tool activated (cill_height=#{cill_height_mm}mm, frame_bottom_thickness=#{frame_bottom_thickness_mm}mm)")
         end
         # ---------------------------------------------------------------
 

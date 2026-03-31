@@ -24,6 +24,44 @@
 // =============================================================================
 
 const Na__Export__Dxf = (function() {
+
+    // FUNCTION | Resolve Effective Frame Thicknesses
+    // ------------------------------------------------------------
+    function na_getEffectiveFrameThicknesses(config) {
+        if (window.Na_DynamicUI && typeof window.Na_DynamicUI.na_getEffectiveFrameThicknesses === 'function') {
+            return window.Na_DynamicUI.na_getEffectiveFrameThicknesses(config);
+        }
+
+        const uniformThickness = (config.frame_thickness_mm != null) ? Number(config.frame_thickness_mm) : 50;
+        const useAdvancedFrameControls = config.advanced_frame_controls === true;
+
+        function na_resolveFrameSideThickness(sideKey) {
+            const rawValue = useAdvancedFrameControls ? config[sideKey] : uniformThickness;
+            return Math.max(0, Number(rawValue != null ? rawValue : uniformThickness));
+        }
+
+        return {
+            top: na_resolveFrameSideThickness('frame_top_thickness_mm'),
+            bottom: na_resolveFrameSideThickness('frame_bottom_thickness_mm'),
+            left: na_resolveFrameSideThickness('frame_left_thickness_mm'),
+            right: na_resolveFrameSideThickness('frame_right_thickness_mm')
+        };
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Glaze Bar Storage Key
+    // ------------------------------------------------------------
+    function na_getGlazebarKey(openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex) {
+        return `${openingIndex}:${cellIndex}:${panelIndex}:${sashIndex}:${orientation}:${barIndex}`;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Removed Glaze Bar Set
+    // ------------------------------------------------------------
+    function na_getRemovedGlazebarSet(removedGlazebars) {
+        return new Set(Array.isArray(removedGlazebars) ? removedGlazebars.map(key => String(key)) : []);
+    }
+    // ---------------------------------------------------------------
     
     // FUNCTION | Export Current Model as DXF (Browser Fallback)
     // ------------------------------------------------------------
@@ -34,7 +72,11 @@ const Na__Export__Dxf = (function() {
 
         const width = config.width_mm || 900;
         const height = config.height_mm || 1200;
-        const frameThickness = config.frame_thickness_mm || 0;
+        const frameThicknesses = na_getEffectiveFrameThicknesses(config);
+        const topFrameThickness = frameThicknesses.top;
+        const bottomFrameThickness = frameThicknesses.bottom;
+        const leftFrameThickness = frameThicknesses.left;
+        const rightFrameThickness = frameThicknesses.right;
         const casementWidth = config.casement_width_mm || 65;
         const showCasements = config.show_casements !== false;
         const slidingSashWindow = config.sliding_sash_window === true;
@@ -42,9 +84,15 @@ const Na__Export__Dxf = (function() {
         const casementsPerOpening = Math.max(1, Math.min(6, config.casements_per_opening || 1));
         const numMullions = config.mullions || 0;
         const mullionWidth = config.mullion_width_mm || 40;
+        const transomCount = Math.max(0, Math.min(3, Math.round(config.transoms || 0)));
+        const transomWidth = config.transom_width_mm || 40;
+        const transomBottoms = na_getActiveTransomBottoms(config, transomCount);
+        const removedTransomSegments = na_getRemovedTransomSegmentSet(config.removed_transom_segments);
+        const removedGlazebars = na_getRemovedGlazebarSet(config.removed_glazebars);
         const hBars = config.horizontal_glaze_bars || 0;
         const vBars = config.vertical_glaze_bars || 0;
         const barWidth = config.glaze_bar_width_mm || 25;
+        const removedCasements = config.removed_casements || [];
 
         const useIndividualSizes = config.casement_sizes_individual === true;
         const casTopRail = useIndividualSizes ? (config.casement_top_rail_mm || casementWidth) : casementWidth;
@@ -53,53 +101,91 @@ const Na__Export__Dxf = (function() {
         const casRightStile = useIndividualSizes ? (config.casement_right_stile_mm || casementWidth) : casementWidth;
 
         const numOpenings = numMullions + 1;
-        const innerWidth = width - (2 * frameThickness);
-        const innerHeight = height - (2 * frameThickness);
+        const innerWidth = width - leftFrameThickness - rightFrameThickness;
+        const innerHeight = height - topFrameThickness - bottomFrameThickness;
         const totalMullionWidth = numMullions * mullionWidth;
         const availableWidth = innerWidth - totalMullionWidth;
         const openingWidth = availableWidth / numOpenings;
 
         // Outer frame (skip in frameless mode)
-        if (frameThickness > 0) {
-            dxf += na_dxfRect(0, 0, frameThickness, height);
-            dxf += na_dxfRect(width - frameThickness, 0, frameThickness, height);
-            dxf += na_dxfRect(frameThickness, 0, innerWidth, frameThickness);
-            dxf += na_dxfRect(frameThickness, height - frameThickness, innerWidth, frameThickness);
+        if (leftFrameThickness > 0) {
+            dxf += na_dxfRect(0, 0, leftFrameThickness, height);
+        }
+        if (rightFrameThickness > 0) {
+            dxf += na_dxfRect(width - rightFrameThickness, 0, rightFrameThickness, height);
+        }
+        if (bottomFrameThickness > 0) {
+            dxf += na_dxfRect(leftFrameThickness, 0, innerWidth, bottomFrameThickness);
+        }
+        if (topFrameThickness > 0) {
+            dxf += na_dxfRect(leftFrameThickness, height - topFrameThickness, innerWidth, topFrameThickness);
         }
 
         // Mullions
         for (let m = 1; m <= numMullions; m++) {
-            const mullionX = frameThickness + (m * openingWidth) + ((m - 1) * mullionWidth);
-            dxf += na_dxfRect(mullionX, frameThickness, mullionWidth, innerHeight);
+            const mullionX = leftFrameThickness + (m * openingWidth) + ((m - 1) * mullionWidth);
+            dxf += na_dxfRect(mullionX, bottomFrameThickness, mullionWidth, innerHeight);
         }
 
         // Openings
         for (let i = 0; i < numOpenings; i++) {
-            const openingX = frameThickness + (i * (openingWidth + mullionWidth));
-            const openingY = frameThickness;
-            const panelWidth = openingWidth / casementsPerOpening;
+            const openingX = leftFrameThickness + (i * (openingWidth + mullionWidth));
+            const openingY = bottomFrameThickness;
+            const openingHasCasement = showCasements && removedCasements.indexOf(i) === -1;
+            const openingLayout = na_getOpeningCellLayout(
+                i,
+                openingX,
+                openingY,
+                openingWidth,
+                innerHeight,
+                transomBottoms,
+                transomWidth,
+                removedTransomSegments
+            );
 
-            for (let p = 0; p < casementsPerOpening; p++) {
-                const panelX = openingX + (p * panelWidth);
+            openingLayout.transomSegments.forEach(segment => {
+                dxf += na_dxfRect(segment.x, segment.y, segment.width, segment.height);
+            });
 
-                if (showCasements) {
-                    if (slidingSashWindow) {
-                        dxf += na_generateSlidingSashPanelDxf(
-                            panelX, openingY, panelWidth, innerHeight,
-                            casTopRail, casBottomRail, casLeftStile, casRightStile,
-                            hBars, vBars, barWidth, slidingSashOverlap
-                        );
+            openingLayout.cells.forEach((cell, cellIndex) => {
+                const panelWidth = cell.width / casementsPerOpening;
+
+                for (let p = 0; p < casementsPerOpening; p++) {
+                    const panelX = cell.x + (p * panelWidth);
+
+                    if (openingHasCasement) {
+                        if (slidingSashWindow) {
+                            dxf += na_generateSlidingSashPanelDxf(
+                                panelX, cell.y, panelWidth, cell.height,
+                                casTopRail, casBottomRail, casLeftStile, casRightStile,
+                                hBars, vBars, barWidth, slidingSashOverlap,
+                                { openingIndex: i, cellIndex: cellIndex, panelIndex: p },
+                                removedGlazebars
+                            );
+                        } else {
+                            dxf += na_generateCasementDxf(
+                                panelX, cell.y, panelWidth, cell.height,
+                                casTopRail, casBottomRail, casLeftStile, casRightStile,
+                                hBars, vBars, barWidth,
+                                { openingIndex: i, cellIndex: cellIndex, panelIndex: p, sashIndex: 0 },
+                                removedGlazebars
+                            );
+                        }
                     } else {
-                        dxf += na_generateCasementDxf(
-                            panelX, openingY, panelWidth, innerHeight,
-                            casTopRail, casBottomRail, casLeftStile, casRightStile,
-                            hBars, vBars, barWidth
+                        dxf += na_generateDirectGlazedDxf(
+                            panelX,
+                            cell.y,
+                            panelWidth,
+                            cell.height,
+                            hBars,
+                            vBars,
+                            barWidth,
+                            { openingIndex: i, cellIndex: cellIndex, panelIndex: p, sashIndex: 0 },
+                            removedGlazebars
                         );
                     }
-                } else {
-                    dxf += na_dxfRect(panelX, openingY, panelWidth, innerHeight);
                 }
-            }
+            });
         }
 
         dxf += '0\nENDSEC\n0\nEOF\n';
@@ -109,7 +195,7 @@ const Na__Export__Dxf = (function() {
 
     // FUNCTION | Generate Casement DXF
     // ------------------------------------------------------------
-    function na_generateCasementDxf(x, y, width, height, topRail, bottomRail, leftStile, rightStile, hBars, vBars, barWidth) {
+    function na_generateCasementDxf(x, y, width, height, topRail, bottomRail, leftStile, rightStile, hBars, vBars, barWidth, panelContext, removedGlazebars) {
         let dxf = '';
 
         dxf += na_dxfRect(x, y, leftStile, height);
@@ -123,10 +209,40 @@ const Na__Export__Dxf = (function() {
         const glassHeight = height - topRail - bottomRail;
 
         dxf += na_dxfRect(glassX, glassY, glassWidth, glassHeight);
+        dxf += na_generateGlazeBarDxf(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, panelContext, removedGlazebars);
+
+        return dxf;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Direct-Glazed DXF
+    // ------------------------------------------------------------
+    function na_generateDirectGlazedDxf(x, y, width, height, hBars, vBars, barWidth, panelContext, removedGlazebars) {
+        let dxf = '';
+        dxf += na_dxfRect(x, y, width, height);
+        dxf += na_generateGlazeBarDxf(x, y, width, height, hBars, vBars, barWidth, panelContext, removedGlazebars);
+        return dxf;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Glaze Bars in Glass Area
+    // ------------------------------------------------------------
+    function na_generateGlazeBarDxf(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, panelContext, removedGlazebars) {
+        let dxf = '';
 
         if (hBars > 0) {
             const sectionHeight = glassHeight / (hBars + 1);
             for (let b = 1; b <= hBars; b++) {
+                const barKey = na_getGlazebarKey(
+                    panelContext.openingIndex,
+                    panelContext.cellIndex,
+                    panelContext.panelIndex,
+                    panelContext.sashIndex,
+                    'horizontal',
+                    b
+                );
+                if (removedGlazebars.has(barKey)) continue;
+
                 const barY = glassY + (sectionHeight * b) - (barWidth / 2);
                 dxf += na_dxfRect(glassX, barY, glassWidth, barWidth);
             }
@@ -135,6 +251,16 @@ const Na__Export__Dxf = (function() {
         if (vBars > 0) {
             const sectionWidth = glassWidth / (vBars + 1);
             for (let b = 1; b <= vBars; b++) {
+                const barKey = na_getGlazebarKey(
+                    panelContext.openingIndex,
+                    panelContext.cellIndex,
+                    panelContext.panelIndex,
+                    panelContext.sashIndex,
+                    'vertical',
+                    b
+                );
+                if (removedGlazebars.has(barKey)) continue;
+
                 const barX = glassX + (sectionWidth * b) - (barWidth / 2);
                 dxf += na_dxfRect(barX, glassY, barWidth, glassHeight);
             }
@@ -146,7 +272,7 @@ const Na__Export__Dxf = (function() {
 
     // FUNCTION | Generate Sliding Sash Panel DXF
     // ------------------------------------------------------------
-    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm) {
+    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars) {
         const sashHeight = height / 2;
         const sashOverlap = Math.max(0, Math.min(overlapMm || 0, sashHeight - 1));
 
@@ -154,15 +280,93 @@ const Na__Export__Dxf = (function() {
         dxf += na_generateCasementDxf(
             x, y, width, sashHeight + sashOverlap,
             topRail, bottomRail, leftStile, rightStile,
-            hBars, vBars, barWidth
+            hBars, vBars, barWidth,
+            {
+                openingIndex: panelContext.openingIndex,
+                cellIndex: panelContext.cellIndex,
+                panelIndex: panelContext.panelIndex,
+                sashIndex: 1
+            },
+            removedGlazebars
         );
         dxf += na_generateCasementDxf(
             x, y + sashHeight, width, sashHeight,
             topRail, bottomRail, leftStile, rightStile,
-            hBars, vBars, barWidth
+            hBars, vBars, barWidth,
+            {
+                openingIndex: panelContext.openingIndex,
+                cellIndex: panelContext.cellIndex,
+                panelIndex: panelContext.panelIndex,
+                sashIndex: 0
+            },
+            removedGlazebars
         );
 
         return dxf;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Get Active Transom Heights
+    // ------------------------------------------------------------
+    function na_getActiveTransomBottoms(config, transomCount) {
+        return [
+            Number(config.transom_1_y_mm || 0),
+            Number(config.transom_2_y_mm || 0),
+            Number(config.transom_3_y_mm || 0)
+        ].slice(0, transomCount);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Removed Transom Segment Set
+    // ------------------------------------------------------------
+    function na_getRemovedTransomSegmentSet(removedSegments) {
+        return new Set(Array.isArray(removedSegments) ? removedSegments.map(segment => String(segment)) : []);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Opening Cell Layout
+    // ------------------------------------------------------------
+    function na_getOpeningCellLayout(openingIndex, openingX, openingY, openingWidth, innerHeight, transomBottoms, transomWidth, removedSegments) {
+        const cells = [];
+        const transomSegments = [];
+        let cellBottom = 0;
+
+        transomBottoms.forEach((transomBottom, transomIndex) => {
+            if (removedSegments.has(`${openingIndex}:${transomIndex}`)) {
+                return;
+            }
+
+            const cellHeight = transomBottom - cellBottom;
+            if (cellHeight > 0) {
+                cells.push({
+                    x: openingX,
+                    y: openingY + cellBottom,
+                    width: openingWidth,
+                    height: cellHeight
+                });
+            }
+
+            transomSegments.push({
+                x: openingX,
+                y: openingY + transomBottom,
+                width: openingWidth,
+                height: transomWidth
+            });
+
+            cellBottom = transomBottom + transomWidth;
+        });
+
+        const topCellHeight = innerHeight - cellBottom;
+        if (topCellHeight > 0) {
+            cells.push({
+                x: openingX,
+                y: openingY + cellBottom,
+                width: openingWidth,
+                height: topCellHeight
+            });
+        }
+
+        return { cells, transomSegments };
     }
     // ---------------------------------------------------------------
     

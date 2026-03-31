@@ -360,6 +360,23 @@ function na_exportDxf() {
 }
 // ---------------------------------------------------------------
 
+// FUNCTION | Reset Hidden Elements
+// ------------------------------------------------------------
+// Restores all currently hidden preview/model elements back to visible.
+function na_resetElements() {
+    console.log('[NA_BRIDGE] Reset elements requested');
+
+    if (typeof Na_DynamicUI === 'undefined') {
+        console.error('[NA_BRIDGE] Na_DynamicUI not available');
+        window.na_showStatus('error', 'UI module not available');
+        return;
+    }
+
+    Na_DynamicUI.na_resetHiddenElements();
+    window.na_showStatus('success', 'All hidden elements restored');
+}
+// ---------------------------------------------------------------
+
 // FUNCTION | Log Message to Ruby Console
 // ------------------------------------------------------------
 // Useful for debugging

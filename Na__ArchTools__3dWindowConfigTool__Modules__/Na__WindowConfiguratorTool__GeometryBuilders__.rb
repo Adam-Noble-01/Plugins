@@ -80,24 +80,55 @@ module Na__WindowConfiguratorTool
         # @param entities [Sketchup::Entities] Target entities collection
         # @param width [Float] Overall window width
         # @param height [Float] Overall window height
-        # @param thickness [Float] Frame member thickness
+        # @param thickness_or_edges [Float, Hash] Uniform frame thickness or per-edge thickness hash
         # @param depth [Float] Frame depth (Y direction)
         # @param material [Sketchup::Material] Material to apply
         # @param wall_inset [Float] Y offset for frame (pushes into wall reveal)
-        def self.na_create_frame_geometry(entities, width, height, thickness, depth, material, wall_inset = 0)
+        def self.na_create_frame_geometry(entities, width, height, thickness_or_edges, depth, material, wall_inset = 0)
+            frame_thicknesses = if thickness_or_edges.is_a?(Hash)
+                {
+                    top: thickness_or_edges[:top].to_f,
+                    bottom: thickness_or_edges[:bottom].to_f,
+                    left: thickness_or_edges[:left].to_f,
+                    right: thickness_or_edges[:right].to_f
+                }
+            else
+                thickness = thickness_or_edges.to_f
+                {
+                    top: thickness,
+                    bottom: thickness,
+                    left: thickness,
+                    right: thickness
+                }
+            end
+
+            left_thickness = frame_thicknesses[:left]
+            right_thickness = frame_thicknesses[:right]
+            top_thickness = frame_thicknesses[:top]
+            bottom_thickness = frame_thicknesses[:bottom]
+            clear_width = width - left_thickness - right_thickness
+
             DebugTools.na_debug_geometry("Creating outer frame: #{width.to_mm.round}x#{height.to_mm.round}mm, wall_inset: #{wall_inset.to_mm.round}mm")
             
             # Left stile - FULL HEIGHT (Z = 0 to height)
-            GeometryHelpers.na_create_frame_stile(entities, "Left", 0, wall_inset, 0, thickness, depth, height, material)
+            if left_thickness > 0
+                GeometryHelpers.na_create_frame_stile(entities, "Left", 0, wall_inset, 0, left_thickness, depth, height, material)
+            end
             
             # Right stile - FULL HEIGHT (Z = 0 to height) at X = width - thickness
-            GeometryHelpers.na_create_frame_stile(entities, "Right", width - thickness, wall_inset, 0, thickness, depth, height, material)
+            if right_thickness > 0
+                GeometryHelpers.na_create_frame_stile(entities, "Right", width - right_thickness, wall_inset, 0, right_thickness, depth, height, material)
+            end
             
             # Bottom rail - INSET between stiles (X = thickness to width - thickness), at Z = 0
-            GeometryHelpers.na_create_frame_rail(entities, "Bottom", thickness, wall_inset, 0, width - (2 * thickness), depth, thickness, material)
+            if bottom_thickness > 0 && clear_width > 0
+                GeometryHelpers.na_create_frame_rail(entities, "Bottom", left_thickness, wall_inset, 0, clear_width, depth, bottom_thickness, material)
+            end
             
             # Top rail - INSET between stiles (X = thickness to width - thickness), at Z = height - thickness
-            GeometryHelpers.na_create_frame_rail(entities, "Top", thickness, wall_inset, height - thickness, width - (2 * thickness), depth, thickness, material)
+            if top_thickness > 0 && clear_width > 0
+                GeometryHelpers.na_create_frame_rail(entities, "Top", left_thickness, wall_inset, height - top_thickness, clear_width, depth, top_thickness, material)
+            end
         end
         # ---------------------------------------------------------------
 
@@ -117,6 +148,23 @@ module Na__WindowConfiguratorTool
             
             # Mullion spans from bottom frame rail to top frame rail
             GeometryHelpers.na_create_mullion(entities, mullion_index, x_pos, wall_inset, frame_thickness, mullion_width, depth, inner_height, material)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Create Transom Geometry (Horizontal Divider)
+        # ------------------------------------------------------------
+        # @param entities [Sketchup::Entities] Target entities collection
+        # @param transom_identifier [String] Unique identifier for this transom segment
+        # @param x_pos [Float] X position for the left edge of the transom
+        # @param z_pos [Float] Z position for the bottom edge of the transom
+        # @param span_width [Float] Width of the opening span
+        # @param transom_height [Float] Vertical height of the transom member
+        # @param depth [Float] Depth of the transom (Y direction)
+        # @param material [Sketchup::Material] Material to apply
+        # @param wall_inset [Float] Y offset for frame
+        def self.na_create_transom_geometry(entities, transom_identifier, x_pos, z_pos, span_width, transom_height, depth, material, wall_inset = 0)
+            DebugTools.na_debug_geometry("Creating transom #{transom_identifier} at Z=#{z_pos.to_mm.round}mm")
+            GeometryHelpers.na_create_transom(entities, transom_identifier, x_pos, wall_inset, z_pos, span_width, depth, transom_height, material)
         end
         # ---------------------------------------------------------------
 
@@ -209,6 +257,22 @@ module Na__WindowConfiguratorTool
 # REGION | Glass and Glaze Bar Builders
 # -----------------------------------------------------------------------------
 
+        # FUNCTION | Build Glaze Bar Storage Key
+        # ------------------------------------------------------------
+        def self.na_build_glazebar_key(opening_index, cell_index, panel_index, sash_index, orientation, bar_index)
+            "#{opening_index}:#{cell_index}:#{panel_index}:#{sash_index}:#{orientation}:#{bar_index}"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Check Glaze Bar Removal
+        # ------------------------------------------------------------
+        def self.na_glazebar_removed?(removed_glazebars, opening_index, cell_index, panel_index, sash_index, orientation, bar_index)
+            return false unless removed_glazebars.is_a?(Array)
+
+            removed_glazebars.include?(na_build_glazebar_key(opening_index, cell_index, panel_index, sash_index, orientation, bar_index))
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Create Glass Geometry
         # ------------------------------------------------------------
         # @param opening_index [Integer] Index of the opening (0-based)
@@ -254,7 +318,7 @@ module Na__WindowConfiguratorTool
         # @param casement_depth [Float, nil] Casement depth (when bars inside casement)
         # @param casement_inset [Float, nil] Casement inset from frame face
         # @param glazebar_inset [Float] Glaze bar inset from front/back of casement (or frame)
-        def self.na_create_glazebar_geometry(entities, opening_index, glass_width, glass_height, h_bars, v_bars, bar_width, glass_thickness, offset_x, offset_z, frame_depth, material, wall_inset = 0, casement_depth = nil, casement_inset = nil, glazebar_inset = 0)
+        def self.na_create_glazebar_geometry(entities, opening_index, glass_width, glass_height, h_bars, v_bars, bar_width, glass_thickness, offset_x, offset_z, frame_depth, material, wall_inset = 0, casement_depth = nil, casement_inset = nil, glazebar_inset = 0, removed_glazebars = [], opening_layout_index = 0, cell_index = 0, panel_index = 0, sash_index = 0)
             DebugTools.na_debug_geometry("Creating glaze bars for opening #{opening_index}: #{h_bars}H x #{v_bars}V")
             
             if casement_depth && casement_inset
@@ -272,6 +336,8 @@ module Na__WindowConfiguratorTool
             if h_bars > 0
                 section_height = glass_height / (h_bars + 1)
                 (1..h_bars).each do |i|
+                    next if na_glazebar_removed?(removed_glazebars, opening_layout_index, cell_index, panel_index, sash_index, "horizontal", i)
+
                     bar_z = offset_z + (section_height * i) - (bar_width / 2)
                     GeometryHelpers.na_create_glaze_bar_horizontal(entities, opening_index, i, offset_x, y_offset, bar_z, glass_width, bar_depth, bar_width, material)
                 end
@@ -281,6 +347,8 @@ module Na__WindowConfiguratorTool
             if v_bars > 0
                 section_width = glass_width / (v_bars + 1)
                 (1..v_bars).each do |i|
+                    next if na_glazebar_removed?(removed_glazebars, opening_layout_index, cell_index, panel_index, sash_index, "vertical", i)
+
                     bar_x = offset_x + (section_width * i) - (bar_width / 2)
                     GeometryHelpers.na_create_glaze_bar_vertical(entities, opening_index, i, bar_x, y_offset, offset_z, bar_width, bar_depth, glass_height, material)
                 end

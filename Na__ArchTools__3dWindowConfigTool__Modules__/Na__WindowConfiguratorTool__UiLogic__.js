@@ -108,14 +108,64 @@ const Na_DynamicUI = (function() {
         
         // Initialize removed_casements array (tracks which openings have casements removed)
         _config.removed_casements = [];
+        _config.removed_transom_segments = [];
+        _config.removed_glazebars = [];
     }
     // ---------------------------------------------------------------
     
     // FUNCTION | Called When a Control Value Changes (Callback from Events Module)
     // ------------------------------------------------------------
     function na_onControlChange(id, value) {
-        _config[id] = value;
+        const previousValue = _config[id];
+        const normalizedValue = na_isTransomHeightControl(id)
+            ? na_convertUiTransomHeightToInternal(value)
+            : value;
+        _config[id] = normalizedValue;
+
+        if (id === 'transoms') {
+            na_applyTransomDefaultsForCountChange(previousValue, value);
+        }
+
         na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Resolve Effective Frame Thicknesses
+    // ------------------------------------------------------------
+    function na_getEffectiveFrameThicknesses(config = _config) {
+        const uniformThickness = (config.frame_thickness_mm != null)
+            ? Number(config.frame_thickness_mm)
+            : 50;
+        const useAdvancedFrameControls = config.advanced_frame_controls === true;
+
+        function na_resolveFrameSideThickness(sideKey) {
+            const rawValue = useAdvancedFrameControls ? config[sideKey] : uniformThickness;
+            const numericValue = Number(rawValue != null ? rawValue : uniformThickness);
+            return Math.max(0, numericValue);
+        }
+
+        const frameThicknesses = {
+            top: na_resolveFrameSideThickness('frame_top_thickness_mm'),
+            bottom: na_resolveFrameSideThickness('frame_bottom_thickness_mm'),
+            left: na_resolveFrameSideThickness('frame_left_thickness_mm'),
+            right: na_resolveFrameSideThickness('frame_right_thickness_mm')
+        };
+
+        frameThicknesses.isFullyFrameless =
+            frameThicknesses.top === 0 &&
+            frameThicknesses.bottom === 0 &&
+            frameThicknesses.left === 0 &&
+            frameThicknesses.right === 0;
+
+        return frameThicknesses;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Get Inner Frame Width in Millimetres
+    // ------------------------------------------------------------
+    function na_getInnerFrameWidthMm() {
+        const frameThicknesses = na_getEffectiveFrameThicknesses();
+        return Math.max(0, (_config.width_mm || 900) - frameThicknesses.left - frameThicknesses.right);
     }
     // ---------------------------------------------------------------
     
@@ -123,15 +173,20 @@ const Na_DynamicUI = (function() {
     // ------------------------------------------------------------
     function na_onConfigChange() {
         na_updateSlidingSashOverlapVisibility();
-
-        // Frameless mode: force cill off and disable toggle when frame thickness is 0
-        const isFrameless = _config.frame_thickness_mm === 0;
-        const cillToggle = document.getElementById('has_cill-toggle');
-        if (isFrameless) {
-            if (_config.has_cill !== false) {
-                _config.has_cill = false;
-                na_updateControlValue('has_cill', false);
+        na_updateTransomControlVisibility();
+        na_normalizeTransomConfig();
+        ['transom_1_y_mm', 'transom_2_y_mm', 'transom_3_y_mm'].forEach(controlId => {
+            if (_config[controlId] != null) {
+                na_updateControlValue(controlId, _config[controlId]);
             }
+        });
+
+        // Disable cill interaction whenever there is no effective bottom frame to support it,
+        // but preserve the user's cill preference so it comes back automatically.
+        const frameThicknesses = na_getEffectiveFrameThicknesses();
+        const isBottomFrameless = frameThicknesses.bottom === 0;
+        const cillToggle = document.getElementById('has_cill-toggle');
+        if (isBottomFrameless) {
             if (cillToggle) {
                 cillToggle.style.opacity = '0.4';
                 cillToggle.style.pointerEvents = 'none';
@@ -159,6 +214,30 @@ const Na_DynamicUI = (function() {
         if (_config.removed_casements && _config.removed_casements.length > 0) {
             _config.removed_casements = _config.removed_casements.filter(idx => idx < numOpenings);
         }
+        
+        // Clean up removed_transom_segments when transom/opening counts change
+        const transomCount = Math.max(0, Math.min(3, Math.round(_config.transoms || 0)));
+        if (!Array.isArray(_config.removed_transom_segments)) {
+            _config.removed_transom_segments = [];
+        }
+        _config.removed_transom_segments = _config.removed_transom_segments.filter(segmentKey => {
+            const [openingIndex, transomIndex] = String(segmentKey).split(':').map(value => parseInt(value, 10));
+            return !isNaN(openingIndex) &&
+                !isNaN(transomIndex) &&
+                openingIndex >= 0 &&
+                openingIndex < numOpenings &&
+                transomIndex >= 0 &&
+                transomIndex < transomCount;
+        });
+
+        // Clean up removed_glazebars when the visible panel/cell/sash/bar layout changes
+        if (!Array.isArray(_config.removed_glazebars)) {
+            _config.removed_glazebars = [];
+        }
+        const validGlazebarKeys = na_getValidGlazebarKeySet();
+        _config.removed_glazebars = _config.removed_glazebars
+            .map(key => String(key))
+            .filter(key => validGlazebarKeys.has(key));
         
         // Update 2D viewport and validate
         _svgValid = Na_Viewport.na_render(_config);
@@ -188,6 +267,130 @@ const Na_DynamicUI = (function() {
         overlapControl.style.display = showOverlapControl ? '' : 'none';
     }
     // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Transom Slider Visibility
+    // ------------------------------------------------------------
+    function na_updateTransomControlVisibility() {
+        const transomCount = Math.max(0, Math.min(3, Math.round(_config.transoms || 0)));
+        const transomWidthControl = document.querySelector('[data-control-id="transom_width_mm"]');
+
+        if (transomWidthControl) {
+            transomWidthControl.style.display = transomCount > 0 ? '' : 'none';
+        }
+
+        ['transom_1_y_mm', 'transom_2_y_mm', 'transom_3_y_mm'].forEach((controlId, index) => {
+            const control = document.querySelector(`[data-control-id="${controlId}"]`);
+            if (!control) return;
+            control.style.display = index < transomCount ? '' : 'none';
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Check Transom Height Control
+    // ------------------------------------------------------------
+    function na_isTransomHeightControl(id) {
+        return id === 'transom_1_y_mm' || id === 'transom_2_y_mm' || id === 'transom_3_y_mm';
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Get Inner Frame Height in Millimetres
+    // ------------------------------------------------------------
+    function na_getInnerFrameHeightMm() {
+        const frameThicknesses = na_getEffectiveFrameThicknesses();
+        return Math.max(0, (_config.height_mm || 1200) - frameThicknesses.top - frameThicknesses.bottom);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Get Transom Width in Millimetres
+    // ------------------------------------------------------------
+    function na_getTransomWidthMm() {
+        return Math.max(1, _config.transom_width_mm || 40);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Convert UI Transom Height to Internal Bottom-Origin Value
+    // ------------------------------------------------------------
+    // UI shows the top section height; internal config stores transom bottom from the bottom.
+    function na_convertUiTransomHeightToInternal(uiValue) {
+        const innerHeight = na_getInnerFrameHeightMm();
+        const transomWidth = na_getTransomWidthMm();
+        return innerHeight - Number(uiValue || 0) - transomWidth;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Convert Internal Transom Height to UI Value
+    // ------------------------------------------------------------
+    function na_convertInternalTransomHeightToUi(internalValue) {
+        const innerHeight = na_getInnerFrameHeightMm();
+        const transomWidth = na_getTransomWidthMm();
+        return innerHeight - Number(internalValue || 0) - transomWidth;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Get Minimum Clear Cell Height
+    // ------------------------------------------------------------
+    function na_getMinimumTransomCellHeight() {
+        const casementWidth = _config.casement_width_mm || 65;
+        const useIndividualSizes = _config.casement_sizes_individual === true;
+        const casTopRail = useIndividualSizes ? (_config.casement_top_rail_mm || casementWidth) : casementWidth;
+        const casBottomRail = useIndividualSizes ? (_config.casement_bottom_rail_mm || casementWidth) : casementWidth;
+        const minSingleSashHeight = (_config.show_casements !== false) ? (casTopRail + casBottomRail + 50) : 50;
+
+        if (_config.show_casements !== false && _config.sliding_sash_window === true) {
+            return minSingleSashHeight * 2;
+        }
+
+        return minSingleSashHeight;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Normalize Transom Positions
+    // ------------------------------------------------------------
+    // Keeps active transom heights ordered and within the available inner opening.
+    function na_normalizeTransomConfig() {
+        const transomCount = Math.max(0, Math.min(3, Math.round(_config.transoms || 0)));
+        const innerHeight = na_getInnerFrameHeightMm();
+        const transomWidth = na_getTransomWidthMm();
+        const minCellHeight = na_getMinimumTransomCellHeight();
+        const transomIds = ['transom_1_y_mm', 'transom_2_y_mm', 'transom_3_y_mm'];
+        let nextCellStart = 0;
+
+        transomIds.forEach((controlId, index) => {
+            if (index >= transomCount) return;
+
+            const remainingTransoms = transomCount - index - 1;
+            const rawValue = Number(_config[controlId]);
+            const fallbackValue = index === 0 ? 300 : (_config[transomIds[index - 1]] + transomWidth + minCellHeight);
+            const minValue = nextCellStart + minCellHeight;
+            const maxValue = innerHeight - ((remainingTransoms + 1) * transomWidth) - ((remainingTransoms + 1) * minCellHeight);
+            const clampedMax = Math.max(minValue, maxValue);
+            const clampedValue = Math.max(minValue, Math.min(clampedMax, Number.isFinite(rawValue) ? rawValue : fallbackValue));
+
+            if (_config[controlId] !== clampedValue) {
+                _config[controlId] = clampedValue;
+                na_updateControlValue(controlId, clampedValue);
+            }
+
+            nextCellStart = clampedValue + transomWidth;
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Apply Friendly Transom Defaults
+    // ------------------------------------------------------------
+    // When a single transom is first enabled, seed it to a typical one-third height.
+    function na_applyTransomDefaultsForCountChange(previousCount, newCount) {
+        const previous = Math.max(0, Math.min(3, Math.round(previousCount || 0)));
+        const next = Math.max(0, Math.min(3, Math.round(newCount || 0)));
+
+        if (previous === 0 && next === 1) {
+            const oneThirdTopSectionHeight = Math.round((na_getInnerFrameHeightMm() / 3) / 10) * 10;
+            const internalValue = na_convertUiTransomHeightToInternal(oneThirdTopSectionHeight);
+            _config.transom_1_y_mm = internalValue;
+            na_updateControlValue('transom_1_y_mm', internalValue);
+        }
+    }
+    // ---------------------------------------------------------------
     
     // FUNCTION | Toggle Casement Removal for a Specific Opening
     // ------------------------------------------------------------
@@ -213,12 +416,108 @@ const Na_DynamicUI = (function() {
         na_onConfigChange();
     }
     // ---------------------------------------------------------------
+
+    // FUNCTION | Build Transom Segment Storage Key
+    // ------------------------------------------------------------
+    function na_getTransomSegmentKey(openingIndex, transomIndex) {
+        return `${openingIndex}:${transomIndex}`;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Glaze Bar Storage Key
+    // ------------------------------------------------------------
+    function na_getGlazebarKey(openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex) {
+        return `${openingIndex}:${cellIndex}:${panelIndex}:${sashIndex}:${orientation}:${barIndex}`;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Collect Valid Glaze Bar Keys
+    // ------------------------------------------------------------
+    function na_getValidGlazebarKeySet() {
+        if (!window.Na__Viewport__SvgGenerator ||
+            typeof window.Na__Viewport__SvgGenerator.na_collectValidGlazebarKeys !== 'function') {
+            return new Set();
+        }
+
+        return new Set(window.Na__Viewport__SvgGenerator.na_collectValidGlazebarKeys(_config));
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Transom Segment Removal
+    // ------------------------------------------------------------
+    function na_toggleTransomSegmentRemoval(openingIndex, transomIndex) {
+        if (!Array.isArray(_config.removed_transom_segments)) {
+            _config.removed_transom_segments = [];
+        }
+
+        const segmentKey = na_getTransomSegmentKey(openingIndex, transomIndex);
+        const existingIndex = _config.removed_transom_segments.indexOf(segmentKey);
+
+        if (existingIndex === -1) {
+            _config.removed_transom_segments.push(segmentKey);
+            console.log(`[NA_UI] Removed transom ${transomIndex} from opening ${openingIndex}`);
+        } else {
+            _config.removed_transom_segments.splice(existingIndex, 1);
+            console.log(`[NA_UI] Restored transom ${transomIndex} to opening ${openingIndex}`);
+        }
+
+        na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Individual Glaze Bar Removal
+    // ------------------------------------------------------------
+    function na_toggleGlazebarRemoval(openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex) {
+        if (!Array.isArray(_config.removed_glazebars)) {
+            _config.removed_glazebars = [];
+        }
+
+        const glazebarKey = na_getGlazebarKey(openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex);
+        const existingIndex = _config.removed_glazebars.indexOf(glazebarKey);
+
+        if (existingIndex === -1) {
+            _config.removed_glazebars.push(glazebarKey);
+            console.log(`[NA_UI] Removed glaze bar ${glazebarKey}`);
+        } else {
+            _config.removed_glazebars.splice(existingIndex, 1);
+            console.log(`[NA_UI] Restored glaze bar ${glazebarKey}`);
+        }
+
+        na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Check If Any Elements Are Hidden
+    // ------------------------------------------------------------
+    function na_hasHiddenElements() {
+        const removedCasementsCount = Array.isArray(_config.removed_casements) ? _config.removed_casements.length : 0;
+        const removedTransomSegmentsCount = Array.isArray(_config.removed_transom_segments) ? _config.removed_transom_segments.length : 0;
+        const removedGlazebarsCount = Array.isArray(_config.removed_glazebars) ? _config.removed_glazebars.length : 0;
+
+        return removedCasementsCount > 0 ||
+            removedTransomSegmentsCount > 0 ||
+            removedGlazebarsCount > 0;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Reset Hidden Elements
+    // ------------------------------------------------------------
+    function na_resetHiddenElements() {
+        _config.removed_casements = [];
+        _config.removed_transom_segments = [];
+        _config.removed_glazebars = [];
+
+        console.log('[NA_UI] Reset all hidden element state');
+        na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
     
     // FUNCTION | Update Button States Based on SVG Validity
     // ------------------------------------------------------------
     function na_updateButtonStates() {
         const createBtn = document.getElementById('na-btn-create');
         const updateBtn = document.getElementById('na-btn-update');
+        const resetElementsBtn = document.getElementById('na-btn-reset-elements');
         
         if (createBtn) {
             if (_svgValid) {
@@ -238,6 +537,12 @@ const Na_DynamicUI = (function() {
                 updateBtn.disabled = true;
                 updateBtn.classList.add('na-btn-disabled');
             }
+        }
+
+        if (resetElementsBtn) {
+            const hasHiddenElements = na_hasHiddenElements();
+            resetElementsBtn.disabled = !hasHiddenElements;
+            resetElementsBtn.classList.toggle('na-btn-disabled', !hasHiddenElements);
         }
     }
     // ---------------------------------------------------------------
@@ -280,8 +585,11 @@ const Na_DynamicUI = (function() {
         const display = document.getElementById(`${id}-display`);
         
         if (slider) {
-            slider.value = value;
-            if (input) input.value = value;
+            const uiValue = na_isTransomHeightControl(id)
+                ? na_convertInternalTransomHeightToUi(value)
+                : value;
+            slider.value = uiValue;
+            if (input) input.value = uiValue;
             
             // Find config in main arrays or in expandable children
             let config = [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG].flat().find(c => c.id === id);
@@ -295,7 +603,7 @@ const Na_DynamicUI = (function() {
                 }
             }
             if (display && config) {
-                display.textContent = `${value}${config.unit}`;
+                display.textContent = `${uiValue}${config.unit}`;
             }
             return;
         }
@@ -354,10 +662,14 @@ const Na_DynamicUI = (function() {
     return {
         na_init: na_init,
         na_getConfig: na_getConfig,
+        na_getEffectiveFrameThicknesses: na_getEffectiveFrameThicknesses,
         na_setConfig: na_setConfig,
         na_setUpdateCallback: na_setUpdateCallback,
         na_isSvgValid: na_isSvgValid,
-        na_toggleCasementRemoval: na_toggleCasementRemoval
+        na_toggleCasementRemoval: na_toggleCasementRemoval,
+        na_toggleTransomSegmentRemoval: na_toggleTransomSegmentRemoval,
+        na_toggleGlazebarRemoval: na_toggleGlazebarRemoval,
+        na_resetHiddenElements: na_resetHiddenElements
     };
     
 })();
@@ -440,7 +752,17 @@ const Na_Viewport = (function() {
             window.Na__Viewport__Controls.na_setupCasementClickTargets(
                 _svgElement,
                 _interactionState,
-                (openingIndex) => Na_DynamicUI.na_toggleCasementRemoval(openingIndex)
+                (openingIndex) => Na_DynamicUI.na_toggleCasementRemoval(openingIndex),
+                (openingIndex, transomIndex) => Na_DynamicUI.na_toggleTransomSegmentRemoval(openingIndex, transomIndex),
+                (openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex) =>
+                    Na_DynamicUI.na_toggleGlazebarRemoval(
+                        openingIndex,
+                        cellIndex,
+                        panelIndex,
+                        sashIndex,
+                        orientation,
+                        barIndex
+                    )
             );
             
             // Reset view to fit new content

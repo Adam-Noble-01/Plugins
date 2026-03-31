@@ -54,6 +54,10 @@ module Na__WindowConfiguratorTool
                 default_width: parent::NA_DEFAULT_WIDTH,
                 default_height: parent::NA_DEFAULT_HEIGHT,
                 default_frame_thickness: parent::NA_DEFAULT_FRAME_THICKNESS,
+                default_frame_top_thickness: parent::NA_DEFAULT_FRAME_TOP_THICKNESS,
+                default_frame_bottom_thickness: parent::NA_DEFAULT_FRAME_BOTTOM_THICKNESS,
+                default_frame_left_thickness: parent::NA_DEFAULT_FRAME_LEFT_THICKNESS,
+                default_frame_right_thickness: parent::NA_DEFAULT_FRAME_RIGHT_THICKNESS,
                 default_casement_width: parent::NA_DEFAULT_CASEMENT_WIDTH,
                 default_casement_depth: parent::NA_DEFAULT_CASEMENT_DEPTH,
                 default_casement_inset: parent::NA_DEFAULT_CASEMENT_INSET,
@@ -66,6 +70,11 @@ module Na__WindowConfiguratorTool
                 default_frame_wall_inset: parent::NA_DEFAULT_FRAME_WALL_INSET,
                 default_mullion_count: parent::NA_DEFAULT_MULLION_COUNT,
                 default_mullion_width: parent::NA_DEFAULT_MULLION_WIDTH,
+                default_transom_count: parent::NA_DEFAULT_TRANSOM_COUNT,
+                default_transom_width: parent::NA_DEFAULT_TRANSOM_WIDTH,
+                default_transom_1_y: parent::NA_DEFAULT_TRANSOM_1_Y,
+                default_transom_2_y: parent::NA_DEFAULT_TRANSOM_2_Y,
+                default_transom_3_y: parent::NA_DEFAULT_TRANSOM_3_Y,
                 default_frame_material_id: parent::NA_DEFAULT_FRAME_MATERIAL_ID,
                 default_glass_material_id: parent::NA_DEFAULT_GLASS_MATERIAL_ID,
                 default_cill_material_id: parent::NA_DEFAULT_CILL_MATERIAL_ID
@@ -250,6 +259,40 @@ module Na__WindowConfiguratorTool
 
         private
 
+        # FUNCTION | Resolve Effective Frame Thicknesses
+        # ------------------------------------------------------------
+        def self.na_resolve_effective_frame_thicknesses(config, constants)
+            mm_to_inch = constants[:mm_to_inch]
+            uniform_frame_thickness_mm = config.key?("frame_thickness_mm") ? config["frame_thickness_mm"] : constants[:default_frame_thickness]
+            use_advanced_frame_controls = config["advanced_frame_controls"] == true
+
+            resolve_frame_side_thickness = lambda do |side_key|
+                mm_value = if use_advanced_frame_controls && config.key?(side_key)
+                    config[side_key]
+                else
+                    uniform_frame_thickness_mm
+                end
+
+                [mm_value.to_f, 0.0].max * mm_to_inch
+            end
+
+            top_thickness = resolve_frame_side_thickness.call("frame_top_thickness_mm")
+            bottom_thickness = resolve_frame_side_thickness.call("frame_bottom_thickness_mm")
+            left_thickness = resolve_frame_side_thickness.call("frame_left_thickness_mm")
+            right_thickness = resolve_frame_side_thickness.call("frame_right_thickness_mm")
+
+            {
+                use_advanced_frame_controls: use_advanced_frame_controls,
+                uniform: [uniform_frame_thickness_mm.to_f, 0.0].max * mm_to_inch,
+                top: top_thickness,
+                bottom: bottom_thickness,
+                left: left_thickness,
+                right: right_thickness,
+                fully_frameless: top_thickness <= 0 && bottom_thickness <= 0 && left_thickness <= 0 && right_thickness <= 0
+            }
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Parse Configuration
         # ------------------------------------------------------------
         # Extracts and converts all config values from hash to internal units.
@@ -263,7 +306,7 @@ module Na__WindowConfiguratorTool
             # Extract basic values
             width = (config["width_mm"] || constants[:default_width]).to_f * mm_to_inch
             height = (config["height_mm"] || constants[:default_height]).to_f * mm_to_inch
-            frame_thickness = (config["frame_thickness_mm"] || constants[:default_frame_thickness]).to_f * mm_to_inch
+            effective_frame_thicknesses = na_resolve_effective_frame_thicknesses(config, constants)
             casement_width = (config["casement_width_mm"] || constants[:default_casement_width]).to_f * mm_to_inch
             casement_depth = (config["casement_depth_mm"] || constants[:default_casement_depth]).to_f * mm_to_inch
             casement_inset = (config["casement_inset_mm"] || constants[:default_casement_inset]).to_f * mm_to_inch
@@ -285,6 +328,13 @@ module Na__WindowConfiguratorTool
             # Mullions
             num_mullions = (config["mullions"] || constants[:default_mullion_count]).to_i
             mullion_width = (config["mullion_width_mm"] || constants[:default_mullion_width]).to_f * mm_to_inch
+            transom_count = (config["transoms"] || constants[:default_transom_count]).to_i.clamp(0, 3)
+            transom_width = (config["transom_width_mm"] || constants[:default_transom_width]).to_f * mm_to_inch
+            transom_bottoms = [
+                (config["transom_1_y_mm"] || constants[:default_transom_1_y]).to_f * mm_to_inch,
+                (config["transom_2_y_mm"] || constants[:default_transom_2_y]).to_f * mm_to_inch,
+                (config["transom_3_y_mm"] || constants[:default_transom_3_y]).to_f * mm_to_inch
+            ].first(transom_count)
             
             # Glass and glaze bars
             glass_thickness = (config["glass_thickness_mm"] || constants[:default_glass_thickness]).to_f * mm_to_inch
@@ -309,6 +359,8 @@ module Na__WindowConfiguratorTool
             
             # Removed casements
             removed_casements = config["removed_casements"] || []
+            removed_transom_segments = config["removed_transom_segments"] || []
+            removed_glazebars = config["removed_glazebars"] || []
             
             # Individual casement sizes
             if use_individual_sizes
@@ -322,8 +374,8 @@ module Na__WindowConfiguratorTool
             
             # Calculate opening layout
             num_openings = num_mullions + 1
-            inner_width = width - (2 * frame_thickness)
-            inner_height = height - (2 * frame_thickness)
+            inner_width = width - effective_frame_thicknesses[:left] - effective_frame_thicknesses[:right]
+            inner_height = height - effective_frame_thicknesses[:top] - effective_frame_thicknesses[:bottom]
             total_mullion_width = num_mullions * mullion_width
             available_width = inner_width - total_mullion_width
             opening_width = available_width / num_openings
@@ -332,7 +384,12 @@ module Na__WindowConfiguratorTool
             {
                 width: width,
                 height: height,
-                frame_thickness: frame_thickness,
+                frame_thickness: effective_frame_thicknesses[:bottom],
+                frame_top_thickness: effective_frame_thicknesses[:top],
+                frame_bottom_thickness: effective_frame_thicknesses[:bottom],
+                frame_left_thickness: effective_frame_thicknesses[:left],
+                frame_right_thickness: effective_frame_thicknesses[:right],
+                frame_fully_frameless: effective_frame_thicknesses[:fully_frameless],
                 frame_depth: frame_depth,
                 frame_wall_inset: frame_wall_inset,
                 frame_material_id: frame_material_id,
@@ -349,8 +406,13 @@ module Na__WindowConfiguratorTool
                 sliding_sash_window: sliding_sash_window,
                 casements_per_opening: casements_per_opening,
                 removed_casements: removed_casements,
+                removed_transom_segments: removed_transom_segments,
+                removed_glazebars: removed_glazebars,
                 num_mullions: num_mullions,
                 mullion_width: mullion_width,
+                transom_count: transom_count,
+                transom_width: transom_width,
+                transom_bottoms: transom_bottoms,
                 num_openings: num_openings,
                 inner_width: inner_width,
                 inner_height: inner_height,
@@ -379,19 +441,27 @@ module Na__WindowConfiguratorTool
         # @param cill_material [Sketchup::Material] Cill material
         def self.na_build_window_elements(entities, params, frame_material, glass_material, cill_material)
             # Create outer frame (skip in frameless mode when frame_thickness is 0)
-            if params[:frame_thickness] > 0
+            unless params[:frame_fully_frameless]
                 GeometryBuilders.na_create_frame_geometry(
-                    entities, params[:width], params[:height], params[:frame_thickness], 
+                    entities,
+                    params[:width],
+                    params[:height],
+                    {
+                        top: params[:frame_top_thickness],
+                        bottom: params[:frame_bottom_thickness],
+                        left: params[:frame_left_thickness],
+                        right: params[:frame_right_thickness]
+                    },
                     params[:frame_depth], frame_material, params[:frame_wall_inset]
                 )
             end
             
             # Create mullions
             (1..params[:num_mullions]).each do |m|
-                mullion_x = params[:frame_thickness] + (m * params[:opening_width]) + ((m - 1) * params[:mullion_width])
+                mullion_x = params[:frame_left_thickness] + (m * params[:opening_width]) + ((m - 1) * params[:mullion_width])
                 GeometryBuilders.na_create_mullion_geometry(
                     entities, m, mullion_x, params[:inner_height], params[:mullion_width], 
-                    params[:frame_depth], params[:frame_thickness], frame_material, params[:frame_wall_inset]
+                    params[:frame_depth], params[:frame_bottom_thickness], frame_material, params[:frame_wall_inset]
                 )
             end
             
@@ -401,7 +471,7 @@ module Na__WindowConfiguratorTool
             end
             
             # Create cill (skip in frameless mode -- no cill without a frame)
-            if params[:has_cill] && params[:frame_thickness] > 0
+            if params[:has_cill] && params[:frame_bottom_thickness] > 0
                 GeometryBuilders.na_create_cill_geometry(
                     entities, params[:width], params[:cill_depth], params[:cill_height], 
                     params[:frame_depth], cill_material, params[:frame_wall_inset]
@@ -412,55 +482,139 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Create Single Opening (Casement + Glass + Glaze Bars)
         # ------------------------------------------------------------
-        # Creates geometry for one opening with N casement panels.
+        # Creates geometry for one opening with N casement panels and optional transoms.
         # Supports 1-6 casements per opening (bifold/concertina panels).
-        # Respects the removed_casements array for per-opening casement toggling.
-        # 
-        # @param entities [Sketchup::Entities] Target entities collection
-        # @param opening_index [Integer] Index of this opening (0-based)
-        # @param params [Hash] Parsed parameters
-        # @param frame_material [Sketchup::Material] Frame material
-        # @param glass_material [Sketchup::Material] Glass material
+        # Respects removed casements and removed transom segments.
         def self.na_create_opening(entities, opening_index, params, frame_material, glass_material)
-            opening_x = params[:frame_thickness] + (opening_index * (params[:opening_width] + params[:mullion_width]))
-            opening_z = params[:frame_thickness]
-            
+            opening_x = params[:frame_left_thickness] + (opening_index * (params[:opening_width] + params[:mullion_width]))
             opening_has_casement = params[:show_casements] && !params[:removed_casements].include?(opening_index)
+            opening_layout = na_get_opening_layout(opening_index, opening_x, params)
 
-            if opening_has_casement && params[:sliding_sash_window]
-                na_create_sliding_sash_opening(
-                    entities, opening_index, opening_x, opening_z,
-                    params, frame_material, glass_material
+            opening_layout[:transom_segments].each do |segment|
+                GeometryBuilders.na_create_transom_geometry(
+                    entities,
+                    "#{opening_index}_#{segment[:transom_index]}",
+                    segment[:x],
+                    segment[:z],
+                    segment[:width],
+                    segment[:height],
+                    params[:frame_depth],
+                    frame_material,
+                    params[:frame_wall_inset]
                 )
-            else
-                na_create_multi_casement_opening(
-                    entities, opening_index, opening_x, opening_z,
-                    opening_has_casement, params, frame_material, glass_material
-                )
+            end
+
+            opening_layout[:cells].each_with_index do |cell, cell_index|
+                cell_id_prefix = "#{opening_index}_#{cell_index}"
+
+                if opening_has_casement && params[:sliding_sash_window]
+                    na_create_sliding_sash_opening(
+                        entities,
+                        opening_index,
+                        cell_index,
+                        cell[:x],
+                        cell[:z],
+                        cell[:height],
+                        params,
+                        frame_material,
+                        glass_material
+                    )
+                else
+                    na_create_multi_casement_opening(
+                        entities,
+                        opening_index,
+                        cell_index,
+                        cell[:x],
+                        cell[:z],
+                        cell[:height],
+                        opening_has_casement,
+                        params,
+                        frame_material,
+                        glass_material
+                    )
+                end
             end
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Create Multi-Casement Opening
+        # FUNCTION | Check Whether a Transom Segment Is Removed
         # ------------------------------------------------------------
-        # Unified method for creating N casement panels within an opening.
-        # When casements_per_opening=1 this produces a single casement,
-        # when >1 it produces N equal-width panels (bifold/concertina style).
-        def self.na_create_multi_casement_opening(entities, opening_index, opening_x, opening_z, opening_has_casement, params, frame_material, glass_material)
+        def self.na_transom_segment_removed?(params, opening_index, transom_index)
+            params[:removed_transom_segments].include?("#{opening_index}:#{transom_index}")
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Build Opening Layout
+        # ------------------------------------------------------------
+        def self.na_get_opening_layout(opening_index, opening_x, params)
+            cells = []
+            transom_segments = []
+            cell_bottom = 0
+            opening_z = params[:frame_bottom_thickness]
+
+            params[:transom_bottoms].each_with_index do |transom_bottom, transom_index|
+                next if na_transom_segment_removed?(params, opening_index, transom_index)
+
+                cell_height = transom_bottom - cell_bottom
+                if cell_height > 0
+                    cells << {
+                        x: opening_x,
+                        z: opening_z + cell_bottom,
+                        width: params[:opening_width],
+                        height: cell_height
+                    }
+                end
+
+                transom_segments << {
+                    x: opening_x,
+                    z: opening_z + transom_bottom,
+                    width: params[:opening_width],
+                    height: params[:transom_width],
+                    transom_index: transom_index
+                }
+
+                cell_bottom = transom_bottom + params[:transom_width]
+            end
+
+            top_cell_height = params[:inner_height] - cell_bottom
+            if top_cell_height > 0
+                cells << {
+                    x: opening_x,
+                    z: opening_z + cell_bottom,
+                    width: params[:opening_width],
+                    height: top_cell_height
+                }
+            end
+
+            {
+                cells: cells,
+                transom_segments: transom_segments
+            }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Create Multi-Casement Opening Cell
+        # ------------------------------------------------------------
+        # Unified method for creating N casement panels within one transom-bounded cell.
+        def self.na_create_multi_casement_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_height, opening_has_casement, params, frame_material, glass_material)
             num_panels = params[:casements_per_opening]
             panel_width = params[:opening_width] / num_panels.to_f
 
             (0...num_panels).each do |p|
                 panel_x = opening_x + (p * panel_width)
-                panel_id = opening_index * num_panels + p
+                panel_id = "#{opening_index}_#{cell_index}_P#{p}"
 
                 na_render_opening_panel_geometry(
                     entities,
                     panel_id,
+                    opening_index,
+                    cell_index,
+                    p,
+                    0,
                     panel_x,
                     opening_z,
                     panel_width,
-                    params[:inner_height],
+                    opening_height,
                     opening_has_casement,
                     params[:frame_wall_inset],
                     params,
@@ -471,26 +625,30 @@ module Na__WindowConfiguratorTool
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Create Sliding Sash Opening
+        # FUNCTION | Create Sliding Sash Opening Cell
         # ------------------------------------------------------------
         # Creates two vertically stacked casements per horizontal panel.
         # Bottom sash is set back by one casement depth to simulate sliding overlap.
-        def self.na_create_sliding_sash_opening(entities, opening_index, opening_x, opening_z, params, frame_material, glass_material)
+        def self.na_create_sliding_sash_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_height, params, frame_material, glass_material)
             num_panels = params[:casements_per_opening]
             panel_width = params[:opening_width] / num_panels.to_f
-            sash_height = params[:inner_height] / 2.0
+            sash_height = opening_height / 2.0
             sash_overlap = [params[:sliding_sash_overlap], sash_height - 1.mm].min
             sash_overlap = [sash_overlap, 0].max
 
             (0...num_panels).each do |p|
                 panel_x = opening_x + (p * panel_width)
-                base_panel_id = opening_index * num_panels + p
-                top_panel_id = (base_panel_id * 2)
-                bottom_panel_id = top_panel_id + 1
+                base_panel_id = "#{opening_index}_#{cell_index}_P#{p}"
+                top_panel_id = "#{base_panel_id}_Top"
+                bottom_panel_id = "#{base_panel_id}_Bottom"
 
                 na_render_opening_panel_geometry(
                     entities,
                     top_panel_id,
+                    opening_index,
+                    cell_index,
+                    p,
+                    0,
                     panel_x,
                     opening_z + sash_height,
                     panel_width,
@@ -505,6 +663,10 @@ module Na__WindowConfiguratorTool
                 na_render_opening_panel_geometry(
                     entities,
                     bottom_panel_id,
+                    opening_index,
+                    cell_index,
+                    p,
+                    1,
                     panel_x,
                     opening_z,
                     panel_width,
@@ -522,7 +684,7 @@ module Na__WindowConfiguratorTool
         # FUNCTION | Render Opening Panel Geometry
         # ------------------------------------------------------------
         # Shared panel renderer for standard and sliding sash modes.
-        def self.na_render_opening_panel_geometry(entities, panel_id, panel_x, panel_z, panel_width, panel_height, panel_has_casement, panel_wall_inset, params, frame_material, glass_material)
+        def self.na_render_opening_panel_geometry(entities, panel_id, opening_index, cell_index, panel_index, sash_index, panel_x, panel_z, panel_width, panel_height, panel_has_casement, panel_wall_inset, params, frame_material, glass_material)
             if panel_has_casement
                 GeometryBuilders.na_create_casement_geometry_individual(
                     entities, panel_id, panel_width, panel_height,
@@ -546,7 +708,8 @@ module Na__WindowConfiguratorTool
                         entities, panel_id, glass_w, glass_h, params[:h_bars], params[:v_bars],
                         params[:bar_width], params[:glass_thickness], glass_offset_x, glass_offset_z,
                         params[:frame_depth], frame_material, panel_wall_inset,
-                        params[:casement_depth], params[:casement_inset], params[:glazebar_inset]
+                        params[:casement_depth], params[:casement_inset], params[:glazebar_inset],
+                        params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index
                     )
                 end
             else
@@ -560,7 +723,8 @@ module Na__WindowConfiguratorTool
                         entities, panel_id, panel_width, panel_height, params[:h_bars], params[:v_bars],
                         params[:bar_width], params[:glass_thickness], panel_x, panel_z,
                         params[:frame_depth], frame_material, panel_wall_inset,
-                        nil, nil, params[:glazebar_inset]
+                        nil, nil, params[:glazebar_inset],
+                        params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index
                     )
                 end
             end

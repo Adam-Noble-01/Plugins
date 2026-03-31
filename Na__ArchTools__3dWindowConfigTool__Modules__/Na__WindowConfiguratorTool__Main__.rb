@@ -105,6 +105,10 @@ module Na__WindowConfiguratorTool
     NA_DEFAULT_WIDTH           = 900                                # Default window width
     NA_DEFAULT_HEIGHT          = 1200                               # Default window height
     NA_DEFAULT_FRAME_THICKNESS = 50                                 # Default frame thickness
+    NA_DEFAULT_FRAME_TOP_THICKNESS = 50                             # Default top frame thickness override
+    NA_DEFAULT_FRAME_BOTTOM_THICKNESS = 50                          # Default bottom frame thickness override
+    NA_DEFAULT_FRAME_LEFT_THICKNESS = 50                            # Default left frame thickness override
+    NA_DEFAULT_FRAME_RIGHT_THICKNESS = 50                           # Default right frame thickness override
     NA_DEFAULT_CASEMENT_WIDTH  = 65                                 # Default casement profile width
     NA_DEFAULT_CASEMENT_DEPTH  = 55                                 # Default casement depth (Y direction)
     NA_DEFAULT_CASEMENT_INSET  = 10                                 # Default casement inset from frame face
@@ -117,6 +121,11 @@ module Na__WindowConfiguratorTool
     NA_DEFAULT_FRAME_WALL_INSET = 0                                 # Default frame wall inset
     NA_DEFAULT_MULLION_COUNT   = 0                                  # Default number of mullions
     NA_DEFAULT_MULLION_WIDTH   = 40                                 # Default mullion profile width
+    NA_DEFAULT_TRANSOM_COUNT   = 0                                  # Default number of transoms
+    NA_DEFAULT_TRANSOM_WIDTH   = 40                                 # Default transom profile height
+    NA_DEFAULT_TRANSOM_1_Y     = 300                                # Default transom 1 bottom height within opening
+    NA_DEFAULT_TRANSOM_2_Y     = 600                                # Default transom 2 bottom height within opening
+    NA_DEFAULT_TRANSOM_3_Y     = 900                                # Default transom 3 bottom height within opening
     
     # CONSTANTS | Default Material IDs (from MaterialsLibrary.json)
     # ------------------------------------------------------------
@@ -147,6 +156,11 @@ module Na__WindowConfiguratorTool
             "width_mm": 900,
             "height_mm": 1200,
             "frame_thickness_mm": 50,
+            "advanced_frame_controls": false,
+            "frame_top_thickness_mm": 50,
+            "frame_bottom_thickness_mm": 50,
+            "frame_left_thickness_mm": 50,
+            "frame_right_thickness_mm": 50,
             "casement_width_mm": 65,
             "casement_sizes_individual": false,
             "casement_top_rail_mm": 65,
@@ -159,6 +173,11 @@ module Na__WindowConfiguratorTool
             "sliding_sash_overlap_mm": 20,
             "mullion_width_mm": 40,
             "mullions": 0,
+            "transoms": 0,
+            "transom_width_mm": 40,
+            "transom_1_y_mm": 300,
+            "transom_2_y_mm": 600,
+            "transom_3_y_mm": 900,
             "glass_thickness_mm": 20,
             "horizontal_glaze_bars": 0,
             "vertical_glaze_bars": 0,
@@ -170,6 +189,8 @@ module Na__WindowConfiguratorTool
             "frame_depth_mm": 70,
             "frame_wall_inset_mm": 0,
             "removed_casements": [],
+            "removed_transom_segments": [],
+            "removed_glazebars": [],
             "frame_material_id": "MAT120__GenericWood",
             "paint_cill": false,
             "show_dimensions": true,

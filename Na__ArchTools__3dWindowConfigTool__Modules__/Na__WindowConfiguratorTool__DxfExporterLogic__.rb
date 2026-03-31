@@ -52,6 +52,7 @@ module Na__WindowConfiguratorTool
         NA_LAYER_FRAME     = "NA_FRAME".freeze
         NA_LAYER_CASEMENT  = "NA_CASEMENT".freeze
         NA_LAYER_MULLION   = "NA_MULLION".freeze
+        NA_LAYER_TRANSOM   = "NA_TRANSOM".freeze
         NA_LAYER_GLASS     = "NA_GLASS".freeze
         NA_LAYER_GLAZE_BAR = "NA_GLAZE_BAR".freeze
         NA_LAYER_CILL      = "NA_CILL".freeze
@@ -63,10 +64,58 @@ module Na__WindowConfiguratorTool
         NA_COLOR_FRAME     = 30   # Orange/Tan
         NA_COLOR_CASEMENT  = 40   # Light Orange
         NA_COLOR_MULLION   = 32   # Tan
+        NA_COLOR_TRANSOM   = 32   # Tan
         NA_COLOR_GLASS     = 4    # Cyan
         NA_COLOR_GLAZE_BAR = 50   # Yellow-Orange
         NA_COLOR_CILL      = 8    # Gray
         NA_COLOR_DIMENSION = 7    # White
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Shared Frame Helpers
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | Build Glaze Bar Storage Key
+        # ------------------------------------------------------------
+        def self.na_get_glazebar_key(opening_index, cell_index, panel_index, sash_index, orientation, bar_index)
+            "#{opening_index}:#{cell_index}:#{panel_index}:#{sash_index}:#{orientation}:#{bar_index}"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Check Removed Glaze Bar
+        # ------------------------------------------------------------
+        def self.na_glazebar_removed?(removed_glazebars, opening_index, cell_index, panel_index, sash_index, orientation, bar_index)
+            return false unless removed_glazebars.is_a?(Array)
+
+            removed_glazebars.include?(na_get_glazebar_key(opening_index, cell_index, panel_index, sash_index, orientation, bar_index))
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Resolve Effective Frame Thicknesses
+        # ------------------------------------------------------------
+        def self.na_get_effective_frame_thicknesses(config)
+            uniform_frame_thickness = config.key?("frame_thickness_mm") ? config["frame_thickness_mm"].to_f : 50.0
+            use_advanced_frame_controls = config["advanced_frame_controls"] == true
+
+            resolve_frame_side_thickness = lambda do |side_key|
+                mm_value = if use_advanced_frame_controls && config.key?(side_key)
+                    config[side_key]
+                else
+                    uniform_frame_thickness
+                end
+
+                [mm_value.to_f, 0.0].max
+            end
+
+            {
+                top: resolve_frame_side_thickness.call("frame_top_thickness_mm"),
+                bottom: resolve_frame_side_thickness.call("frame_bottom_thickness_mm"),
+                left: resolve_frame_side_thickness.call("frame_left_thickness_mm"),
+                right: resolve_frame_side_thickness.call("frame_right_thickness_mm")
+            }
+        end
+        # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
 
@@ -113,10 +162,11 @@ module Na__WindowConfiguratorTool
         def self.na_generate_header(config)
             width = config["width_mm"] || 900
             height = config["height_mm"] || 1200
+            frame_thicknesses = na_get_effective_frame_thicknesses(config)
             
             # Include cill in extents if present
             min_y = 0
-            if config["has_cill"] != false
+            if config["has_cill"] != false && frame_thicknesses[:bottom] > 0
                 cill_height = config["cill_height_mm"] || 50
                 min_y = -cill_height
             end
@@ -188,13 +238,14 @@ module Na__WindowConfiguratorTool
                 2
                 LAYER
                 70
-                7
+                8
             DXF
             
             # Add each layer
             tables += na_generate_layer_entry(NA_LAYER_FRAME, NA_COLOR_FRAME)
             tables += na_generate_layer_entry(NA_LAYER_CASEMENT, NA_COLOR_CASEMENT)
             tables += na_generate_layer_entry(NA_LAYER_MULLION, NA_COLOR_MULLION)
+            tables += na_generate_layer_entry(NA_LAYER_TRANSOM, NA_COLOR_TRANSOM)
             tables += na_generate_layer_entry(NA_LAYER_GLASS, NA_COLOR_GLASS)
             tables += na_generate_layer_entry(NA_LAYER_GLAZE_BAR, NA_COLOR_GLAZE_BAR)
             tables += na_generate_layer_entry(NA_LAYER_CILL, NA_COLOR_CILL)
@@ -244,7 +295,11 @@ module Na__WindowConfiguratorTool
             # Extract configuration values
             width = config["width_mm"] || 900
             height = config["height_mm"] || 1200
-            frame_thickness = config["frame_thickness_mm"] || 50
+            frame_thicknesses = na_get_effective_frame_thicknesses(config)
+            top_frame_thickness = frame_thicknesses[:top]
+            bottom_frame_thickness = frame_thicknesses[:bottom]
+            left_frame_thickness = frame_thicknesses[:left]
+            right_frame_thickness = frame_thicknesses[:right]
             casement_width = config["casement_width_mm"] || 65
             show_casements = config["show_casements"] != false
             sliding_sash_window = config["sliding_sash_window"] == true
@@ -256,12 +311,17 @@ module Na__WindowConfiguratorTool
             end
             num_mullions = config["mullions"] || 0
             mullion_width = config["mullion_width_mm"] || 40
+            transom_count = (config["transoms"] || 0).to_i.clamp(0, 3)
+            transom_width = config["transom_width_mm"] || 40
+            transom_bottoms = na_get_transom_bottoms(config, transom_count)
             h_bars = config["horizontal_glaze_bars"] || 0
             v_bars = config["vertical_glaze_bars"] || 0
             bar_width = config["glaze_bar_width_mm"] || 25
             has_cill = config["has_cill"] != false
-            cill_depth = config["cill_depth_mm"] || 50
             cill_height = config["cill_height_mm"] || 50
+            removed_casements = config["removed_casements"] || []
+            removed_transom_segments = config["removed_transom_segments"] || []
+            removed_glazebars = config["removed_glazebars"] || []
             
             # Individual casement sizes
             use_individual_sizes = config["casement_sizes_individual"] == true
@@ -272,64 +332,90 @@ module Na__WindowConfiguratorTool
             
             # Calculate openings
             num_openings = num_mullions + 1
-            inner_width = width - (2 * frame_thickness)
-            inner_height = height - (2 * frame_thickness)
+            inner_width = width - left_frame_thickness - right_frame_thickness
+            inner_height = height - top_frame_thickness - bottom_frame_thickness
             total_mullion_width = num_mullions * mullion_width
             available_width = inner_width - total_mullion_width
             opening_width = available_width.to_f / num_openings
             
             # Draw outer frame (4 rectangles) - skip in frameless mode (frame_thickness == 0)
-            if frame_thickness > 0
-                # JOINERY CONVENTION: Stiles full height, rails inset
-                # Left stile (full height)
-                entities += na_dxf_rect(0, 0, frame_thickness, height, NA_LAYER_FRAME)
-                # Right stile (full height)
-                entities += na_dxf_rect(width - frame_thickness, 0, frame_thickness, height, NA_LAYER_FRAME)
-                # Bottom rail (inset between stiles)
-                entities += na_dxf_rect(frame_thickness, 0, inner_width, frame_thickness, NA_LAYER_FRAME)
-                # Top rail (inset between stiles)
-                entities += na_dxf_rect(frame_thickness, height - frame_thickness, inner_width, frame_thickness, NA_LAYER_FRAME)
+            if left_frame_thickness > 0
+                entities += na_dxf_rect(0, 0, left_frame_thickness, height, NA_LAYER_FRAME)
+            end
+            if right_frame_thickness > 0
+                entities += na_dxf_rect(width - right_frame_thickness, 0, right_frame_thickness, height, NA_LAYER_FRAME)
+            end
+            if bottom_frame_thickness > 0
+                entities += na_dxf_rect(left_frame_thickness, 0, inner_width, bottom_frame_thickness, NA_LAYER_FRAME)
+            end
+            if top_frame_thickness > 0
+                entities += na_dxf_rect(left_frame_thickness, height - top_frame_thickness, inner_width, top_frame_thickness, NA_LAYER_FRAME)
             end
             
             # Draw mullions
             (1..num_mullions).each do |m|
-                mullion_x = frame_thickness + (m * opening_width) + ((m - 1) * mullion_width)
-                entities += na_dxf_rect(mullion_x, frame_thickness, mullion_width, inner_height, NA_LAYER_MULLION)
+                mullion_x = left_frame_thickness + (m * opening_width) + ((m - 1) * mullion_width)
+                entities += na_dxf_rect(mullion_x, bottom_frame_thickness, mullion_width, inner_height, NA_LAYER_MULLION)
             end
             
             # Draw each opening with casement (if enabled), glass, and glaze bars
             (0...num_openings).each do |i|
-                opening_x = frame_thickness + (i * (opening_width + mullion_width))
-                opening_y = frame_thickness
-                panel_width = opening_width / casements_per_opening.to_f
-                
-                if show_casements
+                opening_x = left_frame_thickness + (i * (opening_width + mullion_width))
+                opening_y = bottom_frame_thickness
+                opening_has_casement = show_casements && !removed_casements.include?(i)
+                opening_layout = na_get_opening_layout(
+                    i,
+                    opening_x,
+                    opening_y,
+                    opening_width,
+                    inner_height,
+                    transom_bottoms,
+                    transom_width,
+                    removed_transom_segments
+                )
+
+                opening_layout[:transom_segments].each do |segment|
+                    entities += na_dxf_rect(segment[:x], segment[:y], segment[:width], segment[:height], NA_LAYER_TRANSOM)
+                end
+
+                opening_layout[:cells].each_with_index do |cell, cell_index|
+                    panel_width = cell[:width] / casements_per_opening.to_f
+
                     (0...casements_per_opening).each do |p|
-                        panel_x = opening_x + (p * panel_width)
-                        if sliding_sash_window
-                            entities += na_generate_sliding_sash_panel_dxf(
-                                panel_x, opening_y, panel_width, inner_height,
-                                cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
-                                h_bars, v_bars, bar_width, sliding_sash_overlap
-                            )
+                        panel_x = cell[:x] + (p * panel_width)
+
+                        if opening_has_casement
+                            if sliding_sash_window
+                                entities += na_generate_sliding_sash_panel_dxf(
+                                    panel_x, cell[:y], panel_width, cell[:height],
+                                    cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
+                                    h_bars, v_bars, bar_width, sliding_sash_overlap,
+                                    opening_index: i, cell_index: cell_index, panel_index: p,
+                                    removed_glazebars: removed_glazebars
+                                )
+                            else
+                                entities += na_generate_casement_dxf(
+                                    panel_x, cell[:y], panel_width, cell[:height],
+                                    cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
+                                    h_bars, v_bars, bar_width,
+                                    opening_index: i, cell_index: cell_index, panel_index: p, sash_index: 0,
+                                    removed_glazebars: removed_glazebars
+                                )
+                            end
                         else
-                            entities += na_generate_casement_dxf(
-                                panel_x, opening_y, panel_width, inner_height,
-                                cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
-                                h_bars, v_bars, bar_width
+                            entities += na_generate_direct_glazed_dxf(
+                                panel_x, cell[:y], panel_width, cell[:height],
+                                h_bars, v_bars, bar_width,
+                                opening_index: i, cell_index: cell_index, panel_index: p, sash_index: 0,
+                                removed_glazebars: removed_glazebars
                             )
                         end
-                    end
-                else
-                    (0...casements_per_opening).each do |p|
-                        panel_x = opening_x + (p * panel_width)
-                        entities += na_dxf_rect(panel_x, opening_y, panel_width, inner_height, NA_LAYER_GLASS)
                     end
                 end
             end
             
             # Draw cill (skip in frameless mode)
-            if has_cill && frame_thickness > 0
+            if has_cill && bottom_frame_thickness > 0
                 entities += na_dxf_rect(0, -cill_height, width, cill_height, NA_LAYER_CILL)
             end
             
@@ -346,7 +432,7 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Generate DXF for a Single Casement
         # ------------------------------------------------------------
-        def self.na_generate_casement_dxf(x, y, width, height, top_rail, bottom_rail, left_stile, right_stile, h_bars, v_bars, bar_width)
+        def self.na_generate_casement_dxf(x, y, width, height, top_rail, bottom_rail, left_stile, right_stile, h_bars, v_bars, bar_width, opening_index:, cell_index:, panel_index:, sash_index:, removed_glazebars:)
             dxf = ""
             
             # Casement frame (4 pieces) - JOINERY CONVENTION: Stiles full height, rails inset
@@ -367,25 +453,55 @@ module Na__WindowConfiguratorTool
             
             # Glass pane outline
             dxf += na_dxf_rect(glass_x, glass_y, glass_width, glass_height, NA_LAYER_GLASS)
+            dxf += na_generate_glaze_bar_dxf(
+                glass_x, glass_y, glass_width, glass_height, h_bars, v_bars, bar_width,
+                opening_index: opening_index, cell_index: cell_index, panel_index: panel_index, sash_index: sash_index,
+                removed_glazebars: removed_glazebars
+            )
             
-            # Horizontal glaze bars
+            dxf
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Generate DXF for Direct-Glazed Cell
+        # ------------------------------------------------------------
+        def self.na_generate_direct_glazed_dxf(x, y, width, height, h_bars, v_bars, bar_width, opening_index:, cell_index:, panel_index:, sash_index:, removed_glazebars:)
+            dxf = ""
+            dxf += na_dxf_rect(x, y, width, height, NA_LAYER_GLASS)
+            dxf += na_generate_glaze_bar_dxf(
+                x, y, width, height, h_bars, v_bars, bar_width,
+                opening_index: opening_index, cell_index: cell_index, panel_index: panel_index, sash_index: sash_index,
+                removed_glazebars: removed_glazebars
+            )
+            dxf
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Generate Glaze Bars Within a Glass Area
+        # ------------------------------------------------------------
+        def self.na_generate_glaze_bar_dxf(glass_x, glass_y, glass_width, glass_height, h_bars, v_bars, bar_width, opening_index:, cell_index:, panel_index:, sash_index:, removed_glazebars:)
+            dxf = ""
+
             if h_bars > 0
                 section_height = glass_height.to_f / (h_bars + 1)
                 (1..h_bars).each do |b|
+                    next if na_glazebar_removed?(removed_glazebars, opening_index, cell_index, panel_index, sash_index, "horizontal", b)
+
                     bar_y = glass_y + (section_height * b) - (bar_width / 2.0)
                     dxf += na_dxf_rect(glass_x, bar_y, glass_width, bar_width, NA_LAYER_GLAZE_BAR)
                 end
             end
-            
-            # Vertical glaze bars
+
             if v_bars > 0
                 section_width = glass_width.to_f / (v_bars + 1)
                 (1..v_bars).each do |b|
+                    next if na_glazebar_removed?(removed_glazebars, opening_index, cell_index, panel_index, sash_index, "vertical", b)
+
                     bar_x = glass_x + (section_width * b) - (bar_width / 2.0)
                     dxf += na_dxf_rect(bar_x, glass_y, bar_width, glass_height, NA_LAYER_GLAZE_BAR)
                 end
             end
-            
+
             dxf
         end
         # ---------------------------------------------------------------
@@ -394,7 +510,7 @@ module Na__WindowConfiguratorTool
         # ------------------------------------------------------------
         # Draws two stacked casements in one panel.
         # Bottom sash is extended by overlap amount to represent weathering tuck-under.
-        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm)
+        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm, opening_index:, cell_index:, panel_index:, removed_glazebars:)
             dxf = ""
 
             sash_height = height.to_f / 2.0
@@ -404,17 +520,86 @@ module Na__WindowConfiguratorTool
             dxf += na_generate_casement_dxf(
                 x, y, width, sash_height + sash_overlap,
                 top_rail, bottom_rail, left_stile, right_stile,
-                h_bars, v_bars, bar_width
+                h_bars, v_bars, bar_width,
+                opening_index: opening_index, cell_index: cell_index, panel_index: panel_index, sash_index: 1,
+                removed_glazebars: removed_glazebars
             )
 
             # Top sash (drawn second): standard half-height sash.
             dxf += na_generate_casement_dxf(
                 x, y + sash_height, width, sash_height,
                 top_rail, bottom_rail, left_stile, right_stile,
-                h_bars, v_bars, bar_width
+                h_bars, v_bars, bar_width,
+                opening_index: opening_index, cell_index: cell_index, panel_index: panel_index, sash_index: 0,
+                removed_glazebars: removed_glazebars
             )
 
             dxf
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Get Active Transom Heights
+        # ------------------------------------------------------------
+        def self.na_get_transom_bottoms(config, transom_count)
+            [
+                (config["transom_1_y_mm"] || 0).to_f,
+                (config["transom_2_y_mm"] || 0).to_f,
+                (config["transom_3_y_mm"] || 0).to_f
+            ].first(transom_count)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Check Removed Transom Segment
+        # ------------------------------------------------------------
+        def self.na_transom_segment_removed?(removed_segments, opening_index, transom_index)
+            removed_segments.include?("#{opening_index}:#{transom_index}")
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Build Opening Cell Layout
+        # ------------------------------------------------------------
+        def self.na_get_opening_layout(opening_index, opening_x, opening_y, opening_width, inner_height, transom_bottoms, transom_width, removed_segments)
+            cells = []
+            transom_segments = []
+            cell_bottom = 0
+
+            transom_bottoms.each_with_index do |transom_bottom, transom_index|
+                next if na_transom_segment_removed?(removed_segments, opening_index, transom_index)
+
+                cell_height = transom_bottom - cell_bottom
+                if cell_height > 0
+                    cells << {
+                        x: opening_x,
+                        y: opening_y + cell_bottom,
+                        width: opening_width,
+                        height: cell_height
+                    }
+                end
+
+                transom_segments << {
+                    x: opening_x,
+                    y: opening_y + transom_bottom,
+                    width: opening_width,
+                    height: transom_width
+                }
+
+                cell_bottom = transom_bottom + transom_width
+            end
+
+            top_cell_height = inner_height - cell_bottom
+            if top_cell_height > 0
+                cells << {
+                    x: opening_x,
+                    y: opening_y + cell_bottom,
+                    width: opening_width,
+                    height: top_cell_height
+                }
+            end
+
+            {
+                cells: cells,
+                transom_segments: transom_segments
+            }
         end
         # ---------------------------------------------------------------
 
