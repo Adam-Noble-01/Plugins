@@ -3,6 +3,35 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Version 0.9.12c - 01-Apr-2026 - FuseParts Per-Panel Fusion Fix
+
+### Bug Fix 01 - Multi-Casement Panels Merging When Fused
+- **Bug:** When `fuse_parts` was enabled and `casements_per_opening > 1`, all casement panels within the same opening were merged into a single fused solid, destroying the visible dividing lines between door/window panels.
+- **Root Cause:** `na_find_unique_indices` extracted only the first numeric segment of the group name as the grouping key (`0` from `Na_Casement_0_0_P0_Left_Stile`), so all panels sharing the same opening index were collected and fused together.
+- **Fix:** Replaced `na_find_unique_indices` with `na_find_unique_panel_ids` using suffix-aware regex parsing to extract full panel identifiers (e.g. `0_0_P0`, `0_0_P1`). Each panel's casement parts, glaze bars, and glass are now fused independently.
+
+### Changes Detail
+- `na_find_unique_panel_ids(entities, pattern)` — new method that extracts panel_ids from the first capture group of a regex pattern matched against group names
+- `na_extract_panel_id_from_fused_name(name, prefix)` — replaced `na_extract_index_from_fused_name`; extracts full panel_id between prefix and `_Fused` suffix
+- `na_fuse_casements` — now produces `Na_Casement_{panel_id}_Fused` per panel instead of per opening
+- `na_fuse_glaze_bars` — now produces `Na_GlazeBar_{panel_id}_Fused` per panel instead of per opening
+- `na_trim_glass_panels` — now matches glass pane `Na_Glass_{panel_id}` to its corresponding fused glaze bar solid
+- Frame fusion (`na_fuse_frame`) unchanged
+
+### Files Modified:
+1. **`Na__WindowConfiguratorTool__FuseParts__.rb`**
+   - Replaced `na_find_unique_indices` with `na_find_unique_panel_ids`
+   - Replaced `na_extract_index_from_fused_name` with `na_extract_panel_id_from_fused_name`
+   - Updated casement, glaze bar, and glass trim methods to use full panel_id grouping
+2. **`Na__WindowConfiguratorTool__Architecture__.md`**
+   - Added feature addendum documenting the per-panel fusion fix
+   - Updated FuseParts line count in file table
+
+### Status: IMPLEMENTED - READY FOR TESTING
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ## Version 0.9.12b - 31-Mar-2026 - Reset Hidden Elements Action
 
 ### Feature 01 - Reset Elements Button

@@ -4,6 +4,27 @@
 
 This document provides a comprehensive diagram of how the Window Configurator Tool works, including data flow, file relationships, and the planned feature additions.
 
+## Feature Addendum - FuseParts Per-Panel Fusion Fix (v0.9.12c)
+
+### Bug Fix
+
+- `FuseParts__.rb` previously grouped casement and glaze bar parts by the first numeric segment of the group name (the opening index). This caused all casement panels within the same opening to be merged into a single solid when `fuse_parts` was enabled with `casements_per_opening > 1`.
+
+### Changes
+
+- Replaced `na_find_unique_indices` with `na_find_unique_panel_ids` which uses suffix-aware regex parsing to extract full panel identifiers (e.g. `0_0_P0`, `0_0_P1`) from group names.
+- Casement fusion now produces one solid per panel: `Na_Casement_{panel_id}_Fused` instead of one solid per opening.
+- Glaze bar fusion now produces one solid per panel: `Na_GlazeBar_{panel_id}_Fused`.
+- Glass trimming now correctly matches each panel's glass pane (`Na_Glass_{panel_id}`) to its corresponding fused glaze bar solid.
+- Replaced `na_extract_index_from_fused_name` with `na_extract_panel_id_from_fused_name` which extracts the full panel_id from between the prefix and `_Fused` suffix.
+- Frame fusion (`na_fuse_frame`) is unchanged -- frame, mullion, and transom groups are still correctly fused into one structural solid.
+
+### Affected Files
+
+1. **`Na__WindowConfiguratorTool__FuseParts__.rb`** -- all changes in this file only
+
+---
+
 ## Feature Addendum - Reset Hidden Elements Action (v0.9.12b)
 
 ### UI / State Notes
@@ -730,7 +751,7 @@ end
 | `Na__...__GeometryEngine__.rb` | 508 | Geometry orchestration, opening calculations |
 | `Na__...__GeometryBuilders__.rb` | 312 | High-level element builders (frame, casement, glass, cill) |
 | `Na__...__GeometryHelpers__.rb` | 231 | Low-level geometry primitives |
-| `Na__...__FuseParts__.rb` | 370 | Post-processing: boolean fusion (outer_shell) and glass trimming |
+| `Na__...__FuseParts__.rb` | 507 | Post-processing: per-panel boolean fusion (outer_shell) and glass trimming |
 | `Na__...__PlacementTool__.rb` | 272 | Interactive placement with crosshair |
 | `Na__...__MeasureOpeningTool__.rb` | 280 | Two-click opening measurement with blue overlay |
 | `Na__...__Observers__.rb` | 82 | SelectionObserver for Live Mode |

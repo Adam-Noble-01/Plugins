@@ -9,13 +9,13 @@
 # PURPOSE    : Post-processing module that fuses individual window parts
 #              into simplified solid objects using boolean operations
 # CREATED    : 2026-02-16
-# VERSION    : 0.8.0
+# VERSION    : 0.9.12
 #
 # DESCRIPTION:
 # - Standalone post-processing module called AFTER geometry creation
 # - Fuses frame stiles/rails/mullions/transoms into one Frame Solid
-# - Fuses casement stiles/rails into one Casement Solid per opening
-# - Fuses horizontal/vertical glaze bars into one GlazeBar Solid per opening
+# - Fuses casement stiles/rails into one Casement Solid per panel
+# - Fuses horizontal/vertical glaze bars into one GlazeBar Solid per panel
 # - Trims glass panes using fused glaze bars for clean individual panels
 # - Uses sequential outer_shell for fusion and trim for glass cutting
 # - Only runs on explicit Create/Update, never during Live Mode
@@ -143,8 +143,10 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Fuse Casement Parts
         # ------------------------------------------------------------
-        # For each casement opening, collects its stiles and rails and
-        # fuses them into a single casement solid.
+        # For each casement panel, collects its stiles and rails and
+        # fuses them into a single casement solid. Uses suffix-aware
+        # parsing to extract the full panel_id (e.g. "0_0_P0") so that
+        # multi-casement panels are fused independently.
         #
         # @param entities [Sketchup::Entities] The component definition entities
         # @return [Hash] Result { fused: Integer, failed: Integer, skipped: Integer }
@@ -153,35 +155,36 @@ module Na__WindowConfiguratorTool
 
             result = { fused: 0, failed: 0, skipped: 0 }
 
-            # Find all unique casement opening indices from group names
-            # Pattern: Na_Casement_N_Left_Stile, Na_Casement_N_Right_Stile, etc.
-            casement_indices = na_find_unique_indices(entities, "Na_Casement_")
+            casement_panel_ids = na_find_unique_panel_ids(
+                entities,
+                /^Na_Casement_(.+)_(Left_Stile|Right_Stile|Top_Rail|Bottom_Rail)$/
+            )
 
-            if casement_indices.empty?
+            if casement_panel_ids.empty?
                 DebugTools.na_debug_geometry("Casements: no casement groups found, skipping")
                 return result
             end
 
-            casement_indices.each do |idx|
-                prefix = "Na_Casement_#{idx}_"
+            casement_panel_ids.each do |panel_id|
+                prefix = "Na_Casement_#{panel_id}_"
                 groups = na_collect_groups_by_prefix(entities, prefix)
 
                 if groups.length < 2
-                    DebugTools.na_debug_geometry("Casement #{idx}: fewer than 2 groups, skipping")
+                    DebugTools.na_debug_geometry("Casement #{panel_id}: fewer than 2 groups, skipping")
                     result[:skipped] += 1
                     next
                 end
 
-                DebugTools.na_debug_geometry("Casement #{idx}: found #{groups.length} groups to fuse")
+                DebugTools.na_debug_geometry("Casement #{panel_id}: found #{groups.length} groups to fuse")
 
-                fused = na_sequential_outer_shell(groups, "Na_Casement_#{idx}_Fused")
+                fused = na_sequential_outer_shell(groups, "Na_Casement_#{panel_id}_Fused")
 
                 if fused
                     result[:fused] += 1
-                    DebugTools.na_debug_success("Casement #{idx} fused into: #{fused.name}")
+                    DebugTools.na_debug_success("Casement #{panel_id} fused into: #{fused.name}")
                 else
                     result[:failed] += 1
-                    DebugTools.na_debug_error("Casement #{idx} fusion failed")
+                    DebugTools.na_debug_error("Casement #{panel_id} fusion failed")
                 end
             end
 
@@ -197,8 +200,9 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Fuse Glaze Bar Parts
         # ------------------------------------------------------------
-        # For each opening, collects its horizontal and vertical glaze bars
-        # and fuses them into a single glaze bar solid.
+        # For each panel, collects its horizontal and vertical glaze bars
+        # and fuses them into a single glaze bar solid. Uses suffix-aware
+        # parsing so multi-casement panels get independent bar solids.
         #
         # @param entities [Sketchup::Entities] The component definition entities
         # @return [Hash] Result { fused: Integer, failed: Integer, skipped: Integer }
@@ -207,35 +211,36 @@ module Na__WindowConfiguratorTool
 
             result = { fused: 0, failed: 0, skipped: 0 }
 
-            # Find all unique glaze bar opening indices from group names
-            # Pattern: Na_GlazeBar_N_H1, Na_GlazeBar_N_V1, etc.
-            glazebar_indices = na_find_unique_indices(entities, "Na_GlazeBar_")
+            glazebar_panel_ids = na_find_unique_panel_ids(
+                entities,
+                /^Na_GlazeBar_(.+)_[HV]\d+$/
+            )
 
-            if glazebar_indices.empty?
+            if glazebar_panel_ids.empty?
                 DebugTools.na_debug_geometry("Glaze bars: no glaze bar groups found, skipping")
                 return result
             end
 
-            glazebar_indices.each do |idx|
-                prefix = "Na_GlazeBar_#{idx}_"
+            glazebar_panel_ids.each do |panel_id|
+                prefix = "Na_GlazeBar_#{panel_id}_"
                 groups = na_collect_groups_by_prefix(entities, prefix)
 
                 if groups.length < 2
-                    DebugTools.na_debug_geometry("GlazeBar #{idx}: fewer than 2 groups, skipping")
+                    DebugTools.na_debug_geometry("GlazeBar #{panel_id}: fewer than 2 groups, skipping")
                     result[:skipped] += 1
                     next
                 end
 
-                DebugTools.na_debug_geometry("GlazeBar #{idx}: found #{groups.length} groups to fuse")
+                DebugTools.na_debug_geometry("GlazeBar #{panel_id}: found #{groups.length} groups to fuse")
 
-                fused = na_sequential_outer_shell(groups, "Na_GlazeBar_#{idx}_Fused")
+                fused = na_sequential_outer_shell(groups, "Na_GlazeBar_#{panel_id}_Fused")
 
                 if fused
                     result[:fused] += 1
-                    DebugTools.na_debug_success("GlazeBar #{idx} fused into: #{fused.name}")
+                    DebugTools.na_debug_success("GlazeBar #{panel_id} fused into: #{fused.name}")
                 else
                     result[:failed] += 1
-                    DebugTools.na_debug_error("GlazeBar #{idx} fusion failed")
+                    DebugTools.na_debug_error("GlazeBar #{panel_id} fusion failed")
                 end
             end
 
@@ -251,8 +256,10 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Trim Glass Panels
         # ------------------------------------------------------------
-        # For each opening that has a fused glaze bar solid, uses trim
+        # For each panel that has a fused glaze bar solid, uses trim
         # to cut the glass pane, creating clean individual glass panels.
+        # Matches glass by full panel_id so multi-casement panels are
+        # trimmed independently.
         #
         # trim behavior: fused_bars.trim(glass) -> bars stay, glass is
         # erased and replaced with trimmed version (overlap areas removed).
@@ -264,7 +271,6 @@ module Na__WindowConfiguratorTool
 
             result = { fused: 0, failed: 0, skipped: 0 }
 
-            # Find all fused glaze bar groups
             fused_bars = na_collect_groups_by_exact(entities, "Na_GlazeBar_", "_Fused")
 
             if fused_bars.empty?
@@ -273,52 +279,47 @@ module Na__WindowConfiguratorTool
             end
 
             fused_bars.each do |bar_group|
-                # Extract the opening index from the name: Na_GlazeBar_N_Fused
-                idx = na_extract_index_from_fused_name(bar_group.name, "Na_GlazeBar_")
-                next unless idx
+                panel_id = na_extract_panel_id_from_fused_name(bar_group.name, "Na_GlazeBar_")
+                next unless panel_id
 
-                # Find the matching glass pane
-                glass_name = "Na_Glass_#{idx}"
+                glass_name = "Na_Glass_#{panel_id}"
                 glass_group = na_find_group_by_name(entities, glass_name)
 
                 unless glass_group
-                    DebugTools.na_debug_geometry("Glass trim #{idx}: no glass pane '#{glass_name}' found, skipping")
+                    DebugTools.na_debug_geometry("Glass trim #{panel_id}: no glass pane '#{glass_name}' found, skipping")
                     result[:skipped] += 1
                     next
                 end
 
-                # Pre-flight: check both are manifold
                 unless bar_group.manifold?
-                    DebugTools.na_debug_warn("Glass trim #{idx}: fused glaze bars not manifold, skipping trim")
+                    DebugTools.na_debug_warn("Glass trim #{panel_id}: fused glaze bars not manifold, skipping trim")
                     result[:failed] += 1
                     next
                 end
 
                 unless glass_group.manifold?
-                    DebugTools.na_debug_warn("Glass trim #{idx}: glass pane not manifold, skipping trim")
+                    DebugTools.na_debug_warn("Glass trim #{panel_id}: glass pane not manifold, skipping trim")
                     result[:failed] += 1
                     next
                 end
 
-                DebugTools.na_debug_geometry("Glass trim #{idx}: trimming '#{glass_name}' with '#{bar_group.name}'")
+                DebugTools.na_debug_geometry("Glass trim #{panel_id}: trimming '#{glass_name}' with '#{bar_group.name}'")
 
                 begin
-                    # trim: bar_group stays intact, glass_group is erased and
-                    # replaced with trimmed version. Returns the new trimmed glass.
                     trimmed = bar_group.trim(glass_group)
 
                     if trimmed
-                        trimmed.name = "Na_Glass_#{idx}_Trimmed"
+                        trimmed.name = "Na_Glass_#{panel_id}_Trimmed"
                         result[:fused] += 1
-                        DebugTools.na_debug_success("Glass #{idx} trimmed: #{trimmed.name}")
+                        DebugTools.na_debug_success("Glass #{panel_id} trimmed: #{trimmed.name}")
                     else
                         result[:failed] += 1
-                        DebugTools.na_debug_error("Glass trim #{idx} returned nil (operation failed)")
+                        DebugTools.na_debug_error("Glass trim #{panel_id} returned nil (operation failed)")
                     end
 
                 rescue => e
                     result[:failed] += 1
-                    DebugTools.na_debug_error("Glass trim #{idx} error: #{e.message}")
+                    DebugTools.na_debug_error("Glass trim #{panel_id} error: #{e.message}")
                 end
             end
 
@@ -443,41 +444,41 @@ module Na__WindowConfiguratorTool
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Find Unique Opening Indices
+        # FUNCTION | Find Unique Panel IDs
         # ------------------------------------------------------------
-        # Scans group names with the given prefix to extract unique
-        # numeric indices. E.g., from "Na_Casement_0_Left_Stile" and
-        # "Na_Casement_1_Top_Rail" extracts [0, 1].
+        # Scans group names matching a regex pattern and extracts unique
+        # panel identifiers from the first capture group. Suffix-aware
+        # so that multi-segment panel_ids (e.g. "0_0_P0", "0_0_P1")
+        # are correctly distinguished.
         #
         # @param entities [Sketchup::Entities] Entities to scan
-        # @param prefix [String] Name prefix before the index
-        # @return [Array<String>] Sorted unique indices as strings
-        def self.na_find_unique_indices(entities, prefix)
-            indices = []
+        # @param pattern [Regexp] Pattern with one capture group for the panel_id
+        # @return [Array<String>] Sorted unique panel_ids
+        def self.na_find_unique_panel_ids(entities, pattern)
+            panel_ids = []
             entities.to_a.grep(Sketchup::Group).each do |g|
-                next unless g.name.start_with?(prefix)
-                # Extract the index: everything between prefix and the next underscore
-                remainder = g.name.sub(prefix, '')
-                idx = remainder.split('_').first
-                indices << idx if idx && idx.match?(/^\d+$/)
+                match = g.name.match(pattern)
+                next unless match
+                panel_ids << match[1]
             end
-            indices.uniq.sort
+            panel_ids.uniq.sort
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Extract Index from Fused Group Name
+        # FUNCTION | Extract Panel ID from Fused Group Name
         # ------------------------------------------------------------
-        # Extracts the numeric index from a fused group name.
-        # E.g., "Na_GlazeBar_0_Fused" with prefix "Na_GlazeBar_" returns "0".
+        # Extracts the full panel_id from a fused group name by taking
+        # everything between the prefix and the "_Fused" suffix.
+        # E.g., "Na_GlazeBar_0_0_P0_Fused" with prefix "Na_GlazeBar_"
+        # returns "0_0_P0".
         #
         # @param name [String] Group name
         # @param prefix [String] Expected prefix
-        # @return [String, nil] The extracted index or nil
-        def self.na_extract_index_from_fused_name(name, prefix)
-            return nil unless name.start_with?(prefix)
-            remainder = name.sub(prefix, '')
-            idx = remainder.split('_').first
-            return idx if idx && idx.match?(/^\d+$/)
+        # @return [String, nil] The extracted panel_id or nil
+        def self.na_extract_panel_id_from_fused_name(name, prefix)
+            return nil unless name.start_with?(prefix) && name.end_with?("_Fused")
+            panel_id = name.sub(prefix, '').sub(/_Fused$/, '')
+            return panel_id unless panel_id.empty?
             nil
         end
         # ---------------------------------------------------------------
