@@ -8,15 +8,17 @@
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Creates solid door panel geometry inside a casement frame
 # CREATED    : 2026
-# VERSION    : 0.2.1
+# VERSION    : 0.3.0
 #
 # DESCRIPTION:
 # - Builds the solid panel content that sits inside a door casement frame
-# - Called by GeometryEngine for the lower zone of each door casement
-# - Receives the inner area (already inset by casement stiles/rails)
-# - Creates a solid backing plate, grid dividers, recessed panel faces,
-#   and optional trim/moulding
-# - Uses panel_id in all group names for FuseParts integration
+# - Recess depth controls the inset of panels from both front and back faces
+#   e.g. casement_depth=80mm, recess_depth=10mm => panel is 60mm deep, 10mm
+#   back from front face and 10mm forward from back face
+# - Margin border fills the perimeter at full casement depth (flush with frame)
+# - Grid dividers also at full casement depth (form the raised frame between cells)
+# - Recessed panels sit behind the frame surface by recess_depth on each side
+# - Trim/moulding sits on both front and back recess shelves
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix
@@ -62,11 +64,12 @@ module Na__WindowConfiguratorTool
             casement_depth = params[:casement_depth]
             y_offset = params[:frame_wall_inset] + params[:casement_inset]
 
-            # Solid backing plate fills the entire inner panel area
-            GeometryHelpers.na_create_grouped_box(
-                entities, "Na_DoorPanel_#{panel_id}_Backing",
+            # Margin border: fills the perimeter at full casement depth (flush with frame)
+            na_create_margin_border(
+                entities, panel_id,
                 panel_x, y_offset, panel_z,
-                panel_width, casement_depth, panel_height, frame_material
+                panel_width, panel_height,
+                margin, casement_depth, frame_material
             )
 
             grid_x = panel_x + margin
@@ -76,6 +79,7 @@ module Na__WindowConfiguratorTool
 
             return if grid_width <= 0 || grid_height <= 0
 
+            # Grid dividers at full casement depth (raised frame between cells)
             na_create_grid_dividers(
                 entities, panel_id,
                 grid_x, y_offset, grid_z,
@@ -123,8 +127,39 @@ module Na__WindowConfiguratorTool
 
         private
 
+        # FUNCTION | Create Margin Border
+        # ------------------------------------------------------------
+        # Four border pieces at full casement depth filling the margin
+        # area between casement stiles/rails and the panel grid.
+        # Stiles full height, rails inset (joinery convention).
+        def self.na_create_margin_border(entities, panel_id, x, y, z, width, height, margin, depth, material)
+            return if margin <= 0
+
+            clear_width = width - (2 * margin)
+            return if clear_width <= 0
+
+            GeometryHelpers.na_create_grouped_box(
+                entities, "Na_DoorPanel_#{panel_id}_Margin_Left",
+                x, y, z, margin, depth, height, material
+            )
+            GeometryHelpers.na_create_grouped_box(
+                entities, "Na_DoorPanel_#{panel_id}_Margin_Right",
+                x + width - margin, y, z, margin, depth, height, material
+            )
+            GeometryHelpers.na_create_grouped_box(
+                entities, "Na_DoorPanel_#{panel_id}_Margin_Bottom",
+                x + margin, y, z, clear_width, depth, margin, material
+            )
+            GeometryHelpers.na_create_grouped_box(
+                entities, "Na_DoorPanel_#{panel_id}_Margin_Top",
+                x + margin, y, z + height - margin, clear_width, depth, margin, material
+            )
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Create Internal Grid Dividers
         # ------------------------------------------------------------
+        # At full casement depth so they sit proud of the recessed panels.
         def self.na_create_grid_dividers(entities, panel_id, grid_x, y, grid_z, grid_width, grid_height, columns, rows, stile_width, rail_width, depth, material)
             total_stile_width = [columns - 1, 0].max * stile_width
             total_rail_height = [rows - 1, 0].max * rail_width
@@ -175,6 +210,9 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Create Recessed Panel
         # ------------------------------------------------------------
+        # Panel is inset by recess_depth from both front and back faces.
+        # e.g. casement_depth=80mm, recess_depth=10mm => 60mm deep panel
+        # sitting 10mm back from front and 10mm forward from back.
         def self.na_create_recessed_panel(entities, panel_id, cell_index, x, y, z, width, height, casement_depth, recess_depth, material)
             panel_y = y + recess_depth
             panel_depth = casement_depth - (2 * recess_depth)
@@ -189,38 +227,47 @@ module Na__WindowConfiguratorTool
 
         # FUNCTION | Create Panel Trim / Moulding
         # ------------------------------------------------------------
+        # Trim sits on the recess shelf on BOTH the front and back faces.
+        # Front trim: at y_offset + moulding_inset
+        # Back trim: at y_offset + casement_depth - moulding_inset - trim_depth
         def self.na_create_panel_trim(entities, panel_id, cell_index, cell_x, y, cell_z, cell_width, cell_height, casement_depth, recess_depth, trim_width, trim_depth, moulding_inset, material)
-            trim_y = y + moulding_inset
-            trim_d = [trim_depth, recess_depth].min
+            trim_d = [trim_depth, recess_depth - moulding_inset].min
             trim_d = [trim_d, 1.mm].max
 
-            prefix = "Na_DoorTrim_#{panel_id}_#{cell_index}"
+            front_trim_y = y + moulding_inset
+            back_trim_y = y + casement_depth - moulding_inset - trim_d
 
+            na_create_trim_ring(entities, "Na_DoorTrim_#{panel_id}_#{cell_index}_F", cell_x, front_trim_y, cell_z, cell_width, cell_height, trim_width, trim_d, material)
+            na_create_trim_ring(entities, "Na_DoorTrim_#{panel_id}_#{cell_index}_B", cell_x, back_trim_y, cell_z, cell_width, cell_height, trim_width, trim_d, material)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Create Single Trim Ring (4 strips)
+        # ------------------------------------------------------------
+        def self.na_create_trim_ring(entities, prefix, x, y, z, width, height, trim_width, trim_depth, material)
             GeometryHelpers.na_create_grouped_box(
                 entities, "#{prefix}_Bottom",
-                cell_x, trim_y, cell_z,
-                cell_width, trim_d, trim_width, material
+                x, y, z,
+                width, trim_depth, trim_width, material
             )
-
             GeometryHelpers.na_create_grouped_box(
                 entities, "#{prefix}_Top",
-                cell_x, trim_y, cell_z + cell_height - trim_width,
-                cell_width, trim_d, trim_width, material
+                x, y, z + height - trim_width,
+                width, trim_depth, trim_width, material
             )
 
-            inner_height = cell_height - (2 * trim_width)
+            inner_height = height - (2 * trim_width)
             return if inner_height <= 0
 
             GeometryHelpers.na_create_grouped_box(
                 entities, "#{prefix}_Left",
-                cell_x, trim_y, cell_z + trim_width,
-                trim_width, trim_d, inner_height, material
+                x, y, z + trim_width,
+                trim_width, trim_depth, inner_height, material
             )
-
             GeometryHelpers.na_create_grouped_box(
                 entities, "#{prefix}_Right",
-                cell_x + cell_width - trim_width, trim_y, cell_z + trim_width,
-                trim_width, trim_d, inner_height, material
+                x + width - trim_width, y, z + trim_width,
+                trim_width, trim_depth, inner_height, material
             )
         end
         # ---------------------------------------------------------------

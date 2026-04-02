@@ -324,10 +324,12 @@ module Na__WindowConfiguratorTool
 
             # Door panel parameters
             door_panel_height = (config["door_panel_height_mm"] || 400).to_f * mm_to_inch
-            door_panel_columns = (config["door_panel_columns"] || 2).to_i.clamp(1, 4)
+            door_panel_columns = (config["door_panel_columns"] || 1).to_i.clamp(1, 4)
             door_panel_rows = (config["door_panel_rows"] || 1).to_i.clamp(1, 3)
             door_panel_rail_width = (config["door_panel_rail_width_mm"] || 30).to_f * mm_to_inch
             door_panel_stile_width = (config["door_panel_stile_width_mm"] || 30).to_f * mm_to_inch
+            door_mid_rail_width = (config["door_mid_rail_width_mm"] || 150).to_f * mm_to_inch
+            door_base_rail_width = (config["door_base_rail_width_mm"] || 200).to_f * mm_to_inch
             door_panel_margin = (config["door_panel_margin_mm"] || 30).to_f * mm_to_inch
             door_panel_recess_depth = (config["door_panel_recess_depth_mm"] || 8).to_f * mm_to_inch
             door_panel_trim_width = (config["door_panel_trim_width_mm"] || 5).to_f * mm_to_inch
@@ -427,6 +429,8 @@ module Na__WindowConfiguratorTool
                 door_panel_rows: door_panel_rows,
                 door_panel_rail_width: door_panel_rail_width,
                 door_panel_stile_width: door_panel_stile_width,
+                door_mid_rail_width: door_mid_rail_width,
+                door_base_rail_width: door_base_rail_width,
                 door_panel_margin: door_panel_margin,
                 door_panel_recess_depth: door_panel_recess_depth,
                 door_panel_trim_width: door_panel_trim_width,
@@ -499,8 +503,8 @@ module Na__WindowConfiguratorTool
                 na_create_opening(entities, i, params, frame_material, glass_material)
             end
 
-            # Create cill (skip in door mode -- doors don't have cills)
-            if params[:has_cill] && params[:frame_bottom_thickness] > 0 && !params[:door_mode]
+            # Create cill
+            if params[:has_cill] && params[:frame_bottom_thickness] > 0
                 GeometryBuilders.na_create_cill_geometry(
                     entities, params[:width], params[:cill_depth], params[:cill_height],
                     params[:frame_depth], cill_material, params[:frame_wall_inset]
@@ -776,7 +780,9 @@ module Na__WindowConfiguratorTool
         # - Glass + glaze bars in the upper (glazed) zone
         # - Solid door panel content in the lower zone
         def self.na_render_door_casement_geometry(entities, panel_id, opening_index, cell_index, panel_index, sash_index, panel_x, panel_z, panel_width, panel_height, panel_wall_inset, params, frame_material, glass_material)
-            door_panel_h = [params[:door_panel_height], panel_height - params[:cas_top_rail] - params[:cas_bottom_rail] - 50.mm].min
+            mid_rail_w = params[:door_mid_rail_width]
+            base_rail_w = params[:door_base_rail_width]
+            door_panel_h = [params[:door_panel_height], panel_height - params[:cas_top_rail] - mid_rail_w - base_rail_w - 50.mm].min
             door_panel_h = [door_panel_h, 0].max
 
             y_offset = panel_wall_inset + params[:casement_inset]
@@ -788,21 +794,21 @@ module Na__WindowConfiguratorTool
 
             rail_clear_width = panel_width - params[:cas_left_stile] - params[:cas_right_stile]
 
-            # Bottom rail
-            GeometryHelpers.na_create_casement_rail(entities, panel_id, "Bottom", panel_x + params[:cas_left_stile], y_offset, panel_z, rail_clear_width, cas_depth, params[:cas_bottom_rail], frame_material)
+            # Base rail (bottom of the door)
+            GeometryHelpers.na_create_casement_rail(entities, panel_id, "Bottom", panel_x + params[:cas_left_stile], y_offset, panel_z, rail_clear_width, cas_depth, base_rail_w, frame_material)
 
             # Top rail
             GeometryHelpers.na_create_casement_rail(entities, panel_id, "Top", panel_x + params[:cas_left_stile], y_offset, panel_z + panel_height - params[:cas_top_rail], rail_clear_width, cas_depth, params[:cas_top_rail], frame_material)
 
             # Mid-rail at the junction between panel and glass zones
-            mid_rail_z = panel_z + params[:cas_bottom_rail] + door_panel_h
-            GeometryHelpers.na_create_casement_rail(entities, panel_id, "Mid", panel_x + params[:cas_left_stile], y_offset, mid_rail_z, rail_clear_width, cas_depth, params[:cas_bottom_rail], frame_material)
+            mid_rail_z = panel_z + base_rail_w + door_panel_h
+            GeometryHelpers.na_create_casement_rail(entities, panel_id, "Mid", panel_x + params[:cas_left_stile], y_offset, mid_rail_z, rail_clear_width, cas_depth, mid_rail_w, frame_material)
 
             # Upper zone: glass + glaze bars
             glass_x = panel_x + params[:cas_left_stile]
-            glass_z = mid_rail_z + params[:cas_bottom_rail]
+            glass_z = mid_rail_z + mid_rail_w
             glass_w = rail_clear_width
-            glass_h = panel_height - params[:cas_top_rail] - params[:cas_bottom_rail] - door_panel_h - params[:cas_bottom_rail]
+            glass_h = panel_height - params[:cas_top_rail] - mid_rail_w - door_panel_h - base_rail_w
 
             if glass_h > 0 && glass_w > 0
                 GeometryBuilders.na_create_glass_geometry(
@@ -822,9 +828,9 @@ module Na__WindowConfiguratorTool
                 end
             end
 
-            # Lower zone: door panel content (inside casement stiles, between bottom rail and mid-rail)
+            # Lower zone: door panel content (inside casement stiles, between base rail and mid-rail)
             inner_panel_x = panel_x + params[:cas_left_stile]
-            inner_panel_z = panel_z + params[:cas_bottom_rail]
+            inner_panel_z = panel_z + base_rail_w
             inner_panel_w = rail_clear_width
             inner_panel_h = door_panel_h
 

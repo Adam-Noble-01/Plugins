@@ -352,7 +352,7 @@ module Na__WindowConfiguratorTool
 
             door_panel_ids = na_find_unique_panel_ids(
                 entities,
-                /^Na_DoorPanel_(.+)_(Backing|Stile_\d+|Rail_\d+|Panel_\d+)$/
+                /^Na_DoorPanel_(.+)_(Margin_(?:Left|Right|Top|Bottom)|Stile_\d+|Rail_\d+|Panel_\d+)$/
             )
 
             if door_panel_ids.empty?
@@ -398,7 +398,7 @@ module Na__WindowConfiguratorTool
 
             door_trim_ids = na_find_unique_panel_ids(
                 entities,
-                /^Na_DoorTrim_(.+)_\d+_(Bottom|Top|Left|Right)$/
+                /^Na_DoorTrim_(.+)_\d+_[FB]_(Bottom|Top|Left|Right)$/
             )
 
             if door_trim_ids.empty?

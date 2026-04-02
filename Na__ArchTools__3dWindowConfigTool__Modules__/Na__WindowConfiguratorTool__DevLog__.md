@@ -3,6 +3,44 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Version 0.10.3 - 02-Apr-2026 - Door Panel Geometry & Controls Refinement
+
+### Fixed - Panel Recess Depth
+- **Problem:** The recessed panel sat flush with the casement face because a full-area backing plate at full casement depth obscured the recess.
+- **Fix:** Replaced the single backing plate with 4 margin-border pieces that only fill the perimeter gap. The margin border, grid dividers, and casement frame sit at full casement depth (flush). The recessed panel sits `recess_depth` back from both the front and back faces (e.g. 80mm casement depth with 10mm recess = 60mm deep panel, 10mm inset each side). Default recess depth changed to 10mm.
+
+### Fixed - Trim / Moulding on Both Faces
+- Trim now creates two rings per cell: one on the front recess shelf and one on the back recess shelf, with `moulding_inset` pushing them back from each face. Group names use `_F_` and `_B_` suffixes.
+
+### Changed - Rail Width / Stile Width replaced with Mid Rail & Base Rail
+- Removed the generic `door_panel_rail_width_mm` and `door_panel_stile_width_mm` sliders (only useful for multi-row/column internal dividers).
+- Added **Mid Rail Width** (default 150mm) -- the horizontal member separating the glazed section from the panel.
+- Added **Base Rail Width** (default 200mm) -- the bottom rail of the door.
+- Both are used in `na_render_door_casement_geometry` for correct door proportions.
+
+### Fixed - Cill No Longer Disappears in Door Mode
+- Removed the `!door_mode` check from cill creation in both Ruby geometry and SVG preview. Cill toggle remains usable in door mode.
+
+### New - Show Trim Toggle
+- Added `door_panel_show_trim` toggle (default off) above the Trim / Moulding expandable. When off, no trim geometry is created and the expandable is hidden.
+
+### New - Panel Margin Allows Zero
+- Panel margin slider minimum changed to 0mm. At 0, no margin border pieces are created and the panel fills edge-to-edge inside the casement frame.
+
+### Files Modified
+1. **`Na__WindowConfiguratorTool__DoorPanel__GeometryBuilder__.rb`** -- Replaced backing plate with margin border, fixed recess depth, dual-sided trim, new `na_create_trim_ring` helper
+2. **`Na__WindowConfiguratorTool__DoorPanel__Config__.js`** -- Added Mid Rail / Base Rail sliders, Show Trim toggle, margin min 0, recess default 10
+3. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`** -- Parse new keys, use mid/base rail widths, allow cill in door mode
+4. **`Na__WindowConfiguratorTool__Main__.rb`** -- Updated defaults
+5. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`** -- SVG uses new rail widths, cill in door mode
+6. **`Na__WindowConfiguratorTool__UiLogic__.js`** -- Removed cill disabling in door mode
+7. **`Na__WindowConfiguratorTool__FuseParts__.rb`** -- Updated regexes for Mid_Rail, Margin_*, and _F_/_B_ trim naming
+
+### Status: IMPLEMENTED
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ## Version 0.10.2 - 02-Apr-2026 - Door Panel Casement Integration Refactor
 
 ### Refactor - Door Panels Inside Casements

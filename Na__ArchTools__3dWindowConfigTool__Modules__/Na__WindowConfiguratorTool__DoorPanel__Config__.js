@@ -32,10 +32,10 @@ const NA_DOOR_PANEL_CONFIG = [
         label   :  'Panel Section Height',
         unit    :  'mm',
         type    :  'slider',
-        min     :  100,
+        min     :  50,
         max     :  1200,
         step    :  10,
-        default :  400
+        default :  250
     },
     {
         id      :  'door_panel_layout_controls',
@@ -64,24 +64,24 @@ const NA_DOOR_PANEL_CONFIG = [
                 default :  1
             },
             {
-                id      :  'door_panel_rail_width_mm',
-                label   :  'Rail Width',
+                id      :  'door_mid_rail_width_mm',
+                label   :  'Mid Rail Width',
                 unit    :  'mm',
                 type    :  'slider',
-                min     :  15,
-                max     :  95,
+                min     :  20,
+                max     :  300,
                 step    :  5,
-                default :  30
+                default :  100
             },
             {
-                id      :  'door_panel_stile_width_mm',
-                label   :  'Stile Width',
+                id      :  'door_base_rail_width_mm',
+                label   :  'Base Rail Width',
                 unit    :  'mm',
                 type    :  'slider',
-                min     :  15,
-                max     :  95,
+                min     :  20,
+                max     :  400,
                 step    :  5,
-                default :  30
+                default :  150
             }
         ]
     },
@@ -96,20 +96,20 @@ const NA_DOOR_PANEL_CONFIG = [
                 label   :  'Panel Margin',
                 unit    :  'mm',
                 type    :  'slider',
-                min     :  10,
+                min     :  0,
                 max     :  100,
                 step    :  5,
-                default :  30
+                default :  0
             },
             {
                 id      :  'door_panel_recess_depth_mm',
                 label   :  'Recess Depth',
                 unit    :  'mm',
                 type    :  'slider',
-                min     :  2,
+                min     :  0,
                 max     :  25,
                 step    :  1,
-                default :  8
+                default :  10
             }
         ]
     },
@@ -131,9 +131,9 @@ const NA_DOOR_PANEL_CONFIG = [
                 unit    :  'mm',
                 type    :  'slider',
                 min     :  0,
-                max     :  25,
+                max     :  75,
                 step    :  1,
-                default :  5
+                default :  40
             },
             {
                 id      :  'door_panel_trim_depth_mm',
@@ -141,9 +141,9 @@ const NA_DOOR_PANEL_CONFIG = [
                 unit    :  'mm',
                 type    :  'slider',
                 min     :  0,
-                max     :  12,
+                max     :  20,
                 step    :  1,
-                default :  3
+                default :  5
             },
             {
                 id      :  'door_panel_moulding_inset_mm',

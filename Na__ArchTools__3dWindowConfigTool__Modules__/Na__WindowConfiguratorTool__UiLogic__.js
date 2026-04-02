@@ -281,21 +281,6 @@ const Na_DynamicUI = (function() {
         const isDoorMode = _config.door_mode === true;
         doorPanelSection.style.display = isDoorMode ? '' : 'none';
 
-        const cillToggle = document.getElementById('has_cill-toggle');
-        if (cillToggle) {
-            if (isDoorMode) {
-                cillToggle.style.opacity = '0.4';
-                cillToggle.style.pointerEvents = 'none';
-            } else if (!isDoorMode) {
-                const frameThicknesses = na_getEffectiveFrameThicknesses();
-                const isBottomFrameless = frameThicknesses.bottom === 0;
-                if (!isBottomFrameless) {
-                    cillToggle.style.opacity = '';
-                    cillToggle.style.pointerEvents = '';
-                }
-            }
-        }
-
         const trimExpandable = document.querySelector('[data-control-id="door_panel_trim_controls"]');
         if (trimExpandable) {
             const showTrim = _config.door_panel_show_trim === true;

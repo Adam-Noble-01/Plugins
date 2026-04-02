@@ -243,7 +243,7 @@ const Na__Viewport__SvgGenerator = (function() {
             }
         }
 
-        if (hasCill && bottomFrameThickness > 0 && !doorMode) {
+        if (hasCill && bottomFrameThickness > 0) {
             const cillHeight = config.cill_height_mm || 50;
             svg += na_svgRect(0, -cillHeight, width, cillHeight, '#A0908A', '#000', 1);
         }
@@ -531,7 +531,9 @@ const Na__Viewport__SvgGenerator = (function() {
     // glass + glaze bars in the upper zone, and door panel content in the lower zone.
     function na_generateDoorCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, doorPanelHeightMm, doorConfig, panelContext, removedGlazebars) {
         const renderBucket = na_createSvgRenderBucket();
-        const doorPanelH = Math.min(Math.max(0, doorPanelHeightMm), height - topRail - bottomRail - 50);
+        const midRailW = (doorConfig && doorConfig.door_mid_rail_width_mm) || 150;
+        const baseRailW = (doorConfig && doorConfig.door_base_rail_width_mm) || 200;
+        const doorPanelH = Math.min(Math.max(0, doorPanelHeightMm), height - topRail - midRailW - baseRailW - 50);
 
         // Full-height stiles
         renderBucket.svg += na_svgRect(x, y, leftStile, height, frameColor, '#000', 0.5);
@@ -539,20 +541,20 @@ const Na__Viewport__SvgGenerator = (function() {
 
         const railClearWidth = width - leftStile - rightStile;
 
-        // Bottom rail
-        renderBucket.svg += na_svgRect(x + leftStile, y, railClearWidth, bottomRail, frameColor, '#000', 0.5);
+        // Base rail (bottom of door)
+        renderBucket.svg += na_svgRect(x + leftStile, y, railClearWidth, baseRailW, frameColor, '#000', 0.5);
         // Top rail
         renderBucket.svg += na_svgRect(x + leftStile, y + height - topRail, railClearWidth, topRail, frameColor, '#000', 0.5);
 
         // Mid-rail at the glass/panel junction
-        const midRailY = y + bottomRail + doorPanelH;
-        renderBucket.svg += na_svgRect(x + leftStile, midRailY, railClearWidth, bottomRail, frameColor, '#000', 0.5);
+        const midRailY = y + baseRailW + doorPanelH;
+        renderBucket.svg += na_svgRect(x + leftStile, midRailY, railClearWidth, midRailW, frameColor, '#000', 0.5);
 
         // Upper zone: glass + glaze bars
         const glassX = x + leftStile;
-        const glassY = midRailY + bottomRail;
+        const glassY = midRailY + midRailW;
         const glassWidth = railClearWidth;
-        const glassHeight = height - topRail - bottomRail - doorPanelH - bottomRail;
+        const glassHeight = height - topRail - midRailW - doorPanelH - baseRailW;
 
         if (glassHeight > 0 && glassWidth > 0) {
             renderBucket.svg += na_svgRect(glassX, glassY, glassWidth, glassHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
@@ -572,7 +574,7 @@ const Na__Viewport__SvgGenerator = (function() {
 
         // Lower zone: door panel content (inside casement frame)
         const panelInnerX = x + leftStile;
-        const panelInnerY = y + bottomRail;
+        const panelInnerY = y + baseRailW;
         const panelInnerW = railClearWidth;
         const panelInnerH = doorPanelH;
 
