@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Na Array Builder</title>
+    <link rel="stylesheet" href="Na__ArrayBuilder__UiStyle__.css">
+</head>
+<body>
+
+    <!-- HEADER -->
+    <div class="na-header">
+        <div class="na-header-brand">
+            <img class="na-header-icon" src="../Na__Common__PluginDependencies/IMG02__ICN__NaCompanyIcon.png" width="32" height="32" alt="">
+            <h1>Na Array Builder</h1>
+        </div>
+        <button class="na-btn-icon" onclick="sketchup.na_reloadScripts()" title="Reload Scripts">&#x21bb;</button>
+    </div>
+
+    <!-- ARRAY TYPE SELECTOR -->
+    <div class="na-section">
+        <label class="na-section-label">Array Type</label>
+        <div class="na-type-selector">
+            <button id="na-btn-dentil" class="na-type-btn na-active" onclick="na_selectType('dentil')">
+                Dentil Course
+            </button>
+            <button id="na-btn-dogtooth" class="na-type-btn" onclick="na_selectType('dogtooth')">
+                Dog-Tooth Course
+            </button>
+        </div>
+    </div>
+
+    <!-- DIMENSIONS -->
+    <div class="na-section">
+        <label class="na-section-label">Dimensions (mm)</label>
+
+        <div class="na-input-row">
+            <label for="na-unit-width">Unit Width</label>
+            <input type="number" id="na-unit-width" value="110" min="1" step="1">
+        </div>
+
+        <div class="na-input-row">
+            <label for="na-unit-depth">Unit Depth</label>
+            <input type="number" id="na-unit-depth" value="30" min="1" step="1">
+        </div>
+
+        <div class="na-input-row">
+            <label for="na-unit-height">Unit Height</label>
+            <input type="number" id="na-unit-height" value="75" min="1" step="1">
+        </div>
+
+        <div class="na-input-row">
+            <label for="na-spacing">Spacing</label>
+            <input type="number" id="na-spacing" value="115" min="0" step="1">
+        </div>
+    </div>
+
+    <!-- DISTRIBUTION OPTIONS -->
+    <div class="na-section">
+        <label class="na-section-label">Distribution</label>
+        <div class="na-toggle-row">
+            <label for="na-normalise">Normalise Distance</label>
+            <label class="na-toggle">
+                <input type="checkbox" id="na-normalise">
+                <span class="na-toggle-slider"></span>
+            </label>
+        </div>
+        <div class="na-toggle-hint">
+            Adjusts spacing per segment so units land at both ends of each wall.
+        </div>
+    </div>
+
+    <!-- PREVIEW INFO -->
+    <div class="na-section">
+        <label class="na-section-label">Preview Info</label>
+        <div class="na-info-row">
+            <span>Estimated Count:</span>
+            <span id="na-preview-count" class="na-info-value">--</span>
+        </div>
+        <div class="na-info-row">
+            <span>Total Length:</span>
+            <span id="na-preview-length" class="na-info-value">--</span>
+        </div>
+        <div id="na-actual-spacing-row" class="na-info-row" style="display:none;">
+            <span>Actual Spacing:</span>
+            <span id="na-actual-spacing" class="na-info-value">--</span>
+        </div>
+    </div>
+
+    <!-- ACTION -->
+    <div class="na-section na-action-section">
+        <button id="na-btn-start" class="na-btn-primary" onclick="na_startPlacement()">
+            Start Placement
+        </button>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div id="na-status-bar" class="na-status-bar na-status-info">
+        Ready
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="Na__ArrayBuilder__UiBridge__.js"></script>
+
+</body>
+</html>
