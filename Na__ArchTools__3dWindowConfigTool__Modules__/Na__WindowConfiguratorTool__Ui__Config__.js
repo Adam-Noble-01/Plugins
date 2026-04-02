@@ -441,6 +441,12 @@ const NA_OPTIONS_CONFIG = [
         default :  false
     },
     {
+        id      :  'door_mode',
+        label   :  'Door Mode',
+        type    :  'toggle',
+        default :  false
+    },
+    {
         id      :  'frame_material_id',
         label   :  'Frame Finish',
         type    :  'material_cards',

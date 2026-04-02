@@ -4,6 +4,91 @@
 
 This document provides a comprehensive diagram of how the Window Configurator Tool works, including data flow, file relationships, and the planned feature additions.
 
+## Feature Addendum - Door Mode Casement Integration (v0.10.1)
+
+### Concept
+
+Door Mode converts the window into a door. Each casement becomes a full-height door with the panel integrated inside:
+- **Upper glazed zone** -- glass + glaze bars sit above a mid-rail
+- **Lower solid panel zone** -- configurable grid of recessed panels with optional trim/moulding sits below the mid-rail
+- The casement stiles span the full height; top rail, mid-rail, and bottom rail divide the zones
+- No separate transom-like divider -- the panel is part of the casement group
+- Multi-casement openings produce independent doors, each with their own panel
+
+### New Config Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `door_mode` | boolean | `false` | Master toggle for door mode |
+| `door_panel_height_mm` | number | `400` | Height of the solid lower panel section |
+| `door_panel_columns` | integer | `2` | Number of panel columns (1--4) |
+| `door_panel_rows` | integer | `1` | Number of panel rows (1--3) |
+| `door_panel_rail_width_mm` | number | `30` | Width of horizontal dividers between rows |
+| `door_panel_stile_width_mm` | number | `30` | Width of vertical dividers between columns |
+| `door_panel_margin_mm` | number | `30` | Margin from casement/frame edge to panel grid |
+| `door_panel_recess_depth_mm` | number | `8` | How deep each panel is recessed |
+| `door_panel_trim_width_mm` | number | `5` | Trim/moulding border width |
+| `door_panel_trim_depth_mm` | number | `3` | Trim protrusion depth |
+| `door_panel_moulding_inset_mm` | number | `5` | Pushes moulding back from casement front face |
+
+### Data Flow
+
+`door_mode toggle (Options)` -> `Na_DynamicUI._config` -> `na_updateDoorPanelVisibility()` shows/hides Door Panel section -> `UiEventToRubyApiBridge` passes config -> `GeometryEngine.na_parse_config` extracts door params -> `na_render_opening_panel_geometry` routes to `na_render_door_casement_geometry` -> builds full-height casement (stiles + top/bottom/mid rails) + glass in upper zone + `DoorPanelBuilder.na_create_door_panel_section` fills lower zone with grid dividers, recessed panels, and trim.
+
+### New Files
+
+1. **`Na__WindowConfiguratorTool__DoorPanel__Config__.js`** -- `NA_DOOR_PANEL_CONFIG` array with all door panel UI control descriptors
+2. **`Na__WindowConfiguratorTool__DoorPanel__GeometryBuilder__.rb`** -- `Na__DoorPanelGeometryBuilder` module with panel section geometry creation
+
+### Modified Files
+
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`** -- `door_mode` toggle in `NA_OPTIONS_CONFIG`
+2. **`Na__WindowConfiguratorTool__UiLayout__.html`** -- Door Panel section container + script include
+3. **`Na__WindowConfiguratorTool__UiLogic__.js`** -- builds door panel controls, defaults, visibility management
+4. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`** -- parses door config, splits height, calls door panel builder, creates divider
+5. **`Na__WindowConfiguratorTool__Main__.rb`** -- requires new module, adds door panel defaults
+6. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`** -- renders door panel area and divider in 2D preview
+
+### Geometry Detail
+
+For each casement panel in door mode, `na_render_door_casement_geometry` builds:
+1. **Full-height casement stiles** -- left and right stiles spanning the entire panel height
+2. **Top rail** -- at the top of the casement
+3. **Bottom rail** -- at the bottom of the casement
+4. **Mid-rail** -- horizontal member at the glass/panel junction (casement bottom rail thickness)
+5. **Glass + glaze bars** -- placed in the upper zone (between mid-rail and top rail)
+6. **Door panel content** -- `DoorPanelBuilder.na_create_door_panel_section` fills the lower zone with grid dividers, recessed panels, and trim/moulding
+
+### FuseParts Integration
+
+- **Casement fusion** (`Na_Casement_{panel_id}_*`): stiles, top rail, bottom rail, and mid-rail all fuse into one solid per panel
+- **Door panel fusion** (`Na_DoorPanel_{panel_id}_*`): grid stiles, rails, and recessed panels fuse per panel
+- **Door trim fusion** (`Na_DoorTrim_{panel_id}_*`): all trim strips fuse per panel
+- Two new steps in `na_fuse_window_parts`: `na_fuse_door_panels` and `na_fuse_door_trim`
+
+### Integration
+
+- **Mullions + door mode**: each opening gets independent doors; mullions span full height
+- **Transoms + door mode**: transoms apply to the full opening height
+- **Cill**: automatically disabled when door mode is on
+- **Multi-casement**: each casement panel independently contains its own lower panel section
+
+---
+
+## Feature Addendum - Header Reload Icon (v0.9.12d)
+
+### UI
+
+- The main dialog header reload action is an icon-only button (`na-btn-icon`, Unicode `U+21BB`) with `title="Reload Scripts"`, matching the compact control used in Na Array Builder.
+- Click handling remains `na_reloadScripts()` in the HTML layout, which delegates to `sketchup.na_reloadScripts()` via `Na__WindowConfiguratorTool__UiEventToRubyApiBridge__.js`.
+- If `Na__WindowConfiguratorTool__UiLayout__.html` is missing, fallback HTML in `Na__WindowConfiguratorTool__DialogManager__.rb` exposes the same glyph with class `na-fallback-reload`.
+
+### Files
+
+- `Na__WindowConfiguratorTool__UiLayout__.html` — reload control markup
+- `Na__WindowConfiguratorTool__Styles__.css` — `.na-btn-icon`
+- `Na__WindowConfiguratorTool__DialogManager__.rb` — fallback reload control
+
 ## Feature Addendum - FuseParts Per-Panel Fusion Fix (v0.9.12c)
 
 ### Bug Fix
@@ -205,7 +290,7 @@ These values now flow through the same full-config path used by mullions:
 │  │  Na__...__PlacementTool__.rb (272)    │   │  └─ Live mode debouncing (100ms)       ││
 │  │  ├─ Crosshair cursor                  │   │                                        ││
 │  │  ├─ Grid snapping                     │   └───────────────────────────────────────┘│
-│  │  ├─ Rotation handling                 │                                             │
+│  │  ├─ Rotation (TAB, 4-step 0/90/180/270°) │                                             │
 │  │  └─ Preview feedback                  │   ┌───────────────────────────────────────┐│
 │  │                                       │   │       HTML / CSS                        ││
 │  │  Na__...__MeasureOpeningTool__.rb     │   ├───────────────────────────────────────┤│
@@ -752,7 +837,7 @@ end
 | `Na__...__GeometryBuilders__.rb` | 312 | High-level element builders (frame, casement, glass, cill) |
 | `Na__...__GeometryHelpers__.rb` | 231 | Low-level geometry primitives |
 | `Na__...__FuseParts__.rb` | 507 | Post-processing: per-panel boolean fusion (outer_shell) and glass trimming |
-| `Na__...__PlacementTool__.rb` | 272 | Interactive placement with crosshair |
+| `Na__...__PlacementTool__.rb` | 278 | Interactive placement with crosshair, TAB rotates 0/90/180/270° |
 | `Na__...__MeasureOpeningTool__.rb` | 280 | Two-click opening measurement with blue overlay |
 | `Na__...__Observers__.rb` | 82 | SelectionObserver for Live Mode |
 | `Na__...__DataSerializer__.rb` | 517 | Save/load window data, ID generation, direct instance loader |

@@ -30,6 +30,7 @@ let na_isEditMode = false;                                           // Whether 
 let na_liveModeEnabled = false;                                     // Live update mode state
 let na_liveUpdateTimer = null;                                       // Debounce timer for live updates
 let na_loadedMetadata = null;                                        // Cached metadata from Ruby (preserves timestamps)
+let na_placementModeActive = false;                                  // True while the SketchUp placement tool is active
 
 // endregion ===================================================================
 
@@ -187,6 +188,16 @@ window.na_measureCancelled = function() {
 };
 // ---------------------------------------------------------------
 
+// FUNCTION | Set Placement Mode Active State
+// ------------------------------------------------------------
+// Called by Ruby via execute_script when the placement tool starts or ends.
+// When active, Tab key presses are forwarded to Ruby instead of cycling HTML focus.
+window.na_setPlacementActive = function(active) {
+    na_placementModeActive = !!active;
+    console.log('[NA_BRIDGE] Placement mode:', na_placementModeActive);
+};
+// ---------------------------------------------------------------
+
 // endregion ===================================================================
 
 // =============================================================================
@@ -221,6 +232,9 @@ function na_createWindow() {
     // Send to Ruby
     if (typeof sketchup !== 'undefined') {
         sketchup.na_createWindow(configJson);
+        // Blur active element so the SketchUp viewport can receive keyboard events.
+        // Tab key is handled separately via the keydown interceptor above.
+        if (document.activeElement) { document.activeElement.blur(); }
     } else {
         console.log('[NA_BRIDGE] SketchUp not available. Config:', config);
         window.na_showStatus('warning', 'SketchUp connection not available');
@@ -277,7 +291,7 @@ function na_updateWindow() {
 
 // FUNCTION | Reload Ruby Scripts (Developer Feature)
 // ------------------------------------------------------------
-// Called when user clicks "Reload Plugin" button
+// Called when user clicks the header reload icon button
 function na_reloadScripts() {
     console.log('[NA_BRIDGE] Reloading scripts');
     
@@ -573,6 +587,23 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Log to Ruby that JS is ready
     na_logToRuby('JavaScript bridge initialized and ready');
+});
+// ---------------------------------------------------------------
+
+// FUNCTION | Tab Key Interceptor for Placement Mode
+// ------------------------------------------------------------
+// When the SketchUp placement tool is active, Tab is intercepted here to
+// prevent the browser cycling HTML focus and instead forward the keypress
+// to Ruby as a rotation command.
+// This fires for EVERY keydown regardless of which element has focus,
+// which is exactly what is needed when the dialog holds OS keyboard focus.
+document.addEventListener('keydown', function(e) {
+    if (na_placementModeActive && e.key === 'Tab') {
+        e.preventDefault();
+        if (typeof sketchup !== 'undefined') {
+            sketchup.na_keyboard_tab();
+        }
+    }
 });
 // ---------------------------------------------------------------
 

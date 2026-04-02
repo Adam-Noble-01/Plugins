@@ -76,6 +76,14 @@ module Na__WindowConfiguratorTool
                 trim_result = na_trim_glass_panels(entities)
                 na_update_summary(summary, trim_result)
 
+                # Step 5: Fuse door panel internal parts (stiles + rails + panels)
+                door_panel_result = na_fuse_door_panels(entities)
+                na_update_summary(summary, door_panel_result)
+
+                # Step 6: Fuse door trim moulding pieces
+                door_trim_result = na_fuse_door_trim(entities)
+                na_update_summary(summary, door_trim_result)
+
                 DebugTools.na_debug_success(
                     "Fuse complete: #{summary[:fused]} fused, " \
                     "#{summary[:failed]} failed, #{summary[:skipped]} skipped"
@@ -157,7 +165,7 @@ module Na__WindowConfiguratorTool
 
             casement_panel_ids = na_find_unique_panel_ids(
                 entities,
-                /^Na_Casement_(.+)_(Left_Stile|Right_Stile|Top_Rail|Bottom_Rail)$/
+                /^Na_Casement_(.+)_(Left_Stile|Right_Stile|Top_Rail|Bottom_Rail|Mid_Rail)$/
             )
 
             if casement_panel_ids.empty?
@@ -320,6 +328,104 @@ module Na__WindowConfiguratorTool
                 rescue => e
                     result[:failed] += 1
                     DebugTools.na_debug_error("Glass trim #{panel_id} error: #{e.message}")
+                end
+            end
+
+            result
+        end
+        # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Door Panel Fusion
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | Fuse Door Panel Internal Parts
+        # ------------------------------------------------------------
+        # For each door panel, collects its grid stiles, rails, and recessed
+        # panel groups and fuses them into a single solid per panel_id.
+        def self.na_fuse_door_panels(entities)
+            DebugTools.na_debug_geometry("Fusing door panel parts...")
+
+            result = { fused: 0, failed: 0, skipped: 0 }
+
+            door_panel_ids = na_find_unique_panel_ids(
+                entities,
+                /^Na_DoorPanel_(.+)_(Backing|Stile_\d+|Rail_\d+|Panel_\d+)$/
+            )
+
+            if door_panel_ids.empty?
+                DebugTools.na_debug_geometry("Door panels: no door panel groups found, skipping")
+                return result
+            end
+
+            door_panel_ids.each do |panel_id|
+                prefix = "Na_DoorPanel_#{panel_id}_"
+                groups = na_collect_groups_by_prefix(entities, prefix)
+
+                if groups.length < 2
+                    DebugTools.na_debug_geometry("DoorPanel #{panel_id}: fewer than 2 groups, skipping")
+                    result[:skipped] += 1
+                    next
+                end
+
+                DebugTools.na_debug_geometry("DoorPanel #{panel_id}: found #{groups.length} groups to fuse")
+
+                fused = na_sequential_outer_shell(groups, "Na_DoorPanel_#{panel_id}_Fused")
+
+                if fused
+                    result[:fused] += 1
+                    DebugTools.na_debug_success("DoorPanel #{panel_id} fused into: #{fused.name}")
+                else
+                    result[:failed] += 1
+                    DebugTools.na_debug_error("DoorPanel #{panel_id} fusion failed")
+                end
+            end
+
+            result
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Fuse Door Trim Moulding Parts
+        # ------------------------------------------------------------
+        # For each door panel, collects its trim strips (Bottom, Top, Left, Right)
+        # and fuses them into a single trim solid per panel_id.
+        def self.na_fuse_door_trim(entities)
+            DebugTools.na_debug_geometry("Fusing door trim parts...")
+
+            result = { fused: 0, failed: 0, skipped: 0 }
+
+            door_trim_ids = na_find_unique_panel_ids(
+                entities,
+                /^Na_DoorTrim_(.+)_\d+_(Bottom|Top|Left|Right)$/
+            )
+
+            if door_trim_ids.empty?
+                DebugTools.na_debug_geometry("Door trim: no door trim groups found, skipping")
+                return result
+            end
+
+            door_trim_ids.each do |panel_id|
+                prefix = "Na_DoorTrim_#{panel_id}_"
+                groups = na_collect_groups_by_prefix(entities, prefix)
+
+                if groups.length < 2
+                    DebugTools.na_debug_geometry("DoorTrim #{panel_id}: fewer than 2 groups, skipping")
+                    result[:skipped] += 1
+                    next
+                end
+
+                DebugTools.na_debug_geometry("DoorTrim #{panel_id}: found #{groups.length} groups to fuse")
+
+                fused = na_sequential_outer_shell(groups, "Na_DoorTrim_#{panel_id}_Fused")
+
+                if fused
+                    result[:fused] += 1
+                    DebugTools.na_debug_success("DoorTrim #{panel_id} fused into: #{fused.name}")
+                else
+                    result[:failed] += 1
+                    DebugTools.na_debug_error("DoorTrim #{panel_id} fusion failed")
                 end
             end
 

@@ -487,6 +487,35 @@ body {
     transform: translateY(1px);
 }
 
+/* Compact header icon control (matches Na Array Builder reload pattern) */
+.na-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-family: var(--na-font-family);
+    font-size: 16px;
+    line-height: 1;
+    color: var(--na-text-muted);
+    background: transparent;
+    border: 1px solid var(--na-border-light);
+    border-radius: var(--na-radius-sm);
+    cursor: pointer;
+    transition: var(--na-transition-fast);
+}
+
+.na-btn-icon:hover {
+    background: var(--na-bg-hover);
+    color: var(--na-text-primary);
+    border-color: var(--na-border-color);
+}
+
+.na-btn-icon:active {
+    transform: translateY(1px);
+}
+
 .na-btn-small {
     padding: var(--na-spacing-xs) var(--na-spacing-sm);
     font-size: var(--na-font-size-sm);

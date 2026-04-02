@@ -3,6 +3,105 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Version 0.10.2 - 02-Apr-2026 - Door Panel Casement Integration Refactor
+
+### Refactor - Door Panels Inside Casements
+- **Problem:** Door mode v0.10.0 created panels as a standalone section per opening with a transom-like divider bar separating the glazed and panel zones. Multi-casement openings shared a single panel block instead of each door having its own panel.
+- **Fix:** Refactored so door panels live inside each casement frame. Each casement spans the full height with stiles running top-to-bottom. A mid-rail separates the upper glazed zone from the lower solid panel zone. No external divider bar is created.
+- **Multi-casement:** When `casements_per_opening > 1`, each door independently contains its own panel section.
+
+### New Feature - Moulding Inset
+- **Feature:** New `door_panel_moulding_inset_mm` slider (0--15mm, default 5mm) pushes the trim/moulding back from the casement front face, creating an inset appearance visible from side view.
+
+### FuseParts Integration
+- **New Steps:** Added `na_fuse_door_panels` (fuses grid stiles/rails/recessed panels per panel_id) and `na_fuse_door_trim` (fuses trim strips per panel_id) to the FuseParts pipeline.
+- **Casement fusion** now includes the mid-rail alongside existing stiles/rails since it uses the `Na_Casement_` prefix.
+
+### Files Modified
+1. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`** -- Removed standalone door panel section, transom divider, height splitting. Added `na_render_door_casement_geometry` for full-height door casements with mid-rail.
+2. **`Na__WindowConfiguratorTool__DoorPanel__GeometryBuilder__.rb`** -- Removed perimeter frame. Updated to use panel_id in group names. Added moulding_inset parameter.
+3. **`Na__WindowConfiguratorTool__DoorPanel__Config__.js`** -- Added `door_panel_moulding_inset_mm` slider.
+4. **`Na__WindowConfiguratorTool__Main__.rb`** -- Added `door_panel_moulding_inset_mm` default.
+5. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`** -- Replaced height splitting with `na_generateDoorCasementSvg` that draws full-height casement with panel inside.
+6. **`Na__WindowConfiguratorTool__FuseParts__.rb`** -- Added `na_fuse_door_panels` and `na_fuse_door_trim` fusion steps.
+7. **`Na__WindowConfiguratorTool__Architecture__.md`** -- Updated Door Mode documentation.
+
+### Status: IMPLEMENTED
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+## Version 0.10.1 - 02-Apr-2026 - Placement Tool: Shift → Tab Rotation Fix
+
+### Fixed: Rotation Key (Shift → Tab)
+
+- **Problem:** The placement tool used `CONSTRAIN_MODIFIER_KEY = COPY_MODIFIER_KEY` for rotation. On Windows, `COPY_MODIFIER_KEY` resolves to Ctrl (not Shift), so the rotation never fired. The true Shift key (`CONSTRAIN_MODIFIER_KEY`) also interferes with VCB uppercase input.
+- **Bug SKEXT-3890:** SketchUp's `onKeyDown` double-fires on Windows (introduced 23.1.340, unresolved as of 2026). The old code had no guard against this, causing two rotation steps per keypress.
+- **Fix:** Replaced Shift with **Tab** (`NA_ROTATION_KEY = 9`), using the proven pattern from the `Na__InsertPrimatives` tool. `onKeyDown` now guards with `@key_tab_held` (acts only on first fire); `onKeyUp` resets the flag. Tab is safe with VCB enabled as it does not send characters.
+
+### Changed: Binary Toggle → 4-Step Cycle
+
+- **Old behaviour:** `@rotated` boolean toggled between 0° and 90°.
+- **New behaviour:** `@rotation_step` integer (0–3) cycles 0° → 90° → 180° → 270° → 0°. Each Tab press applies a +90° CCW rotation around the instance's bounding-box center.
+
+### Files Modified
+
+- `Na__WindowConfiguratorTool__PlacementTool__.rb` — Tab key constant, held-flag guard, `onKeyUp`, `na_advance_rotation`, status text updated to show current degrees and "TAB to rotate"
+
+# =============================================================================
+
+# ---------------------------------------------------------
+## Version 0.10.0 - 02-Apr-2026 - Door Mode Feature
+
+### New Feature - Door Mode
+- **Feature:** Adds a "Door Mode" toggle that converts the window into a door by splitting the inner height into an upper glazed section and a lower solid panel section.
+- **Toggle:** New `door_mode` toggle in the Options section, placed after the Sliding Sash toggle.
+- **UI Section:** New "Door Panel" section appears below Options when door mode is enabled, containing controls for panel height, grid layout (columns/rows), panel design (margin, recess depth), and trim/moulding (width, depth).
+- **3D Geometry:** A new `Na__DoorPanelGeometryBuilder` module creates perimeter frames, grid dividers, recessed panels, and optional trim/moulding for each opening. A horizontal divider bar separates the glazed and panel sections.
+- **2D Preview:** SVG generator draws the door panel area with recessed panel outlines and divider bars.
+- **Cill:** Automatically disabled when door mode is active (doors don't have cills).
+- **Compatibility:** Works alongside sliding sash mode, mullions, transoms, casement removal, and fuse parts.
+
+### New Files Created
+1. **`Na__WindowConfiguratorTool__DoorPanel__Config__.js`** -- Door panel UI control configuration (NA_DOOR_PANEL_CONFIG)
+2. **`Na__WindowConfiguratorTool__DoorPanel__GeometryBuilder__.rb`** -- Door panel 3D geometry builder module
+
+### Files Modified
+1. **`Na__WindowConfiguratorTool__Ui__Config__.js`** -- Added `door_mode` toggle to NA_OPTIONS_CONFIG
+2. **`Na__WindowConfiguratorTool__UiLayout__.html`** -- Added Door Panel section container and script include
+3. **`Na__WindowConfiguratorTool__UiLogic__.js`** -- Build door panel controls, defaults, visibility toggling, updated config search
+4. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`** -- Parse door config, split height, create door panel geometry and divider
+5. **`Na__WindowConfiguratorTool__Main__.rb`** -- Require new module, added door panel defaults to config JSON
+6. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`** -- Render door panel area and divider in 2D SVG preview
+7. **`Na__WindowConfiguratorTool__Architecture__.md`** -- Added Door Mode feature addendum
+8. **`Na__WindowConfiguratorTool__DEVLOG__.md`** -- This entry
+
+### Status: IMPLEMENTED
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+## Version 0.9.12d - 02-Apr-2026 - Header Reload Icon Button
+
+### UI Change - Reload Control
+- **Change:** Replaced the text header button `Reload Plugin` with a compact icon-only control (clockwise open-circle arrow `↻`), aligned with the Na Array Builder dialog pattern.
+- **Markup:** `id="na-btn-reload"`, `class="na-btn-icon"`, `title="Reload Scripts"`, `onclick="na_reloadScripts()"` unchanged at the bridge layer.
+- **Styles:** New `.na-btn-icon` in `Na__WindowConfiguratorTool__Styles__.css` (28×28, Vale/light theme variables).
+- **Fallback:** Error-state HTML in `Na__WindowConfiguratorTool__DialogManager__.rb` uses the same glyph with `.na-fallback-reload` inline styles.
+
+### Files Modified
+1. **`Na__WindowConfiguratorTool__UiLayout__.html`**
+2. **`Na__WindowConfiguratorTool__Styles__.css`**
+3. **`Na__WindowConfiguratorTool__DialogManager__.rb`**
+4. **`Na__WindowConfiguratorTool__UiEventToRubyApiBridge__.js`** (comment only)
+5. **`Na__WindowConfiguratorTool__Architecture__.md`**
+6. **`Na__WindowConfiguratorTool__DevLog__.md`**
+
+### Status: IMPLEMENTED
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ## Version 0.9.12c - 01-Apr-2026 - FuseParts Per-Panel Fusion Fix
 
 ### Bug Fix 01 - Multi-Casement Panels Merging When Fused

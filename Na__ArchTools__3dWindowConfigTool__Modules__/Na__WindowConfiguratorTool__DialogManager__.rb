@@ -210,6 +210,14 @@ module Na__WindowConfiguratorTool
             @dialog.add_action_callback("na_measureOpening") do |action_context|
                 na_handle_measure_opening
             end
+
+            # Callback: Tab key forwarded from dialog during placement mode
+            # Fired by the JS Tab interceptor when na_placementModeActive is true.
+            @dialog.add_action_callback("na_keyboard_tab") do |action_context|
+                if @current_placement_tool
+                    @current_placement_tool.na_rotate
+                end
+            end
             
             DebugTools.na_debug_success("Dialog callbacks configured")
         end
@@ -271,7 +279,16 @@ module Na__WindowConfiguratorTool
                     
                     # Activate placement tool
                     placement_tool = Na__WindowPlacementTool.new(@window_component)
+                    @current_placement_tool = placement_tool
                     Sketchup.active_model.select_tool(placement_tool)
+
+                    # Tell the dialog Tab key should now rotate instead of cycling focus.
+                    # Also blur the active element so the SketchUp viewport can pick up
+                    # other key events (arrow keys, ESC, etc.) once the mouse enters it.
+                    if @dialog && @dialog.visible?
+                        @dialog.execute_script("window.na_setPlacementActive(true);")
+                        @dialog.execute_script("if(document.activeElement){document.activeElement.blur();}")
+                    end
                     
                     DebugTools.na_debug_success("Created window #{window_id}")
                     fuse_msg = (config["windowConfiguration"] && config["windowConfiguration"]["fuse_parts"] == true) ? " (fused)" : ""
@@ -665,6 +682,26 @@ module Na__WindowConfiguratorTool
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Placement Complete (called by PlacementTool on successful placement)
+        # ------------------------------------------------------------
+        def self.na_placement_complete
+            @current_placement_tool = nil
+            return unless @dialog && @dialog.visible?
+            @dialog.execute_script("window.na_setPlacementActive(false);")
+            na_send_status_to_dialog(nil, "success", "Window placed")
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Placement Cancelled (called by PlacementTool on ESC / abort)
+        # ------------------------------------------------------------
+        def self.na_placement_cancelled
+            @current_placement_tool = nil
+            return unless @dialog && @dialog.visible?
+            @dialog.execute_script("window.na_setPlacementActive(false);")
+            na_send_status_to_dialog(nil, "info", "Placement cancelled")
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Load Window into Dialog
         # ------------------------------------------------------------
         # Uses direct instance-based lookup to avoid redundant model-wide search.
@@ -717,6 +754,10 @@ module Na__WindowConfiguratorTool
                     .error { color: #ff6b6b; background: #3d2d2d; padding: 15px; border-radius: 5px; }
                     button { background: #4a90d9; color: white; border: none; padding: 10px 20px; cursor: pointer; margin: 5px; }
                     button:hover { background: #5a9fe9; }
+                    .na-fallback-reload { width: 28px; height: 28px; padding: 0; margin: 5px; font-size: 16px; line-height: 1;
+                      display: inline-flex; align-items: center; justify-content: center; background: none; border: 1px solid #555;
+                      color: #aaa; border-radius: 4px; cursor: pointer; }
+                    .na-fallback-reload:hover { background: #444; color: #fff; border-color: #888; }
                 </style>
             </head>
             <body>
@@ -726,7 +767,7 @@ module Na__WindowConfiguratorTool
                     Please ensure Na__WindowConfiguratorTool__UiLayout__.html exists in the plugin folder.
                 </div>
                 <br>
-                <button onclick="sketchup.na_reloadScripts()">Reload Scripts</button>
+                <button type="button" class="na-fallback-reload" onclick="sketchup.na_reloadScripts()" title="Reload Scripts">&#x21bb;</button>
                 
                 <script>
                     window.na_setInitialConfig = function(json) { console.log('Config received'); };

@@ -57,6 +57,9 @@ const Na_DynamicUI = (function() {
         // Build options controls
         na_buildControls('na-controls-options', window.NA_OPTIONS_CONFIG);
         
+        // Build door panel controls
+        na_buildControls('na-controls-door-panel', window.NA_DOOR_PANEL_CONFIG);
+        
         // Set default values
         na_setDefaults();
         
@@ -93,7 +96,7 @@ const Na_DynamicUI = (function() {
     // FUNCTION | Set Default Values
     // ------------------------------------------------------------
     function na_setDefaults() {
-        [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_OPTIONS_CONFIG].forEach(config => {
+        [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_OPTIONS_CONFIG, window.NA_DOOR_PANEL_CONFIG].forEach(config => {
             config.forEach(item => {
                 _config[item.id] = item.default;
                 
@@ -173,6 +176,7 @@ const Na_DynamicUI = (function() {
     // ------------------------------------------------------------
     function na_onConfigChange() {
         na_updateSlidingSashOverlapVisibility();
+        na_updateDoorPanelVisibility();
         na_updateTransomControlVisibility();
         na_normalizeTransomConfig();
         ['transom_1_y_mm', 'transom_2_y_mm', 'transom_3_y_mm'].forEach(controlId => {
@@ -265,6 +269,38 @@ const Na_DynamicUI = (function() {
 
         const showOverlapControl = _config.sliding_sash_window === true;
         overlapControl.style.display = showOverlapControl ? '' : 'none';
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Door Panel Section Visibility
+    // ------------------------------------------------------------
+    function na_updateDoorPanelVisibility() {
+        const doorPanelSection = document.getElementById('na-section-door-panel');
+        if (!doorPanelSection) return;
+
+        const isDoorMode = _config.door_mode === true;
+        doorPanelSection.style.display = isDoorMode ? '' : 'none';
+
+        const cillToggle = document.getElementById('has_cill-toggle');
+        if (cillToggle) {
+            if (isDoorMode) {
+                cillToggle.style.opacity = '0.4';
+                cillToggle.style.pointerEvents = 'none';
+            } else if (!isDoorMode) {
+                const frameThicknesses = na_getEffectiveFrameThicknesses();
+                const isBottomFrameless = frameThicknesses.bottom === 0;
+                if (!isBottomFrameless) {
+                    cillToggle.style.opacity = '';
+                    cillToggle.style.pointerEvents = '';
+                }
+            }
+        }
+
+        const trimExpandable = document.querySelector('[data-control-id="door_panel_trim_controls"]');
+        if (trimExpandable) {
+            const showTrim = _config.door_panel_show_trim === true;
+            trimExpandable.style.display = showTrim ? '' : 'none';
+        }
     }
     // ---------------------------------------------------------------
 
@@ -592,14 +628,18 @@ const Na_DynamicUI = (function() {
             if (input) input.value = uiValue;
             
             // Find config in main arrays or in expandable children
-            let config = [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG].flat().find(c => c.id === id);
+            const allConfigArrays = [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_DOOR_PANEL_CONFIG];
+            let config = allConfigArrays.flat().find(c => c.id === id);
             if (!config) {
-                // Search in expandable children
-                for (const parentConfig of window.NA_UI_CONFIG) {
-                    if (parentConfig.type === 'expandable' && parentConfig.children) {
-                        config = parentConfig.children.find(c => c.id === id);
-                        if (config) break;
+                // Search in expandable children across all config arrays
+                for (const configArray of allConfigArrays) {
+                    for (const parentConfig of configArray) {
+                        if (parentConfig.type === 'expandable' && parentConfig.children) {
+                            config = parentConfig.children.find(c => c.id === id);
+                            if (config) break;
+                        }
                     }
+                    if (config) break;
                 }
             }
             if (display && config) {

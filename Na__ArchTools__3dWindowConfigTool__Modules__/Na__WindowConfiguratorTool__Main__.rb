@@ -64,6 +64,7 @@ require_relative 'Na__WindowConfiguratorTool__Observers__'
 require_relative 'Na__WindowConfiguratorTool__PlacementTool__'
 require_relative 'Na__WindowConfiguratorTool__MeasureOpeningTool__'
 require_relative 'Na__WindowConfiguratorTool__FuseParts__'
+require_relative 'Na__WindowConfiguratorTool__DoorPanel__GeometryBuilder__'
 
 module Na__WindowConfiguratorTool
 
@@ -196,6 +197,18 @@ module Na__WindowConfiguratorTool
             "show_dimensions": true,
             "show_casements": true,
             "sliding_sash_window": false,
+            "door_mode": false,
+            "door_panel_height_mm": 400,
+            "door_panel_columns": 2,
+            "door_panel_rows": 1,
+            "door_panel_rail_width_mm": 30,
+            "door_panel_stile_width_mm": 30,
+            "door_panel_margin_mm": 30,
+            "door_panel_recess_depth_mm": 8,
+            "door_panel_show_trim": false,
+            "door_panel_trim_width_mm": 5,
+            "door_panel_trim_depth_mm": 3,
+            "door_panel_moulding_inset_mm": 5,
             "fuse_parts": false
         }
     }

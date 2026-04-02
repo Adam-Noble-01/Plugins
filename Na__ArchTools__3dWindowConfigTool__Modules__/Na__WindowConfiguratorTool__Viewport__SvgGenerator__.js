@@ -145,6 +145,9 @@ const Na__Viewport__SvgGenerator = (function() {
         let transomClickTargetsSvg = '';
         let glazebarClickTargetsSvg = '';
 
+        const doorMode = config.door_mode === true;
+        const doorPanelHeightMm = doorMode ? Math.max(0, config.door_panel_height_mm || 400) : 0;
+
         const numOpenings = numMullions + 1;
         const innerWidth = width - leftFrameThickness - rightFrameThickness;
         const innerHeight = height - topFrameThickness - bottomFrameThickness;
@@ -209,7 +212,10 @@ const Na__Viewport__SvgGenerator = (function() {
                         hBars: hBars,
                         vBars: vBars,
                         barWidth: barWidth,
-                        removedGlazebars: removedGlazebars
+                        removedGlazebars: removedGlazebars,
+                        doorMode: doorMode,
+                        doorPanelHeightMm: doorPanelHeightMm,
+                        doorConfig: doorMode ? config : null
                     }
                 );
                 svg += openingCellRender.svg;
@@ -237,7 +243,7 @@ const Na__Viewport__SvgGenerator = (function() {
             }
         }
 
-        if (hasCill && bottomFrameThickness > 0) {
+        if (hasCill && bottomFrameThickness > 0 && !doorMode) {
             const cillHeight = config.cill_height_mm || 50;
             svg += na_svgRect(0, -cillHeight, width, cillHeight, '#A0908A', '#000', 1);
         }
@@ -342,7 +348,18 @@ const Na__Viewport__SvgGenerator = (function() {
             };
 
             if (options.openingHasCasement) {
-                if (options.slidingSashWindow) {
+                if (options.doorMode) {
+                    na_mergeSvgRenderBuckets(
+                        renderBucket,
+                        na_generateDoorCasementSvg(
+                            panelX, cell.y, panelWidth, cell.height,
+                            options.casTopRail, options.casBottomRail, options.casLeftStile, options.casRightStile,
+                            options.frameColor, options.hBars, options.vBars, options.barWidth,
+                            options.doorPanelHeightMm, options.doorConfig,
+                            panelContext, options.removedGlazebars
+                        )
+                    );
+                } else if (options.slidingSashWindow) {
                     na_mergeSvgRenderBuckets(
                         renderBucket,
                         na_generateSlidingSashPanelSvg(
@@ -508,6 +525,133 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
     
+    // FUNCTION | Generate Door Casement SVG
+    // ------------------------------------------------------------
+    // Draws a full-height casement with stiles, top/bottom/mid rails,
+    // glass + glaze bars in the upper zone, and door panel content in the lower zone.
+    function na_generateDoorCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, doorPanelHeightMm, doorConfig, panelContext, removedGlazebars) {
+        const renderBucket = na_createSvgRenderBucket();
+        const doorPanelH = Math.min(Math.max(0, doorPanelHeightMm), height - topRail - bottomRail - 50);
+
+        // Full-height stiles
+        renderBucket.svg += na_svgRect(x, y, leftStile, height, frameColor, '#000', 0.5);
+        renderBucket.svg += na_svgRect(x + width - rightStile, y, rightStile, height, frameColor, '#000', 0.5);
+
+        const railClearWidth = width - leftStile - rightStile;
+
+        // Bottom rail
+        renderBucket.svg += na_svgRect(x + leftStile, y, railClearWidth, bottomRail, frameColor, '#000', 0.5);
+        // Top rail
+        renderBucket.svg += na_svgRect(x + leftStile, y + height - topRail, railClearWidth, topRail, frameColor, '#000', 0.5);
+
+        // Mid-rail at the glass/panel junction
+        const midRailY = y + bottomRail + doorPanelH;
+        renderBucket.svg += na_svgRect(x + leftStile, midRailY, railClearWidth, bottomRail, frameColor, '#000', 0.5);
+
+        // Upper zone: glass + glaze bars
+        const glassX = x + leftStile;
+        const glassY = midRailY + bottomRail;
+        const glassWidth = railClearWidth;
+        const glassHeight = height - topRail - bottomRail - doorPanelH - bottomRail;
+
+        if (glassHeight > 0 && glassWidth > 0) {
+            renderBucket.svg += na_svgRect(glassX, glassY, glassWidth, glassHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
+
+            if (hBars > 0 || vBars > 0) {
+                na_mergeSvgRenderBuckets(
+                    renderBucket,
+                    na_generateGlazeBarsSvg(
+                        glassX, glassY, glassWidth, glassHeight,
+                        hBars, vBars, barWidth, frameColor,
+                        { openingIndex: panelContext.openingIndex, cellIndex: panelContext.cellIndex, panelIndex: panelContext.panelIndex, sashIndex: 0 },
+                        removedGlazebars
+                    )
+                );
+            }
+        }
+
+        // Lower zone: door panel content (inside casement frame)
+        const panelInnerX = x + leftStile;
+        const panelInnerY = y + bottomRail;
+        const panelInnerW = railClearWidth;
+        const panelInnerH = doorPanelH;
+
+        if (panelInnerH > 0 && panelInnerW > 0 && doorConfig) {
+            renderBucket.svg += na_generateDoorPanelInnerSvg(panelInnerX, panelInnerY, panelInnerW, panelInnerH, doorConfig, frameColor);
+        }
+
+        return renderBucket;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Door Panel Inner SVG
+    // ------------------------------------------------------------
+    // Draws the panel grid content (margin, cells, recesses, trim) inside
+    // the lower zone of a door casement.
+    function na_generateDoorPanelInnerSvg(x, y, width, height, config, frameColor) {
+        let panelSvg = '';
+        const margin = config.door_panel_margin_mm || 30;
+        const columns = Math.max(1, Math.min(4, config.door_panel_columns || 2));
+        const rows = Math.max(1, Math.min(3, config.door_panel_rows || 1));
+        const railWidth = config.door_panel_rail_width_mm || 30;
+        const stileWidth = config.door_panel_stile_width_mm || 30;
+        const trimWidth = config.door_panel_trim_width_mm || 5;
+
+        panelSvg += na_svgRect(x, y, width, height, frameColor, '#000', 0.5);
+
+        const gridX = x + margin;
+        const gridY = y + margin;
+        const gridWidth = width - (2 * margin);
+        const gridHeight = height - (2 * margin);
+
+        if (gridWidth <= 0 || gridHeight <= 0) return panelSvg;
+
+        const totalStileWidth = Math.max(0, columns - 1) * stileWidth;
+        const totalRailHeight = Math.max(0, rows - 1) * railWidth;
+        const cellAreaWidth = gridWidth - totalStileWidth;
+        const cellAreaHeight = gridHeight - totalRailHeight;
+        const cellWidth = cellAreaWidth / columns;
+        const cellHeight = cellAreaHeight / rows;
+
+        if (cellWidth <= 0 || cellHeight <= 0) return panelSvg;
+
+        for (let row = 0; row < rows; row++) {
+            const cellY = gridY + (row * (cellHeight + railWidth));
+            for (let col = 0; col < columns; col++) {
+                const cellX = gridX + (col * (cellWidth + stileWidth));
+                const recessInset = trimWidth;
+                const recessX = cellX + recessInset;
+                const recessY = cellY + recessInset;
+                const recessW = cellWidth - (2 * recessInset);
+                const recessH = cellHeight - (2 * recessInset);
+
+                if (recessW > 0 && recessH > 0) {
+                    panelSvg += na_svgRect(recessX, recessY, recessW, recessH, 'rgba(0, 0, 0, 0.08)', frameColor, 0.5);
+                }
+
+                if (trimWidth > 0) {
+                    panelSvg += na_svgRect(cellX, cellY, cellWidth, trimWidth, 'none', frameColor, 0.3);
+                    panelSvg += na_svgRect(cellX, cellY + cellHeight - trimWidth, cellWidth, trimWidth, 'none', frameColor, 0.3);
+                    panelSvg += na_svgRect(cellX, cellY + trimWidth, trimWidth, cellHeight - (2 * trimWidth), 'none', frameColor, 0.3);
+                    panelSvg += na_svgRect(cellX + cellWidth - trimWidth, cellY + trimWidth, trimWidth, cellHeight - (2 * trimWidth), 'none', frameColor, 0.3);
+                }
+            }
+        }
+
+        for (let col = 1; col < columns; col++) {
+            const stileX = gridX + (col * cellWidth) + ((col - 1) * stileWidth);
+            panelSvg += na_svgRect(stileX, gridY, stileWidth, gridHeight, frameColor, '#000', 0.3);
+        }
+
+        for (let row = 1; row < rows; row++) {
+            const railY = gridY + (row * cellHeight) + ((row - 1) * railWidth);
+            panelSvg += na_svgRect(gridX, railY, gridWidth, railWidth, frameColor, '#000', 0.3);
+        }
+
+        return panelSvg;
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Generate SVG Glaze Bars for a Glass Area (No Casement Frame)
     // ------------------------------------------------------------
     // Used for direct-glazed openings where casement has been removed.

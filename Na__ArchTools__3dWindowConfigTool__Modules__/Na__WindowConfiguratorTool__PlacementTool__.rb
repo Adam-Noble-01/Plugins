@@ -11,7 +11,7 @@
 #
 # DESCRIPTION:
 # - Provides crosshair-based placement tool for positioning window components
-# - Supports 90-degree rotation toggle via SHIFT key
+# - Supports 90-degree rotation cycle (0/90/180/270°) via TAB key
 # - Snaps to 5mm grid for precise placement
 # - Shows real-time preview with 3D crosshair and rotation indicator
 # - Allows cancellation (ESC) which deletes the component
@@ -34,7 +34,8 @@ module Na__WindowConfiguratorTool
         
         # CONSTANTS
         # ------------------------------------------------------------
-        CONSTRAIN_MODIFIER_KEY = COPY_MODIFIER_KEY  # Shift key for rotation toggle
+        NA_ROTATION_KEY   = 9                        # Tab (VK_TAB = 0x09) — no VK_TAB constant in SketchUp Ruby API
+        NA_ROTATION_STEPS = [0, 90, 180, 270].freeze # Degrees for each step
         Z_AXIS = Geom::Vector3d.new(0, 0, 1)
         CROSSHAIR_SIZE = 300.mm
         GRID_SIZE = 5.mm  # Snap grid size
@@ -47,7 +48,9 @@ module Na__WindowConfiguratorTool
             @ip = Sketchup::InputPoint.new
             @cursor_pos = nil
             @crosshair_size = CROSSHAIR_SIZE
-            @rotated = false
+            @rotation_step      = 0
+            @key_tab_held       = false
+            @placement_committed = false
             @original_transform = instance.transformation.clone
             @last_position = instance.bounds.min
             
@@ -68,6 +71,11 @@ module Na__WindowConfiguratorTool
         # ------------------------------------------------------------
         def deactivate(view)
             DebugTools.na_debug_placement("Placement tool deactivated")
+            if @placement_committed
+                DialogManager.na_placement_complete
+            else
+                DialogManager.na_placement_cancelled
+            end
             view.invalidate
         end
         # ---------------------------------------------------------------
@@ -104,14 +112,24 @@ module Na__WindowConfiguratorTool
         
         # FUNCTION | Key Down Handler
         # ------------------------------------------------------------
-        # SHIFT key toggles 90-degree rotation
+        # Tab key advances rotation by 90° (SKEXT-3890 held-flag guard prevents double-fire)
         def onKeyDown(key, repeat, flags, view)
-            if key == CONSTRAIN_MODIFIER_KEY && repeat == 1
-                na_toggle_rotation
+            if key == NA_ROTATION_KEY && !@key_tab_held
+                @key_tab_held = true
+                na_advance_rotation
                 na_update_status_text
                 view.invalidate
             end
-            false  # Return false to not block VCB
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Key Up Handler
+        # ------------------------------------------------------------
+        # Resets Tab held-flag so the next press registers correctly (SKEXT-3890 fix)
+        def onKeyUp(key, repeat, flags, view)
+            @key_tab_held = false if key == NA_ROTATION_KEY
+            false
         end
         # ---------------------------------------------------------------
         
@@ -141,7 +159,10 @@ module Na__WindowConfiguratorTool
             Sketchup.active_model.selection.clear
             Sketchup.active_model.selection.add(@instance) if @instance && @instance.valid?
             
-            # Deactivate tool
+            # Flag as committed so deactivate notifies placement_complete (not cancelled)
+            @placement_committed = true
+            
+            # Deactivate tool (triggers deactivate callback)
             Sketchup.active_model.select_tool(nil)
         end
         # ---------------------------------------------------------------
@@ -182,8 +203,8 @@ module Na__WindowConfiguratorTool
             view.drawing_color = Sketchup::Color.new(0, 0, 255)
             view.draw_line(@cursor_pos, @cursor_pos.offset(Z_AXIS, @crosshair_size))
             
-            # Draw rotation indicator if rotated
-            if @rotated
+            # Draw rotation indicator when not at 0°
+            if @rotation_step > 0
                 view.drawing_color = Sketchup::Color.new(255, 165, 0)  # Orange
                 view.line_width = 3
                 # Draw small arc to indicate rotation
@@ -204,45 +225,43 @@ module Na__WindowConfiguratorTool
         end
         # ---------------------------------------------------------------
         
+        # FUNCTION | Rotate (public entry point for DialogManager's na_keyboard_tab callback)
+        # ------------------------------------------------------------
+        # Called by DialogManager when Tab is forwarded from the HTML dialog.
+        def na_rotate
+            na_advance_rotation
+            na_update_status_text
+            Sketchup.active_model.active_view.invalidate
+        end
+        # ---------------------------------------------------------------
+
         private
         
-        # FUNCTION | Toggle 90-Degree Rotation
+        # FUNCTION | Advance Rotation by 90° (4-step cycle: 0° → 90° → 180° → 270° → 0°)
         # ------------------------------------------------------------
-        def na_toggle_rotation
+        def na_advance_rotation
             return unless @instance && @instance.valid?
-            
-            # Get center of instance for rotation pivot
-            center = @instance.bounds.center
-            
-            # Calculate rotation angle (toggle between +90 and -90)
-            angle = @rotated ? -90.degrees : 90.degrees
-            
-            # Create and apply rotation transformation
-            rotation = Geom::Transformation.rotation(center, Z_AXIS, angle)
+            center   = @instance.bounds.center
+            rotation = Geom::Transformation.rotation(center, Z_AXIS, 90.degrees)
             @instance.transform!(rotation)
-            
-            # Toggle rotation state
-            @rotated = !@rotated
-            
-            DebugTools.na_debug_placement("Rotation toggled: #{@rotated ? '90°' : '0°'}")
+            @rotation_step = (@rotation_step + 1) % 4
+            DebugTools.na_debug_placement("Rotation: #{NA_ROTATION_STEPS[@rotation_step]}°")
         end
         # ---------------------------------------------------------------
         
         # FUNCTION | Update Status Bar Text
         # ------------------------------------------------------------
         def na_update_status_text
+            degrees = NA_ROTATION_STEPS[@rotation_step]
             if @cursor_pos
-                # Show coordinates in mm (snapped to 5mm grid)
                 x_mm = (@cursor_pos.x * 25.4).round
                 y_mm = (@cursor_pos.y * 25.4).round
                 z_mm = (@cursor_pos.z * 25.4).round
-                rotation_angle = @rotated ? 90 : 0
-                
                 status = "Click to place window at X:#{x_mm}mm Y:#{y_mm}mm Z:#{z_mm}mm"
-                status += " | Press SHIFT to rotate 90° [Current: #{rotation_angle}°] | ESC to cancel"
+                status += " | TAB to rotate [Current: #{degrees}°] | ESC to cancel"
                 Sketchup.status_text = status
             else
-                Sketchup.status_text = "Move cursor to position window | Press SHIFT to rotate 90° | ESC to cancel"
+                Sketchup.status_text = "Move cursor to position window | TAB to rotate [Current: #{degrees}°] | ESC to cancel"
             end
         end
         # ---------------------------------------------------------------
