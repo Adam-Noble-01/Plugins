@@ -51,8 +51,8 @@ module Na__ArrayBuilderTools
                 preferences_key: "Na__ArrayBuilderTools",
                 scrollable: true,
                 resizable: true,
-                width: 360,
-                height: 540,
+                width: 400,
+                height: 650,
                 left: 100,
                 top: 100,
                 style: UI::HtmlDialog::STYLE_DIALOG

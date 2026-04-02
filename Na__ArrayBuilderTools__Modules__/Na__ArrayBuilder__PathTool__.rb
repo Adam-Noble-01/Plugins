@@ -335,8 +335,9 @@ module Na__ArrayBuilderTools
         # 1. Places a unit at the segment start and end.
         # 2. Calculates how many units fit between, adjusting spacing
         #    to be as close to the target as possible.
-        # 3. Skips the start unit on segments after the first to avoid
-        #    duplicates at shared waypoints.
+        # 3. Every segment gets a brick at both endpoints. At corners
+        #    this means two bricks meet at the waypoint, each oriented
+        #    along its own segment direction -- matching real brickwork.
         #
         # Result: every wall corner gets a unit, with even distribution
         # between them.
@@ -361,9 +362,7 @@ module Na__ArrayBuilderTools
                 span = seg_len - @unit_width
 
                 if span <= 0
-                    if seg_idx == 0
-                        positions << { point: seg_start, direction: direction }
-                    end
+                    positions << { point: seg_start, direction: direction }
                     next
                 end
 
@@ -371,9 +370,7 @@ module Na__ArrayBuilderTools
                 actual_step = span.to_f / n_gaps
                 n_bricks = n_gaps + 1
 
-                start_i = (seg_idx == 0) ? 0 : 1
-
-                (start_i...n_bricks).each do |i|
+                (0...n_bricks).each do |i|
                     pt = seg_start.offset(direction, i * actual_step)
                     positions << { point: pt, direction: direction }
                 end
