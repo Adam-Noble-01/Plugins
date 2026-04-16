@@ -15,18 +15,21 @@
 <body>
 
     <!-- ----------------------------------------------------------------- -->
-    <!-- UI MENU | Tab Navigation Bar                                      -->
+    <!-- REGION | Tab Navigation Bar                                       -->
     <!-- ----------------------------------------------------------------- -->
 
     <div class="naTabBar">
         <button class="naTabBtn naTabBtn--active" onclick="naShowTab('main', this)">Main</button>
         <button class="naTabBtn" onclick="naShowTab('swatches', this)">Swatches</button>
         <button class="naTabBtn" onclick="naShowTab('advanced', this)">Advanced</button>
+        <button class="naTabBtn" onclick="naShowTab('edge-tools', this)">Edge Tools</button>
         <button class="naTabBtn" onclick="naShowTab('settings', this)">Settings</button>
     </div>
 
+    <!-- endregion ----------------------------------------------------------------- -->
+
     <!-- ----------------------------------------------------------------- -->
-    <!-- UI MENU | Main Tab - Dropdown, Info, Quick Palette, Paint Button  -->
+    <!-- REGION | Main Tab - Dropdown, Info, Quick Palette, Paint Button   -->
     <!-- ----------------------------------------------------------------- -->
 
     <div id="tab-main" class="naTabContent naTabContent--active">
@@ -46,8 +49,10 @@
 
     </div>
 
+    <!-- endregion ----------------------------------------------------------------- -->
+
     <!-- ----------------------------------------------------------------- -->
-    <!-- UI MENU | Swatches Tab - Visual Colour Grid with Labels           -->
+    <!-- REGION | Swatches Tab - Visual Colour Grid with Labels            -->
     <!-- ----------------------------------------------------------------- -->
 
     <div id="tab-swatches" class="naTabContent">
@@ -58,8 +63,10 @@
 
     </div>
 
+    <!-- endregion ----------------------------------------------------------------- -->
+
     <!-- ----------------------------------------------------------------- -->
-    <!-- UI MENU | Advanced Tab - Line Thickness Tag Assignment            -->
+    <!-- REGION | Advanced Tab - Line Thickness Tag Assignment             -->
     <!-- ----------------------------------------------------------------- -->
 
     <div id="tab-advanced" class="naTabContent">
@@ -91,8 +98,166 @@
 
     </div>
 
+    <!-- endregion ----------------------------------------------------------------- -->
+
     <!-- ----------------------------------------------------------------- -->
-    <!-- UI MENU | Settings Tab - Reload Plugin Data                      -->
+    <!-- REGION | Edge Tools Tab - Repair and Geometry Helpers             -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <div id="tab-edge-tools" class="naTabContent">
+
+        <!-- ----------------------------------------------------------------- -->
+        <!-- REGION | Edge Tools - Status Panel                                -->
+        <!-- ----------------------------------------------------------------- -->
+
+        <div class="naEdgeTools__StatusPanel">
+            <p id="edgeToolsStatus" class="naEdgeTools__Status"></p>
+        </div>
+
+        <!-- endregion ----------------------------------------------------------------- -->
+
+        <div class="naEdgeTools__Grid">
+
+            <!-- ----------------------------------------------------------------- -->
+            <!-- REGION | Edge Tool Card - Edge Cleaner                            -->
+            <!-- ----------------------------------------------------------------- -->
+
+            <section class="naEdgeToolCard">
+                <div class="naEdgeToolCard__Header">
+                    <h3 class="naEdgeToolCard__Title">Edge Cleaner</h3>
+                </div>
+                <p class="naEdgeToolCard__Text">
+                    Removes redundant colinear interior vertices from selected edges.
+                </p>
+                <div class="naEdgeToolCard__Divider"></div>
+                <button class="naEdgeToolCard__ActionBtn" onclick="Na__EdgeTools__RunEdgeCleaner()">
+                    <strong>Run Edge Cleaner</strong>
+                </button>
+            </section>
+
+            <!-- endregion ----------------------------------------------------------------- -->
+
+            <!-- ----------------------------------------------------------------- -->
+            <!-- REGION | Edge Tool Card - Repair Edge Corners                       -->
+            <!-- ----------------------------------------------------------------- -->
+
+            <section class="naEdgeToolCard">
+                <div class="naEdgeToolCard__Header">
+                    <h3 class="naEdgeToolCard__Title">Repair Edge Corners</h3>
+                </div>
+                <p class="naEdgeToolCard__Text">
+                    Extends loose edge ends to a valid corner intersection within the max repair distance.
+                </p>
+                <div class="naEdgeToolCard__Divider"></div>
+                <div class="naEdgeToolCard__ConfigBox">
+                    <label class="naEdgeTools__Label" for="naRepairCornerMaxGapMm">Corner max repair distance (mm)</label>
+                    <input
+                        id="naRepairCornerMaxGapMm"
+                        class="naEdgeTools__Input"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value="{{REPAIR_CORNER_MAX_GAP_MM}}"
+                        onchange="Na__EdgeTools__PersistCornerMaxGapMm()"
+                    />
+                    <p class="naEdgeToolCard__InputHint">Default: 100mm, Minimum: 1mm, Maximum: unlimited</p>
+                </div>
+                <button class="naEdgeToolCard__ActionBtn" onclick="Na__EdgeTools__RunRepairCorners()">
+                    <strong>Repair Edge Corners</strong>
+                </button>
+            </section>
+
+            <!-- endregion ----------------------------------------------------------------- -->
+
+            <!-- ----------------------------------------------------------------- -->
+            <!-- REGION | Edge Tool Card - Chamfer Edge Corners                    -->
+            <!-- ----------------------------------------------------------------- -->
+
+            <section class="naEdgeToolCard">
+                <div class="naEdgeToolCard__Header">
+                    <h3 class="naEdgeToolCard__Title">Chamfer Edge Corners</h3>
+                </div>
+                <p class="naEdgeToolCard__Text">
+                    Converts selected 90 degree corners into 45 degree chamfers, with optional pre-build for open corners.
+                </p>
+                <div class="naEdgeToolCard__Divider"></div>
+
+                <div class="naEdgeToolCard__ConfigBox">
+                    <label class="naEdgeTools__Label" for="naChamferSizeMm">Chamfer size (mm)</label>
+                    <input
+                        id="naChamferSizeMm"
+                        class="naEdgeTools__Input"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value="{{CHAMFER_SIZE_MM}}"
+                        onchange="Na__EdgeTools__PersistChamferSizeMm()"
+                    />
+                    <p class="naEdgeToolCard__InputHint">Default: 20mm, Min: 0mm (regular 90 degree corners), Max: unlimited</p>
+                </div>
+
+                <div class="naEdgeToolCard__ToggleRow">
+                    <input
+                        id="naChamferBuildCornersEnabled"
+                        class="naEdgeToolCard__ToggleInput"
+                        type="checkbox"
+                        onchange="Na__EdgeTools__PersistChamferBuildCornersEnabled()"
+                        {{CHAMFER_BUILD_CORNERS_CHECKED}}
+                    />
+                    <label class="naEdgeToolCard__ToggleLabel" for="naChamferBuildCornersEnabled">Build corners before chamfer</label>
+                </div>
+
+                <div
+                    id="naChamferBuildCornerConfig"
+                    class="naEdgeToolCard__ConfigBox {{CHAMFER_BUILD_CORNER_CONFIG_CLASS}}"
+                >
+                    <label class="naEdgeTools__Label" for="naChamferBuildCornerMaxGapMm">Max corner build tolerance (mm)</label>
+                    <input
+                        id="naChamferBuildCornerMaxGapMm"
+                        class="naEdgeTools__Input"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value="{{CHAMFER_BUILD_CORNER_MAX_GAP_MM}}"
+                        onchange="Na__EdgeTools__PersistChamferBuildCornerMaxGapMm()"
+                    />
+                    <p class="naEdgeToolCard__InputHint">Default: 100mm, used only when Build corners is enabled</p>
+                </div>
+
+                <button class="naEdgeToolCard__ActionBtn" onclick="Na__EdgeTools__RunChamferEdgeCorners()">
+                    <strong>Chamfer Edge Corners</strong>
+                </button>
+            </section>
+
+            <!-- endregion ----------------------------------------------------------------- -->
+
+            <!-- ----------------------------------------------------------------- -->
+            <!-- REGION | Edge Tool Card - Insert Points Along Path                -->
+            <!-- ----------------------------------------------------------------- -->
+
+            <section class="naEdgeToolCard">
+                <div class="naEdgeToolCard__Header">
+                    <h3 class="naEdgeToolCard__Title">Insert Points Along Path</h3>
+                </div>
+                <p class="naEdgeToolCard__Text">
+                    Subdivides a continuous selected path into evenly spaced points.
+                </p>
+                <div class="naEdgeToolCard__Divider"></div>
+                <button class="naEdgeToolCard__ActionBtn" onclick="Na__EdgeTools__RunInsertPointsAlongPath()">
+                    <strong>Insert Points Along Path</strong>
+                </button>
+            </section>
+
+            <!-- endregion ----------------------------------------------------------------- -->
+
+        </div>
+
+    </div>
+
+    <!-- endregion ----------------------------------------------------------------- -->
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- REGION | Settings Tab - Reload Plugin Data                        -->
     <!-- ----------------------------------------------------------------- -->
 
     <div id="tab-settings" class="naTabContent">
@@ -111,24 +276,17 @@
 
     </div>
 
+    <!-- endregion ----------------------------------------------------------------- -->
+
     <!-- ----------------------------------------------------------------- -->
-    <!-- UI MENU | Tab Switching Script                                    -->
+    <!-- REGION | Embedded UI Helpers Script                               -->
     <!-- ----------------------------------------------------------------- -->
 
     <script>
-        function naShowTab(tabId, btn) {
-            var tabs = document.querySelectorAll('.naTabContent');
-            for (var i = 0; i < tabs.length; i++) {
-                tabs[i].classList.remove('naTabContent--active');
-            }
-            var btns = document.querySelectorAll('.naTabBtn');
-            for (var j = 0; j < btns.length; j++) {
-                btns[j].classList.remove('naTabBtn--active');
-            }
-            document.getElementById('tab-' + tabId).classList.add('naTabContent--active');
-            btn.classList.add('naTabBtn--active');
-        }
+    {{UI_HELPERS_SCRIPT}}
     </script>
+
+    <!-- endregion ----------------------------------------------------------------- -->
 
 </body>
 

@@ -1,6 +1,6 @@
 {
     "extension_name"           : "Na Edge Util - Paint Deep Nested Edges",
-    "extension_version"        : "1.0.0",
+    "extension_version"        : "1.0.4",
     "dialog_preferences_key"   : "Na__EdgeUtil__PaintDeepNestedEdges",
     "command_name"             : "Na Edge Util - Paint Deep Nested Edges",
     "command_tooltip"          : "Open the Paint Deep Nested Edges dialogue for edge colour management",
@@ -8,6 +8,32 @@
     "menu_text"                : "Na Edge Util - Paint Deep Nested Edges",
     "dialog_title"             : "Na Edge Util - Paint Deep Nested Edges",
     "dialog_width"             : 420,
-    "dialog_height"            : 420,
-    "dialog_resizable"         : true
+    "dialog_height"            : 520,
+    "dialog_resizable"         : true,
+    "edge_tools"               : {
+        "edge_cleaner" : {
+            "command_name"      : "Na Edge Util - Edge Cleaner",
+            "tooltip"           : "Clean colinear interior edge vertices from selected edges",
+            "status_bar_text"   : "Run Edge Cleaner on selected edges",
+            "menu_text"         : "Na Edge Tools - Edge Cleaner"
+        },
+        "repair_edge_corners" : {
+            "command_name"      : "Na Edge Util - Repair Edge Corners",
+            "tooltip"           : "Repair loose edge corners using the configured max repair distance",
+            "status_bar_text"   : "Repair selected edge corners",
+            "menu_text"         : "Na Edge Tools - Repair Edge Corners"
+        },
+        "insert_points_along_paths" : {
+            "command_name"      : "Na Edge Util - Insert Points Along Paths",
+            "tooltip"           : "Insert evenly distributed points along a selected continuous edge path",
+            "status_bar_text"   : "Insert points along selected path",
+            "menu_text"         : "Na Edge Tools - Insert Points Along Paths"
+        },
+        "chamfer_edge_corners" : {
+            "command_name"      : "Na Edge Util - Chamfer Edge Corners",
+            "tooltip"           : "Build optional corners and apply 45 degree chamfers to selected edge corners",
+            "status_bar_text"   : "Chamfer selected edge corners",
+            "menu_text"         : "Na Edge Tools - Chamfer Edge Corners"
+        }
+    }
 }

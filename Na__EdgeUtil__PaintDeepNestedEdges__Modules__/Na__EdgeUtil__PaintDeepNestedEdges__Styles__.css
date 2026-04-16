@@ -322,6 +322,144 @@ select {
 /* endregion ----------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------- */
+/* REGION | Edge Tools Tab - Utility Actions */
+/* ----------------------------------------------------------------- */
+
+.naEdgeTools__Description {
+    margin            : 0 0 14px 0;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+    line-height       : 1.45;
+}
+
+.naEdgeTools__Grid {
+    display           : grid;
+    grid-template-columns : 1fr;
+    gap               : 12px;
+}
+
+.naEdgeToolCard {
+    border            : 1px solid #d9d9d9;
+    border-radius     : 6px;
+    padding           : 12px;
+    background-color  : #fcfcfc;
+}
+
+.naEdgeToolCard__Header {
+    display           : flex;
+    align-items       : center;
+    justify-content   : space-between;
+}
+
+.naEdgeToolCard__Title {
+    margin            : 0;
+    font-size         : 14px;
+    font-weight       : bold;
+    color             : var(--NaEdgeUtil_FontColour_MainText);
+}
+
+.naEdgeToolCard__Text {
+    margin            : 8px 0 0 0;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+    line-height       : 1.4;
+}
+
+.naEdgeToolCard__Divider {
+    border-top        : 1px solid #e4e4e4;
+    margin            : 10px 0;
+}
+
+.naEdgeToolCard__ConfigBox {
+    border            : 1px dashed #d0d0d0;
+    border-radius     : 4px;
+    padding           : 10px;
+    background-color  : #ffffff;
+    margin-bottom     : 10px;
+}
+
+.naEdgeToolCard__ConfigBox--hidden {
+    display           : none;
+}
+
+.naEdgeToolCard__InputHint {
+    margin            : 2px 0 0 0;
+    font-size         : var(--NaEdgeUtil_FontSize_TinyText);
+    color             : #707070;
+}
+
+.naEdgeToolCard__ActionBtn {
+    width             : 100%;
+    padding           : var(--NaEdgeUtil_ButtonPadding);
+    border            : 1px solid var(--NaEdgeUtil_BorderColour);
+    background-color  : #ffffff;
+    cursor            : pointer;
+}
+
+.naEdgeToolCard__ActionBtn:hover {
+    background-color  : #f2f7fc;
+}
+
+.naEdgeToolCard__ToggleRow {
+    display           : flex;
+    align-items       : center;
+    gap               : 8px;
+    margin            : 0 0 10px 0;
+}
+
+.naEdgeToolCard__ToggleInput {
+    width             : auto;
+    margin            : 0;
+    cursor            : pointer;
+}
+
+.naEdgeToolCard__ToggleLabel {
+    margin            : 0;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MainText);
+    cursor            : pointer;
+}
+
+.naEdgeTools__Label {
+    display           : block;
+    margin-bottom     : 6px;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+}
+
+.naEdgeTools__Input {
+    width             : 100%;
+    padding           : 8px 10px;
+    box-sizing        : border-box;
+    border            : 1px solid var(--NaEdgeUtil_BorderColour);
+    margin-bottom     : 8px;
+    font-size         : var(--NaEdgeUtil_FontSize_MainText);
+}
+
+.naEdgeTools__StatusPanel {
+    margin-bottom     : 12px;
+    border-bottom     : 1px solid #e4e4e4;
+    padding-bottom    : 10px;
+}
+
+.naEdgeTools__Status {
+    margin            : 0;
+    min-height        : 18px;
+    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
+    color             : var(--NaEdgeUtil_FontColour_MutedText);
+}
+
+.naEdgeTools__Status--success {
+    color             : #2c6e49;
+}
+
+.naEdgeTools__Status--error {
+    color             : #c62828;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
 /* REGION | Settings Tab - Reload Plugin Data Controls */
 /* ----------------------------------------------------------------- */
 

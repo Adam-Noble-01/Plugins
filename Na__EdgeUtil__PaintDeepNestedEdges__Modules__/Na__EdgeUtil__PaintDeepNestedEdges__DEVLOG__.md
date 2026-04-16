@@ -8,6 +8,107 @@
 ## Version History
 
 # ---------------------------------------------------------
+### Na Edge Util - Version 1.0.4 - 16-Apr-2026
+#### Chamfer Edge Corners Tool, UI Config + Native Shortcut Command
+
+- **New chamfer module added**: Created `Na__EdgeUtil__GeomUtil__ChamferEdgeCorners__Module__.rb` with namespaced module `Na__EdgeTools__ChamferEdgeCorners` and full persisted settings pipeline:
+  - `Chamfer Size` (default 20mm, min 0mm)
+  - `Build Corners` toggle (default off)
+  - `Build Corner Max Gap` (default 100mm, min 1mm)
+- **Chamfer execution flow implemented**:
+  - Optional corner-build pre-pass using existing `Na__EdgeTools__RepairEdgeCorners` logic.
+  - Candidate detection for true 2-edge non-colinear corners.
+  - Full preflight feasibility check that validates chamfer size against edge lengths.
+  - **Hard stop with on-screen warning (`UI.messagebox`)** when chamfer cannot be applied safely due to short edges.
+  - Chamfer operation splits each corner’s incident edges, removes corner stubs, and inserts chamfer bridge segment.
+- **Min value behavior (0mm) implemented**: Chamfer size `0` now returns regular 90 degree corner behavior (with optional corner-build pre-pass if enabled).
+- **Main orchestrator wiring**:
+  - Added `require_relative` for the chamfer module.
+  - Added chamfer command metadata getters from JSON config.
+  - Added runtime entry point `na_run_chamfer_edge_corners`.
+  - Added dialog placeholders for chamfer settings and build-corner toggle state.
+  - Added dialog callbacks:
+    - `set_chamfer_size_mm`
+    - `set_chamfer_build_corners_enabled`
+    - `set_chamfer_build_corner_max_gap_mm`
+    - `run_chamfer_edge_corners`
+- **Edge Tools UI updated**:
+  - Added new `Chamfer Edge Corners` card in the Edge Tools tab.
+  - Added chamfer size input + hint text.
+  - Added build-corners checkbox.
+  - Added conditional max-gap config panel that appears only when build-corners is enabled.
+- **UI helper bridge updated (`Na__EdgeUtil__UiHelpers__.js`)**:
+  - Added chamfer input readers/sanitizers.
+  - Added persistence bridge calls for chamfer settings.
+  - Added build-corner panel show/hide toggle logic.
+  - Added runner bridge `run_chamfer_edge_corners`.
+- **Hotkey / native command integration completed**:
+  - Added `edge_tools.chamfer_edge_corners` metadata block in `EdgeConfigData__.json`.
+  - Added new command builder in `HotkeyBinder__.rb`.
+  - Registered chamfer command under `Extensions > Na__EdgeUtil` for SketchUp native shortcut binding.
+
+**Files Created:**
+- `10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__GeomUtil__ChamferEdgeCorners__Module__.rb`
+
+**Files Modified:**
+- `Na__EdgeUtil__PaintDeepNestedEdges__Main__.rb` (module require, chamfer config getters, run entry point, placeholders, callbacks)
+- `Na__EdgeUtil__PaintDeepNestedEdges__UiLayout__.html` (new chamfer card + conditional controls)
+- `Na__EdgeUtil__PaintDeepNestedEdges__Styles__.css` (toggle row styles for chamfer options)
+- `10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__UiHelpers__.js` (chamfer UI read/persist/run bridge)
+- `Na__EdgeUtil__PaintDeepNestedEdges__EdgeConfigData__.json` (chamfer command metadata)
+- `Na__EdgeUtil__PaintDeepNestedEdges__HotkeyBinder__.rb` (chamfer command registration)
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+### Na Edge Util - Version 1.0.4 - 16-Apr-2026
+#### Edge Tools Tab UI Layout Refresh
+
+- **Edge Tools UX redesign**: Rebuilt the tab layout to improve readability and task flow.
+  - Replaced stacked raw controls with **3 structured tool cards** (`Edge Cleaner`, `Repair Edge Corners`, `Insert Points Along Path`).
+  - Added **clear visual dividers** inside each card between description/content and action area.
+  - Added a dedicated **config box** for corner repair distance input, including helper guidance text.
+  - Moved status output into a **separate status panel** with top divider, so feedback is visually detached from action controls.
+- **Content clarity update**: Updated copy to explain that each tool acts on current selection and runs independently.
+- **Style system update**: Added new card-level classes (`naEdgeToolCard*`) and supporting layout styles to keep spacing, hierarchy, and buttons consistent.
+
+**Files Modified:**
+- `Na__EdgeUtil__PaintDeepNestedEdges__UiLayout__.html`
+- `Na__EdgeUtil__PaintDeepNestedEdges__Styles__.css`
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+### Na Edge Util - Version 1.0.4 - 16-Apr-2026
+#### Edge Tools Tab, New Repair Modules, UI Helpers & Hotkeys
+
+- **New folder tree + module set**: Added `10__EdgeUtil__EdgeRepairModules` and wired all requested scripts into `Main__.rb` with `require_relative` so they load with the plugin.
+- **New Ruby module `Na__EdgeUtil__RepairUtil__EdgeCleaner__Module__.rb`**: Added namespaced module `Na__EdgeTools__EdgeCleaner` with pure helper functions for colinear interior-vertex detection and chain-building, operation-safe execution, curve explosion pre-flight, and geometry-heal fallback.
+- **New Ruby module `Na__EdgeUtil__RepairUtil__RepairCorner__Module__.rb`**: Added namespaced module `Na__EdgeTools__RepairEdgeCorners` with configurable max-corner-gap logic (default 100mm, min 1mm), persisted SketchUp preferences storage, loose-end discovery, valid intersection scoring, repair execution, and geometry-heal fallback.
+- **New Ruby module `Na__EdgeUtil__GeomUtil__AddPointsAlongPatrh__Module__.rb`**: Added namespaced module `Na__EdgeTools__InsertPointsAlongPaths` for ordered edge-path detection, spacing prompt resolution, subdivision point generation, and grouped path rebuild.
+- **New JS helper file `Na__EdgeUtil__UiHelpers__.js`**: Moved tab navigation + edge-tool button handlers out of inline HTML and added corner-gap persistence callback integration (`set_repair_corner_max_gap_mm`).
+- **New "Edge Tools" tab added to `UiLayout__.html`**: Added three tool buttons (Edge Cleaner, Repair Edge Corners, Insert Points Along Path), corner max distance input (`min=1`, default value injected from Ruby prefs), and dedicated status region.
+- **Main callback wiring updated**: Added `run_edge_cleaner`, `run_repair_corners`, `run_insert_points_along_path`, and `set_repair_corner_max_gap_mm` action callbacks; added shared status update helper and edge-tools status messaging.
+- **Selection observer integration**: Added `Sketchup::SelectionObserver` class in `Main__.rb` to keep UI selection info live when SketchUp selection changes while dialog is open.
+- **Hotkey manager upgraded**: `HotkeyBinder__.rb` now registers 4 shortcut-discoverable commands under `Extensions > Na__EdgeUtil`: main dialog + the 3 new edge tools, enabling keybinding via native SketchUp Shortcuts settings.
+- **Config + reload updates**:
+  - `EdgeConfigData__.json` bumped to `"extension_version": "1.0.4"`, increased dialog height, and added `edge_tools` command metadata block.
+  - `RefreshPluginData__.rb` now reloads Ruby files recursively from module subfolders (`**/*.rb`) so the new edge-tool modules hot-reload correctly.
+
+**Files Created:**
+- `10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__RepairUtil__EdgeCleaner__Module__.rb`
+- `10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__RepairUtil__RepairCorner__Module__.rb`
+- `10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__GeomUtil__AddPointsAlongPatrh__Module__.rb`
+- `10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__UiHelpers__.js`
+
+**Files Modified:**
+- `Na__EdgeUtil__PaintDeepNestedEdges__Main__.rb` (requires, edge-tools callbacks, observer wiring, helper script injection, tool command metadata helpers)
+- `Na__EdgeUtil__PaintDeepNestedEdges__UiLayout__.html` (new `Edge Tools` tab UI + JS helper placeholder)
+- `Na__EdgeUtil__PaintDeepNestedEdges__Styles__.css` (Edge Tools styles + status variants)
+- `Na__EdgeUtil__PaintDeepNestedEdges__HotkeyBinder__.rb` (4 command registrations in `Extensions > Na__EdgeUtil`)
+- `Na__EdgeUtil__PaintDeepNestedEdges__EdgeConfigData__.json` (version, dialog height, edge-tool command config)
+- `Na__EdgeUtil__PaintDeepNestedEdges__RefreshPluginData__.rb` (recursive Ruby reload)
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### Na Edge Util - Version 1.0.4 - 16-Mar-2026
 #### Settings Tab - Reload Plugin Data
 

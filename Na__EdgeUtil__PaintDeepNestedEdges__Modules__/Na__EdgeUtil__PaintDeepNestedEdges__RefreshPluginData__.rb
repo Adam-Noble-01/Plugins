@@ -93,7 +93,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             reload_count = 0
             error_count  = 0
 
-            rb_files = Dir.glob(File.join(NA_PLUGIN_ROOT, "*.rb"))               # <-- Collect all .rb files in module folder
+            rb_files = Dir.glob(File.join(NA_PLUGIN_ROOT, "**", "*.rb"))         # <-- Collect all .rb files in module folder tree
 
             rb_files.each do |file|
                 begin

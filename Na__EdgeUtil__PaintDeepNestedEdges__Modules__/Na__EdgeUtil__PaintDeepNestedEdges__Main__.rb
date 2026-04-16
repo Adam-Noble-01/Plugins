@@ -45,6 +45,10 @@ require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__HotkeyBinder__'
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__PaletteManager__'
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__ApplyLineThicknessTags__'
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__RefreshPluginData__'
+require_relative '10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__RepairUtil__EdgeCleaner__Module__'
+require_relative '10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__RepairUtil__RepairCorner__Module__'
+require_relative '10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__GeomUtil__AddPointsAlongPatrh__Module__'
+require_relative '10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__GeomUtil__ChamferEdgeCorners__Module__'
 require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module Na__EdgeUtil__PaintDeepNestedEdges
@@ -59,6 +63,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     NA_EDGE_CONFIG_FILE     = File.join(NA_PLUGIN_ROOT, 'Na__EdgeUtil__PaintDeepNestedEdges__EdgeConfigData__.json').freeze
     NA_UI_LAYOUT_FILE       = File.join(NA_PLUGIN_ROOT, 'Na__EdgeUtil__PaintDeepNestedEdges__UiLayout__.html').freeze
     NA_STYLESHEET_FILE      = File.join(NA_PLUGIN_ROOT, 'Na__EdgeUtil__PaintDeepNestedEdges__Styles__.css').freeze
+    NA_UI_HELPERS_FILE      = File.join(NA_PLUGIN_ROOT, '10__EdgeUtil__EdgeRepairModules', 'Na__EdgeUtil__UiHelpers__.js').freeze
     # ------------------------------------------------------------
 
     # MODULE VARIABLES | State Management
@@ -69,6 +74,8 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     @na_mte_colours       = nil                                               # <-- Flattened { SketchUpName => HexValue } colour hash
     @na_mte_swatches      = nil                                               # <-- Array of { key, hex, swatch_name } for Swatches tab
     @na_mte_meta          = nil                                               # <-- MTE meta block (uiDefaults, naming convention, etc.)
+    @na_selection_observer = nil
+    @na_observed_selection = nil
     # ------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -137,6 +144,125 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     end
     # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Return Edge Tools Configuration Block
+    # ---------------------------------------------------------------
+    def self.na_edge_tools_config
+        na_edge_config_data.fetch('edge_tools', {})
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Edge Cleaner Command Name
+    # ---------------------------------------------------------------
+    def self.na_edge_cleaner_command_name
+        na_edge_tools_config.dig('edge_cleaner', 'command_name') || 'Na Edge Util - Edge Cleaner'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Edge Cleaner Command Tooltip
+    # ---------------------------------------------------------------
+    def self.na_edge_cleaner_command_tooltip
+        na_edge_tools_config.dig('edge_cleaner', 'tooltip') || 'Remove redundant colinear vertices from selected edges'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Edge Cleaner Status Bar Text
+    # ---------------------------------------------------------------
+    def self.na_edge_cleaner_command_status_bar_text
+        na_edge_tools_config.dig('edge_cleaner', 'status_bar_text') || 'Run Edge Cleaner on selected edges'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Edge Cleaner Menu Text
+    # ---------------------------------------------------------------
+    def self.na_edge_cleaner_menu_text
+        na_edge_tools_config.dig('edge_cleaner', 'menu_text') || na_edge_cleaner_command_name
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Repair Corner Command Name
+    # ---------------------------------------------------------------
+    def self.na_repair_corner_command_name
+        na_edge_tools_config.dig('repair_edge_corners', 'command_name') || 'Na Edge Util - Repair Edge Corners'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Repair Corner Command Tooltip
+    # ---------------------------------------------------------------
+    def self.na_repair_corner_command_tooltip
+        na_edge_tools_config.dig('repair_edge_corners', 'tooltip') || 'Repair loose edge corners up to the configured maximum distance'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Repair Corner Status Bar Text
+    # ---------------------------------------------------------------
+    def self.na_repair_corner_command_status_bar_text
+        na_edge_tools_config.dig('repair_edge_corners', 'status_bar_text') || 'Repair selected corner gaps'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Repair Corner Menu Text
+    # ---------------------------------------------------------------
+    def self.na_repair_corner_menu_text
+        na_edge_tools_config.dig('repair_edge_corners', 'menu_text') || na_repair_corner_command_name
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Insert Points Command Name
+    # ---------------------------------------------------------------
+    def self.na_insert_points_command_name
+        na_edge_tools_config.dig('insert_points_along_paths', 'command_name') || 'Na Edge Util - Insert Points Along Paths'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Insert Points Command Tooltip
+    # ---------------------------------------------------------------
+    def self.na_insert_points_command_tooltip
+        na_edge_tools_config.dig('insert_points_along_paths', 'tooltip') || 'Insert evenly spaced points along the selected edge path'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Insert Points Status Bar Text
+    # ---------------------------------------------------------------
+    def self.na_insert_points_command_status_bar_text
+        na_edge_tools_config.dig('insert_points_along_paths', 'status_bar_text') || 'Subdivide selected path edges into equal segments'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Insert Points Menu Text
+    # ---------------------------------------------------------------
+    def self.na_insert_points_menu_text
+        na_edge_tools_config.dig('insert_points_along_paths', 'menu_text') || na_insert_points_command_name
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Chamfer Edge Corners Command Name
+    # ---------------------------------------------------------------
+    def self.na_chamfer_edge_corners_command_name
+        na_edge_tools_config.dig('chamfer_edge_corners', 'command_name') || 'Na Edge Util - Chamfer Edge Corners'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Chamfer Edge Corners Command Tooltip
+    # ---------------------------------------------------------------
+    def self.na_chamfer_edge_corners_command_tooltip
+        na_edge_tools_config.dig('chamfer_edge_corners', 'tooltip') || 'Chamfer selected corners with optional corner-building prepass'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Chamfer Edge Corners Status Bar Text
+    # ---------------------------------------------------------------
+    def self.na_chamfer_edge_corners_command_status_bar_text
+        na_edge_tools_config.dig('chamfer_edge_corners', 'status_bar_text') || 'Run chamfer corner tool on selected edges'
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Return Chamfer Edge Corners Menu Text
+    # ---------------------------------------------------------------
+    def self.na_chamfer_edge_corners_menu_text
+        na_edge_tools_config.dig('chamfer_edge_corners', 'menu_text') || na_chamfer_edge_corners_command_name
+    end
+    # ---------------------------------------------------------------
+
     # HELPER FUNCTION | Return Dialog Width
     # ---------------------------------------------------------------
     def self.na_dialog_width
@@ -162,6 +288,38 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     # ------------------------------------------------------------
     def self.na_register_hotkey_and_menu
         Na__HotkeyBinder.na_register_hotkey_and_menu
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Run Edge Cleaner Tool Action
+    # ------------------------------------------------------------
+    def self.na_run_edge_cleaner
+        Na__EdgeTools__EdgeCleaner.Na__EdgeTools__EdgeCleaner__Execute
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Run Repair Corner Tool Action
+    # ------------------------------------------------------------
+    def self.na_run_repair_edge_corners(max_gap_mm = nil)
+        Na__EdgeTools__RepairEdgeCorners.Na__EdgeTools__RepairEdgeCorners__ExecuteRepair(max_gap_mm)
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Run Insert Points Along Paths Tool Action
+    # ------------------------------------------------------------
+    def self.na_run_insert_points_along_paths
+        Na__EdgeTools__InsertPointsAlongPaths.Na__EdgeTools__InsertPointsAlongPaths__Execute
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Run Chamfer Edge Corners Tool Action
+    # ------------------------------------------------------------
+    def self.na_run_chamfer_edge_corners(chamfer_size_mm = nil, build_corners_enabled = nil, build_corner_max_gap_mm = nil)
+        Na__EdgeTools__ChamferEdgeCorners.Na__EdgeTools__ChamferEdgeCorners__Execute(
+            chamfer_size_mm,
+            build_corners_enabled,
+            build_corner_max_gap_mm
+        )
     end
     # ---------------------------------------------------------------
 
@@ -536,18 +694,50 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     end
     # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Load Dialog JavaScript Helper Content
+    # ---------------------------------------------------------------
+    def self.na_dialog_ui_helpers_script
+        File.read(NA_UI_HELPERS_FILE)
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Format Float for Html Number Input
+    # ---------------------------------------------------------------
+    def self.na_number_for_html_input(number_value)
+        format('%.3f', number_value.to_f).sub(/\.?0+$/, '')
+    end
+    # ---------------------------------------------------------------
+
     # HELPER FUNCTION | Render Complete Dialog Html
     # ---------------------------------------------------------------
     def self.na_render_dialog_html
-        initial_info = "#{na_edge_count_selection} edges selected."
+        initial_info                  = "#{na_edge_count_selection} edges selected."
+        max_gap_mm_string             = na_number_for_html_input(
+            Na__EdgeTools__RepairEdgeCorners.Na__EdgeTools__RepairEdgeCorners__StoredMaxGapMm
+        )
+        chamfer_size_mm_string        = na_number_for_html_input(
+            Na__EdgeTools__ChamferEdgeCorners.Na__EdgeTools__ChamferEdgeCorners__StoredChamferSizeMm
+        )
+        build_corners_enabled         = Na__EdgeTools__ChamferEdgeCorners.Na__EdgeTools__ChamferEdgeCorners__StoredBuildCornersEnabled
+        build_corners_checked_attr    = build_corners_enabled ? 'checked' : ''
+        build_corner_config_class     = build_corners_enabled ? '' : 'naEdgeToolCard__ConfigBox--hidden'
+        build_corner_max_gap_mm_string = na_number_for_html_input(
+            Na__EdgeTools__ChamferEdgeCorners.Na__EdgeTools__ChamferEdgeCorners__StoredBuildCornerMaxGapMm
+        )
 
         return na_dialog_template_html
             .gsub('{{DIALOG_TITLE}}', na_dialog_title)
             .gsub('{{STYLESHEET_CONTENT}}', na_dialog_stylesheet_content)
+            .gsub('{{UI_HELPERS_SCRIPT}}', na_dialog_ui_helpers_script)
             .gsub('{{DYNAMIC_PALETTE_HTML}}', Na__PaletteManager.na_build_palette_html)
             .gsub('{{OPTIONS_HTML}}', na_build_options_html)
             .gsub('{{SWATCHES_HTML}}', na_build_swatches_html)
             .gsub('{{MAPPING_TABLE_HTML}}', na_build_mapping_table_html)
+            .gsub('{{REPAIR_CORNER_MAX_GAP_MM}}', max_gap_mm_string)
+            .gsub('{{CHAMFER_SIZE_MM}}', chamfer_size_mm_string)
+            .gsub('{{CHAMFER_BUILD_CORNERS_CHECKED}}', build_corners_checked_attr)
+            .gsub('{{CHAMFER_BUILD_CORNER_CONFIG_CLASS}}', build_corner_config_class)
+            .gsub('{{CHAMFER_BUILD_CORNER_MAX_GAP_MM}}', build_corner_max_gap_mm_string)
             .gsub('{{INITIAL_INFO}}', initial_info)
     end
     # ---------------------------------------------------------------
@@ -563,6 +753,75 @@ module Na__EdgeUtil__PaintDeepNestedEdges
 
         if selected_colour_key
             dialog.execute_script("document.getElementById('colour').value=#{selected_colour_key.to_json};")
+        end
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Write Status Text and Class to UI Element
+    # ---------------------------------------------------------------
+    def self.na_update_status_element(dialog, element_id, base_class, status_text, status_modifier = nil)
+        full_class = [base_class, status_modifier].compact.join(' ')
+        dialog.execute_script("var el=document.getElementById(#{element_id.to_json}); if(el){el.textContent=#{status_text.to_json}; el.className=#{full_class.to_json};}")
+    end
+    # ---------------------------------------------------------------
+
+    # SUB FUNCTION | Handle Selection Changes While Dialog Is Open
+    # ---------------------------------------------------------------
+    def self.na_handle_selection_changed
+        return unless @na_dialog
+        return unless @na_dialog.visible?
+
+        selection_info_text = "#{na_edge_count_selection} edges selected."
+        @na_dialog.execute_script("var el=document.getElementById('info'); if(el){el.textContent=#{selection_info_text.to_json};}")
+    end
+    # ---------------------------------------------------------------
+
+    # SUB FUNCTION | Attach Selection Observer to Active Model Selection
+    # ---------------------------------------------------------------
+    def self.na_attach_selection_observer
+        model = Sketchup.active_model
+        return unless model
+
+        selection = model.selection
+        return if @na_observed_selection == selection && @na_selection_observer
+
+        na_detach_selection_observer
+
+        @na_selection_observer ||= Na__DialogSelectionObserver.new
+        selection.add_observer(@na_selection_observer)
+        @na_observed_selection = selection
+    end
+    # ---------------------------------------------------------------
+
+    # SUB FUNCTION | Detach Selection Observer from Previous Selection
+    # ---------------------------------------------------------------
+    def self.na_detach_selection_observer
+        return unless @na_observed_selection && @na_selection_observer
+
+        @na_observed_selection.remove_observer(@na_selection_observer)
+        @na_observed_selection = nil
+    rescue StandardError
+        @na_observed_selection = nil
+    end
+    # ---------------------------------------------------------------
+
+    # OBSERVER CLASS | Listen to SketchUp Selection Events
+    # ---------------------------------------------------------------
+    class Na__DialogSelectionObserver < Sketchup::SelectionObserver
+        def onSelectionBulkChange(_selection)
+            Na__EdgeUtil__PaintDeepNestedEdges.na_handle_selection_changed
+        end
+
+        def onSelectionAdded(_selection, _entity)
+            Na__EdgeUtil__PaintDeepNestedEdges.na_handle_selection_changed
+        end
+
+        def onSelectionRemoved(_selection, _entity)
+            Na__EdgeUtil__PaintDeepNestedEdges.na_handle_selection_changed
+        end
+
+        def onSelectionCleared(_selection)
+            Na__EdgeUtil__PaintDeepNestedEdges.na_handle_selection_changed
         end
     end
     # ---------------------------------------------------------------
@@ -592,14 +851,77 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         end
 
         dialog.add_action_callback('apply_line_tags') do |_context, _value|
-            result = Na__ApplyLineThicknessTags.Na__LineTags__ApplyToModel
-            status_text = "#{result[:applied]} tagged, #{result[:untagged]} moved to Untagged, #{result[:skipped]} errors (#{result[:total_edges]} total scanned)"
-            status_class = result[:errors].empty? ? "naAdvanced__Status--success" : "naAdvanced__Status--error"
-            dialog.execute_script("var el=document.getElementById('advancedStatus'); el.textContent=#{status_text.to_json}; el.className='naAdvanced__Status #{status_class}';")
+            result         = Na__ApplyLineThicknessTags.Na__LineTags__ApplyToModel
+            status_text    = "#{result[:applied]} tagged, #{result[:untagged]} moved to Untagged, #{result[:skipped]} errors (#{result[:total_edges]} total scanned)"
+            status_modifier = result[:errors].empty? ? "naAdvanced__Status--success" : "naAdvanced__Status--error"
+            na_update_status_element(dialog, 'advancedStatus', 'naAdvanced__Status', status_text, status_modifier)
+        end
+
+        dialog.add_action_callback('run_edge_cleaner') do |_context, _value|
+            result         = Na__EdgeTools__EdgeCleaner.Na__EdgeTools__EdgeCleaner__Execute
+            status_modifier = result[:success] ? 'naEdgeTools__Status--success' : 'naEdgeTools__Status--error'
+            na_update_status_element(dialog, 'edgeToolsStatus', 'naEdgeTools__Status', result[:message], status_modifier)
+            na_refresh_dialog_state(dialog)
+        end
+
+        dialog.add_action_callback('set_repair_corner_max_gap_mm') do |_context, max_gap_mm|
+            stored_value = Na__EdgeTools__RepairEdgeCorners.Na__EdgeTools__RepairEdgeCorners__SetStoredMaxGapMm(max_gap_mm)
+            update_script = "var input=document.getElementById('naRepairCornerMaxGapMm'); if(input){input.value=#{na_number_for_html_input(stored_value).to_json};}"
+            dialog.execute_script(update_script)
+        end
+
+        dialog.add_action_callback('run_repair_corners') do |_context, max_gap_mm|
+            result = Na__EdgeTools__RepairEdgeCorners.Na__EdgeTools__RepairEdgeCorners__ExecuteRepair(max_gap_mm)
+            status_modifier = result[:success] ? 'naEdgeTools__Status--success' : 'naEdgeTools__Status--error'
+            na_update_status_element(dialog, 'edgeToolsStatus', 'naEdgeTools__Status', result[:message], status_modifier)
+            na_refresh_dialog_state(dialog)
+        end
+
+        dialog.add_action_callback('run_insert_points_along_path') do |_context, _value|
+            result          = Na__EdgeTools__InsertPointsAlongPaths.Na__EdgeTools__InsertPointsAlongPaths__Execute
+            status_modifier = result[:success] ? 'naEdgeTools__Status--success' : 'naEdgeTools__Status--error'
+            na_update_status_element(dialog, 'edgeToolsStatus', 'naEdgeTools__Status', result[:message], status_modifier)
+            na_refresh_dialog_state(dialog)
+        end
+
+        dialog.add_action_callback('set_chamfer_size_mm') do |_context, chamfer_size_mm|
+            stored_value = Na__EdgeTools__ChamferEdgeCorners.Na__EdgeTools__ChamferEdgeCorners__SetStoredChamferSizeMm(chamfer_size_mm)
+            update_script = "var input=document.getElementById('naChamferSizeMm'); if(input){input.value=#{na_number_for_html_input(stored_value).to_json};}"
+            dialog.execute_script(update_script)
+        end
+
+        dialog.add_action_callback('set_chamfer_build_corners_enabled') do |_context, build_corners_enabled|
+            stored_value = Na__EdgeTools__ChamferEdgeCorners.Na__EdgeTools__ChamferEdgeCorners__SetStoredBuildCornersEnabled(build_corners_enabled)
+            update_script = <<~SCRIPT.strip
+            (function() {
+                var toggle = document.getElementById('naChamferBuildCornersEnabled');
+                var panel  = document.getElementById('naChamferBuildCornerConfig');
+                if(toggle){ toggle.checked = #{stored_value ? 'true' : 'false'}; }
+                if(panel){ panel.style.display = #{(stored_value ? 'block' : 'none').to_json}; }
+            })();
+            SCRIPT
+            dialog.execute_script(update_script)
+        end
+
+        dialog.add_action_callback('set_chamfer_build_corner_max_gap_mm') do |_context, build_corner_max_gap_mm|
+            stored_value = Na__EdgeTools__ChamferEdgeCorners.Na__EdgeTools__ChamferEdgeCorners__SetStoredBuildCornerMaxGapMm(build_corner_max_gap_mm)
+            update_script = "var input=document.getElementById('naChamferBuildCornerMaxGapMm'); if(input){input.value=#{na_number_for_html_input(stored_value).to_json};}"
+            dialog.execute_script(update_script)
+        end
+
+        dialog.add_action_callback('run_chamfer_edge_corners') do |_context, chamfer_size_mm, build_corners_enabled, build_corner_max_gap_mm|
+            result = Na__EdgeTools__ChamferEdgeCorners.Na__EdgeTools__ChamferEdgeCorners__Execute(
+                chamfer_size_mm,
+                build_corners_enabled,
+                build_corner_max_gap_mm
+            )
+            status_modifier = result[:success] ? 'naEdgeTools__Status--success' : 'naEdgeTools__Status--error'
+            na_update_status_element(dialog, 'edgeToolsStatus', 'naEdgeTools__Status', result[:message], status_modifier)
+            na_refresh_dialog_state(dialog)
         end
 
         dialog.add_action_callback('reload_plugin_data') do |_context, _value|
-            dialog.execute_script("document.getElementById('settingsStatus').textContent='Reloading...'; document.getElementById('settingsStatus').className='naSettings__Status';")
+            na_update_status_element(dialog, 'settingsStatus', 'naSettings__Status', 'Reloading...')
 
             web_result  = Na__RefreshPluginData.Na__Refresh__FetchWebData     # <-- Force re-fetch web data files
             rb_result   = Na__RefreshPluginData.Na__Refresh__ReloadRubyFiles  # <-- Hot-reload all plugin Ruby files
@@ -608,9 +930,8 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             rb_summary  = "#{rb_result[:reload_count]} files reloaded, #{rb_result[:error_count]} errors"
             status_text  = "Web data: #{web_sources} | Ruby: #{rb_summary}"
             has_error    = web_result.values.any? { |s| s == :failed } || rb_result[:error_count] > 0
-            status_class = has_error ? "naSettings__Status--error" : "naSettings__Status--success"
-
-            dialog.execute_script("var el=document.getElementById('settingsStatus'); el.textContent=#{status_text.to_json}; el.className='naSettings__Status #{status_class}';")
+            status_modifier = has_error ? "naSettings__Status--error" : "naSettings__Status--success"
+            na_update_status_element(dialog, 'settingsStatus', 'naSettings__Status', status_text, status_modifier)
 
             na_load_mte_data                                                   # <-- Re-populate in-memory MTE state
         end
@@ -620,6 +941,11 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     # FUNCTION | Create and Display Paint Edges Dialog
     # ------------------------------------------------------------
     def self.na_show_dialog
+        if @na_dialog && @na_dialog.visible?
+            @na_dialog.bring_to_front
+            return
+        end
+
         dialog_options = {
             dialog_title:    na_dialog_title,
             preferences_key: na_dialog_preferences_key,
@@ -633,6 +959,11 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         @na_dialog = UI::HtmlDialog.new(dialog_options)
         @na_dialog.set_html(na_render_dialog_html)
         na_setup_dialog_callbacks(@na_dialog)
+        na_attach_selection_observer
+        @na_dialog.set_on_closed do
+            na_detach_selection_observer
+            @na_dialog = nil
+        end
         @na_dialog.show
     end
     # ---------------------------------------------------------------
