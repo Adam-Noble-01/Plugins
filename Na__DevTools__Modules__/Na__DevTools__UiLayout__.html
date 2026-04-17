@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{DIALOG_TITLE}}</title>
+    <style>
+    {{STYLESHEET_CONTENT}}
+    </style>
+</head>
+
+<!-- ----------------------------------------------------------------- -->
+<!-- REGION | User Interface HTML Layout & Elements                    -->
+<!-- ----------------------------------------------------------------- -->
+
+<body>
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- REGION | Tab Navigation Bar                                       -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <div class="naTabBar">
+        <button class="naTabBtn naTabBtn--active" onclick="naShowTab('tools', this)">Tools</button>
+        <button class="naTabBtn" onclick="naShowTab('settings', this)">Settings</button>
+    </div>
+
+    <!-- endregion ----------------------------------------------------------------- -->
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- REGION | Tools Tab - Main Dev Tools                               -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <div id="tab-tools" class="naTabContent naTabContent--active">
+
+        <p class="naAdvanced__Description">
+            Developer tools for Noble Architecture SketchUp plugins and web apps.
+        </p>
+
+        <div class="naAdvanced__BtnRow">
+            <button onclick="sketchup.run_load_materials()"><strong>Load Materials from Web</strong></button>
+        </div>
+
+        <p id="advancedStatus" class="naAdvanced__Status">Fetch MaterialsLibrary JSON and build preview cubes.</p>
+
+    </div>
+
+    <!-- endregion ----------------------------------------------------------------- -->
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- REGION | Settings Tab                                             -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <div id="tab-settings" class="naTabContent">
+
+        <p class="naAdvanced__Description">
+            Settings and configuration will be added here in the future.
+        </p>
+
+    </div>
+
+    <!-- endregion ----------------------------------------------------------------- -->
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- REGION | JavaScript Interaction Logic                             -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <script>
+        // FUNCTION | Switch Active Tab
+        // ------------------------------------------------------------
+        function naShowTab(tabId, btnElement) {
+            // Hide all tab contents
+            var contents = document.getElementsByClassName('naTabContent');
+            for (var i = 0; i < contents.length; i++) {
+                contents[i].classList.remove('naTabContent--active');
+            }
+
+            // Remove active class from all buttons
+            var buttons = document.getElementsByClassName('naTabBtn');
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].classList.remove('naTabBtn--active');
+            }
+
+            // Show selected tab content
+            document.getElementById('tab-' + tabId).classList.add('naTabContent--active');
+
+            // Highlight clicked button
+            btnElement.classList.add('naTabBtn--active');
+        }
+        // ---------------------------------------------------------------
+    </script>
+
+    <!-- endregion ----------------------------------------------------------------- -->
+
+</body>
+</html>

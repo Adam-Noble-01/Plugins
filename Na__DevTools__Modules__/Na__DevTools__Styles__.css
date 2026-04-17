@@ -1,0 +1,151 @@
+/* ----------------------------------------------------------------- */
+/* REGION | CSS Variables - Na Dev Tools */
+/* ----------------------------------------------------------------- */
+
+:root {
+    --NaDevTools_FontColour_MainText  : #1e1e1e;
+    --NaDevTools_FontColour_MutedText : #555555;
+    --NaDevTools_BackgroundColour     : #ffffff;
+    --NaDevTools_BorderColour         : #cccccc;
+    --NaDevTools_AccentColour         : #336699;
+    --NaDevTools_ButtonPadding        : 8px 18px;
+    --NaDevTools_ButtonMargin         : 14px 0 0 0;
+    --NaDevTools_FontSize_MainText    : 14px;
+    --NaDevTools_FontSize_SmallText   : 13px;
+    --NaDevTools_FontSize_TinyText    : 10px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Base Layout Styles */
+/* ----------------------------------------------------------------- */
+
+html, body {
+    margin            : 0;
+    padding           : 0;
+    background-color  : var(--NaDevTools_BackgroundColour);
+}
+
+body {
+    font-family       : Arial, Helvetica, sans-serif;
+    color             : var(--NaDevTools_FontColour_MainText);
+    padding           : 0;
+    box-sizing        : border-box;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Navigation - Bar and Buttons */
+/* ----------------------------------------------------------------- */
+
+.naTabBar {
+    display           : flex;
+    border-bottom     : 2px solid var(--NaDevTools_BorderColour);
+    padding           : 0 18px;
+    background-color  : #f5f5f5;
+}
+
+.naTabBtn {
+    padding           : 10px 20px;
+    border            : none;
+    border-bottom     : 3px solid transparent;
+    background        : none;
+    font-size         : var(--NaDevTools_FontSize_MainText);
+    color             : var(--NaDevTools_FontColour_MutedText);
+    cursor            : pointer;
+    margin            : 0;
+    min-width         : auto;
+}
+
+.naTabBtn:hover {
+    color             : var(--NaDevTools_FontColour_MainText);
+}
+
+.naTabBtn--active {
+    color             : var(--NaDevTools_AccentColour);
+    border-bottom     : 3px solid var(--NaDevTools_AccentColour);
+    font-weight       : bold;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Content Panels */
+/* ----------------------------------------------------------------- */
+
+.naTabContent {
+    display           : none;
+    padding           : 18px 22px;
+}
+
+.naTabContent--active {
+    display           : block;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Form Elements - Labels, Selects, Buttons */
+/* ----------------------------------------------------------------- */
+
+label,
+select,
+button {
+    font-size         : var(--NaDevTools_FontSize_MainText);
+}
+
+label {
+    display           : inline-block;
+    margin-bottom     : 6px;
+    font-weight       : bold;
+}
+
+button {
+    padding           : var(--NaDevTools_ButtonPadding);
+    background-color  : #f5f5f5;
+    border            : 1px solid var(--NaDevTools_BorderColour);
+    border-radius     : 4px;
+    cursor            : pointer;
+    color             : var(--NaDevTools_FontColour_MainText);
+    margin            : var(--NaDevTools_ButtonMargin);
+    transition        : background-color 0.2s, border-color 0.2s;
+}
+
+button:hover {
+    background-color  : #e8e8e8;
+    border-color      : #999999;
+}
+
+button:active {
+    background-color  : #dddddd;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Advanced Tab Specifics */
+/* ----------------------------------------------------------------- */
+
+.naAdvanced__Description {
+    margin-top        : 0;
+    margin-bottom     : 16px;
+    line-height       : 1.4;
+    color             : var(--NaDevTools_FontColour_MutedText);
+}
+
+.naAdvanced__BtnRow {
+    margin-top        : 20px;
+    text-align        : left;
+}
+
+.naAdvanced__Status {
+    margin-top        : 12px;
+    font-size         : var(--NaDevTools_FontSize_SmallText);
+    color             : var(--NaDevTools_AccentColour);
+    font-style        : italic;
+    min-height        : 16px;
+}
+
+/* endregion ----------------------------------------------------------------- */
