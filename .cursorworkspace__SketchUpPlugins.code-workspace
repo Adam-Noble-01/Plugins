@@ -40,6 +40,11 @@
         "name": "REFERENCE__ValeVision3D__WebApplication__",
 		"path": "D:/80__External__LiveRepos/ValeCodebase/WebApps/ValeVision3D",
         "description": "Reference Folder for the ValeVision3D Web Application, DO NOT EDIT THIS FOLDER OR ANY FILES WITHIN IT."
+	  },
+      {
+        "name": "STUDIO__SketchUpPlugins__",
+		"path": "C:/Users/Administrator/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins",
+        "description": "Studio SketchUp Plugins RootFolder"
 	  }
 	],
 	"settings": {

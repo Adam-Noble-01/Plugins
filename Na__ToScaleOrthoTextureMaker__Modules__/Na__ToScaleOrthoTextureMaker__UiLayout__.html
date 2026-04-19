@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Na To Scale Ortho Texture Maker</title>
+    <link rel="stylesheet" href="./Na__ToScaleOrthoTextureMaker__Styles__.css">
+</head>
+<body>
+    <!-- ----------------------------------------------------------------- -->
+    <!-- REGION | Ortho Texture Maker Layout -->
+    <!-- ----------------------------------------------------------------- -->
+
+    <div class="naTabBar">
+        <button class="naTabBtn naTabBtn--active" type="button" onclick="naShowTab('main', this)">Main</button>
+        <button class="naTabBtn" type="button" onclick="naShowTab('settings', this)">Settings</button>
+    </div>
+
+    <div id="tab-main" class="naTabContent naTabContent--active">
+        <div class="na-panel">
+            <h1>Na__ToScaleOrthoTextureMaker</h1>
+
+            <p class="na-help">
+                Set up an ortho camera (Parallel Projection + a standard view or scene), then click Capture.
+                A flat textured plane will be created that exactly matches the current viewport.
+            </p>
+
+            <label for="na-scene-select">Scene Source</label>
+            <select id="na-scene-select"></select>
+
+            <label for="na-resolution-select">Capture Resolution</label>
+            <select id="na-resolution-select">
+                <option value="1024">1024 px</option>
+                <option value="2048" selected>2048 px</option>
+                <option value="3072">3072 px</option>
+                <option value="4096">4096 px (safe max)</option>
+                <option value="6144">6144 px (GPU dependent)</option>
+                <option value="8192">8192 px (8K, may fail)</option>
+            </select>
+
+            <label for="na-background-select">Background</label>
+            <select id="na-background-select">
+                <option value="transparent" selected>Transparent (default)</option>
+                <option value="white">Solid White</option>
+            </select>
+
+            <button id="na-btn-run" type="button">Capture Viewport</button>
+
+            <div id="na-status-main" class="na-status na-status-info">Ready.</div>
+
+            <!-- ----------------------------------------------------------------- -->
+            <!-- UI MENU | Export Captured Texture -->
+            <!-- ----------------------------------------------------------------- -->
+
+            <div class="na-section-divider"></div>
+
+            <h2 class="na-subheading">Export Texture</h2>
+
+            <p class="na-help na-help--secondary">
+                Exports the baked texture from the selected Na__Ortho capture group to a PNG file.
+                Filename embeds the true-scale mm dimensions so the image can be re-scaled precisely downstream.
+            </p>
+
+            <button id="na-btn-export" type="button" class="na-btn-secondary">Export Texture</button>
+
+            <div id="na-status-export" class="na-status na-status-info">No export run yet.</div>
+
+            <!-- endregion ----------------------------------------------------------------- -->
+        </div>
+    </div>
+
+    <div id="tab-settings" class="naTabContent">
+        <div class="na-panel">
+            <h1>Settings</h1>
+
+            <p class="na-help">
+                Refreshes the plugin Ruby files without restarting SketchUp,
+                following the same rapid development pattern used in Edge Tools.
+            </p>
+
+            <button id="na-btn-refresh" type="button">Refresh Scripts</button>
+
+            <div id="na-status-settings" class="na-status na-status-info">No refresh run yet.</div>
+        </div>
+    </div>
+
+    <!-- endregion ----------------------------------------------------------------- -->
+
+    <script src="./Na__ToScaleOrthoTextureMaker__UiEventToRubyApiBridge__.js"></script>
+</body>
+</html>

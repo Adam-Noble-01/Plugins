@@ -1,0 +1,188 @@
+:root {
+    --na-col-bg : #1f2329;
+    --na-col-panel : #2d333b;
+    --na-col-border : #444c56;
+    --na-col-text : #c9d1d9;
+    --na-col-accent : #238636;
+    --na-col-accent-hover : #2ea043;
+    --na-col-error : #f85149;
+    --na-col-info : #1f6feb;
+}
+
+html, body {
+    margin : 0;
+    padding : 0;
+    width : 100%;
+    height : 100%;
+    font-family : "Segoe UI", sans-serif;
+    color : var(--na-col-text);
+    background : var(--na-col-bg);
+}
+
+.naTabBar {
+    display : flex;
+    border-bottom : 1px solid var(--na-col-border);
+    background : #232a31;
+    padding : 0 14px;
+}
+
+.naTabBtn {
+    border : none;
+    background : transparent;
+    color : #9ca3ab;
+    font-size : 13px;
+    padding : 11px 14px 10px 14px;
+    cursor : pointer;
+    border-bottom : 2px solid transparent;
+}
+
+.naTabBtn:hover {
+    color : var(--na-col-text);
+}
+
+.naTabBtn--active {
+    color : var(--na-col-info);
+    border-bottom-color : var(--na-col-info);
+    font-weight : 600;
+}
+
+.naTabContent {
+    display : none;
+    width : 100%;
+}
+
+.naTabContent--active {
+    display : block;
+}
+
+.na-panel {
+    box-sizing : border-box;
+    width : 100%;
+    min-height : 100%;
+    padding : 20px;
+    background : var(--na-col-panel);
+}
+
+h1 {
+    margin : 0 0 12px 0;
+    font-size : 19px;
+}
+
+h2.na-subheading {
+    margin : 0 0 8px 0;
+    font-size : 15px;
+    font-weight : 600;
+    color : var(--na-col-text);
+}
+
+.na-help {
+    margin : 0 0 18px 0;
+    line-height : 1.45;
+    font-size : 13px;
+}
+
+.na-help--secondary {
+    margin : 0 0 10px 0;
+    font-size : 12px;
+    color : #9ca3ab;
+}
+
+.na-section-divider {
+    height : 1px;
+    margin : 22px 0 16px 0;
+    background : var(--na-col-border);
+}
+
+.na-btn-secondary {
+    background : #38404a;
+}
+
+.na-btn-secondary:hover {
+    background : #47515d;
+}
+
+label {
+    display : block;
+    margin : 12px 0 6px 0;
+    font-size : 13px;
+}
+
+select, button {
+    width : 100%;
+    box-sizing : border-box;
+    border-radius : 4px;
+    border : 1px solid var(--na-col-border);
+    padding : 10px 12px;
+    font-size : 13px;
+}
+
+select {
+    color : var(--na-col-text);
+    background : #22272e;
+}
+
+button {
+    margin-top : 16px;
+    color : #ffffff;
+    background : var(--na-col-accent);
+    border : none;
+    cursor : pointer;
+}
+
+button:hover {
+    background : var(--na-col-accent-hover);
+}
+
+button:disabled,
+button[disabled] {
+    background : #3a4047;
+    color : #9ca3ab;
+    cursor : wait;
+}
+
+.na-status-busy {
+    background : rgba(201, 128, 38, 0.16);
+    border-color : rgba(201, 128, 38, 0.55);
+    display : flex;
+    align-items : center;
+    gap : 10px;
+}
+
+.na-status-busy::before {
+    content : "";
+    width : 14px;
+    height : 14px;
+    border-radius : 50%;
+    border : 2px solid rgba(201, 128, 38, 0.35);
+    border-top-color : rgba(230, 168, 86, 1);
+    animation : na-spin 0.8s linear infinite;
+}
+
+@keyframes na-spin {
+    from { transform : rotate(0deg); }
+    to   { transform : rotate(360deg); }
+}
+
+.na-status {
+    margin-top : 16px;
+    padding : 10px 12px;
+    border-radius : 4px;
+    font-size : 13px;
+    background : rgba(31, 111, 235, 0.12);
+    border : 1px solid rgba(31, 111, 235, 0.45);
+}
+
+.na-status-success {
+    background : rgba(35, 134, 54, 0.15);
+    border-color : rgba(35, 134, 54, 0.55);
+}
+
+.na-status-error {
+    background : rgba(248, 81, 73, 0.18);
+    border-color : rgba(248, 81, 73, 0.6);
+}
+
+.na-status-info {
+    background : rgba(31, 111, 235, 0.12);
+    border-color : rgba(31, 111, 235, 0.45);
+}
