@@ -133,7 +133,7 @@ const Na__Viewport__Controls = (function() {
     // Uses event delegation to handle clicks on dynamically generated rects.
     // @param {HTMLElement} svgElement - The SVG element
     // @param {Object} interactionState - Interaction state { didPan }
-    // @param {Function} clickCallback - Callback function(openingIndex) called when opening is clicked
+    // @param {Function} clickCallback - Callback function(openingIndex, cellIndex, panelIndex) called when a casement panel is clicked
     // @param {Function} transomClickCallback - Callback function(openingIndex, transomIndex)
     // @param {Function} glazebarClickCallback - Callback function(openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex)
     function na_setupCasementClickTargets(svgElement, interactionState, clickCallback, transomClickCallback, glazebarClickCallback) {
@@ -186,13 +186,14 @@ const Na__Viewport__Controls = (function() {
             }
 
             if (!target.classList.contains('na-opening-click-target')) return;
-            
-            const openingIndex = parseInt(target.dataset.openingIndex, 10);
-            if (isNaN(openingIndex)) return;
-            
-            // Call the callback with the opening index
+
+            const openingIndex = parseInt(target.dataset.openingIndex, 10);  // <-- Per-panel click target identifies opening
+            const cellIndex = parseInt(target.dataset.cellIndex, 10);        // <-- ...and the transom-bound cell
+            const panelIndex = parseInt(target.dataset.panelIndex, 10);      // <-- ...and the casement panel within
+            if (isNaN(openingIndex) || isNaN(cellIndex) || isNaN(panelIndex)) return;
+
             if (clickCallback) {
-                clickCallback(openingIndex);
+                clickCallback(openingIndex, cellIndex, panelIndex);          // <-- Forward full per-panel identity
             }
         };
         

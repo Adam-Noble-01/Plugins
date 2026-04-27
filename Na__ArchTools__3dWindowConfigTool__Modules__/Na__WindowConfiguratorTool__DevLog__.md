@@ -3,6 +3,40 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Window Configurator Tool |  Version 0.10.4 - 27-Apr-2026 - Per-Panel Casement Toggle (Transom-Aware)
+
+### New Feature - Per-Panel Casement Removal
+- **Problem:** Clicking a transom-divided cell or a panel within a multi-panel opening did nothing -- only opening-level removal was supported. A single full-height click rect was emitted per opening, and `removed_casements` stored bare opening indices.
+- **Fix:** Casement click targets and removal data are now per-panel, matching the pattern already used for transom segments and individual glaze bars.
+
+### Key Format Change
+- `removed_casements` now stores string keys: `"openingIndex:cellIndex:panelIndex"`.
+- Sliding-sash sashes inside one panel share the same key (toggling the panel removes both top and bottom together).
+
+### Click Target Layering
+- `na-opening-click-target` now carries `data-cell-index` and `data-panel-index` and is emitted per panel inside the per-cell, per-panel SVG loop.
+- `na-transom-click-target` and `na-glazebar-click-target` are unchanged.
+
+### Backward Compatibility
+- Saved configurations with the legacy bare-integer format (e.g. `removed_casements: [0, 2]`) continue to render correctly:
+  - Both Ruby (`na_panel_casement_removed?`) and JS (`na_isPanelCasementRemoved`) treat a bare integer as "every current panel of that opening is removed".
+- On the next `na_onConfigChange` cycle, `na_migrateLegacyRemovedCasements` expands every legacy integer to per-panel `"i:c:p"` keys for every current cell/panel of that opening, then writes the migrated array back.
+- `removed_transom_segments` and `removed_glazebars` are unaffected.
+
+### Files Modified
+1. **`Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js`** -- Added `na_getCasementKey`, `na_getRemovedCasementSet` (legacy-aware), `na_isPanelCasementRemoved`. Replaced the per-opening click rect with one per panel inside `na_generateOpeningCellSvg`. Moved the red dashed "removed" indicator to per-panel. Updated `na_collectValidGlazebarKeys` to use the per-panel removal check.
+2. **`Na__WindowConfiguratorTool__Viewport__Controls__.js`** -- `na_setupCasementClickTargets` reads `data-cell-index` + `data-panel-index` and forwards `(openingIndex, cellIndex, panelIndex)` to the click callback.
+3. **`Na__WindowConfiguratorTool__UiLogic__.js`** -- Changed `na_toggleCasementRemoval` to `(openingIndex, cellIndex, panelIndex)`. Added `na_collectValidCasementKeys` / `na_getValidCasementKeySet` and `na_migrateLegacyRemovedCasements`. Replaced the numeric cleanup in `na_onConfigChange` with legacy migration + valid-key filter. Updated `Na_Viewport.na_render` callback wiring.
+4. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`** -- Added `na_panel_casement_removed?` (legacy-aware). Dropped the opening-level `opening_has_casement` flag inside `na_create_opening`. `na_create_multi_casement_opening` and `na_create_sliding_sash_opening` now compute `panel_has_casement` per panel.
+5. **`Na__WindowConfiguratorTool__DxfExporterLogic__.rb`** -- Added `na_panel_casement_removed?` and use it inside the cells loop instead of an opening-level check.
+6. **`Na__WindowConfiguratorTool__Export__Dxf__.js`** -- Added `na_getRemovedCasementSetForDxf` and `na_isPanelCasementRemovedForDxf` (delegating to `Na__Viewport__SvgGenerator` when available) so the JS DXF fallback mirrors the Ruby per-panel behaviour.
+7. **`Na__WindowConfiguratorTool__Architecture__.md`** -- Added "Feature Addendum - Per-Panel Casement Toggle" and updated the v0.9.11 Transom System note to reflect that transom-bound cells are now individually toggleable.
+
+### Status: IMPLEMENTED
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ## Version 0.10.3 - 02-Apr-2026 - Door Panel Geometry & Controls Refinement
 
 ### Fixed - Panel Recess Depth

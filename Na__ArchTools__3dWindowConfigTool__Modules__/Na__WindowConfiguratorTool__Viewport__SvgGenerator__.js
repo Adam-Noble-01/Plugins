@@ -83,12 +83,60 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Build Casement Storage Key
+    // ------------------------------------------------------------
+    function na_getCasementKey(openingIndex, cellIndex, panelIndex) {
+        return `${openingIndex}:${cellIndex}:${panelIndex}`;             // <-- Per-panel removal key
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Removed Casement Set With Legacy Bare-Integer Support
+    // ------------------------------------------------------------
+    // Bare integer entries (e.g. 0) are legacy opening-wide removals.
+    // They are kept as a separate set indexed by openingIndex.
+    function na_getRemovedCasementSet(removedCasements) {
+        const keySet = new Set();                                        // <-- Per-panel keyed entries
+        const legacyOpeningSet = new Set();                              // <-- Legacy bare-integer opening indices
+
+        if (!Array.isArray(removedCasements)) {
+            return { keys: keySet, legacyOpenings: legacyOpeningSet };
+        }
+
+        removedCasements.forEach(entry => {
+            if (entry === null || entry === undefined) return;
+            const stringValue = String(entry);
+            if (stringValue.indexOf(':') !== -1) {
+                keySet.add(stringValue);                                 // <-- Already a keyed entry
+                return;
+            }
+
+            const numericValue = Number(stringValue);
+            if (Number.isFinite(numericValue) && numericValue >= 0) {
+                legacyOpeningSet.add(Math.trunc(numericValue));          // <-- Legacy opening-wide flag
+            }
+        });
+
+        return { keys: keySet, legacyOpenings: legacyOpeningSet };
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Check Panel Casement Removal
+    // ------------------------------------------------------------
+    function na_isPanelCasementRemoved(removedSet, openingIndex, cellIndex, panelIndex) {
+        if (!removedSet) return false;
+        if (removedSet.legacyOpenings && removedSet.legacyOpenings.has(openingIndex)) return true;
+        if (removedSet.keys && removedSet.keys.has(na_getCasementKey(openingIndex, cellIndex, panelIndex))) return true;
+        return false;
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Create SVG Render Bucket
     // ------------------------------------------------------------
     function na_createSvgRenderBucket() {
         return {
             svg: '',
-            clickTargetsSvg: ''
+            clickTargetsSvg: '',                                         // <-- Glaze bar click rects
+            casementClickTargetsSvg: ''                                  // <-- Per-panel casement click rects
         };
     }
     // ---------------------------------------------------------------
@@ -98,6 +146,7 @@ const Na__Viewport__SvgGenerator = (function() {
     function na_mergeSvgRenderBuckets(targetBucket, sourceBucket) {
         targetBucket.svg += sourceBucket.svg;
         targetBucket.clickTargetsSvg += sourceBucket.clickTargetsSvg;
+        targetBucket.casementClickTargetsSvg += (sourceBucket.casementClickTargetsSvg || ''); // <-- Forward casement targets
     }
     // ---------------------------------------------------------------
     
@@ -132,7 +181,7 @@ const Na__Viewport__SvgGenerator = (function() {
         const frameColor = na_getMaterialColor(frameMaterialId);
         const showDimensions = config.show_dimensions !== false;
         const hasCill = config.has_cill !== false;
-        const removedCasements = config.removed_casements || [];
+        const removedCasementSet = na_getRemovedCasementSet(config.removed_casements); // <-- Per-panel removal set with legacy support
 
         const useIndividualSizes = config.casement_sizes_individual === true;
         const casTopRail = useIndividualSizes ? (config.casement_top_rail_mm || casementWidth) : casementWidth;
@@ -176,8 +225,6 @@ const Na__Viewport__SvgGenerator = (function() {
         for (let i = 0; i < numOpenings; i++) {
             const openingX = leftFrameThickness + (i * (openingWidth + mullionWidth));
             const openingY = bottomFrameThickness;
-            const isCasementRemoved = removedCasements.indexOf(i) !== -1;
-            const openingHasCasement = showCasements && !isCasementRemoved;
             const openingLayout = na_getOpeningCellLayout(
                 i,
                 openingX,
@@ -200,7 +247,8 @@ const Na__Viewport__SvgGenerator = (function() {
                     {
                         openingIndex: i,
                         cellIndex: cellIndex,
-                        openingHasCasement: openingHasCasement,
+                        showCasements: showCasements,
+                        removedCasementSet: removedCasementSet,
                         slidingSashWindow: slidingSashWindow,
                         slidingSashOverlap: slidingSashOverlap,
                         casementsPerOpening: casementsPerOpening,
@@ -219,28 +267,9 @@ const Na__Viewport__SvgGenerator = (function() {
                     }
                 );
                 svg += openingCellRender.svg;
+                openingClickTargetsSvg += openingCellRender.casementClickTargetsSvg;
                 glazebarClickTargetsSvg += openingCellRender.clickTargetsSvg;
             });
-
-            if (showCasements && isCasementRemoved) {
-                const svgY = -openingY - innerHeight;
-                const inset = 4;
-                svg += `<rect class="na-casement-removed-indicator"
-                              x="${openingX + inset}" y="${svgY + inset}"
-                              width="${openingWidth - inset * 2}" height="${innerHeight - inset * 2}"
-                              fill="none" stroke="rgba(244, 67, 54, 0.5)" stroke-width="2" stroke-dasharray="10 5"
-                              pointer-events="none"/>`;
-            }
-
-            if (showCasements) {
-                const svgY = -openingY - innerHeight;
-                openingClickTargetsSvg += `<rect class="na-opening-click-target"
-                              data-opening-index="${i}"
-                              x="${openingX}" y="${svgY}"
-                              width="${openingWidth}" height="${innerHeight}"
-                              fill="transparent"
-                              style="cursor: pointer; pointer-events: all;"/>`;
-            }
         }
 
         if (hasCill && bottomFrameThickness > 0) {
@@ -338,6 +367,7 @@ const Na__Viewport__SvgGenerator = (function() {
     function na_generateOpeningCellSvg(cell, options) {
         const renderBucket = na_createSvgRenderBucket();
         const panelWidth = cell.width / options.casementsPerOpening;
+        const showCasements = options.showCasements !== false;            // <-- Master casement visibility flag
 
         for (let p = 0; p < options.casementsPerOpening; p++) {
             const panelX = cell.x + (p * panelWidth);
@@ -347,7 +377,15 @@ const Na__Viewport__SvgGenerator = (function() {
                 panelIndex: p
             };
 
-            if (options.openingHasCasement) {
+            const panelIsRemoved = na_isPanelCasementRemoved(             // <-- Per-panel removal lookup
+                options.removedCasementSet,
+                options.openingIndex,
+                options.cellIndex,
+                p
+            );
+            const panelHasCasement = showCasements && !panelIsRemoved;    // <-- Final per-panel render decision
+
+            if (panelHasCasement) {
                 if (options.doorMode) {
                     na_mergeSvgRenderBuckets(
                         renderBucket,
@@ -411,10 +449,55 @@ const Na__Viewport__SvgGenerator = (function() {
                         )
                     );
                 }
+
+                if (showCasements && panelIsRemoved) {                    // <-- Per-panel removed indicator
+                    renderBucket.svg += na_generatePanelRemovedIndicatorSvg(panelX, cell.y, panelWidth, cell.height);
+                }
+            }
+
+            if (showCasements) {                                          // <-- Per-panel click target always emitted when casements visible
+                renderBucket.casementClickTargetsSvg += na_generateCasementClickTargetSvg(
+                    panelX,
+                    cell.y,
+                    panelWidth,
+                    cell.height,
+                    panelContext
+                );
             }
         }
 
         return renderBucket;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Per-Panel Removed Casement Indicator SVG
+    // ------------------------------------------------------------
+    function na_generatePanelRemovedIndicatorSvg(panelX, panelY, panelWidth, panelHeight) {
+        const inset = 4;                                                  // <-- Visual inset matches legacy opening indicator
+        const innerWidth = Math.max(0, panelWidth - inset * 2);
+        const innerHeight = Math.max(0, panelHeight - inset * 2);
+        if (innerWidth <= 0 || innerHeight <= 0) return '';
+        const svgY = -panelY - panelHeight + inset;
+        return `<rect class="na-casement-removed-indicator"
+                      x="${panelX + inset}" y="${svgY}"
+                      width="${innerWidth}" height="${innerHeight}"
+                      fill="none" stroke="rgba(244, 67, 54, 0.5)" stroke-width="2" stroke-dasharray="10 5"
+                      pointer-events="none"/>`;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Casement Click Target SVG
+    // ------------------------------------------------------------
+    function na_generateCasementClickTargetSvg(panelX, panelY, panelWidth, panelHeight, panelContext) {
+        const svgY = -panelY - panelHeight;
+        return `<rect class="na-opening-click-target"
+                      data-opening-index="${panelContext.openingIndex}"
+                      data-cell-index="${panelContext.cellIndex}"
+                      data-panel-index="${panelContext.panelIndex}"
+                      x="${panelX}" y="${svgY}"
+                      width="${panelWidth}" height="${panelHeight}"
+                      fill="transparent"
+                      style="cursor: pointer; pointer-events: all;"/>`;
     }
     // ---------------------------------------------------------------
 
@@ -781,7 +864,7 @@ const Na__Viewport__SvgGenerator = (function() {
         const removedTransomSegments = na_getRemovedTransomSegmentSet(config.removed_transom_segments);
         const hBars = config.horizontal_glaze_bars || 0;
         const vBars = config.vertical_glaze_bars || 0;
-        const removedCasements = config.removed_casements || [];
+        const removedCasementSet = na_getRemovedCasementSet(config.removed_casements); // <-- Per-panel removal lookup
         const validKeys = [];
 
         if (hBars <= 0 && vBars <= 0) {
@@ -798,7 +881,6 @@ const Na__Viewport__SvgGenerator = (function() {
         for (let openingIndex = 0; openingIndex < numOpenings; openingIndex++) {
             const openingX = leftFrameThickness + (openingIndex * (openingWidth + mullionWidth));
             const openingY = bottomFrameThickness;
-            const openingHasCasement = showCasements && removedCasements.indexOf(openingIndex) === -1;
             const openingLayout = na_getOpeningCellLayout(
                 openingIndex,
                 openingX,
@@ -812,7 +894,14 @@ const Na__Viewport__SvgGenerator = (function() {
 
             openingLayout.cells.forEach((cell, cellIndex) => {
                 for (let panelIndex = 0; panelIndex < casementsPerOpening; panelIndex++) {
-                    if (openingHasCasement && slidingSashWindow) {
+                    const panelHasCasement = showCasements && !na_isPanelCasementRemoved( // <-- Per-panel casement state
+                        removedCasementSet,
+                        openingIndex,
+                        cellIndex,
+                        panelIndex
+                    );
+
+                    if (panelHasCasement && slidingSashWindow) {
                         na_collectPanelGlazebarKeys(validKeys, openingIndex, cellIndex, panelIndex, 1, hBars, vBars);
                         na_collectPanelGlazebarKeys(validKeys, openingIndex, cellIndex, panelIndex, 0, hBars, vBars);
                     } else {
@@ -896,6 +985,13 @@ const Na__Viewport__SvgGenerator = (function() {
         na_generateSlidingSashPanelSvg: na_generateSlidingSashPanelSvg,
         na_generateGlazeBarsSvg: na_generateGlazeBarsSvg,
         na_collectValidGlazebarKeys: na_collectValidGlazebarKeys,
+        na_getCasementKey: na_getCasementKey,                            // <-- Exposed for cross-module reuse
+        na_getRemovedCasementSet: na_getRemovedCasementSet,              // <-- Exposed for DXF JS fallback
+        na_isPanelCasementRemoved: na_isPanelCasementRemoved,            // <-- Exposed for DXF JS fallback
+        na_getOpeningCellLayout: na_getOpeningCellLayout,                // <-- Exposed for valid-key collectors in UiLogic
+        na_getActiveTransomBottoms: na_getActiveTransomBottoms,          // <-- Exposed for valid-key collectors in UiLogic
+        na_getRemovedTransomSegmentSet: na_getRemovedTransomSegmentSet,  // <-- Exposed for valid-key collectors in UiLogic
+        na_getEffectiveFrameThicknesses: na_getEffectiveFrameThicknesses,// <-- Exposed for valid-key collectors in UiLogic
         na_svgRect: na_svgRect,
         na_svgDimensions: na_svgDimensions,
         na_getMaterialColor: na_getMaterialColor

@@ -62,6 +62,52 @@ const Na__Export__Dxf = (function() {
         return new Set(Array.isArray(removedGlazebars) ? removedGlazebars.map(key => String(key)) : []);
     }
     // ---------------------------------------------------------------
+
+    // FUNCTION | Build Removed Casement Set With Legacy Bare-Integer Support
+    // ------------------------------------------------------------
+    // Mirrors Na__Viewport__SvgGenerator.na_getRemovedCasementSet but kept local
+    // to avoid hard coupling between modules. Returns { keys, legacyOpenings }.
+    function na_getRemovedCasementSetForDxf(removedCasements) {
+        const generator = window.Na__Viewport__SvgGenerator;
+        if (generator && typeof generator.na_getRemovedCasementSet === 'function') {
+            return generator.na_getRemovedCasementSet(removedCasements);  // <-- Reuse SVG generator helper when available
+        }
+
+        const keySet = new Set();
+        const legacyOpeningSet = new Set();
+        if (!Array.isArray(removedCasements)) return { keys: keySet, legacyOpenings: legacyOpeningSet };
+
+        removedCasements.forEach(entry => {
+            if (entry === null || entry === undefined) return;
+            const stringValue = String(entry);
+            if (stringValue.indexOf(':') !== -1) {
+                keySet.add(stringValue);
+                return;
+            }
+            const numericValue = Number(stringValue);
+            if (Number.isFinite(numericValue) && numericValue >= 0) {
+                legacyOpeningSet.add(Math.trunc(numericValue));
+            }
+        });
+
+        return { keys: keySet, legacyOpenings: legacyOpeningSet };
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Check Panel Casement Removal
+    // ------------------------------------------------------------
+    function na_isPanelCasementRemovedForDxf(removedSet, openingIndex, cellIndex, panelIndex) {
+        const generator = window.Na__Viewport__SvgGenerator;
+        if (generator && typeof generator.na_isPanelCasementRemoved === 'function') {
+            return generator.na_isPanelCasementRemoved(removedSet, openingIndex, cellIndex, panelIndex);
+        }
+
+        if (!removedSet) return false;
+        if (removedSet.legacyOpenings && removedSet.legacyOpenings.has(openingIndex)) return true;
+        if (removedSet.keys && removedSet.keys.has(`${openingIndex}:${cellIndex}:${panelIndex}`)) return true;
+        return false;
+    }
+    // ---------------------------------------------------------------
     
     // FUNCTION | Export Current Model as DXF (Browser Fallback)
     // ------------------------------------------------------------
@@ -92,7 +138,7 @@ const Na__Export__Dxf = (function() {
         const hBars = config.horizontal_glaze_bars || 0;
         const vBars = config.vertical_glaze_bars || 0;
         const barWidth = config.glaze_bar_width_mm || 25;
-        const removedCasements = config.removed_casements || [];
+        const removedCasementSet = na_getRemovedCasementSetForDxf(config.removed_casements); // <-- Per-panel removal lookup with legacy support
 
         const useIndividualSizes = config.casement_sizes_individual === true;
         const casTopRail = useIndividualSizes ? (config.casement_top_rail_mm || casementWidth) : casementWidth;
@@ -131,7 +177,6 @@ const Na__Export__Dxf = (function() {
         for (let i = 0; i < numOpenings; i++) {
             const openingX = leftFrameThickness + (i * (openingWidth + mullionWidth));
             const openingY = bottomFrameThickness;
-            const openingHasCasement = showCasements && removedCasements.indexOf(i) === -1;
             const openingLayout = na_getOpeningCellLayout(
                 i,
                 openingX,
@@ -152,8 +197,14 @@ const Na__Export__Dxf = (function() {
 
                 for (let p = 0; p < casementsPerOpening; p++) {
                     const panelX = cell.x + (p * panelWidth);
+                    const panelHasCasement = showCasements && !na_isPanelCasementRemovedForDxf( // <-- Per-panel casement state
+                        removedCasementSet,
+                        i,
+                        cellIndex,
+                        p
+                    );
 
-                    if (openingHasCasement) {
+                    if (panelHasCasement) {
                         if (slidingSashWindow) {
                             dxf += na_generateSlidingSashPanelDxf(
                                 panelX, cell.y, panelWidth, cell.height,

@@ -213,13 +213,17 @@ const Na_DynamicUI = (function() {
             na_updateControlValue('glazebar_inset_mm', clampedMax);
         }
         
-        // Clean up removed_casements: remove indices that exceed current opening count
         const numOpenings = (_config.mullions || 0) + 1;
-        if (_config.removed_casements && _config.removed_casements.length > 0) {
-            _config.removed_casements = _config.removed_casements.filter(idx => idx < numOpenings);
+
+        if (!Array.isArray(_config.removed_casements)) {
+            _config.removed_casements = [];
         }
-        
-        // Clean up removed_transom_segments when transom/opening counts change
+        if (_config.removed_casements.length > 0) {
+            _config.removed_casements = na_migrateLegacyRemovedCasements(_config.removed_casements);
+            const validCasementKeys = na_getValidCasementKeySet();
+            _config.removed_casements = _config.removed_casements.filter(key => validCasementKeys.has(key));
+        }
+
         const transomCount = Math.max(0, Math.min(3, Math.round(_config.transoms || 0)));
         if (!Array.isArray(_config.removed_transom_segments)) {
             _config.removed_transom_segments = [];
@@ -413,28 +417,156 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
     
-    // FUNCTION | Toggle Casement Removal for a Specific Opening
+    // FUNCTION | Build Casement Storage Key
     // ------------------------------------------------------------
-    // Adds or removes an opening index from removed_casements array.
-    // Called by Na_Viewport when user clicks on an opening in the SVG preview.
-    // @param {number} openingIndex - The index of the opening to toggle
-    function na_toggleCasementRemoval(openingIndex) {
-        if (!_config.removed_casements) {
+    function na_getCasementKey(openingIndex, cellIndex, panelIndex) {
+        return `${openingIndex}:${cellIndex}:${panelIndex}`;             // <-- Per-panel removal key
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Casement Removal for a Specific Panel
+    // ------------------------------------------------------------
+    // Adds or removes a per-panel key (openingIndex:cellIndex:panelIndex) from
+    // removed_casements. Called by Na_Viewport when user clicks a casement panel.
+    function na_toggleCasementRemoval(openingIndex, cellIndex, panelIndex) {
+        if (!Array.isArray(_config.removed_casements)) {
             _config.removed_casements = [];
         }
-        
-        const idx = _config.removed_casements.indexOf(openingIndex);
-        if (idx === -1) {
-            // Add to removed list
-            _config.removed_casements.push(openingIndex);
-            console.log(`[NA_UI] Removed casement from opening ${openingIndex}`);
+
+        _config.removed_casements = na_migrateLegacyRemovedCasements(_config.removed_casements); // <-- Migrate before toggle
+
+        const panelKey = na_getCasementKey(openingIndex, cellIndex, panelIndex);
+        const existingIndex = _config.removed_casements.indexOf(panelKey);
+
+        if (existingIndex === -1) {
+            _config.removed_casements.push(panelKey);
+            console.log(`[NA_UI] Removed casement panel ${panelKey}`);
         } else {
-            // Remove from removed list (restore casement)
-            _config.removed_casements.splice(idx, 1);
-            console.log(`[NA_UI] Restored casement to opening ${openingIndex}`);
+            _config.removed_casements.splice(existingIndex, 1);
+            console.log(`[NA_UI] Restored casement panel ${panelKey}`);
         }
-        
+
         na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Migrate Legacy Bare-Integer Removed Casements to Per-Panel Keys
+    // ---------------------------------------------------------------
+    // Legacy data: removed_casements stored bare integers per-opening.
+    // New data: stores "openingIndex:cellIndex:panelIndex" keys.
+    // Bare integers expand to keys for every current cell/panel of that opening.
+    function na_migrateLegacyRemovedCasements(removedCasements) {
+        if (!Array.isArray(removedCasements) || removedCasements.length === 0) return [];
+
+        const expandedKeys = new Set();                                  // <-- Deduplicate during migration
+        const legacyOpeningIndices = [];
+
+        removedCasements.forEach(entry => {
+            if (entry === null || entry === undefined) return;
+            const stringValue = String(entry);
+            if (stringValue.indexOf(':') !== -1) {
+                expandedKeys.add(stringValue);                           // <-- Already keyed
+                return;
+            }
+
+            const numericValue = Number(stringValue);
+            if (Number.isFinite(numericValue) && numericValue >= 0) {
+                legacyOpeningIndices.push(Math.trunc(numericValue));     // <-- Defer expansion until layout known
+            }
+        });
+
+        if (legacyOpeningIndices.length > 0) {
+            const layoutKeysByOpening = na_buildPanelKeysByOpening();    // <-- Layout-aware expansion
+            legacyOpeningIndices.forEach(openingIndex => {
+                const keysForOpening = layoutKeysByOpening.get(openingIndex);
+                if (!keysForOpening) return;
+                keysForOpening.forEach(panelKey => expandedKeys.add(panelKey));
+            });
+        }
+
+        return Array.from(expandedKeys);
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Build Map Of Panel Keys Grouped By Opening Index
+    // ---------------------------------------------------------------
+    function na_buildPanelKeysByOpening() {
+        const keysByOpening = new Map();
+        const allKeys = na_collectValidCasementKeys();
+
+        allKeys.forEach(key => {
+            const openingIndex = Number(String(key).split(':')[0]);
+            if (!Number.isFinite(openingIndex)) return;
+            if (!keysByOpening.has(openingIndex)) {
+                keysByOpening.set(openingIndex, []);
+            }
+            keysByOpening.get(openingIndex).push(key);
+        });
+
+        return keysByOpening;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Collect Valid Casement Panel Keys From Current Layout
+    // ------------------------------------------------------------
+    function na_collectValidCasementKeys() {
+        const generator = window.Na__Viewport__SvgGenerator;
+        if (!generator ||
+            typeof generator.na_getOpeningCellLayout !== 'function' ||
+            typeof generator.na_getActiveTransomBottoms !== 'function' ||
+            typeof generator.na_getRemovedTransomSegmentSet !== 'function' ||
+            typeof generator.na_getEffectiveFrameThicknesses !== 'function') {
+            return [];
+        }
+
+        const config = _config;
+        const frameThicknesses = generator.na_getEffectiveFrameThicknesses(config);
+        const numMullions = config.mullions || 0;
+        const mullionWidth = config.mullion_width_mm || 40;
+        const transomCount = Math.max(0, Math.min(3, Math.round(config.transoms || 0)));
+        const transomWidth = config.transom_width_mm || 40;
+        const transomBottoms = generator.na_getActiveTransomBottoms(config, transomCount);
+        const removedTransomSegments = generator.na_getRemovedTransomSegmentSet(config.removed_transom_segments);
+        const casementsPerOpening = Math.max(1, Math.min(6, config.casements_per_opening || 1));
+
+        const numOpenings = numMullions + 1;
+        const innerWidth = (config.width_mm || 900) - frameThicknesses.left - frameThicknesses.right;
+        const innerHeight = (config.height_mm || 1200) - frameThicknesses.top - frameThicknesses.bottom;
+        const totalMullionWidth = numMullions * mullionWidth;
+        const availableWidth = innerWidth - totalMullionWidth;
+        const openingWidth = availableWidth / numOpenings;
+
+        const validKeys = [];
+
+        for (let openingIndex = 0; openingIndex < numOpenings; openingIndex++) {
+            const openingX = frameThicknesses.left + (openingIndex * (openingWidth + mullionWidth));
+            const openingY = frameThicknesses.bottom;
+            const openingLayout = generator.na_getOpeningCellLayout(
+                openingIndex,
+                openingX,
+                openingY,
+                openingWidth,
+                innerHeight,
+                transomBottoms,
+                transomWidth,
+                removedTransomSegments
+            );
+
+            openingLayout.cells.forEach((cell, cellIndex) => {
+                for (let panelIndex = 0; panelIndex < casementsPerOpening; panelIndex++) {
+                    validKeys.push(na_getCasementKey(openingIndex, cellIndex, panelIndex));
+                }
+            });
+        }
+
+        return validKeys;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Valid Casement Key Set
+    // ------------------------------------------------------------
+    function na_getValidCasementKeySet() {
+        return new Set(na_collectValidCasementKeys());
     }
     // ---------------------------------------------------------------
 
@@ -777,7 +909,8 @@ const Na_Viewport = (function() {
             window.Na__Viewport__Controls.na_setupCasementClickTargets(
                 _svgElement,
                 _interactionState,
-                (openingIndex) => Na_DynamicUI.na_toggleCasementRemoval(openingIndex),
+                (openingIndex, cellIndex, panelIndex) =>
+                    Na_DynamicUI.na_toggleCasementRemoval(openingIndex, cellIndex, panelIndex),
                 (openingIndex, transomIndex) => Na_DynamicUI.na_toggleTransomSegmentRemoval(openingIndex, transomIndex),
                 (openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex) =>
                     Na_DynamicUI.na_toggleGlazebarRemoval(

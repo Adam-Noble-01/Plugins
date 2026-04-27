@@ -362,7 +362,6 @@ module Na__WindowConfiguratorTool
             (0...num_openings).each do |i|
                 opening_x = left_frame_thickness + (i * (opening_width + mullion_width))
                 opening_y = bottom_frame_thickness
-                opening_has_casement = show_casements && !removed_casements.include?(i)
                 opening_layout = na_get_opening_layout(
                     i,
                     opening_x,
@@ -383,8 +382,14 @@ module Na__WindowConfiguratorTool
 
                     (0...casements_per_opening).each do |p|
                         panel_x = cell[:x] + (p * panel_width)
+                        panel_has_casement = show_casements && !na_panel_casement_removed?(                          # <-- Per-panel removal lookup
+                            removed_casements,
+                            i,
+                            cell_index,
+                            p
+                        )
 
-                        if opening_has_casement
+                        if panel_has_casement
                             if sliding_sash_window
                                 entities += na_generate_sliding_sash_panel_dxf(
                                     panel_x, cell[:y], panel_width, cell[:height],
@@ -553,6 +558,22 @@ module Na__WindowConfiguratorTool
         # ------------------------------------------------------------
         def self.na_transom_segment_removed?(removed_segments, opening_index, transom_index)
             removed_segments.include?("#{opening_index}:#{transom_index}")
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Check Removed Casement Panel (Legacy-Aware)
+        # ------------------------------------------------------------
+        # Bare-integer entries match every panel of that opening; new-format
+        # entries match an exact "openingIndex:cellIndex:panelIndex" key.
+        def self.na_panel_casement_removed?(removed_casements, opening_index, cell_index, panel_index)
+            return false unless removed_casements.is_a?(Array)
+            return true if removed_casements.include?("#{opening_index}:#{cell_index}:#{panel_index}")              # <-- New per-panel key
+            return true if removed_casements.include?(opening_index)                                                # <-- Legacy bare-integer match
+            removed_casements.any? do |entry|
+                next false if entry.nil?
+                next false if entry.is_a?(String) && entry.include?(':')
+                Integer(entry.to_s) == opening_index rescue false                                                   # <-- Legacy stringified integer match
+            end
         end
         # ---------------------------------------------------------------
 

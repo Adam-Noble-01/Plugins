@@ -520,8 +520,8 @@ module Na__WindowConfiguratorTool
         # Respects removed casements and removed transom segments.
         def self.na_create_opening(entities, opening_index, params, frame_material, glass_material)
             opening_x = params[:frame_left_thickness] + (opening_index * (params[:opening_width] + params[:mullion_width]))
-            opening_has_casement = params[:show_casements] && !params[:removed_casements].include?(opening_index)
             opening_layout = na_get_opening_layout(opening_index, opening_x, params)
+            show_casements = params[:show_casements]                                                                # <-- Master casement visibility (per-panel removal handled inside dispatch)
 
             opening_layout[:transom_segments].each do |segment|
                 GeometryBuilders.na_create_transom_geometry(
@@ -538,9 +538,7 @@ module Na__WindowConfiguratorTool
             end
 
             opening_layout[:cells].each_with_index do |cell, cell_index|
-                cell_id_prefix = "#{opening_index}_#{cell_index}"
-
-                if opening_has_casement && params[:sliding_sash_window]
+                if show_casements && params[:sliding_sash_window]
                     na_create_sliding_sash_opening(
                         entities,
                         opening_index,
@@ -560,7 +558,7 @@ module Na__WindowConfiguratorTool
                         cell[:x],
                         cell[:z],
                         cell[:height],
-                        opening_has_casement,
+                        show_casements,
                         params,
                         frame_material,
                         glass_material
@@ -574,6 +572,22 @@ module Na__WindowConfiguratorTool
         # ------------------------------------------------------------
         def self.na_transom_segment_removed?(params, opening_index, transom_index)
             params[:removed_transom_segments].include?("#{opening_index}:#{transom_index}")
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Check Whether a Casement Panel Is Removed
+        # ------------------------------------------------------------
+        # Legacy-aware: bare-integer entries (e.g. 0) match every panel of that opening.
+        # New-format entries are exact "openingIndex:cellIndex:panelIndex" strings.
+        def self.na_panel_casement_removed?(removed_casements, opening_index, cell_index, panel_index)
+            return false unless removed_casements.is_a?(Array)
+            return true if removed_casements.include?("#{opening_index}:#{cell_index}:#{panel_index}")              # <-- New per-panel key
+            return true if removed_casements.include?(opening_index)                                                # <-- Legacy bare-integer match
+            removed_casements.any? do |entry|
+                next false if entry.nil?
+                next false if entry.is_a?(String) && entry.include?(':')
+                Integer(entry.to_s) == opening_index rescue false                                                   # <-- Legacy stringified integer match
+            end
         end
         # ---------------------------------------------------------------
 
@@ -629,13 +643,21 @@ module Na__WindowConfiguratorTool
         # FUNCTION | Create Multi-Casement Opening Cell
         # ------------------------------------------------------------
         # Unified method for creating N casement panels within one transom-bounded cell.
-        def self.na_create_multi_casement_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_height, opening_has_casement, params, frame_material, glass_material)
+        # The fifth-from-right argument is the master `show_casements` flag; per-panel
+        # removal (`removed_casements`) is resolved inline for each panel.
+        def self.na_create_multi_casement_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_height, show_casements, params, frame_material, glass_material)
             num_panels = params[:casements_per_opening]
             panel_width = params[:opening_width] / num_panels.to_f
 
             (0...num_panels).each do |p|
                 panel_x = opening_x + (p * panel_width)
                 panel_id = "#{opening_index}_#{cell_index}_P#{p}"
+                panel_has_casement = show_casements && !na_panel_casement_removed?(                                 # <-- Per-panel removal lookup
+                    params[:removed_casements],
+                    opening_index,
+                    cell_index,
+                    p
+                )
 
                 na_render_opening_panel_geometry(
                     entities,
@@ -648,7 +670,7 @@ module Na__WindowConfiguratorTool
                     opening_z,
                     panel_width,
                     opening_height,
-                    opening_has_casement,
+                    panel_has_casement,
                     params[:frame_wall_inset],
                     params,
                     frame_material,
@@ -674,6 +696,12 @@ module Na__WindowConfiguratorTool
                 base_panel_id = "#{opening_index}_#{cell_index}_P#{p}"
                 top_panel_id = "#{base_panel_id}_Top"
                 bottom_panel_id = "#{base_panel_id}_Bottom"
+                panel_has_casement = params[:show_casements] && !na_panel_casement_removed?(                        # <-- Same key shared by both sashes
+                    params[:removed_casements],
+                    opening_index,
+                    cell_index,
+                    p
+                )
 
                 na_render_opening_panel_geometry(
                     entities,
@@ -686,7 +714,7 @@ module Na__WindowConfiguratorTool
                     opening_z + sash_height,
                     panel_width,
                     sash_height,
-                    true,
+                    panel_has_casement,
                     params[:frame_wall_inset],
                     params,
                     frame_material,
@@ -704,7 +732,7 @@ module Na__WindowConfiguratorTool
                     opening_z,
                     panel_width,
                     sash_height + sash_overlap,
-                    true,
+                    panel_has_casement,
                     params[:frame_wall_inset] + params[:casement_depth],
                     params,
                     frame_material,

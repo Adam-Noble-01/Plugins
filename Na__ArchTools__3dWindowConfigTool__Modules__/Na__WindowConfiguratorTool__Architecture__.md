@@ -4,6 +4,59 @@
 
 This document provides a comprehensive diagram of how the Window Configurator Tool works, including data flow, file relationships, and the planned feature additions.
 
+## Feature Addendum - Per-Panel Casement Toggle (v0.10.4)
+
+### Concept
+
+`removed_casements` was previously an array of bare opening indices (e.g. `[0, 2]`) and a single click target spanned each opening's full inner height. This blocked toggling individual casements within transom-divided cells or `casements_per_opening > 1` openings.
+
+The system now tracks removal at the **panel** level, matching the pattern already used by transom segments and individual glaze bars.
+
+### New Key Format
+
+`removed_casements` entries are now strings of the form:
+
+```
+"<openingIndex>:<cellIndex>:<panelIndex>"
+```
+
+- `openingIndex` -- mullion-bounded opening (left-to-right).
+- `cellIndex` -- transom-bounded cell within that opening (bottom-to-top).
+- `panelIndex` -- casement panel within that cell (`0..casements_per_opening - 1`).
+
+Sliding-sash sashes inside one panel share the same key, so toggling a panel removes both top and bottom sashes together (consistent with how `casements_per_opening` already groups rails/glass into discrete panels).
+
+### Click Target Layering
+
+| Class | Identity | Storage Array |
+|-------|----------|---------------|
+| `na-opening-click-target` | `openingIndex:cellIndex:panelIndex` | `removed_casements` |
+| `na-transom-click-target` | `openingIndex:transomIndex` | `removed_transom_segments` |
+| `na-glazebar-click-target` | `openingIndex:cellIndex:panelIndex:sashIndex:orientation:barIndex` | `removed_glazebars` |
+
+The casement click target is now emitted **inside** the per-cell, per-panel SVG loop in `na_generateOpeningCellSvg` (one rect per panel), so any framework-bound region -- between mullions, between transoms, or within a multi-panel opening -- can be toggled independently. The red dashed "removed casement" indicator likewise renders per panel.
+
+### Data Flow Touchpoints
+
+- **`Viewport__SvgGenerator__.js`** -- new helpers `na_getCasementKey`, `na_getRemovedCasementSet`, `na_isPanelCasementRemoved`. Per-panel click rects and per-panel removed-indicator rects are generated inside the cell/panel loop. `na_collectValidGlazebarKeys` now uses the per-panel removal check so removing one panel's casement no longer invalidates other panels' glaze bar keys.
+- **`Viewport__Controls__.js`** -- `na-opening-click-target` reads `data-cell-index` and `data-panel-index` and forwards `(openingIndex, cellIndex, panelIndex)` to the click callback.
+- **`UiLogic__.js`** -- `na_toggleCasementRemoval(openingIndex, cellIndex, panelIndex)` toggles the new keyed entry. `na_onConfigChange` migrates legacy bare-integer entries (see below) and prunes stale keys against `na_getValidCasementKeySet()`.
+- **`GeometryEngine__.rb`** -- new `na_panel_casement_removed?` helper (legacy-aware). `na_create_multi_casement_opening` and `na_create_sliding_sash_opening` compute `panel_has_casement` per panel.
+- **`DxfExporterLogic__.rb`** -- mirrors the per-panel check inside the cells loop.
+- **`Export__Dxf__.js`** -- mirrors the per-panel check using helpers exposed by `Na__Viewport__SvgGenerator`.
+
+### Legacy Migration (Backward Compatibility)
+
+Saved configurations using the old bare-integer format (e.g. `removed_casements: [0, 2]`) still render correctly:
+
+- **JS render path:** `na_getRemovedCasementSet` separates legacy bare integers into a `legacyOpenings` Set. `na_isPanelCasementRemoved` returns `true` if the panel's opening is in that Set, so every cell/panel of that opening reads as removed.
+- **Ruby render path:** `na_panel_casement_removed?` accepts both string keys and legacy integers (or stringified integers) and produces the same per-panel decision.
+- **Migration on load:** the next `na_onConfigChange` cycle expands every legacy bare integer to per-panel `"i:c:p"` keys for every current cell/panel of that opening, then writes the migrated array back to `_config.removed_casements`. From that point on the array saves and loads cleanly in the new format.
+
+`removed_transom_segments` and `removed_glazebars` are unaffected by this change.
+
+---
+
 ## Feature Addendum - Door Mode Casement Integration (v0.10.1)
 
 ### Concept
@@ -212,6 +265,7 @@ These values now flow through the same full-config path used by mullions:
 - Transom levels are shared globally by slider value, but each span can suppress an individual transom segment via `removed_transom_segments`.
 - When a transom segment is removed in one span, the adjacent cells merge in that span only.
 - Casements, direct glazing, glaze bars, sliding sash rendering, 3D geometry, and DXF output are all generated from these merged cells rather than from one full-height opening rectangle.
+- As of v0.10.4, individual casements inside transom-bound cells (and inside multi-panel openings) are toggleable directly from the SVG preview -- see "Feature Addendum - Per-Panel Casement Toggle".
 
 ### UI / Preview Notes
 
@@ -581,7 +635,7 @@ windowConfiguration: {
     casement_inset_mm: 10,      // Casement inset from frame face (0=flush, 0-100mm)
     casements_per_opening: 1,   // Casement panels per opening (1-6, for bifold/concertina systems)
     sliding_sash_overlap_mm: 20,// Extra height added to lower sash in sliding mode (0-60mm)
-    removed_casements: [],      // Array of opening indices with casements removed
+    removed_casements: [],      // Array of "openingIndex:cellIndex:panelIndex" keys (per-panel; legacy bare integers auto-migrate)
     
     // Mullions (vertical dividers)
     mullions: 0,                // Number of mullions (0-6)
@@ -947,5 +1001,5 @@ end
 ---
 
 *Document created: February 3, 2026*
-*Last updated: March 31, 2026 (v0.9.12b - Reset hidden elements action)*
+*Last updated: April 27, 2026 (v0.10.4 - Per-panel casement toggle)*
 *Author: Noble Architecture*
