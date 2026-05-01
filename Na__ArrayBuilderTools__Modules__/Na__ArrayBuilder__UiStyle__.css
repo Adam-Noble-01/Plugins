@@ -271,6 +271,70 @@ body {
     transform: scale(0.98);
 }
 
+/* OBJECT SOURCE SECTION */
+.na-object-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.na-btn-secondary {
+    flex: 1;
+    padding: 9px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid #4a90d9;
+    border-radius: 5px;
+    background: #2a4a6d;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.na-btn-secondary:hover {
+    background: #3a5d80;
+    border-color: #5a9fe9;
+}
+
+.na-btn-secondary:active {
+    transform: scale(0.98);
+}
+
+.na-btn-secondary-muted {
+    background: #363636;
+    border-color: #555;
+    color: #aaa;
+}
+
+.na-btn-secondary-muted:hover {
+    background: #404040;
+    border-color: #777;
+    color: #ddd;
+}
+
+.na-object-info {
+    padding: 10px 12px;
+    background: #1e1e1e;
+    border: 1px solid #3a3a3a;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    transition: border-color 0.2s;
+}
+
+.na-object-info-active {
+    border-color: #4a90d9;
+}
+
+.na-object-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ddd;
+    margin-bottom: 8px;
+    word-break: break-all;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #3a3a3a;
+}
+
 /* STATUS BAR */
 .na-status-bar {
     position: fixed;

@@ -7,18 +7,27 @@
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Interactive 3D tool for defining array paths with preview
 # CREATED    : 2026
-# VERSION    : 0.0.2
+# VERSION    : 0.0.4
 #
 # DESCRIPTION:
 # - Crosshair-based tool for defining multi-segment paths
 # - Click to set start point, Ctrl+Click to add waypoints, Click to finish
 # - Live wireframe preview of array units along the path
 # - Displays count, spacing, and total length info overlay
+# - Supports the 'object' array type by reading the picked definition's
+#   bounding-box dimensions from Na__ArrayBuilder__ObjectRegistry, so the
+#   existing spacing / normalisation maths is fully reused.
+# - Includes Na__ArrayBuilder__AxisLockMixin: arrow keys lock the next
+#   segment to the X / Y / Z axis or parallel to the previous segment
+#   via SketchUp's native View#lock_inference so projection AND visual
+#   feedback are handled by SketchUp itself (no custom drawing).
 # - Delegates geometry creation to GeometryBuilder on commit
 #
 # =============================================================================
 
 require 'sketchup.rb'
+require_relative 'Na__ArrayBuilder__ObjectRegistry__'
+require_relative 'Na__ArrayBuilder__AxisLockMixin__'
 
 module Na__ArrayBuilderTools
 
@@ -27,6 +36,8 @@ module Na__ArrayBuilderTools
 # =============================================================================
 
     class Na__ArrayBuilder__PathTool
+
+        include Na__ArrayBuilder__AxisLockMixin
 
         # CONSTANTS
         # ------------------------------------------------------------
@@ -39,6 +50,10 @@ module Na__ArrayBuilderTools
         NA_WAYPOINT_COLOR    = Sketchup::Color.new(255, 220, 0)
         NA_TEXT_COLOR         = Sketchup::Color.new(255, 255, 255)
         NA_TEXT_BG_COLOR      = Sketchup::Color.new(40, 40, 40, 200)
+
+        # Backspace has no VK_* constant in the SketchUp Ruby API; key
+        # code 8 is the cross-platform value the Tool callback receives.
+        NA_VK_BACKSPACE       = 8
 
         # FUNCTION | Initialize Path Tool
         # ------------------------------------------------------------
@@ -53,12 +68,52 @@ module Na__ArrayBuilderTools
             @waypoints = []
             @state = :picking_start
 
+            @array_type  = config['type'] || 'dentil'
+            @anchor_mode = config['anchor_mode'] || 'local_axis'
+            @spacing     = (config['spacing_mm'] || 115).to_f.mm
+            @normalise   = config['normalise_distance'] == true
+
+            na_resolve_unit_dimensions(config)
+            na_reset_preview_cache
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Reset Per-Frame Preview Cache
+        # ------------------------------------------------------------
+        # Cache populated in onMouseMove and consumed by both draw and
+        # na_update_status_text, so per-mouse-move preview positions
+        # are computed once instead of three times.
+        def na_reset_preview_cache
+            @na_cache_path        = nil
+            @na_cache_positions   = nil
+            @na_cache_total_mm    = nil
+            @na_cache_actual_mm   = nil
+            @na_last_status_text  = nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Resolve Unit Dimensions for Current Array Type
+        # ------------------------------------------------------------
+        # In 'object' mode the per-step unit width and the preview-box
+        # dimensions are derived from the picked definition's bounding
+        # box. For dentil / dogtooth they come straight from the dialog
+        # config. Falls back to the dialog-provided values if no object
+        # has been picked yet (validation in DialogManager prevents this
+        # in practice).
+        def na_resolve_unit_dimensions(config)
+            if @array_type == 'object'
+                bounds = Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetBoundsMm
+                if bounds
+                    @unit_width  = bounds[:unit_width_mm].to_f.mm
+                    @unit_depth  = bounds[:unit_depth_mm].to_f.mm
+                    @unit_height = bounds[:unit_height_mm].to_f.mm
+                    return
+                end
+            end
+
             @unit_width  = (config['unit_width_mm']  || 110).to_f.mm
             @unit_depth  = (config['unit_depth_mm']   || 30).to_f.mm
             @unit_height = (config['unit_height_mm']  || 75).to_f.mm
-            @spacing     = (config['spacing_mm']      || 115).to_f.mm
-            @array_type  = config['type'] || 'dentil'
-            @normalise   = config['normalise_distance'] == true
         end
         # ---------------------------------------------------------------
 
@@ -68,6 +123,9 @@ module Na__ArrayBuilderTools
             @state = :picking_start
             @waypoints = []
             @cursor_pos = nil
+            na_reset_preview_cache
+            Na__ArrayBuilder__DialogManager.na_reset_preview_info_memo if defined?(Na__ArrayBuilder__DialogManager)
+            Na__AxisLock__InitState()
             na_update_status_text
             Sketchup.active_model.active_view.invalidate
         end
@@ -76,14 +134,21 @@ module Na__ArrayBuilderTools
         # FUNCTION | Tool Deactivated
         # ------------------------------------------------------------
         def deactivate(view)
+            Na__AxisLock__ClearOnDeactivate(view)
             view.invalidate
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Mouse Move Handler
         # ------------------------------------------------------------
+        # When an arrow-key axis lock is active, the 3-arg pick form is
+        # used so view.lock_inference is the dominant inference. The
+        # 4-arg form is only used when picking along the path with no
+        # lock active - it gives "additional inferences" relative to
+        # the previous InputPoint, which can shadow view.lock_inference
+        # and was the reason arrow-key locking appeared to do nothing.
         def onMouseMove(flags, x, y, view)
-            if @state == :picking_path && !@waypoints.empty?
+            if @state == :picking_path && !@waypoints.empty? && !Na__AxisLock__Active?
                 @ip.pick(view, x, y, @ip_prev)
             else
                 @ip.pick(view, x, y)
@@ -91,14 +156,37 @@ module Na__ArrayBuilderTools
             return unless @ip.valid?
 
             @cursor_pos = na_round_to_grid(@ip.position)
+            na_rebuild_preview_cache
             na_update_status_text
             view.invalidate
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Rebuild the Preview Cache (Single Compute Per Frame)
+        # ------------------------------------------------------------
+        # Called from onMouseMove and after each waypoint commit so the
+        # status-bar formatter and the draw method can both read from
+        # the cached values rather than each recomputing the per-segment
+        # positions and lengths.
+        def na_rebuild_preview_cache
+            unless @cursor_pos && @state == :picking_path && !@waypoints.empty?
+                na_reset_preview_cache
+                return
+            end
+
+            @na_cache_path      = @waypoints + [@cursor_pos]
+            @na_cache_positions = na_calculate_preview_positions(@na_cache_path)
+            @na_cache_total_mm  = na_path_length_mm(@na_cache_path)
+            @na_cache_actual_mm = na_calculate_actual_spacing_mm(@na_cache_path)
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Left Mouse Button Down Handler
         # ------------------------------------------------------------
-        def onLButtonDown(flags, x, y, view)
+        # Profile-Builder-style: every click adds a waypoint. The first
+        # click sets the start; subsequent clicks append. Finishing the
+        # path is a separate gesture (Enter / right-click / double-click).
+        def onLButtonDown(_flags, x, y, view)
             @ip.pick(view, x, y)
             return unless @ip.valid?
 
@@ -106,32 +194,70 @@ module Na__ArrayBuilderTools
 
             if @state == :picking_start
                 @waypoints = [clicked]
-                @ip_prev.copy!(@ip)
                 @state = :picking_path
-                na_update_status_text
-                view.invalidate
-
-            elsif @state == :picking_path
-                ctrl_down = (flags & COPY_MODIFIER_MASK) != 0
-
-                if ctrl_down
-                    @waypoints << clicked
-                    @ip_prev.copy!(@ip)
-                    na_update_status_text
-                    view.invalidate
-                else
-                    @waypoints << clicked
-                    na_commit_array(view)
-                end
+            else
+                @waypoints << clicked
             end
+
+            @ip_prev.copy!(@ip)
+            Na__AxisLock__ReanchorAfterCommit(view)
+            na_rebuild_preview_cache
+            na_update_status_text
+            view.invalidate
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Return / Enter Key Finishes the Path
+        # ------------------------------------------------------------
+        def onReturn(view)
+            na_finish_path_if_ready(view)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Right-Click Finishes the Path
+        # ------------------------------------------------------------
+        def onRButtonDown(_flags, _x, _y, view)
+            na_finish_path_if_ready(view)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Double-Click Finishes the Path
+        # ------------------------------------------------------------
+        def onLButtonDoubleClick(_flags, _x, _y, view)
+            na_finish_path_if_ready(view)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Suppress Default Right-Click Context Menu
+        # ------------------------------------------------------------
+        # Implementing getMenu (even with no items) replaces SketchUp's
+        # default context menu so right-click can act as the "finish"
+        # gesture without an unwanted menu popping up afterwards.
+        def getMenu(_menu, *_args)
+            nil
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Cancel Handler (ESC)
         # ------------------------------------------------------------
         def onCancel(reason, view)
+            Na__AxisLock__ClearOnDeactivate(view)
             @dialog_manager.na_send_status_to_dialog("info", "Array placement cancelled")
             view.invalidate
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Key Down Handler (Backspace Undo + Axis Lock Delegate)
+        # ------------------------------------------------------------
+        # Backspace and Mac Forward Delete pop the most recent waypoint.
+        # All other keys (specifically the arrow-key axis lock) fall
+        # through to Na__ArrayBuilder__AxisLockMixin#onKeyDown via super.
+        def onKeyDown(key, repeat, flags, view)
+            if key == NA_VK_BACKSPACE || key == VK_DELETE
+                na_undo_last_waypoint(view)
+                return false
+            end
+            super
         end
         # ---------------------------------------------------------------
 
@@ -146,14 +272,17 @@ module Na__ArrayBuilderTools
                 na_draw_path(view)
                 na_draw_waypoint_markers(view)
 
-                preview_path = @waypoints + [@cursor_pos]
-                positions = na_calculate_preview_positions(preview_path)
+                positions    = @na_cache_positions || []
+                preview_path = @na_cache_path      || (@waypoints + [@cursor_pos])
+
                 na_draw_preview_units(view, positions)
                 na_draw_info_text(view, positions, preview_path)
 
-                total_mm = na_path_length_mm(preview_path)
-                actual_spacing_mm = na_calculate_actual_spacing_mm(preview_path)
-                @dialog_manager.na_send_preview_info(positions.length, total_mm, actual_spacing_mm)
+                @dialog_manager.na_send_preview_info(
+                    positions.length,
+                    @na_cache_total_mm  || 0.0,
+                    @na_cache_actual_mm
+                )
             end
         end
         # ---------------------------------------------------------------
@@ -421,24 +550,35 @@ module Na__ArrayBuilderTools
         # REGION | Preview Unit Drawing
         # =============================================================
 
-        # FUNCTION | Draw All Preview Units
+        # FUNCTION | Draw All Preview Units (Batched)
         # ------------------------------------------------------------
+        # Collects every preview-unit wireframe segment into one flat
+        # array, then issues a single view.draw(GL_LINES, ...) call.
+        # Replaces the previous per-unit 12-call pattern, so N units =
+        # 1 GL call instead of 12*N. Big win for long paths.
         def na_draw_preview_units(view, positions)
-            view.line_width = 1
-            view.drawing_color = NA_PREVIEW_COLOR
+            return if positions.empty?
 
+            segments = []
             positions.each do |pos|
-                na_draw_preview_unit(view, pos[:point], pos[:direction])
+                na_collect_preview_unit_segments(pos[:point], pos[:direction], segments)
             end
+
+            return if segments.empty?
+
+            view.line_width    = 1
+            view.drawing_color = NA_PREVIEW_COLOR
+            view.draw(GL_LINES, segments)
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Draw Single Preview Unit Wireframe
+        # FUNCTION | Collect Wireframe Segments for One Preview Unit
         # ------------------------------------------------------------
-        # Draws a wireframe box oriented along the path direction.
-        # For dog-tooth, the box is rotated 45 degrees around the
-        # path-perpendicular axis (Z axis relative to path).
-        def na_draw_preview_unit(view, origin, direction)
+        # Computes the 8 oriented corners of one preview box and pushes
+        # 24 points (12 line segments) onto the shared segments array.
+        # No drawing is performed here; the single batched draw call
+        # happens in na_draw_preview_units.
+        def na_collect_preview_unit_segments(origin, direction, segments)
             w = @unit_width
             d = @unit_depth
             h = @unit_height
@@ -460,13 +600,57 @@ module Na__ArrayBuilderTools
 
             if @array_type == 'dogtooth'
                 rot = Geom::Transformation.rotation(origin, forward, 45.degrees)
-                lateral  = lateral.transform(rot)
+                lateral   = lateral.transform(rot)
                 actual_up = actual_up.transform(rot)
             end
 
-            half_d = d * 0.5
-            corners = na_compute_box_corners(origin, forward, lateral, actual_up, w, half_d, h)
-            na_draw_wireframe_box(view, corners)
+            preview_origin = na_apply_preview_anchor_offset(
+                origin, forward, actual_up, w, h
+            )
+
+            half_d  = d * 0.5
+            corners = na_compute_box_corners(preview_origin, forward, lateral, actual_up, w, half_d, h)
+            na_collect_wireframe_box_segments(corners, segments)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Append the 12 Edges of an Oriented Box to a Segments Array
+        # ------------------------------------------------------------
+        # Each segment is two consecutive points. SketchUp's GL_LINES
+        # treats every pair of points as one segment.
+        def na_collect_wireframe_box_segments(c, segments)
+            # Bottom face
+            segments << c[0] << c[1]
+            segments << c[1] << c[2]
+            segments << c[2] << c[3]
+            segments << c[3] << c[0]
+
+            # Top face
+            segments << c[4] << c[5]
+            segments << c[5] << c[6]
+            segments << c[6] << c[7]
+            segments << c[7] << c[4]
+
+            # Verticals
+            segments << c[0] << c[4]
+            segments << c[1] << c[5]
+            segments << c[2] << c[6]
+            segments << c[3] << c[7]
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Apply Anchor-Mode Offset to Preview Box Origin
+        # ------------------------------------------------------------
+        # In 'centre' mode the bbox should be centred on the path point,
+        # so we shift the box origin back by -width/2 along forward and
+        # -height/2 along up. Lateral is already centred via half_d.
+        # All other modes leave the origin untouched.
+        def na_apply_preview_anchor_offset(origin, forward, up, width, height)
+            return origin unless @array_type == 'object' && @anchor_mode == 'centre'
+
+            origin
+                .offset(forward, -width * 0.5)
+                .offset(up,      -height * 0.5)
         end
         # ---------------------------------------------------------------
 
@@ -488,32 +672,6 @@ module Na__ArrayBuilderTools
                 p1.offset(lat, half_depth).offset(up, height),
                 p0.offset(lat, half_depth).offset(up, height)
             ]
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Draw Wireframe Box from 8 Corners
-        # ------------------------------------------------------------
-        def na_draw_wireframe_box(view, c)
-            view.drawing_color = NA_PREVIEW_COLOR
-            view.line_width = 1
-
-            # Bottom face
-            view.draw_line(c[0], c[1])
-            view.draw_line(c[1], c[2])
-            view.draw_line(c[2], c[3])
-            view.draw_line(c[3], c[0])
-
-            # Top face
-            view.draw_line(c[4], c[5])
-            view.draw_line(c[5], c[6])
-            view.draw_line(c[6], c[7])
-            view.draw_line(c[7], c[4])
-
-            # Verticals
-            view.draw_line(c[0], c[4])
-            view.draw_line(c[1], c[5])
-            view.draw_line(c[2], c[6])
-            view.draw_line(c[3], c[7])
         end
         # ---------------------------------------------------------------
 
@@ -555,6 +713,49 @@ module Na__ArrayBuilderTools
         # REGION | Commit
         # =============================================================
 
+        # FUNCTION | Finish Path Gesture (Enter / Right-Click / Double-Click)
+        # ------------------------------------------------------------
+        # Guards na_commit_array so a stray Enter cannot kick the user
+        # out of the tool when the path has fewer than two committed
+        # waypoints. Stays active and shows a warning instead.
+        def na_finish_path_if_ready(view)
+            if @waypoints.length < 2
+                @dialog_manager.na_send_status_to_dialog(
+                    "warning",
+                    "Add at least one more waypoint before finishing"
+                )
+                return
+            end
+
+            na_commit_array(view)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Undo the Most Recent Waypoint (Backspace)
+        # ------------------------------------------------------------
+        # Pops the last waypoint, transitions back to :picking_start
+        # when the path collapses to empty, and re-anchors the axis
+        # lock to the new last-waypoint so the dashed inference line
+        # follows the rollback.
+        def na_undo_last_waypoint(view)
+            return if @waypoints.empty?
+
+            @waypoints.pop
+
+            if @waypoints.empty?
+                @state    = :picking_start
+                @ip_prev  = Sketchup::InputPoint.new
+            else
+                @ip_prev  = Sketchup::InputPoint.new(@waypoints.last)
+            end
+
+            Na__AxisLock__ReanchorAfterCommit(view)
+            na_rebuild_preview_cache
+            na_update_status_text
+            view.invalidate
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Commit Array Geometry
         # ------------------------------------------------------------
         def na_commit_array(view)
@@ -591,27 +792,38 @@ module Na__ArrayBuilderTools
         # FUNCTION | Update Status Bar Text
         # ------------------------------------------------------------
         def na_update_status_text
-            type_label = @array_type == 'dogtooth' ? 'Dog-Tooth' : 'Dentil'
-
-            if @state == :picking_start
-                if @cursor_pos
-                    pos_str = na_point_to_mm_string(@cursor_pos)
-                    Sketchup.status_text = "Array Builder (#{type_label}): Click to set start point at #{pos_str} | ESC to cancel"
-                else
-                    Sketchup.status_text = "Array Builder (#{type_label}): Click to set start point | ESC to cancel"
+            type_label =
+                case @array_type
+                when 'dogtooth' then 'Dog-Tooth'
+                when 'object'   then 'Object'
+                else                 'Dentil'
                 end
 
-            elsif @state == :picking_path
-                if @cursor_pos
-                    preview_path = @waypoints + [@cursor_pos]
-                    positions = na_calculate_preview_positions(preview_path)
-                    count = positions.length
-                    total_mm = na_path_length_mm(preview_path).round
-                    Sketchup.status_text = "Array Builder: Click to finish | Ctrl+Click to add waypoint | #{count} units | #{total_mm}mm | ESC to cancel"
-                else
-                    Sketchup.status_text = "Array Builder: Move cursor to define path | Ctrl+Click to add waypoint | ESC to cancel"
+            lock_suffix = Na__AxisLock__BuildStatusFragment()
+
+            new_text =
+                if @state == :picking_start
+                    if @cursor_pos
+                        pos_str = na_point_to_mm_string(@cursor_pos)
+                        "Array Builder (#{type_label}): Click to set start point at #{pos_str} | ESC to cancel#{lock_suffix}"
+                    else
+                        "Array Builder (#{type_label}): Click to set start point | ESC to cancel#{lock_suffix}"
+                    end
+                elsif @state == :picking_path
+                    if @cursor_pos && @na_cache_positions
+                        count    = @na_cache_positions.length
+                        total_mm = (@na_cache_total_mm || 0.0).round
+                        "Array Builder: Click to add waypoint | Enter / Right-click / Double-click to finish | Backspace to undo | ESC to cancel | #{count} units | #{total_mm}mm#{lock_suffix}"
+                    else
+                        "Array Builder: Click to add waypoint | Enter / Right-click / Double-click to finish | Backspace to undo | ESC to cancel#{lock_suffix}"
+                    end
                 end
-            end
+
+            return if new_text.nil?
+            return if new_text == @na_last_status_text
+
+            Sketchup.status_text = new_text
+            @na_last_status_text = new_text
         end
         # ---------------------------------------------------------------
 

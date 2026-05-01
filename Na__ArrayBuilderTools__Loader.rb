@@ -31,13 +31,28 @@ unless file_loaded?(__FILE__)
     if File.exist?(main_file)
         begin
             require main_file
-            puts "✓ Na Array Builder Tools loaded successfully"
         rescue => e
             puts "✗ Error loading Na Array Builder Tools: #{e.message}"
             puts e.backtrace.join("\n")
         end
     else
         puts "✗ Na Array Builder Tools main file not found at: #{main_file}"
+    end
+    # ---------------------------------------------------------------
+
+    # OBSERVER REGISTRATION | Keep ObjectRegistry in Sync With Active Model
+    # ------------------------------------------------------------
+    begin
+        observers_file = File.join(plugin_folder, 'Na__ArrayBuilder__ModelObservers__.rb')
+        if File.exist?(observers_file)
+            require observers_file
+            Na__ArrayBuilderTools::Na__ArrayBuilder__ModelObservers
+                .Na__Observers__InstallOnce
+        end
+    rescue => na_obs_error
+        if defined?(Na__ArrayBuilderTools.na_debug_log)
+            Na__ArrayBuilderTools.na_debug_log("Observer install warning: #{na_obs_error.message}")
+        end
     end
     # ---------------------------------------------------------------
 
@@ -60,7 +75,9 @@ unless file_loaded?(__FILE__)
             end
         end
     rescue => na_icon_error
-        puts "⚠ [Na__ArrayBuilder] Icon resolution warning: #{na_icon_error.message}"
+        if defined?(Na__ArrayBuilderTools.na_debug_log)
+            Na__ArrayBuilderTools.na_debug_log("Icon resolution warning: #{na_icon_error.message}")
+        end
     end
     # ---------------------------------------------------------------
 

@@ -8,18 +8,24 @@
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Creates array course geometry from path and configuration
 # CREATED    : 2026
-# VERSION    : 0.0.2
+# VERSION    : 0.0.3
 #
 # DESCRIPTION:
 # - Creates a component containing all array units along a path
-# - Each unit is a grouped box with correct face normals
-# - Supports dentil (axis-aligned) and dog-tooth (45-degree rotated) types
-# - Orients units along the local path segment direction
-# - Applies brick-coloured material
+# - Dentil  : grouped axis-aligned box
+# - Dogtooth: grouped 45-degree-rotated box
+# - Object  : repeated instance of a user-picked Group / Component
+#             (registered via Na__ArrayBuilder__ObjectRegistry).
+# - Orients units along the local path segment direction (local +X
+#   forward, local +Z up by convention).
+# - Supports two anchor modes for the 'object' type:
+#     local_axis -> object's own definition origin lands on the path point
+#     centre     -> object's bounding-box centre lands on the path point
 #
 # =============================================================================
 
 require 'sketchup.rb'
+require_relative 'Na__ArrayBuilder__ObjectRegistry__'
 
 module Na__ArrayBuilderTools
     module Na__ArrayBuilder__GeometryBuilder
@@ -32,6 +38,8 @@ module Na__ArrayBuilderTools
 
         # FUNCTION | Create Array Course
         # ------------------------------------------------------------
+        # Routes to the appropriate builder based on config['type'].
+        #
         # @param waypoints [Array<Geom::Point3d>] Committed path points
         # @param config [Hash] Configuration with type, dimensions, spacing
         # @param positions [Array<Hash>] Pre-calculated positions from PathTool
@@ -39,15 +47,23 @@ module Na__ArrayBuilderTools
         def self.na_create_array(waypoints, config, positions)
             return nil if positions.nil? || positions.empty?
 
-            model = Sketchup.active_model
             type = config['type'] || 'dentil'
-            unit_w_mm  = (config['unit_width_mm']  || 110).to_f
-            unit_d_mm  = (config['unit_depth_mm']  || 30).to_f
-            unit_h_mm  = (config['unit_height_mm'] || 75).to_f
 
-            unit_w = unit_w_mm.mm
-            unit_d = unit_d_mm.mm
-            unit_h = unit_h_mm.mm
+            if type == 'object'
+                na_create_array_from_definition(positions, config)
+            else
+                na_create_array_from_box(positions, config, type)
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Create Box-Based Array Course (Dentil / Dogtooth)
+        # ------------------------------------------------------------
+        def self.na_create_array_from_box(positions, config, type)
+            model = Sketchup.active_model
+            unit_w = ((config['unit_width_mm']  || 110).to_f).mm
+            unit_d = ((config['unit_depth_mm']  || 30).to_f).mm
+            unit_h = ((config['unit_height_mm'] || 75).to_f).mm
 
             model.start_operation("Create #{type.capitalize} Course", true)
 
@@ -73,15 +89,126 @@ module Na__ArrayBuilderTools
                 model.selection.clear
                 model.selection.add(instance)
 
-                puts "✓ Na Array Builder: Created #{positions.length} #{type} units"
+                Na__ArrayBuilderTools.na_debug_log("Created #{positions.length} #{type} units")
                 instance
 
             rescue => e
                 model.abort_operation
                 puts "✗ Na Array Builder geometry error: #{e.message}"
-                puts e.backtrace.first(5).join("\n")
+                Na__ArrayBuilderTools.na_debug_log(e.backtrace.first(5).join("\n"))
                 nil
             end
+        end
+        # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Object-Based Array (Custom Group / Component)
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | Create Object-Based Array Course
+        # ------------------------------------------------------------
+        # Places repeated instances of the user-picked source definition
+        # along the pre-calculated positions. Wraps all instances in a
+        # single parent component so the result behaves identically to
+        # the dentil / dogtooth output (one selectable assembly).
+        def self.na_create_array_from_definition(positions, config)
+            source_def = Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetDefinition
+            return nil unless source_def && source_def.valid?
+
+            model = Sketchup.active_model
+            anchor_mode  = config['anchor_mode'] || 'local_axis'
+            anchor_offset = na_compute_anchor_offset(source_def, anchor_mode)
+
+            model.start_operation("Create Object Array", true)
+
+            begin
+                parent_def = model.definitions.add(
+                    "Na_ArrayCourse_object_#{Time.now.to_i}"
+                )
+
+                positions.each do |pos|
+                    tr = na_build_instance_transform(
+                        pos[:point], pos[:direction], anchor_offset
+                    )
+                    parent_def.entities.add_instance(source_def, tr)
+                end
+
+                instance = model.active_entities.add_instance(
+                    parent_def, Geom::Transformation.new
+                )
+
+                model.commit_operation
+
+                model.selection.clear
+                model.selection.add(instance)
+
+                Na__ArrayBuilderTools.na_debug_log("Created #{positions.length} object instances")
+                instance
+
+            rescue => e
+                model.abort_operation
+                puts "✗ Na Array Builder object-array error: #{e.message}"
+                Na__ArrayBuilderTools.na_debug_log(e.backtrace.first(5).join("\n"))
+                nil
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Compute Anchor-Offset Transform for Source Definition
+        # ------------------------------------------------------------
+        # local_axis -> identity (definition origin = path point)
+        # centre     -> shifts so the bbox centre = path point
+        #
+        # Implementation note: translations are always invertible, so the
+        # SU 2026 stricter Transformation#inverse rules do not affect us.
+        def self.na_compute_anchor_offset(source_def, anchor_mode)
+            return Geom::Transformation.new if anchor_mode != 'centre'
+
+            bb = source_def.bounds
+            return Geom::Transformation.new if bb.nil? || bb.empty?
+
+            Geom::Transformation.translation(bb.center).inverse
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Build Per-Position Instance Transformation
+        # ------------------------------------------------------------
+        # Convention: local +X -> path forward, local +Z -> up.
+        # The lateral (local +Y) is computed as forward × up so the basis
+        # remains orthonormal even on non-horizontal segments.
+        #
+        # Final transform = translate_to_path_point * basis * anchor_offset
+        def self.na_build_instance_transform(point, direction, anchor_offset)
+            forward = na_unit_vector_or_default(direction, X_AXIS)
+            up      = Z_AXIS.clone
+
+            lateral = forward.cross(up)
+            if lateral.length < 0.001
+                lateral = Y_AXIS.clone
+            else
+                lateral.length = 1.0
+            end
+
+            actual_up = lateral.cross(forward)
+            actual_up.length = 1.0 if actual_up.length > 0
+
+            basis    = Geom::Transformation.axes(ORIGIN, forward, lateral, actual_up)
+            position = Geom::Transformation.translation(point)
+
+            position * basis * anchor_offset
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Return Unit-Length Vector or a Default
+        # ------------------------------------------------------------
+        def self.na_unit_vector_or_default(vector, default_vector)
+            return default_vector.clone if vector.nil? || vector.length < 0.001
+
+            v = vector.clone
+            v.length = 1.0
+            v
         end
         # ---------------------------------------------------------------
 

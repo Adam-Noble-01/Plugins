@@ -26,11 +26,14 @@
             <button id="na-btn-dogtooth" class="na-type-btn" onclick="na_selectType('dogtooth')">
                 Dog-Tooth Course
             </button>
+            <button id="na-btn-object" class="na-type-btn" onclick="na_selectType('object')">
+                Custom Object
+            </button>
         </div>
     </div>
 
-    <!-- DIMENSIONS -->
-    <div class="na-section">
+    <!-- DIMENSIONS (Dentil / Dog-Tooth) -->
+    <div class="na-section" id="na-dimensions-section">
         <label class="na-section-label">Dimensions (mm)</label>
 
         <div class="na-input-row">
@@ -51,6 +54,54 @@
         <div class="na-input-row">
             <label for="na-spacing">Spacing</label>
             <input type="number" id="na-spacing" value="115" min="0" step="1">
+        </div>
+    </div>
+
+    <!-- OBJECT SOURCE (Custom Object) -->
+    <div class="na-section" id="na-object-source-section" style="display:none;">
+        <label class="na-section-label">Object Source</label>
+
+        <div class="na-object-row">
+            <button id="na-btn-pick-object" class="na-btn-secondary" onclick="na_pickObject()">
+                Pick Object
+            </button>
+            <button id="na-btn-clear-object" class="na-btn-secondary na-btn-secondary-muted" onclick="na_clearObject()">
+                Clear
+            </button>
+        </div>
+
+        <div class="na-object-info" id="na-object-info">
+            <div class="na-object-name" id="na-object-name">No object selected</div>
+            <div class="na-info-row">
+                <span>Width (X):</span>
+                <span id="na-object-w" class="na-info-value">--</span>
+            </div>
+            <div class="na-info-row">
+                <span>Depth (Y):</span>
+                <span id="na-object-d" class="na-info-value">--</span>
+            </div>
+            <div class="na-info-row">
+                <span>Height (Z):</span>
+                <span id="na-object-h" class="na-info-value">--</span>
+            </div>
+        </div>
+
+        <div class="na-input-row">
+            <label for="na-object-spacing">Spacing (mm)</label>
+            <input type="number" id="na-object-spacing" value="0" min="0" step="1">
+        </div>
+
+        <label class="na-section-label" style="margin-top:14px;">Set Out From</label>
+        <div class="na-type-selector">
+            <button id="na-btn-anchor-local" class="na-type-btn na-active" onclick="na_setAnchorMode('local_axis')">
+                Local Axis
+            </button>
+            <button id="na-btn-anchor-centre" class="na-type-btn" onclick="na_setAnchorMode('centre')">
+                Centre
+            </button>
+        </div>
+        <div class="na-toggle-hint">
+            Local Axis uses the object's own origin as the insertion point (set this in the component for an asymmetric start). Centre uses the bounding-box centre.
         </div>
     </div>
 
