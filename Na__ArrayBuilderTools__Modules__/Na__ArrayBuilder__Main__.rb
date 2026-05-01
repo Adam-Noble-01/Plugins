@@ -20,6 +20,7 @@ require 'sketchup.rb'
 require_relative 'Na__ArrayBuilder__AssetResolver__'
 require_relative 'Na__ArrayBuilder__ObjectRegistry__'
 require_relative 'Na__ArrayBuilder__ObjectPicker__'
+require_relative 'Na__ArrayBuilder__InsetDistribution__'
 require_relative 'Na__ArrayBuilder__DialogManager__'
 
 module Na__ArrayBuilderTools
@@ -28,7 +29,7 @@ module Na__ArrayBuilderTools
 # REGION | Constants
 # =============================================================================
 
-    NA_PLUGIN_VERSION = '0.0.6'.freeze
+    NA_PLUGIN_VERSION = '0.0.8'.freeze
 
     # Set to true to enable diagnostic puts output. Off by default so the
     # SketchUp Ruby Console stays quiet during normal use - even small

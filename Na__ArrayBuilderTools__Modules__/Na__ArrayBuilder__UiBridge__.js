@@ -35,8 +35,15 @@ var NA_DEFAULTS = {
     }
 };
 
-var na_currentType   = 'dentil';
-var na_currentAnchor = 'local_axis';
+var na_currentType         = 'dentil';
+var na_currentAnchor       = 'local_axis';
+var na_currentDistribution = 'fixed';
+
+var NA_DIST_HINTS = {
+    'fixed':     'Fixed step: walks the path with constant unit + spacing.',
+    'normalise': 'Normalised: per-segment spacing is adjusted so units land at both ends of each wall.',
+    'inset':     'Fixed inset: first and last units sit at the inset distance from each segment endpoint; intermediates are evenly spaced.'
+};
 
 // endregion ===================================================================
 
@@ -121,18 +128,35 @@ function na_setAnchorMode(mode) {
 // endregion ===================================================================
 
 // =============================================================================
+// REGION | Distribution Mode Selection (Fixed / Normalise / Inset)
+// =============================================================================
+
+function na_selectDistribution(mode) {
+    na_currentDistribution = mode;
+
+    var btnFixed = document.getElementById('na-btn-dist-fixed');
+    var btnNorm  = document.getElementById('na-btn-dist-norm');
+    var btnInset = document.getElementById('na-btn-dist-inset');
+
+    if (btnFixed) btnFixed.classList.toggle('na-active', mode === 'fixed');
+    if (btnNorm)  btnNorm.classList.toggle('na-active',  mode === 'normalise');
+    if (btnInset) btnInset.classList.toggle('na-active', mode === 'inset');
+
+    var insetRow = document.getElementById('na-inset-row');
+    if (insetRow) insetRow.style.display = mode === 'inset' ? 'flex' : 'none';
+
+    var hint = document.getElementById('na-dist-hint');
+    if (hint) hint.textContent = NA_DIST_HINTS[mode] || '';
+}
+
+// endregion ===================================================================
+
+// =============================================================================
 // REGION | Start Placement
 // =============================================================================
 
 function na_startPlacement() {
-    var normalise = document.getElementById('na-normalise').checked;
-    var config;
-
-    if (na_currentType === 'object') {
-        config = na_buildObjectConfig(normalise);
-    } else {
-        config = na_buildBoxConfig(normalise);
-    }
+    var config = na_currentType === 'object' ? na_buildObjectConfig() : na_buildBoxConfig();
 
     var configJson = JSON.stringify(config);
 
@@ -144,29 +168,40 @@ function na_startPlacement() {
     }
 }
 
+// FUNCTION | Read the User's Inset Value (mm)
+// ----------------------------------------------------------------------------
+function na_readInsetMm() {
+    var el = document.getElementById('na-inset-mm');
+    if (!el) return 200;
+    var val = parseFloat(el.value);
+    return isFinite(val) && val >= 0 ? val : 200;
+}
+
 // FUNCTION | Build Box-Mode Config (Dentil / Dog-Tooth)
 // ----------------------------------------------------------------------------
-function na_buildBoxConfig(normalise) {
+function na_buildBoxConfig() {
     return {
-        type:               na_currentType,
-        unit_width_mm:      parseFloat(document.getElementById('na-unit-width').value)  || 110,
-        unit_depth_mm:      parseFloat(document.getElementById('na-unit-depth').value)  || 30,
-        unit_height_mm:     parseFloat(document.getElementById('na-unit-height').value) || 75,
-        spacing_mm:         parseFloat(document.getElementById('na-spacing').value)     || 0,
-        normalise_distance: normalise
+        type:           na_currentType,
+        unit_width_mm:  parseFloat(document.getElementById('na-unit-width').value)  || 110,
+        unit_depth_mm:  parseFloat(document.getElementById('na-unit-depth').value)  || 30,
+        unit_height_mm: parseFloat(document.getElementById('na-unit-height').value) || 75,
+        spacing_mm:     parseFloat(document.getElementById('na-spacing').value)     || 0,
+        distribution:   na_currentDistribution,
+        inset_mm:       na_readInsetMm()
     };
 }
 
 // FUNCTION | Build Object-Mode Config
 // ----------------------------------------------------------------------------
 // unit_*_mm are derived Ruby-side from the registered definition, so we only
-// forward the spacing, anchor mode and normalise flag here.
-function na_buildObjectConfig(normalise) {
+// forward the spacing, anchor mode and distribution settings here.
+function na_buildObjectConfig() {
     return {
-        type:               'object',
-        anchor_mode:        na_currentAnchor,
-        spacing_mm:         parseFloat(document.getElementById('na-object-spacing').value) || 0,
-        normalise_distance: normalise
+        type:         'object',
+        anchor_mode:  na_currentAnchor,
+        spacing_mm:   parseFloat(document.getElementById('na-object-spacing').value) || 0,
+        distribution: na_currentDistribution,
+        inset_mm:     na_readInsetMm()
     };
 }
 

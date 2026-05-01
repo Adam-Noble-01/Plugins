@@ -3,6 +3,101 @@
 ## Version History
 
 # =======================================================================================
+## Array Builder Version 0.0.8 - 01-May-2026
+
+### New Feature: Fixed Start/End Inset Distribution Mode
+
+A third distribution strategy where the first and last unit on every
+path segment land at a user-configurable distance ("inset") from the
+segment endpoints, and the intermediate units are evenly distributed
+at as close to the target spacing as possible. Off by default; mode is
+selected from a new 3-way segmented selector that replaces the
+existing single Normalise toggle.
+
+#### New Distribution Selector
+
+- **Fixed Step** (default) - walks the path with a constant
+  `unit_width + spacing` step. Behaviour unchanged from prior versions.
+- **Normalise** - existing per-segment normalisation; units land at
+  both ends of each wall.
+- **Fixed Inset** - new mode. Each segment places one unit at
+  `seg_start + inset`, one at `seg_end - inset - unit_width`, and as
+  many evenly-spaced intermediates as fit at ~target spacing. Default
+  inset = 200mm (matches the supplied reference drawings).
+
+Edge cases:
+- Segment too short for two-with-insets (`seg_len < 2*inset + unit_width`)
+  -> single best-effort centred unit.
+- Segment exactly at the threshold -> one unit at `first_leading`.
+
+#### New File
+
+- `Na__ArrayBuilder__InsetDistribution__.rb` - pure stateless math
+  module. Public methods (all `self.`):
+  `Na__InsetDistribution__CalculatePositions(path_points, unit_width, spacing, inset)`
+  and `Na__InsetDistribution__CalculateActualSpacingMm(path_points, unit_width, spacing, inset)`,
+  plus internal `Na__InsetDistribution__SegmentPositions` and
+  `Na__InsetDistribution__LeadingToLeadingSpan` helpers. No SketchUp
+  tool callbacks, no module state, all capital-letter calls use
+  parens or `self.` per the codebase convention.
+
+#### Module Audit (No Duplication)
+
+| Concern | Lives where | Touched? |
+|---|---|---|
+| Fixed-step distribution | `Na__ArrayBuilder__PathTool__.rb` `na_calculate_fixed_positions` | No |
+| Normalised distribution | `Na__ArrayBuilder__PathTool__.rb` `na_calculate_normalised_positions` | No |
+| Fixed-inset distribution | NEW `Na__ArrayBuilder__InsetDistribution__.rb` | New file |
+| Distribution router | `Na__ArrayBuilder__PathTool__.rb` `na_calculate_preview_positions` | Yes (3-way `case`) |
+| Average actual spacing | `Na__ArrayBuilder__PathTool__.rb` `na_calculate_actual_spacing_mm` | Yes (extra branch + extracted normalised helper) |
+| Info-text overlay label | `Na__ArrayBuilder__PathTool__.rb` `na_draw_info_text` | Yes (3-way `case`) |
+| Distribution selector UI | `Na__ArrayBuilder__UiLayout__.html` | Yes (replaced toggle with 3-way buttons) |
+| Distribution config payload | `Na__ArrayBuilder__UiBridge__.js` | Yes (`distribution` string + `inset_mm`) |
+
+The new module's algorithm is structurally similar to
+`na_calculate_normalised_positions` (per-segment iteration, n_gaps +
+actual_step) but the boundary conditions differ (`first_pt` offset by
+`inset`, `last_pt` offset by `inset + unit_width`). Consolidating
+would have obscured both, so the two existing strategies stay where
+they are.
+
+#### Modified Files
+
+- `Na__ArrayBuilder__Main__.rb` - bump version to `0.0.8`,
+  `require_relative` the new module.
+- `Na__ArrayBuilder__PathTool__.rb`:
+  - `initialize` reads `@distribution` (string: `fixed` / `normalise`
+    / `inset`) and `@inset` (Length) from config. Legacy
+    `normalise_distance` boolean still honoured as a fallback.
+  - `na_calculate_preview_positions` -> 3-way `case` dispatch.
+  - `na_calculate_actual_spacing_mm` -> 3-way dispatch; the existing
+    normalised-mode body is moved into a new
+    `na_calculate_normalised_actual_spacing_mm` helper so the public
+    router stays a thin switch.
+  - `na_draw_info_text` -> 3-way `case` for the overlay label;
+    inset mode shows `Inset: Nmm | Actual: Mmm (target: Tmm)`.
+- `Na__ArrayBuilder__UiLayout__.html` - replaced the Normalise toggle
+  row with three buttons styled via the existing `.na-type-selector`
+  / `.na-type-btn` rules; added a hidden `na-inset-row` input and a
+  shared hint paragraph that swaps text per mode.
+- `Na__ArrayBuilder__UiBridge__.js`:
+  - Added `na_currentDistribution = 'fixed'` state and
+    `NA_DIST_HINTS` lookup table.
+  - New `na_selectDistribution(mode)` toggles button active classes,
+    shows / hides the inset input, and refreshes the hint text.
+  - `na_buildBoxConfig` and `na_buildObjectConfig` now emit
+    `distribution` + `inset_mm` instead of `normalise_distance`.
+  - `na_startPlacement` no longer reads the now-deleted
+    `na-normalise` checkbox.
+
+#### API Verification
+
+No new SketchUp Ruby API surface. The new module uses
+`Geom::Vector3d#%` (dot product), `Geom::Point3d#offset(vector, distance)`,
+and the standard `length=` mutator - all already used by the existing
+distribution methods.
+
+# =======================================================================================
 ## Session Retrospective - 01-May-2026 (v0.0.3 -> v0.0.7)
 
 A single working session took the Array Builder from "dentil + dog-tooth

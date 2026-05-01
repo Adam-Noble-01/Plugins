@@ -108,15 +108,23 @@
     <!-- DISTRIBUTION OPTIONS -->
     <div class="na-section">
         <label class="na-section-label">Distribution</label>
-        <div class="na-toggle-row">
-            <label for="na-normalise">Normalise Distance</label>
-            <label class="na-toggle">
-                <input type="checkbox" id="na-normalise">
-                <span class="na-toggle-slider"></span>
-            </label>
+        <div class="na-type-selector">
+            <button id="na-btn-dist-fixed" class="na-type-btn na-active" onclick="na_selectDistribution('fixed')">
+                Fixed Step
+            </button>
+            <button id="na-btn-dist-norm" class="na-type-btn" onclick="na_selectDistribution('normalise')">
+                Normalise
+            </button>
+            <button id="na-btn-dist-inset" class="na-type-btn" onclick="na_selectDistribution('inset')">
+                Fixed Inset
+            </button>
         </div>
-        <div class="na-toggle-hint">
-            Adjusts spacing per segment so units land at both ends of each wall.
+        <div class="na-input-row" id="na-inset-row" style="display:none;">
+            <label for="na-inset-mm">Inset (mm)</label>
+            <input type="number" id="na-inset-mm" value="200" min="0" step="1">
+        </div>
+        <div class="na-toggle-hint" id="na-dist-hint">
+            Fixed step: walks the path with constant unit + spacing.
         </div>
     </div>
 

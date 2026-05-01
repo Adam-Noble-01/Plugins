@@ -27,6 +27,7 @@
 
 require 'sketchup.rb'
 require_relative 'Na__ArrayBuilder__ObjectRegistry__'
+require_relative 'Na__ArrayBuilder__InsetDistribution__'
 require_relative 'Na__ArrayBuilder__AxisLockMixin__'
 
 module Na__ArrayBuilderTools
@@ -71,7 +72,13 @@ module Na__ArrayBuilderTools
             @array_type  = config['type'] || 'dentil'
             @anchor_mode = config['anchor_mode'] || 'local_axis'
             @spacing     = (config['spacing_mm'] || 115).to_f.mm
-            @normalise   = config['normalise_distance'] == true
+
+            # Distribution mode: 'fixed' (default) | 'normalise' | 'inset'.
+            # Falls back to the legacy `normalise_distance` boolean so
+            # any in-flight cached config stays compatible.
+            @distribution = config['distribution']
+            @distribution ||= (config['normalise_distance'] ? 'normalise' : 'fixed')
+            @inset        = (config['inset_mm'] || 200).to_f.mm
 
             na_resolve_unit_dimensions(config)
             na_reset_preview_cache
@@ -379,9 +386,18 @@ module Na__ArrayBuilderTools
 
         # FUNCTION | Calculate Preview Unit Positions Along Path
         # ------------------------------------------------------------
-        # Delegates to fixed or normalised algorithm based on config.
+        # Delegates to fixed-step, normalised, or fixed-inset algorithm
+        # based on the `distribution` config string. Fixed-inset is
+        # implemented in Na__ArrayBuilder__InsetDistribution to keep the
+        # path tool focused on tool-lifecycle concerns.
         def na_calculate_preview_positions(path_points)
-            if @normalise
+            case @distribution
+            when 'inset'
+                Na__ArrayBuilder__InsetDistribution
+                    .Na__InsetDistribution__CalculatePositions(
+                        path_points, @unit_width, @spacing, @inset
+                    )
+            when 'normalise'
                 na_calculate_normalised_positions(path_points)
             else
                 na_calculate_fixed_positions(path_points)
@@ -509,12 +525,31 @@ module Na__ArrayBuilderTools
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Calculate Average Actual Spacing in mm (Normalised Mode)
+        # FUNCTION | Calculate Average Actual Spacing in mm (Distribution-Aware)
         # ------------------------------------------------------------
-        # Returns the average actual spacing across all segments, or nil
-        # if not enough data. Used for the info text overlay.
+        # Returns the average gap-between-faces in millimetres for the
+        # active distribution mode, or nil when not applicable (fixed
+        # step uses the user-entered spacing verbatim).
         def na_calculate_actual_spacing_mm(path_points)
-            return nil unless @normalise
+            case @distribution
+            when 'inset'
+                Na__ArrayBuilder__InsetDistribution
+                    .Na__InsetDistribution__CalculateActualSpacingMm(
+                        path_points, @unit_width, @spacing, @inset
+                    )
+            when 'normalise'
+                na_calculate_normalised_actual_spacing_mm(path_points)
+            else
+                nil
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Average Spacing for Normalised Mode
+        # ------------------------------------------------------------
+        # Extracted from the previous na_calculate_actual_spacing_mm so
+        # the public router stays a thin dispatch.
+        def na_calculate_normalised_actual_spacing_mm(path_points)
             return nil if path_points.length < 2
 
             target_step = @unit_width + @spacing
@@ -684,20 +719,29 @@ module Na__ArrayBuilderTools
         # FUNCTION | Draw Info Text at Cursor
         # ------------------------------------------------------------
         def na_draw_info_text(view, positions, path_points)
-            total_mm = na_path_length_mm(path_points)
-            count = positions.length
+            total_mm          = na_path_length_mm(path_points)
+            count             = positions.length
             target_spacing_mm = (@spacing * NA_INCH_TO_MM).round
+            inset_mm          = (@inset   * NA_INCH_TO_MM).round
+            actual_mm         = na_calculate_actual_spacing_mm(path_points)
 
-            if @normalise
-                actual_mm = na_calculate_actual_spacing_mm(path_points)
-                if actual_mm
-                    label = "#{count} units | Actual: #{actual_mm}mm (target: #{target_spacing_mm}mm) | Length: #{total_mm.round}mm"
+            label =
+                case @distribution
+                when 'inset'
+                    if actual_mm
+                        "#{count} units | Inset: #{inset_mm}mm | Actual: #{actual_mm}mm (target: #{target_spacing_mm}mm) | Length: #{total_mm.round}mm"
+                    else
+                        "#{count} units | Inset: #{inset_mm}mm | Length: #{total_mm.round}mm"
+                    end
+                when 'normalise'
+                    if actual_mm
+                        "#{count} units | Actual: #{actual_mm}mm (target: #{target_spacing_mm}mm) | Length: #{total_mm.round}mm"
+                    else
+                        "#{count} units | Normalised | Length: #{total_mm.round}mm"
+                    end
                 else
-                    label = "#{count} units | Normalised | Length: #{total_mm.round}mm"
+                    "#{count} units | Spacing: #{target_spacing_mm}mm | Length: #{total_mm.round}mm"
                 end
-            else
-                label = "#{count} units | Spacing: #{target_spacing_mm}mm | Length: #{total_mm.round}mm"
-            end
 
             screen_pt = view.screen_coords(@cursor_pos)
             text_point = Geom::Point3d.new(screen_pt.x + 20, screen_pt.y - 30, 0)
