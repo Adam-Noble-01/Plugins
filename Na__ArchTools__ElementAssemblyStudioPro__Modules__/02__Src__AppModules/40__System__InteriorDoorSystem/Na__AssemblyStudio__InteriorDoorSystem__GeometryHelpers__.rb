@@ -80,6 +80,54 @@ module Na__InteriorDoorSystem
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Resolve Panel Front-Face Y Origin (mm)
+        # ------------------------------------------------------------
+        # Single source of truth for where the door panel sits within
+        # the wall depth based on SwingDirection.
+        #
+        # A physical interior door is mounted so that when it opens the
+        # panel swings fully through the wall depth toward the open side:
+        #
+        #   * Inward  opening -> hinges on the near (close) wall face,
+        #     panel sits in the closed position flush with the FAR
+        #     (Y-high / exterior) wall face, then swings toward the
+        #     room when opened. panel_y = face_offset + wall_depth - panel_t.
+        #   * Outward opening -> hinges on the far wall face, panel
+        #     sits flush with the NEAR (Y-low / room) wall face, then
+        #     swings out of the room when opened. panel_y = face_offset.
+        #   * Any other / missing value -> centred in the wall depth
+        #     (legacy fallback).
+        #
+        # Consumers: GeometryBuilders (panel + swing), HandleBuilder3D
+        # (handle Y), DoorAssemblyComposer (hinge Y + open-state rotation).
+        #
+        # @param config [Hash] Na__DoorConfiguration block
+        # @return [Float] Panel front-face Y in millimetres
+        def self.na_panel_y_origin_mm(config)
+            wall_depth_mm   = config["Na__DoorConfig__WallDepth_mm"].to_f
+            panel_t_mm      = config["Na__DoorConfig__PanelThickness_mm"].to_f
+            face_offset_mm  = config["Na__DoorConfig__LiningFaceOffset_mm"].to_f
+            swing_direction = config["Na__DoorConfig__SwingDirection"].to_s.downcase
+
+            case swing_direction
+            when "inward"
+                face_offset_mm + (wall_depth_mm - panel_t_mm)
+            when "outward"
+                face_offset_mm
+            else
+                face_offset_mm + (wall_depth_mm - panel_t_mm) / 2.0
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Resolve Panel Centre Y (mm) - Derived from Origin
+        # ------------------------------------------------------------
+        def self.na_panel_centre_y_mm(config)
+            panel_t_mm = config["Na__DoorConfig__PanelThickness_mm"].to_f
+            na_panel_y_origin_mm(config) + (panel_t_mm / 2.0)
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Create a Named Box Group with Outward-Facing Normals
         # ------------------------------------------------------------
         # All eight corners are computed at final coordinates and the six
@@ -322,6 +370,87 @@ module Na__InteriorDoorSystem
             points
         end
         private_class_method :na_compute_arc_points
+        # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | XZ-Plane Linework Primitives (Panel Design Subsystem)
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | Create a Single Edge in the XZ Plane at a Constant Y
+        # ------------------------------------------------------------
+        # Used by the door panel design builders to draw decorative
+        # linework on the panel face. All inputs are millimetres;
+        # conversion to inches happens here so callers stay metric.
+        # Edges shorter than ~0.001mm are skipped to avoid SketchUp
+        # creating zero-length entities.
+        #
+        # @param entities [Sketchup::Entities] Target entities collection
+        # @param x0_mm, z0_mm [Numeric] Start point (mm)
+        # @param x1_mm, z1_mm [Numeric] End point (mm)
+        # @param y_mm [Numeric] Y plane the line lives on (mm)
+        # @return [Sketchup::Edge, nil]
+        def self.na_create_xz_line(entities, x0_mm, z0_mm, x1_mm, z1_mm, y_mm)
+            dx = (x1_mm - x0_mm).to_f
+            dz = (z1_mm - z0_mm).to_f
+            return nil if (dx.abs + dz.abs) < 0.001
+
+            p0 = Geom::Point3d.new(na_mm_to_inch(x0_mm), na_mm_to_inch(y_mm), na_mm_to_inch(z0_mm))
+            p1 = Geom::Point3d.new(na_mm_to_inch(x1_mm), na_mm_to_inch(y_mm), na_mm_to_inch(z1_mm))
+            edges = entities.add_edges(p0, p1)
+            edges.first if edges
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Draw a Horizontal Rail as a Pair of Parallel Edges
+        # ------------------------------------------------------------
+        # Architectural convention for representing a horizontal
+        # cross-rail in elevation: two parallel lines spaced by the
+        # rail thickness, centred on the rail's Z axis. Used by the
+        # multi-panel styles (Four-Panel, Six-Panel, Horizontal-Three).
+        #
+        # @param entities [Sketchup::Entities] Target entities collection
+        # @param x0_mm, x1_mm [Numeric] Horizontal extent of the rail (mm)
+        # @param z_centre_mm [Numeric] Centre-line Z of the rail (mm)
+        # @param thickness_mm [Numeric] Rail thickness (mm)
+        # @param y_mm [Numeric] Y plane the linework lives on (mm)
+        # @return [Integer] Count of edges drawn (2 on success)
+        def self.na_create_horizontal_rail_lines(entities, x0_mm, x1_mm, z_centre_mm, thickness_mm, y_mm)
+            half_t = thickness_mm.to_f / 2.0
+            z_top  = z_centre_mm + half_t
+            z_bot  = z_centre_mm - half_t
+
+            count  = 0
+            count += 1 if na_create_xz_line(entities, x0_mm, z_top, x1_mm, z_top, y_mm)
+            count += 1 if na_create_xz_line(entities, x0_mm, z_bot, x1_mm, z_bot, y_mm)
+            count
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Draw a Vertical Mullion as a Pair of Parallel Edges
+        # ------------------------------------------------------------
+        # Architectural convention for representing a vertical
+        # mullion in elevation: two parallel lines spaced by the
+        # mullion thickness, centred on the mullion's X axis. Used
+        # by the Four-Panel and Six-Panel styles.
+        #
+        # @param entities [Sketchup::Entities] Target entities collection
+        # @param x_centre_mm [Numeric] Centre-line X of the mullion (mm)
+        # @param z0_mm, z1_mm [Numeric] Vertical extent of the mullion (mm)
+        # @param thickness_mm [Numeric] Mullion thickness (mm)
+        # @param y_mm [Numeric] Y plane the linework lives on (mm)
+        # @return [Integer] Count of edges drawn (2 on success)
+        def self.na_create_vertical_rail_lines(entities, x_centre_mm, z0_mm, z1_mm, thickness_mm, y_mm)
+            half_t = thickness_mm.to_f / 2.0
+            x_lt   = x_centre_mm - half_t
+            x_rt   = x_centre_mm + half_t
+
+            count  = 0
+            count += 1 if na_create_xz_line(entities, x_lt, z0_mm, x_lt, z1_mm, y_mm)
+            count += 1 if na_create_xz_line(entities, x_rt, z0_mm, x_rt, z1_mm, y_mm)
+            count
+        end
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

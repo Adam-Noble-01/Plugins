@@ -151,7 +151,7 @@
         var archOffset       = na_num(config, 'Na__DoorConfig__ArchitraveOffset_mm', 5);
         var archEnabled      = na_bool(config, 'Na__DoorConfig__ArchitraveEnabled', true);
         var swingSide        = (config && config['Na__DoorConfig__SwingSide'])  || 'Right';
-        var handleHeight     = na_num(config, 'Na__DoorConfig__HandleHeight_mm', 1050);
+        var handleHeight     = na_num(config, 'Na__DoorConfig__HandleHeight_mm', 900);
 
         var totalWidth       = openingWidth + (NA_HORIZONTAL_PADDING_MM * 2);
         var totalHeight      = openingHeight + (NA_VERTICAL_PADDING_MM * 2);

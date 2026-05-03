@@ -23,6 +23,7 @@
 # DEPENDENCIES (loaded in dependency order, helpers first):
 # - Na__AssemblyStudio__AppUtils__DebugTools__
 # - Na__AssemblyStudio__AppUtils__TagManager__
+# - Na__AssemblyStudio__AppData__EdgeColourManager__
 # - Na__AssemblyStudio__InteriorDoorSystem__AssetLibrary__
 # - Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__
 # - Na__AssemblyStudio__InteriorDoorSystem__DataSerializer__
@@ -30,6 +31,12 @@
 # - Na__AssemblyStudio__InteriorDoorSystem__ArchitraveBuilder__
 # - Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__
 # - Na__AssemblyStudio__InteriorDoorSystem__FuseLiningParts__
+# - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__
+# - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__VerticalNarrow__
+# - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__ClassicalSixPanel__
+# - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__FourPanel__
+# - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__HorizontalThree__
+# - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__
 # - Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__
 # - Na__AssemblyStudio__InteriorDoorSystem__GeometryEngine__
 # - Na__AssemblyStudio__MeasurementTools__ThreePointOpeningTool__ (06__Tools__MeasurementTools)
@@ -179,13 +186,21 @@ module Na__InteriorDoorSystem
             "Na__DoorConfig__SwingSide"              => "Left",
             "Na__DoorConfig__SwingDirection"         => "Inward",
             "Na__DoorConfig__HandleAssetKey"         => "Na__InteriorDoor__Handle__Default",
-            "Na__DoorConfig__HandleHeight_mm"        => 1050,
+            "Na__DoorConfig__HandleHeight_mm"        => 900,
             "Na__DoorConfig__CreateOpenStateCopy"    => true,
             "Na__DoorConfig__FuseLining"             => true,
             "Na__DoorConfig__LiningMaterialId"       => NA_DEFAULT_LINING_MATERIAL_ID,
             "Na__DoorConfig__PanelMaterialId"        => NA_DEFAULT_PANEL_MATERIAL_ID,
             "Na__DoorConfig__ArchitraveMaterialId"   => NA_DEFAULT_ARCHITRAVE_MATERIAL_ID,
-            "Na__DoorConfig__HandleMaterialId"       => NA_DEFAULT_HANDLE_MATERIAL_ID
+            "Na__DoorConfig__HandleMaterialId"       => NA_DEFAULT_HANDLE_MATERIAL_ID,
+            "Na__DoorConfig__PanelDesignEnabled"            => true,
+            "Na__DoorConfig__PanelDesignStyle"              => "None",
+            "Na__DoorConfig__PanelDesignStileWidth_mm"      => 95,
+            "Na__DoorConfig__PanelDesignTopRail_mm"         => 100,
+            "Na__DoorConfig__PanelDesignBottomRail_mm"      => 200,
+            "Na__DoorConfig__PanelDesignInnerRailThickness_mm" => 70,
+            "Na__DoorConfig__PanelDesignVerticalPaneWidth_mm"  => 90,
+            "Na__DoorConfig__PanelDesignEdgeColourId"       => "MTE103__LineColour__DarkGrey__L40"
         }
     }.freeze
     # ---------------------------------------------------------------
@@ -205,11 +220,18 @@ module Na__InteriorDoorSystem
     def self.na_require_door_modules
         return if @na_door_modules_loaded
 
+        require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__DataSerializer__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryBuilders__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__ArchitraveBuilder__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__FuseLiningParts__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__VerticalNarrow__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__ClassicalSixPanel__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__FourPanel__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__HorizontalThree__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryEngine__'
         require_relative '../06__Tools__MeasurementTools/Na__AssemblyStudio__MeasurementTools__ThreePointOpeningTool__'

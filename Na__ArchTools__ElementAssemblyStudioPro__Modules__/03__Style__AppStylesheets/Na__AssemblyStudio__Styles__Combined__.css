@@ -1004,12 +1004,12 @@ body {
 
 /* Door tab wrappers inherit the shared .na-canvas-wrapper grey background
    (--na-bg-tertiary) so plan + elevation match the window tab visually.
-   The 1:1 aspect ratio override stays here because the door dual-viewport
-   layout needs square cells while the window tab uses a fixed 300px height. */
+   Height is fixed to 300px by default and can then be changed at runtime
+   by the door preview resize handle drag interaction. */
 #na-door-plan-wrapper,
 #na-door-elevation-wrapper {
-    aspect-ratio             : 1 / 1;
-    height                   : auto;
+    aspect-ratio             : auto;
+    height                   : 300px;
 }
 
 #na-door-plan-svg,

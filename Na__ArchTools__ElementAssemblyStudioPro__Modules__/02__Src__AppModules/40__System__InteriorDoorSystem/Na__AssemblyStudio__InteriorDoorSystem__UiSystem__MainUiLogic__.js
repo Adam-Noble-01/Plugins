@@ -59,6 +59,7 @@
 
     var na_plan_instance        = null;                                       // <-- Na__Viewport__Instance for plan view
     var na_elevation_instance   = null;                                       // <-- Na__Viewport__Instance for elevation view
+    var na_resize_bound         = false;                                      // <-- Guard so drag handlers are only bound once
 
 // endregion -------------------------------------------------------------------
 
@@ -339,8 +340,27 @@
             na_reset_preview_request_state(value);
             na_request_handle_preview_if_needed('handle-select-change');
         }
+        if (id === 'Na__DoorConfig__PanelDesignStyle') {
+            na_sync_panel_design_visibility();
+        }
         na_schedule_rerender();
         na_schedule_live_update();
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Sync Conditional Visibility of Panel Design Controls
+    // ------------------------------------------------------------
+    // The Vertical Pane Width slider only matters for the
+    // VerticalNarrow style. Hide its wrapper for any other style
+    // so the panel tab stays uncluttered. The control descriptor
+    // is still mounted so the value persists across style changes.
+    function na_sync_panel_design_visibility() {
+        var style = na_active_config['Na__DoorConfig__PanelDesignStyle'];
+        var wrapper = document.querySelector(
+            '[data-control-id="Na__DoorConfig__PanelDesignVerticalPaneWidth_mm"]'
+        );
+        if (!wrapper) return;
+        wrapper.style.display = (style === 'VerticalNarrow') ? '' : 'none';
     }
     // ---------------------------------------------------------------
 
@@ -411,6 +431,54 @@
 
 
 // -----------------------------------------------------------------------------
+// REGION | Door Preview Resize
+// -----------------------------------------------------------------------------
+
+    function na_init_preview_resize() {
+        if (na_resize_bound) return;
+
+        var handle = document.getElementById('na-door-viewport-resize-handle');
+        var planWrapper = document.getElementById('na-door-plan-wrapper');
+        var elevationWrapper = document.getElementById('na-door-elevation-wrapper');
+        if (!handle || !planWrapper || !elevationWrapper) return;
+
+        var isResizing = false;
+        var startY = 0;
+        var startHeight = 0;
+        var minHeight = 120;
+        var maxHeight = 600;
+
+        handle.addEventListener('mousedown', function (event) {
+            isResizing = true;
+            startY = event.clientY;
+            startHeight = Math.round(planWrapper.getBoundingClientRect().height);
+            document.body.style.cursor = 'ns-resize';
+            event.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function (event) {
+            if (!isResizing) return;
+
+            var deltaY = event.clientY - startY;
+            var newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight + deltaY));
+            planWrapper.style.height = newHeight + 'px';
+            elevationWrapper.style.height = newHeight + 'px';
+        });
+
+        document.addEventListener('mouseup', function () {
+            if (!isResizing) return;
+            isResizing = false;
+            document.body.style.cursor = '';
+            na_reset_door_viewports();
+        });
+
+        na_resize_bound = true;
+    }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
 // REGION | Public API
 // -----------------------------------------------------------------------------
 
@@ -418,6 +486,7 @@
     // ------------------------------------------------------------
     Na_DoorUI.na_mount = function (initialConfig) {
         if (initialConfig) Na_DoorUI.na_set_active_config(initialConfig);
+        na_init_preview_resize();
 
         na_mount_section('na-door-controls-opening',    window.NA_DOOR_OPENING_CONFIG);
         na_mount_section('na-door-controls-panel',      window.NA_DOOR_PANEL_TAB_CONFIG);
@@ -434,6 +503,7 @@
             window.Na_FrameFinishCards.na_render_all();
         }
 
+        na_sync_panel_design_visibility();
         Na_DoorUI.na_render(na_active_config);
     };
     // ---------------------------------------------------------------
@@ -560,6 +630,7 @@
 
         na_prune_obsolete_config_keys(na_active_config);
         na_request_handle_preview_if_needed('set-active-config');
+        na_sync_panel_design_visibility();
 
         if (window.Na_FrameFinishCards && typeof window.Na_FrameFinishCards.na_sync_selection === 'function') {
             window.Na_FrameFinishCards.na_sync_selection(na_active_config);

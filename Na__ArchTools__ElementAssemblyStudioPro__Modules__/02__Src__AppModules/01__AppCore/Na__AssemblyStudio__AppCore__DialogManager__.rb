@@ -26,6 +26,7 @@ require 'json'
 require 'pathname'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
+require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__FrameFinishSwatches__'
 require_relative '../../../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 require_relative 'Na__AssemblyStudio__AppCore__UiBridge__'
@@ -37,6 +38,7 @@ module Na__AssemblyStudio
             DebugTools          = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
             UiBridge            = Na__AssemblyStudio::Na__AppCore::Na__UiBridge
             MaterialManager     = Na__AssemblyStudio::Na__AppData::Na__MaterialManager
+            EdgeColourManager   = Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager
             FrameFinishSwatches = Na__AssemblyStudio::Na__AppData::Na__FrameFinishSwatches
 
             # -----------------------------------------------------------------
@@ -79,9 +81,13 @@ module Na__AssemblyStudio
                     @na_dialog.close
                 end
 
-                # Force-refresh the materials library from the live URL on every
-                # dialog open. Cache file is preserved for internet dropouts.
+                # Force-refresh the materials AND edge-colour libraries from
+                # the live URL on every dialog open. Cache files are preserved
+                # for internet dropouts. The edge-colour palette feeds the
+                # door panel design subsystem (Na__PanelDesignBuilder) so it
+                # must be hot before any door geometry is generated.
                 MaterialManager.na_force_refresh_from_url
+                EdgeColourManager.na_force_refresh_from_url
 
                 @na_dialog = UI::HtmlDialog.new(
                     dialog_title:    "Element Assembly Studio Pro by Noble Architecture",
@@ -256,16 +262,21 @@ module Na__AssemblyStudio
                 rb_count    = 0
                 error_count = 0
 
-                # STEP 1 | Purge the materials cache file and force-fetch fresh
-                # JSON from the live URL BEFORE reloading Ruby files. This
-                # guarantees the next dialog open sees the latest published
-                # materials (handle/frame swatches, MAT entries, etc.) and is
-                # NOT served stale on-disk cached JSON. Uses raw puts so output
-                # appears regardless of debug-mode flag.
+                # STEP 1 | Purge the materials AND edge-materials cache files
+                # and force-fetch fresh JSON from the live URLs BEFORE
+                # reloading Ruby files. This guarantees the next dialog open
+                # sees the latest published palette (face materials, edge
+                # MTE colours, swatches) and is NOT served stale on-disk
+                # cached JSON. Uses raw puts so output appears regardless
+                # of debug-mode flag.
                 puts ""
                 puts "    [Reload] ===== Force-refreshing materials JSON from URL ====="
                 materials_source = na_force_refresh_materials_json
                 puts "    [Reload] Materials refresh source: #{materials_source.inspect}"
+
+                puts "    [Reload] ===== Force-refreshing edge materials JSON from URL ====="
+                edge_materials_source = na_force_refresh_edge_materials_json
+                puts "    [Reload] Edge materials refresh source: #{edge_materials_source.inspect}"
                 puts ""
 
                 # STEP 2 | Reload all plugin Ruby files in place (`load`).
@@ -290,7 +301,7 @@ module Na__AssemblyStudio
                     na_show_dialog(@na_html_path, modules_root_path)
                 end
 
-                summary = "Reloaded #{rb_count} Ruby files | Materials: #{materials_source}"
+                summary = "Reloaded #{rb_count} Ruby files | Materials: #{materials_source} | Edges: #{edge_materials_source}"
                 if error_count > 0
                     UiBridge.na_send_status(@na_dialog, "warning", "#{summary} (#{error_count} errors)")
                 else
@@ -313,6 +324,21 @@ module Na__AssemblyStudio
                 :failed
             end
             private_class_method :na_force_refresh_materials_json
+
+            # Purge cache + force-fetch the edge-materials (MTE) JSON from
+            # the live URL. Mirrors na_force_refresh_materials_json so the
+            # door panel design subsystem sees fresh edge colours after a
+            # developer reload.
+            def self.na_force_refresh_edge_materials_json
+                Na__DataLib__CacheData.Na__Cache__PurgeCacheFile(:edge_materials)
+                Na__DataLib__CacheData.Na__Cache__LoadData(:edge_materials, true)
+                source = Na__DataLib__CacheData.Na__Cache__LastSource(:edge_materials)
+                source || :failed
+            rescue StandardError => e
+                puts "    [Reload] Edge materials force-fetch raised: #{e.message}"
+                :failed
+            end
+            private_class_method :na_force_refresh_edge_materials_json
 
             # -----------------------------------------------------------------
             # REGION | Fallback HTML

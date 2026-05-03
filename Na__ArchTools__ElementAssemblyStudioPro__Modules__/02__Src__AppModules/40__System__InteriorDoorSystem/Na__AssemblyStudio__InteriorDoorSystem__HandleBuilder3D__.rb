@@ -279,9 +279,11 @@ module Na__InteriorDoorSystem
                 return nil
             end
 
+            applied_edges = na_apply_edge_flags_to_definition(definition, mesh_block)
+
             na_write_definition_mesh_signature(definition, mesh_signature)
             @na_handle_def_cache[asset_key] = definition
-            DebugTools.na_debug_geometry("Built handle definition '#{def_name}' with #{built_faces} faces")
+            DebugTools.na_debug_geometry("Built handle definition '#{def_name}' with #{built_faces} faces, applied edge flags to #{applied_edges} edges")
             definition
         end
         private_class_method :na_get_or_build_handle_definition
@@ -323,6 +325,89 @@ module Na__InteriorDoorSystem
         private_class_method :na_build_mesh_into_definition
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Apply IsSoft / IsSmooth / IsHidden / CastsShadows to Edges
+        # ------------------------------------------------------------
+        # The JSON mesh carries per-edge flags sourced from the original
+        # Sketchup::Edge objects at export time (see
+        # Na__AssemblyStudio__DevTools__JsonExporter3D__.rb :: na_edges_from_real_edges).
+        # We reapply those flags to the newly-built handle definition so
+        # softened / smoothed edges disappear in the SketchUp viewport
+        # (the downstream GLB builder also respects them).
+        #
+        # Matching strategy: position-pair key (unordered) built from the
+        # JSON-declared world positions. JSON can have multiple vertex
+        # records at one physical position (per-vertex-normal dedupe)
+        # but SketchUp auto-merges them, so several JSON edge records
+        # may map to the same SketchUp::Edge - we OR the soft/smooth/
+        # hidden flags so any JSON record indicating soft/smooth wins.
+        #
+        # @param definition [Sketchup::ComponentDefinition]
+        # @param mesh_block [Hash] Na__Asset__Mesh3D block
+        # @return [Integer] Number of SketchUp edges that received flags
+        def self.na_apply_edge_flags_to_definition(definition, mesh_block)
+            edge_records = mesh_block["Na__Geometry__Edges"] || []
+            return 0 if edge_records.empty?
+
+            vertices = mesh_block["Na__Geometry__Vertices"] || []
+            point_table = na_build_vertex_point_table(vertices)
+            return 0 if point_table.empty?
+
+            flag_by_key = {}
+            edge_records.each do |record|
+                next unless record.is_a?(Hash)
+                start_pt = point_table[record["StartVertex"]]
+                end_pt   = point_table[record["EndVertex"]]
+                next unless start_pt && end_pt
+
+                key = na_edge_position_key(start_pt, end_pt)
+                bucket = flag_by_key[key] || { :soft => false, :smooth => false, :hidden => false, :casts_shadows => true }
+                bucket[:soft]   = true if record["IsSoft"]
+                bucket[:smooth] = true if record["IsSmooth"]
+                bucket[:hidden] = true if record["IsHidden"]
+                bucket[:casts_shadows] = false if record.key?("CastsShadows") && !record["CastsShadows"]
+                flag_by_key[key] = bucket
+            end
+
+            applied = 0
+            definition.entities.grep(Sketchup::Edge).each do |edge|
+                next unless edge && edge.valid?
+                key = na_edge_position_key(edge.start.position, edge.end.position)
+                flags = flag_by_key[key]
+                next unless flags
+
+                edge.soft   = flags[:soft]
+                edge.smooth = flags[:smooth]
+                edge.hidden = flags[:hidden] if flags[:hidden]
+                if edge.respond_to?(:casts_shadows=)
+                    edge.casts_shadows = flags[:casts_shadows]
+                end
+                applied += 1
+            end
+            applied
+        end
+        private_class_method :na_apply_edge_flags_to_definition
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Stable Edge Position Key (Unordered Endpoints)
+        # ------------------------------------------------------------
+        # Rounds to 6 decimal places so that micro-jitter from vertex
+        # transformations cannot separate a matching pair.
+        def self.na_edge_position_key(pt_a, pt_b)
+            key_a = na_point_key(pt_a)
+            key_b = na_point_key(pt_b)
+            [key_a, key_b].sort.join("||")
+        end
+        private_class_method :na_edge_position_key
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Stable Point Key Rounded to 6 Decimal Places
+        # ------------------------------------------------------------
+        def self.na_point_key(pt)
+            "%.6f|%.6f|%.6f" % [pt.x.to_f, pt.y.to_f, pt.z.to_f]
+        end
+        private_class_method :na_point_key
+        # ---------------------------------------------------------------
+
         # HELPER FUNCTION | Build VertexId -> Geom::Point3d Table (mm -> inches)
         # ------------------------------------------------------------
         def self.na_build_vertex_point_table(vertex_records)
@@ -357,8 +442,12 @@ module Na__InteriorDoorSystem
 
         # HELPER FUNCTION | Build Stable Mesh Signature for Definition Reuse
         # ------------------------------------------------------------
+        # Signature prefix "v2|" was introduced when edge flag application
+        # was added (IsSoft / IsSmooth / IsHidden / CastsShadows) so that
+        # cached definitions built from the same JSON but without edge
+        # flags are detected as stale and rebuilt once.
         def self.na_build_mesh_signature(mesh_block)
-            Digest::SHA256.hexdigest(JSON.generate(mesh_block || {}))
+            Digest::SHA256.hexdigest("v2|#{JSON.generate(mesh_block || {})}")
         rescue StandardError
             nil
         end
@@ -437,10 +526,8 @@ module Na__InteriorDoorSystem
             handle_height_mm     = 900 if handle_height_mm <= 0                          # <-- Final fallback
 
             opening_w_mm         = config["Na__DoorConfig__OpeningWidth_mm"].to_f
-            wall_depth_mm        = config["Na__DoorConfig__WallDepth_mm"].to_f
             lining_t_mm          = config["Na__DoorConfig__LiningThickness_mm"].to_f
             panel_t_mm           = config["Na__DoorConfig__PanelThickness_mm"].to_f
-            face_offset_mm       = config["Na__DoorConfig__LiningFaceOffset_mm"].to_f
             swing_side           = (config["Na__DoorConfig__SwingSide"] || "Left").downcase
 
             placement_block      = (swing_side == "left") ? "Na__PanelPlacement__LeftHand" : "Na__PanelPlacement__RightHand"
@@ -456,7 +543,7 @@ module Na__InteriorDoorSystem
                                        (hinge_x_mm + inner_w_mm + offset_x_mm) :
                                        (hinge_x_mm - inner_w_mm + offset_x_mm * scale_x)
 
-            panel_centre_y_mm    = face_offset_mm + (wall_depth_mm) / 2.0
+            panel_centre_y_mm    = GeometryHelpers.na_panel_centre_y_mm(config)        # <-- Swing-direction-aware panel centre
             handle_y_mm          = if face == :interior
                                        panel_centre_y_mm + (panel_t_mm / 2.0) + offset_y_mm
                                    else
@@ -468,13 +555,41 @@ module Na__InteriorDoorSystem
             base_origin   = Geom::Point3d.new(mm.call(handle_x_mm), mm.call(handle_y_mm), mm.call(handle_height_mm))
 
             t_origin      = Geom::Transformation.new(base_origin)
-            t_lay_back    = na_compute_handle_lay_back_rotation                                  # <-- Handle-specific Z -90 then X -90 correction
-            t_face_flip   = (face == :exterior) ? Geom::Transformation.rotation(ORIGIN, Z_AXIS, 180.degrees) : Geom::Transformation.new
+            t_lay_back    = na_compute_handle_lay_back_rotation                                  # <-- Handle lay-back correction (Z -180 then X -90)
+            t_face_flip   = na_compute_handle_face_flip(face)                                    # <-- Mirror across panel XZ plane for exterior face
             t_handing     = (scale_x < 0) ? Geom::Transformation.scaling(ORIGIN, -1, 1, 1) : Geom::Transformation.new
 
             t_origin * t_face_flip * t_handing * t_lay_back
         end
         private_class_method :na_compute_handle_transform
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Compose Face Flip for Interior / Exterior Handle
+        # ------------------------------------------------------------
+        # After lay-back the handle sits with its "out-of-face" axis
+        # along local +Y and the lever along local -X. Placing the
+        # exterior copy needs the handle mirrored across the panel's
+        # own XZ plane so the lever's "out-of-face" direction flips
+        # while the lever stays on the same (latch) side of the panel.
+        #
+        # A pure Y-axis mirror (scaling 1, -1, 1 around ORIGIN) is the
+        # only transformation that achieves this cleanly; no rotation
+        # of the laid-back handle produces a "Y-only" flip. The mirror
+        # has determinant = -1, which inverts face normals inside the
+        # instance, but the interior-door handle meshes use two-sided
+        # materials (see na_build_mesh_into_definition), so the
+        # visual result is unchanged.
+        #
+        # Interior handle receives an identity transformation so the
+        # authored orientation survives to the interior face.
+        #
+        # @param face [Symbol] :interior or :exterior
+        # @return [Geom::Transformation]
+        def self.na_compute_handle_face_flip(face)
+            return Geom::Transformation.new unless face == :exterior
+            Geom::Transformation.scaling(ORIGIN, 1, -1, 1)
+        end
+        private_class_method :na_compute_handle_face_flip
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Compose Handle Lay-Back Rotation (Z -90, X -90, X -90)
@@ -503,7 +618,7 @@ module Na__InteriorDoorSystem
         #
         # @return [Geom::Transformation] Combined lay-back rotation
         def self.na_compute_handle_lay_back_rotation
-            t_z  = Geom::Transformation.rotation(ORIGIN, Z_AXIS, -180.degrees)
+            t_z  = Geom::Transformation.rotation(ORIGIN, Z_AXIS, 180.degrees)
             t_x1 = Geom::Transformation.rotation(ORIGIN, X_AXIS, -90.degrees)
             t_x1 * t_z
         end

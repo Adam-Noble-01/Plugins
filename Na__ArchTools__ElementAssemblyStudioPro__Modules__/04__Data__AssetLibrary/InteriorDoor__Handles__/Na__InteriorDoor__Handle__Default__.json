@@ -1,7 +1,7 @@
 {
     "meta": {
         "fileName": "Na__InteriorDoor__Handle__Default__.json",
-        "description": "Default Noble Architecture interior door handle (round-rose lever). Unified asset file containing merged 2D plan, 2D elevation, and 3D mesh export data for door mode.",
+        "description": "Default Noble Architecture interior door handle. Unified asset file containing merged 2D plan, 2D elevation, and 3D mesh export data for door mode.",
         "version": "1.1.0",
         "lastUpdated": "03-May-2026",
         "namingConvention": "All custom keys prefixed Na__. Three-stage form Na__Section__SubSection__FieldName. Geometry primitives in Paths arrays use PathType (Line | Arc | Circle | Polygon).",
@@ -13,7 +13,7 @@
         "Data__URL": "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__ArchTools__ElementAssemblyStudioPro__Modules__/04__Data__AssetLibrary/InteriorDoor__Handles__/Na__InteriorDoor__Handle__Default__.json"
     },
     "Na__Asset__Metadata": {
-        "Na__Asset__Name": "Default Round Rose Lever",
+        "Na__Asset__Name": "Default Interior Door Handle",
         "Na__Asset__Code": "NA__HDL__001",
         "Na__Asset__Type": "DoorHandle",
         "Na__Asset__Description": "Unified default interior door handle assembled from exported 2D plan/elevation source data and the existing production 3D mesh contract.",

@@ -126,3 +126,71 @@ Only two materials are hardcoded as a last-resort safety net so geometry can sti
 - `MAT101__GenericGlass`
 
 These are created on the active model by `MaterialManager.na_ensure_safety_materials`. All other materials (timbers, paints, metals) come from the live JSON exclusively.
+
+## Edge Colour Library (URL-first cache)
+
+The plugin loads the Noble Architecture standard line-colour palette (MTE prefix) from the same `Na__Common__DataLib__CoreSuEntityStandards` repository that hosts face materials. The palette is consumed by the door panel design subsystem to paint generated linework with consistent dark-grey edges across every door.
+
+### Data source
+- Canonical file: `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__EdgeMaterials__.json`
+- Live URL: `https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__EdgeMaterials__.json`
+- DataLib key: `:edge_materials` (registered alongside `:materials`, `:tags`, `:components`).
+- Default panel-design colour: `MTE103__LineColour__DarkGrey__L40` (#666666).
+
+### Load flow on dialog open
+1. `DialogManager.na_show_dialog` calls `MaterialManager.na_force_refresh_from_url` AND `EdgeColourManager.na_force_refresh_from_url`.
+2. `EdgeColourManager` calls `Na__DataLib__CacheData.Na__Cache__LoadData(:edge_materials, true)` (URL first, cache fallback, local plugin copy as last resort - cache file never deleted).
+3. The flat `{ mte_id => entry_hash }` index is held in-memory for the session; subsequent `na_get_edge_material_by_id` calls resolve in O(1) and lazily create matching `Sketchup::Material` entries on the active model.
+4. `EdgeColourManager.na_apply_edge_colour_to_group(group, mte_id)` recursively walks groups + component instances and assigns the resolved material to every `Sketchup::Edge` it finds. Used by `Na__PanelDesignBuilder` after each design build.
+
+### Developer reload
+The `Reload Scripts` flow purges the on-disk cache for both `:materials` AND `:edge_materials` and re-fetches both from the live URL before reloading any Ruby files, so the next dialog open is guaranteed to see the latest published palettes.
+
+### Hardcoded fallback
+Only one edge colour is hardcoded as a last-resort safety net: `MTE103__LineColour__DarkGrey__L40` at RGB(102, 102, 102). It is created by `EdgeColourManager.na_create_safety_dark_grey_material` if and only if the live library fails AND the canonical dark-grey id is requested. All other MTE colours come from the live JSON exclusively.
+
+## Door Panel Design Subsystem
+
+Decorative UK-style panel linework on the front and back faces of an interior door panel. Entirely separate from the door panel solid - never modifies the panel, never adds faces, only authors `Sketchup::Edge` instances inside a dedicated nested group.
+
+### Group nesting hierarchy
+```
+ComponentDefinition: ADR001__InteriorDoor__
+  ADR001__InternalDoor (closed)                  [tag: door_closed]
+    MOD001__ROT__90-Deg__DoorPanel
+      Na__DoorPanel__Solid
+      <handle groups>
+      Na__DoorPanel__DesignContainer             [NEW]
+        Na__PanelDesign__FrontFace               [edges only, Y = panel_front_y - 0.5mm]
+        Na__PanelDesign__BackFace                [edges only, Y = panel_back_y  + 0.5mm]
+    ROT001__RotationPoint__DoorHingeCentre
+  ADR001__InternalDoor (open copy)               [tag: door_open]
+    <duplicated MOD via Sketchup::Group#copy - design propagates automatically>
+    ROT001__RotationPoint__DoorHingeCentre
+```
+The container sits inside `MOD` so the linework rotates with the door. The open ADR copy is built by duplicating the closed ADR, so the design subsystem only needs to run once per build (no manual mirroring).
+
+### Module layout (one responsibility per file)
+- `02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__.rb` -> URL/cache loader for the MTE palette + per-edge material application.
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__.rb` -> `na_compute_layout` resolves the inner perimeter from the four constraint sliders; `na_draw_inner_perimeter` draws the shared four-edge rectangle each style sits inside.
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__VerticalNarrow__.rb` -> divides the inner perimeter into N equal panes where N = (inner_w / preferred_pane_w).round.
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__ClassicalSixPanel__.rb` -> Georgian 38/38/24% three-tier layout + central mullion = 2+2+2 panels.
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__FourPanel__.rb` -> 2x2 grid (one cross-rail at mid-Z + one mullion at mid-X).
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__HorizontalThree__.rb` -> two cross-rails at 1/3 and 2/3 of inner-perimeter height (no mullion).
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__.rb` -> orchestrator. Reads config, dispatches to the right style, wraps result in `Na__DoorPanel__DesignContainer`, applies edge colour.
+- Geometry primitives `na_create_xz_line`, `na_create_horizontal_rail_lines`, `na_create_vertical_rail_lines` live on `Na__GeometryHelpers` so every style draws rails the same way.
+
+### Configuration keys (Na__DoorConfiguration)
+- `Na__DoorConfig__PanelDesignEnabled`              - master on/off (default `true`).
+- `Na__DoorConfig__PanelDesignStyle`                - one of `None`, `VerticalNarrow`, `ClassicalSixPanel`, `FourPanel`, `HorizontalThree` (default `None`).
+- `Na__DoorConfig__PanelDesignStileWidth_mm`        - side stile width, drives BOTH stiles (default `95`).
+- `Na__DoorConfig__PanelDesignTopRail_mm`           - top rail height (default `100`).
+- `Na__DoorConfig__PanelDesignBottomRail_mm`        - bottom rail height (default `200`).
+- `Na__DoorConfig__PanelDesignInnerRailThickness_mm` - cross-rail / mullion thickness (default `70`).
+- `Na__DoorConfig__PanelDesignVerticalPaneWidth_mm` - preferred pane width for VerticalNarrow only (default `90`).
+- `Na__DoorConfig__PanelDesignEdgeColourId`         - MTE id for the linework (default `MTE103__LineColour__DarkGrey__L40`).
+
+### Wiring
+- `Na__DoorAssemblyComposer.na_compose_closed_assembly` calls `Na__PanelDesignBuilder.na_build_panel_design(config, mod_ents)` after `Na__HandleBuilder3D.na_build_handles`.
+- `Na__InteriorDoorSystem.na_init_door_callbacks` -> `na_require_door_modules` requires all six new files (one EdgeColourManager + one Frame + four Styles + one Builder).
+- The dialog UI exposes the new controls in `window.NA_DOOR_PANEL_TAB_CONFIG` (Panel & Swing tab). The Vertical Pane Width slider is hidden by `Na_DoorUI.na_sync_panel_design_visibility` for any style other than VerticalNarrow.

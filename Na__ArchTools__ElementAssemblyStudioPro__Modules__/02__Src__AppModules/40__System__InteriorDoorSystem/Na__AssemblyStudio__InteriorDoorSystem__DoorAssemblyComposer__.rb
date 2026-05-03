@@ -40,6 +40,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryBuilders__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__'
+require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__TagManager__'
 
 module Na__AssemblyStudio
@@ -50,11 +51,12 @@ module Na__InteriorDoorSystem
 # REGION | Module References
 # -----------------------------------------------------------------------------
 
-        DebugTools       = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
-        GeometryHelpers  = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
-        GeometryBuilders = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryBuilders
-        HandleBuilder3D  = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D
-        TagManager       = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
+        DebugTools         = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        GeometryHelpers    = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
+        GeometryBuilders   = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryBuilders
+        HandleBuilder3D    = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D
+        PanelDesignBuilder = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__PanelDesignBuilder
+        TagManager         = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
 
 # endregion -------------------------------------------------------------------
 
@@ -100,6 +102,7 @@ module Na__InteriorDoorSystem
 
             GeometryBuilders.na_build_panel(config, mod_ents, panel_material)
             HandleBuilder3D.na_build_handles(config, mod_ents, handle_material)
+            PanelDesignBuilder.na_build_panel_design(config, mod_ents)
 
             rot_group       = adr_ents.add_group
             rot_group.name  = NA_GROUP_NAME_ROT_HINGE
@@ -156,14 +159,11 @@ module Na__InteriorDoorSystem
         # group's transformation to derive the rotation pivot.
         def self.na_translate_rot_marker_to_hinge(rot_group, config)
             opening_w_mm    = config["Na__DoorConfig__OpeningWidth_mm"].to_f
-            wall_depth_mm   = config["Na__DoorConfig__WallDepth_mm"].to_f
             lining_t_mm     = config["Na__DoorConfig__LiningThickness_mm"].to_f
-            panel_t_mm      = config["Na__DoorConfig__PanelThickness_mm"].to_f
-            face_offset_mm  = config["Na__DoorConfig__LiningFaceOffset_mm"].to_f
             swing_side      = (config["Na__DoorConfig__SwingSide"] || "Left").downcase
 
             hinge_x_mm      = (swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm)
-            hinge_y_mm      = face_offset_mm + (wall_depth_mm - panel_t_mm) / 2.0
+            hinge_y_mm      = GeometryHelpers.na_panel_y_origin_mm(config)    # <-- Swing-direction-aware panel front-face Y
 
             translation     = Geom::Transformation.new(Geom::Point3d.new(
                 GeometryHelpers.na_mm_to_inch(hinge_x_mm),
@@ -185,15 +185,12 @@ module Na__InteriorDoorSystem
         # latch on the room side.
         def self.na_compute_open_rotation_transform(config)
             opening_w_mm    = config["Na__DoorConfig__OpeningWidth_mm"].to_f
-            wall_depth_mm   = config["Na__DoorConfig__WallDepth_mm"].to_f
             lining_t_mm     = config["Na__DoorConfig__LiningThickness_mm"].to_f
-            panel_t_mm      = config["Na__DoorConfig__PanelThickness_mm"].to_f
-            face_offset_mm  = config["Na__DoorConfig__LiningFaceOffset_mm"].to_f
             swing_side      = (config["Na__DoorConfig__SwingSide"]      || "Left").downcase
             swing_direction = (config["Na__DoorConfig__SwingDirection"] || "Inward").downcase
 
             hinge_x_mm      = (swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm)
-            hinge_y_mm      = face_offset_mm + (wall_depth_mm - panel_t_mm) / 2.0
+            hinge_y_mm      = GeometryHelpers.na_panel_y_origin_mm(config)    # <-- Swing-direction-aware panel front-face Y
 
             pivot           = Geom::Point3d.new(
                 GeometryHelpers.na_mm_to_inch(hinge_x_mm),

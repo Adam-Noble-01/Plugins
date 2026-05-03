@@ -133,10 +133,8 @@ module Na__InteriorDoorSystem
         def self.na_build_panel(config, entities, material = nil)
             opening_w_mm     = config["Na__DoorConfig__OpeningWidth_mm"].to_f
             opening_h_mm     = config["Na__DoorConfig__OpeningHeight_mm"].to_f
-            wall_depth_mm    = config["Na__DoorConfig__WallDepth_mm"].to_f
             lining_t_mm      = config["Na__DoorConfig__LiningThickness_mm"].to_f
             panel_t_mm       = config["Na__DoorConfig__PanelThickness_mm"].to_f
-            face_offset_mm   = config["Na__DoorConfig__LiningFaceOffset_mm"].to_f
             floor_clear_mm   = config["Na__DoorConfig__PanelFloorClearance_mm"].to_f
 
             panel_w_mm       = opening_w_mm - 2 * lining_t_mm                    # <-- Inner opening width
@@ -144,11 +142,11 @@ module Na__InteriorDoorSystem
 
             return nil if panel_w_mm <= 0 || panel_h_mm <= 0
 
-            panel_y_mm       = face_offset_mm + (wall_depth_mm - panel_t_mm) / 2.0  # <-- Centre panel inside lining depth
+            panel_y_mm       = GeometryHelpers.na_panel_y_origin_mm(config)      # <-- Swing-direction-aware panel front-face Y
             origin_mm        = [lining_t_mm, panel_y_mm, floor_clear_mm]
             size_mm          = [panel_w_mm, panel_t_mm, panel_h_mm]
 
-            DebugTools.na_debug_geometry("Build panel: w=#{panel_w_mm}mm h=#{panel_h_mm}mm t=#{panel_t_mm}mm")
+            DebugTools.na_debug_geometry("Build panel: w=#{panel_w_mm}mm h=#{panel_h_mm}mm t=#{panel_t_mm}mm y=#{panel_y_mm}mm")
             GeometryHelpers.na_create_door_panel_solid(entities, origin_mm, size_mm, material)
         end
         # ---------------------------------------------------------------
@@ -170,10 +168,7 @@ module Na__InteriorDoorSystem
         # @return [Sketchup::Group, nil]
         def self.na_build_swing(config, entities)
             opening_w_mm    = config["Na__DoorConfig__OpeningWidth_mm"].to_f
-            wall_depth_mm   = config["Na__DoorConfig__WallDepth_mm"].to_f
             lining_t_mm     = config["Na__DoorConfig__LiningThickness_mm"].to_f
-            panel_t_mm      = config["Na__DoorConfig__PanelThickness_mm"].to_f
-            face_offset_mm  = config["Na__DoorConfig__LiningFaceOffset_mm"].to_f
             swing_side      = (config["Na__DoorConfig__SwingSide"] || "Left").downcase.to_sym
             swing_direction = (config["Na__DoorConfig__SwingDirection"] || "Inward").downcase.to_sym
 
@@ -182,7 +177,7 @@ module Na__InteriorDoorSystem
             return nil if radius_mm <= 0
 
             hinge_x_mm      = (swing_side == :left) ? lining_t_mm : (opening_w_mm - lining_t_mm)
-            hinge_y_mm      = face_offset_mm + (wall_depth_mm - panel_t_mm) / 2.0  # <-- Match panel centre
+            hinge_y_mm      = GeometryHelpers.na_panel_y_origin_mm(config)        # <-- Match panel front face (Y origin), not wall centre
             hinge_pt_mm     = [hinge_x_mm, hinge_y_mm]
 
             DebugTools.na_debug_geometry("Build swing: side=#{swing_side} dir=#{swing_direction} r=#{radius_mm}mm")

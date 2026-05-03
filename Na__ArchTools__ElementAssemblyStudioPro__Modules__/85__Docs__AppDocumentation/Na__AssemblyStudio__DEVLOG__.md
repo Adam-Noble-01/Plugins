@@ -3,6 +3,67 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | v1.3.0 - Interior Door Panel Design Subsystem + Edge Colour Manager
+
+### New: decorative panel-design linework on every interior door
+- Added a fully-modular Door Panel Design subsystem under `02__Src__AppModules/40__System__InteriorDoorSystem/`. The user can now switch a door from a plain slab to one of four UK-style panel layouts via the new `Panel Design Style` select on the Panel & Swing tab:
+  - `None` (plain panel, default)
+  - `VerticalNarrow` (vertical narrow panes, slider-controlled preferred pane width)
+  - `ClassicalSixPanel` (Georgian three-tier 38 / 38 / 24 split + central mullion -> 2+2+2 panels)
+  - `FourPanel` (2x2 grid)
+  - `HorizontalThree` (two horizontal cross-rails, no mullion)
+- Geometry is authored as `Sketchup::Edge` linework only (no faces) so the door panel solid is never coplanar-split. Each panel face has its own dedicated nested group.
+
+### New: group nesting hierarchy for the design subsystem
+- Inside `MOD001__ROT__90-Deg__DoorPanel`, alongside `Na__DoorPanel__Solid` and the handles, a new container appears:
+  - `Na__DoorPanel__DesignContainer`
+    - `Na__PanelDesign__FrontFace` (edges at `Y = panel_front_y - 0.5mm`)
+    - `Na__PanelDesign__BackFace`  (edges at `Y = panel_back_y  + 0.5mm`)
+- The 0.5mm Y projection-offset (NA_FACE_PROJECTION_OFFSET_MM) keeps the linework visually flush with the panel face but render-stable (no Z-fighting against the solid in the SketchUp view).
+- Because the open-state ADR copy is built by `Sketchup::Group#copy` of the closed ADR (`Na__DoorAssemblyComposer.na_compose_open_state_copy`), the design subsystem only runs once per build and the linework propagates to the open copy automatically.
+
+### New: four sliders + one preferred-width slider drive the inner perimeter
+- Added to the Panel & Swing tab (`Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Config__.js`):
+  - `Stile Width (Sides)` - default 95 mm (drives BOTH stiles).
+  - `Top Rail Height` - default 100 mm.
+  - `Bottom Rail Height` - default 200 mm.
+  - `Inner Rail / Mullion Thickness` - default 70 mm.
+  - `Vertical Pane Width (Vertical Narrow only)` - default 90 mm. Hidden by `Na_DoorUI.na_sync_panel_design_visibility` for every other style so the tab stays uncluttered.
+- The four perimeter constraints feed `Na__PanelDesignFrame.na_compute_layout`, which produces the inner-perimeter rect every style consumes. The Vertical Narrow style normalises division count to `(inner_w / preferred_pane_w).round` so pane width hugs the slider value as the door grows or shrinks.
+
+### New: Na__EdgeColourManager - URL/cache loader for the MTE edge palette
+- Added `02__Src__AppModules/02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__.rb`. Mirrors the `Na__MaterialManager` pattern but loads `Na__DataLib__CoreIndex__EdgeMaterials__.json` via the existing `Na__DataLib__CacheData.Na__Cache__LoadData(:edge_materials)` pipeline (URL -> on-disk cache -> local plugin fallback; cache file never deleted).
+- Public API:
+  - `na_load_edge_colours_library` / `na_force_refresh_from_url` (parity with MaterialManager).
+  - `na_get_edge_material_by_id(mte_id)` -> resolves to a `Sketchup::Material` on the active model, creating it from the registered RGB triple if missing.
+  - `na_default_dark_grey_material` -> convenience for the canonical `MTE103__LineColour__DarkGrey__L40` (#666666).
+  - `na_apply_edge_colour_to_group(group, mte_id)` -> recursively walks `Sketchup::Group`s and `Sketchup::ComponentInstance`s and assigns the resolved material to every edge it finds. Used by `Na__PanelDesignBuilder` after each design build.
+- Hardcoded safety fallback: only `MTE103__LineColour__DarkGrey__L40` at RGB(102, 102, 102), created on-demand if and only if the live library is unavailable AND the canonical dark-grey id is requested.
+
+### New: edge-colour palette refresh on every dialog open + on developer reload
+- `Na__AppCore::Na__DialogManager.na_show_dialog` now calls `EdgeColourManager.na_force_refresh_from_url` alongside the existing `MaterialManager.na_force_refresh_from_url`, so the door panel design subsystem always sees the latest published MTE palette before any door geometry is generated.
+- The developer `Reload Scripts` flow purges the on-disk cache for both `:materials` AND `:edge_materials` and re-fetches both from the live URL before reloading any Ruby files. The status bar now reports both refresh sources (e.g. `Reloaded 47 Ruby files | Materials: url | Edges: url`).
+
+### New: Na__GeometryHelpers XZ-plane linework primitives
+- Added three primitives to `Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers`:
+  - `na_create_xz_line(entities, x0_mm, z0_mm, x1_mm, z1_mm, y_mm)` - single edge in the XZ plane at constant Y.
+  - `na_create_horizontal_rail_lines(entities, x0_mm, x1_mm, z_centre_mm, thickness_mm, y_mm)` - draws a horizontal cross-rail as a pair of parallel edges spaced by `thickness_mm`.
+  - `na_create_vertical_rail_lines(entities, x_centre_mm, z0_mm, z1_mm, thickness_mm, y_mm)` - draws a vertical mullion as a pair of parallel edges spaced by `thickness_mm`.
+- Every style module uses only these primitives + the inner-perimeter rectangle from the frame helper, so "what to draw" lives in one place per style and "how to draw a rail" is shared.
+
+### Wiring
+- `Na__InteriorDoorSystem.na_require_door_modules` now requires the new `EdgeColourManager`, `PanelDesignFrame`, four `PanelDesignStyles__*`, and `PanelDesignBuilder` files in dependency order.
+- `NA_DEFAULT_DOOR_CONFIG.Na__DoorConfiguration` carries eight new keys: `PanelDesignEnabled`, `PanelDesignStyle`, `PanelDesignStileWidth_mm`, `PanelDesignTopRail_mm`, `PanelDesignBottomRail_mm`, `PanelDesignInnerRailThickness_mm`, `PanelDesignVerticalPaneWidth_mm`, `PanelDesignEdgeColourId`.
+- `Na__DoorAssemblyComposer.na_compose_closed_assembly` calls `Na__PanelDesignBuilder.na_build_panel_design(config, mod_ents)` after the panel and handles are built. The builder is fully guarded - it returns `nil` silently when disabled, when style is `None`, when the inner perimeter would invert under aggressive slider values, and when any unhandled error occurs.
+- The `Na_DoorUI.na_handle_control_change` JS hook listens for changes to `Na__DoorConfig__PanelDesignStyle` and toggles the Vertical Pane Width slider's visibility on the fly. Initial state is synced once on mount and once after a selection-load `na_set_active_config`.
+
+### Why this matters
+- Doors now read as actual UK-style joinery elements out of the box: change the style select and the linework instantly redraws on both faces, both ADR copies (closed + open), and at the new MTE-driven dark-grey edge colour. No hardcoded palette, no manual painting, no panel-solid splitting.
+- The subsystem follows the existing modular contract: every style is its own file, every primitive sits in `Na__GeometryHelpers`, the edge palette loader sits in `02__AppData/` next to its sibling `MaterialManager`, and the AppConfig carries every default. Adding a new style is now a one-file addition + one switch case in `Na__PanelDesignBuilder.na_dispatch_style`.
+# =============================================================================
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | v1.2.1 - Interior Door Architrave Top-Edge Symmetry Fix
 
 ### Top architrave bottom edge now sits ABOVE the head lining bottom face (sign correction)

@@ -113,6 +113,86 @@ window.NA_DOOR_PANEL_TAB_CONFIG = [
         label       : 'Create Open-State Copy',
         type        : 'checkbox',
         default     : true
+    },
+
+    // -------------------------------------------------------------------------
+    // Door Panel Design (decorative linework on each panel face)
+    // -------------------------------------------------------------------------
+    // Drives the Na__PanelDesignBuilder Ruby subsystem. Edge linework is
+    // painted with the canonical dark-grey edge material (MTE103) by the
+    // Ruby side; the JS layer only supplies the slider/select values.
+    // The Vertical Pane Width slider is rendered for every style but only
+    // consumed by the VerticalNarrow style; MainUiLogic hides it when any
+    // other style is active so the UI stays uncluttered.
+    // -------------------------------------------------------------------------
+    {
+        id          : 'Na__DoorConfig__PanelDesignEnabled',
+        label       : 'Show Panel Design',
+        type        : 'checkbox',
+        default     : true
+    },
+    {
+        id          : 'Na__DoorConfig__PanelDesignStyle',
+        label       : 'Panel Design Style',
+        type        : 'select',
+        default     : 'None',
+        options     : [
+            { value: 'None',              label: 'None (Plain Panel)'        },
+            { value: 'VerticalNarrow',    label: 'Vertical Narrow Panels'    },
+            { value: 'ClassicalSixPanel', label: 'Classical Six-Panel'       },
+            { value: 'FourPanel',         label: 'Four-Panel'                },
+            { value: 'HorizontalThree',   label: 'Horizontal Three-Panel'    }
+        ]
+    },
+    {
+        id          : 'Na__DoorConfig__PanelDesignStileWidth_mm',
+        label       : 'Stile Width (Sides)',
+        type        : 'slider',
+        min         : 50,
+        max         : 200,
+        step        : 1,
+        default     : 95,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__DoorConfig__PanelDesignTopRail_mm',
+        label       : 'Top Rail Height',
+        type        : 'slider',
+        min         : 50,
+        max         : 250,
+        step        : 1,
+        default     : 100,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__DoorConfig__PanelDesignBottomRail_mm',
+        label       : 'Bottom Rail Height',
+        type        : 'slider',
+        min         : 100,
+        max         : 400,
+        step        : 1,
+        default     : 200,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__DoorConfig__PanelDesignInnerRailThickness_mm',
+        label       : 'Inner Rail / Mullion Thickness',
+        type        : 'slider',
+        min         : 30,
+        max         : 150,
+        step        : 1,
+        default     : 70,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__DoorConfig__PanelDesignVerticalPaneWidth_mm',
+        label       : 'Vertical Pane Width (Vertical Narrow only)',
+        type        : 'slider',
+        min         : 40,
+        max         : 200,
+        step        : 1,
+        default     : 90,
+        unit        : 'mm'
     }
 ];
 
@@ -164,9 +244,7 @@ window.NA_DOOR_HANDLE_CONFIG = [
         label       : 'Handle Asset',
         type        : 'select',
         default     : 'Na__InteriorDoor__Handle__Default',
-        options     : [
-            { value: 'Na__InteriorDoor__Handle__Default', label: 'Default Round Rose Lever' }
-        ]
+        options     : []                                                     // <-- Dynamic options are injected from Ruby using JSON Na__Asset__Metadata.Na__Asset__Name
     },
     {
         id          : 'Na__DoorConfig__HandleHeight_mm',
@@ -175,7 +253,7 @@ window.NA_DOOR_HANDLE_CONFIG = [
         min         : 850,
         max         : 1100,
         step        : 5,
-        default     : 1050,
+        default     : 900,
         unit        : 'mm'
     }
 ];

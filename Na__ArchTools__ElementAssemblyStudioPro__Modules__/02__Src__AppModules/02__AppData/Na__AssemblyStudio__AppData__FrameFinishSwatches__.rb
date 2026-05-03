@@ -113,7 +113,8 @@ module Na__AssemblyStudio
                 return [] if swatch_keys.empty?
 
                 label_map = na_swatch_labels_from_meta(palette_config)
-                swatch_keys.map { |id| na_build_swatch_record(id, label_map) }.compact
+                swatches = swatch_keys.map { |id| na_build_swatch_record(id, label_map) }.compact
+                na_promote_default_swatch_first(swatches, palette)
             end
 
             # FUNCTION | Get Default Swatch Key for a Palette
@@ -295,6 +296,23 @@ module Na__AssemblyStudio
                 return description.to_s if description && !description.to_s.empty?
 
                 material_id.to_s
+            end
+
+            # Keep the configured default handle finish visible as card #1 in
+            # the Handle Finish row, while leaving all other palettes untouched.
+            def self.na_promote_default_swatch_first(swatches, palette)
+                return swatches unless palette == :handle_finish
+                return swatches unless swatches.is_a?(Array) && !swatches.empty?
+
+                default_id = na_default_key(:handle_finish).to_s
+                return swatches if default_id.empty?
+
+                default_index = swatches.find_index { |row| row.is_a?(Hash) && row[:id].to_s == default_id }
+                return swatches unless default_index && default_index > 0
+
+                default_row = swatches[default_index]
+                remaining_rows = swatches.each_with_index.filter_map { |row, idx| row unless idx == default_index }
+                [default_row] + remaining_rows
             end
 
             # -----------------------------------------------------------------

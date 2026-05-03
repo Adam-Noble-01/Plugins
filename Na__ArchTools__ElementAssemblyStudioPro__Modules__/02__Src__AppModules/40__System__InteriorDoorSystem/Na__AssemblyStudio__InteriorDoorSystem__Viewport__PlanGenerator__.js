@@ -461,6 +461,7 @@
         var liningThickness  = na_num(config, 'Na__DoorConfig__LiningThickness_mm',  35);
         var panelThickness   = na_num(config, 'Na__DoorConfig__PanelThickness_mm',   40);
         var swingSide        = (config && config['Na__DoorConfig__SwingSide']) || 'Right';
+        var swingDirection   = String((config && config['Na__DoorConfig__SwingDirection']) || 'Inward').toLowerCase();
 
         var openingX         = NA_WALL_PADDING_MM;
         var totalWidth       = openingWidth + (NA_WALL_PADDING_MM * 2);
@@ -468,7 +469,16 @@
         var totalHeight      = wallDepth + (NA_VIEW_VERTICAL_PAD_MM * 2);
 
         var panelClearWidth  = openingWidth - (liningThickness * 2);
-        var panelY           = wallTopY + ((wallDepth - panelThickness) / 2);
+
+        var panelY;
+        if (swingDirection === 'inward') {
+            panelY = wallTopY + wallDepth - panelThickness;                    // <-- Flush with FAR wall face (panel swings toward near/room side)
+        } else if (swingDirection === 'outward') {
+            panelY = wallTopY;                                                 // <-- Flush with NEAR wall face (panel swings toward far/exterior side)
+        } else {
+            panelY = wallTopY + ((wallDepth - panelThickness) / 2);            // <-- Centred fallback
+        }
+
         var panelX           = (swingSide === 'Left')
             ? openingX + liningThickness
             : openingX + openingWidth - liningThickness - panelClearWidth;
