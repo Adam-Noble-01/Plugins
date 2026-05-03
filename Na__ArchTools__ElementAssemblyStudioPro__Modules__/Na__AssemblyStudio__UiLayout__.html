@@ -336,11 +336,28 @@
          door / window card sections stay hidden (debug aid).
          ========================================================================== -->
     <script>
+        // Retry up to 8 times with 100ms backoff because SketchUp's bridge may
+        // bind sketchup.<callback> functions a tick or two after DOMContentLoaded.
+        // Ruby ALSO pushes swatches proactively from a UI.start_timer 0.5s after
+        // dialog show, so this is one of two redundant trigger paths.
         (function () {
+            var NA_MAX_RETRIES   = 8;
+            var NA_RETRY_GAP_MS  = 100;
+            var na_attempt_count = 0;
+
             function na_request_swatches() {
-                if (typeof sketchup === 'undefined' || typeof sketchup.na_requestFrameFinishSwatches !== 'function') return;
-                try { sketchup.na_requestFrameFinishSwatches(); }
-                catch (err) { console.warn('[NA_BRIDGE] na_requestFrameFinishSwatches failed:', err); }
+                na_attempt_count += 1;
+                if (typeof sketchup !== 'undefined' &&
+                    typeof sketchup.na_requestFrameFinishSwatches === 'function') {
+                    try { sketchup.na_requestFrameFinishSwatches(); }
+                    catch (err) { console.warn('[NA_BRIDGE] na_requestFrameFinishSwatches threw:', err); }
+                    return;
+                }
+                if (na_attempt_count < NA_MAX_RETRIES) {
+                    setTimeout(na_request_swatches, NA_RETRY_GAP_MS);
+                } else {
+                    console.warn('[NA_BRIDGE] na_requestFrameFinishSwatches never bound after', NA_MAX_RETRIES, 'tries (Ruby timer-push will still fire)');
+                }
             }
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', na_request_swatches);

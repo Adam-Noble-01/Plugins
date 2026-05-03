@@ -164,6 +164,28 @@ module Na__DataLib__CacheData
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Delete the On-Disk Cache File for a Single File Key
+    # ---------------------------------------------------------------
+    # Used by the developer reload flow to guarantee a clean URL fetch
+    # afterwards. Returns true if a file was actually removed.
+    # ---------------------------------------------------------------
+    def self.Na__Cache__PurgeCacheFile(file_key)
+        cache_path = Na__Cache__CacheFilePath(file_key)
+        if File.exist?(cache_path)
+            begin
+                File.delete(cache_path)
+                puts "    [Na__DataLib__Cache] Cache purged for :#{file_key}"
+                return true
+            rescue => e
+                puts "    [Na__DataLib__Cache] Cache purge error for :#{file_key}: #{e.message}"
+                return false
+            end
+        end
+        puts "    [Na__DataLib__Cache] No cache file to purge for :#{file_key}"
+        false
+    end
+    # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

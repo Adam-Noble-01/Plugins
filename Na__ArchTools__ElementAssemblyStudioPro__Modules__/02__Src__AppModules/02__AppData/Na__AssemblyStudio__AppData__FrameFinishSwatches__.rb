@@ -45,33 +45,43 @@ module Na__AssemblyStudio
             # REGION | Palette Configuration (Per-Palette Meta Keys + JS Globals)
             # -----------------------------------------------------------------
 
-            NA_META_UI_DEFAULTS_KEY   = "Na__DataLib__UiDefaults".freeze
+            NA_META_UI_DEFAULTS_KEY        = "Na__DataLib__UiDefaults".freeze
+            NA_META_UI_DEFAULTS_LEGACY_KEY = "uiDefaults".freeze              # <-- Pre-v1.0.8 flat-keys block
 
             # Each palette declares:
-            #   :group_key       -> nested group inside Na__DataLib__UiDefaults
-            #   :swatch_keys     -> array of MAT IDs to render as cards
-            #   :default_key     -> the default swatch ID
-            #   :labels_key      -> map of MAT ID -> human label
-            #   :js_swatches     -> JS window global for the swatch array
-            #   :js_default_key  -> JS window global for the default key
+            #   :group_key             -> NEW nested group inside Na__DataLib__UiDefaults
+            #   :swatch_keys           -> NEW array key inside the nested group
+            #   :default_key           -> NEW default swatch key inside the nested group
+            #   :labels_key            -> NEW labels map key inside the nested group
+            #   :legacy_swatch_keys    -> OLD flat key under meta.uiDefaults (frame palette only)
+            #   :legacy_default_key    -> OLD flat default key
+            #   :legacy_labels_key     -> OLD flat labels map key
+            #   :js_swatches           -> JS window global for the swatch array
+            #   :js_default_key        -> JS window global for the default key
             NA_PALETTES = {
                 :frame_finish => {
-                    :group_key      => "Na__DataLib__UiDefaults__FrameFinish".freeze,
-                    :swatch_keys    => "Na__DataLib__UiDefaults__FrameFinish__SwatchKeys".freeze,
-                    :default_key    => "Na__DataLib__UiDefaults__FrameFinish__DefaultSwatchKey".freeze,
-                    :labels_key     => "Na__DataLib__UiDefaults__FrameFinish__SwatchLabels".freeze,
-                    :js_swatches    => "NA_FRAME_FINISH_SWATCHES".freeze,
-                    :js_default_key => "NA_FRAME_FINISH_DEFAULT_KEY".freeze,
-                    :fallback_key   => "MAT001__Default".freeze
+                    :group_key             => "Na__DataLib__UiDefaults__FrameFinish".freeze,
+                    :swatch_keys           => "Na__DataLib__UiDefaults__FrameFinish__SwatchKeys".freeze,
+                    :default_key           => "Na__DataLib__UiDefaults__FrameFinish__DefaultSwatchKey".freeze,
+                    :labels_key            => "Na__DataLib__UiDefaults__FrameFinish__SwatchLabels".freeze,
+                    :legacy_swatch_keys    => "FrameFinishSwatchKeys".freeze,
+                    :legacy_default_key    => "DefaultFrameFinishKey".freeze,
+                    :legacy_labels_key     => "FrameFinishSwatchLabels".freeze,
+                    :js_swatches           => "NA_FRAME_FINISH_SWATCHES".freeze,
+                    :js_default_key        => "NA_FRAME_FINISH_DEFAULT_KEY".freeze,
+                    :fallback_key          => "MAT001__Default".freeze
                 },
                 :handle_finish => {
-                    :group_key      => "Na__DataLib__UiDefaults__HandleFinish".freeze,
-                    :swatch_keys    => "Na__DataLib__UiDefaults__HandleFinish__SwatchKeys".freeze,
-                    :default_key    => "Na__DataLib__UiDefaults__HandleFinish__DefaultSwatchKey".freeze,
-                    :labels_key     => "Na__DataLib__UiDefaults__HandleFinish__SwatchLabels".freeze,
-                    :js_swatches    => "NA_HANDLE_FINISH_SWATCHES".freeze,
-                    :js_default_key => "NA_HANDLE_FINISH_DEFAULT_KEY".freeze,
-                    :fallback_key   => "MAT612__Metal__Ironmongery__Brass".freeze
+                    :group_key             => "Na__DataLib__UiDefaults__HandleFinish".freeze,
+                    :swatch_keys           => "Na__DataLib__UiDefaults__HandleFinish__SwatchKeys".freeze,
+                    :default_key           => "Na__DataLib__UiDefaults__HandleFinish__DefaultSwatchKey".freeze,
+                    :labels_key            => "Na__DataLib__UiDefaults__HandleFinish__SwatchLabels".freeze,
+                    :legacy_swatch_keys    => nil,                            # <-- No legacy form (handle palette is v1.0.8+)
+                    :legacy_default_key    => nil,
+                    :legacy_labels_key     => nil,
+                    :js_swatches           => "NA_HANDLE_FINISH_SWATCHES".freeze,
+                    :js_default_key        => "NA_HANDLE_FINISH_DEFAULT_KEY".freeze,
+                    :fallback_key          => "MAT612__Metal__Ironmongery__Brass".freeze
                 }
             }.freeze
 
@@ -112,17 +122,24 @@ module Na__AssemblyStudio
                 palette_config = NA_PALETTES[palette]
                 return nil unless palette_config
 
-                meta = MaterialManager.na_meta
                 fallback = palette_config[:fallback_key]
+                meta     = MaterialManager.na_meta
                 return fallback unless meta.is_a?(Hash)
 
-                ui_defaults = meta[NA_META_UI_DEFAULTS_KEY]
-                return fallback unless ui_defaults.is_a?(Hash)
+                # Try NEW nested structure first
+                group = na_palette_group_new(palette_config, meta)
+                if group.is_a?(Hash) && group[palette_config[:default_key]]
+                    return group[palette_config[:default_key]].to_s
+                end
 
-                group = ui_defaults[palette_config[:group_key]]
-                return fallback unless group.is_a?(Hash)
+                # Fall back to LEGACY flat structure (frame palette only)
+                legacy = na_legacy_uidefaults(meta)
+                legacy_key = palette_config[:legacy_default_key]
+                if legacy.is_a?(Hash) && legacy_key && legacy[legacy_key]
+                    return legacy[legacy_key].to_s
+                end
 
-                (group[palette_config[:default_key]] || fallback).to_s
+                fallback
             end
 
             # FUNCTION | Push Both Palettes + Load Status into the HtmlDialog
@@ -138,7 +155,15 @@ module Na__AssemblyStudio
             # On failure also raises a persistent toast in #na-status-bar.
             # ---------------------------------------------------------------
             def self.na_push_to_dialog(dialog)
-                return false unless dialog && dialog.respond_to?(:execute_script)
+                puts "    [FrameFinishSwatches] na_push_to_dialog called"
+                unless dialog && dialog.respond_to?(:execute_script)
+                    puts "    [FrameFinishSwatches] ERROR: dialog not pushable (nil or no execute_script)"
+                    return false
+                end
+
+                meta_present = !MaterialManager.na_meta.nil?
+                load_status  = MaterialManager.na_load_status
+                puts "    [FrameFinishSwatches] meta_present=#{meta_present} load_status=#{load_status.inspect}"
 
                 frame_swatches  = na_get_swatches(:frame_finish)
                 handle_swatches = na_get_swatches(:handle_finish)
@@ -146,22 +171,20 @@ module Na__AssemblyStudio
                 handle_default  = na_default_key(:handle_finish)
                 status          = na_status_for_js
 
+                puts "    [FrameFinishSwatches] frame=#{frame_swatches.length} (default=#{frame_default}), handle=#{handle_swatches.length} (default=#{handle_default}), status=#{status}"
+
                 script = na_build_push_script(
                     frame_swatches, frame_default,
                     handle_swatches, handle_default,
                     status
                 )
                 dialog.execute_script(script)
+                puts "    [FrameFinishSwatches] execute_script delivered (#{script.length} chars)"
 
                 if status == "failed"
                     UiBridge.na_send_status(dialog, "error", NA_TOAST_FAIL_MESSAGE, persistent: true)
                 end
 
-                DebugTools.na_debug_ui(
-                    "FrameFinishSwatches: pushed " \
-                    "frame=#{frame_swatches.length} handle=#{handle_swatches.length} " \
-                    "(status: #{status})"
-                )
                 true
             end
 
@@ -178,24 +201,60 @@ module Na__AssemblyStudio
             end
 
             def self.na_swatch_keys_from_meta(palette_config)
-                group = na_palette_group(palette_config)
-                return [] unless group.is_a?(Hash)
-                Array(group[palette_config[:swatch_keys]]).map(&:to_s)
+                meta = MaterialManager.na_meta
+                return [] unless meta.is_a?(Hash)
+
+                # NEW nested structure
+                group = na_palette_group_new(palette_config, meta)
+                if group.is_a?(Hash)
+                    keys = group[palette_config[:swatch_keys]]
+                    return Array(keys).map(&:to_s) if keys
+                end
+
+                # LEGACY flat structure (frame palette only)
+                legacy     = na_legacy_uidefaults(meta)
+                legacy_key = palette_config[:legacy_swatch_keys]
+                if legacy.is_a?(Hash) && legacy_key && legacy[legacy_key]
+                    return Array(legacy[legacy_key]).map(&:to_s)
+                end
+
+                []
             end
 
             def self.na_swatch_labels_from_meta(palette_config)
-                group = na_palette_group(palette_config)
-                return {} unless group.is_a?(Hash)
-                labels = group[palette_config[:labels_key]]
-                labels.is_a?(Hash) ? labels : {}
+                meta = MaterialManager.na_meta
+                return {} unless meta.is_a?(Hash)
+
+                # NEW nested structure
+                group = na_palette_group_new(palette_config, meta)
+                if group.is_a?(Hash)
+                    labels = group[palette_config[:labels_key]]
+                    return labels if labels.is_a?(Hash)
+                end
+
+                # LEGACY flat structure (frame palette only)
+                legacy     = na_legacy_uidefaults(meta)
+                legacy_key = palette_config[:legacy_labels_key]
+                if legacy.is_a?(Hash) && legacy_key && legacy[legacy_key].is_a?(Hash)
+                    return legacy[legacy_key]
+                end
+
+                {}
             end
 
-            def self.na_palette_group(palette_config)
-                meta = MaterialManager.na_meta
-                return nil unless meta.is_a?(Hash)
+            # Resolve the per-palette group object from the NEW nested
+            # meta.Na__DataLib__UiDefaults.<palette_group> structure.
+            # Returns nil if the new structure is absent.
+            def self.na_palette_group_new(palette_config, meta)
                 ui_defaults = meta[NA_META_UI_DEFAULTS_KEY]
                 return nil unless ui_defaults.is_a?(Hash)
                 ui_defaults[palette_config[:group_key]]
+            end
+
+            # Resolve the LEGACY pre-v1.0.8 meta.uiDefaults flat-keys block.
+            # Returns nil if the legacy block is absent.
+            def self.na_legacy_uidefaults(meta)
+                meta[NA_META_UI_DEFAULTS_LEGACY_KEY]
             end
 
             # -----------------------------------------------------------------

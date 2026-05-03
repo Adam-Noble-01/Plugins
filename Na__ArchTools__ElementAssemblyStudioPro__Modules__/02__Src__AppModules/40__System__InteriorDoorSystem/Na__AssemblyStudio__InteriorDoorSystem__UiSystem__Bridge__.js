@@ -41,6 +41,9 @@
 (function () {
     'use strict';
 
+    window.NA_DOOR_HANDLE_ASSET_PREVIEW_CACHE = window.NA_DOOR_HANDLE_ASSET_PREVIEW_CACHE || {};
+    window.NA_DOOR_HANDLE_ASSET_PREVIEW_WARNINGS = window.NA_DOOR_HANDLE_ASSET_PREVIEW_WARNINGS || {};
+
 
 // -----------------------------------------------------------------------------
 // REGION | UI Action Hooks (called from HTML onclick handlers)
@@ -83,6 +86,200 @@
     // or window.na_measureDoorOpening - both onclick handlers were removed
     // when the door tab's secondary header was deleted in v0.11.6.
     window.na_doorLiveModeActive = false;
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Handle Asset Sync (Ruby -> JS)
+// -----------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Return the HandleAsset descriptor record
+    // ------------------------------------------------------------
+    function na_door_get_handle_descriptor() {
+        var source = window.NA_DOOR_HANDLE_CONFIG || [];
+        for (var i = 0; i < source.length; i++) {
+            if (source[i] && source[i].id === 'Na__DoorConfig__HandleAssetKey') return source[i];
+        }
+        return null;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Patch Select DOM Options for a Control ID
+    // ------------------------------------------------------------
+    function na_door_patch_select_options(controlId, options, selectedValue) {
+        var select = document.getElementById(controlId + '-select');
+        if (!select) return;
+        select.innerHTML = '';
+
+        (options || []).forEach(function (option) {
+            var opt = document.createElement('option');
+            opt.value = option.value;
+            opt.textContent = option.label;
+            if (option.value === selectedValue) opt.selected = true;
+            select.appendChild(opt);
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve the Active Handle Asset Key
+    // ------------------------------------------------------------
+    function na_door_get_active_handle_key() {
+        if (typeof Na_DoorUI === 'undefined' || typeof Na_DoorUI.na_get_active_config !== 'function') {
+            return '';
+        }
+        var payload = Na_DoorUI.na_get_active_config();
+        var config = payload && payload['Na__DoorConfiguration'];
+        var key = config && config['Na__DoorConfig__HandleAssetKey'];
+        return (key || '').toString().trim();
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Read One Handle Preview Cache Record
+    // ------------------------------------------------------------
+    function na_door_get_preview_cache_entry(assetKey) {
+        if (!assetKey) return null;
+        var cache = window.NA_DOOR_HANDLE_ASSET_PREVIEW_CACHE || {};
+        return cache[assetKey] || null;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Assert Cache Entry Exists For Selected Handle
+    // ------------------------------------------------------------
+    function na_door_ensure_preview_cache_entry(assetKey, reason) {
+        if (!assetKey) return;
+        var entry = na_door_get_preview_cache_entry(assetKey);
+        var hasPlan = !!(entry && entry['Na__Asset__Plan2D']);
+        var hasElevation = !!(entry && entry['Na__Asset__Elevation2D']);
+        if (hasPlan || hasElevation) return;
+        console.warn('[Na_DoorBridge] Missing preview cache for handle:', assetKey, '| reason:', reason || 'unspecified');
+        window.na_requestDoorHandlePreviewAsset(assetKey);
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Emit Preview Warnings to Console + Status
+    // ------------------------------------------------------------
+    function na_door_emit_preview_warnings(assetKey, warnings) {
+        if (!Array.isArray(warnings) || !warnings.length) return;
+        var warningText = warnings.join(' | ');
+        window.NA_DOOR_HANDLE_ASSET_PREVIEW_WARNINGS[assetKey] = warningText;
+        console.warn('[Na_DoorBridge] Handle preview warnings for', assetKey + ':', warningText);
+        if (typeof window.na_showStatus === 'function') {
+            window.na_showStatus('warning', 'Handle preview contract warning: ' + warningText);
+        }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Request dynamic handle option list from Ruby
+    // ------------------------------------------------------------
+    window.na_requestDoorHandleAssetOptions = function () {
+        if (!window.sketchup || typeof window.sketchup.na_requestDoorHandleAssetOptions !== 'function') return;
+        try {
+            window.sketchup.na_requestDoorHandleAssetOptions();
+        } catch (err) {
+            console.warn('[Na_DoorBridge] na_requestDoorHandleAssetOptions failed:', err);
+        }
+    };
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Request selected handle preview blocks from Ruby
+    // ------------------------------------------------------------
+    window.na_requestDoorHandlePreviewAsset = function (assetKey) {
+        if (!window.sketchup || typeof window.sketchup.na_requestDoorHandlePreviewAsset !== 'function') return;
+        try {
+            var resolvedKey = (assetKey || '').toString().trim();
+            if (!resolvedKey) resolvedKey = na_door_get_active_handle_key();
+            if (!resolvedKey) resolvedKey = 'Na__InteriorDoor__Handle__Default';
+            window.sketchup.na_requestDoorHandlePreviewAsset(resolvedKey);
+        } catch (err) {
+            console.warn('[Na_DoorBridge] na_requestDoorHandlePreviewAsset failed:', err);
+        }
+    };
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Ruby -> JS - Receive dynamic handle options list
+    // ------------------------------------------------------------
+    window.na_receiveDoorHandleAssetOptions = function (jsonString) {
+        try {
+            var payload = JSON.parse(jsonString || '{}');
+            var options = Array.isArray(payload.options) ? payload.options : [];
+            if (!options.length) {
+                console.warn('[Na_DoorBridge] No handle options received from Ruby');
+                if (typeof window.na_showStatus === 'function') {
+                    window.na_showStatus('warning', 'No valid handle assets available for preview.');
+                }
+                return;
+            }
+
+            var descriptor = na_door_get_handle_descriptor();
+            if (!descriptor) return;
+            descriptor.options = options;
+
+            var activePayload = (typeof Na_DoorUI !== 'undefined' && typeof Na_DoorUI.na_get_active_config === 'function')
+                ? Na_DoorUI.na_get_active_config()
+                : null;
+            var activeConfig = activePayload && activePayload['Na__DoorConfiguration'] ? activePayload['Na__DoorConfiguration'] : null;
+            var selectedKey = activeConfig ? activeConfig['Na__DoorConfig__HandleAssetKey'] : null;
+
+            if (!selectedKey || !options.some(function (opt) { return opt.value === selectedKey; })) {
+                selectedKey = payload.defaultKey || options[0].value;
+                if (activeConfig) {
+                    activeConfig['Na__DoorConfig__HandleAssetKey'] = selectedKey;
+                    if (typeof Na_DoorUI !== 'undefined' && typeof Na_DoorUI.na_set_active_config === 'function') {
+                        Na_DoorUI.na_set_active_config(activePayload);
+                    }
+                }
+            }
+
+            na_door_patch_select_options('Na__DoorConfig__HandleAssetKey', options, selectedKey);
+            na_door_ensure_preview_cache_entry(selectedKey, 'asset-options-received');
+        } catch (err) {
+            console.error('[Na_DoorBridge] Failed to receive handle asset options:', err);
+        }
+    };
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Ruby -> JS - Receive one handle preview payload
+    // ------------------------------------------------------------
+    window.na_receiveDoorHandlePreviewAsset = function (jsonString) {
+        try {
+            var payload = JSON.parse(jsonString || '{}');
+            var key = payload.assetKey;
+            if (!key) return;
+            var warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+
+            window.NA_DOOR_HANDLE_ASSET_PREVIEW_CACHE[key] = {
+                'Na__Asset__Plan2D'      : payload['Na__Asset__Plan2D'] || null,
+                'Na__Asset__Elevation2D' : payload['Na__Asset__Elevation2D'] || null
+            };
+            na_door_emit_preview_warnings(key, warnings);
+
+            if (!payload['Na__Asset__Plan2D'] && !payload['Na__Asset__Elevation2D']) {
+                console.warn('[Na_DoorBridge] Preview payload has no usable 2D blocks for:', key);
+                if (typeof window.na_showStatus === 'function') {
+                    window.na_showStatus('warning', 'Handle preview payload has no valid Plan2D/Elevation2D data.');
+                }
+            }
+
+            if (typeof Na_DoorUI !== 'undefined' && typeof Na_DoorUI.na_render === 'function' && typeof Na_DoorUI.na_get_active_config === 'function') {
+                var activePayload = Na_DoorUI.na_get_active_config();
+                var activeConfig = activePayload && activePayload['Na__DoorConfiguration'];
+                if (activeConfig) {
+                    Na_DoorUI.na_render(activeConfig);
+                }
+            }
+        } catch (err) {
+            console.error('[Na_DoorBridge] Failed to receive handle preview asset:', err);
+        }
+    };
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Public cache helper for deterministic preview checks
+    // ------------------------------------------------------------
+    window.na_getDoorHandlePreviewCacheEntry = function (assetKey) {
+        return na_door_get_preview_cache_entry(assetKey);
+    };
     // ---------------------------------------------------------------
 
 // endregion -------------------------------------------------------------------

@@ -273,29 +273,31 @@ module Na__InteriorDoorSystem
 
         # HELPER FUNCTION | Compute Start Angle and Sweep Direction for a Swing
         # ------------------------------------------------------------
-        # The swing always covers 90 degrees. Hand and direction control
-        # which quadrant the arc sits in (in plan view, with X+ right and
-        # Y+ into the room).
+        # Returns the {start, sweep} angles (degrees, math convention with
+        # 0 = +X axis) used by na_compute_arc_points to plot the 90 deg
+        # quarter-circle arc for the door swing.
+        #
+        # Door-local convention:
+        #   * Closed latch sits on +X for Left-hand doors and -X for
+        #     Right-hand doors.
+        #   * Inward swings rotate the latch to -Y (room side of wall).
+        #   * Outward swings rotate the latch to +Y (back side of wall).
+        #
+        # arc_pts.first must always be the OPEN-latch position because
+        # na_build_2d_swing_arc consumes it as the panel-projection edge.
         def self.na_compute_swing_arc_angles(side, direction)
-            side_sym      = side.is_a?(Symbol) ? side : side.to_s.downcase.to_sym
+            side_sym      = side.is_a?(Symbol)      ? side      : side.to_s.downcase.to_sym
             direction_sym = direction.is_a?(Symbol) ? direction : direction.to_s.downcase.to_sym
 
-            quadrant = case [side_sym, direction_sym]
-                       when [:left,  :inward]  then  90.0                  # <-- Hinge left, swings into room (Y+)
-                       when [:right, :inward]  then  90.0                  # <-- Hinge right, swings into room (Y+)
-                       when [:left,  :outward] then 270.0                  # <-- Hinge left, swings outward (Y-)
-                       when [:right, :outward] then 270.0                  # <-- Hinge right, swings outward (Y-)
-                       else                          90.0
-                       end
+            closed_angle  = (side_sym == :left) ? 0.0 : 180.0              # <-- Closed-latch direction from hinge
+            open_y_sign   = (direction_sym == :inward) ? -1.0 : 1.0        # <-- Inward swings toward -Y
+            open_angle    = open_y_sign * 90.0                             # <-- Open-latch direction from hinge
 
-            start_angle  = if side_sym == :left
-                               quadrant                                    # <-- Latch starts on +X side
-                           else
-                               quadrant - 90.0                             # <-- Latch starts on -X side
-                           end
+            sweep_deg     = closed_angle - open_angle                      # <-- Sweep from open to closed
+            sweep_deg    -= 360.0 if sweep_deg >  180.0                    # <-- Normalise to shortest path
+            sweep_deg    += 360.0 if sweep_deg < -180.0
 
-            sweep_deg    = (side_sym == :left) ? -90.0 : 90.0              # <-- Sweep direction follows hand
-            { :start => start_angle, :sweep => sweep_deg }
+            { :start => open_angle, :sweep => sweep_deg }
         end
         private_class_method :na_compute_swing_arc_angles
         # ---------------------------------------------------------------

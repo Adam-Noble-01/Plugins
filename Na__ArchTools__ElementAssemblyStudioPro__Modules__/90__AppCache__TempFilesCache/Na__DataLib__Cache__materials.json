@@ -1,5 +1,5 @@
 {
-  "cached_at": 1777822196,
+  "cached_at": 1777823425,
   "data": {
     "meta": {
       "fileName": "Na__DataLib__CoreIndex__Materials__.json",
@@ -18,23 +18,42 @@
       "divergenceNote": "Window Configurator (Na__ArchTools__3dWindowConfigTool) maintains a local copy of this library at Na__AppConfig__MaterialsLibrary.json (v1.0.0). That local copy is superseded by this centralised file. The ValeDesignSuite WindowPanelConfigurator uses non-indexed strings 'natural-wood' and 'glass' as ComponentMaterial values - these are not part of the indexed MAT system and require alignment in a future update.",
       "GitHub__RepoUrl": "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
       "Data__URL": "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json",
-      "uiDefaults": {
-        "FrameFinishSwatchKeys": [
-          "MAT001__Default",
-          "MAT120__GenericWood",
-          "MAT302__Paint__FarrowAndBall__Wevet",
-          "MAT303__Paint__FarrowAndBall__Mizzle",
-          "MAT301__Paint__FarrowAndBall__Ammonite",
-          "MAT304__Paint__FarrowAndBall__DownPipe"
-        ],
-        "DefaultFrameFinishKey": "MAT120__GenericWood",
-        "FrameFinishSwatchLabels": {
-          "MAT001__Default": "Default",
-          "MAT120__GenericWood": "Generic Wood",
-          "MAT302__Paint__FarrowAndBall__Wevet": "Wevet (F&B 273)",
-          "MAT303__Paint__FarrowAndBall__Mizzle": "Mizzle (F&B 266)",
-          "MAT301__Paint__FarrowAndBall__Ammonite": "Ammonite (F&B 274)",
-          "MAT304__Paint__FarrowAndBall__DownPipe": "Down Pipe (F&B 026)"
+      "Na__DataLib__UiDefaults": {
+        "Na__DataLib__UiDefaults__FrameFinish": {
+          "Na__DataLib__UiDefaults__FrameFinish__SwatchKeys": [
+            "MAT001__Default",
+            "MAT120__GenericWood",
+            "MAT302__Paint__FarrowAndBall__Wevet",
+            "MAT303__Paint__FarrowAndBall__Mizzle",
+            "MAT301__Paint__FarrowAndBall__Ammonite",
+            "MAT304__Paint__FarrowAndBall__DownPipe"
+          ],
+          "Na__DataLib__UiDefaults__FrameFinish__DefaultSwatchKey": "MAT120__GenericWood",
+          "Na__DataLib__UiDefaults__FrameFinish__SwatchLabels": {
+            "MAT001__Default": "Default",
+            "MAT120__GenericWood": "Generic Wood",
+            "MAT302__Paint__FarrowAndBall__Wevet": "Wevet (F&B 273)",
+            "MAT303__Paint__FarrowAndBall__Mizzle": "Mizzle (F&B 266)",
+            "MAT301__Paint__FarrowAndBall__Ammonite": "Ammonite (F&B 274)",
+            "MAT304__Paint__FarrowAndBall__DownPipe": "Down Pipe (F&B 026)"
+          }
+        },
+        "Na__DataLib__UiDefaults__HandleFinish": {
+          "Na__DataLib__UiDefaults__HandleFinish__SwatchKeys": [
+            "MAT615__Metal__Ironmongery__Chrome",
+            "MAT616__Metal__Ironmongery__BrushedSteel",
+            "MAT614__Metal__Ironmongery__SatinNickel",
+            "MAT612__Metal__Ironmongery__Brass",
+            "MAT613__Metal__Ironmongery__Bronze"
+          ],
+          "Na__DataLib__UiDefaults__HandleFinish__DefaultSwatchKey": "MAT612__Metal__Ironmongery__Brass",
+          "Na__DataLib__UiDefaults__HandleFinish__SwatchLabels": {
+            "MAT615__Metal__Ironmongery__Chrome": "Chrome",
+            "MAT616__Metal__Ironmongery__BrushedSteel": "Brushed Steel",
+            "MAT614__Metal__Ironmongery__SatinNickel": "Satin Nickel",
+            "MAT612__Metal__Ironmongery__Brass": "Unlacquered Brass",
+            "MAT613__Metal__Ironmongery__Bronze": "Bronze"
+          }
         }
       }
     },
@@ -128,6 +147,48 @@
           "Description": "Sapele hardwood - warm reddish-brown grain",
           "BaseColor": "rgb(180, 160, 140)",
           "PbrRoughness": 0.75
+        }
+      },
+      "MAT600__MetalSeries__": {
+        "MAT612__Metal__Ironmongery__Brass": {
+          "SketchUpName": "MAT612__Metal__Ironmongery__Brass",
+          "Description": "Unlacquered brass ironmongery - warm yellow-gold",
+          "BaseColor": "rgb(192, 174, 138)",
+          "PbrRoughness": 0.35,
+          "PbrMetallic": 0.85,
+          "EnvMapIntensity": 0.7
+        },
+        "MAT613__Metal__Ironmongery__Bronze": {
+          "SketchUpName": "MAT613__Metal__Ironmongery__Bronze",
+          "Description": "Bronze ironmongery - dark warm patina",
+          "BaseColor": "rgb(67, 61, 55)",
+          "PbrRoughness": 0.5,
+          "PbrMetallic": 0.7,
+          "EnvMapIntensity": 0.5
+        },
+        "MAT614__Metal__Ironmongery__SatinNickel": {
+          "SketchUpName": "MAT614__Metal__Ironmongery__SatinNickel",
+          "Description": "Satin nickel ironmongery - cool brushed grey",
+          "BaseColor": "rgb(170, 172, 176)",
+          "PbrRoughness": 0.45,
+          "PbrMetallic": 0.85,
+          "EnvMapIntensity": 0.6
+        },
+        "MAT615__Metal__Ironmongery__Chrome": {
+          "SketchUpName": "MAT615__Metal__Ironmongery__Chrome",
+          "Description": "Polished chrome ironmongery - high gloss reflective silver",
+          "BaseColor": "rgb(205, 210, 214)",
+          "PbrRoughness": 0.1,
+          "PbrMetallic": 1.0,
+          "EnvMapIntensity": 1.0
+        },
+        "MAT616__Metal__Ironmongery__BrushedSteel": {
+          "SketchUpName": "MAT616__Metal__Ironmongery__BrushedSteel",
+          "Description": "Brushed stainless steel ironmongery - matte cool grey",
+          "BaseColor": "rgb(176, 181, 186)",
+          "PbrRoughness": 0.6,
+          "PbrMetallic": 0.85,
+          "EnvMapIntensity": 0.5
         }
       }
     }

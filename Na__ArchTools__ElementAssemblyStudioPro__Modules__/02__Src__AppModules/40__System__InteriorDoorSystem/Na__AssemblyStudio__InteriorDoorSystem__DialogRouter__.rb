@@ -47,6 +47,7 @@ module Na__InteriorDoorSystem
         UiBridge       = Na__AssemblyStudio::Na__AppCore::Na__UiBridge
         DataSerializer = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__DataSerializer
         GeometryEngine = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryEngine
+        AssetLibrary   = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__AssetLibrary
 
 # endregion -------------------------------------------------------------------
 
@@ -176,6 +177,14 @@ module Na__InteriorDoorSystem
 
             dialog.add_action_callback("na_doorRequestConfig") do |_ac|
                 na_send_door_config_to_dialog
+            end
+
+            dialog.add_action_callback("na_requestDoorHandleAssetOptions") do |_ac|
+                na_send_handle_asset_options_to_dialog
+            end
+
+            dialog.add_action_callback("na_requestDoorHandlePreviewAsset") do |_ac, asset_key|
+                na_send_handle_preview_asset_to_dialog(asset_key)
             end
 
             DebugTools.na_debug_ui("Door callbacks registered")
@@ -484,6 +493,173 @@ module Na__InteriorDoorSystem
             dialog.execute_script("window.na_setInitialDoorConfig('#{escaped}');")
         end
         private_class_method :na_send_door_config_to_dialog
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Send Door Handle Asset Options to the Dialog
+        # ------------------------------------------------------------
+        # Builds the handle asset select options dynamically from the
+        # current AssetLibrary folder so newly added JSON files appear
+        # without hardcoding descriptor options in JS.
+        def self.na_send_handle_asset_options_to_dialog
+            dialog = na_active_dialog
+            return unless dialog && dialog.visible?
+
+            # Ensure fresh reads when users export/replace files mid-session.
+            AssetLibrary.na_clear_caches if AssetLibrary.respond_to?(:na_clear_caches)
+
+            keys = AssetLibrary.na_list_assets(:handles).select { |key| key.to_s.start_with?("Na__InteriorDoor__Handle__") }
+            options = keys.map { |key| na_build_handle_option(key) }.compact
+            options.sort_by! { |option| option["label"].to_s.downcase }
+
+            config_key = @na_current_config.dig(NA_DOOR_CONFIG_KEY, "Na__DoorConfig__HandleAssetKey")
+            default_key = if options.any? { |opt| opt["value"] == config_key }
+                              config_key
+                          elsif @na_default_config.dig(NA_DOOR_CONFIG_KEY, "Na__DoorConfig__HandleAssetKey")
+                              @na_default_config.dig(NA_DOOR_CONFIG_KEY, "Na__DoorConfig__HandleAssetKey")
+                          else
+                              options.first && options.first["value"]
+                          end
+
+            payload = {
+                "options"    => options,
+                "defaultKey" => default_key
+            }
+
+            UiBridge.na_execute_json_function(dialog, "window.na_receiveDoorHandleAssetOptions", payload)
+            if options.empty?
+                na_send_status_to_dialog("warning", "No valid handle assets found in InteriorDoor__Handles__.")
+            end
+        rescue StandardError => e
+            DebugTools.na_debug_error("Failed to send handle asset options", e)
+        end
+        private_class_method :na_send_handle_asset_options_to_dialog
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Send Selected Handle 2D Preview Blocks to JS
+        # ------------------------------------------------------------
+        # Sends Plan2D + Elevation2D only (not mesh) for lightweight
+        # dialog preview rendering.
+        def self.na_send_handle_preview_asset_to_dialog(asset_key)
+            dialog = na_active_dialog
+            return unless dialog && dialog.visible?
+
+            requested_key = asset_key.to_s.strip
+            if requested_key.empty?
+                requested_key = @na_current_config.dig(NA_DOOR_CONFIG_KEY, "Na__DoorConfig__HandleAssetKey").to_s
+            end
+            requested_key = "Na__InteriorDoor__Handle__Default" if requested_key.empty?
+
+            asset = AssetLibrary.na_load_handle_asset(requested_key)
+            unless asset.is_a?(Hash)
+                DebugTools.na_debug_warn("Handle preview asset not found: #{requested_key}")
+                return
+            end
+
+            plan_block, plan_warning = na_validate_preview_block(requested_key, "Na__Asset__Plan2D", asset["Na__Asset__Plan2D"])
+            elevation_block, elevation_warning = na_validate_preview_block(
+                requested_key,
+                "Na__Asset__Elevation2D",
+                asset["Na__Asset__Elevation2D"]
+            )
+            warnings = [plan_warning, elevation_warning].compact
+            warnings.each { |warning| DebugTools.na_debug_warn(warning) }
+
+            payload = {
+                "assetKey"              => requested_key,
+                "Na__Asset__Plan2D"     => plan_block,
+                "Na__Asset__Elevation2D"=> elevation_block,
+                "warnings"              => warnings
+            }
+
+            UiBridge.na_execute_json_function(dialog, "window.na_receiveDoorHandlePreviewAsset", payload)
+        rescue StandardError => e
+            DebugTools.na_debug_error("Failed to send handle preview asset", e)
+        end
+        private_class_method :na_send_handle_preview_asset_to_dialog
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build a Handle Select Option from Asset Metadata
+        # ------------------------------------------------------------
+        def self.na_build_handle_option(key)
+            asset = AssetLibrary.na_load_handle_asset(key)
+            return nil unless asset.is_a?(Hash)
+
+            metadata = asset["Na__Asset__Metadata"]
+            return nil unless metadata.is_a?(Hash)
+
+            label = metadata["Na__Asset__Name"].to_s.strip
+            label = key.to_s if label.empty?
+            { "value" => key.to_s, "label" => label }
+        end
+        private_class_method :na_build_handle_option
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Validate and Sanitize 2D Preview Block
+        # ------------------------------------------------------------
+        # Returns [sanitized_block_or_nil, warning_or_nil]
+        def self.na_validate_preview_block(asset_key, block_name, block)
+            unless block.is_a?(Hash)
+                return [nil, "Handle preview '#{asset_key}' missing block #{block_name}"]
+            end
+
+            paths = block["Na__Geometry__Paths"]
+            unless paths.is_a?(Array)
+                return [nil, "Handle preview '#{asset_key}' block #{block_name} missing Na__Geometry__Paths array"]
+            end
+
+            valid_paths = paths.select { |path| na_valid_preview_path?(path) }
+            if valid_paths.empty?
+                return [nil, "Handle preview '#{asset_key}' block #{block_name} has no valid path records"]
+            end
+
+            sanitized = block.dup
+            sanitized["Na__Geometry__Paths"] = valid_paths
+            [sanitized, nil]
+        end
+        private_class_method :na_validate_preview_block
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Preview Path Contract Validation
+        # ------------------------------------------------------------
+        def self.na_valid_preview_path?(path)
+            return false unless path.is_a?(Hash)
+            type = path["PathType"].to_s.downcase
+
+            case type
+            when "polygon"
+                vertices = path["Vertices_mm"]
+                return false unless vertices.is_a?(Array) && !vertices.empty?
+                return vertices.all? { |vertex| na_valid_xy_point?(vertex) }
+            when "line"
+                return na_valid_xy_point?(path["Start_mm"]) && na_valid_xy_point?(path["End_mm"])
+            when "circle"
+                return false unless na_valid_xy_point?(path["Center_mm"])
+                return na_numeric_value?(path["Radius_mm"])
+            else
+                false
+            end
+        end
+        private_class_method :na_valid_preview_path?
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Validate XY Point Hash Shape
+        # ------------------------------------------------------------
+        def self.na_valid_xy_point?(point)
+            return false unless point.is_a?(Hash)
+            na_numeric_value?(point["X"]) && na_numeric_value?(point["Y"])
+        end
+        private_class_method :na_valid_xy_point?
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Numeric Coercion Guard
+        # ------------------------------------------------------------
+        def self.na_numeric_value?(value)
+            Float(value)
+            true
+        rescue StandardError
+            false
+        end
+        private_class_method :na_numeric_value?
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Forward a Status Message to the Dialog

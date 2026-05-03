@@ -5,6 +5,75 @@
 # =============================================================================
 
 # =============================================================================
+## Element Assembly Studio Pro | v1.1.0 - Swatch Push Reliability + Reload-Forced Materials Refresh
+
+### Swatch push hardened against bridge timing + silent debug-mode failures
+- Added raw `puts` diagnostics to `02__Src__AppModules/02__AppData/Na__AssemblyStudio__AppData__FrameFinishSwatches__.rb`:
+  - Logs `na_push_to_dialog called`, meta presence, load status, per-palette swatch counts, default keys, and `execute_script` byte count.
+  - Uses raw `puts` (not `DebugTools.na_debug_ui`) so the lines appear in the Ruby console regardless of the `debug.enabled` config flag - this was the missing breadcrumb that made empty-swatch failures impossible to diagnose.
+
+### Backward-compatible meta key resolution
+- `na_swatch_keys_from_meta`, `na_swatch_labels_from_meta`, and `na_default_key` now read BOTH:
+  - The new nested `meta.Na__DataLib__UiDefaults.<palette_group>.*` structure (preferred).
+  - The legacy v1.0.6/1.0.7 flat `meta.uiDefaults.FrameFinishSwatchKeys` block (frame palette fallback).
+- New `NA_PALETTES` table fields `:legacy_swatch_keys`, `:legacy_default_key`, `:legacy_labels_key` declare the legacy key names per palette (handle palette has nil legacy keys because the palette is v1.0.8+).
+- New helpers `na_palette_group_new(palette_config, meta)` and `na_legacy_uidefaults(meta)` keep the lookup tidy.
+
+### Belt-and-braces proactive Ruby push from DialogManager
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__DialogManager__.rb` now calls a new private `na_schedule_proactive_swatch_push(@na_dialog)` immediately after `@na_dialog.show`.
+- The helper schedules `UI.start_timer(0.5, false)` to call `FrameFinishSwatches.na_push_to_dialog(dialog)` from Ruby, ensuring swatches arrive even if the JS bootstrap never reaches `sketchup.na_requestFrameFinishSwatches`. Both push paths are idempotent.
+
+### JS bootstrap retry for the SketchUp action callback bridge
+- The HTML `<script>` block in `Na__AssemblyStudio__UiLayout__.html` that requests swatches on `DOMContentLoaded` now retries up to 8 times at 100 ms intervals if `typeof sketchup.na_requestFrameFinishSwatches !== 'function'`. SketchUp's bridge sometimes binds action-callback functions a tick or two after the DOM finishes parsing. After 8 retries it logs a warning to the console; the proactive Ruby timer push still covers the gap.
+
+### Reload Scripts button now always force-refreshes the materials JSON from the URL
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__DialogManager__.rb` `na_reload_scripts` now runs an explicit three-step sequence:
+  1. **Materials**: `Na__Cache__PurgeCacheFile(:materials)` then `Na__Cache__LoadData(:materials, true)` to guarantee a fresh URL fetch.
+  2. **Ruby files**: reload all .rb files via `load file`.
+  3. **Dialog**: close + reopen the dialog, which fires the existing `MaterialManager.na_force_refresh_from_url` + the new proactive timer push.
+- Status bar message now reads e.g. `Reloaded 47 Ruby files | Materials: url` so the developer can see the data source at a glance.
+- New private helper `na_force_refresh_materials_json` returns `:url`, `:cache`, `:local`, or `:failed` so the source is surfaced consistently.
+
+### New cache-purge primitive in shared DataLib loader
+- `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__.rb` gains `Na__Cache__PurgeCacheFile(file_key)`:
+  - Deletes the on-disk cache file for a single key.
+  - Logs `Cache purged for :<file_key>` or `No cache file to purge for :<file_key>` via raw `puts`.
+  - Returns `true` if a file was actually removed, `false` otherwise.
+- Other plugins (Edge Util etc.) can opt in to the same purge whenever they need a guaranteed-clean URL fetch.
+
+### Why this matters
+- v1.0.8 broke the swatches when the in-memory MaterialManager state already held a stale-structure cached load and the dialog's swatch push silently no-op'd because `DebugTools.na_debug_ui` was muted. The combination of raw `puts` logging, backward-compat reads, and the proactive Ruby push now makes the swatch pipeline observable and self-healing.
+# =============================================================================
+
+
+# =============================================================================
+## Element Assembly Studio Pro | v1.0.9 - Interior Door Swing Direction Fix
+
+### Open-state copy now lands on the room side of the wall
+- The 3D open-state copy previously rotated to the back of the wall (+Y in door-local coords) for an Inward swing, while the dialog's JS plan view always draws the open latch on the room side (-Y). Inverted the Inward/Outward sign in `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb`:
+  - `na_compute_open_rotation_transform` now uses `sign = (swing_direction == "inward") ? -1.0 : 1.0`.
+  - All four hand+direction combinations now match the dialog plan view:
+    - L + Inward / R + Inward -> open latch at -Y (room side)
+    - L + Outward / R + Outward -> open latch at +Y (back of wall)
+- The hinge pivot, panel geometry, lining, architraves, handles, and TrueVision group hierarchy (`ADR001__InternalDoor` / `MOD001__ROT__90-Deg__DoorPanel` / `ROT001__RotationPoint__DoorHingeCentre`) are unchanged.
+
+### 2D swing-arc helper rewritten with explicit closed/open angles
+- Replaced the quadrant-table logic in `na_compute_swing_arc_angles` (`02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__.rb`) with explicit `closed_angle` / `open_angle` derivation:
+  - Closed latch sits at 0deg (Left) or 180deg (Right).
+  - Open latch sits at -90deg (Inward, -Y) or +90deg (Outward, +Y).
+  - Sweep is `closed_angle - open_angle`, normalised to the shortest path.
+- Fixes a pre-existing quadrant bug where Right-hand and Outward arcs landed in the wrong quadrant relative to the closed panel; `arc_pts.first` is now reliably the open-latch position consumed by `na_build_2d_swing_arc` for the panel-projection edge.
+
+### Single shared swing arc - no longer duplicated per door state
+- Previously `na_compose_closed_assembly` built the 2D swing arc inside the `MOD001__ROT__90-Deg__DoorPanel` group, which meant the open-state ADR copy carried its own duplicate of the arc and rotated it 90deg with the panel. Two visible swing arcs in the model whenever both `:door_closed` and `:door_open` tags were on, and the open-state arc was rotated out of plan-view orientation.
+- Removed `GeometryBuilders.na_build_swing(config, mod_ents)` from `na_compose_closed_assembly` (`02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb`).
+- Added `GeometryBuilders.na_build_swing(config, <def entities>)` at the definition root in both `na_create_door` and `na_update_door` (`02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__GeometryEngine__.rb`), placed alongside the lining and architraves and ahead of the ADR/MOD/ROT compose step.
+- The swing arc now lives at the component-definition root (same level as lining + architraves), tagged `:door_swing`. It is shared by the closed and open ADR copies, drawn once, and never rotated when the open-state copy is produced.
+- Updated the file-header descriptions in `Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb` and `Na__AssemblyStudio__InteriorDoorSystem__GeometryEngine__.rb` to match the new pipeline ordering.
+# =============================================================================
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | v1.0.8 - Handle Finish Palette + Verbose UiDefaults Keys
 
 ### Door Handle Finish row gets its own dedicated swatch palette

@@ -27,6 +27,7 @@ require 'pathname'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__FrameFinishSwatches__'
+require_relative '../../../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 require_relative 'Na__AssemblyStudio__AppCore__UiBridge__'
 
 module Na__AssemblyStudio
@@ -106,6 +107,7 @@ module Na__AssemblyStudio
                 na_invoke_system_init_hooks(@na_dialog)
                 na_register_swatch_push_callback(@na_dialog)
                 @na_dialog.show
+                na_schedule_proactive_swatch_push(@na_dialog)
             end
 
             # Push the frame-finish swatches into JS exactly once, after the
@@ -113,10 +115,31 @@ module Na__AssemblyStudio
             # sketchup.na_requestFrameFinishSwatches() on DOMContentLoaded.
             def self.na_register_swatch_push_callback(dialog)
                 dialog.add_action_callback("na_requestFrameFinishSwatches") do |_ctx|
+                    puts "    [DialogManager] na_requestFrameFinishSwatches callback invoked from JS"
                     FrameFinishSwatches.na_push_to_dialog(dialog)
                 end
             end
             private_class_method :na_register_swatch_push_callback
+
+            # Belt-and-braces: push swatches from Ruby a moment after `show`
+            # so the cards still populate even if the JS bootstrap script
+            # never reaches the sketchup.na_requestFrameFinishSwatches call
+            # (e.g. callback not yet bound, transient bridge timing issue).
+            # Idempotent because the JS-triggered push and this timed push
+            # both call the same na_push_to_dialog.
+            def self.na_schedule_proactive_swatch_push(dialog)
+                UI.start_timer(0.5, false) do
+                    begin
+                        if dialog && dialog.respond_to?(:visible?) && dialog.visible?
+                            puts "    [DialogManager] Proactive swatch push (0.5s after show)"
+                            FrameFinishSwatches.na_push_to_dialog(dialog)
+                        end
+                    rescue StandardError => e
+                        puts "    [DialogManager] Proactive swatch push failed: #{e.message}"
+                    end
+                end
+            end
+            private_class_method :na_schedule_proactive_swatch_push
 
             def self.na_invoke_system_init_hooks(dialog)
                 @na_system_init_hooks.each do |hook|
@@ -233,6 +256,19 @@ module Na__AssemblyStudio
                 rb_count    = 0
                 error_count = 0
 
+                # STEP 1 | Purge the materials cache file and force-fetch fresh
+                # JSON from the live URL BEFORE reloading Ruby files. This
+                # guarantees the next dialog open sees the latest published
+                # materials (handle/frame swatches, MAT entries, etc.) and is
+                # NOT served stale on-disk cached JSON. Uses raw puts so output
+                # appears regardless of debug-mode flag.
+                puts ""
+                puts "    [Reload] ===== Force-refreshing materials JSON from URL ====="
+                materials_source = na_force_refresh_materials_json
+                puts "    [Reload] Materials refresh source: #{materials_source.inspect}"
+                puts ""
+
+                # STEP 2 | Reload all plugin Ruby files in place (`load`).
                 files = na_collect_rb_files_for_reload(modules_root_path)
                 files.each do |file|
                     begin
@@ -247,19 +283,36 @@ module Na__AssemblyStudio
 
                 UI.refresh_inspectors if UI.respond_to?(:refresh_inspectors)
 
+                # STEP 3 | Close + reopen the dialog so the freshly-loaded Ruby
+                # state and the freshly-fetched JSON both flow through to JS.
                 if @na_dialog && @na_dialog.visible?
                     @na_dialog.close
                     na_show_dialog(@na_html_path, modules_root_path)
                 end
 
+                summary = "Reloaded #{rb_count} Ruby files | Materials: #{materials_source}"
                 if error_count > 0
-                    UiBridge.na_send_status(@na_dialog, "warning", "Reloaded #{rb_count} Ruby files with #{error_count} errors")
+                    UiBridge.na_send_status(@na_dialog, "warning", "#{summary} (#{error_count} errors)")
                 else
-                    UiBridge.na_send_status(@na_dialog, "success", "Reloaded #{rb_count} Ruby files")
+                    UiBridge.na_send_status(@na_dialog, "success", summary)
                 end
 
                 { reload_dialog: true }
             end
+
+            # Purge cache + force-fetch the materials JSON from the live URL.
+            # Returns :url, :cache, :local, or :failed for surfacing in the
+            # status bar so the user knows where the data came from.
+            def self.na_force_refresh_materials_json
+                Na__DataLib__CacheData.Na__Cache__PurgeCacheFile(:materials)
+                Na__DataLib__CacheData.Na__Cache__LoadData(:materials, true)
+                source = Na__DataLib__CacheData.Na__Cache__LastSource(:materials)
+                source || :failed
+            rescue StandardError => e
+                puts "    [Reload] Materials force-fetch raised: #{e.message}"
+                :failed
+            end
+            private_class_method :na_force_refresh_materials_json
 
             # -----------------------------------------------------------------
             # REGION | Fallback HTML

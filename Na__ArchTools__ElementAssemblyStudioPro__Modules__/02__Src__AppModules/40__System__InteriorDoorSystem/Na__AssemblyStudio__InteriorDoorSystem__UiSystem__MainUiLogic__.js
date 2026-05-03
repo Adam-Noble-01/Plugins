@@ -55,6 +55,7 @@
     var na_change_listeners     = [];                                         // <-- Per-mount cleanup callbacks
     var na_rerender_pending     = false;                                      // <-- requestAnimationFrame batching guard
     var na_live_update_timeout  = null;                                       // <-- Debounce id for live updates
+    var na_preview_request_state = {};                                        // <-- Handle key -> pending flag (prevents request spam)
 
     var na_plan_instance        = null;                                       // <-- Na__Viewport__Instance for plan view
     var na_elevation_instance   = null;                                       // <-- Na__Viewport__Instance for elevation view
@@ -334,8 +335,47 @@
     // ------------------------------------------------------------
     function na_handle_control_change(id, value) {
         na_active_config[id] = value;
+        if (id === 'Na__DoorConfig__HandleAssetKey') {
+            na_reset_preview_request_state(value);
+            na_request_handle_preview_if_needed('handle-select-change');
+        }
         na_schedule_rerender();
         na_schedule_live_update();
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Ensure Selected Handle Has Preview Cache Data
+    // ------------------------------------------------------------
+    function na_request_handle_preview_if_needed(reason) {
+        var key = (na_active_config['Na__DoorConfig__HandleAssetKey'] || '').toString().trim();
+        if (!key) key = 'Na__InteriorDoor__Handle__Default';
+
+        var cacheEntry = (typeof window.na_getDoorHandlePreviewCacheEntry === 'function')
+            ? window.na_getDoorHandlePreviewCacheEntry(key)
+            : null;
+        var hasPlan = !!(cacheEntry && cacheEntry['Na__Asset__Plan2D']);
+        var hasElevation = !!(cacheEntry && cacheEntry['Na__Asset__Elevation2D']);
+        if (hasPlan || hasElevation) return;
+        if (window.NA_DOOR_HANDLE_ASSET_PREVIEW_WARNINGS && window.NA_DOOR_HANDLE_ASSET_PREVIEW_WARNINGS[key]) return;
+        if (na_preview_request_state[key]) return;
+        if (typeof window.na_requestDoorHandlePreviewAsset !== 'function') return;
+
+        na_preview_request_state[key] = true;
+        console.warn('[Na_DoorUI] Missing handle preview cache for', key, '| reason:', reason || 'unspecified');
+        window.na_requestDoorHandlePreviewAsset(key);
+
+        window.setTimeout(function () {
+            na_preview_request_state[key] = false;
+        }, 1200);
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Reset Pending Flag for One Handle Key
+    // ------------------------------------------------------------
+    function na_reset_preview_request_state(handleKey) {
+        var key = (handleKey || '').toString().trim();
+        if (!key) return;
+        na_preview_request_state[key] = false;
     }
     // ---------------------------------------------------------------
 
@@ -385,6 +425,11 @@
         na_mount_section('na-door-controls-handle',     window.NA_DOOR_HANDLE_CONFIG);
         na_mount_section('na-door-controls-options',    window.NA_DOOR_OPTIONS_CONFIG);
 
+        if (typeof window.na_requestDoorHandleAssetOptions === 'function') {
+            window.na_requestDoorHandleAssetOptions();
+        }
+        na_request_handle_preview_if_needed('door-ui-mount');
+
         if (window.Na_FrameFinishCards && typeof window.Na_FrameFinishCards.na_render_all === 'function') {
             window.Na_FrameFinishCards.na_render_all();
         }
@@ -425,6 +470,7 @@
     // then re-paints them through the shared Na__Viewport__Instance API.
     Na_DoorUI.na_render = function (config) {
         var renderConfig = config || na_active_config;
+        na_request_handle_preview_if_needed('door-ui-render');
         na_ensure_viewport_instances();
 
         if (na_plan_instance)      na_plan_instance.na_render(renderConfig);
@@ -513,6 +559,7 @@
         }
 
         na_prune_obsolete_config_keys(na_active_config);
+        na_request_handle_preview_if_needed('set-active-config');
 
         if (window.Na_FrameFinishCards && typeof window.Na_FrameFinishCards.na_sync_selection === 'function') {
             window.Na_FrameFinishCards.na_sync_selection(na_active_config);

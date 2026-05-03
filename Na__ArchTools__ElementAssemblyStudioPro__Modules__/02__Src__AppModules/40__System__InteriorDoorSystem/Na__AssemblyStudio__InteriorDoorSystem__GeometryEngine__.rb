@@ -18,10 +18,11 @@
 # - Build pipeline:
 #     1. Generate / accept ADR door ID.
 #     2. Create ComponentDefinition "<DoorID>__InteriorDoor__".
-#     3. Build static parts at definition root: lining (+ optional fuse) and
-#        front/back architraves.
+#     3. Build static parts at definition root: lining (+ optional fuse),
+#        front/back architraves, and the single 2D swing arc (shared by
+#        the closed and open ADR copies, never duplicated/rotated).
 #     4. Compose the closed-state ADR / MOD / ROT assembly inside the
-#        definition (panel + handles + 2D swing).
+#        definition (panel + handles only).
 #     5. Optionally duplicate + rotate to produce the open-state ADR copy.
 #     6. Add a single ComponentInstance at the model root; place it at
 #        insertion_origin_in (Point A from the measure tool) when supplied,
@@ -95,6 +96,8 @@ module Na__InteriorDoorSystem
 
                 ArchitraveBuilder.na_build_architraves(config, door_entities, materials[:architrave])
 
+                GeometryBuilders.na_build_swing(config, door_entities)
+
                 closed_assembly       = DoorAssemblyComposer.na_compose_closed_assembly(
                     config, door_entities, materials[:panel], materials[:handle]
                 )
@@ -151,6 +154,8 @@ module Na__InteriorDoorSystem
                 end
 
                 ArchitraveBuilder.na_build_architraves(config, definition.entities, materials[:architrave])
+
+                GeometryBuilders.na_build_swing(config, definition.entities)
 
                 closed_assembly       = DoorAssemblyComposer.na_compose_closed_assembly(
                     config, definition.entities, materials[:panel], materials[:handle]

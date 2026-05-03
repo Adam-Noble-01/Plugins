@@ -12,8 +12,8 @@
 # CREATED    : 01-May-2026
 #
 # DESCRIPTION:
-# - Hosts the algorithm that wraps the panel, handles, and 2D swing into a
-#   movable group named "MOD001__ROT__90-Deg__DoorPanel".
+# - Hosts the algorithm that wraps the panel and handles into a movable
+#   group named "MOD001__ROT__90-Deg__DoorPanel".
 # - Adds an empty marker group "ROT001__RotationPoint__DoorHingeCentre" at
 #   the hinge axis so the TrueVision converter can pick up the rotation
 #   pivot.
@@ -24,9 +24,10 @@
 #   about the hinge axis, and the duplicate is tagged :door_open. This
 #   matches the user's workflow of toggling between open and closed
 #   state visibility tags in SketchUp / Layout.
-# - The lining and architraves are NOT enclosed in the MOD/ROT/ADR
-#   hierarchy: they are static parts of the assembly and remain at the
-#   ComponentDefinition root.
+# - The lining, architraves, and the single 2D swing arc are NOT enclosed
+#   in the MOD/ROT/ADR hierarchy: they are static parts of the assembly
+#   and remain at the ComponentDefinition root so the swing is shared by
+#   both the closed and open ADR copies (drawn once, never rotated).
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
@@ -76,10 +77,12 @@ module Na__InteriorDoorSystem
 
         # FUNCTION | Compose the Closed Door Assembly
         # ------------------------------------------------------------
-        # Builds the panel + handles + swing inside a MOD group, attaches
-        # a ROT marker, and wraps everything in the ADR outer assembly.
-        # The caller supplies the door's component-definition entities
-        # (the assembly is added at the root of the definition).
+        # Builds the panel + handles inside a MOD group, attaches a ROT
+        # marker, and wraps everything in the ADR outer assembly. The
+        # caller supplies the door's component-definition entities (the
+        # assembly is added at the root of the definition). The 2D swing
+        # arc is NOT built here - it lives at the definition root so a
+        # single arc is shared between the closed and open ADR copies.
         #
         # @param config [Hash] Door configuration block
         # @param entities [Sketchup::Entities] Definition-level entities
@@ -97,7 +100,6 @@ module Na__InteriorDoorSystem
 
             GeometryBuilders.na_build_panel(config, mod_ents, panel_material)
             HandleBuilder3D.na_build_handles(config, mod_ents, handle_material)
-            GeometryBuilders.na_build_swing(config, mod_ents)
 
             rot_group       = adr_ents.add_group
             rot_group.name  = NA_GROUP_NAME_ROT_HINGE
@@ -175,9 +177,12 @@ module Na__InteriorDoorSystem
 
         # HELPER FUNCTION | Compute the Open-State Rotation Transformation
         # ------------------------------------------------------------
-        # Right-hand doors swing CW in plan when viewed from above; left-
-        # hand doors swing CCW. Inward swings rotate one way, outward
-        # swings rotate the other.
+        # Door-local coords have +X along the wall, +Y through the wall
+        # depth (front face at Y=0). The room sits on the -Y side of the
+        # wall, so an Inward swing must rotate the closed hinge->latch
+        # vector to -Y, and an Outward swing must rotate it to +Y. This
+        # matches the dialog's JS plan view, which always draws the open
+        # latch on the room side.
         def self.na_compute_open_rotation_transform(config)
             opening_w_mm    = config["Na__DoorConfig__OpeningWidth_mm"].to_f
             wall_depth_mm   = config["Na__DoorConfig__WallDepth_mm"].to_f
@@ -197,7 +202,7 @@ module Na__InteriorDoorSystem
             )
 
             base_angle      = (swing_side == "left") ? 90.degrees : -90.degrees
-            sign            = (swing_direction == "inward") ? 1.0 : -1.0
+            sign            = (swing_direction == "inward") ? -1.0 : 1.0
             angle           = base_angle * sign
 
             Geom::Transformation.rotation(pivot, Z_AXIS, angle)

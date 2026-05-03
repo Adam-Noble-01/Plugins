@@ -15,10 +15,9 @@
 //
 // DESCRIPTION:
 // - Renders a head-on view of the door opening with the U-shaped door
-//   lining (left jamb, head, right jamb), the panel inside, and a
-//   simple handle marker. Future revisions will consume the unified
-//   handle JSON (Na__Asset__Elevation2D paths) for richer 2D handle
-//   geometry.
+//   lining (left jamb, head, right jamb), the panel inside, and handle
+//   geometry from the selected handle asset's Na__Asset__Elevation2D
+//   block (with simple-circle fallback if missing).
 //
 // COORDINATE SYSTEM:
 // - Units: millimetres. Y-axis flipped (top of opening at low Y).
@@ -87,6 +86,14 @@
     // ------------------------------------------------------------
     function na_make_svg(tag, attrs) {
         return window.Na__Viewport__SvgHelpers.na_make_svg(tag, attrs);
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Safe Numeric Coercion
+    // ------------------------------------------------------------
+    function na_to_number(value, fallback) {
+        var num = Number(value);
+        return Number.isFinite(num) ? num : fallback;
     }
     // ---------------------------------------------------------------
 
@@ -187,6 +194,100 @@
 
 
 // -----------------------------------------------------------------------------
+// REGION | Handle Asset Preview Helpers (Elevation2D)
+// -----------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve Selected Handle's Elevation2D block
+    // ------------------------------------------------------------
+    function na_get_handle_elevation_block(config) {
+        var handleKey = (config && config['Na__DoorConfig__HandleAssetKey']) || 'Na__InteriorDoor__Handle__Default';
+        var cache = window.NA_DOOR_HANDLE_ASSET_PREVIEW_CACHE || {};
+        var asset = cache[handleKey];
+        if (!asset || typeof asset !== 'object') return null;
+        return asset['Na__Asset__Elevation2D'] || null;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Transform asset local XY point into SVG XY
+    // ------------------------------------------------------------
+    function na_transform_handle_point_elevation(layout, point) {
+        var localX = na_to_number(point && point.X, 0);
+        var localY = na_to_number(point && point.Y, 0);
+        return {
+            x: layout.handleX + localX,
+            y: layout.handleY - localY
+        };
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Draw handle paths from Na__Asset__Elevation2D
+    // ------------------------------------------------------------
+    function na_build_handle_paths_from_asset(svg, layout, palette, block) {
+        var paths = block && block['Na__Geometry__Paths'];
+        if (!Array.isArray(paths) || !paths.length) return false;
+
+        var drew = false;
+        paths.forEach(function (pathItem) {
+            if (!pathItem || typeof pathItem !== 'object') return;
+            var pathType = String(pathItem.PathType || '').toLowerCase();
+
+            if (pathType === 'polygon') {
+                var vertices = Array.isArray(pathItem.Vertices_mm) ? pathItem.Vertices_mm : [];
+                if (!vertices.length) return;
+
+                var pointString = vertices.map(function (vertex) {
+                    var pt = na_transform_handle_point_elevation(layout, vertex);
+                    return pt.x + ',' + pt.y;
+                }).join(' ');
+                if (!pointString) return;
+
+                svg.appendChild(na_make_svg('polygon', {
+                    points: pointString,
+                    fill: palette.handleFill,
+                    stroke: NA_HANDLE_STROKE,
+                    'stroke-width': 0.75
+                }));
+                drew = true;
+                return;
+            }
+
+            if (pathType === 'line') {
+                var start = na_transform_handle_point_elevation(layout, pathItem.Start_mm);
+                var end = na_transform_handle_point_elevation(layout, pathItem.End_mm);
+                svg.appendChild(na_make_svg('line', {
+                    x1: start.x,
+                    y1: start.y,
+                    x2: end.x,
+                    y2: end.y,
+                    stroke: NA_HANDLE_STROKE,
+                    'stroke-width': 0.75
+                }));
+                drew = true;
+                return;
+            }
+
+            if (pathType === 'circle') {
+                var center = na_transform_handle_point_elevation(layout, pathItem.Center_mm);
+                svg.appendChild(na_make_svg('circle', {
+                    cx: center.x,
+                    cy: center.y,
+                    r: Math.max(0.1, na_to_number(pathItem.Radius_mm, 0)),
+                    fill: 'none',
+                    stroke: NA_HANDLE_STROKE,
+                    'stroke-width': 0.75
+                }));
+                drew = true;
+            }
+        });
+
+        return drew;
+    }
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
 // REGION | Layer Builders
 // -----------------------------------------------------------------------------
 
@@ -259,7 +360,7 @@
     }
     // ---------------------------------------------------------------
 
-    // SUB FUNCTION | Build a Simple Handle Marker
+    // SUB FUNCTION | Build a Simple Handle Marker (Fallback)
     // ------------------------------------------------------------
     function na_build_handle_marker(svg, layout, palette) {
         var rose = na_make_svg('circle', {
@@ -271,6 +372,15 @@
             'stroke-width' : 0.75
         });
         svg.appendChild(rose);
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Build Handle Preview (Asset Paths with Fallback Marker)
+    // ------------------------------------------------------------
+    function na_build_handle_preview(svg, layout, palette, config) {
+        var block = na_get_handle_elevation_block(config);
+        if (na_build_handle_paths_from_asset(svg, layout, palette, block)) return;
+        na_build_handle_marker(svg, layout, palette);
     }
     // ---------------------------------------------------------------
 
@@ -320,7 +430,7 @@
         if (layout.archEnabled) na_build_architrave_outline(svgElement, layout);
         na_build_lining_u_shape(svgElement, layout, palette);
         na_build_panel(svgElement, layout, palette);
-        na_build_handle_marker(svgElement, layout, palette);
+        na_build_handle_preview(svgElement, layout, palette, config);
         na_build_dimension_labels(svgElement, layout);
     };
     // ---------------------------------------------------------------

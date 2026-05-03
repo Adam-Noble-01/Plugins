@@ -17,7 +17,7 @@
 #   key per session (cached in @na_handle_def_cache) and reuses it for
 #   both the interior and exterior instances.
 # - The asset is authored lying on its back (Z+ = front face) so this
-#   module applies a +90 deg rotation about the Y axis when inserting
+#   module applies a -90 deg rotation about the Y axis when inserting
 #   into the door, per the user's spec.
 # - Reads RH/LH offsets and ScaleX from the asset metadata's
 #   Na__PanelPlacement__RightHand / Na__PanelPlacement__LeftHand blocks
@@ -31,6 +31,7 @@
 # =============================================================================
 
 require 'sketchup.rb'
+require 'set'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__AssetLibrary__'
@@ -70,7 +71,7 @@ module Na__InteriorDoorSystem
         # @param material [Sketchup::Material, nil] Optional handle material
         # @return [Hash] { :interior => ComponentInstance, :exterior => ComponentInstance }
         def self.na_build_handles(config, entities, material = nil)
-            asset_key = config["Na__DoorConfig__HandleAssetKey"]
+            asset_key = na_resolve_handle_asset_key(config)
             asset     = AssetLibrary.na_load_handle_asset(asset_key)
 
             unless asset
@@ -78,7 +79,13 @@ module Na__InteriorDoorSystem
                 return { :interior => nil, :exterior => nil }
             end
 
-            handle_def = na_get_or_build_handle_definition(asset_key, asset, material)
+            validation = na_validate_handle_asset_for_3d(asset_key, asset)
+            unless validation[:valid]
+                DebugTools.na_debug_warn("Handle asset '#{asset_key}' failed 3D contract validation - skipping handles")
+                return { :interior => nil, :exterior => nil }
+            end
+
+            handle_def = na_get_or_build_handle_definition(asset_key, validation[:mesh_block], material)
             return { :interior => nil, :exterior => nil } unless handle_def
 
             interior_inst = na_place_handle_instance(entities, handle_def, asset, config, :interior, material)
@@ -101,19 +108,141 @@ module Na__InteriorDoorSystem
 # REGION | Internal Helpers - Definition Builder
 # -----------------------------------------------------------------------------
 
+        # HELPER FUNCTION | Resolve Handle Asset Key with Safe Default
+        # ------------------------------------------------------------
+        def self.na_resolve_handle_asset_key(config)
+            candidate = config && config["Na__DoorConfig__HandleAssetKey"]
+            key = candidate.to_s.strip
+            return key unless key.empty?
+
+            if AssetLibrary.const_defined?(:NA_DEFAULT_HANDLE_KEY)
+                AssetLibrary::NA_DEFAULT_HANDLE_KEY.to_s
+            else
+                "Na__InteriorDoor__Handle__Default"
+            end
+        end
+        private_class_method :na_resolve_handle_asset_key
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Validate Handle Asset Mesh Contract
+        # ------------------------------------------------------------
+        # Performs strict contract checks so malformed JSON fails loudly
+        # before any SketchUp geometry mutation begins.
+        def self.na_validate_handle_asset_for_3d(asset_key, asset)
+            unless asset.is_a?(Hash)
+                DebugTools.na_debug_warn("Handle asset '#{asset_key}' is not a JSON object")
+                return { :valid => false, :mesh_block => nil }
+            end
+
+            mesh_block = asset["Na__Asset__Mesh3D"]
+            unless mesh_block.is_a?(Hash)
+                DebugTools.na_debug_warn("Handle asset '#{asset_key}' missing Hash block 'Na__Asset__Mesh3D'")
+                return { :valid => false, :mesh_block => nil }
+            end
+
+            vertices = mesh_block["Na__Geometry__Vertices"]
+            faces    = mesh_block["Na__Geometry__Faces"]
+            unless vertices.is_a?(Array) && !vertices.empty?
+                DebugTools.na_debug_warn("Handle asset '#{asset_key}' has no valid 'Na__Geometry__Vertices' array")
+                return { :valid => false, :mesh_block => nil }
+            end
+            unless faces.is_a?(Array) && !faces.empty?
+                DebugTools.na_debug_warn("Handle asset '#{asset_key}' has no valid 'Na__Geometry__Faces' array")
+                return { :valid => false, :mesh_block => nil }
+            end
+
+            valid, reason = na_validate_vertex_records(vertices)
+            unless valid
+                DebugTools.na_debug_warn("Handle asset '#{asset_key}' vertex contract error: #{reason}")
+                return { :valid => false, :mesh_block => nil }
+            end
+
+            valid, reason = na_validate_face_records(faces)
+            unless valid
+                DebugTools.na_debug_warn("Handle asset '#{asset_key}' face contract error: #{reason}")
+                return { :valid => false, :mesh_block => nil }
+            end
+
+            valid, reason = na_validate_face_vertex_references(vertices, faces)
+            unless valid
+                DebugTools.na_debug_warn("Handle asset '#{asset_key}' face->vertex reference error: #{reason}")
+                return { :valid => false, :mesh_block => nil }
+            end
+
+            { :valid => true, :mesh_block => mesh_block }
+        end
+        private_class_method :na_validate_handle_asset_for_3d
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Validate Vertex Records
+        # ------------------------------------------------------------
+        def self.na_validate_vertex_records(vertices)
+            vertices.each_with_index do |record, index|
+                return [false, "record #{index} is not an object"] unless record.is_a?(Hash)
+                return [false, "record #{index} missing VertexId"] if record["VertexId"].to_s.strip.empty?
+
+                %w[PosX_mm PosY_mm PosZ_mm].each do |field_name|
+                    return [false, "record #{index} missing #{field_name}"] unless record.key?(field_name)
+                    return [false, "record #{index} invalid #{field_name} value"] unless na_numeric_value?(record[field_name])
+                end
+            end
+            [true, nil]
+        end
+        private_class_method :na_validate_vertex_records
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Validate Face Records
+        # ------------------------------------------------------------
+        def self.na_validate_face_records(faces)
+            faces.each_with_index do |record, index|
+                return [false, "record #{index} is not an object"] unless record.is_a?(Hash)
+                loop_ids = record["OuterLoop_VertexIds"]
+                return [false, "record #{index} missing OuterLoop_VertexIds"] unless loop_ids.is_a?(Array)
+                return [false, "record #{index} needs at least 3 OuterLoop_VertexIds"] if loop_ids.length < 3
+                return [false, "record #{index} has blank vertex id"] if loop_ids.any? { |value| value.to_s.strip.empty? }
+            end
+            [true, nil]
+        end
+        private_class_method :na_validate_face_records
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Validate Face Vertex ID References
+        # ------------------------------------------------------------
+        def self.na_validate_face_vertex_references(vertices, faces)
+            vertex_ids = vertices.map { |record| record["VertexId"].to_s }.to_set
+            faces.each_with_index do |record, index|
+                loop_ids = record["OuterLoop_VertexIds"] || []
+                loop_ids.each do |vertex_id|
+                    return [false, "record #{index} references unknown VertexId '#{vertex_id}'"] unless vertex_ids.include?(vertex_id.to_s)
+                end
+            end
+            [true, nil]
+        end
+        private_class_method :na_validate_face_vertex_references
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Numeric Coercion Guard
+        # ------------------------------------------------------------
+        def self.na_numeric_value?(value)
+            Float(value)
+            true
+        rescue StandardError
+            false
+        end
+        private_class_method :na_numeric_value?
+        # ---------------------------------------------------------------
+
         # HELPER FUNCTION | Get or Build the Handle ComponentDefinition
         # ------------------------------------------------------------
         # Returns a cached definition if one was built earlier in the
         # session. Otherwise builds a fresh definition from the asset's
         # Na__Asset__Mesh3D block and caches it.
-        def self.na_get_or_build_handle_definition(asset_key, asset, material)
+        def self.na_get_or_build_handle_definition(asset_key, mesh_block, material)
             cached = @na_handle_def_cache[asset_key]
-            return cached if cached && cached.valid?
-
-            mesh_block = asset["Na__Asset__Mesh3D"]
-            unless mesh_block
-                DebugTools.na_debug_warn("Handle asset '#{asset_key}' missing Na__Asset__Mesh3D block")
-                return nil
+            if cached && cached.valid?
+                return cached if na_definition_has_mesh_faces?(cached)
+                DebugTools.na_debug_warn("Handle definition cache for '#{asset_key}' was empty - rebuilding")
+                @na_handle_def_cache.delete(asset_key)
             end
 
             model       = Sketchup.active_model
@@ -121,12 +250,26 @@ module Na__InteriorDoorSystem
 
             def_name    = "Na__InteriorDoor__Handle__#{asset_key}"
             existing    = model.definitions[def_name]
-            return @na_handle_def_cache[asset_key] = existing if existing && existing.valid?
+            if existing && existing.valid? && na_definition_has_mesh_faces?(existing)
+                @na_handle_def_cache[asset_key] = existing
+                return existing
+            end
 
-            definition  = model.definitions.add(def_name)
-            na_build_mesh_into_definition(definition, mesh_block, material)
+            definition = if existing && existing.valid?
+                             existing
+                         else
+                             model.definitions.add(def_name)
+                         end
+            definition.entities.clear!
+
+            built_faces = na_build_mesh_into_definition(definition, mesh_block, material)
+            if built_faces <= 0
+                DebugTools.na_debug_warn("Handle definition '#{def_name}' built zero faces - skipping handle instances")
+                return nil
+            end
+
             @na_handle_def_cache[asset_key] = definition
-            DebugTools.na_debug_geometry("Built handle definition '#{def_name}'")
+            DebugTools.na_debug_geometry("Built handle definition '#{def_name}' with #{built_faces} faces")
             definition
         end
         private_class_method :na_get_or_build_handle_definition
@@ -140,10 +283,12 @@ module Na__InteriorDoorSystem
             vertices = mesh_block["Na__Geometry__Vertices"] || []
             faces    = mesh_block["Na__Geometry__Faces"]    || []
 
-            return if vertices.empty? || faces.empty?
+            return 0 if vertices.empty? || faces.empty?
 
             point_table = na_build_vertex_point_table(vertices)
             entities    = definition.entities
+            return 0 if point_table.empty?
+            built_count = 0
 
             faces.each do |frec|
                 outer_ids = frec["OuterLoop_VertexIds"] || []
@@ -154,12 +299,14 @@ module Na__InteriorDoorSystem
 
                 face = entities.add_face(pts)
                 next unless face && face.valid?
+                built_count += 1
 
                 if material
                     face.material      = material
                     face.back_material = material
                 end
             end
+            built_count
         end
         private_class_method :na_build_mesh_into_definition
         # ---------------------------------------------------------------
@@ -185,6 +332,15 @@ module Na__InteriorDoorSystem
             table
         end
         private_class_method :na_build_vertex_point_table
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Detect Whether a Definition Already Has Faces
+        # ------------------------------------------------------------
+        def self.na_definition_has_mesh_faces?(definition)
+            return false unless definition && definition.valid?
+            !definition.entities.grep(Sketchup::Face).empty?
+        end
+        private_class_method :na_definition_has_mesh_faces?
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -223,7 +379,7 @@ module Na__InteriorDoorSystem
         # HELPER FUNCTION | Compute the Insertion Transform for a Handle
         # ------------------------------------------------------------
         # Combines four transformations:
-        #   1. +90 deg rotation about Y axis (asset is authored lying on back)
+        #   1. -90 deg rotation about Y axis (asset is authored lying on back)
         #   2. Optional X mirror for left-hand handing (ScaleX = -1)
         #   3. Translation to the panel face (interior or exterior side)
         #   4. Translation along X to the hinge offset and along Z to handle height
@@ -238,7 +394,6 @@ module Na__InteriorDoorSystem
             lining_t_mm          = config["Na__DoorConfig__LiningThickness_mm"].to_f
             panel_t_mm           = config["Na__DoorConfig__PanelThickness_mm"].to_f
             face_offset_mm       = config["Na__DoorConfig__LiningFaceOffset_mm"].to_f
-            floor_clear_mm       = config["Na__DoorConfig__PanelFloorClearance_mm"].to_f
             swing_side           = (config["Na__DoorConfig__SwingSide"] || "Left").downcase
 
             placement_block      = (swing_side == "left") ? "Na__PanelPlacement__LeftHand" : "Na__PanelPlacement__RightHand"
@@ -266,7 +421,7 @@ module Na__InteriorDoorSystem
             base_origin   = Geom::Point3d.new(mm.call(handle_x_mm), mm.call(handle_y_mm), mm.call(handle_height_mm))
 
             t_origin      = Geom::Transformation.new(base_origin)
-            t_lay_back    = Geom::Transformation.rotation(ORIGIN, Y_AXIS, 90.degrees)             # <-- Asset authored on back
+            t_lay_back    = Geom::Transformation.rotation(ORIGIN, Y_AXIS, -90.degrees)            # <-- Asset authored on back
             t_face_flip   = (face == :exterior) ? Geom::Transformation.rotation(ORIGIN, Z_AXIS, 180.degrees) : Geom::Transformation.new
             t_handing     = (scale_x < 0) ? Geom::Transformation.scaling(ORIGIN, -1, 1, 1) : Geom::Transformation.new
 

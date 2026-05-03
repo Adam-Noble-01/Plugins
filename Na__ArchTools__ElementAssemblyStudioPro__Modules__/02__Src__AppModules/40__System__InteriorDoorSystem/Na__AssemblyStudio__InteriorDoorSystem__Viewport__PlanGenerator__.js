@@ -24,9 +24,10 @@
 //   1. Wall fill rectangles (left + right of opening)
 //   2. Door lining sections (left jamb + right jamb plan rectangles)
 //   3. Door panel rectangle (closed position)
-//   4. Dotted door panel outline (swing position)
-//   5. Dotted door swing arc
-//   6. Dimension labels (W / D)
+//   4. Handle preview from selected Na__Asset__Plan2D (fallback: marker)
+//   5. Dotted door panel outline (swing position)
+//   6. Dotted door swing arc
+//   7. Dimension labels (W / D)
 //
 // NAMING CONVENTION:
 // - All identifiers use Na_ / na_ prefix.
@@ -59,9 +60,12 @@
     var NA_WALL_FILL               = '#d8d8d8';                               // <-- Cool grey wall fill
     var NA_WALL_STROKE             = '#666666';                               // <-- Wall outline
     var NA_PANEL_STROKE            = '#5a4324';                               // <-- Door panel outline
+    var NA_HANDLE_STROKE           = '#5a4324';                               // <-- Handle path outline
     var NA_SWING_STROKE            = '#5a4324';                               // <-- Swing arc outline
     var NA_DIM_TEXT_COLOR          = '#333333';                               // <-- Dimension label colour
     var NA_FALLBACK_TIMBER_HEX     = '#D2B48C';                               // <-- Used only before swatches arrive
+    var NA_FALLBACK_HANDLE_HEX     = '#C0AE8A';                               // <-- Unlacquered brass fallback for handle preview
+    var NA_FALLBACK_HANDLE_RADIUS  = 12;                                      // <-- Visible fallback if Plan2D data is missing
     // ---------------------------------------------------------------
 
 // endregion -------------------------------------------------------------------
@@ -92,29 +96,34 @@
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | Safe Numeric Coercion
+    // ------------------------------------------------------------
+    function na_to_number(value, fallback) {
+        var num = Number(value);
+        return Number.isFinite(num) ? num : fallback;
+    }
+    // ---------------------------------------------------------------
+
 // endregion -------------------------------------------------------------------
 
 
 // -----------------------------------------------------------------------------
-// REGION | Material Hex Resolution (Live from NA_FRAME_FINISH_SWATCHES)
+// REGION | Material Hex Resolution (Live from Swatch Globals)
 // -----------------------------------------------------------------------------
 
     // HELPER FUNCTION | Resolve a Material ID to a Hex Colour String
     // ------------------------------------------------------------
-    // Reads window.NA_FRAME_FINISH_SWATCHES (pushed in by Ruby from the
-    // central materials JSON). Falls back to a neutral timber tone only when
-    // the swatches have not arrived yet (e.g. during initial first paint
-    // before Ruby's na_requestFrameFinishSwatches callback completes).
-    function na_resolve_material_hex(materialId) {
-        var swatches = window.NA_FRAME_FINISH_SWATCHES;
+    // Reads the provided swatch global name (default frame-finish swatches).
+    function na_resolve_material_hex(materialId, fallbackHex, swatchesGlobalName) {
+        var swatches = window[swatchesGlobalName || 'NA_FRAME_FINISH_SWATCHES'];
         if (Array.isArray(swatches)) {
             for (var i = 0; i < swatches.length; i++) {
                 if (swatches[i] && swatches[i].id === materialId) {
-                    return swatches[i].hex || swatches[i].color || NA_FALLBACK_TIMBER_HEX;
+                    return swatches[i].hex || swatches[i].color || fallbackHex;
                 }
             }
         }
-        return NA_FALLBACK_TIMBER_HEX;
+        return fallbackHex;
     }
     // ---------------------------------------------------------------
 
@@ -123,10 +132,150 @@
     function na_resolve_door_finish_palette(config) {
         var liningId = (config && config['Na__DoorConfig__LiningMaterialId']) || 'MAT120__GenericWood';
         var panelId  = (config && config['Na__DoorConfig__PanelMaterialId'])  || 'MAT120__GenericWood';
+        var handleId = (config && config['Na__DoorConfig__HandleMaterialId']) || 'MAT612__Metal__Ironmongery__Brass';
         return {
-            liningFill : na_resolve_material_hex(liningId),
-            panelFill  : na_resolve_material_hex(panelId)
+            liningFill : na_resolve_material_hex(liningId, NA_FALLBACK_TIMBER_HEX, 'NA_FRAME_FINISH_SWATCHES'),
+            panelFill  : na_resolve_material_hex(panelId,  NA_FALLBACK_TIMBER_HEX, 'NA_FRAME_FINISH_SWATCHES'),
+            handleFill : na_resolve_material_hex(handleId, NA_FALLBACK_HANDLE_HEX, 'NA_HANDLE_FINISH_SWATCHES')
         };
+    }
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Handle Asset Preview Helpers (Plan2D)
+// -----------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve Selected Handle's Plan2D block
+    // ------------------------------------------------------------
+    function na_get_handle_asset_key(config) {
+        return (config && config['Na__DoorConfig__HandleAssetKey']) || 'Na__InteriorDoor__Handle__Default';
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve Selected Handle's Plan2D block
+    // ------------------------------------------------------------
+    function na_get_handle_plan_block(config) {
+        var handleKey = na_get_handle_asset_key(config);
+        var cache = window.NA_DOOR_HANDLE_ASSET_PREVIEW_CACHE || {};
+        var asset = cache[handleKey];
+        if (!asset || typeof asset !== 'object') return null;
+        return asset['Na__Asset__Plan2D'] || null;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Transform asset local XY point into plan SVG XY
+    // ------------------------------------------------------------
+    function na_transform_handle_point_plan(layout, point) {
+        var localX = na_to_number(point && point.X, 0);
+        var localY = na_to_number(point && point.Y, 0);
+        return {
+            x: layout.handleX + localX,
+            y: layout.handleY + localY
+        };
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Draw handle paths from Na__Asset__Plan2D
+    // ------------------------------------------------------------
+    function na_build_handle_paths_from_asset(svg, layout, palette, block) {
+        var paths = block && block['Na__Geometry__Paths'];
+        if (!Array.isArray(paths) || !paths.length) return false;
+
+        var drew = false;
+        paths.forEach(function (pathItem) {
+            if (!pathItem || typeof pathItem !== 'object') return;
+            var pathType = String(pathItem.PathType || '').toLowerCase();
+
+            if (pathType === 'polygon') {
+                var vertices = Array.isArray(pathItem.Vertices_mm) ? pathItem.Vertices_mm : [];
+                if (!vertices.length) return;
+
+                var pointString = vertices.map(function (vertex) {
+                    var pt = na_transform_handle_point_plan(layout, vertex);
+                    return pt.x + ',' + pt.y;
+                }).join(' ');
+                if (!pointString) return;
+
+                svg.appendChild(na_make_svg('polygon', {
+                    points: pointString,
+                    fill: palette.handleFill,
+                    stroke: NA_HANDLE_STROKE,
+                    'stroke-width': 0.6
+                }));
+                drew = true;
+                return;
+            }
+
+            if (pathType === 'line') {
+                var start = na_transform_handle_point_plan(layout, pathItem.Start_mm);
+                var end = na_transform_handle_point_plan(layout, pathItem.End_mm);
+                svg.appendChild(na_make_svg('line', {
+                    x1: start.x,
+                    y1: start.y,
+                    x2: end.x,
+                    y2: end.y,
+                    stroke: NA_HANDLE_STROKE,
+                    'stroke-width': 0.6
+                }));
+                drew = true;
+                return;
+            }
+
+            if (pathType === 'circle') {
+                var center = na_transform_handle_point_plan(layout, pathItem.Center_mm);
+                svg.appendChild(na_make_svg('circle', {
+                    cx: center.x,
+                    cy: center.y,
+                    r: Math.max(0.1, na_to_number(pathItem.Radius_mm, 0)),
+                    fill: 'none',
+                    stroke: NA_HANDLE_STROKE,
+                    'stroke-width': 0.6
+                }));
+                drew = true;
+            }
+        });
+
+        return drew;
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Build a Simple Handle Marker (Fallback)
+    // ------------------------------------------------------------
+    function na_build_handle_marker(svg, layout, palette) {
+        svg.appendChild(na_make_svg('circle', {
+            cx: layout.handleX,
+            cy: layout.handleY,
+            r: NA_FALLBACK_HANDLE_RADIUS,
+            fill: palette.handleFill,
+            stroke: NA_HANDLE_STROKE,
+            'stroke-width': 0.75
+        }));
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Warn Once Per Handle Key for Missing Plan2D Paths
+    // ------------------------------------------------------------
+    function na_warn_plan_preview_missing_once(handleKey, reason) {
+        window.NA_DOOR_HANDLE_PLAN_PREVIEW_WARNINGS = window.NA_DOOR_HANDLE_PLAN_PREVIEW_WARNINGS || {};
+        var token = String(handleKey || 'unknown') + '::' + String(reason || 'unknown');
+        if (window.NA_DOOR_HANDLE_PLAN_PREVIEW_WARNINGS[token]) return;
+        window.NA_DOOR_HANDLE_PLAN_PREVIEW_WARNINGS[token] = true;
+        console.warn('[Na_DoorPlanGenerator] Using fallback marker for handle', handleKey, '| reason:', reason);
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Build Handle Preview for Plan View
+    // ------------------------------------------------------------
+    function na_build_handle_preview(svg, layout, palette, config) {
+        var handleKey = na_get_handle_asset_key(config);
+        var block = na_get_handle_plan_block(config);
+        if (na_build_handle_paths_from_asset(svg, layout, palette, block)) return;
+        var reason = (block && block['Na__Geometry__Paths']) ? 'invalid-path-records' : 'missing-plan2d-block-or-paths';
+        na_warn_plan_preview_missing_once(handleKey, reason);
+        na_build_handle_marker(svg, layout, palette);
     }
     // ---------------------------------------------------------------
 
@@ -316,6 +465,13 @@
 
         var panelClearWidth  = openingWidth - (liningThickness * 2);
         var panelY           = wallTopY + ((wallDepth - panelThickness) / 2);
+        var panelX           = (swingSide === 'Left')
+            ? openingX + liningThickness
+            : openingX + openingWidth - liningThickness - panelClearWidth;
+        var handleX          = (swingSide === 'Left')
+            ? panelX + panelClearWidth - 60
+            : panelX + 60;
+        var handleY          = panelY + (panelThickness / 2);
 
         return {
             openingWidth     : openingWidth,
@@ -330,7 +486,9 @@
             viewMaxY         : totalHeight,
             wallTopY         : wallTopY,
             openingX         : openingX,
-            panelY           : panelY
+            panelY           : panelY,
+            handleX          : handleX,
+            handleY          : handleY
         };
     }
     // ---------------------------------------------------------------
@@ -355,6 +513,7 @@
         na_build_wall_layers(svgElement, layout);
         na_build_lining_layers(svgElement, layout, palette);
         na_build_closed_panel(svgElement, layout, palette);
+        na_build_handle_preview(svgElement, layout, palette, config);
 
         if (na_bool(config, 'Na__DoorConfig__ShowSwingArc', true)) {
             na_build_open_panel_outline(svgElement, layout);
