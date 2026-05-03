@@ -32,9 +32,9 @@
         return typeof sketchup !== 'undefined';
     };
 
-    Na_BridgeBase.na_status = function (type, message) {
+    Na_BridgeBase.na_status = function (type, message, persistent) {
         if (typeof window.na_showStatus !== 'function') return;
-        try { window.na_showStatus(type, message); }
+        try { window.na_showStatus(type, message, persistent === true); }
         catch (err) { console.warn('[Na_BridgeBase] na_showStatus failed:', err); }
     };
 

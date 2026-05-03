@@ -32,6 +32,10 @@
 
 const Na__Viewport__SvgGenerator = (function() {
 
+// -----------------------------------------------------------------------------
+// REGION | Frame Thickness & Material Colour
+// -----------------------------------------------------------------------------
+
     // FUNCTION | Resolve Effective Frame Thicknesses
     // ------------------------------------------------------------
     function na_getEffectiveFrameThicknesses(config) {
@@ -58,20 +62,32 @@ const Na__Viewport__SvgGenerator = (function() {
     
     // FUNCTION | Get Material Color by ID
     // ------------------------------------------------------------
-    // Looks up a material's hex color from the hardcoded materials array.
+    // Resolves the SVG preview tint for a given frame material ID against
+    // window.NA_FRAME_FINISH_SWATCHES (live data pushed by Ruby from the
+    // central materials JSON). The SVG-only fallback is plain white if the
+    // swatches haven't arrived yet -- the Frame Finish card row stays
+    // hidden in that case so the user can't trigger an unknown ID anyway.
     // @param {string} materialId - Material ID (e.g., 'MAT120__GenericWood')
     // @returns {string} Hex color string (e.g., '#D2B48C')
     function na_getMaterialColor(materialId) {
-        // Get frame material config from NA_OPTIONS_CONFIG
-        const frameMatConfig = window.NA_OPTIONS_CONFIG.find(c => c.id === 'frame_material_id');
-        if (!frameMatConfig || !frameMatConfig.materials) {
-            return '#D2B48C'; // Fallback to generic wood color
+        const swatches = window.NA_FRAME_FINISH_SWATCHES;
+        if (Array.isArray(swatches)) {
+            for (let i = 0; i < swatches.length; i++) {
+                if (swatches[i] && swatches[i].id === materialId) {
+                    return swatches[i].hex || swatches[i].color || '#FFFFFF';
+                }
+            }
         }
-        
-        const material = frameMatConfig.materials.find(m => m.id === materialId);
-        return material ? material.color : '#D2B48C';
+        return '#FFFFFF';
     }
     // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Keys, Removal Sets & Panel State
+// -----------------------------------------------------------------------------
 
     // FUNCTION | Build Glaze Bar Storage Key
     // ------------------------------------------------------------
@@ -134,6 +150,13 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | SVG Render Bucket Merge Helpers
+// -----------------------------------------------------------------------------
+
     // FUNCTION | Create SVG Render Bucket
     // ------------------------------------------------------------
     function na_createSvgRenderBucket() {
@@ -153,7 +176,14 @@ const Na__Viewport__SvgGenerator = (function() {
         targetBucket.casementClickTargetsSvg += (sourceBucket.casementClickTargetsSvg || ''); // <-- Forward casement targets
     }
     // ---------------------------------------------------------------
-    
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Main Window Composition (Frame → Openings → Cill → Dimensions)
+// -----------------------------------------------------------------------------
+
     // FUNCTION | Generate SVG Content for Window with Mullions and Optional Casements
     // ------------------------------------------------------------
     // @param {Object} config - Window configuration object
@@ -293,6 +323,13 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Transom Stack — Layout & Removed Segment Queries
+// -----------------------------------------------------------------------------
+
     // FUNCTION | Get Active Transom Heights
     // ------------------------------------------------------------
     function na_getActiveTransomBottoms(config, transomCount) {
@@ -365,6 +402,13 @@ const Na__Viewport__SvgGenerator = (function() {
         return { cells, transomSegments };
     }
     // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Per-Opening Cell — Panel Loop & Casement Routing
+// -----------------------------------------------------------------------------
 
     // FUNCTION | Generate SVG for One Opening Cell
     // ------------------------------------------------------------
@@ -474,6 +518,13 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Click Targets — Casement / Transom / Removed Indicator
+// -----------------------------------------------------------------------------
+
     // FUNCTION | Generate Per-Panel Removed Casement Indicator SVG
     // ------------------------------------------------------------
     function na_generatePanelRemovedIndicatorSvg(panelX, panelY, panelWidth, panelHeight) {
@@ -519,7 +570,14 @@ const Na__Viewport__SvgGenerator = (function() {
                       style="cursor: pointer; pointer-events: all;"/>`;
     }
     // ---------------------------------------------------------------
-    
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Casement Styles — Fixed & Sliding Sash
+// -----------------------------------------------------------------------------
+
     // FUNCTION | Generate SVG for a Single Casement with Individual Sizes
     // ------------------------------------------------------------
     function na_generateSingleCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, panelContext, removedGlazebars) {
@@ -611,7 +669,14 @@ const Na__Viewport__SvgGenerator = (function() {
         return renderBucket;
     }
     // ---------------------------------------------------------------
-    
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Door Mode — Casement Shell & Raised-Panel Inner
+// -----------------------------------------------------------------------------
+
     // FUNCTION | Generate Door Casement SVG
     // ------------------------------------------------------------
     // Draws a full-height casement with stiles, top/bottom/mid rails,
@@ -741,6 +806,13 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Glaze Bars — Geometry & Invisible Hit Rects
+// -----------------------------------------------------------------------------
+
     // FUNCTION | Generate SVG Glaze Bars for a Glass Area (No Casement Frame)
     // ------------------------------------------------------------
     // Used for direct-glazed openings where casement has been removed.
@@ -849,6 +921,13 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Glaze Bar Key Validation (mirrors raster layout)
+// -----------------------------------------------------------------------------
+
     // FUNCTION | Collect Valid Glaze Bar Keys
     // ------------------------------------------------------------
     function na_collectValidGlazebarKeys(config) {
@@ -931,7 +1010,14 @@ const Na__Viewport__SvgGenerator = (function() {
         }
     }
     // ---------------------------------------------------------------
-    
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Primitive SVG — Rect Shell & Dimensions
+// -----------------------------------------------------------------------------
+
     // FUNCTION | Generate SVG Rectangle
     // ------------------------------------------------------------
     // @param {number} x - X coordinate (bottom-left origin)
@@ -980,9 +1066,14 @@ const Na__Viewport__SvgGenerator = (function() {
         return svg;
     }
     // ---------------------------------------------------------------
-    
-    // Public API
-    // ------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Exported Public Surface (return hash)
+// -----------------------------------------------------------------------------
+
     return {
         na_generateWindowSvg: na_generateWindowSvg,
         na_generateSingleCasementSvg: na_generateSingleCasementSvg,
@@ -1000,14 +1091,17 @@ const Na__Viewport__SvgGenerator = (function() {
         na_svgDimensions: na_svgDimensions,
         na_getMaterialColor: na_getMaterialColor
     };
-    
+
+// endregion -------------------------------------------------------------------
+
 })();
 
-// endregion ===================================================================
+// endregion -------------------------------------------------------------------
 
-// =============================================================================
-// REGION | Global Exports
-// =============================================================================
+
+// -----------------------------------------------------------------------------
+// REGION | Browser Global Attachment
+// -----------------------------------------------------------------------------
 
 // Export to global window object for access by other modules
 // ------------------------------------------------------------
@@ -1015,8 +1109,4 @@ window.Na__Viewport__SvgGenerator = Na__Viewport__SvgGenerator;
 
 console.log('[NA_VIEWPORT_SVGGENERATOR] SVG Generator module loaded');
 
-// endregion ===================================================================
-
-// =============================================================================
-// END OF FILE
-// =============================================================================
+// endregion -------------------------------------------------------------------

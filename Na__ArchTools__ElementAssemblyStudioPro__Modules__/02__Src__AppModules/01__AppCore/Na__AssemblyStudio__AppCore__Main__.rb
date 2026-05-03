@@ -24,7 +24,9 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__TagManager__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__ConfigLoader__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
+require_relative '../02__AppData/Na__AssemblyStudio__AppData__FrameFinishSwatches__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__SerializerBase__'
+require_relative '../../../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Box__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Units__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Fuse__Shared__'
@@ -59,6 +61,7 @@ module Na__AssemblyStudio
     NA_SRC_DIR        = File.expand_path("..", NA_APPCORE_DIR)
     NA_MODULES_ROOT   = File.expand_path("..", NA_SRC_DIR)
     NA_HTML_FILE_PATH = File.join(NA_MODULES_ROOT, "Na__AssemblyStudio__UiLayout__.html")
+    NA_CACHE_DIR_PATH = File.join(NA_MODULES_ROOT, "90__AppCache__TempFilesCache")
 
     DebugTools             = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
     MaterialManager        = Na__AssemblyStudio::Na__AppData::Na__MaterialManager
@@ -70,6 +73,11 @@ module Na__AssemblyStudio
     def self.na_init
         DebugTools.na_debug_method("Na__AssemblyStudio.na_init")
 
+        # Route the shared DataLib cache to this plugin's local cache folder
+        # so cached web data is co-located with the plugin and survives across
+        # SketchUp's temp_dir cleanups.
+        Na__DataLib__CacheData.Na__Cache__SetCacheDirOverride(NA_CACHE_DIR_PATH)
+
         # Load app config + materials library + standard materials
         begin
             cfg = Na__AssemblyStudio::Na__AppData::Na__ConfigLoader.na_load
@@ -80,6 +88,7 @@ module Na__AssemblyStudio
 
         MaterialManager.na_load_materials_library
         MaterialManager.na_initialize_standard_materials
+        MaterialManager.na_ensure_safety_materials
 
         # Per-system init hooks
         Na__AssemblyStudio::Na__WindowSystem::Na__Init.na_init       if defined?(Na__AssemblyStudio::Na__WindowSystem::Na__Init)

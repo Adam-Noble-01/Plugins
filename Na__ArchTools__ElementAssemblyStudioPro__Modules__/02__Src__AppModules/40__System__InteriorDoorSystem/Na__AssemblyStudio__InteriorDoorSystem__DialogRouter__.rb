@@ -30,6 +30,7 @@
 require 'sketchup.rb'
 require 'json'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
+require_relative '../01__AppCore/Na__AssemblyStudio__AppCore__UiBridge__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryEngine__'
 require_relative '../06__Tools__MeasurementTools/Na__AssemblyStudio__MeasurementTools__ThreePointOpeningTool__'
@@ -43,6 +44,7 @@ module Na__InteriorDoorSystem
 # -----------------------------------------------------------------------------
 
         DebugTools     = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        UiBridge       = Na__AssemblyStudio::Na__AppCore::Na__UiBridge
         DataSerializer = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__DataSerializer
         GeometryEngine = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryEngine
 
@@ -196,6 +198,7 @@ module Na__InteriorDoorSystem
 
             begin
                 config_root        = JSON.parse(config_json)
+                na_prune_obsolete_config_keys!(config_root)
                 @na_current_config = config_root
 
                 model.start_operation("Create Interior Door", true)
@@ -240,6 +243,7 @@ module Na__InteriorDoorSystem
 
             begin
                 config_root        = JSON.parse(config_json)
+                na_prune_obsolete_config_keys!(config_root)
                 @na_current_config = config_root
 
                 unless @na_current_door_inst && @na_current_door_inst.valid?
@@ -291,6 +295,7 @@ module Na__InteriorDoorSystem
 
             begin
                 config_root         = JSON.parse(config_json)
+                na_prune_obsolete_config_keys!(config_root)
 
                 incoming_id         = na_extract_unique_id(config_root)
                 current_id          = nil
@@ -383,7 +388,7 @@ module Na__InteriorDoorSystem
             }
 
             dialog = na_active_dialog
-            return unless dialog && dialog.visible?
+            return unless dialog
 
             # v0.11.7 - Every numeric argument MUST be cast to Float before
             # interpolation, otherwise SketchUp's Length#to_s injects a
@@ -404,10 +409,14 @@ module Na__InteriorDoorSystem
                 "W=#{width_f}mm H=#{height_f}mm D=#{depth_f}mm " \
                 "origin=(#{ax}, #{ay}, #{az})in"
             )
-            dialog.execute_script(
-                "window.na_receiveDoorMeasurement(#{width_f}, #{height_f}, #{depth_f}," \
-                " #{ax}, #{ay}, #{az});"
+            sent = UiBridge.na_execute_numeric_function(
+                dialog,
+                'window.na_receiveDoorMeasurement',
+                width_f, height_f, depth_f, ax, ay, az
             )
+            unless sent
+                DebugTools.na_debug_warn('Door measurement callback skipped: dialog/function not available')
+            end
         end
         # ---------------------------------------------------------------
 
@@ -415,8 +424,8 @@ module Na__InteriorDoorSystem
         # ------------------------------------------------------------
         def self.na_send_door_measure_cancelled_to_dialog
             dialog = na_active_dialog
-            return unless dialog && dialog.visible?
-            dialog.execute_script("window.na_doorMeasureCancelled();")
+            return unless dialog
+            UiBridge.na_invoke(dialog, 'window.na_doorMeasureCancelled')
         end
         # ---------------------------------------------------------------
 
@@ -496,6 +505,7 @@ module Na__InteriorDoorSystem
 
         NA_DOOR_CONFIG_KEY    = "Na__DoorConfiguration".freeze
         NA_DOOR_METADATA_KEY  = "Na__DoorMetadata".freeze
+        NA_OBSOLETE_DOOR_CONFIG_KEYS = ["Na__DoorConfig__HandleSide"].freeze
 
         # HELPER FUNCTION | Deep Clone via Marshal
         # ------------------------------------------------------------
@@ -556,6 +566,20 @@ module Na__InteriorDoorSystem
             metadata.first.is_a?(Hash) ? metadata.first : nil
         end
         private_class_method :na_first_metadata_entry
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Remove Deprecated Door Configuration Keys
+        # ------------------------------------------------------------
+        def self.na_prune_obsolete_config_keys!(config_root)
+            return unless config_root.is_a?(Hash)
+            config_block = config_root[NA_DOOR_CONFIG_KEY]
+            return unless config_block.is_a?(Hash)
+
+            NA_OBSOLETE_DOOR_CONFIG_KEYS.each do |key|
+                config_block.delete(key)
+            end
+        end
+        private_class_method :na_prune_obsolete_config_keys!
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

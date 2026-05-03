@@ -135,7 +135,7 @@ module Na__InteriorDoorSystem
     NA_DEFAULT_LINING_MATERIAL_ID      = "MAT120__GenericWood".freeze          # <-- Default lining material
     NA_DEFAULT_PANEL_MATERIAL_ID       = "MAT120__GenericWood".freeze          # <-- Default door panel material
     NA_DEFAULT_ARCHITRAVE_MATERIAL_ID  = "MAT120__GenericWood".freeze          # <-- Default architrave material
-    NA_DEFAULT_HANDLE_MATERIAL_ID      = "MAT612__Brass".freeze                # <-- Default handle material
+    NA_DEFAULT_HANDLE_MATERIAL_ID      = "MAT200__BrushedSteel".freeze         # <-- Default handle material (matches JS Handle Finish swatches)
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -182,10 +182,10 @@ module Na__InteriorDoorSystem
             "Na__DoorConfig__HandleHeight_mm"        => 1050,
             "Na__DoorConfig__CreateOpenStateCopy"    => true,
             "Na__DoorConfig__FuseLining"             => true,
-            "Na__DoorConfig__LiningMaterialId"       => "MAT120__GenericWood",
-            "Na__DoorConfig__PanelMaterialId"        => "MAT120__GenericWood",
-            "Na__DoorConfig__ArchitraveMaterialId"   => "MAT120__GenericWood",
-            "Na__DoorConfig__HandleMaterialId"       => "MAT612__Brass"
+            "Na__DoorConfig__LiningMaterialId"       => NA_DEFAULT_LINING_MATERIAL_ID,
+            "Na__DoorConfig__PanelMaterialId"        => NA_DEFAULT_PANEL_MATERIAL_ID,
+            "Na__DoorConfig__ArchitraveMaterialId"   => NA_DEFAULT_ARCHITRAVE_MATERIAL_ID,
+            "Na__DoorConfig__HandleMaterialId"       => NA_DEFAULT_HANDLE_MATERIAL_ID
         }
     }.freeze
     # ---------------------------------------------------------------

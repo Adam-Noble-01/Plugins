@@ -6,15 +6,20 @@
 # NAMESPACE  : Na__AssemblyStudio::Na__MeasurementTools
 # CLASS      : Na__TwoPointOpeningTool
 # AUTHOR     : Noble Architecture
-# PURPOSE    : Tool-agnostic two-click measurement tool. Captures Point A
-#              (base corner) and Point B (opposite corner) of a rectangular
-#              opening and forwards width, cill-adjusted height and Point A
-#              (in inches) to a host module via a configurable callback name.
+# PURPOSE    : SketchUp Tool — two picks define a planar opening rectangle;
+#              reports width / cill-adjusted height plus Point A inches to host.
+#
+# DESCRIPTION:
+# - Point A anchors the façade corner; Point B completes W×H in model space.
+# - Cill + bottom frame thickness drive adjusted height forwarded on complete.
+# - DEFAULT_CALLBACKS may be overridden per host (window vs future systems).
 #
 # REFACTOR NOTES (v2 / EASP)
-# - Logger proxy removed; uses unified Na__AssemblyStudio::Na__AppUtils::Na__DebugTools.
-# - Host callback name parameterised in the constructor so the tool is not
-#   coupled to "na_send_measurement_to_dialog" by string literal.
+# - Uses Na__AssemblyStudio::Na__AppUtils::Na__DebugTools for tracing.
+#
+# NAMING CONVENTION:
+# - Class Na__TwoPointOpeningTool; instance helpers prefixed na_*
+#
 # =============================================================================
 
 require 'sketchup.rb'
@@ -24,6 +29,10 @@ module Na__AssemblyStudio
     module Na__MeasurementTools
 
         class Na__TwoPointOpeningTool
+
+# -----------------------------------------------------------------------------
+# REGION | Module References — Constants — Default Callbacks
+# -----------------------------------------------------------------------------
 
             DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
 
@@ -36,31 +45,36 @@ module Na__AssemblyStudio
             NA_CROSSHAIR_SIZE       = 100.mm
             NA_GRID_SIZE            = 1.mm
 
-            # Default callback names match the WindowSystem host. Pass a hash to
-            # override for any system that uses different method names on its
-            # host (e.g. door measurement currently uses ThreePoint instead).
             DEFAULT_CALLBACKS = {
-                :complete => :na_send_measurement_to_dialog,
-                :cancel   => :na_send_measure_cancelled_to_dialog,
-                :status_label => "Measure Opening"
+                :complete      => :na_send_measurement_to_dialog,
+                :cancel        => :na_send_measure_cancelled_to_dialog,
+                :status_label  => 'Measure Opening'
             }.freeze
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | SketchUp Tool API — Instantiate & Life Cycle
+# -----------------------------------------------------------------------------
+
+            # FUNCTION | Store host geometry inputs + overlay callback overrides
+            # ------------------------------------------------------------
             def initialize(dialog_host, cill_height_mm, frame_bottom_thickness_mm = 50, callbacks: {})
-                @dialog_host                = dialog_host
-                @frame_bottom_thickness_mm  = frame_bottom_thickness_mm || 50
-                @is_bottom_frameless        = @frame_bottom_thickness_mm == 0
-                @cill_height_mm             = @is_bottom_frameless ? 0 : (cill_height_mm || 50)
+                @dialog_host               = dialog_host
+                @frame_bottom_thickness_mm = frame_bottom_thickness_mm || 50
+                @is_bottom_frameless       = @frame_bottom_thickness_mm == 0
+                @cill_height_mm            = @is_bottom_frameless ? 0 : (cill_height_mm || 50)
 
-                merged = DEFAULT_CALLBACKS.merge(callbacks)
-                @cb_complete       = merged[:complete]
-                @cb_cancel         = merged[:cancel]
-                @status_label      = merged[:status_label]
+                merged           = DEFAULT_CALLBACKS.merge(callbacks)
+                @cb_complete      = merged[:complete]
+                @cb_cancel        = merged[:cancel]
+                @status_label     = merged[:status_label]
 
-                @ip                         = Sketchup::InputPoint.new
-                @ip_start                   = Sketchup::InputPoint.new
-                @point_a                    = nil
-                @current_point              = nil
-                @state                      = :picking_point_a
+                @ip               = Sketchup::InputPoint.new
+                @ip_start         = Sketchup::InputPoint.new
+                @point_a          = nil
+                @current_point    = nil
+                @state            = :picking_point_a
 
                 DebugTools.na_debug_method(
                     "TwoPointOpeningTool initialized (cill=#{@cill_height_mm}mm, " \
@@ -69,6 +83,7 @@ module Na__AssemblyStudio
                     "complete_cb=#{@cb_complete})"
                 )
             end
+            # ---------------------------------------------------------------
 
             def activate
                 @state = :picking_point_a
@@ -77,6 +92,12 @@ module Na__AssemblyStudio
             end
 
             def deactivate(view); view.invalidate; end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | SketchUp Tool API — Mouse & Cancel
+# -----------------------------------------------------------------------------
 
             def onMouseMove(_flags, x, y, view)
                 @ip.pick(view, x, y)
@@ -107,10 +128,16 @@ module Na__AssemblyStudio
             end
 
             def onCancel(_reason, view)
-                DebugTools.na_debug_measure("Two-point measure cancelled")
+                DebugTools.na_debug_measure('Two-point measure cancelled')
                 @dialog_host.public_send(@cb_cancel) if @dialog_host.respond_to?(@cb_cancel)
                 view.invalidate
             end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | SketchUp Tool API — Draw & Selection Extents
+# -----------------------------------------------------------------------------
 
             def draw(view)
                 if @state == :picking_point_a && @current_point
@@ -135,7 +162,13 @@ module Na__AssemblyStudio
                 bb
             end
 
+# endregion -------------------------------------------------------------------
+
             private
+
+# -----------------------------------------------------------------------------
+# REGION | Opening Rectangle — Overlay — Labels
+# -----------------------------------------------------------------------------
 
             def na_calculate_rect_points(pt_a, pt_b)
                 dx = (pt_b.x - pt_a.x).abs
@@ -171,12 +204,18 @@ module Na__AssemblyStudio
             def na_draw_dimension_text(view, pt_a, pt_b)
                 width_mm, height_mm = na_calculate_dimensions_mm(pt_a, pt_b)
                 adjusted_height_mm  = [height_mm - @cill_height_mm, 0].max
-                label  = "W: #{width_mm.round}mm  |  H: #{height_mm.round}mm"
+                label               = "W: #{width_mm.round}mm  |  H: #{height_mm.round}mm"
                 label += "  (Adj: #{adjusted_height_mm.round}mm)" if @cill_height_mm > 0
-                screen_pt          = view.screen_coords(pt_b)
-                view.drawing_color = NA_DIMENSION_TEXT_COLOR
+                screen_pt           = view.screen_coords(pt_b)
+                view.drawing_color  = NA_DIMENSION_TEXT_COLOR
                 view.draw_text(Geom::Point3d.new(screen_pt.x + 15, screen_pt.y - 25, 0), label)
             end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Derived Dimensions — Complete — Status — Snap
+# -----------------------------------------------------------------------------
 
             def na_calculate_dimensions_mm(pt_a, pt_b)
                 dx = (pt_b.x - pt_a.x).abs
@@ -213,7 +252,7 @@ module Na__AssemblyStudio
                 elsif @state == :picking_point_b
                     if @current_point
                         width_mm, height_mm = na_calculate_dimensions_mm(@point_a, @current_point)
-                        adjusted = [height_mm - @cill_height_mm, 0].max
+                        adjusted             = [height_mm - @cill_height_mm, 0].max
                         Sketchup.status_text = "#{@status_label}: Click Point B | W:#{width_mm}mm H:#{adjusted}mm | ESC to cancel"
                     else
                         Sketchup.status_text = "#{@status_label}: Move cursor to set Point B | ESC to cancel"
@@ -232,6 +271,8 @@ module Na__AssemblyStudio
             def na_point_to_mm_string(point)
                 "X:#{(point.x * NA_INCH_TO_MM).round}mm Y:#{(point.y * NA_INCH_TO_MM).round}mm Z:#{(point.z * NA_INCH_TO_MM).round}mm"
             end
+
+# endregion -------------------------------------------------------------------
 
         end
 

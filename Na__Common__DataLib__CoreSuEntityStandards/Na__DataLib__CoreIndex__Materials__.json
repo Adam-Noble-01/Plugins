@@ -15,7 +15,27 @@
         "defaultMaterial"   : "MAT001__Default is the reference template showing ALL possible keys with their default values. Other materials only need to specify keys that differ. Omitted keys inherit the default at render time.",
         "divergenceNote"    : "Window Configurator (Na__ArchTools__3dWindowConfigTool) maintains a local copy of this library at Na__AppConfig__MaterialsLibrary.json (v1.0.0). That local copy is superseded by this centralised file. The ValeDesignSuite WindowPanelConfigurator uses non-indexed strings 'natural-wood' and 'glass' as ComponentMaterial values - these are not part of the indexed MAT system and require alignment in a future update.",
         "GitHub__RepoUrl"   : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
-        "Data__URL"         : "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json"
+        "Data__URL"         : "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json",
+
+        "uiDefaults": {
+            "FrameFinishSwatchKeys": [
+                "MAT001__Default",
+                "MAT120__GenericWood",
+                "MAT302__Paint__FarrowAndBall__Wevet",
+                "MAT303__Paint__FarrowAndBall__Mizzle",
+                "MAT301__Paint__FarrowAndBall__Ammonite",
+                "MAT304__Paint__FarrowAndBall__DownPipe"
+            ],
+            "DefaultFrameFinishKey"      : "MAT120__GenericWood",
+            "FrameFinishSwatchLabels"    : {
+                "MAT001__Default"                       : "Default",
+                "MAT120__GenericWood"                   : "Generic Wood",
+                "MAT302__Paint__FarrowAndBall__Wevet"   : "Wevet (F&B 273)",
+                "MAT303__Paint__FarrowAndBall__Mizzle"  : "Mizzle (F&B 266)",
+                "MAT301__Paint__FarrowAndBall__Ammonite": "Ammonite (F&B 274)",
+                "MAT304__Paint__FarrowAndBall__DownPipe": "Down Pipe (F&B 026)"
+            }
+        }
     },
 
     "Na__DataLib__CoreIndex__Materials": {

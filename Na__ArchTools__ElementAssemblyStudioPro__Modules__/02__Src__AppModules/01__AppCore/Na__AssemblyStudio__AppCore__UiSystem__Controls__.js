@@ -89,8 +89,41 @@ const Na__Ui__Controls = (function () {
         `;
     }
 
+    // Resolve the swatch list for a material_cards control:
+    //   1. If config.materialsSource is set, look up that name on window.
+    //      Returns [] if missing - the caller can then hide the section.
+    //   2. Otherwise fall back to the inline config.materials array.
+    function na_resolveMaterials(config) {
+        if (typeof config.materialsSource === 'string' && config.materialsSource.length > 0) {
+            const live = window[config.materialsSource];
+            return Array.isArray(live) ? live : [];
+        }
+        return Array.isArray(config.materials) ? config.materials : [];
+    }
+
+    // Normalise to the legacy {id, name, color} shape so the markup stays
+    // backward compatible. The Ruby push uses {id, label, hex}.
+    function na_normaliseSwatch(material) {
+        return {
+            id    : material.id,
+            name  : material.name  || material.label || material.id,
+            color : material.color || material.hex   || '#FFFFFF'
+        };
+    }
+
     function na_createMaterialCardsHtml(config) {
-        const cardsHtml = config.materials.map(material => {
+        const swatches = na_resolveMaterials(config).map(na_normaliseSwatch);
+        if (swatches.length === 0) {
+            // No live data yet -- emit a placeholder container so a later
+            // re-render (after Ruby pushes swatches) can populate it.
+            return `
+                <div class="na-control-item na-material-cards-empty" data-control-id="${config.id}" style="display:none;">
+                    <div class="na-control-label"><span>${config.label}</span></div>
+                    <div class="na-material-cards-container" id="${config.id}-cards"></div>
+                </div>
+            `;
+        }
+        const cardsHtml = swatches.map(material => {
             const isSelected    = material.id === config.default;
             const selectedClass = isSelected ? 'na-material-card-selected' : '';
             return `

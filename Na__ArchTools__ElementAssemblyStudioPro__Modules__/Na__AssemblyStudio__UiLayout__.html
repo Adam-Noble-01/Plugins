@@ -227,8 +227,18 @@
             <div id="na-door-controls-handle" class="na-controls-grid"></div>
         </section>
         <section class="na-section">
-            <div class="na-section-header"><h2>Materials &amp; Options</h2></div>
+            <div class="na-section-header"><h2>Options</h2></div>
             <div id="na-door-controls-options" class="na-controls-grid"></div>
+        </section>
+
+        <section id="na-door-joinery-finish-section" class="na-section" style="display:none;">
+            <div class="na-section-header"><h2>Joinery Finish</h2></div>
+            <div id="na-door-joinery-finish-cards" class="na-material-cards-container"></div>
+        </section>
+
+        <section id="na-door-handle-finish-section" class="na-section" style="display:none;">
+            <div class="na-section-header"><h2>Handle Finish</h2></div>
+            <div id="na-door-handle-finish-cards" class="na-material-cards-container"></div>
         </section>
 
         <section class="na-section na-actions-section">
@@ -315,6 +325,30 @@
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__ElevationGenerator__.js"></script>
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js"></script>
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Bridge__.js"></script>
+    <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__FinishCards__.js"></script>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
+         REGION | Bootstrap - Request frame-finish swatches from Ruby once the DOM
+         is fully parsed. Ruby pushes window.NA_FRAME_FINISH_SWATCHES and triggers
+         Na_FrameFinishCards.na_render_all() in response. If the materials JSON
+         could not be loaded from the web, Ruby raises a persistent toast and the
+         door / window card sections stay hidden (debug aid).
+         ========================================================================== -->
+    <script>
+        (function () {
+            function na_request_swatches() {
+                if (typeof sketchup === 'undefined' || typeof sketchup.na_requestFrameFinishSwatches !== 'function') return;
+                try { sketchup.na_requestFrameFinishSwatches(); }
+                catch (err) { console.warn('[NA_BRIDGE] na_requestFrameFinishSwatches failed:', err); }
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', na_request_swatches);
+            } else {
+                na_request_swatches();
+            }
+        })();
+    </script>
     <!-- endregion ============================================================== -->
 
 </body>

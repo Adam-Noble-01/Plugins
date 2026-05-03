@@ -6,13 +6,20 @@
 # NAMESPACE  : Na__AssemblyStudio::Na__MeasurementTools
 # CLASS      : Na__ThreePointOpeningTool
 # AUTHOR     : Noble Architecture
-# PURPOSE    : Tool-agnostic three-click measurement tool that captures
-#              width, height AND wall depth.
+# PURPOSE    : SketchUp Tool — three successive picks capture opening width /
+#              height plus wall depth, then notifies a dialog host callback.
+#
+# DESCRIPTION:
+# - State machine: picking A → B (defines façade rectangle) → depth (orthogonal).
+# - On-screen overlays: axis crosshair, blue W×H quad, red depth prism preview.
+# - Callback symbols and status label merged from DEFAULT_CALLBACKS + ctor hash.
 #
 # REFACTOR NOTES (v2 / EASP)
-# - Host callback names + status label are parameterised so the tool is no
-#   longer hard-coded to door semantics. Defaults still match the door
-#   protocol so existing callers work without changes.
+# - Host callbacks + status_label are configurable; defaults match door protocol.
+#
+# NAMING CONVENTION:
+# - Class Na__ThreePointOpeningTool; instance helpers prefixed na_*
+#
 # =============================================================================
 
 require 'sketchup.rb'
@@ -23,6 +30,10 @@ module Na__AssemblyStudio
     module Na__MeasurementTools
 
         class Na__ThreePointOpeningTool
+
+# -----------------------------------------------------------------------------
+# REGION | Module References — Constants — Default Callbacks
+# -----------------------------------------------------------------------------
 
             DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
 
@@ -42,15 +53,23 @@ module Na__AssemblyStudio
             DEFAULT_CALLBACKS = {
                 :complete     => :na_send_door_measurement_to_dialog,
                 :cancel       => :na_send_door_measure_cancelled_to_dialog,
-                :status_label => "Measure Door Opening"
+                :status_label => 'Measure Door Opening'
             }.freeze
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | SketchUp Tool API — Instantiate & Life Cycle
+# -----------------------------------------------------------------------------
+
+            # FUNCTION | Attach host + merged callback routing + initialise state
+            # ------------------------------------------------------------
             def initialize(dialog_host, callbacks: {})
                 @dialog_host = dialog_host
                 merged       = DEFAULT_CALLBACKS.merge(callbacks)
-                @cb_complete   = merged[:complete]
-                @cb_cancel     = merged[:cancel]
-                @status_label  = merged[:status_label]
+                @cb_complete  = merged[:complete]
+                @cb_cancel    = merged[:cancel]
+                @status_label = merged[:status_label]
 
                 @ip            = Sketchup::InputPoint.new
                 @point_a       = nil
@@ -62,6 +81,7 @@ module Na__AssemblyStudio
 
                 DebugTools.na_debug_method("ThreePointOpeningTool initialized (complete_cb=#{@cb_complete})")
             end
+            # ---------------------------------------------------------------
 
             def activate
                 @state = :picking_a
@@ -70,6 +90,12 @@ module Na__AssemblyStudio
             end
 
             def deactivate(view); view.invalidate; end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | SketchUp Tool API — Mouse & Cancel
+# -----------------------------------------------------------------------------
 
             def onMouseMove(_flags, x, y, view)
                 @ip.pick(view, x, y)
@@ -106,10 +132,16 @@ module Na__AssemblyStudio
             end
 
             def onCancel(_reason, view)
-                DebugTools.na_debug_measure("Three-point measure cancelled")
+                DebugTools.na_debug_measure('Three-point measure cancelled')
                 @dialog_host.public_send(@cb_cancel) if @dialog_host.respond_to?(@cb_cancel)
                 view.invalidate
             end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | SketchUp Tool API — Draw & Selection Extents
+# -----------------------------------------------------------------------------
 
             def draw(view)
                 if @state == :picking_a && @current_point
@@ -144,7 +176,13 @@ module Na__AssemblyStudio
                 bb
             end
 
+# endregion -------------------------------------------------------------------
+
             private
+
+# -----------------------------------------------------------------------------
+# REGION | Geometry — Wall Axis — Rectangle — Depth Offset
+# -----------------------------------------------------------------------------
 
             def na_compute_wall_axis(pt_a, pt_b)
                 dx = (pt_b.x - pt_a.x).abs
@@ -186,6 +224,12 @@ module Na__AssemblyStudio
                 rect_pts.map { |pt| pt.offset(offset_vec) }
             end
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Overlay Drawing — Faces — Crosshair — Dimension Labels
+# -----------------------------------------------------------------------------
+
             def na_draw_filled_quad(view, pts, fill, border)
                 view.drawing_color = fill
                 view.draw(GL_QUADS, pts)
@@ -212,13 +256,13 @@ module Na__AssemblyStudio
             end
 
             def na_draw_crosshair(view, point, color = nil)
-                size = NA_CROSSHAIR_SIZE * 0.5
-                view.line_width = 1
-                view.drawing_color = color || Sketchup::Color.new(255, 0, 0)
+                size                 = NA_CROSSHAIR_SIZE * 0.5
+                view.line_width      = 1
+                view.drawing_color   = color || Sketchup::Color.new(255, 0, 0)
                 view.draw_line(point.offset(X_AXIS, -size), point.offset(X_AXIS, size))
-                view.drawing_color = color || Sketchup::Color.new(0, 255, 0)
+                view.drawing_color   = color || Sketchup::Color.new(0, 255, 0)
                 view.draw_line(point.offset(Y_AXIS, -size), point.offset(Y_AXIS, size))
-                view.drawing_color = color || Sketchup::Color.new(0, 0, 255)
+                view.drawing_color   = color || Sketchup::Color.new(0, 0, 255)
                 view.draw_line(point.offset(Z_AXIS, -size), point.offset(Z_AXIS, size))
             end
 
@@ -239,6 +283,12 @@ module Na__AssemblyStudio
                 view.draw_text(Geom::Point3d.new(screen_pt.x + 15, screen_pt.y - 25, 0), label)
             end
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Derived Dimensions — mm
+# -----------------------------------------------------------------------------
+
             def na_calculate_wh_mm(pt_a, pt_b)
                 dx = (pt_b.x - pt_a.x).abs
                 dy = (pt_b.y - pt_a.y).abs
@@ -252,6 +302,12 @@ module Na__AssemblyStudio
                 depth_in = (@wall_axis == :x) ? (pt_d.y - pt_a.y).abs : (pt_d.x - pt_a.x).abs
                 (depth_in * NA_INCH_TO_MM).round
             end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Status Line — Snap Grid — Payload Dispatch
+# -----------------------------------------------------------------------------
 
             def na_update_status_text
                 case @state
@@ -291,7 +347,7 @@ module Na__AssemblyStudio
             def na_complete_measurement
                 return unless @point_a && @point_b && @depth_point
                 width_mm, height_mm = na_calculate_wh_mm(@point_a, @point_b)
-                depth_mm = na_calculate_depth_mm(@point_a, @depth_point)
+                depth_mm            = na_calculate_depth_mm(@point_a, @depth_point)
 
                 DebugTools.na_debug_success(
                     "Three-point complete: W=#{width_mm}mm H=#{height_mm}mm D=#{depth_mm}mm"
@@ -303,6 +359,8 @@ module Na__AssemblyStudio
                     @point_a.x, @point_a.y, @point_a.z
                 )
             end
+
+# endregion -------------------------------------------------------------------
 
         end
 

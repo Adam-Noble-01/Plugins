@@ -121,31 +121,30 @@ window.na_clearCurrentWindow = function() {
 
 // FUNCTION | Show Status Message
 // ------------------------------------------------------------
-// Called by Ruby to display feedback to user
-// @param {string} type - Status type: 'success', 'error', 'warning', 'info'
-// @param {string} message - Message to display
-window.na_showStatus = function(type, message) {
+// Called by Ruby (and JS) to display feedback to the user in the shared
+// #na-status-bar strip. Supports an optional persistent flag so important
+// messages (e.g. "materials library failed to load") stay on screen until
+// the user reopens the dialog or another status replaces them.
+// @param {string}  type        - 'success' | 'error' | 'warning' | 'info'
+// @param {string}  message     - Message to display
+// @param {boolean} [persistent=false] - If true, never auto-hides
+window.na_showStatus = function(type, message, persistent) {
     console.log(`[NA_BRIDGE] Status (${type}): ${message}`);
-    
-    const statusBar = document.getElementById('na-status-bar');
+
+    const statusBar     = document.getElementById('na-status-bar');
     const statusMessage = document.getElementById('na-status-message');
-    
-    if (statusBar && statusMessage) {
-        // Remove all status classes
-        statusBar.classList.remove('na-hidden', 'na-status-success', 'na-status-error', 
-                                   'na-status-warning', 'na-status-info');
-        
-        // Add appropriate class
-        statusBar.classList.add(`na-status-${type}`);
-        statusMessage.textContent = message;
-        
-        // Auto-hide after delay (except for errors)
-        if (type !== 'error') {
-            setTimeout(() => {
-                statusBar.classList.add('na-hidden');
-            }, 3000);
-        }
-    }
+    if (!statusBar || !statusMessage) return;
+
+    statusBar.classList.remove('na-hidden', 'na-status-success', 'na-status-error',
+                               'na-status-warning', 'na-status-info');
+    statusBar.classList.add(`na-status-${type}`);
+    statusMessage.textContent = message;
+
+    const isPersistent = persistent === true;
+    const isError      = (type === 'error');
+    if (isPersistent || isError) return;                                       // <-- Errors and persistent messages never auto-hide
+
+    setTimeout(() => { statusBar.classList.add('na-hidden'); }, 3000);
 };
 // ---------------------------------------------------------------
 

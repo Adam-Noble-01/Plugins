@@ -119,14 +119,30 @@
     // ------------------------------------------------------------
     // Called by Na__DialogRouter.na_send_door_config_to_dialog with a
     // JSON string representation of the full door payload.
+    //
+    // BUGFIX (post-EASP-v2): When a saved door is re-selected from the
+    // SketchUp viewport the previous implementation only called
+    // Na_DoorUI.na_render(...), which repaints the plan + elevation
+    // viewports but does NOT push the loaded values into the slider DOM
+    // inputs. The result was a UI that showed stale slider positions
+    // while the active config was actually correct. We now call
+    // Na_DoorUI.na_mount(payload) when the Doors tab is visible, which
+    // is the same path the post-measurement flow uses (see line ~293).
+    // na_mount internally sets the active config and rebuilds every
+    // section's controls from descriptors, so each slider/select/toggle
+    // is freshly bound to the new values.
     window.na_setInitialDoorConfig = function (jsonString) {
         try {
             var payload = JSON.parse(jsonString);
             if (typeof Na_DoorUI !== 'undefined') {
                 Na_DoorUI.na_set_active_config(payload);
                 if (typeof Na_AppContext !== 'undefined' &&
-                    Na_AppContext.na_is_active_tab('doors')) {                 // <-- v0.11.6 single source for "is doors visible?"
-                    Na_DoorUI.na_render(payload['Na__DoorConfiguration'] || payload);
+                    Na_AppContext.na_is_active_tab('doors')) {                 // <-- single source for "is doors visible?"
+                    if (typeof Na_DoorUI.na_mount === 'function') {
+                        Na_DoorUI.na_mount(payload);                           // <-- Rebuilds slider DOM from new config + renders viewports
+                    } else {
+                        Na_DoorUI.na_render(payload['Na__DoorConfiguration'] || payload);
+                    }
                 }
             }
 
@@ -284,6 +300,9 @@
             conf['Na__DoorConfig__WallDepth_mm']     = depthMm;
 
             Na_DoorUI.na_set_active_config(payload);                          // <-- 1. Working config snapshot
+            if (typeof Na_DoorUI.na_render === 'function') {
+                Na_DoorUI.na_render(conf);                                    // <-- 1b. Force preview repaint even if remount later fails
+            }
 
             na_door_patch_slider_dom('Na__DoorConfig__OpeningWidth_mm',  widthMm);  // <-- 2a. Direct DOM patch (visible immediately)
             na_door_patch_slider_dom('Na__DoorConfig__OpeningHeight_mm', heightMm); // <-- 2b
@@ -293,6 +312,18 @@
                 Na_DoorUI.na_mount(payload);                                  // <-- 3. Refresh elastic ranges + render
             } catch (mountErr) {
                 console.error('[Na_DoorBridge] na_mount after measurement failed:', mountErr);
+            }
+
+            // If Live Mode is currently active, immediately push the measured
+            // dimensions to Ruby so the selected door's 3D geometry updates
+            // without requiring an extra manual control nudge.
+            if (window.na_doorLiveModeActive &&
+                typeof window.na_doorLiveUpdateRequested === 'function') {
+                try {
+                    window.na_doorLiveUpdateRequested(Na_DoorUI.na_get_active_config());
+                } catch (liveErr) {
+                    console.error('[Na_DoorBridge] live update after measurement failed:', liveErr);
+                }
             }
 
             if (typeof window.na_showStatus === 'function') {

@@ -815,7 +815,47 @@ const Na_DynamicUI = (function() {
         _updateCallback = callback;
     }
     // ---------------------------------------------------------------
-    
+
+    // FUNCTION | Rebuild the Frame Finish Control After Live Swatches Arrive
+    // ------------------------------------------------------------
+    // Called by Na_FrameFinishCards once Ruby pushes window.NA_FRAME_FINISH_SWATCHES.
+    // Locates the existing frame_material_id wrapper inside na-controls-options
+    // and replaces it in-place with freshly generated markup driven by the live
+    // swatches, then re-binds its click handler. If the materials JSON failed
+    // to load, the wrapper stays hidden (controls.js emits an empty placeholder
+    // with display:none).
+    function na_rebuild_frame_finish_control() {
+        const optionsContainer = document.getElementById('na-controls-options');
+        if (!optionsContainer) return;
+        if (!window.NA_OPTIONS_CONFIG || !window.Na__Ui__Controls) return;
+
+        const descriptor = (window.NA_OPTIONS_CONFIG || []).find(function (item) {
+            return item && item.id === 'frame_material_id';
+        });
+        if (!descriptor) return;
+
+        // Honour the currently selected value rather than the descriptor default.
+        const currentValue = (_config && _config.frame_material_id) || descriptor.default;
+        const renderConfig = Object.assign({}, descriptor, { default: currentValue });
+
+        const newHtml = window.Na__Ui__Controls.na_createControl(renderConfig);
+        const existing = optionsContainer.querySelector('[data-control-id="frame_material_id"]');
+        if (existing) {
+            existing.outerHTML = newHtml;
+        } else {
+            optionsContainer.insertAdjacentHTML('beforeend', newHtml);
+        }
+
+        if (window.Na__Ui__Events && typeof window.Na__Ui__Events.na_attachEventListeners === 'function') {
+            window.Na__Ui__Events.na_attachEventListeners(descriptor, na_onControlChange);
+        }
+
+        // Re-render the SVG so the frame tint reflects the just-arrived swatch hex.
+        try { na_onConfigChange(); }
+        catch (err) { console.warn('[NA_UI] Re-render after swatch refresh failed:', err); }
+    }
+    // ---------------------------------------------------------------
+
     // Public API
     // ------------------------------------------------------------
     return {
@@ -828,7 +868,8 @@ const Na_DynamicUI = (function() {
         na_toggleCasementRemoval: na_toggleCasementRemoval,
         na_toggleTransomSegmentRemoval: na_toggleTransomSegmentRemoval,
         na_toggleGlazebarRemoval: na_toggleGlazebarRemoval,
-        na_resetHiddenElements: na_resetHiddenElements
+        na_resetHiddenElements: na_resetHiddenElements,
+        na_rebuild_frame_finish_control: na_rebuild_frame_finish_control
     };
     
 })();

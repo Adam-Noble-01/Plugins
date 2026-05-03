@@ -177,17 +177,6 @@ window.NA_DOOR_HANDLE_CONFIG = [
         step        : 5,
         default     : 1050,
         unit        : 'mm'
-    },
-    {
-        id          : 'Na__DoorConfig__HandleSide',
-        label       : 'Handle Side',
-        type        : 'select',
-        default     : 'Match Swing',
-        options     : [
-            { value: 'Match Swing', label: 'Follow Swing Side' },
-            { value: 'Left',        label: 'Left'              },
-            { value: 'Right',       label: 'Right'             }
-        ]
     }
 ];
 
@@ -195,50 +184,16 @@ window.NA_DOOR_HANDLE_CONFIG = [
 
 
 // -----------------------------------------------------------------------------
-// REGION | Materials & Options Controls
+// REGION | Options Controls
+// -----------------------------------------------------------------------------
+// Material selection is no longer rendered as <select> dropdowns. The Joinery
+// Finish and Handle Finish swatch card rows below the door panel handle that
+// (see Na__AssemblyStudio__InteriorDoorSystem__UiSystem__FinishCards__.js).
+// Material IDs still flow through Na__DoorConfiguration when sent to Ruby --
+// the cards write them straight into the live Na_DoorUI config.
 // -----------------------------------------------------------------------------
 
 window.NA_DOOR_OPTIONS_CONFIG = [
-    {
-        id          : 'Na__DoorConfig__LiningMaterialId',
-        label       : 'Lining Material',
-        type        : 'select',
-        default     : 'MAT120__GenericWood',
-        options     : [
-            { value: 'MAT120__GenericWood',       label: 'Generic Wood'  },
-            { value: 'MAT541__Timber__Sapele',    label: 'Sapele Timber' }
-        ]
-    },
-    {
-        id          : 'Na__DoorConfig__PanelMaterialId',
-        label       : 'Panel Material',
-        type        : 'select',
-        default     : 'MAT120__GenericWood',
-        options     : [
-            { value: 'MAT120__GenericWood',       label: 'Generic Wood'  },
-            { value: 'MAT541__Timber__Sapele',    label: 'Sapele Timber' }
-        ]
-    },
-    {
-        id          : 'Na__DoorConfig__ArchitraveMaterialId',
-        label       : 'Architrave Material',
-        type        : 'select',
-        default     : 'MAT120__GenericWood',
-        options     : [
-            { value: 'MAT120__GenericWood',       label: 'Generic Wood'  },
-            { value: 'MAT541__Timber__Sapele',    label: 'Sapele Timber' }
-        ]
-    },
-    {
-        id          : 'Na__DoorConfig__HandleMaterialId',
-        label       : 'Handle Material',
-        type        : 'select',
-        default     : 'MAT200__BrushedSteel',
-        options     : [
-            { value: 'MAT200__BrushedSteel',  label: 'Brushed Steel'   },
-            { value: 'MAT201__BrassPolished', label: 'Polished Brass'  }
-        ]
-    },
     {
         id          : 'Na__DoorConfig__FuseLining',
         label       : 'Fuse Lining (Outer Shell)',

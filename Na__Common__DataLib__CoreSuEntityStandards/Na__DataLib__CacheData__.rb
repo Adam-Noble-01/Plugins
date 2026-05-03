@@ -55,8 +55,41 @@ module Na__DataLib__CacheData
 
     # MODULE VARIABLES | Last Load Source Tracking
     # ------------------------------------------------------------
-    @na_last_source = {}                                                      # <-- { file_key => :url | :cache | :local | :failed }
+    @na_last_source         = {}                                              # <-- { file_key => :url | :cache | :local | :failed }
+    @na_cache_dir_override  = nil                                             # <-- Optional per-plugin cache directory
     # ------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Cache Directory Override (Per-Plugin Opt-In)
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Set Per-Plugin Cache Directory Override
+    # ------------------------------------------------------------
+    # When a plugin sets an override, all subsequent cache reads/writes use the
+    # given absolute path instead of Sketchup.temp_dir/CACHE_SUBFOLDER_NAME.
+    # Plugins that never call this continue to use the default temp-dir cache.
+    # ---------------------------------------------------------------
+    def self.Na__Cache__SetCacheDirOverride(absolute_path)
+        if absolute_path.nil? || absolute_path.to_s.strip.empty?
+            @na_cache_dir_override = nil
+            return nil
+        end
+
+        @na_cache_dir_override = absolute_path.to_s
+        FileUtils.mkdir_p(@na_cache_dir_override) unless Dir.exist?(@na_cache_dir_override)
+        puts "    [Na__DataLib__Cache] Cache directory override set: #{@na_cache_dir_override}"
+        @na_cache_dir_override
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Clear Per-Plugin Cache Directory Override
+    # ------------------------------------------------------------
+    def self.Na__Cache__ClearCacheDirOverride
+        @na_cache_dir_override = nil
+    end
+    # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
 
@@ -67,7 +100,7 @@ module Na__DataLib__CacheData
     # HELPER FUNCTION | Resolve Cache Directory Path
     # ---------------------------------------------------------------
     def self.Na__Cache__CacheDir
-        dir = File.join(Sketchup.temp_dir, CACHE_SUBFOLDER_NAME)
+        dir = @na_cache_dir_override || File.join(Sketchup.temp_dir, CACHE_SUBFOLDER_NAME)
         FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
         dir
     end
@@ -176,15 +209,22 @@ module Na__DataLib__CacheData
 # REGION | Public API
 # -----------------------------------------------------------------------------
 
-    # FUNCTION | Load Data for a File Key (Cache -> URL -> Local Fallback)
+    # FUNCTION | Load Data for a File Key
     # ------------------------------------------------------------
+    # Default mode (force_reload = false) : Cache -> URL -> Local Fallback
+    # Force-reload mode (force_reload = true) : URL -> existing Cache -> Local
+    #     The on-disk cache file is NEVER deleted, so internet dropouts always
+    #     have the last known good copy to fall back to.
+    # ---------------------------------------------------------------
     def self.Na__Cache__LoadData(file_key, force_reload = false)
-        unless force_reload
-            cached = Na__Cache__ReadIfFresh(file_key)
-            if cached
-                @na_last_source[file_key] = :cache
-                return cached
-            end
+        if force_reload
+            return Na__Cache__LoadDataForceReload(file_key)
+        end
+
+        cached = Na__Cache__ReadIfFresh(file_key)
+        if cached
+            @na_last_source[file_key] = :cache
+            return cached
         end
 
         fetched = Na__Cache__FetchFromUrl(file_key)
@@ -197,6 +237,50 @@ module Na__DataLib__CacheData
         local = Na__DataLib__LocalFallback.Na__Fallback__LoadLocal(file_key)
         @na_last_source[file_key] = local ? :local : :failed
         local
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Force-Reload: URL First, Cache Fallback, Local Last
+    # ---------------------------------------------------------------
+    # Strongly favours web-served assets - tries URL FIRST regardless of TTL.
+    # On URL failure, falls back to existing cache file (even if stale) so the
+    # plugin keeps working through internet dropouts. Cache file is preserved.
+    # ---------------------------------------------------------------
+    def self.Na__Cache__LoadDataForceReload(file_key)
+        fetched = Na__Cache__FetchFromUrl(file_key)
+        if fetched
+            Na__Cache__WriteToCache(file_key, fetched)
+            @na_last_source[file_key] = :url
+            return fetched
+        end
+
+        stale_cache = Na__Cache__ReadAnyCache(file_key)
+        if stale_cache
+            puts "    [Na__DataLib__Cache] URL unavailable - falling back to cached copy for :#{file_key}"
+            @na_last_source[file_key] = :cache
+            return stale_cache
+        end
+
+        local = Na__DataLib__LocalFallback.Na__Fallback__LoadLocal(file_key)
+        @na_last_source[file_key] = local ? :local : :failed
+        local
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Read Cache File Ignoring TTL (For Force-Reload Fallback)
+    # ---------------------------------------------------------------
+    def self.Na__Cache__ReadAnyCache(file_key)
+        cache_path = Na__Cache__CacheFilePath(file_key)
+        return nil unless File.exist?(cache_path)
+
+        begin
+            raw     = File.read(cache_path, encoding: 'UTF-8')
+            wrapper = JSON.parse(raw)
+            wrapper["data"]
+        rescue => e
+            puts "    [Na__DataLib__Cache] Stale cache read error for :#{file_key}: #{e.message}"
+            nil
+        end
     end
     # ---------------------------------------------------------------
 

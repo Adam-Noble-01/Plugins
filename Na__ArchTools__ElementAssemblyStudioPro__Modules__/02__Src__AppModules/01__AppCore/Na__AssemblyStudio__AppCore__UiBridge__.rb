@@ -69,11 +69,15 @@ module Na__AssemblyStudio
                 true
             end
 
-            def self.na_send_status(dialog, type, message)
+            def self.na_send_status(dialog, type, message, persistent: false)
                 return false unless na_dialog_visible?(dialog)
-                t = na_escape_js_string(type)
-                m = na_escape_js_string(message)
-                dialog.execute_script("if(typeof window.na_showStatus==='function'){window.na_showStatus('#{t}', '#{m}');}")
+                t              = na_escape_js_string(type)
+                m              = na_escape_js_string(message)
+                persistent_flag = persistent ? "true" : "false"
+                dialog.execute_script(
+                    "if(typeof window.na_showStatus==='function'){" \
+                    "window.na_showStatus('#{t}', '#{m}', #{persistent_flag});}"
+                )
                 true
             end
 

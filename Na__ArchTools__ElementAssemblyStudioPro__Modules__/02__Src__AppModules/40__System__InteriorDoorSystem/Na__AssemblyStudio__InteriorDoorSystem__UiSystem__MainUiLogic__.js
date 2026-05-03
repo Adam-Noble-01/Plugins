@@ -36,6 +36,20 @@
 // REGION | Module State
 // -----------------------------------------------------------------------------
 
+    var NA_LIVE_UPDATE_DEBOUNCE_MS = 150;                                     // <-- Mirrors window-tool live-update cadence
+    var NA_DOOR_OBSOLETE_CONFIG_KEYS = ['Na__DoorConfig__HandleSide'];        // <-- Removed for Interior single-door workflow
+
+    // Material IDs no longer ride on visible JS descriptors (the Joinery /
+    // Handle Finish swatch cards write them straight into na_active_config).
+    // Seed them here so the create/update payload sent to Ruby always carries
+    // a value, even before the user clicks a swatch.
+    var NA_DOOR_MATERIAL_DEFAULTS = {
+        'Na__DoorConfig__LiningMaterialId'    : 'MAT120__GenericWood',
+        'Na__DoorConfig__PanelMaterialId'     : 'MAT120__GenericWood',
+        'Na__DoorConfig__ArchitraveMaterialId': 'MAT120__GenericWood',
+        'Na__DoorConfig__HandleMaterialId'    : 'MAT200__BrushedSteel'
+    };
+
     var na_active_config        = na_build_default_door_config();             // <-- Working config snapshot (Na__DoorConfiguration shape)
     var na_active_metadata      = na_build_default_door_metadata();           // <-- Metadata block (Na__DoorMetadata)
     var na_change_listeners     = [];                                         // <-- Per-mount cleanup callbacks
@@ -44,8 +58,6 @@
 
     var na_plan_instance        = null;                                       // <-- Na__Viewport__Instance for plan view
     var na_elevation_instance   = null;                                       // <-- Na__Viewport__Instance for elevation view
-
-    var NA_LIVE_UPDATE_DEBOUNCE_MS = 150;                                     // <-- Mirrors window-tool live-update cadence
 
 // endregion -------------------------------------------------------------------
 
@@ -68,7 +80,25 @@
                 }
             });
         });
+        Object.keys(NA_DOOR_MATERIAL_DEFAULTS).forEach(function (key) {
+            if (!Object.prototype.hasOwnProperty.call(defaults, key)) {
+                defaults[key] = NA_DOOR_MATERIAL_DEFAULTS[key];
+            }
+        });
+        na_prune_obsolete_config_keys(defaults);
         return defaults;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Remove Deprecated Door Config Keys
+    // ------------------------------------------------------------
+    function na_prune_obsolete_config_keys(configMap) {
+        if (!configMap) return;
+        (NA_DOOR_OBSOLETE_CONFIG_KEYS || []).forEach(function (key) {
+            if (Object.prototype.hasOwnProperty.call(configMap, key)) {
+                delete configMap[key];
+            }
+        });
     }
     // ---------------------------------------------------------------
 
@@ -355,6 +385,10 @@
         na_mount_section('na-door-controls-handle',     window.NA_DOOR_HANDLE_CONFIG);
         na_mount_section('na-door-controls-options',    window.NA_DOOR_OPTIONS_CONFIG);
 
+        if (window.Na_FrameFinishCards && typeof window.Na_FrameFinishCards.na_render_all === 'function') {
+            window.Na_FrameFinishCards.na_render_all();
+        }
+
         Na_DoorUI.na_render(na_active_config);
     };
     // ---------------------------------------------------------------
@@ -477,9 +511,31 @@
                 na_active_metadata[key] = metadataArray[0][key];
             });
         }
+
+        na_prune_obsolete_config_keys(na_active_config);
+
+        if (window.Na_FrameFinishCards && typeof window.Na_FrameFinishCards.na_sync_selection === 'function') {
+            window.Na_FrameFinishCards.na_sync_selection(na_active_config);
+        }
     };
     // ---------------------------------------------------------------
 
+
+    // FUNCTION | Apply a Bulk Config Change (Used by External UI Modules)
+    // ------------------------------------------------------------
+    // Used by the FinishCards module so a single swatch click can update
+    // multiple door config keys (Lining + Panel + Architrave) in one shot.
+    // Triggers the standard re-render + debounced live-update pipeline.
+    // @param {Object} updates - Map of Na__DoorConfig__* keys to new values.
+    Na_DoorUI.na_apply_config_change = function (updates) {
+        if (!updates || typeof updates !== 'object') return;
+        Object.keys(updates).forEach(function (key) {
+            na_active_config[key] = updates[key];
+        });
+        na_schedule_rerender();
+        na_schedule_live_update();
+    };
+    // ---------------------------------------------------------------
 
     // FUNCTION | Reset the Working Door Config to the Descriptor Defaults
     // ------------------------------------------------------------
@@ -513,10 +569,12 @@
     // Ruby Na__AssemblyStudio::Na__InteriorDoorSystem module so the Ruby side can
     // simply JSON.parse and consume.
     function na_build_full_config_payload() {
+        var na_config_snapshot = Object.assign({}, na_active_config);
+        na_prune_obsolete_config_keys(na_config_snapshot);
         return {
             'Na__DoorMetadata'      : [na_active_metadata],
             'Na__DoorComponents'    : [],
-            'Na__DoorConfiguration' : Object.assign({}, na_active_config)
+            'Na__DoorConfiguration' : na_config_snapshot
         };
     }
     // ---------------------------------------------------------------

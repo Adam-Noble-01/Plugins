@@ -447,18 +447,11 @@ const NA_OPTIONS_CONFIG = [
         default :  false
     },
     {
-        id      :  'frame_material_id',
-        label   :  'Frame Finish',
-        type    :  'material_cards',
-        default :  'MAT120__GenericWood',
-        materials: [
-            { id: 'MAT001__Default', name: 'Default', color: '#FFFFFF' },
-            { id: 'MAT120__GenericWood', name: 'Generic Wood', color: '#D2B48C' },
-            { id: 'MAT302__Paint__FarrowAndBall__Wevet', name: 'Wevet (F&B 273)', color: '#EEE9E7' },
-            { id: 'MAT303__Paint__FarrowAndBall__Mizzle', name: 'Mizzle (F&B 266)', color: '#C0C2B3' },
-            { id: 'MAT301__Paint__FarrowAndBall__Ammonite', name: 'Ammonite (F&B 274)', color: '#DDD8CF' },
-            { id: 'MAT304__Paint__FarrowAndBall__DownPipe', name: 'Down Pipe (F&B 026)', color: '#626664' }
-        ]
+        id              : 'frame_material_id',
+        label           : 'Frame Finish',
+        type            : 'material_cards',
+        default         : 'MAT120__GenericWood',
+        materialsSource : 'NA_FRAME_FINISH_SWATCHES'                              // <-- Live swatches from materials JSON via Ruby push
     }
 ];
 

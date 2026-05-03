@@ -25,14 +25,18 @@ require 'sketchup.rb'
 require 'json'
 require 'pathname'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
+require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
+require_relative '../02__AppData/Na__AssemblyStudio__AppData__FrameFinishSwatches__'
 require_relative 'Na__AssemblyStudio__AppCore__UiBridge__'
 
 module Na__AssemblyStudio
     module Na__AppCore
         module Na__DialogManager
 
-            DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
-            UiBridge   = Na__AssemblyStudio::Na__AppCore::Na__UiBridge
+            DebugTools          = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+            UiBridge            = Na__AssemblyStudio::Na__AppCore::Na__UiBridge
+            MaterialManager     = Na__AssemblyStudio::Na__AppData::Na__MaterialManager
+            FrameFinishSwatches = Na__AssemblyStudio::Na__AppData::Na__FrameFinishSwatches
 
             # -----------------------------------------------------------------
             # REGION | State
@@ -74,6 +78,10 @@ module Na__AssemblyStudio
                     @na_dialog.close
                 end
 
+                # Force-refresh the materials library from the live URL on every
+                # dialog open. Cache file is preserved for internet dropouts.
+                MaterialManager.na_force_refresh_from_url
+
                 @na_dialog = UI::HtmlDialog.new(
                     dialog_title:    "Element Assembly Studio Pro by Noble Architecture",
                     preferences_key: "Na__AssemblyStudio",
@@ -96,8 +104,19 @@ module Na__AssemblyStudio
 
                 na_setup_core_callbacks
                 na_invoke_system_init_hooks(@na_dialog)
+                na_register_swatch_push_callback(@na_dialog)
                 @na_dialog.show
             end
+
+            # Push the frame-finish swatches into JS exactly once, after the
+            # dialog DOM is fully parsed and ready. The HTML side calls
+            # sketchup.na_requestFrameFinishSwatches() on DOMContentLoaded.
+            def self.na_register_swatch_push_callback(dialog)
+                dialog.add_action_callback("na_requestFrameFinishSwatches") do |_ctx|
+                    FrameFinishSwatches.na_push_to_dialog(dialog)
+                end
+            end
+            private_class_method :na_register_swatch_push_callback
 
             def self.na_invoke_system_init_hooks(dialog)
                 @na_system_init_hooks.each do |hook|

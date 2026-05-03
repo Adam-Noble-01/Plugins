@@ -158,3 +158,27 @@ The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, 
 | window.na_measureCancelled()         | Clear measure-active styling on the button                                 |
 
 All `Ruby -> JS` calls go through `AppCore::UiBridge.na_execute_json_function` / `na_execute_numeric_function` / `na_send_status` / `na_invoke`. No direct `dialog.execute_script("window.na_X(...)")` should appear anywhere outside `UiBridge`.
+
+## InteriorDoor handle behavior
+
+- Interior single-door handle behavior is driven by swing-side orientation.
+- The explicit handle-side selector has been removed from the runtime UI schema.
+- Legacy payloads carrying the retired handle-side key are pruned in both the JS UI payload builder and the Ruby dialog router before save/update paths.
+
+## Fast navigation map (top-level folders)
+
+- `01__AppAssets__ElementAssemblyStudio` - branding and toolbar assets.
+- `02__Src__AppModules/01__AppCore` - shared dialog shell, tab routing, bridge base, selection coordinator.
+- `02__Src__AppModules/02__AppData` - app config, material manager, serializer base.
+- `02__Src__AppModules/03__AppUtils` - debug tools, tag manager, settings tab helpers.
+- `02__Src__AppModules/04__GeometryHelpers` - shared geometry primitives and units.
+- `02__Src__AppModules/05__Viewport__2dPreviewEngine` - generic SVG viewport engine.
+- `02__Src__AppModules/06__Tools__MeasurementTools` - 2-point / 3-point opening tools.
+- `02__Src__AppModules/07__Tools__PlacementTools` - placement tools.
+- `02__Src__AppModules/20__System__WindowSystem` - window subsystem.
+- `02__Src__AppModules/30__System__ExteriorDoorSystem` - exterior door subsystem.
+- `02__Src__AppModules/40__System__InteriorDoorSystem` - interior door subsystem.
+- `03__Style__AppStylesheets` - app stylesheets.
+- `04__Data__AssetLibrary` - handle/architrave/hinge asset JSON.
+- `65__Dev__DevTools` - dev-only exporters and utilities.
+- `85__Docs__AppDocumentation` - architecture, rewire map, devlog, tasks.
