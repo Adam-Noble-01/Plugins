@@ -2,7 +2,7 @@
 # ELEMENT ASSEMBLY STUDIO PRO - INTERIOR DOOR SYSTEM - PANEL DESIGN: FOUR PANEL
 # =============================================================================
 #
-# FILE       : Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__FourPanel__.rb
+# FILE       : Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__FourPanel__.rb
 # NAMESPACE  : Na__AssemblyStudio::Na__InteriorDoorSystem
 # MODULE     : Na__PanelDesignStyles__FourPanel
 # AUTHOR     : Noble Architecture
@@ -15,11 +15,11 @@
 # DESCRIPTION:
 # - Reads the inner-perimeter rect from the layout hash supplied by
 #   Na__PanelDesignFrame.
-# - Adds one horizontal cross-rail (pair of parallel edges spaced by
-#   inner_rail_t) at the centre of the inner perimeter Z range.
-# - Adds one vertical mullion (pair of parallel edges spaced by
-#   inner_rail_t) at the centre of the inner perimeter X range.
-# - The result is a tidy 2x2 grid of recessed panels.
+# - Adds one horizontal cross-rail centerline at the centre of the
+#   inner perimeter Z range and one vertical mullion centerline at
+#   the centre of the inner perimeter X range. Each is a SINGLE edge
+#   (no rail-pair thickness) so the elevation reads as a clean 2x2
+#   architectural division.
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
@@ -64,19 +64,16 @@ module Na__InteriorDoorSystem
             inner_x_max   = layout[:inner_x_max]
             inner_z_min   = layout[:inner_z_min]
             inner_z_max   = layout[:inner_z_max]
-            inner_rail_t  = layout[:inner_rail_t]
 
             cross_rail_z_centre = (inner_z_min + inner_z_max) / 2.0
             mullion_x_centre    = (inner_x_min + inner_x_max) / 2.0
 
             count  = 0
-            count += GeometryHelpers.na_create_horizontal_rail_lines(
-                face_entities, inner_x_min, inner_x_max,
-                cross_rail_z_centre, inner_rail_t, y_mm
+            count += 1 if GeometryHelpers.na_create_xz_line(
+                face_entities, inner_x_min, cross_rail_z_centre, inner_x_max, cross_rail_z_centre, y_mm
             )
-            count += GeometryHelpers.na_create_vertical_rail_lines(
-                face_entities, mullion_x_centre,
-                inner_z_min, inner_z_max, inner_rail_t, y_mm
+            count += 1 if GeometryHelpers.na_create_xz_line(
+                face_entities, mullion_x_centre, inner_z_min, mullion_x_centre, inner_z_max, y_mm
             )
 
             DebugTools.na_debug_geometry(

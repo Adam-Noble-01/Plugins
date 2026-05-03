@@ -32,10 +32,10 @@
 # - Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__
 # - Na__AssemblyStudio__InteriorDoorSystem__FuseLiningParts__
 # - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__
-# - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__VerticalNarrow__
-# - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__ClassicalSixPanel__
-# - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__FourPanel__
-# - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__HorizontalThree__
+# - Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__VerticalNarrow__
+# - Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__ClassicalSix__
+# - Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__FourPanel__
+# - Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__HorizontalThree__
 # - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__
 # - Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__
 # - Na__AssemblyStudio__InteriorDoorSystem__GeometryEngine__
@@ -139,10 +139,10 @@ module Na__InteriorDoorSystem
 
     # MODULE CONSTANTS | Default Material IDs (resolved against MaterialManager)
     # ------------------------------------------------------------
-    NA_DEFAULT_LINING_MATERIAL_ID      = "MAT120__GenericWood".freeze          # <-- Default lining material
-    NA_DEFAULT_PANEL_MATERIAL_ID       = "MAT120__GenericWood".freeze          # <-- Default door panel material
-    NA_DEFAULT_ARCHITRAVE_MATERIAL_ID  = "MAT120__GenericWood".freeze          # <-- Default architrave material
-    NA_DEFAULT_HANDLE_MATERIAL_ID      = "MAT612__Metal__Ironmongery__Brass".freeze  # <-- Default handle material (Unlacquered Brass; first metal in Handle Finish palette)
+    NA_DEFAULT_LINING_MATERIAL_ID      = "MAT001__Default".freeze               # <-- Default lining material
+    NA_DEFAULT_PANEL_MATERIAL_ID       = "MAT001__Default".freeze               # <-- Default door panel material
+    NA_DEFAULT_ARCHITRAVE_MATERIAL_ID  = "MAT001__Default".freeze               # <-- Default architrave material
+    NA_DEFAULT_HANDLE_MATERIAL_ID      = "MAT615__Metal__Ironmongery__Chrome".freeze  # <-- Default handle material (Chrome)
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -179,7 +179,7 @@ module Na__InteriorDoorSystem
             "Na__DoorConfig__LiningFaceOffset_mm"    => 0,
             "Na__DoorConfig__PanelThickness_mm"      => 40,
             "Na__DoorConfig__PanelFloorClearance_mm" => 10,
-            "Na__DoorConfig__ArchitraveProfileKey"   => "Na__InteriorDoor__Architrave__Default",
+            "Na__DoorConfig__ArchitraveProfileKey"   => "Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm",
             "Na__DoorConfig__ArchitraveOffset_mm"    => 5,
             "Na__DoorConfig__ArchitraveFrontEnabled" => true,
             "Na__DoorConfig__ArchitraveBackEnabled"  => true,
@@ -227,10 +227,10 @@ module Na__InteriorDoorSystem
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__FuseLiningParts__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__'
-        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__VerticalNarrow__'
-        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__ClassicalSixPanel__'
-        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__FourPanel__'
-        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__HorizontalThree__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__VerticalNarrow__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__ClassicalSix__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__FourPanel__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__HorizontalThree__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryEngine__'
@@ -241,6 +241,19 @@ module Na__InteriorDoorSystem
 
         @na_door_modules_loaded = true
         DebugTools.na_debug_door("All door sub-modules loaded")
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Reset Door Lazy-Load Gate After Developer Reload
+    # ------------------------------------------------------------
+    # DialogManager.hot-reloads Ruby with `Kernel#load`. Cached
+    # `@na_door_modules_loaded` would otherwise skip `na_require_door_modules`
+    # on the next dialog open before `Na__InteriorDoorSystem::Na__AssetLibrary`
+    # `na_set_assets_root_path` replay and any future funnel side effects are
+    # applied. Invoked exclusively from DialogManager.na_finalize_developer_reload.
+    def self.na_reset_door_module_load_gate_for_developer_reload
+        @na_door_modules_loaded = false
+        DebugTools.na_debug_door("Door lazy-load gate reset for developer reload")
     end
     # ---------------------------------------------------------------
 

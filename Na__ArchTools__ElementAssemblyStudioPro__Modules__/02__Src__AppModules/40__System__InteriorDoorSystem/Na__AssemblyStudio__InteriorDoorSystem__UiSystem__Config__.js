@@ -221,12 +221,12 @@ window.NA_DOOR_ARCHITRAVE_CONFIG = [
         unit        : 'mm'
     },
     {
-        id          : 'Na__DoorConfig__ArchitraveAssetKey',
+        id          : 'Na__DoorConfig__ArchitraveProfileKey',
         label       : 'Profile',
         type        : 'select',
-        default     : 'Na__InteriorDoor__Architrave__Default',
+        default     : 'Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm',
         options     : [
-            { value: 'Na__InteriorDoor__Architrave__Default', label: 'Default Chamfered 70x22' }
+            { value: 'Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm', label: 'Default Plan2D 70x20' }
         ]
     }
 ];

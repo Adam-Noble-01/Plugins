@@ -2,7 +2,7 @@
 # ELEMENT ASSEMBLY STUDIO PRO - INTERIOR DOOR SYSTEM - PANEL DESIGN: HORIZONTAL THREE
 # =============================================================================
 #
-# FILE       : Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__HorizontalThree__.rb
+# FILE       : Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__HorizontalThree__.rb
 # NAMESPACE  : Na__AssemblyStudio::Na__InteriorDoorSystem
 # MODULE     : Na__PanelDesignStyles__HorizontalThree
 # AUTHOR     : Noble Architecture
@@ -15,9 +15,9 @@
 # DESCRIPTION:
 # - Reads the inner-perimeter rect from the layout hash supplied by
 #   Na__PanelDesignFrame.
-# - Adds two horizontal cross-rails (each as a pair of parallel edges
-#   spaced by inner_rail_t) at z = inner_z_min + (1/3)*inner_h and
-#   z = inner_z_min + (2/3)*inner_h.
+# - Adds two horizontal cross-rail centerlines at z = inner_z_min + (1/3)*inner_h
+#   and z = inner_z_min + (2/3)*inner_h. Each is a SINGLE edge (no rail-pair
+#   thickness) so the elevation reads as a clean architectural division.
 # - No vertical mullion - each tier is a single full-width panel.
 #
 # NAMING CONVENTION:
@@ -70,19 +70,16 @@ module Na__InteriorDoorSystem
             inner_x_max   = layout[:inner_x_max]
             inner_z_min   = layout[:inner_z_min]
             inner_h       = layout[:inner_h]
-            inner_rail_t  = layout[:inner_rail_t]
 
             lower_z_centre = inner_z_min + (inner_h * NA_LOWER_BOUNDARY_RATIO)
             upper_z_centre = inner_z_min + (inner_h * NA_UPPER_BOUNDARY_RATIO)
 
             count  = 0
-            count += GeometryHelpers.na_create_horizontal_rail_lines(
-                face_entities, inner_x_min, inner_x_max,
-                lower_z_centre, inner_rail_t, y_mm
+            count += 1 if GeometryHelpers.na_create_xz_line(
+                face_entities, inner_x_min, lower_z_centre, inner_x_max, lower_z_centre, y_mm
             )
-            count += GeometryHelpers.na_create_horizontal_rail_lines(
-                face_entities, inner_x_min, inner_x_max,
-                upper_z_centre, inner_rail_t, y_mm
+            count += 1 if GeometryHelpers.na_create_xz_line(
+                face_entities, inner_x_min, upper_z_centre, inner_x_max, upper_z_centre, y_mm
             )
 
             DebugTools.na_debug_geometry(

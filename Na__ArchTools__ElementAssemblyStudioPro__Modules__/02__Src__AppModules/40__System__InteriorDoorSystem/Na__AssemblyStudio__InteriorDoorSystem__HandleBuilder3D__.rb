@@ -91,7 +91,7 @@ module Na__InteriorDoorSystem
                 return { :interior => nil, :exterior => nil }
             end
 
-            handle_def = na_get_or_build_handle_definition(asset_key, validation[:mesh_block], material)
+            handle_def = na_get_or_build_handle_definition(asset_key, validation[:mesh_block])
             return { :interior => nil, :exterior => nil } unless handle_def
 
             interior_inst = na_place_handle_instance(entities, handle_def, asset, config, :interior, material)
@@ -243,7 +243,7 @@ module Na__InteriorDoorSystem
         # Returns a cached definition if one was built earlier in the
         # session. Otherwise builds a fresh definition from the asset's
         # Na__Asset__Mesh3D block and caches it.
-        def self.na_get_or_build_handle_definition(asset_key, mesh_block, material)
+        def self.na_get_or_build_handle_definition(asset_key, mesh_block)
             mesh_signature = na_build_mesh_signature(mesh_block)
             cached = @na_handle_def_cache[asset_key]
             if cached && cached.valid?
@@ -273,7 +273,7 @@ module Na__InteriorDoorSystem
                          end
             definition.entities.clear!
 
-            built_faces = na_build_mesh_into_definition(definition, mesh_block, material)
+            built_faces = na_build_mesh_into_definition(definition, mesh_block)
             if built_faces <= 0
                 DebugTools.na_debug_warn("Handle definition '#{def_name}' built zero faces - skipping handle instances")
                 return nil
@@ -293,7 +293,7 @@ module Na__InteriorDoorSystem
         # ------------------------------------------------------------
         # Adds vertices and faces from the asset's Mesh3D block as faces
         # in the definition. Skips faces with fewer than three vertices.
-        def self.na_build_mesh_into_definition(definition, mesh_block, material)
+        def self.na_build_mesh_into_definition(definition, mesh_block)
             vertices = mesh_block["Na__Geometry__Vertices"] || []
             faces    = mesh_block["Na__Geometry__Faces"]    || []
 
@@ -315,10 +315,6 @@ module Na__InteriorDoorSystem
                 next unless face && face.valid?
                 built_count += 1
 
-                if material
-                    face.material      = material
-                    face.back_material = material
-                end
             end
             built_count
         end
@@ -442,12 +438,13 @@ module Na__InteriorDoorSystem
 
         # HELPER FUNCTION | Build Stable Mesh Signature for Definition Reuse
         # ------------------------------------------------------------
-        # Signature prefix "v2|" was introduced when edge flag application
-        # was added (IsSoft / IsSmooth / IsHidden / CastsShadows) so that
-        # cached definitions built from the same JSON but without edge
-        # flags are detected as stale and rebuilt once.
+        # Signature prefix "v3|" marks the material-neutral definition
+        # generation change. Earlier cached definitions may contain baked
+        # face materials from the first swatch chosen, so bumping this token
+        # forces a one-time rebuild where handle finish is driven only by
+        # instance material assignment.
         def self.na_build_mesh_signature(mesh_block)
-            Digest::SHA256.hexdigest("v2|#{JSON.generate(mesh_block || {})}")
+            Digest::SHA256.hexdigest("v3|#{JSON.generate(mesh_block || {})}")
         rescue StandardError
             nil
         end
@@ -576,9 +573,9 @@ module Na__InteriorDoorSystem
         # only transformation that achieves this cleanly; no rotation
         # of the laid-back handle produces a "Y-only" flip. The mirror
         # has determinant = -1, which inverts face normals inside the
-        # instance, but the interior-door handle meshes use two-sided
-        # materials (see na_build_mesh_into_definition), so the
-        # visual result is unchanged.
+        # instance; finish is applied at instance level in
+        # na_place_handle_instance, so the mirrored copy remains visually
+        # consistent with the interior copy.
         #
         # Interior handle receives an identity transformation so the
         # authored orientation survives to the interior face.
@@ -592,36 +589,15 @@ module Na__InteriorDoorSystem
         private_class_method :na_compute_handle_face_flip
         # ---------------------------------------------------------------
 
-        # HELPER FUNCTION | Compose Handle Lay-Back Rotation (Z -90, X -90, X -90)
+        # HELPER FUNCTION | Compose Handle Lay-Back Rotation (X -90)
         # ------------------------------------------------------------
         # The unified handle assets are authored lying on their back so
         # that the exporter's 00__OriginPoint sits at the handle spindle
-        # with Z+ pointing out of the front face of the lever. To stand
-        # the handle up correctly on a vertical door panel, with the
-        # lever projecting horizontally out of the door's interior face,
-        # the builder must rotate the asset by:
-        #   1. -90 deg around the Z axis
-        #   2. -90 deg around the X axis
-        #   3. -90 deg around the X axis (second time, to lay the lever
-        #      from vertical down onto the door's interior face)
-        # All three rotations are anchored at ORIGIN (the asset's local
-        # 00__OriginPoint reference).
-        #
-        # Geom::Transformation composition is right-to-left, so the
-        # composition for "apply Z first, then X, then X again" is:
-        #
-        #   T_final = T_x2 * T_x1 * T_z
-        #
-        # The two X-axis rotations could be collapsed into a single
-        # X -180 deg, but they are kept as separate steps here so the
-        # correction history stays readable and easy to tune.
-        #
-        # @return [Geom::Transformation] Combined lay-back rotation
+        # with Z+ pointing up so a correction is required to orientate the handle
+        # Rotation around model X axis -90Deg fixes this.
         def self.na_compute_handle_lay_back_rotation
-            t_z  = Geom::Transformation.rotation(ORIGIN, Z_AXIS, 180.degrees)
-            t_x1 = Geom::Transformation.rotation(ORIGIN, X_AXIS, -90.degrees)
-            t_x1 * t_z
-        end
+            rotateHandleX = Geom::Transformation.rotation(ORIGIN, X_AXIS, -90.degrees)
+          end
         private_class_method :na_compute_handle_lay_back_rotation
         # ---------------------------------------------------------------
 

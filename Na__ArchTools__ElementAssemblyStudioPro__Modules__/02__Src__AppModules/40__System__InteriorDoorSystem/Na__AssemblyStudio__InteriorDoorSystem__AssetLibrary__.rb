@@ -64,7 +64,7 @@ module Na__InteriorDoorSystem
         # CONSTANTS | Default Asset Keys (used when config omits them)
         # ------------------------------------------------------------
         NA_DEFAULT_HANDLE_KEY      = "Na__InteriorDoor__Handle__Default".freeze
-        NA_DEFAULT_ARCHITRAVE_KEY  = "Na__InteriorDoor__Architrave__Default".freeze
+        NA_DEFAULT_ARCHITRAVE_KEY  = "Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm".freeze
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

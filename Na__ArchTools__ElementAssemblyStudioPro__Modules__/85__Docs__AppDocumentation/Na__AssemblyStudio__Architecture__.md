@@ -173,10 +173,11 @@ The container sits inside `MOD` so the linework rotates with the door. The open 
 ### Module layout (one responsibility per file)
 - `02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__.rb` -> URL/cache loader for the MTE palette + per-edge material application.
 - `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__.rb` -> `na_compute_layout` resolves the inner perimeter from the four constraint sliders; `na_draw_inner_perimeter` draws the shared four-edge rectangle each style sits inside.
-- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__VerticalNarrow__.rb` -> divides the inner perimeter into N equal panes where N = (inner_w / preferred_pane_w).round.
-- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__ClassicalSixPanel__.rb` -> Georgian 38/38/24% three-tier layout + central mullion = 2+2+2 panels.
-- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__FourPanel__.rb` -> 2x2 grid (one cross-rail at mid-Z + one mullion at mid-X).
-- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__HorizontalThree__.rb` -> two cross-rails at 1/3 and 2/3 of inner-perimeter height (no mullion).
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__VerticalNarrow__.rb` -> divides the inner perimeter into N equal panes where N = (inner_w / preferred_pane_w).round.
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__ClassicalSix__.rb` -> Georgian 38/38/24% three-tier layout + central mullion = 2+2+2 panels.
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__FourPanel__.rb` -> 2x2 grid (one cross-rail at mid-Z + one mullion at mid-X).
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__HorizontalThree__.rb` -> two cross-rails at 1/3 and 2/3 of inner-perimeter height (no mullion).
+- Note: file segments use `PanelStyle__` rather than `PanelDesignStyles__` to keep the absolute Windows path under the 260-character `MAX_PATH` limit that SketchUp's Ruby `require_relative` enforces. The Ruby module names inside each file remain `Na__PanelDesignStyles__*` for clarity.
 - `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__.rb` -> orchestrator. Reads config, dispatches to the right style, wraps result in `Na__DoorPanel__DesignContainer`, applies edge colour.
 - Geometry primitives `na_create_xz_line`, `na_create_horizontal_rail_lines`, `na_create_vertical_rail_lines` live on `Na__GeometryHelpers` so every style draws rails the same way.
 

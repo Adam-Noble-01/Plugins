@@ -85,18 +85,28 @@ module Na__InteriorDoorSystem
         # Single source of truth for where the door panel sits within
         # the wall depth based on SwingDirection.
         #
-        # A physical interior door is mounted so that when it opens the
-        # panel swings fully through the wall depth toward the open side:
+        # Standard door architecture: the hinge is mounted at one corner
+        # of the lining reveal, and the door panel's "outer face" (the
+        # face that is flush with the hinge side of the lining) always
+        # sits on the hinge-side face of the lining. The panel never
+        # sits inside the lining depth and never swings through the
+        # reveal - it opens cleanly away from the lining.
         #
-        #   * Inward  opening -> hinges on the near (close) wall face,
-        #     panel sits in the closed position flush with the FAR
-        #     (Y-high / exterior) wall face, then swings toward the
-        #     room when opened. panel_y = face_offset + wall_depth - panel_t.
-        #   * Outward opening -> hinges on the far wall face, panel
-        #     sits flush with the NEAR (Y-low / room) wall face, then
-        #     swings out of the room when opened. panel_y = face_offset.
+        #   * Inward  opening -> hinge on the NEAR (front / room) face
+        #     of the lining. Panel closed flush with that near face
+        #     (Y = face_offset). Panel swings away from the lining
+        #     into the room (-Y direction) when opened.
+        #   * Outward opening -> hinge on the FAR (back / exterior)
+        #     face of the lining. Panel closed flush with that far
+        #     face (Y = face_offset + wall_depth - panel_t). Panel
+        #     swings away from the lining into the exterior (+Y
+        #     direction) when opened.
         #   * Any other / missing value -> centred in the wall depth
         #     (legacy fallback).
+        #
+        # Left/Right handing is orthogonal to this and flips the hinge
+        # between the left and right jamb; it does not affect which
+        # face of the lining the panel is flush with.
         #
         # Consumers: GeometryBuilders (panel + swing), HandleBuilder3D
         # (handle Y), DoorAssemblyComposer (hinge Y + open-state rotation).
@@ -111,11 +121,11 @@ module Na__InteriorDoorSystem
 
             case swing_direction
             when "inward"
-                face_offset_mm + (wall_depth_mm - panel_t_mm)
+                face_offset_mm                                        # <-- Flush with NEAR / front / room face (hinge on near side)
             when "outward"
-                face_offset_mm
+                face_offset_mm + (wall_depth_mm - panel_t_mm)         # <-- Flush with FAR / back / exterior face (hinge on far side)
             else
-                face_offset_mm + (wall_depth_mm - panel_t_mm) / 2.0
+                face_offset_mm + (wall_depth_mm - panel_t_mm) / 2.0   # <-- Centred fallback
             end
         end
         # ---------------------------------------------------------------

@@ -20,11 +20,13 @@
 # - Path runs: bottom of left jamb -> top of left jamb -> top of
 #   right jamb -> bottom of right jamb. There is NO bottom
 #   architrave (UK convention - the path stays open at the floor).
-# - The 2D profile is loaded from the asset's Na__Asset__Profile2D
-#   block (vertices use PosY_mm / PosZ_mm authored on the local YZ
-#   plane). The profile face is built in the XY plane so it is
-#   perpendicular to the +Z first-edge tangent of the path,
-#   keeping Follow Me well-defined for the vertical jamb sweeps.
+# - The 2D profile is loaded primarily from the asset's
+#   Na__Asset__Profile2D block (vertices use PosY_mm / PosZ_mm
+#   authored on the local YZ plane). If Profile2D is missing,
+#   Na__Asset__Plan2D polygon data is converted into profile points.
+#   The profile face is built in the XY plane so it is perpendicular
+#   to the +Z first-edge tangent of the path, keeping Follow Me
+#   well-defined for the vertical jamb sweeps.
 # - Mirrors the algorithm used by Na__ProfileTools__ProfilePathTracer's
 #   GeometryBuilders.Na__Geometry__BuildProfileAlongPath but operates on
 #   a caller-supplied entities collection (so the resulting solid lives
@@ -127,24 +129,102 @@ module Na__InteriorDoorSystem
             return na_fallback_profile_points if asset.nil?
 
             profile_block = asset["Na__Asset__Profile2D"]
-            unless profile_block
-                DebugTools.na_debug_warn("Architrave asset missing Na__Asset__Profile2D - using fallback")
-                return na_fallback_profile_points
+            if profile_block
+                profile_points = na_extract_profile_points_from_profile2d(profile_block)
+                return profile_points if profile_points
+                DebugTools.na_debug_warn("Architrave asset has invalid Na__Asset__Profile2D - trying Na__Asset__Plan2D")
             end
 
+            plan_block = asset["Na__Asset__Plan2D"]
+            if plan_block
+                plan_points = na_extract_profile_points_from_plan2d(plan_block)
+                return plan_points if plan_points
+                DebugTools.na_debug_warn("Architrave asset has invalid Na__Asset__Plan2D - using fallback")
+            end
+
+            DebugTools.na_debug_warn("Architrave asset has no usable Profile2D/Plan2D profile data - using fallback")
+            na_fallback_profile_points
+        end
+        private_class_method :na_extract_profile_points_mm
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Extract Ordered Profile Points from Profile2D
+        # ------------------------------------------------------------
+        def self.na_extract_profile_points_from_profile2d(profile_block)
             vertex_records = profile_block["Na__Geometry__Vertices"] || []
             face_records   = profile_block["Na__Geometry__Faces"]    || []
-
-            return na_fallback_profile_points if vertex_records.empty?
+            return nil if vertex_records.empty?
 
             indexed_points = na_build_indexed_point_table(vertex_records)
             outer_loop_ids = na_resolve_outer_loop_ids(face_records, vertex_records)
+            ordered        = outer_loop_ids.map { |vid| indexed_points[vid] }.compact
 
-            ordered = outer_loop_ids.map { |vid| indexed_points[vid] }.compact
-            return na_fallback_profile_points if ordered.length < 3
+            return nil if ordered.length < 3
             ordered
         end
-        private_class_method :na_extract_profile_points_mm
+        private_class_method :na_extract_profile_points_from_profile2d
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Extract Ordered Profile Points from Plan2D
+        # ------------------------------------------------------------
+        def self.na_extract_profile_points_from_plan2d(plan_block)
+            path_records = plan_block["Na__Geometry__Paths"]
+            return nil unless path_records.is_a?(Array) && !path_records.empty?
+
+            vertices = na_find_plan2d_polygon_vertices(path_records)
+            return nil unless vertices
+
+            raw_points = vertices.map do |vertex|
+                next nil unless vertex.is_a?(Hash)
+                next nil unless vertex.key?("X") && vertex.key?("Y")
+                [-(vertex["X"].to_f), -(vertex["Y"].to_f)]
+            end.compact
+
+            return nil if raw_points.length < 3
+            normalized = na_normalize_plan2d_profile_points(raw_points)
+            return nil if normalized.length < 3
+            normalized
+        end
+        private_class_method :na_extract_profile_points_from_plan2d
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Find the First Polygon Vertex Set in Plan2D Paths
+        # ------------------------------------------------------------
+        def self.na_find_plan2d_polygon_vertices(path_records)
+            path_records.each do |record|
+                next unless record.is_a?(Hash)
+                next unless record["PathType"].to_s.downcase == "polygon"
+                vertices = record["Vertices_mm"]
+                return vertices if vertices.is_a?(Array) && vertices.length >= 3
+            end
+            nil
+        end
+        private_class_method :na_find_plan2d_polygon_vertices
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Normalize Plan2D Points to Local Positive Space
+        # ------------------------------------------------------------
+        def self.na_normalize_plan2d_profile_points(raw_points)
+            min_y = raw_points.map { |point| point[0] }.min || 0.0
+            min_z = raw_points.map { |point| point[1] }.min || 0.0
+            normalized = raw_points.map { |y_val, z_val| [y_val - min_y, z_val - min_z] }
+
+            if normalized.length > 3 && na_points_equal?(normalized.first, normalized.last)
+                normalized.pop
+            end
+            normalized
+        end
+        private_class_method :na_normalize_plan2d_profile_points
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Float-Safe 2D Point Equality
+        # ------------------------------------------------------------
+        def self.na_points_equal?(point_a, point_b, epsilon = 0.001)
+            return false unless point_a.is_a?(Array) && point_b.is_a?(Array)
+            return false unless point_a.length >= 2 && point_b.length >= 2
+            (point_a[0] - point_b[0]).abs <= epsilon && (point_a[1] - point_b[1]).abs <= epsilon
+        end
+        private_class_method :na_points_equal?
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Build a VertexId -> [y_mm, z_mm] Lookup Hash

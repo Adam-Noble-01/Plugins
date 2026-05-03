@@ -1,9 +1,9 @@
 {
     "meta": {
-        "fileName"          : "Na__InteriorDoor__Architrave__Default__.json",
-        "description"       : "Default Noble Architecture interior architrave profile - simple 70mm x 22mm chamfered architrave moulding intended to be Follow-Me'd around the door lining perimeter. 2D profile only (no 3D mesh). Compatible with Na__ProfileTools__ProfilePathTracer rich-geometry profile format.",
+        "fileName"          : "Na__InteriorDoor__Architrave__Default__LEGACY__.json",
+        "description"       : "Legacy Noble Architecture interior architrave profile (archived). Retained for rollback reference after default migration to Plan2D architrave source.",
         "version"           : "1.0.0",
-        "lastUpdated"       : "01-May-2026",
+        "lastUpdated"       : "03-May-2026",
         "namingConvention"  : "All custom keys prefixed Na__. Three-stage form Na__Section__SubSection__FieldName. Profile2D uses Profile Path Tracer compatible vertices/edges/faces structure.",
         "fieldPrefixes"     : {
             "Na__Asset__"     : "Top-level asset metadata and content blocks",
@@ -14,11 +14,11 @@
     },
 
     "Na__Asset__Metadata": {
-        "Na__Asset__Name"                  : "Default Chamfered Architrave 70x22",
-        "Na__Asset__Code"                  : "NA__ARC__001",
+        "Na__Asset__Name"                  : "Default Chamfered Architrave 70x22 (Legacy)",
+        "Na__Asset__Code"                  : "NA__ARC__001__LEGACY",
         "Na__Asset__Type"                  : "Architrave",
-        "Na__Asset__Description"           : "Simple architrave profile - 70mm wide, 22mm projection, with a 6mm chamfer to the inner edge. Suitable as a default before custom profiles are added to the library.",
-        "Na__Asset__Notes"                 : "2D Profile only. Consumer (ArchitraveBuilder) extrudes via Follow Me along the door lining perimeter (top + jamb-L + jamb-R, no bottom).",
+        "Na__Asset__Description"           : "Legacy architrave profile (70mm wide, 22mm projection, with a 6mm chamfer) archived after migration to Plan2D default profile source.",
+        "Na__Asset__Notes"                 : "Archived profile. New defaults target Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm.",
         "Na__Asset__Supplier"              : "",
         "Na__Asset__SupplierProductCode"   : "",
         "Na__Asset__SupplierPrice_GBP"     : "",

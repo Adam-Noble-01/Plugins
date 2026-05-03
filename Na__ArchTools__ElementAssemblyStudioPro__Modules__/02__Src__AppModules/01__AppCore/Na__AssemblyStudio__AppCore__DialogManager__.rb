@@ -223,32 +223,25 @@ module Na__AssemblyStudio
             # REGION | Reload Scripts (developer feature)
             # -----------------------------------------------------------------
 
-            # Reloadable Ruby file roots (relative to the modules root). Each
-            # entry is a Pathname-friendly relative path. Adding a new system
-            # is a one-line change here.
-            NA_RELOAD_RB_ROOTS = [
-                "02__Src__AppModules/01__AppCore",
-                "02__Src__AppModules/02__AppData",
-                "02__Src__AppModules/03__AppUtils",
-                "02__Src__AppModules/04__GeometryHelpers",
-                "02__Src__AppModules/06__Tools__MeasurementTools",
-                "02__Src__AppModules/07__Tools__PlacementTools",
-                "02__Src__AppModules/20__System__WindowSystem",
-                "02__Src__AppModules/30__System__ExteriorDoorSystem",
-                "02__Src__AppModules/40__System__InteriorDoorSystem",
-                "65__Dev__DevTools"
+            # Ruby paths swept by developer reload (`na_reload_scripts`).
+            #
+            # Use one recursive glob per tree so newly added systems (for
+            # example `05__Viewport__2dPreviewEngine`) are picked up without
+            # remembering to extend a manual folder list.
+
+            NA_RELOAD_GLOB_SEGMENTS = [
+                File.join("02__Src__AppModules", "**", "*.rb"),
+                File.join("65__Dev__DevTools", "**", "*.rb"),
             ].freeze
 
             def self.na_collect_rb_files_for_reload(modules_root_path)
                 root_pn = Pathname.new(modules_root_path)
-                NA_RELOAD_RB_ROOTS.flat_map do |rel|
-                    abs_dir = root_pn.join(rel)
-                    if abs_dir.directory?
-                        Dir.glob(abs_dir.join("**", "*.rb").to_s)
-                    else
-                        []
-                    end
-                end.uniq.sort
+                files = NA_RELOAD_GLOB_SEGMENTS.flat_map do |segment|
+                    pattern = root_pn.join(segment).to_s
+                    Dir.glob(pattern).select { |path| File.file?(path) }
+                end
+
+                files.uniq.sort
             end
 
             def self.na_format_reload_path(file_path, modules_root_path)
@@ -256,6 +249,35 @@ module Na__AssemblyStudio
             rescue ArgumentError
                 File.basename(file_path)
             end
+
+            # FUNCTION | Replay Interior-Door Bootstrap Side Effects Post-Reload
+            # ------------------------------------------------------------
+            # `Kernel#load` replaces method bodies but does not unwind
+            # `require_relative`, and Ruby keeps lazily-loaded door state warm.
+            #
+            # - Clears `@na_door_modules_loaded` so the next HtmlDialog bootstrap
+            #   passes through `Na__InteriorDoorSystem.na_require_door_modules`
+            #   again (replays AssetLibrary root assignment and keeps any new
+            #   future side effects in that funnel discoverable).
+            # - Drops parsed JSON caches and cached handle ComponentDefinitions
+            #   so geometry/metadata edits on disk flush through immediately.
+            def self.na_finalize_developer_reload
+                if defined?(::Na__AssemblyStudio::Na__InteriorDoorSystem) &&
+                   ::Na__AssemblyStudio::Na__InteriorDoorSystem.respond_to?(:na_reset_door_module_load_gate_for_developer_reload)
+                    ::Na__AssemblyStudio::Na__InteriorDoorSystem.na_reset_door_module_load_gate_for_developer_reload
+                end
+
+                if defined?(::Na__AssemblyStudio::Na__InteriorDoorSystem::Na__AssetLibrary)
+                    ::Na__AssemblyStudio::Na__InteriorDoorSystem::Na__AssetLibrary.na_clear_caches
+                end
+
+                if defined?(::Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D)
+                    ::Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D.na_clear_definition_cache
+                end
+            rescue StandardError => e
+                DebugTools.na_debug_warn("Developer reload finalize failed: #{e.message}")
+            end
+            private_class_method :na_finalize_developer_reload
 
             def self.na_reload_scripts(modules_root_path)
                 DebugTools.na_debug_method("AppCore::DialogManager.na_reload_scripts")
@@ -281,6 +303,7 @@ module Na__AssemblyStudio
 
                 # STEP 2 | Reload all plugin Ruby files in place (`load`).
                 files = na_collect_rb_files_for_reload(modules_root_path)
+                puts "    [Reload] Discovered #{files.length} Ruby file(s) under 02__Src__AppModules + 65__Dev__DevTools"
                 files.each do |file|
                     begin
                         load file
@@ -291,6 +314,8 @@ module Na__AssemblyStudio
                         error_count += 1
                     end
                 end
+
+                na_finalize_developer_reload
 
                 UI.refresh_inspectors if UI.respond_to?(:refresh_inspectors)
 

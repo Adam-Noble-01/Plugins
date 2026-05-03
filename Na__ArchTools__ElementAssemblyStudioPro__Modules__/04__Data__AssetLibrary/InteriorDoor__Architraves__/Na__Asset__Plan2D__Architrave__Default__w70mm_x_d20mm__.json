@@ -1,0 +1,147 @@
+{
+  "meta"                : {
+    "fileName"         : "Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm__.json",
+    "description"      : "2D asset file exported by Na__DevTools::Na__JsonExporter2D.",
+    "version"          : "1.0.0",
+    "lastUpdated"      : "03-May-2026",
+    "namingConvention" : "All custom keys prefixed Na__. Three-stage form Na__Section__SubSection__FieldName.",
+    "fieldPrefixes"    : {
+        "Na__Asset__"          : "Top-level asset metadata and content blocks",
+        "Na__Geometry__"       : "Geometry-related sub-fields (BoundingBox, Counts, OriginNote, CoordSystem)",
+        "Na__PanelPlacement__" : "Door-panel mounting transforms (RH/LH handing, vertical datum)"
+    }
+  },
+  "Na__Asset__Metadata" : {
+    "Na__Asset__Name"                      : "Default Architrave Plan2D 70x20",
+    "Na__Asset__Code"                      : "NA__ARC__PLAN2D__001",
+    "Na__Asset__Type"                      : "Architrave",
+    "Na__Asset__Description"               : "Default interior door architrave profile source. Plan2D polygon path defines a 70mm width by 20mm depth profile used by the Interior Door System architrave builder.",
+    "Na__Asset__Notes"                     : "Authoritative default profile asset for interior doors. Consumed by the architrave runtime when ArchitraveProfileKey is set to Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm.",
+    "Na__Asset__Has2dPlan"                 : true,
+    "Na__Asset__Has2dElevation"            : false,
+    "Na__Asset__Has2dProfile"              : false,
+    "Na__Asset__Has3d"                     : false,
+    "Na__Asset__Supplier"                  : "",
+    "Na__Asset__SupplierProductCode"       : "",
+    "Na__Asset__SupplierPrice_GBP"         : "",
+    "Na__PanelPlacement__DefaultHeight_mm" : null,
+    "Na__PanelPlacement__RightHand"        : {
+        "Na__PanelPlacement__OffsetX_mm" : null,
+        "Na__PanelPlacement__OffsetY_mm" : null,
+        "Na__PanelPlacement__ScaleX"     : null
+    },
+    "Na__PanelPlacement__LeftHand"         : {
+        "Na__PanelPlacement__OffsetX_mm" : null,
+        "Na__PanelPlacement__OffsetY_mm" : null,
+        "Na__PanelPlacement__ScaleX"     : null
+    },
+    "Na__Asset__AvailableFinishes"         : []
+  },
+  "Na__Asset__Plan2D"   : {
+    "Na__Geometry__OriginNote"  : "Local 0,0 = centre of 00__OriginPoint group (handle spindle). Right-hand orientation.",
+    "Na__Geometry__CoordSystem" : "XY plane | X=right, Y=forward (away from door face) | Units=mm | Z discarded",
+    "Na__Geometry__BoundingBox" : {
+        "Na__Geometry__MinX_mm"   : -70.0,
+        "Na__Geometry__MaxX_mm"   : 0.0,
+        "Na__Geometry__MinY_mm"   : -20.0,
+        "Na__Geometry__MaxY_mm"   : 0.0,
+        "Na__Geometry__Width_mm"  : 70.0,
+        "Na__Geometry__Height_mm" : 20.0
+    },
+    "Na__Geometry__Counts"      : {
+        "Na__Geometry__EdgeCount"    : 5,
+        "Na__Geometry__ArcCount"     : 0,
+        "Na__Geometry__LineCount"    : 5,
+        "Na__Geometry__PolygonCount" : 1,
+        "Na__Geometry__CircleCount"  : 0
+    },
+    "Na__Geometry__Paths"       : [
+        {
+            "PathType"    : "Polygon",
+            "VertexName"  : "",
+            "Vertices_mm" : [
+                {
+                    "X" : 0.0,
+                    "Y" : 0.0
+                },
+                {
+                    "X" : -70.0,
+                    "Y" : 0.0
+                },
+                {
+                    "X" : -70.0,
+                    "Y" : -20.0
+                },
+                {
+                    "X" : -35.0,
+                    "Y" : -20.0
+                },
+                {
+                    "X" : 0.0,
+                    "Y" : -5.0
+                }
+            ]
+        },
+        {
+            "PathType"   : "Line",
+            "VertexName" : "",
+            "Start_mm"   : {
+                "X" : 0.0,
+                "Y" : -5.0
+            },
+            "End_mm"     : {
+                "X" : -35.0,
+                "Y" : -20.0
+            }
+        },
+        {
+            "PathType"   : "Line",
+            "VertexName" : "",
+            "Start_mm"   : {
+                "X" : 0.0,
+                "Y" : 0.0
+            },
+            "End_mm"     : {
+                "X" : -70.0,
+                "Y" : 0.0
+            }
+        },
+        {
+            "PathType"   : "Line",
+            "VertexName" : "",
+            "Start_mm"   : {
+                "X" : -70.0,
+                "Y" : -20.0
+            },
+            "End_mm"     : {
+                "X" : -35.0,
+                "Y" : -20.0
+            }
+        },
+        {
+            "PathType"   : "Line",
+            "VertexName" : "",
+            "Start_mm"   : {
+                "X" : -70.0,
+                "Y" : 0.0
+            },
+            "End_mm"     : {
+                "X" : -70.0,
+                "Y" : -20.0
+            }
+        },
+        {
+            "PathType"   : "Line",
+            "VertexName" : "",
+            "Start_mm"   : {
+                "X" : 0.0,
+                "Y" : -5.0
+            },
+            "End_mm"     : {
+                "X" : 0.0,
+                "Y" : 0.0
+            }
+        }
+    ]
+  }
+}

@@ -2,7 +2,7 @@
 # ELEMENT ASSEMBLY STUDIO PRO - INTERIOR DOOR SYSTEM - PANEL DESIGN: CLASSICAL SIX-PANEL
 # =============================================================================
 #
-# FILE       : Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__ClassicalSixPanel__.rb
+# FILE       : Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__ClassicalSix__.rb
 # NAMESPACE  : Na__AssemblyStudio::Na__InteriorDoorSystem
 # MODULE     : Na__PanelDesignStyles__ClassicalSixPanel
 # AUTHOR     : Noble Architecture
@@ -18,9 +18,10 @@
 # - Splits the inner height into three tiers using NA_TIER_RATIOS
 #   (24% top / 38% middle / 38% bottom). The top tier is intentionally
 #   shorter to match the classical Georgian proportion.
-# - Adds two horizontal cross-rails (each as a pair of parallel edges
-#   spaced by inner_rail_t) at the tier boundaries.
-# - Adds a single full-height vertical mullion at the inner-perimeter centre.
+# - Adds two horizontal cross-rail centerlines at the tier boundaries
+#   and one full-height vertical mullion centerline at the inner-perimeter
+#   centre. Each rail / mullion is a SINGLE edge (no rail-pair thickness)
+#   so the elevation reads as a clean architectural division.
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
@@ -76,24 +77,20 @@ module Na__InteriorDoorSystem
             inner_z_min   = layout[:inner_z_min]
             inner_z_max   = layout[:inner_z_max]
             inner_h       = layout[:inner_h]
-            inner_rail_t  = layout[:inner_rail_t]
 
             tier_boundary_lower = inner_z_min + (inner_h * NA_TIER_RATIO_BOTTOM)
             tier_boundary_upper = inner_z_min + (inner_h * (NA_TIER_RATIO_BOTTOM + NA_TIER_RATIO_MIDDLE))
             mullion_x_centre    = (inner_x_min + inner_x_max) / 2.0
 
             count  = 0
-            count += GeometryHelpers.na_create_horizontal_rail_lines(
-                face_entities, inner_x_min, inner_x_max,
-                tier_boundary_lower, inner_rail_t, y_mm
+            count += 1 if GeometryHelpers.na_create_xz_line(
+                face_entities, inner_x_min, tier_boundary_lower, inner_x_max, tier_boundary_lower, y_mm
             )
-            count += GeometryHelpers.na_create_horizontal_rail_lines(
-                face_entities, inner_x_min, inner_x_max,
-                tier_boundary_upper, inner_rail_t, y_mm
+            count += 1 if GeometryHelpers.na_create_xz_line(
+                face_entities, inner_x_min, tier_boundary_upper, inner_x_max, tier_boundary_upper, y_mm
             )
-            count += GeometryHelpers.na_create_vertical_rail_lines(
-                face_entities, mullion_x_centre,
-                inner_z_min, inner_z_max, inner_rail_t, y_mm
+            count += 1 if GeometryHelpers.na_create_xz_line(
+                face_entities, mullion_x_centre, inner_z_min, mullion_x_centre, inner_z_max, y_mm
             )
 
             DebugTools.na_debug_geometry(

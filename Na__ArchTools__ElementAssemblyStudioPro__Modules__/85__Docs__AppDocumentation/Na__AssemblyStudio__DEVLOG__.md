@@ -3,6 +3,42 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.3.1 - 03-May-2026 - Developer reload sweep + Interior door handle orientation (3D)
+
+### Context
+- Work focused on **interior door lever orientation** in SketchUp and on making **Reload Scripts** reliably pick up edits without a full SketchUp restart.
+- Handle placement is **only** created from `Na__HandleBuilder3D`; there is **no** secondary Ruby pass that rewrites handle `ComponentInstance` transforms after insertion.
+
+### Where handle rotation is defined (3D)
+- **File:** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb`
+- **Instance transform:** `Na__HandleBuilder3D.na_place_handle_instance` → `entities.add_instance(definition, transform)` with `transform` from `Na__HandleBuilder3D.na_compute_handle_transform`.
+- **Local orientation (asset “lay-back”):** `Na__HandleBuilder3D.na_compute_handle_lay_back_rotation`, composed as:
+  - `t_origin * t_face_flip * t_handing * t_lay_back`
+  - **`t_face_flip`:** Y-axis mirror for the **exterior** handle only (`na_compute_handle_face_flip`).
+  - **`t_handing`:** X reflection when left-hand metadata uses negative `ScaleX` (see `Na__PanelPlacement__LeftHand` / `RightHand` in the unified handle asset JSON).
+
+### Open vs closed door (not an override bug)
+- **`Na__DoorAssemblyComposer.na_compose_open_state_copy`** applies `mod_open.transform!(na_compute_open_rotation_transform(config))` to the **entire** `MOD001__ROT__90-Deg__DoorPanel` group for the **open-state ADR** copy. Panel and handles rotate **together** around the hinge pivot; this does not replace the per-handle insertion matrix relative to the panel.
+
+### Developer reload: reload *all* Ruby under AppModules + flush door caches
+- **File:** `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__DialogManager__.rb`
+- **Change:** Replaced the hand-maintained folder list with recursive globs:
+  - `02__Src__AppModules/**/*.rb` (covers every current and future subsystem folder, e.g. `05__Viewport__2dPreviewEngine`, without editing the list again).
+  - `65__Dev__DevTools/**/*.rb`
+- **Post-load finalizer** `na_finalize_developer_reload`:
+  - `Na__InteriorDoorSystem.na_reset_door_module_load_gate_for_developer_reload` ( **`Init__.rb`** ) — clears `@na_door_modules_loaded` so the next dialog bootstrap re-enters `na_require_door_modules` and replays `AssetLibrary.na_set_assets_root_path` and any future side effects in that path.
+  - `Na__AssetLibrary.na_clear_caches` — drops parsed unified-asset JSON so handle/architrave edits on disk apply immediately.
+  - `Na__HandleBuilder3D.na_clear_definition_cache` — drops session-cached handle `ComponentDefinition`s so mesh/signature changes rebuild cleanly.
+- Reload still purges and re-fetches **materials** and **edge materials** JSON before `load`, then closes and reopens the HtmlDialog. The Ruby file count in the status line is driven by the glob (order of **50+** files typical); the log line in the console prints the discovered count.
+
+### Practical note for tuning lever twist
+- After changing rotation angles (e.g. stepping the X/Z lay-back), use **Reload Scripts** then **Update Door** / **Live Update** so the definition is rebuilt (`GeometryEngine.na_update_door` clears `definition.entities` and recomposes assemblies).
+- A **180°** adjustment is expressed with `Geom::Transformation.rotation(..., SOME_AXIS, 180.degrees)` (SketchUp Numeric `#degrees`), either by revising an existing lay-back angle or by multiplying an extra rotation into `na_compute_handle_lay_back_rotation` / `na_compute_handle_transform` (try **Y-axis** rotation at `ORIGIN` for spindle-style twist if X/Z tweaks map badly on a given asset).
+
+# =============================================================================
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | v1.3.0 - Interior Door Panel Design Subsystem + Edge Colour Manager
 
 ### New: decorative panel-design linework on every interior door
@@ -60,6 +96,15 @@
 ### Why this matters
 - Doors now read as actual UK-style joinery elements out of the box: change the style select and the linework instantly redraws on both faces, both ADR copies (closed + open), and at the new MTE-driven dark-grey edge colour. No hardcoded palette, no manual painting, no panel-solid splitting.
 - The subsystem follows the existing modular contract: every style is its own file, every primitive sits in `Na__GeometryHelpers`, the edge palette loader sits in `02__AppData/` next to its sibling `MaterialManager`, and the AppConfig carries every default. Adding a new style is now a one-file addition + one switch case in `Na__PanelDesignBuilder.na_dispatch_style`.
+
+### File-naming addendum (Windows MAX_PATH workaround)
+- The four style files were originally created as `Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__<Variant>__.rb`. With the EASP modules rooted under `C:\Users\Administrator\AppData\Roaming\SketchUp\SketchUp 2026\SketchUp\Plugins\Na__ArchTools__ElementAssemblyStudioPro__Modules__\02__Src__AppModules\40__System__InteriorDoorSystem\`, that pushed the absolute file path to 264 characters - over the Windows 260-character `MAX_PATH` limit. SketchUp 2026's Ruby `require_relative` uses ANSI APIs that cannot resolve files past that limit, producing `LoadError: cannot load such file -- ...PanelDesignStyles__ClassicalSixPanel__` on plugin load.
+- Files renamed (file segment shortened, Ruby module names inside the files unchanged so callers keep working):
+  - `PanelDesignStyles__VerticalNarrow__.rb`     -> `PanelStyle__VerticalNarrow__.rb`
+  - `PanelDesignStyles__ClassicalSixPanel__.rb`  -> `PanelStyle__ClassicalSix__.rb`
+  - `PanelDesignStyles__FourPanel__.rb`          -> `PanelStyle__FourPanel__.rb`
+  - `PanelDesignStyles__HorizontalThree__.rb`    -> `PanelStyle__HorizontalThree__.rb`
+- `Na__AssemblyStudio__InteriorDoorSystem__Init__.rb` `na_require_door_modules` and `Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__.rb` updated to the new `require_relative` paths. The Architecture doc carries a note explaining the convention so future style additions stay under the limit.
 # =============================================================================
 
 

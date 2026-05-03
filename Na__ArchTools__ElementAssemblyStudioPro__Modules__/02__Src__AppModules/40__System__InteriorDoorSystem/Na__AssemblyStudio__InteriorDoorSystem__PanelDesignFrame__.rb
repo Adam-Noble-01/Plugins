@@ -82,12 +82,10 @@ module Na__InteriorDoorSystem
         # @param stile_w_mm [Numeric] Side stile width (both sides)
         # @param top_rail_mm [Numeric] Top rail height
         # @param bottom_rail_mm [Numeric] Bottom rail height
-        # @param inner_rail_t_mm [Numeric] Inner rail / mullion thickness
         # @return [Hash] Layout hash (see keys below)
         def self.na_compute_layout(panel_origin_x_mm, panel_origin_z_mm,
                                    panel_w_mm, panel_h_mm,
-                                   stile_w_mm, top_rail_mm, bottom_rail_mm,
-                                   inner_rail_t_mm)
+                                   stile_w_mm, top_rail_mm, bottom_rail_mm)
 
             panel_x_min  = panel_origin_x_mm.to_f
             panel_x_max  = panel_x_min + panel_w_mm.to_f
@@ -116,7 +114,6 @@ module Na__InteriorDoorSystem
                 :stile_w          => stile_w_mm.to_f,
                 :top_rail         => top_rail_mm.to_f,
                 :bottom_rail      => bottom_rail_mm.to_f,
-                :inner_rail_t     => inner_rail_t_mm.to_f,
                 :inner_perimeter_valid? => (inner_w >= NA_MIN_INNER_DIMENSION_MM &&
                                             inner_h >= NA_MIN_INNER_DIMENSION_MM)
             }

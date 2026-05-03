@@ -2,7 +2,7 @@
 # ELEMENT ASSEMBLY STUDIO PRO - INTERIOR DOOR SYSTEM - PANEL DESIGN: VERTICAL NARROW
 # =============================================================================
 #
-# FILE       : Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__VerticalNarrow__.rb
+# FILE       : Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__VerticalNarrow__.rb
 # NAMESPACE  : Na__AssemblyStudio::Na__InteriorDoorSystem
 # MODULE     : Na__PanelDesignStyles__VerticalNarrow
 # AUTHOR     : Noble Architecture

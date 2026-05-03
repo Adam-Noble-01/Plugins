@@ -27,7 +27,7 @@
                     "MAT301__Paint__FarrowAndBall__Ammonite",
                     "MAT304__Paint__FarrowAndBall__DownPipe"
                 ],
-                "Na__DataLib__UiDefaults__FrameFinish__DefaultSwatchKey": "MAT120__GenericWood",
+                "Na__DataLib__UiDefaults__FrameFinish__DefaultSwatchKey": "MAT001__Default",
                 "Na__DataLib__UiDefaults__FrameFinish__SwatchLabels": {
                     "MAT001__Default"                       : "Default",
                     "MAT120__GenericWood"                   : "Generic Wood",
@@ -39,14 +39,16 @@
             },
             "Na__DataLib__UiDefaults__HandleFinish": {
                 "Na__DataLib__UiDefaults__HandleFinish__SwatchKeys": [
+                    "MAT001__Default",
                     "MAT615__Metal__Ironmongery__Chrome",
                     "MAT616__Metal__Ironmongery__BrushedSteel",
                     "MAT614__Metal__Ironmongery__SatinNickel",
                     "MAT612__Metal__Ironmongery__Brass",
                     "MAT613__Metal__Ironmongery__Bronze"
                 ],
-                "Na__DataLib__UiDefaults__HandleFinish__DefaultSwatchKey": "MAT612__Metal__Ironmongery__Brass",
+                "Na__DataLib__UiDefaults__HandleFinish__DefaultSwatchKey": "MAT615__Metal__Ironmongery__Chrome",
                 "Na__DataLib__UiDefaults__HandleFinish__SwatchLabels": {
+                    "MAT001__Default"                           : "Default",
                     "MAT615__Metal__Ironmongery__Chrome"      : "Chrome",
                     "MAT616__Metal__Ironmongery__BrushedSteel": "Brushed Steel",
                     "MAT614__Metal__Ironmongery__SatinNickel" : "Satin Nickel",

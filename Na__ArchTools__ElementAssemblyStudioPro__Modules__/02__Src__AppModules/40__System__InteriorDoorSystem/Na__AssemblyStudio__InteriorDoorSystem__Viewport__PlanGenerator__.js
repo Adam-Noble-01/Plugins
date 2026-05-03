@@ -472,9 +472,9 @@
 
         var panelY;
         if (swingDirection === 'inward') {
-            panelY = wallTopY + wallDepth - panelThickness;                    // <-- Flush with FAR wall face (panel swings toward near/room side)
+            panelY = wallTopY;                                                 // <-- Flush with NEAR wall face (hinge on near side; panel swings INTO room)
         } else if (swingDirection === 'outward') {
-            panelY = wallTopY;                                                 // <-- Flush with NEAR wall face (panel swings toward far/exterior side)
+            panelY = wallTopY + wallDepth - panelThickness;                    // <-- Flush with FAR wall face (hinge on far side; panel swings INTO exterior)
         } else {
             panelY = wallTopY + ((wallDepth - panelThickness) / 2);            // <-- Centred fallback
         }

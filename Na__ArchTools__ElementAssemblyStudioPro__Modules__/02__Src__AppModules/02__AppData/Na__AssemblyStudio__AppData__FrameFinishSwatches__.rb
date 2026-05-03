@@ -81,11 +81,12 @@ module Na__AssemblyStudio
                     :legacy_labels_key     => nil,
                     :js_swatches           => "NA_HANDLE_FINISH_SWATCHES".freeze,
                     :js_default_key        => "NA_HANDLE_FINISH_DEFAULT_KEY".freeze,
-                    :fallback_key          => "MAT612__Metal__Ironmongery__Brass".freeze
+                    :fallback_key          => "MAT615__Metal__Ironmongery__Chrome".freeze
                 }
             }.freeze
 
             NA_FALLBACK_SWATCH_HEX = "#FFFFFF".freeze
+            NA_HANDLE_DEFAULT_SWATCH_ID = "MAT001__Default".freeze
 
             NA_TOAST_FAIL_MESSAGE = (
                 "Na materials library could not be loaded from the web. " \
@@ -114,7 +115,7 @@ module Na__AssemblyStudio
 
                 label_map = na_swatch_labels_from_meta(palette_config)
                 swatches = swatch_keys.map { |id| na_build_swatch_record(id, label_map) }.compact
-                na_promote_default_swatch_first(swatches, palette)
+                na_ensure_handle_default_card_first(swatches, label_map, palette)
             end
 
             # FUNCTION | Get Default Swatch Key for a Palette
@@ -298,21 +299,25 @@ module Na__AssemblyStudio
                 material_id.to_s
             end
 
-            # Keep the configured default handle finish visible as card #1 in
-            # the Handle Finish row, while leaving all other palettes untouched.
-            def self.na_promote_default_swatch_first(swatches, palette)
+            # Ensure the handle finish row always includes MAT001__Default as the
+            # first card, independent of remote meta ordering or omissions.
+            def self.na_ensure_handle_default_card_first(swatches, label_map, palette)
                 return swatches unless palette == :handle_finish
-                return swatches unless swatches.is_a?(Array) && !swatches.empty?
+                return swatches unless swatches.is_a?(Array)
 
-                default_id = na_default_key(:handle_finish).to_s
-                return swatches if default_id.empty?
+                default_index = swatches.find_index { |row| row.is_a?(Hash) && row[:id].to_s == NA_HANDLE_DEFAULT_SWATCH_ID }
+                if default_index
+                    default_row = swatches[default_index]
+                    default_row[:label] = "Default"
+                    remaining_rows = swatches.each_with_index.filter_map { |row, idx| row unless idx == default_index }
+                    return [default_row] + remaining_rows
+                end
 
-                default_index = swatches.find_index { |row| row.is_a?(Hash) && row[:id].to_s == default_id }
-                return swatches unless default_index && default_index > 0
+                default_row = na_build_swatch_record(NA_HANDLE_DEFAULT_SWATCH_ID, label_map || {})
+                return swatches unless default_row.is_a?(Hash)
 
-                default_row = swatches[default_index]
-                remaining_rows = swatches.each_with_index.filter_map { |row, idx| row unless idx == default_index }
-                [default_row] + remaining_rows
+                default_row[:label] = "Default"
+                [default_row] + swatches
             end
 
             # -----------------------------------------------------------------

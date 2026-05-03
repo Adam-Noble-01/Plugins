@@ -42,10 +42,10 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__'
-require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__VerticalNarrow__'
-require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__ClassicalSixPanel__'
-require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__FourPanel__'
-require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignStyles__HorizontalThree__'
+require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__VerticalNarrow__'
+require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__ClassicalSix__'
+require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__FourPanel__'
+require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__HorizontalThree__'
 
 module Na__AssemblyStudio
 module Na__InteriorDoorSystem
@@ -100,14 +100,12 @@ module Na__InteriorDoorSystem
         NA_KEY_STILE_W          = "Na__DoorConfig__PanelDesignStileWidth_mm".freeze
         NA_KEY_TOP_RAIL         = "Na__DoorConfig__PanelDesignTopRail_mm".freeze
         NA_KEY_BOTTOM_RAIL      = "Na__DoorConfig__PanelDesignBottomRail_mm".freeze
-        NA_KEY_INNER_RAIL_T     = "Na__DoorConfig__PanelDesignInnerRailThickness_mm".freeze
         NA_KEY_VERTICAL_PANE_W  = "Na__DoorConfig__PanelDesignVerticalPaneWidth_mm".freeze
         NA_KEY_EDGE_COLOUR_ID   = "Na__DoorConfig__PanelDesignEdgeColourId".freeze
 
         NA_DEFAULT_STILE_W          = 95.0
         NA_DEFAULT_TOP_RAIL         = 100.0
         NA_DEFAULT_BOTTOM_RAIL      = 200.0
-        NA_DEFAULT_INNER_RAIL_T     = 70.0
         NA_DEFAULT_VERTICAL_PANE_W  = 90.0
         # ---------------------------------------------------------------
 
