@@ -34,6 +34,7 @@
 require 'json'
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
+require_relative '../02__AppData/Na__AssemblyStudio__AppData__ConfigLoader__'
 
 module Na__AssemblyStudio
 module Na__InteriorDoorSystem
@@ -44,6 +45,7 @@ module Na__InteriorDoorSystem
 # -----------------------------------------------------------------------------
 
         DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        ConfigLoader = Na__AssemblyStudio::Na__AppData::Na__ConfigLoader
 
 # endregion -------------------------------------------------------------------
 
@@ -53,10 +55,10 @@ module Na__InteriorDoorSystem
 
         # CONSTANTS | Asset Folder Names (relative to the configurator root)
         # ------------------------------------------------------------
-        NA_ASSETS_ROOT_FOLDER     = "04__InteriorDoorAssets".freeze        # <-- Root assets folder
-        NA_FOLDER_HANDLES         = "Handles__".freeze                     # <-- Handle JSON folder
-        NA_FOLDER_ARCHITRAVES     = "Architraves__".freeze                 # <-- Architrave profile JSON folder
-        NA_FOLDER_HINGES          = "Hinges__".freeze                      # <-- Hinges (future use)
+        NA_ASSETS_ROOT_FOLDER_FALLBACK  = "04__Data__AssetLibrary".freeze
+        NA_FOLDER_HANDLES_FALLBACK      = "InteriorDoor__Handles__".freeze
+        NA_FOLDER_ARCHITRAVES_FALLBACK  = "InteriorDoor__Architraves__".freeze
+        NA_FOLDER_HINGES_FALLBACK       = "InteriorDoor__Hinges__".freeze
         # ---------------------------------------------------------------
 
         # CONSTANTS | Default Asset Keys (used when config omits them)
@@ -99,7 +101,7 @@ module Na__InteriorDoorSystem
             return @na_assets_root_path if @na_assets_root_path
 
             module_dir = File.dirname(__FILE__)
-            File.join(module_dir, NA_ASSETS_ROOT_FOLDER)
+            File.expand_path(File.join(module_dir, "..", "..", "..", NA_ASSETS_ROOT_FOLDER_FALLBACK))
         end
         # ---------------------------------------------------------------
 
@@ -108,16 +110,42 @@ module Na__InteriorDoorSystem
         # @param folder_sym [Symbol] :handles | :architraves | :hinges
         # @return [String] Absolute folder path
         def self.na_resolve_folder_path(folder_sym)
-            sub = case folder_sym
-                  when :handles      then NA_FOLDER_HANDLES
-                  when :architraves  then NA_FOLDER_ARCHITRAVES
-                  when :hinges       then NA_FOLDER_HINGES
-                  else nil
-                  end
+            sub = na_resolve_folder_name(folder_sym)
             return nil unless sub
 
             File.join(na_get_assets_root_path, sub)
         end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Resolve Bucket Name from AppConfig with Fallback
+        # ------------------------------------------------------------
+        def self.na_resolve_folder_name(folder_sym)
+            key = case folder_sym
+                  when :handles      then "handles"
+                  when :architraves  then "architraves"
+                  when :hinges       then "hinges"
+                  else nil
+                  end
+            return nil unless key
+
+            begin
+                config_bucket = ConfigLoader.na_get("assetLibrary", "interiorDoor")
+                if config_bucket.is_a?(Hash)
+                    configured_name = config_bucket[key]
+                    return configured_name.to_s unless configured_name.to_s.strip.empty?
+                end
+            rescue StandardError => e
+                DebugTools.na_debug_warn("AssetLibrary AppConfig lookup failed for '#{folder_sym}': #{e.message}")
+            end
+
+            case folder_sym
+            when :handles      then NA_FOLDER_HANDLES_FALLBACK
+            when :architraves  then NA_FOLDER_ARCHITRAVES_FALLBACK
+            when :hinges       then NA_FOLDER_HINGES_FALLBACK
+            else nil
+            end
+        end
+        private_class_method :na_resolve_folder_name
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

@@ -52,13 +52,16 @@
 
     // MODULE CONSTANTS | Palette
     // ------------------------------------------------------------
+    // Wall + stroke + dim colours stay fixed; lining + panel fills are now
+    // driven by the selected Joinery Finish material (live data sourced from
+    // window.NA_FRAME_FINISH_SWATCHES). Fallbacks below are only used when
+    // the materials JSON has not yet loaded.
     var NA_WALL_FILL               = '#d8d8d8';                               // <-- Cool grey wall fill
     var NA_WALL_STROKE             = '#666666';                               // <-- Wall outline
-    var NA_LINING_FILL             = '#a07e4a';                               // <-- Warm timber lining
-    var NA_PANEL_FILL              = '#e6c98e';                               // <-- Door panel
     var NA_PANEL_STROKE            = '#5a4324';                               // <-- Door panel outline
     var NA_SWING_STROKE            = '#5a4324';                               // <-- Swing arc outline
     var NA_DIM_TEXT_COLOR          = '#333333';                               // <-- Dimension label colour
+    var NA_FALLBACK_TIMBER_HEX     = '#D2B48C';                               // <-- Used only before swatches arrive
     // ---------------------------------------------------------------
 
 // endregion -------------------------------------------------------------------
@@ -86,6 +89,44 @@
     // ------------------------------------------------------------
     function na_make_svg(tag, attrs) {
         return window.Na__Viewport__SvgHelpers.na_make_svg(tag, attrs);
+    }
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Material Hex Resolution (Live from NA_FRAME_FINISH_SWATCHES)
+// -----------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve a Material ID to a Hex Colour String
+    // ------------------------------------------------------------
+    // Reads window.NA_FRAME_FINISH_SWATCHES (pushed in by Ruby from the
+    // central materials JSON). Falls back to a neutral timber tone only when
+    // the swatches have not arrived yet (e.g. during initial first paint
+    // before Ruby's na_requestFrameFinishSwatches callback completes).
+    function na_resolve_material_hex(materialId) {
+        var swatches = window.NA_FRAME_FINISH_SWATCHES;
+        if (Array.isArray(swatches)) {
+            for (var i = 0; i < swatches.length; i++) {
+                if (swatches[i] && swatches[i].id === materialId) {
+                    return swatches[i].hex || swatches[i].color || NA_FALLBACK_TIMBER_HEX;
+                }
+            }
+        }
+        return NA_FALLBACK_TIMBER_HEX;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve the Plan View Lining + Panel Fills
+    // ------------------------------------------------------------
+    function na_resolve_door_finish_palette(config) {
+        var liningId = (config && config['Na__DoorConfig__LiningMaterialId']) || 'MAT120__GenericWood';
+        var panelId  = (config && config['Na__DoorConfig__PanelMaterialId'])  || 'MAT120__GenericWood';
+        return {
+            liningFill : na_resolve_material_hex(liningId),
+            panelFill  : na_resolve_material_hex(panelId)
+        };
     }
     // ---------------------------------------------------------------
 
@@ -124,13 +165,13 @@
 
     // SUB FUNCTION | Build Both Door Lining Plan Rectangles (Left + Right Jamb)
     // ------------------------------------------------------------
-    function na_build_lining_layers(svg, layout) {
+    function na_build_lining_layers(svg, layout, palette) {
         var leftLining = na_make_svg('rect', {
             x      : layout.openingX,
             y      : layout.wallTopY,
             width  : layout.liningThickness,
             height : layout.wallDepth,
-            fill   : NA_LINING_FILL,
+            fill   : palette.liningFill,
             stroke : NA_PANEL_STROKE,
             'stroke-width' : 0.75
         });
@@ -139,7 +180,7 @@
             y      : layout.wallTopY,
             width  : layout.liningThickness,
             height : layout.wallDepth,
-            fill   : NA_LINING_FILL,
+            fill   : palette.liningFill,
             stroke : NA_PANEL_STROKE,
             'stroke-width' : 0.75
         });
@@ -151,7 +192,7 @@
     // SUB FUNCTION | Build the Closed-Position Door Panel Rectangle
     // ------------------------------------------------------------
     // Drawn on the hinge side flush with the lining face.
-    function na_build_closed_panel(svg, layout) {
+    function na_build_closed_panel(svg, layout, palette) {
         var x = (layout.swingSide === 'Left')
             ? layout.openingX + layout.liningThickness
             : layout.openingX + layout.openingWidth - layout.liningThickness - layout.panelClearWidth;
@@ -161,7 +202,7 @@
             y      : layout.panelY,
             width  : layout.panelClearWidth,
             height : layout.panelThickness,
-            fill   : NA_PANEL_FILL,
+            fill   : palette.panelFill,
             stroke : NA_PANEL_STROKE,
             'stroke-width' : 0.75
         });
@@ -308,11 +349,12 @@
 
         window.Na__Viewport__SvgHelpers.na_clear_svg(svgElement);             // <-- Wipe before re-paint
 
-        var layout = na_compute_layout(config);
+        var layout  = na_compute_layout(config);
+        var palette = na_resolve_door_finish_palette(config);                 // <-- Live finish hex from JSON-sourced swatches
 
         na_build_wall_layers(svgElement, layout);
-        na_build_lining_layers(svgElement, layout);
-        na_build_closed_panel(svgElement, layout);
+        na_build_lining_layers(svgElement, layout, palette);
+        na_build_closed_panel(svgElement, layout, palette);
 
         if (na_bool(config, 'Na__DoorConfig__ShowSwingArc', true)) {
             na_build_open_panel_outline(svgElement, layout);

@@ -135,7 +135,7 @@ module Na__InteriorDoorSystem
     NA_DEFAULT_LINING_MATERIAL_ID      = "MAT120__GenericWood".freeze          # <-- Default lining material
     NA_DEFAULT_PANEL_MATERIAL_ID       = "MAT120__GenericWood".freeze          # <-- Default door panel material
     NA_DEFAULT_ARCHITRAVE_MATERIAL_ID  = "MAT120__GenericWood".freeze          # <-- Default architrave material
-    NA_DEFAULT_HANDLE_MATERIAL_ID      = "MAT200__BrushedSteel".freeze         # <-- Default handle material (matches JS Handle Finish swatches)
+    NA_DEFAULT_HANDLE_MATERIAL_ID      = "MAT612__Metal__Ironmongery__Brass".freeze  # <-- Default handle material (Unlacquered Brass; first metal in Handle Finish palette)
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

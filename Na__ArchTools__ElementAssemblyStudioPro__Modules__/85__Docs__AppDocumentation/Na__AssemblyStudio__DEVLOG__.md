@@ -5,6 +5,100 @@
 # =============================================================================
 
 # =============================================================================
+## Element Assembly Studio Pro | v1.0.8 - Handle Finish Palette + Verbose UiDefaults Keys
+
+### Door Handle Finish row gets its own dedicated swatch palette
+- Added a second swatch palette to `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json` so the door's Handle Finish row no longer shares the wood/paint Frame Finish list:
+  - `MAT612__Metal__Ironmongery__Brass`        -> Unlacquered Brass (#c0ae8a, ValeSpec)
+  - `MAT613__Metal__Ironmongery__Bronze`       -> Bronze            (#433d37, ValeSpec)
+  - `MAT614__Metal__Ironmongery__SatinNickel`  -> Satin Nickel      (#aaacb0, ValeSpec - "Nickle" typo fixed to "Nickel")
+  - `MAT615__Metal__Ironmongery__Chrome`       -> Polished Chrome   (#cdd2d6, NEW)
+  - `MAT616__Metal__Ironmongery__BrushedSteel` -> Brushed Steel     (#b0b5ba, NEW)
+- New `MAT600__MetalSeries__` group inside `Na__DataLib__CoreIndex__Materials` holds the 5 entries, each with appropriate PBR roughness / metallic / EnvMap intensity for SketchUp + GLB export.
+
+### Materials JSON UI-defaults keys renamed to fully-qualified Na__DataLib__UiDefaults__ style
+- Replaced the camelCase `meta.uiDefaults` block with `meta.Na__DataLib__UiDefaults` containing two grouped sub-blocks:
+  - `Na__DataLib__UiDefaults__FrameFinish` -> `__SwatchKeys`, `__DefaultSwatchKey`, `__SwatchLabels`
+  - `Na__DataLib__UiDefaults__HandleFinish` -> `__SwatchKeys`, `__DefaultSwatchKey`, `__SwatchLabels`
+- Matches the ValeSpec `ValeSpec__Application__Config__AppName` convention.
+
+### Ruby helper now drives both palettes
+- Refactored `02__Src__AppModules/02__AppData/Na__AssemblyStudio__AppData__FrameFinishSwatches__.rb`:
+  - New `NA_PALETTES` config table maps `:frame_finish` and `:handle_finish` to their meta paths, JS globals, and per-palette safety fallback IDs.
+  - `na_get_swatches(palette = :frame_finish)` and `na_default_key(palette = :frame_finish)` are now palette-aware.
+  - `na_push_to_dialog(dialog)` writes BOTH palettes plus `NA_MATERIALS_LOAD_STATUS` in a single `execute_script` call, then triggers `Na_FrameFinishCards.na_render_all()`.
+
+### JS Finish Cards split per-palette
+- Refactored `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__FinishCards__.js`:
+  - Joinery row reads `window.NA_FRAME_FINISH_SWATCHES` (default = `NA_FRAME_FINISH_DEFAULT_KEY`).
+  - Handle row reads `window.NA_HANDLE_FINISH_SWATCHES` (default = `NA_HANDLE_FINISH_DEFAULT_KEY`).
+  - Each row hides independently when its palette is empty/missing or the load failed.
+  - Shared private `na_render_palette_row(opts)` helper drives both rows.
+
+### Door defaults aligned with the new MAT612 Brass handle ID
+- Bumped `NA_DEFAULT_HANDLE_MATERIAL_ID` in `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Init__.rb` from `MAT200__BrushedSteel` to `MAT612__Metal__Ironmongery__Brass`.
+- Updated `NA_DOOR_MATERIAL_DEFAULTS.Na__DoorConfig__HandleMaterialId` in `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js` to match.
+
+### Door 2D elevation preview now resolves handle hex from the handle palette
+- Updated `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__ElevationGenerator__.js`:
+  - `na_resolve_material_hex(materialId, fallbackHex, swatchesGlobalName)` now takes the source-global name as an argument.
+  - `na_resolve_door_finish_palette(config)` resolves lining + panel against `NA_FRAME_FINISH_SWATCHES` and handle against `NA_HANDLE_FINISH_SWATCHES`.
+  - `NA_FALLBACK_HANDLE_HEX` updated to `#C0AE8A` (Brass) so the offline preview matches the new default.
+
+### Documentation
+- Updated `85__Docs__AppDocumentation/Na__AssemblyStudio__Architecture__.md` "Materials & Frame Finish Swatches" section to describe both palettes and the new MAT600 series.
+# =============================================================================
+
+
+# =============================================================================
+## Element Assembly Studio Pro | v1.0.7 - Handle Export Schema Standardization + Hierarchy Export
+
+### DevTools 2D exporter switched from legacy ValeSpec to Na__ unified schema
+- Refactored `65__Dev__DevTools/Na__AssemblyStudio__DevTools__JsonExporter2D__.rb` to emit:
+  - `meta`
+  - `Na__Asset__Metadata`
+  - `Na__Asset__Plan2D` or `Na__Asset__Elevation2D` (user-selected at export time)
+- Removed all `ValeSpec__HardwareItemData` / `HardwareItem__VectorData` output keys from this exporter.
+- Standardized geometry payload naming to the handle template contract:
+  - 2D points use `X` / `Y`.
+  - Bounding box uses `Na__Geometry__MinX_mm` style keys.
+  - Counts live under `Na__Geometry__Counts`.
+
+### DevTools 3D exporter now preserves nested object hierarchy
+- Upgraded `65__Dev__DevTools/Na__AssemblyStudio__DevTools__JsonExporter3D__.rb` to recursively traverse nested `Group` and `ComponentInstance` trees for `03__Model3D`.
+- Added `Na__Asset__ObjectHierarchy3D` block with object node metadata:
+  - node id / parent id
+  - entity + definition names
+  - local and world transform matrices
+  - direct face counts per node
+- Added recursion guards for component definitions to avoid cyclic-definition traversal loops.
+
+### Mesh export contract aligned with InteriorDoor handle consumer
+- `Na__Asset__Mesh3D` now exports vertex/face fields expected by `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb`:
+  - vertices include `VertexId` + `PosX_mm` / `PosY_mm` / `PosZ_mm`
+  - faces include `OuterLoop_VertexIds`
+- Added mesh counts + edges under `Na__Geometry__Counts` / `Na__Geometry__Edges` for consistent schema shape.
+- Metadata key alignment updates:
+  - added `Na__Asset__Code`
+  - standardized supplier price field to `Na__Asset__SupplierPrice_GBP`.
+
+### AssetLibrary folder routing now respects AppConfig source-of-truth
+- Updated `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__AssetLibrary__.rb` to read interior-door bucket names from:
+  - `assetLibrary.interiorDoor.handles`
+  - `assetLibrary.interiorDoor.architraves`
+  - `assetLibrary.interiorDoor.hinges`
+  via `Na__ConfigLoader`.
+- Added safe fallbacks to `InteriorDoor__Handles__`, `InteriorDoor__Architraves__`, `InteriorDoor__Hinges__` when config lookup is unavailable.
+
+### Default interior-door handle asset refreshed
+- Updated `04__Data__AssetLibrary/InteriorDoor__Handles__/Na__InteriorDoor__Handle__Default__.json` to merge latest exporter-driven 2D geometry into:
+  - `Na__Asset__Plan2D`
+  - `Na__Asset__Elevation2D`
+- Retained production-compatible `Na__Asset__Mesh3D` structure while refreshing metadata notes to describe the merged source flow.
+
+# =============================================================================
+
+# =============================================================================
 ## Element Assembly Studio Pro |  v1.0.6 - Door Finish Cards + URL-First Materials Cache
 
 ### Door tab gains Joinery + Handle finish swatch rows

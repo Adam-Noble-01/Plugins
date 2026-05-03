@@ -6,18 +6,24 @@
 # NAMESPACE  : Na__AssemblyStudio::Na__AppData
 # MODULE     : Na__FrameFinishSwatches
 # AUTHOR     : Noble Architecture
-# PURPOSE    : Build the visible swatch list used by the door + window finish
+# PURPOSE    : Build the visible swatch lists used by the door + window finish
 #              card UIs, sourced exclusively from the live materials JSON.
 #              Pushes the swatches into the HtmlDialog as window globals and
 #              raises a persistent toast when the materials library could not
 #              be loaded from the web.
 #
+# PALETTES
+# - :frame_finish  -> Window Frame Finish + Door Joinery Finish (wood / paint)
+# - :handle_finish -> Door Handle Finish                       (metal ironmongery)
+#
 # DATA SOURCE
-# - Reads meta.uiDefaults.FrameFinishSwatchKeys from the loaded materials hash
-#   (Na__DataLib__CoreIndex__Materials__.json).
+# - Reads meta.Na__DataLib__UiDefaults.<palette>.SwatchKeys
+#                                            .DefaultSwatchKey
+#                                            .SwatchLabels
+#   from the loaded materials hash (Na__DataLib__CoreIndex__Materials__.json).
 # - All swatch hex values are derived from each material entry's BaseColor.
 # - Returns an empty list when the materials library failed to load -- the
-#   front-end then hides the card sections entirely (debug aid).
+#   front-end then hides the affected card section entirely (debug aid).
 #
 # =============================================================================
 
@@ -35,12 +41,41 @@ module Na__AssemblyStudio
             MaterialManager = Na__AssemblyStudio::Na__AppData::Na__MaterialManager
             UiBridge        = Na__AssemblyStudio::Na__AppCore::Na__UiBridge
 
-            NA_META_UI_DEFAULTS_KEY        = "uiDefaults".freeze
-            NA_META_SWATCH_KEYS            = "FrameFinishSwatchKeys".freeze
-            NA_META_DEFAULT_KEY            = "DefaultFrameFinishKey".freeze
-            NA_META_SWATCH_LABELS          = "FrameFinishSwatchLabels".freeze
-            NA_FALLBACK_DEFAULT_KEY        = "MAT001__Default".freeze
-            NA_FALLBACK_SWATCH_HEX         = "#FFFFFF".freeze
+            # -----------------------------------------------------------------
+            # REGION | Palette Configuration (Per-Palette Meta Keys + JS Globals)
+            # -----------------------------------------------------------------
+
+            NA_META_UI_DEFAULTS_KEY   = "Na__DataLib__UiDefaults".freeze
+
+            # Each palette declares:
+            #   :group_key       -> nested group inside Na__DataLib__UiDefaults
+            #   :swatch_keys     -> array of MAT IDs to render as cards
+            #   :default_key     -> the default swatch ID
+            #   :labels_key      -> map of MAT ID -> human label
+            #   :js_swatches     -> JS window global for the swatch array
+            #   :js_default_key  -> JS window global for the default key
+            NA_PALETTES = {
+                :frame_finish => {
+                    :group_key      => "Na__DataLib__UiDefaults__FrameFinish".freeze,
+                    :swatch_keys    => "Na__DataLib__UiDefaults__FrameFinish__SwatchKeys".freeze,
+                    :default_key    => "Na__DataLib__UiDefaults__FrameFinish__DefaultSwatchKey".freeze,
+                    :labels_key     => "Na__DataLib__UiDefaults__FrameFinish__SwatchLabels".freeze,
+                    :js_swatches    => "NA_FRAME_FINISH_SWATCHES".freeze,
+                    :js_default_key => "NA_FRAME_FINISH_DEFAULT_KEY".freeze,
+                    :fallback_key   => "MAT001__Default".freeze
+                },
+                :handle_finish => {
+                    :group_key      => "Na__DataLib__UiDefaults__HandleFinish".freeze,
+                    :swatch_keys    => "Na__DataLib__UiDefaults__HandleFinish__SwatchKeys".freeze,
+                    :default_key    => "Na__DataLib__UiDefaults__HandleFinish__DefaultSwatchKey".freeze,
+                    :labels_key     => "Na__DataLib__UiDefaults__HandleFinish__SwatchLabels".freeze,
+                    :js_swatches    => "NA_HANDLE_FINISH_SWATCHES".freeze,
+                    :js_default_key => "NA_HANDLE_FINISH_DEFAULT_KEY".freeze,
+                    :fallback_key   => "MAT612__Metal__Ironmongery__Brass".freeze
+                }
+            }.freeze
+
+            NA_FALLBACK_SWATCH_HEX = "#FFFFFF".freeze
 
             NA_TOAST_FAIL_MESSAGE = (
                 "Na materials library could not be loaded from the web. " \
@@ -51,57 +86,82 @@ module Na__AssemblyStudio
             # REGION | Public API
             # -----------------------------------------------------------------
 
-            # FUNCTION | Get Resolved Frame-Finish Swatches
+            # FUNCTION | Get Resolved Swatches for a Palette
             # ---------------------------------------------------------------
             # Returns an Array<Hash> of { id:, label:, hex: } records, one per
-            # swatch declared in meta.uiDefaults.FrameFinishSwatchKeys. Returns
-            # [] when the materials library is unavailable.
+            # swatch declared in the palette's SwatchKeys array. Returns []
+            # when the materials library is unavailable or the palette has
+            # no entries in meta.
             # ---------------------------------------------------------------
-            def self.na_get_swatches
+            def self.na_get_swatches(palette = :frame_finish)
                 return [] unless na_library_ready?
 
-                swatch_keys = na_swatch_keys_from_meta
+                palette_config = NA_PALETTES[palette]
+                return [] unless palette_config
+
+                swatch_keys = na_swatch_keys_from_meta(palette_config)
                 return [] if swatch_keys.empty?
 
-                label_map = na_swatch_labels_from_meta
+                label_map = na_swatch_labels_from_meta(palette_config)
                 swatch_keys.map { |id| na_build_swatch_record(id, label_map) }.compact
             end
 
-            # FUNCTION | Get Default Frame-Finish Key
+            # FUNCTION | Get Default Swatch Key for a Palette
             # ---------------------------------------------------------------
-            def self.na_default_key
+            def self.na_default_key(palette = :frame_finish)
+                palette_config = NA_PALETTES[palette]
+                return nil unless palette_config
+
                 meta = MaterialManager.na_meta
-                return NA_FALLBACK_DEFAULT_KEY unless meta.is_a?(Hash)
+                fallback = palette_config[:fallback_key]
+                return fallback unless meta.is_a?(Hash)
+
                 ui_defaults = meta[NA_META_UI_DEFAULTS_KEY]
-                return NA_FALLBACK_DEFAULT_KEY unless ui_defaults.is_a?(Hash)
-                (ui_defaults[NA_META_DEFAULT_KEY] || NA_FALLBACK_DEFAULT_KEY).to_s
+                return fallback unless ui_defaults.is_a?(Hash)
+
+                group = ui_defaults[palette_config[:group_key]]
+                return fallback unless group.is_a?(Hash)
+
+                (group[palette_config[:default_key]] || fallback).to_s
             end
 
-            # FUNCTION | Push Swatches and Load Status into the HtmlDialog
+            # FUNCTION | Push Both Palettes + Load Status into the HtmlDialog
             # ---------------------------------------------------------------
-            # Sets three window globals on the dialog:
-            #   window.NA_FRAME_FINISH_SWATCHES     - Array<{id,label,hex}>
-            #   window.NA_FRAME_FINISH_DEFAULT_KEY  - String
-            #   window.NA_MATERIALS_LOAD_STATUS     - 'ok' | 'failed'
+            # Sets these window globals on the dialog:
+            #   window.NA_FRAME_FINISH_SWATCHES      - Array<{id,label,hex}>
+            #   window.NA_FRAME_FINISH_DEFAULT_KEY   - String
+            #   window.NA_HANDLE_FINISH_SWATCHES     - Array<{id,label,hex}>
+            #   window.NA_HANDLE_FINISH_DEFAULT_KEY  - String
+            #   window.NA_MATERIALS_LOAD_STATUS      - 'ok' | 'failed'
             # Then calls window.Na_FrameFinishCards.na_render_all() if present
-            # so both door and window card grids re-render with fresh data.
+            # so both door card grids + the window's Frame Finish row repaint.
             # On failure also raises a persistent toast in #na-status-bar.
             # ---------------------------------------------------------------
             def self.na_push_to_dialog(dialog)
                 return false unless dialog && dialog.respond_to?(:execute_script)
 
-                swatches    = na_get_swatches
-                default_key = na_default_key
-                status      = na_status_for_js
+                frame_swatches  = na_get_swatches(:frame_finish)
+                handle_swatches = na_get_swatches(:handle_finish)
+                frame_default   = na_default_key(:frame_finish)
+                handle_default  = na_default_key(:handle_finish)
+                status          = na_status_for_js
 
-                script = na_build_push_script(swatches, default_key, status)
+                script = na_build_push_script(
+                    frame_swatches, frame_default,
+                    handle_swatches, handle_default,
+                    status
+                )
                 dialog.execute_script(script)
 
                 if status == "failed"
                     UiBridge.na_send_status(dialog, "error", NA_TOAST_FAIL_MESSAGE, persistent: true)
                 end
 
-                DebugTools.na_debug_ui("FrameFinishSwatches: pushed #{swatches.length} swatches (status: #{status})")
+                DebugTools.na_debug_ui(
+                    "FrameFinishSwatches: pushed " \
+                    "frame=#{frame_swatches.length} handle=#{handle_swatches.length} " \
+                    "(status: #{status})"
+                )
                 true
             end
 
@@ -117,21 +177,25 @@ module Na__AssemblyStudio
                 MaterialManager.na_load_status == :failed ? "failed" : "ok"
             end
 
-            def self.na_swatch_keys_from_meta
-                meta = MaterialManager.na_meta
-                return [] unless meta.is_a?(Hash)
-                ui_defaults = meta[NA_META_UI_DEFAULTS_KEY]
-                return [] unless ui_defaults.is_a?(Hash)
-                Array(ui_defaults[NA_META_SWATCH_KEYS]).map(&:to_s)
+            def self.na_swatch_keys_from_meta(palette_config)
+                group = na_palette_group(palette_config)
+                return [] unless group.is_a?(Hash)
+                Array(group[palette_config[:swatch_keys]]).map(&:to_s)
             end
 
-            def self.na_swatch_labels_from_meta
-                meta = MaterialManager.na_meta
-                return {} unless meta.is_a?(Hash)
-                ui_defaults = meta[NA_META_UI_DEFAULTS_KEY]
-                return {} unless ui_defaults.is_a?(Hash)
-                labels = ui_defaults[NA_META_SWATCH_LABELS]
+            def self.na_swatch_labels_from_meta(palette_config)
+                group = na_palette_group(palette_config)
+                return {} unless group.is_a?(Hash)
+                labels = group[palette_config[:labels_key]]
                 labels.is_a?(Hash) ? labels : {}
+            end
+
+            def self.na_palette_group(palette_config)
+                meta = MaterialManager.na_meta
+                return nil unless meta.is_a?(Hash)
+                ui_defaults = meta[NA_META_UI_DEFAULTS_KEY]
+                return nil unless ui_defaults.is_a?(Hash)
+                ui_defaults[palette_config[:group_key]]
             end
 
             # -----------------------------------------------------------------
@@ -194,11 +258,15 @@ module Na__AssemblyStudio
             # REGION | Internals - Push Script Builder
             # -----------------------------------------------------------------
 
-            def self.na_build_push_script(swatches, default_key, status)
+            def self.na_build_push_script(frame_swatches, frame_default,
+                                          handle_swatches, handle_default,
+                                          status)
                 <<~JS
-                    window.NA_FRAME_FINISH_SWATCHES    = #{JSON.generate(swatches)};
-                    window.NA_FRAME_FINISH_DEFAULT_KEY = #{JSON.generate(default_key)};
-                    window.NA_MATERIALS_LOAD_STATUS    = #{JSON.generate(status)};
+                    window.NA_FRAME_FINISH_SWATCHES     = #{JSON.generate(frame_swatches)};
+                    window.NA_FRAME_FINISH_DEFAULT_KEY  = #{JSON.generate(frame_default)};
+                    window.NA_HANDLE_FINISH_SWATCHES    = #{JSON.generate(handle_swatches)};
+                    window.NA_HANDLE_FINISH_DEFAULT_KEY = #{JSON.generate(handle_default)};
+                    window.NA_MATERIALS_LOAD_STATUS     = #{JSON.generate(status)};
                     if (window.Na_FrameFinishCards && typeof window.Na_FrameFinishCards.na_render_all === 'function') {
                         window.Na_FrameFinishCards.na_render_all();
                     }

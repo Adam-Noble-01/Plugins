@@ -49,14 +49,17 @@
 
     // MODULE CONSTANTS | Palette
     // ------------------------------------------------------------
-    var NA_LINING_FILL             = '#a07e4a';                               // <-- Warm timber lining
+    // Lining + panel + handle fills are now driven by the live finish
+    // swatches (window.NA_FRAME_FINISH_SWATCHES) selected in the Joinery
+    // Finish + Handle Finish card rows. Strokes and the dimension text
+    // colour stay fixed for clarity.
     var NA_LINING_STROKE           = '#5a4324';                               // <-- Lining outline
-    var NA_PANEL_FILL              = '#e6c98e';                               // <-- Door panel
     var NA_PANEL_STROKE            = '#5a4324';                               // <-- Door panel outline
     var NA_ARCHITRAVE_STROKE       = '#5a4324';                               // <-- Architrave outline
-    var NA_HANDLE_FILL             = '#b9a04a';                               // <-- Handle rose fill
     var NA_HANDLE_STROKE           = '#5a4324';                               // <-- Handle rose outline
     var NA_DIM_TEXT_COLOR          = '#333333';                               // <-- Dimension label colour
+    var NA_FALLBACK_TIMBER_HEX     = '#D2B48C';                               // <-- Used only before frame swatches arrive
+    var NA_FALLBACK_HANDLE_HEX     = '#C0AE8A';                               // <-- Unlacquered Brass fallback (matches handle default)
     // ---------------------------------------------------------------
 
 // endregion -------------------------------------------------------------------
@@ -84,6 +87,46 @@
     // ------------------------------------------------------------
     function na_make_svg(tag, attrs) {
         return window.Na__Viewport__SvgHelpers.na_make_svg(tag, attrs);
+    }
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Material Hex Resolution (Live from NA_FRAME_FINISH_SWATCHES)
+// -----------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve a Material ID to a Hex Colour String
+    // ------------------------------------------------------------
+    // Reads the named window global (pushed in by Ruby from the central
+    // materials JSON). Frame fills come from NA_FRAME_FINISH_SWATCHES,
+    // handle fills come from NA_HANDLE_FINISH_SWATCHES. Falls back to the
+    // supplied neutral tone only when the swatches have not arrived yet.
+    function na_resolve_material_hex(materialId, fallbackHex, swatchesGlobalName) {
+        var swatches = window[swatchesGlobalName];
+        if (Array.isArray(swatches)) {
+            for (var i = 0; i < swatches.length; i++) {
+                if (swatches[i] && swatches[i].id === materialId) {
+                    return swatches[i].hex || swatches[i].color || fallbackHex;
+                }
+            }
+        }
+        return fallbackHex;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve the Elevation Lining + Panel + Handle Fills
+    // ------------------------------------------------------------
+    function na_resolve_door_finish_palette(config) {
+        var liningId = (config && config['Na__DoorConfig__LiningMaterialId']) || 'MAT120__GenericWood';
+        var panelId  = (config && config['Na__DoorConfig__PanelMaterialId'])  || 'MAT120__GenericWood';
+        var handleId = (config && config['Na__DoorConfig__HandleMaterialId']) || 'MAT612__Metal__Ironmongery__Brass';
+        return {
+            liningFill : na_resolve_material_hex(liningId, NA_FALLBACK_TIMBER_HEX, 'NA_FRAME_FINISH_SWATCHES'),
+            panelFill  : na_resolve_material_hex(panelId,  NA_FALLBACK_TIMBER_HEX, 'NA_FRAME_FINISH_SWATCHES'),
+            handleFill : na_resolve_material_hex(handleId, NA_FALLBACK_HANDLE_HEX, 'NA_HANDLE_FINISH_SWATCHES')
+        };
     }
     // ---------------------------------------------------------------
 
@@ -149,7 +192,7 @@
 
     // SUB FUNCTION | Build the Door Lining U-Shape
     // ------------------------------------------------------------
-    function na_build_lining_u_shape(svg, layout) {
+    function na_build_lining_u_shape(svg, layout, palette) {
         var x  = layout.openingX;
         var y  = layout.openingTopY;
         var w  = layout.openingWidth;
@@ -168,7 +211,7 @@
 
         var path = na_make_svg('path', {
             d              : d,
-            fill           : NA_LINING_FILL,
+            fill           : palette.liningFill,
             stroke         : NA_LINING_STROKE,
             'stroke-width' : 1
         });
@@ -178,13 +221,13 @@
 
     // SUB FUNCTION | Build the Door Panel Rectangle
     // ------------------------------------------------------------
-    function na_build_panel(svg, layout) {
+    function na_build_panel(svg, layout, palette) {
         var rect = na_make_svg('rect', {
             x      : layout.panelX,
             y      : layout.panelTopY,
             width  : layout.panelClearWidth,
             height : layout.panelClearHeight,
-            fill   : NA_PANEL_FILL,
+            fill   : palette.panelFill,
             stroke : NA_PANEL_STROKE,
             'stroke-width' : 1
         });
@@ -218,12 +261,12 @@
 
     // SUB FUNCTION | Build a Simple Handle Marker
     // ------------------------------------------------------------
-    function na_build_handle_marker(svg, layout) {
+    function na_build_handle_marker(svg, layout, palette) {
         var rose = na_make_svg('circle', {
             cx     : layout.handleX,
             cy     : layout.handleY,
             r      : 18,
-            fill   : NA_HANDLE_FILL,
+            fill   : palette.handleFill,
             stroke : NA_HANDLE_STROKE,
             'stroke-width' : 0.75
         });
@@ -271,12 +314,13 @@
 
         window.Na__Viewport__SvgHelpers.na_clear_svg(svgElement);             // <-- Wipe before re-paint
 
-        var layout = na_compute_layout(config);
+        var layout  = na_compute_layout(config);
+        var palette = na_resolve_door_finish_palette(config);                 // <-- Live finish hex from JSON-sourced swatches
 
         if (layout.archEnabled) na_build_architrave_outline(svgElement, layout);
-        na_build_lining_u_shape(svgElement, layout);
-        na_build_panel(svgElement, layout);
-        na_build_handle_marker(svgElement, layout);
+        na_build_lining_u_shape(svgElement, layout, palette);
+        na_build_panel(svgElement, layout, palette);
+        na_build_handle_marker(svgElement, layout, palette);
         na_build_dimension_labels(svgElement, layout);
     };
     // ---------------------------------------------------------------

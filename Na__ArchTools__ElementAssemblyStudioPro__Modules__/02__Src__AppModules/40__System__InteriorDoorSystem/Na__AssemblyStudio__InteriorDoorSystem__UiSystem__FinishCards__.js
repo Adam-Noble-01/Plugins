@@ -6,19 +6,19 @@
 // NAMESPACE  : window.Na_FrameFinishCards
 // AUTHOR     : Noble Architecture
 // PURPOSE    : Render the Joinery Finish + Handle Finish swatch card rows
-//              shown beneath the Interior Door panel. Source data is the
-//              live materials JSON pushed in by Ruby as
-//              window.NA_FRAME_FINISH_SWATCHES.
+//              shown beneath the Interior Door panel. Each row reads from a
+//              dedicated window global pushed in by Ruby:
+//                Joinery -> window.NA_FRAME_FINISH_SWATCHES   (wood / paint)
+//                Handle  -> window.NA_HANDLE_FINISH_SWATCHES  (metal ironmongery)
 //
 // BEHAVIOUR
 // - When the materials JSON failed to load from the web, both card sections
-//   stay hidden (NO fallback swatches are rendered). This is intentional --
-//   the user explicitly requested empty UI on failure as a debug aid.
-// - A persistent toast is raised on the Ruby side when load fails, so the
-//   user is told why the cards have disappeared.
-// - Joinery clicks broadcast the picked material ID across Lining, Panel
-//   and Architrave config keys in one update. Handle clicks update only
-//   the Handle config key.
+//   stay hidden (NO fallback swatches). This is intentional debug aid.
+// - A persistent toast is raised on the Ruby side when load fails.
+// - Joinery clicks broadcast the picked material ID to Lining + Panel +
+//   Architrave config keys in one update. Handle clicks update only the
+//   Handle config key.
+// - Each row hides independently if its own palette is empty/missing.
 //
 // =============================================================================
 
@@ -37,6 +37,11 @@
     var NA_ARCHITRAVE_KEY      = 'Na__DoorConfig__ArchitraveMaterialId';
     var NA_HANDLE_KEY          = 'Na__DoorConfig__HandleMaterialId';
 
+    var NA_FRAME_SWATCHES_GLOBAL   = 'NA_FRAME_FINISH_SWATCHES';
+    var NA_FRAME_DEFAULT_GLOBAL    = 'NA_FRAME_FINISH_DEFAULT_KEY';
+    var NA_HANDLE_SWATCHES_GLOBAL  = 'NA_HANDLE_FINISH_SWATCHES';
+    var NA_HANDLE_DEFAULT_GLOBAL   = 'NA_HANDLE_FINISH_DEFAULT_KEY';
+
     var NA_LOAD_STATUS_OK      = 'ok';
 
     var NA_CARD_CLASS          = 'na-material-card';
@@ -51,41 +56,41 @@
     // FUNCTION | Render Both Door Card Rows + Refresh the Window Frame Finish
     // ------------------------------------------------------------
     // Called by Ruby (after pushing swatches) and by the door tab on mount.
-    // Also rebuilds the Window tab's Frame Finish control so it picks up the
-    // same live swatches without needing to reopen the dialog.
+    // Joinery row uses NA_FRAME_FINISH_SWATCHES, Handle row uses
+    // NA_HANDLE_FINISH_SWATCHES. Each row hides independently if its palette
+    // is empty or the materials library failed to load.
     Na_FrameFinishCards.na_render_all = function () {
-        var swatches  = na_resolve_swatches();
-        var canRender = na_can_render(swatches);
+        var loadOk         = (window.NA_MATERIALS_LOAD_STATUS === NA_LOAD_STATUS_OK);
+        var frameSwatches  = na_resolve_palette(NA_FRAME_SWATCHES_GLOBAL);
+        var handleSwatches = na_resolve_palette(NA_HANDLE_SWATCHES_GLOBAL);
+        var activeConfig   = na_get_active_door_config();
 
-        na_set_section_visibility(NA_JOINERY_SECTION_ID, canRender);
-        na_set_section_visibility(NA_HANDLE_SECTION_ID,  canRender);
+        na_render_palette_row({
+            sectionId      : NA_JOINERY_SECTION_ID,
+            cardsId        : NA_JOINERY_CARDS_ID,
+            swatches       : frameSwatches,
+            canRender      : loadOk && frameSwatches.length > 0,
+            currentId      : na_resolve_initial_id(activeConfig, frameSwatches, [
+                                NA_LINING_KEY, NA_PANEL_KEY, NA_ARCHITRAVE_KEY
+                             ], NA_FRAME_DEFAULT_GLOBAL),
+            onSelect       : na_handle_joinery_click
+        });
 
-        if (!canRender) {
-            na_clear_container(NA_JOINERY_CARDS_ID);
-            na_clear_container(NA_HANDLE_CARDS_ID);
-            na_rebuild_window_frame_finish();                                  // <-- Will hide window row too via empty placeholder
-            return;
-        }
-
-        var activeConfig = na_get_active_door_config();
-        var joineryId    = na_resolve_initial_joinery_id(activeConfig, swatches);
-        var handleId     = na_resolve_initial_handle_id(activeConfig, swatches);
-
-        na_render_card_row(NA_JOINERY_CARDS_ID, swatches, joineryId, na_handle_joinery_click);
-        na_render_card_row(NA_HANDLE_CARDS_ID,  swatches, handleId,  na_handle_handle_click);
+        na_render_palette_row({
+            sectionId      : NA_HANDLE_SECTION_ID,
+            cardsId        : NA_HANDLE_CARDS_ID,
+            swatches       : handleSwatches,
+            canRender      : loadOk && handleSwatches.length > 0,
+            currentId      : na_resolve_initial_id(activeConfig, handleSwatches, [
+                                NA_HANDLE_KEY
+                             ], NA_HANDLE_DEFAULT_GLOBAL),
+            onSelect       : na_handle_handle_click
+        });
 
         na_rebuild_window_frame_finish();
     };
 
-    function na_rebuild_window_frame_finish() {
-        if (typeof window.Na_DynamicUI === 'object' &&
-            typeof window.Na_DynamicUI.na_rebuild_frame_finish_control === 'function') {
-            try { window.Na_DynamicUI.na_rebuild_frame_finish_control(); }
-            catch (err) { console.warn('[Na_FrameFinishCards] rebuild window frame finish failed:', err); }
-        }
-    }
-
-    // FUNCTION | Update the Selected Card to Match an External Config Change
+    // FUNCTION | Update the Selected Cards to Match an External Config Change
     // ------------------------------------------------------------
     // Used after Ruby pushes a loaded door's config back to the dialog.
     Na_FrameFinishCards.na_sync_selection = function (config) {
@@ -97,21 +102,26 @@
     };
 
     // -----------------------------------------------------------------------
-    // REGION | Internals - Data Resolution
+    // REGION | Internals - Per-Palette Rendering
     // -----------------------------------------------------------------------
 
-    function na_resolve_swatches() {
-        var raw = window.NA_FRAME_FINISH_SWATCHES;
+    function na_render_palette_row(opts) {
+        na_set_section_visibility(opts.sectionId, opts.canRender);
+        if (!opts.canRender) {
+            na_clear_container(opts.cardsId);
+            return;
+        }
+        na_render_card_row(opts.cardsId, opts.swatches, opts.currentId, opts.onSelect);
+    }
+
+    function na_resolve_palette(globalName) {
+        var raw = window[globalName];
         return Array.isArray(raw) ? raw : [];
     }
 
-    function na_can_render(swatches) {
-        if (window.NA_MATERIALS_LOAD_STATUS !== NA_LOAD_STATUS_OK) return false;
-        return swatches.length > 0;
-    }
-
     function na_get_active_door_config() {
-        if (typeof window.Na_DoorUI !== 'object' || typeof window.Na_DoorUI.na_get_active_config !== 'function') {
+        if (typeof window.Na_DoorUI !== 'object' ||
+            typeof window.Na_DoorUI.na_get_active_config !== 'function') {
             return {};
         }
         try {
@@ -123,16 +133,12 @@
         }
     }
 
-    function na_resolve_initial_joinery_id(config, swatches) {
-        var current = config[NA_LINING_KEY] || config[NA_PANEL_KEY] || config[NA_ARCHITRAVE_KEY];
-        if (na_is_known_swatch_id(current, swatches)) return current;
-        return na_default_swatch_id(swatches);
-    }
-
-    function na_resolve_initial_handle_id(config, swatches) {
-        var current = config[NA_HANDLE_KEY];
-        if (na_is_known_swatch_id(current, swatches)) return current;
-        return na_default_swatch_id(swatches);
+    function na_resolve_initial_id(config, swatches, configKeys, defaultGlobalName) {
+        for (var i = 0; i < configKeys.length; i++) {
+            var current = config[configKeys[i]];
+            if (na_is_known_swatch_id(current, swatches)) return current;
+        }
+        return na_default_for_palette(swatches, defaultGlobalName);
     }
 
     function na_is_known_swatch_id(id, swatches) {
@@ -143,10 +149,18 @@
         return false;
     }
 
-    function na_default_swatch_id(swatches) {
-        var configured = window.NA_FRAME_FINISH_DEFAULT_KEY;
+    function na_default_for_palette(swatches, defaultGlobalName) {
+        var configured = window[defaultGlobalName];
         if (na_is_known_swatch_id(configured, swatches)) return configured;
         return swatches.length > 0 ? swatches[0].id : null;
+    }
+
+    function na_rebuild_window_frame_finish() {
+        if (typeof window.Na_DynamicUI === 'object' &&
+            typeof window.Na_DynamicUI.na_rebuild_frame_finish_control === 'function') {
+            try { window.Na_DynamicUI.na_rebuild_frame_finish_control(); }
+            catch (err) { console.warn('[Na_FrameFinishCards] rebuild window frame finish failed:', err); }
+        }
     }
 
     // -----------------------------------------------------------------------

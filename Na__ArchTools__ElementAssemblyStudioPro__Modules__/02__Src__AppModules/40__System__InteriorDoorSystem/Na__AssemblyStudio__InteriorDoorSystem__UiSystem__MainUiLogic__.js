@@ -47,7 +47,7 @@
         'Na__DoorConfig__LiningMaterialId'    : 'MAT120__GenericWood',
         'Na__DoorConfig__PanelMaterialId'     : 'MAT120__GenericWood',
         'Na__DoorConfig__ArchitraveMaterialId': 'MAT120__GenericWood',
-        'Na__DoorConfig__HandleMaterialId'    : 'MAT200__BrushedSteel'
+        'Na__DoorConfig__HandleMaterialId'    : 'MAT612__Metal__Ironmongery__Brass'
     };
 
     var na_active_config        = na_build_default_door_config();             // <-- Working config snapshot (Na__DoorConfiguration shape)

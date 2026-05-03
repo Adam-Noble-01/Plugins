@@ -874,6 +874,11 @@ const Na_DynamicUI = (function() {
     
 })();
 
+// Top-level `const` declarations don't attach to window in browsers, so other
+// scripts that look up window.Na_DynamicUI silently miss it. Mirror it here so
+// FinishCards / cross-system calls work consistently.
+window.Na_DynamicUI = Na_DynamicUI;
+
 // endregion ===================================================================
 
 // =============================================================================
