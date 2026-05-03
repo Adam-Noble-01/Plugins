@@ -1,0 +1,24 @@
+{
+    "meta": {
+        "fileName"          : "_README.json",
+        "description"       : "Placeholder file documenting the Hinges__ subfolder for the Interior Door Configurator. No live consumer reads from this folder yet; hinge geometry will be added in a future iteration once panel rebates and beading are implemented. The schema for hinge JSONs will follow the same unified asset format used by Handles__ (Na__Asset__Metadata + Na__Asset__Plan2D + Na__Asset__Elevation2D + Na__Asset__Mesh3D).",
+        "version"           : "1.0.0",
+        "lastUpdated"       : "01-May-2026",
+        "namingConvention"  : "All custom keys prefixed Na__. Three-stage form Na__Section__SubSection__FieldName.",
+        "fieldPrefixes"     : {
+            "Na__Asset__" : "Top-level asset metadata and content blocks (see Handles__ for live example)"
+        }
+    },
+
+    "Na__Asset__Metadata": {
+        "Na__Asset__Name"             : "Hinges Folder Placeholder",
+        "Na__Asset__Code"             : "NA__HNG__README",
+        "Na__Asset__Type"             : "PlaceholderReadme",
+        "Na__Asset__Description"      : "This folder is reserved for future hinge asset JSONs (e.g. butt hinges, concealed hinges) authored using the unified 2D + 3D + metadata format. Files starting with an underscore are ignored by the AssetLibrary scanner.",
+        "Na__Asset__Notes"            : "When adding the first real hinge asset, follow the naming pattern Na__InteriorDoor__Hinge__<HingeKey>__.json and reuse the structure of Na__InteriorDoor__Handle__Default__.json.",
+        "Na__Asset__Has2dPlan"        : false,
+        "Na__Asset__Has2dElevation"   : false,
+        "Na__Asset__Has3d"            : false,
+        "Na__Asset__AvailableFinishes": []
+    }
+}

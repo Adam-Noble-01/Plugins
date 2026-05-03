@@ -215,10 +215,15 @@ body {
     border: 1px solid var(--na-border-color);
     border-radius: var(--na-radius-md);
     overflow: hidden;
+}
+
+/* Grab cursor only applied once Na__Viewport__Controls.na_setupPanZoom binds
+   the wrapper, so any non-interactive viewport stays honest. */
+.na-canvas-wrapper.na-viewport-interactive {
     cursor: grab;
 }
 
-.na-canvas-wrapper:active {
+.na-canvas-wrapper.na-viewport-interactive:active {
     cursor: grabbing;
 }
 
@@ -907,6 +912,183 @@ body {
 
 .na-casement-removed-indicator {
     pointer-events: none;
+}
+
+/* =============================================================================
+   TAB BAR (Windows | Interior Doors)
+   ============================================================================= */
+
+.na-tab-bar {
+    display                  : flex;
+    gap                      : var(--na-spacing-xs);
+    padding                  : var(--na-spacing-sm) var(--na-spacing-md);
+    background-color         : var(--na-bg-tertiary);
+    border-bottom            : 1px solid var(--na-border-color);
+}
+
+.na-tab {
+    padding                  : var(--na-spacing-sm) var(--na-spacing-lg);
+    font-family              : var(--na-font-family);
+    font-size                : var(--na-font-size-md);
+    font-weight              : 600;
+    color                    : var(--na-text-secondary);
+    background-color         : var(--na-bg-secondary);
+    border                   : 1px solid var(--na-border-color);
+    border-bottom            : none;
+    border-top-left-radius   : var(--na-radius-md);
+    border-top-right-radius  : var(--na-radius-md);
+    cursor                   : pointer;
+    transition               : background-color var(--na-transition-fast),
+                               color var(--na-transition-fast);
+}
+
+.na-tab:hover {
+    background-color         : var(--na-bg-hover);
+}
+
+.na-tab.na-tab-active {
+    background-color         : var(--na-accent-blue);
+    color                    : #ffffff;
+    border-color             : var(--na-accent-blue);
+}
+
+.na-tab-panel {
+    display                  : block;
+}
+
+.na-tab-panel.na-hidden {
+    display                  : none !important;
+}
+
+/* =============================================================================
+   INTERIOR DOOR CONFIGURATOR - TAB SPECIFIC LAYOUT
+   ============================================================================= */
+
+.na-header-secondary {
+    border-bottom            : 1px solid var(--na-border-color);
+}
+
+.na-tab-heading {
+    font-family              : var(--na-font-family);
+    font-size                : var(--na-font-size-xl);
+    font-weight              : 600;
+    color                    : var(--na-text-primary);
+    margin                   : 0;
+}
+
+.na-door-viewport-section {
+    padding-bottom           : var(--na-spacing-lg);
+}
+
+.na-door-dual-viewport {
+    display                  : grid;
+    grid-template-columns    : 1fr 1fr;
+    gap                      : var(--na-spacing-md);
+    padding                  : var(--na-spacing-md);
+}
+
+.na-door-viewport-cell {
+    display                  : flex;
+    flex-direction           : column;
+    gap                      : var(--na-spacing-xs);
+}
+
+.na-door-viewport-label {
+    font-size                : var(--na-font-size-sm);
+    font-weight              : 600;
+    color                    : var(--na-text-muted);
+    text-transform           : uppercase;
+    letter-spacing           : 0.5px;
+}
+
+/* Door tab wrappers inherit the shared .na-canvas-wrapper grey background
+   (--na-bg-tertiary) so plan + elevation match the window tab visually.
+   The 1:1 aspect ratio override stays here because the door dual-viewport
+   layout needs square cells while the window tab uses a fixed 300px height. */
+#na-door-plan-wrapper,
+#na-door-elevation-wrapper {
+    aspect-ratio             : 1 / 1;
+    height                   : auto;
+}
+
+#na-door-plan-svg,
+#na-door-elevation-svg {
+    width                    : 100%;
+    height                   : 100%;
+    display                  : block;
+}
+
+/* =============================================================================
+   SETTINGS TAB - LAYOUT & CONTROLS
+   ============================================================================= */
+
+.na-settings-body {
+    display                  : flex;
+    flex-direction           : column;
+    gap                      : var(--na-spacing-lg);
+    padding                  : var(--na-spacing-md) var(--na-spacing-md) var(--na-spacing-xl);
+}
+
+.na-settings-section {
+    display                  : flex;
+    flex-direction           : column;
+    gap                      : var(--na-spacing-sm);
+    padding                  : var(--na-spacing-md);
+    background-color         : var(--na-bg-secondary);
+    border                   : 1px solid var(--na-border-color);
+    border-radius            : var(--na-radius-md);
+}
+
+.na-settings-section-info {
+    background-color         : transparent;
+    border                   : 1px dashed var(--na-border-color);
+}
+
+.na-settings-heading {
+    font-family              : var(--na-font-family);
+    font-size                : var(--na-font-size-lg);
+    font-weight              : 600;
+    color                    : var(--na-text-primary);
+    margin                   : 0 0 var(--na-spacing-xs) 0;
+}
+
+.na-settings-description {
+    font-size                : var(--na-font-size-sm);
+    color                    : var(--na-text-secondary);
+    margin                   : 0 0 var(--na-spacing-sm) 0;
+    line-height              : 1.4;
+}
+
+.na-settings-button-row {
+    display                  : flex;
+    flex-direction           : column;
+    gap                      : var(--na-spacing-xs);
+    padding                  : var(--na-spacing-sm) 0;
+    border-top               : 1px solid var(--na-border-color);
+}
+
+.na-settings-button-row:first-of-type {
+    border-top               : none;
+    padding-top              : 0;
+}
+
+.na-settings-btn {
+    align-self               : flex-start;
+    min-width                : 200px;
+}
+
+.na-settings-helper {
+    font-size                : var(--na-font-size-sm);
+    color                    : var(--na-text-muted);
+    margin                   : 0;
+    line-height              : 1.4;
+}
+
+.na-settings-info-line {
+    font-size                : var(--na-font-size-sm);
+    color                    : var(--na-text-secondary);
+    margin                   : 0;
+    line-height              : 1.4;
 }
 
 /* =============================================================================

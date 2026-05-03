@@ -1,11 +1,12 @@
 /* =============================================================================
-   NA WINDOW CONFIGURATOR TOOL - VIEWPORT VALIDATION
+   NA PLUGIN CORE - VIEWPORT VALIDATION
    =============================================================================
    
-   FILE       : Na__WindowConfiguratorTool__Viewport__Validation__.js
+   FILE       : Na__Viewport__Validation__.js
    AUTHOR     : Noble Architecture
    PURPOSE    : Configuration validation and error display
    CREATED    : 2026
+   RELOCATED  : 01-May-2026 (was Na__WindowConfiguratorTool__Viewport__Validation__.js)
    
    DESCRIPTION:
    - Validates window configuration before rendering
@@ -13,10 +14,11 @@
    - Validates casement sizing and mullion spacing
    - Displays validation errors in status bar
    - Provides visual feedback for successful validation
+   - Currently window-specific; can be extended later for door validation.
    
    NAMING CONVENTION:
    - All functions use na_ prefix (lowercase)
-   - Exported to window.Na__Viewport__Validation object
+   - Exported to window.Na__Viewport__Validation object (preserved global name)
    
    ============================================================================= */
 

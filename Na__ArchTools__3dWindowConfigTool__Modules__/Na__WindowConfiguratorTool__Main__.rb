@@ -62,9 +62,34 @@ require_relative 'Na__WindowConfiguratorTool__DxfExporterLogic__'
 require_relative 'Na__WindowConfiguratorTool__DialogManager__'
 require_relative 'Na__WindowConfiguratorTool__Observers__'
 require_relative 'Na__WindowConfiguratorTool__PlacementTool__'
-require_relative 'Na__WindowConfiguratorTool__MeasureOpeningTool__'
+require_relative File.join('07__PluginCore__MeasurmentToolsModules', 'Na__MeasurementTools__TwoPointOpeningTool__')
 require_relative 'Na__WindowConfiguratorTool__FuseParts__'
 require_relative 'Na__WindowConfiguratorTool__DoorPanel__GeometryBuilder__'
+
+# -----------------------------------------------------------------------------
+# Interior Door Configurator (sibling tool living in its own subfolder).
+# Only the lightweight Main module is required eagerly; the heavy modules
+# (geometry / serializer / measure tool) are loaded on demand by
+# Na__InteriorDoorConfigurator.na_require_door_modules when the door tab
+# is first activated.
+# -----------------------------------------------------------------------------
+begin
+    require_relative File.join('Na__InteriorDoorConfigurator__', 'Na__InteriorDoorConfigurator__Main__')
+rescue LoadError => e
+    puts "[NA_DOOR_LOAD] WARNING - Interior Door Configurator not available: #{e.message}"
+end
+
+# -----------------------------------------------------------------------------
+# Tool-Agnostic Developer Utilities (65__DevTools/).
+# Hosts the 2D and 3D JSON exporters surfaced from the Settings tab. The
+# require is guarded so a missing dev-tools folder degrades gracefully and
+# the parent tool keeps booting.
+# -----------------------------------------------------------------------------
+begin
+    require_relative File.join('65__DevTools', 'Na__DevTools__Main__')
+rescue LoadError => e
+    puts "[NA_DEVTOOLS_LOAD] WARNING - Dev Tools not available: #{e.message}"
+end
 
 module Na__WindowConfiguratorTool
 
@@ -265,7 +290,23 @@ module Na__WindowConfiguratorTool
         
         # Show the dialog (delegate to DialogManager)
         DialogManager.na_show_dialog(NA_HTML_FILE, NA_PLUGIN_ROOT, NA_DEFAULT_CONFIG)
-        
+
+        # Bolt the Interior Door tab onto the freshly-created dialog.
+        # All door-tab callbacks (na_createDoor, na_updateDoor, na_liveUpdateDoor,
+        # na_measureDoorOpening, ...) are registered by the door tool's own
+        # DialogRouter rather than by this module's DialogManager. Wrapped in
+        # a rescue so a door-side failure cannot break the window tab.
+        begin
+            if defined?(Na__InteriorDoorConfigurator) &&
+               Na__InteriorDoorConfigurator.respond_to?(:na_init_door_callbacks)
+                shared_dialog = DialogManager.na_get_dialog
+                Na__InteriorDoorConfigurator.na_init_door_callbacks(shared_dialog) if shared_dialog
+            end
+        rescue StandardError => e
+            DebugTools.na_debug_error("Door tab init failed (window tab still functional)", e)
+            puts "[NA_DOOR_INIT] Door tab init failed - window tab continues : #{e.message}"
+        end
+
         DebugTools.na_debug_success("Window Configurator Tool initialized")
     end
     # ---------------------------------------------------------------
@@ -292,14 +333,53 @@ module Na__WindowConfiguratorTool
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Load Door into Dialog (called by Observer)
+    # ------------------------------------------------------------
+    # Thin delegate that hands off to the Interior Door Configurator's
+    # DialogRouter. Kept on the parent module so the SelectionObserver
+    # has a single, stable destination regardless of whether the door
+    # subsystem is loaded or not.
+    def self.na_load_door_into_dialog(instance, door_id)
+        return unless defined?(Na__InteriorDoorConfigurator)
+        return unless Na__InteriorDoorConfigurator.respond_to?(:na_load_door_into_dialog)
+        Na__InteriorDoorConfigurator.na_load_door_into_dialog(instance, door_id)
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Clear Door from Dialog (called by Observer)
+    # ------------------------------------------------------------
+    def self.na_clear_door_from_dialog
+        return unless defined?(Na__InteriorDoorConfigurator)
+        return unless Na__InteriorDoorConfigurator.respond_to?(:na_clear_door_from_dialog)
+        Na__InteriorDoorConfigurator.na_clear_door_from_dialog
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Reload Scripts (called after reload completes)
     # ------------------------------------------------------------
+    # The shared dialog gets recreated, so every action callback that the
+    # door tool previously bolted onto it must be re-registered. Without
+    # this the Interior Door tab silently loses every JS->Ruby bridge
+    # (na_createDoor, na_updateDoor, na_liveUpdateDoor, na_measureDoorOpening, ...)
+    # immediately after Reload Scripts.
     def self.na_reload_scripts
         result = DialogManager.na_reload_scripts(NA_PLUGIN_ROOT)
-        
-        # Re-show dialog if reload requested it
-        if result && result[:reload_dialog]
-            DialogManager.na_show_dialog(NA_HTML_FILE, NA_PLUGIN_ROOT, NA_DEFAULT_CONFIG)
+        return unless result && result[:reload_dialog]
+
+        DialogManager.na_show_dialog(NA_HTML_FILE, NA_PLUGIN_ROOT, NA_DEFAULT_CONFIG)
+
+        # Re-bolt the Interior Door tab onto the freshly recreated dialog.
+        # Mirrors the block already present in na_show_window_configurator
+        # so reload behaves identically to a cold launch from this point on.
+        begin
+            if defined?(Na__InteriorDoorConfigurator) &&
+               Na__InteriorDoorConfigurator.respond_to?(:na_init_door_callbacks)
+                shared_dialog = DialogManager.na_get_dialog
+                Na__InteriorDoorConfigurator.na_init_door_callbacks(shared_dialog) if shared_dialog
+            end
+        rescue StandardError => e
+            DebugTools.na_debug_error("Door tab re-init failed during reload", e)
+            puts "[NA_DOOR_INIT] Door tab re-init failed during reload : #{e.message}"
         end
     end
     # ---------------------------------------------------------------

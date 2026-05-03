@@ -99,8 +99,11 @@ module Na__WindowConfiguratorTool
         # 
         # @param config [Hash] Window configuration
         # @param window_id [String] Pre-generated window ID (e.g., "AWN001")
+        # @param insertion_origin_in [Geom::Point3d, nil] Optional insertion origin (inches),
+        #     typically Point A from the latest MeasureOpeningTool result. When nil the
+        #     instance is added at IDENTITY and the caller engages the placement tool.
         # @return [Sketchup::ComponentInstance, nil] The created component instance
-        def self.na_create_window_geometry(config, window_id = nil)
+        def self.na_create_window_geometry(config, window_id = nil, insertion_origin_in = nil)
             DebugTools.na_debug_method("GeometryEngine.na_create_window_geometry")
             
             model = Sketchup.active_model
@@ -148,10 +151,18 @@ module Na__WindowConfiguratorTool
                 # Build window geometry
                 na_build_window_elements(window_entities, params, frame_material, glass_material, cill_material)
                 
-                # Add component instance at origin and set its name
-                instance = entities.add_instance(component_def, IDENTITY)
+                # Resolve insertion transform: use Point A from the most recent measurement
+                # when supplied, otherwise IDENTITY (the caller will engage the placement tool).
+                insertion_transform = if insertion_origin_in.is_a?(Geom::Point3d)
+                                          DebugTools.na_debug_geometry("Inserting window at measured Point A: #{insertion_origin_in.inspect}")
+                                          Geom::Transformation.new(insertion_origin_in)
+                                      else
+                                          IDENTITY
+                                      end
+
+                instance = entities.add_instance(component_def, insertion_transform)
                 instance.name = component_name
-                
+
                 DebugTools.na_debug_geometry("Created window component: #{component_name}")
                 return instance
                 

@@ -3,6 +3,474 @@
 # =============================================================================
 
 # ---------------------------------------------------------
+## Window Configurator Tool | Version 1.0.1 - 01-May-2026 - Major Overhaul - Interior Door Configurator Integration Into a New Tab
+
+### The Bug
+After v0.11.6 the user reported: "The 3D measurement tool is still not passing the dimensions back to the user interface. The door is being inserted into the right place though." Same symptom for the window's two-point tool. Manual slider drags worked perfectly, so `Na_DoorUI` and the dispatcher were healthy. The bug was somewhere in the Ruby-to-JS handoff.
+
+### Root Cause - Length#to_s Corrupts the JS Source String
+SketchUp's `Geom::Point3d#x|y|z` accessors return `Length` objects, NOT plain `Float`s. `Length#to_s` formats per the model's unit settings - `"123.45\""`, `"5'-2 1/4\""`, `"131mm"` etc. The Ruby bridge was interpolating these directly into the JS source via `#{...}`:
+
+```ruby
+@dialog.execute_script(
+    "window.na_receiveDoorMeasurement(#{width_mm}, #{height_mm}, #{depth_mm}," \
+    " #{origin_x_in}, #{origin_y_in}, #{origin_z_in});"
+)
+```
+
+With `origin_x_in` as a `Length`, the resulting script string contained literal `"` mid-expression:
+
+```
+window.na_receiveDoorMeasurement(1465, 2179, 722, 123.45", 67.89", 0");
+```
+
+That is a JavaScript syntax error. The browser parser fails before any of the function arguments hit `na_receiveDoorMeasurement`, so the receive callback never runs and never updates the sliders. The `try/catch` inside the receive callback cannot catch a host-script parse error.
+
+The door was still inserted at the correct Point A because the Ruby side cached `@na_last_measurement[:origin_in]` BEFORE firing `execute_script`. `na_consume_pending_measurement_origin` reads that cache regardless of whether the JS side ever heard from Ruby.
+
+### Why This Slipped Through v0.11.4 -> v0.11.6
+The earlier hotfixes all assumed the JS receive callback was at least *running*:
+- v0.11.4 added a hardened bridge with `try/catch` + direct DOM patching + elastic descriptor max.
+- v0.11.4a wrapped the DebugTools resolver in a proxy that swallows missing methods.
+- v0.11.6 unified the dispatcher so a single Measure Opening button drives both tabs.
+
+None of these tested whether the script string itself parsed. The defensive `try/catch` is inside the receive function - it cannot catch a parse error in the host script.
+
+### Audit
+A full audit of every `execute_script` call in the plugin found exactly two unsafe sites, both for measurement reception. Both have been fixed:
+- `Na__WindowConfiguratorTool__DialogManager__.rb` -> `na_send_measurement_to_dialog`
+- `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DialogRouter__.rb` -> `na_send_door_measurement_to_dialog`
+
+Every other `execute_script` site (placement state, status messages, config push via JSON-in-single-quoted-string, tab switch) is safe because it interpolates only Strings or no values.
+
+### Fix - Length-Safe execute_script Convention
+A new convention is now codified in the Architecture doc: **every numeric Ruby value injected into an `execute_script` string MUST be cast to `Float()` before interpolation**. For `Length` arguments use `Float(value.to_f)` so a future regression with a non-numeric input fails loudly at the cast site.
+
+### Files Modified
+- **`Na__WindowConfiguratorTool__DialogManager__.rb`** -- `na_send_measurement_to_dialog` now Float-casts `width_mm`, `height_mm`, and `origin_x_in` / `origin_y_in` / `origin_z_in` (via `Length#to_f` -> `Float()`) before interpolation. Added a debug log of the actual outgoing JS values for forensics.
+- **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DialogRouter__.rb`** -- Same treatment for `na_send_door_measurement_to_dialog`. Outgoing log now includes the origin triple for full chain-of-custody.
+- **`Na__WindowConfiguratorTool__UiEventToRubyApiBridge__.js`** -- `window.na_receiveMeasurement` now type-checks every argument and routes a regression to `console.error` + status-bar error message rather than silently misapplying.
+- **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__UiEventToRubyApiBridge__.js`** -- `window.na_receiveDoorMeasurement` adds an entry log line + same defensive type checks + a status-bar success message announcing the cleaned values landed.
+- **`Na__WindowConfiguratorTool__Architecture__.md`** -- New "Convention - Length-Safe execute_script (v0.11.7)" subsection with the audit table and the rule.
+
+### Test Plan
+1. Cold restart SketchUp (or hit Settings -> Reload Scripts).
+2. Switch to Interior Doors tab. Click `Measure Opening`. Place 3 points (~1465mm x 2179mm x 722mm).
+3. Confirm:
+    - SketchUp viewport overlay shows `W:1465mm H:2179mm D:722mm`.
+    - **NEW**: Door tab Opening Width slider snaps to 1465mm.
+    - **NEW**: Door tab Opening Height slider snaps to 2179mm.
+    - **NEW**: Door tab Wall Depth slider snaps to 722mm.
+    - **NEW**: Plan + Elevation viewports redraw to the new dimensions.
+    - **NEW**: Status bar shows "Door opening measured: 1465mm x 2179mm x 722mm - Insert at Point A queued."
+4. Click `Create Door` -> built at Point A (existing behaviour, must not regress).
+5. Switch to Windows tab. Click `Measure Opening`. Place 2 points.
+6. Confirm Width / Height sliders update + status bar shows the cleaned numbers.
+7. Open the SketchUp Ruby Console BEFORE the measurement, take a measurement, confirm a `[NA_INFO] Sending door measurement to dialog: W=... H=... D=... origin=(...)in` line appears (proves Ruby reached `execute_script` with sane Float values).
+8. Open the JS console (DevTools): expect a `[Na_DoorBridge] na_receiveDoorMeasurement called widthMm=1465 heightMm=2179 depthMm=722` log line confirming the JS receive callback fired with valid numbers.
+
+# ---------------------------------------------------------
+## Architectural Configurator (Windows + Interior Doors + Settings) | Version 0.11.6 - 01-May-2026 - Unified Configurator Context + Tab-Aware Selection Observer
+
+### Why - The Core Architectural Problem
+By v0.11.5 the dialog had FOUR independent silos all claiming to know "what the user is doing":
+1. `Na_TabRouter` held the active tab id in a closure variable.
+2. The Window bridge held `na_liveModeEnabled` and the `Measure Opening` active class on the global header buttons.
+3. The Door bridge held `window.na_doorLiveModeActive` and the `Measure Door Opening` active class on per-tab secondary-header buttons.
+4. The Ruby `Na__WindowSelectionObserver` loaded windows or doors purely by which dictionary the selected component carried, regardless of which tab was visible.
+
+Every release had been patching one silo at a time and each fix kept stepping on the previous fix. The user reported "neither of the measurement tools is correctly passing the dimensions back to the UI" and asked for a single state manager with one Live Mode and one Measure button that contextually dispatches by active tab. This release collapses all four silos into a unified controller plus an auto-switch observer.
+
+### Refactor - New `Na_AppContext` JS Controller
+- **NEW** `Na__WindowConfiguratorTool__AppContext__.js` (browser global `Na_AppContext`).
+- Exposes `na_init()`, `na_get_active_tab()`, `na_is_active_tab(id)`, `na_activateTab(id)`, `na_dispatch_measure()`, `na_dispatch_live_toggle()`, `na_on_tab_changed(id)`, and `na_apply_visibility()`.
+- Owns `na_live_state.windows` and `na_live_state.doors` (per-tab Live Mode booleans).
+- Pushes the active tab id back to Ruby via `sketchup.na_setActiveTab(tabId)` after every switch (and once on dialog load).
+- `na_dispatch_measure()` calls `sketchup.na_measureOpening` on the Windows tab, `sketchup.na_measureDoorOpening` on the Doors tab, and warns + does nothing on the Settings tab.
+- `na_dispatch_live_toggle()` flips `na_live_state.<tab>`, paints the Live Mode button label/class, calls `window.na_setLiveModeFlag(bool)` (window) or sets `window.na_doorLiveModeActive` (door), and triggers an immediate sync via `window.na_performLiveUpdate()` for the Windows tab.
+
+### Refactor - `Na_TabRouter` -> `Na_AppContext` Notification
+- `Na__WindowConfiguratorTool__TabRouter__.js` gained a private helper `na_notify_app_context(tabId)` invoked at the end of `na_activateTab` and `na_init`. The router stays single-purpose (DOM toggling + lifecycle hooks); the controller owns header-button visibility, dispatcher state, and Ruby active-tab push.
+
+### Refactor - Header Simplification
+- `Na__WindowConfiguratorTool__UiLayout__.html`:
+  - Global header buttons rewired: `onclick="Na_AppContext.na_dispatch_live_toggle()"` and `onclick="Na_AppContext.na_dispatch_measure()"`.
+  - Door tab's entire secondary header (`<header class="na-header na-header-secondary">` containing `na-btn-door-live` + `na-btn-door-measure`) deleted; only `<h2>Interior Door Configurator</h2>` remains.
+  - New script include `<script src="Na__WindowConfiguratorTool__AppContext__.js"></script>` immediately after the TabRouter include.
+- `Na__WindowConfiguratorTool__UiEventToRubyApiBridge__.js`:
+  - `na_toggleLiveMode()` and `na_measureOpening()` removed (no longer referenced by any onclick).
+  - `window.na_setLiveModeFlag(boolean)` added so the dispatcher can flip the bridge-private `na_liveModeEnabled` boolean through one tested gateway.
+  - `na_performLiveUpdate` exposed as `window.na_performLiveUpdate` so the dispatcher can sync the selected window the moment Live Mode turns on.
+- `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__UiEventToRubyApiBridge__.js`:
+  - `window.na_toggleDoorLiveMode` and `window.na_measureDoorOpening` removed.
+  - `window.na_doorLiveModeActive` flag retained (the door bridge's `na_doorLiveUpdateRequested` still gates on it; the dispatcher writes it).
+
+### Refactor - Tab-Aware Ruby Selection Observer
+- `Na__WindowConfiguratorTool__DialogManager__.rb`:
+  - Added `@na_active_tab_id = "windows"` to the Module Variables region.
+  - New `add_action_callback("na_setActiveTab")` writes the cache whenever JS reports a change.
+  - New `Na__DialogManager.na_get_active_tab_id` reader and `Na__DialogManager.na_request_tab_switch(tab_id)` helper. The helper sanitises the tab id with a `[^A-Za-z0-9_-]` strip before interpolating into the JS string literal, then `execute_script`s `Na_AppContext.na_activateTab('<id>')` and updates the cache eagerly.
+  - `@current_placement_tool` declared explicitly in the Module Variables region (was implicit before; pure hygiene fold-in from the audit).
+- `Na__WindowConfiguratorTool__Observers__.rb`:
+  - Now requires `Na__WindowConfiguratorTool__DialogManager__` and aliases `DialogManager` next to the existing `DebugTools` / `DataSerializer` aliases.
+  - `onSelectionBulkChange` rewritten to dispatch via two helpers: `na_dispatch_window_selection` and `na_dispatch_door_selection`. Each helper checks the cached active tab via `na_active_tab_id` and calls `na_request_tab_switch(NA_TAB_WINDOWS|NA_TAB_DOORS)` if the user is on the wrong tab before loading the data into the dialog. Empty-selection branch unchanged.
+
+### Refactor - Audit Folded-In Cleanups
+The state-management audit caught five small parallel-state issues that landed in the same release because they sit next to the touched code and would otherwise become latent regressions:
+1. **CSS class unification** - The door bridge's `na_receiveDoorMeasurement` and `na_doorMeasureCancelled` now clear `na-btn-measure-active` on `na-btn-measure` (the unified global button) instead of `na-active` on the deleted door button.
+2. **Symmetric clear behaviour** - `na_clearCurrentWindow` now also resets the description input so a stale label cannot leak into the next `na_createWindow`. `na_clearCurrentDoor` now resets the description input, hides `#na-door-info`, and calls `Na_DoorUI.na_reset_to_default()` to rebuild the working config from descriptor defaults.
+3. **`Na_DoorUI.na_reset_to_default()`** - New public method on `Na_DoorUI` that replaces both internal `na_active_config` and `na_active_metadata` with freshly-built defaults, then re-mounts only if the Doors tab is currently visible (uses `Na_AppContext.na_is_active_tab('doors')`).
+4. **Lone tab branch unified** - `na_setInitialDoorConfig` in the door bridge replaced its `Na_TabRouter.na_get_active_tab() === 'doors'` check with `Na_AppContext.na_is_active_tab('doors')` so every "is this tab visible right now?" question routes through the controller.
+5. **Single dialog reference (Ruby)** - `Na__InteriorDoorConfigurator::Na__DialogRouter` retired its `@na_dialog` ivar. New private helper `na_active_dialog` resolves the live `UI::HtmlDialog` through `Na__WindowConfiguratorTool::Na__DialogManager.na_get_dialog` on every call. `na_register_callbacks` now accepts the dialog as a parameter (used only at registration time). Every `execute_script` / `visible?` site converted to `dialog = na_active_dialog; return unless dialog && dialog.visible?`.
+
+### Files Modified
+- **NEW**: `Na__WindowConfiguratorTool__AppContext__.js`
+- `Na__WindowConfiguratorTool__TabRouter__.js`
+- `Na__WindowConfiguratorTool__UiLayout__.html`
+- `Na__WindowConfiguratorTool__UiEventToRubyApiBridge__.js`
+- `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__UiEventToRubyApiBridge__.js`
+- `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__UiLogic__.js`
+- `Na__WindowConfiguratorTool__DialogManager__.rb`
+- `Na__WindowConfiguratorTool__Observers__.rb`
+- `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DialogRouter__.rb`
+- `Na__WindowConfiguratorTool__Architecture__.md` (Feature Addendum appended)
+- `Na__WindowConfiguratorTool__DevLog__.md` (this entry)
+
+### Test Plan
+1. Cold-restart SketchUp. Confirm the Windows tab is active and only the global header has `Live Mode` + `Measure Opening` buttons. The door tab's secondary header is gone.
+2. Click `Measure Opening` on the Windows tab -> 2-point tool activates. Place 2 points -> Width / Height sliders update. Confirm `na-btn-measure-active` class appears + then clears on completion.
+3. Switch to Interior Doors. Click `Measure Opening` (same physical button) -> 3-point tool activates with red depth overlay. Place 3 points -> Opening Width / Height / Wall Depth sliders update; viewport redraws.
+4. Click the Settings tab. Confirm both header buttons are hidden (`.na-hidden`).
+5. Switch back to Windows. Click `Live Mode` -> button reads `Live Mode ON`, sliders push live updates to a selected window.
+6. Switch to Interior Doors. Confirm the `Live Mode ON` label persists (because the door tab has its own state - off by default, so it should toggle BACK to `Live Mode`). Toggle the door's Live Mode on, edit a slider on a selected door -> live update fires.
+7. While Windows is active, select an existing ADR-series door in the SketchUp viewport. Dialog auto-switches to the Doors tab and loads the door config.
+8. Select an existing window. Dialog auto-switches to the Windows tab.
+9. Deselect everything. Confirm both tabs reset (the Description input clears on the Windows tab; the Doors tab rebuilds with descriptor defaults).
+10. Open `Settings` -> `Reload Scripts`. Re-run steps 2-8 to confirm the door router does not lose its dialog reference (no stale `@na_dialog`).
+
+### Concept (asked by user)
+- The Door tab's plan / elevation viewports were styled differently from the Window tab's preview (white background instead of grey) and were entirely static -- no pan, zoom, or working Reset View button.
+- The two door SVG generators each carried their own copies of `na_make_svg`, `na_num`, `na_bool`, the SVG namespace constant, and a child-clearing loop -- duplication of code that already existed in the window tab's viewport stack.
+- The Window tab's `Na__Viewport__Controls.na_setupPanZoom` was hard-coded to `document.getElementById('na-canvas-wrapper')`, which made it impossible to reuse the same pan/zoom story on any other viewport.
+- The user requested:
+    1. Relocate every viewport-related JS module under one new tool-agnostic subfolder named `06__PluginCore__HtmlDialogue__ViewportModules`.
+    2. Eliminate the duplicated helpers between window and door generators (recommended depth: keep validation window-only, but unify SVG primitives + pan/zoom + reset).
+    3. Give the door plan AND elevation viewports the same independent pan / zoom / reset story the window tab already has.
+    4. Fix the white-background mismatch and wire the previously-broken `Na_DoorViewport.na_resetView()` call referenced in the Door tab's HTML.
+
+### Refactor - New Shared Viewport Folder
+- **New folder:** `Na__ArchTools__3dWindowConfigTool__Modules__/06__PluginCore__HtmlDialogue__ViewportModules/`. Convention follows `07__PluginCore__MeasurmentToolsModules/` -- a numbered `NN__PluginCore__*` filesystem grouping with no `Na__` Ruby-namespace prefix because it is not itself a Ruby module folder.
+- **New shared primitive module:** `Na__Viewport__SvgHelpers__.js`. Single source of truth for `na_make_svg(tag, attrs)`, `na_num(config, key, fallback)`, `na_bool(config, key, fallback)`, `na_clear_svg(svgEl)`, and the SVG namespace constant `NA_VIEWPORT_SVG_NS`. Exposed at `window.Na__Viewport__SvgHelpers`.
+- **Relocated, unchanged behaviour:**
+    - `Na__WindowConfiguratorTool__Viewport__Validation__.js` -> `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Validation__.js`. Public global preserved as `window.Na__Viewport__Validation`.
+    - `Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js` -> `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__WindowSvgGenerator__.js`. Public global preserved as `window.Na__Viewport__SvgGenerator` so existing consumers in `Export__Dxf__.js`, `UiLogic__.js`, and the bridge keep working without any rename.
+- **Relocated and generalised:**
+    - `Na__WindowConfiguratorTool__Viewport__Controls__.js` -> `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Controls__.js`.
+    - `na_setupPanZoom(wrapperEl, svgEl, viewBox, interactionState, updateCb)` now takes the wrapper element as a parameter instead of hard-coding `#na-canvas-wrapper`.
+    - `na_resetView(svgEl, viewBox, interactionState, config, fitToContentFn)` is now content-fitter aware so any caller can supply per-tab reset extents.
+    - New helper `na_windowResetFitter(config)` exposes the legacy 200mm padded window viewBox so the window tab keeps byte-for-byte identical reset behaviour.
+    - On `na_setupPanZoom` the wrapper now gets `classList.add('na-viewport-interactive')` so CSS can scope the grab cursor to actually-interactive viewports.
+- **Relocated and slimmed:**
+    - `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Viewport__PlanGenerator__.js` -> `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__DoorPlanGenerator__.js`. Now uses `Na__Viewport__SvgHelpers` for `na_make_svg`, `na_num`, `na_bool`, and child-clearing. Public global preserved as `window.Na_DoorPlanGenerator`. New `na_fit_to_content(config)` returns the same `{x, y, width, height}` extents the layout calculator produces, so an external pan/zoom caller can reset perfectly.
+    - `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Viewport__ElevationGenerator__.js` -> `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__DoorElevationGenerator__.js`. Same slimming + new `na_fit_to_content(config)`. Public global preserved as `window.Na_DoorElevationGenerator`.
+
+### New - Per-Wrapper Viewport Instance Factory
+- **`Na__Viewport__Instance__.js`** is a new factory module that creates one independent viewport per `(wrapperId, svgId)` pair. Each instance owns its own `viewBox` + `interactionState`, lazily resolves DOM, idempotently binds pan/zoom via `Na__Viewport__Controls.na_setupPanZoom`, and exposes:
+    - `instance.na_render(config)` -- run the optional `beforeRender` hook, call `onRender(svgEl, config)`, run the optional `afterRender` hook, then snap to fit when `autoResetOnRender` is true.
+    - `instance.na_resetView(config)` -- reset to the configured fitter.
+    - `instance.na_init()` -- eagerly bind pan/zoom (used by tabs that want interactivity wired before the first render).
+    - `instance.na_get_svg()` / `instance.na_get_wrapper()` -- DOM accessors.
+    - `instance.na_get_interaction_state()` -- returns the live state object Controls mutates during a pan-drag, so a per-tab click delegate can read `.didPan` to discriminate click from drag.
+- Public entry point: `window.Na__Viewport__Instance.na_create(spec)`.
+
+### Refactor - Window Tab `Na_Viewport`
+- `Na_Viewport` in `Na__WindowConfiguratorTool__UiLogic__.js` is now a thin wrapper around one shared `Na__Viewport__Instance`. It still owns the window-only concerns:
+    - The validation gate (`na_validateConfig` -> error/success status bar) which returns `false` to keep Create / Update buttons disabled when the config is invalid.
+    - Per-render rebinding of casement / transom / glaze-bar click delegation via `Na__Viewport__Controls.na_setupCasementClickTargets`.
+    - The legacy 200mm-padded reset behaviour, by passing `Na__Viewport__Controls.na_windowResetFitter` as the instance's `fitToContent` callback.
+- The painter passed as `onRender` is `na_paint_window_svg(svgEl, config)`, which simply assigns `Na__Viewport__SvgGenerator.na_generateWindowSvg(config)` into `svgEl.innerHTML` -- preserving the legacy HTML-string injection path unchanged.
+- The click delegate's `interactionState` argument now comes from `_instance.na_get_interaction_state()`, so the same object Controls mutates during pan-drags is the object the click handler reads to decide click-vs-drag. This avoids regressing the existing behaviour where finishing a pan-drag does NOT trigger a casement toggle on `mouseup`.
+
+### Refactor - Door Tab `Na_DoorUI` + New `Na_DoorViewport`
+- `Na_DoorUI.na_render(config)` now lazily builds two `Na__Viewport__Instance`s on first invocation (one for the plan, one for the elevation) and re-paints them through the shared `na_render(config)` API. Each gets its generator's `na_fit_to_content` as the fitter so reset snaps back to the rendered extents.
+- New module-level helpers `na_ensure_viewport_instances()` (idempotent factory call) and `na_reset_door_viewports()` (resets both instances).
+- New aggregator `window.Na_DoorViewport = { na_resetView : na_reset_door_viewports }` exposed for the dialog HTML's existing `onclick="Na_DoorViewport && Na_DoorViewport.na_resetView()"` Reset View button. The button now actually does something on the Doors tab.
+- `Na_DoorUI.na_unmount()` clears both cached instances back to `null` so a remount of the Doors tab rebinds against the freshly-attached SVGs.
+
+### Fix - Door Wrappers Now Match the Window Tab's Grey
+- Removed `background-color: var(--na-bg-secondary)` (white) override on `#na-door-plan-wrapper, #na-door-elevation-wrapper` in `Na__WindowConfiguratorTool__Styles__.css`. The door wrappers now inherit `background-color: var(--na-bg-tertiary)` from `.na-canvas-wrapper`, matching the window tab. The 1:1 aspect-ratio override stays (door tab uses square cells, not the window tab's 300px height); a new `height: auto` overrides the inherited `height: 300px` so the aspect-ratio rule actually wins.
+
+### Fix - Grab Cursor Is Now Honest About Interactivity
+- The `cursor: grab` / `cursor: grabbing` rules have been moved off `.na-canvas-wrapper` and onto `.na-canvas-wrapper.na-viewport-interactive`. The interactive class is added at runtime inside `Na__Viewport__Controls.na_setupPanZoom`, so the cursor only appears on viewports that actually have pan/zoom bound. Any future non-interactive viewport (preview-only, locked, etc.) will not lie about being draggable.
+
+### Loader Updates
+- **`Na__WindowConfiguratorTool__UiLayout__.html`**: Replaced the three window viewport `<script>` tags with five from `06__PluginCore__HtmlDialogue__ViewportModules/` (SvgHelpers FIRST, then Validation, WindowSvgGenerator, Controls, Instance). Replaced the two door generator script tags with the new folder-relative paths. Order matters: `Na__Viewport__SvgHelpers__.js` must load before any generator that calls into it.
+- **`Na__WindowConfiguratorTool__DialogManager__.rb`**: `na_reload_scripts` `js_files` array now lists every viewport module under its folder-scoped path so the in-dialog Reload Scripts button picks up edits to any module without a SketchUp restart.
+- **`Na__WindowConfiguratorTool__UiLogic__.js`**: Top-of-file `DEPENDENCIES` block updated to reflect the new folder-scoped paths and the new `Na__Viewport__Instance` and `Na__Viewport__SvgHelpers` modules.
+
+### Files Modified
+1. **NEW** `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__SvgHelpers__.js` -- shared SVG / config primitives.
+2. **NEW** `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Instance__.js` -- per-(wrapper, svg) factory.
+3. **NEW** `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Validation__.js` -- relocated, unchanged behaviour.
+4. **NEW** `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__WindowSvgGenerator__.js` -- relocated, exports preserved.
+5. **NEW** `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Controls__.js` -- relocated, generalised wrapper-as-parameter, content-fitter reset, `na-viewport-interactive` class, `na_windowResetFitter` helper.
+6. **NEW** `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__DoorPlanGenerator__.js` -- relocated, slimmed to use SvgHelpers, added `na_fit_to_content`.
+7. **NEW** `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__DoorElevationGenerator__.js` -- relocated, slimmed to use SvgHelpers, added `na_fit_to_content`.
+8. **DELETED** `Na__WindowConfiguratorTool__Viewport__Validation__.js` (relocated).
+9. **DELETED** `Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js` (relocated + renamed; export name preserved).
+10. **DELETED** `Na__WindowConfiguratorTool__Viewport__Controls__.js` (relocated + generalised).
+11. **DELETED** `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Viewport__PlanGenerator__.js` (relocated + slimmed).
+12. **DELETED** `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Viewport__ElevationGenerator__.js` (relocated + slimmed).
+13. **`Na__WindowConfiguratorTool__UiLogic__.js`** -- `Na_Viewport` IIFE rewritten as a thin window-specific wrapper around a `Na__Viewport__Instance`. Top-of-file dependencies block updated.
+14. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__UiLogic__.js`** -- `Na_DoorUI.na_render` now drives two `Na__Viewport__Instance`s; new `na_ensure_viewport_instances()` and `na_reset_door_viewports()` helpers; new `window.Na_DoorViewport` aggregator exposed for the Reset View button; `na_unmount` clears the cached instances.
+15. **`Na__WindowConfiguratorTool__UiLayout__.html`** -- viewport script includes updated to the new folder-scoped paths in the correct dependency order.
+16. **`Na__WindowConfiguratorTool__DialogManager__.rb`** -- `na_reload_scripts` `js_files` array updated to the new viewport file paths.
+17. **`Na__WindowConfiguratorTool__Styles__.css`** -- removed white-background override on door wrappers; moved grab cursor onto `.na-viewport-interactive` class; added `height: auto` to the door wrapper aspect-ratio rule.
+18. **`Na__WindowConfiguratorTool__Architecture__.md`** -- new Feature Addendum (v0.11.5) describing the unified viewport architecture, module responsibilities, tab integration, loader changes, CSS fixes, and the consumer diagram.
+
+### Test Plan
+1. Cold-restart SketchUp and open the configurator.
+2. Window tab: confirm preview renders, the SVG can be panned by click-drag and zoomed with the mouse wheel, the Reset View button snaps the viewBox back to a window-sized fit, casement / transom / glaze-bar click toggling still works.
+3. Window tab: confirm Create / Update / Reset Elements / Export DXF / Live Mode / Measure Opening still all behave exactly as before.
+4. Doors tab: confirm both plan and elevation viewports now have a grey background matching the window tab. Confirm both viewports can independently be panned and zoomed (each is an independent viewBox). Confirm the Reset View button in the Doors tab header resets BOTH viewports back to fit their content.
+5. Doors tab: pan/zoom one viewport; confirm the other viewport is unaffected. Adjust a slider; confirm both viewports re-paint and snap back to fit.
+6. Doors tab: switch to Settings, then back to Interior Doors. Confirm both viewports rebind pan/zoom cleanly and the Reset View button still works.
+7. Settings -> Reload Scripts: confirm every file inside `06__PluginCore__HtmlDialogue__ViewportModules/` appears in the reload log under `[OK]` markers and the dialog re-opens with viewports still working on both tabs.
+8. Settings -> Export 2D / Export 3D buttons still work.
+9. Make a trivial edit (add a comment) to `06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__SvgHelpers__.js`, click Reload Scripts, and confirm the edit took effect without restarting SketchUp.
+
+
+### Refactor - Measurement Tools Relocated to Shared Folder
+- **Concept (asked by user):** Centralise every measurement `Sketchup::Tool` subclass under a single tool-agnostic folder so the same module can serve any future configurator tab without re-implementation. The folder name follows the existing `NN__Type__Description` convention seeded by `65__DevTools/`.
+- **New home:** `Na__ArchTools__3dWindowConfigTool__Modules__/07__PluginCore__MeasurmentToolsModules/`. Two files live here:
+    1. `Na__MeasurementTools__TwoPointOpeningTool__.rb` (forked from `Na__WindowConfiguratorTool__MeasureOpeningTool__.rb`).
+    2. `Na__MeasurementTools__ThreePointOpeningTool__.rb` (forked from `Na__InteriorDoorConfigurator__MeasureDoorOpeningTool__.rb`).
+- **Shared namespace:** Both classes now sit inside the `Na__MeasurementTools` Ruby module (`Na__MeasurementTools::Na__TwoPointOpeningTool`, `Na__MeasurementTools::Na__ThreePointOpeningTool`).
+- **Tool-agnostic logger:** Each class resolves its DebugTools logger at instantiation time via `Na__MeasurementTools.na_resolve_debug_tools` which prefers the window tool's logger, falls back to the door tool's, and finally returns a silent no-op shim. This breaks the prior cross-require where the door tool depended on the door-side logger and the window tool depended on the window-side logger.
+
+### Caller Rewires
+- **`Na__WindowConfiguratorTool__Main__.rb`**: `require_relative 'Na__WindowConfiguratorTool__MeasureOpeningTool__'` -> `require_relative File.join('07__PluginCore__MeasurmentToolsModules', 'Na__MeasurementTools__TwoPointOpeningTool__')`.
+- **`Na__WindowConfiguratorTool__DialogManager__.rb`**: Same require update; `na_handle_measure_opening` now instantiates `Na__MeasurementTools::Na__TwoPointOpeningTool.new(self, cill_height_mm, frame_bottom_thickness_mm)`.
+- **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Main__.rb`**: `na_require_door_modules` now requires the shared three-point tool with a `..` relative path (`File.join('..', '07__PluginCore__MeasurmentToolsModules', 'Na__MeasurementTools__ThreePointOpeningTool__')`).
+- **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DialogRouter__.rb`**: File-top require updated to the same `..` path; `na_handle_measure_door_opening` now instantiates `::Na__MeasurementTools::Na__ThreePointOpeningTool.new(self)`.
+
+### Reload-Scripts Coverage
+- **`Na__WindowConfiguratorTool__DialogManager__.rb`**: Appended `"07__PluginCore__MeasurmentToolsModules"` to `NA_RELOAD_SUBFOLDERS` so the in-dialog Reload Scripts button picks up edits to either measurement tool without a SketchUp restart.
+
+### Bug - Door Tab Sliders Did Not Reflect 3-Click Measurement
+- **Symptom (reported by user):** "The measurement tool isn't passing the dimensions into the door measurement boxes." Viewport overlay correctly showed `W:1465mm H:2179mm D:722mm` but the Door tab Width / Height / Wall Depth sliders stayed at default values.
+- **Root cause #1 (clamping):** `Na__DoorConfig__WallDepth_mm` had `max: 350` in `Na__InteriorDoorConfigurator__DoorPanel__Config__.js`, but the user measured `D:722mm`. When `Na_DoorUI.na_mount(payload)` rebuilt the slider, the new `<input type="range" max="350">` clamped 722 -> 350.
+- **Root cause #2 (silent rebuild failure):** `na_receiveDoorMeasurement` updated the working config and then called `Na_DoorUI.na_mount(payload)` to rebuild every control container. Any thrown exception inside the rebuild (or inside one of the SVG generators that re-render on the new dimensions) would short-circuit BEFORE the slider DOM was updated, so the user saw zero change in the UI.
+- **Fix (defensive bridge):** Rewrote `window.na_receiveDoorMeasurement` in `Na__InteriorDoorConfigurator__UiEventToRubyApiBridge__.js` to:
+    1. Mutate the working config first (`Na_DoorUI.na_set_active_config(payload)`).
+    2. Patch the live DOM nodes directly via a new helper `na_door_patch_slider_dom(id, valueMm)`. The helper looks up the slider/input/display nodes for each id (`<id>-slider`, `<id>-input`, `<id>-display`), and if the measured value exceeds the descriptor's static `max`, the descriptor and both `<input>.max` attributes are widened in-place so the value sticks instead of clamping.
+    3. Call `Na_DoorUI.na_mount(payload)` inside its own `try/catch` so a rebuild error cannot kill steps 1 and 2.
+    The whole function is wrapped in a `try/catch` with `console.error` instrumentation, so a future regression is loud, not silent.
+- **Fix (sensible default):** Raised `Na__DoorConfig__WallDepth_mm` `max` from `350` to `1000` so a typical brick + insulation wall measurement no longer hits the static slider ceiling. The runtime widener still extends beyond `1000` if a future user measures a wider opening.
+
+### Files Modified
+1. **NEW** `07__PluginCore__MeasurmentToolsModules/Na__MeasurementTools__TwoPointOpeningTool__.rb` -- shared two-click opening tool.
+2. **NEW** `07__PluginCore__MeasurmentToolsModules/Na__MeasurementTools__ThreePointOpeningTool__.rb` -- shared three-click opening tool with red depth overlay.
+3. **DELETED** `Na__WindowConfiguratorTool__MeasureOpeningTool__.rb`.
+4. **DELETED** `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__MeasureDoorOpeningTool__.rb`.
+5. **`Na__WindowConfiguratorTool__Main__.rb`** -- updated `require_relative` for the shared two-point tool.
+6. **`Na__WindowConfiguratorTool__DialogManager__.rb`** -- updated `require_relative`, updated tool instantiation, appended new folder to `NA_RELOAD_SUBFOLDERS`.
+7. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Main__.rb`** -- swapped lazy require to the shared three-point tool path; updated dependency comment.
+8. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DialogRouter__.rb`** -- swapped require + tool instantiation to the shared three-point tool.
+9. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__UiEventToRubyApiBridge__.js`** -- hardened `window.na_receiveDoorMeasurement` with try/catch + direct DOM patcher + elastic descriptor max.
+10. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DoorPanel__Config__.js`** -- raised `Na__DoorConfig__WallDepth_mm` `max` to `1000`.
+11. **`Na__WindowConfiguratorTool__Architecture__.md`** -- appended Feature Addendum for the shared measurement tools folder.
+
+### Test Plan
+1. Cold-restart SketchUp and open the configurator. Confirm Window tab still loads and `Measure Opening` (two-click) still echoes Width and Height into the Window sliders.
+2. Switch to Interior Doors. Click `Measure Door Opening`. Place three points (Width ~ 1465mm, Height ~ 2179mm, Wall Depth ~ 722mm). Verify:
+    - SketchUp viewport overlay still shows `W:1465mm H:2179mm D:722mm` (unchanged behaviour).
+    - Door tab Opening Width slider snaps to 1465mm.
+    - Door tab Opening Height slider snaps to 2179mm.
+    - Door tab Wall Depth slider snaps to 722mm (within the new 1000mm ceiling).
+    - Plan and Elevation viewports redraw to the new dimensions.
+3. Click `Create Door` immediately after step 2 - confirm the door is built at Point A using the captured origin.
+4. Switch back to the Windows tab. Click `Measure Opening` and place two points. Width / Height sliders update.
+5. Make a trivial edit to a file inside `07__PluginCore__MeasurmentToolsModules/` (add a comment). Open Settings -> `Reload Scripts`. Confirm the Ruby Console reload log lists the file under `[OK]`.
+6. After reload, repeat steps 2-4 to confirm both measurement flows still work.
+
+# ---------------------------------------------------------
+## Architectural Configurator (Windows + Interior Doors + Settings) | Version 0.11.3 - 01-May-2026 - Reload Scripts Sub-Folder Recursion + Door Re-Bolt
+
+### Bug - Reload Scripts Left Door Tab Running Stale Code
+- **Symptom (reported by user):** Even after the v0.11.2 fix landed on disk, the runtime log still showed `[NA_DOOR_INIT] Door tab init failed - window tab continues : private method 'na_register_callbacks' called for Na__InteriorDoorConfigurator::Na__DialogRouter:Module`. None of the Interior Door tab buttons did anything.
+- **Root cause (reload globbing):** `Na__DialogManager.na_reload_scripts(plugin_root_path)` collected `.rb` files via `Dir.glob(File.join(plugin_root_path, "*.rb"))`. That pattern matches **only files directly under the plugin root**, not subfolders. As a result `Na__InteriorDoorConfigurator__/` and `65__DevTools/` were never re-evaluated by `Kernel#load`, so Ruby kept the previously cached versions of those modules from the first plugin boot. The user's pre-fix copy of `Na__InteriorDoorConfigurator__Main__.rb` (which still called the private `Na__DialogRouter.na_register_callbacks(dialog)`) stayed live.
+- **Root cause (reload re-bolt):** `Na__WindowConfiguratorTool.na_reload_scripts` only re-ran `DialogManager.na_show_dialog`. The full launch path in `na_show_window_configurator` ALSO calls `Na__InteriorDoorConfigurator.na_init_door_callbacks(shared_dialog)` after `na_show_dialog` returns. That second step was missing from the reload path, so even when the door modules WERE fresh on a cold launch, Reload Scripts would still leave the door tab without action callbacks.
+
+### Fix - Recursive Reload Across Sub-Tool Folders
+- **`Na__WindowConfiguratorTool__DialogManager__.rb`**: Introduced `NA_RELOAD_SUBFOLDERS` (frozen array of `"Na__InteriorDoorConfigurator__"` and `"65__DevTools"`). Two new helpers:
+  - `na_collect_rb_files_for_reload(plugin_root_path)` -> top-level glob plus a per-subfolder glob, missing folders silently skipped, returns a sorted unique list.
+  - `na_format_reload_path(file_path, plugin_root_path)` -> compact relative path label so the console clearly shows which subfolder a reloaded file came from.
+- `na_reload_scripts` now logs the root and every subfolder it is about to reload (`[ROOT]`, `[SUBFOLDER]`, `[MISSING]` markers), then iterates the combined list. Per-file error handling unchanged.
+
+### Fix - Door Tab Re-Bolt After Reload
+- **`Na__WindowConfiguratorTool__Main__.rb`**: `na_reload_scripts` now mirrors the door-init block already present in `na_show_window_configurator`. After the dialog is redrawn it calls `Na__InteriorDoorConfigurator.na_init_door_callbacks(shared_dialog)` inside a `begin/rescue StandardError` so a door-side failure cannot brick the window tab.
+
+### Files Modified
+1. **`Na__WindowConfiguratorTool__DialogManager__.rb`** -- added `NA_RELOAD_SUBFOLDERS`, `na_collect_rb_files_for_reload`, `na_format_reload_path`, and updated `na_reload_scripts` to use them with extra console output.
+2. **`Na__WindowConfiguratorTool__Main__.rb`** -- `na_reload_scripts` now re-bolts the Interior Door tab onto the redrawn dialog.
+
+### Test Plan
+1. Confirm the door bug is gone on a cold launch: fully restart SketchUp, open the configurator, switch to Interior Doors, click Create Door (should create an ADR-series door) and click Measure Door Opening (should activate the 3-point measurement tool).
+2. Make a trivial edit to a file inside `Na__InteriorDoorConfigurator__/` (for example, add a comment to `Na__InteriorDoorConfigurator__Main__.rb`).
+3. Open the Settings tab in the dialog and click Reload Scripts.
+4. Verify the SketchUp Ruby Console reload log lists `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Main__.rb` (and any other subfolder files) under `[OK]` markers.
+5. After reload, switch back to Interior Doors and click Create Door / Measure Door Opening - both must still work.
+6. Confirm Settings tab buttons (Reload Scripts, Export 2D Data, Export 3D Data) still respond after reload.
+
+# ---------------------------------------------------------
+## Architectural Configurator (Windows + Interior Doors + Settings) | Version 0.11.2 - 01-May-2026 - Button Wiring Hotfix
+
+### Bug - Door Tab Action Callbacks Never Registered
+- **Symptom (reported by user):** "Pressing Create Door does not do anything, and pressing Measure Door Opening does not launch the 3D Door Measurement Tool. Pressing Create Window also does nothing."
+- **Root cause (door side):** `Na__InteriorDoorConfigurator.na_init_door_callbacks(dialog)` was calling `Na__DialogRouter.na_register_callbacks(dialog)`. The actual method has **no parameters**, is `private_class_method`, and depends on `@na_dialog` being set by the public `na_init` method first. Effects:
+  1. Wrong arity raised `ArgumentError: wrong number of arguments (1 for 0)`.
+  2. Even after silencing the arity error, `private_class_method` would raise `NoMethodError` from outside the router.
+  3. `@na_dialog` was never assigned, so `na_register_callbacks` would short-circuit on `return unless @na_dialog`.
+  Net: zero door action callbacks ever registered on the dialog.
+- **Side effect on the window side:** The unhandled exception bubbled out of `na_show_window_configurator` AFTER the dialog was shown. In some SketchUp builds the menu-command thread aborts the dialog's event loop when the launcher throws, leaving the dialog visually present but with non-responsive callbacks.
+- **Fix (door):** Updated `Na__InteriorDoorConfigurator__Main__.rb` -> `na_init_door_callbacks` to call the public `Na__DialogRouter.na_init(dialog, NA_DEFAULT_DOOR_CONFIG)` (which assigns `@na_dialog`, caches the default config, and internally invokes the private `na_register_callbacks`). Added a `rescue StandardError` guard so any future regression cannot crash the parent boot sequence.
+- **Fix (parent):** Added a `begin/rescue StandardError` block around the door init call inside `Na__WindowConfiguratorTool__Main__.rb` so a door-side failure cannot propagate into the window tab's lifecycle.
+
+### Bug - Create / Update Buttons Disabled Due To Init Order Race
+- **Root cause (window side, latent):** In `Na__WindowConfiguratorTool__UiLogic__.js` the DOMContentLoaded listener called `Na_DynamicUI.na_init()` BEFORE `Na_Viewport.na_init()`. `Na_DynamicUI.na_init` triggers an initial `na_onConfigChange` -> `Na_Viewport.na_render(_config)`. At that moment `Na_Viewport._svgElement` is still `null`, so `na_render` returns `false`, `_svgValid` stays `false`, and `na_updateButtonStates` disables the Create + Update buttons. The buttons would only re-enable on the next user-driven config change (or when Ruby pushed `na_setInitialConfig`, depending on timing).
+- **Fix:** Reordered the bootstrap so `Na_Viewport.na_init()` runs first, then `Na_DynamicUI.na_init()`. The very first `na_render` now finds a bound SVG element, `_svgValid` becomes `true`, and the Create button is enabled before the user can click it.
+
+### Files Modified
+1. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Main__.rb`** -- `na_init_door_callbacks` now delegates to `Na__DialogRouter.na_init(dialog, NA_DEFAULT_DOOR_CONFIG)`, with a `rescue StandardError` guard.
+2. **`Na__WindowConfiguratorTool__Main__.rb`** -- Door-tab init wrapped in `begin/rescue StandardError` so a door failure cannot brick the window tab.
+3. **`Na__WindowConfiguratorTool__UiLogic__.js`** -- Bootstrap reordered so `Na_Viewport.na_init()` runs before `Na_DynamicUI.na_init()`.
+
+### Test Plan
+- Open the configurator. Confirm the Windows tab is the active page on load.
+- Click `Create New Window` -> a new AWN-series window component is created and selected.
+- Switch to the Interior Doors tab. The door page mounts and previews render.
+- Click `Create Door` -> a new ADR-series door is created at the current placement origin.
+- Click `Measure Door Opening` -> the 3-point measurement tool activates, accepts three clicks (width / height / wall depth), then echoes the measured dimensions back into the door tab and queues Point A as the next insertion origin.
+- Switch to the Settings tab. Confirm Reload Scripts, Export 2D Data, and Export 3D Data still respond.
+
+# ---------------------------------------------------------
+## Architectural Configurator (Windows + Interior Doors + Settings) |  Version 0.11.1 - 01-May-2026 - Settings Tab + DevTools Exporters
+
+### New Feature - Settings Tab (Third Page-Swap Tab)
+- **Concept:** Third top-level tab `Settings` joins Windows and Interior Doors. Houses every developer-facing action under one page so the global header now contains only operator controls (Live Mode, Measure Opening). The header `Reload Scripts` icon button has been removed.
+- **Buttons in the Settings tab:**
+    1. **Reload Scripts** -- delegates to the existing `na_reloadScripts` callback (unchanged on the Ruby side).
+    2. **Export 2D Data** -- runs `Na__DevTools.na_run_export_2d`, the ValeSpec-style 2D-only exporter.
+    3. **Export 3D Data** -- runs `Na__DevTools.na_run_export_3d`, the unified `Na__Asset__*` 2D+3D exporter (now tool-agnostic).
+- **About panel:** small static info block at the bottom of the Settings tab listing the configurator name, the three tabs, and the `65__DevTools/` location of the exporters.
+
+### New Folder - `65__DevTools/` (Tool-Agnostic Asset Utilities)
+- A new top-level folder at `Na__ArchTools__3dWindowConfigTool__Modules__/65__DevTools/` so any future configurator (skylights, etc.) can call into the same `Na__DevTools` namespace without touching window or door code.
+- Required eagerly from `Na__WindowConfiguratorTool__Main__.rb` via a guarded `begin/rescue LoadError` block - if the folder is removed the parent tool keeps booting.
+
+### Asset JSON Exporters (Two Distinct Scripts)
+- **2D-only exporter** (`Na__DevTools::Na__JsonExporter2D`) -- forked from `ValeSpec__CadObjectBuilder__JsonExporter__.rb`. Every `vale_*` helper renamed to `na_*` and made `private_class_method`; only `na_run_export` is public. Selection requirements unchanged: loose 2D edges/faces in the XY plane plus a `00__OriginPoint` group. Output schema unchanged: `ValeSpec__HardwareItemData` placeholder + `HardwareItem__VectorData`.
+- **Unified 2D + 3D exporter** (`Na__DevTools::Na__JsonExporter3D`) -- moved here from `Na__InteriorDoorConfigurator__/`. Renamespaced to `Na__DevTools::Na__JsonExporter3D`. Dropped its dependency on the door-specific `DebugTools` so the file is fully self-contained. Selection requirements: `00__OriginPoint` plus optional `01__PlanView`, `02__ElevationView`, `03__Model3D`, `04__Profile2D` groups. Output schema: `meta` + `Na__Asset__Metadata` + optional `Na__Asset__Plan2D`, `Na__Asset__Elevation2D`, `Na__Asset__Profile2D`, `Na__Asset__Mesh3D` blocks (column-aligned three-stage `Na__Asset__*` keys).
+- **`Na__DevTools__Main__.rb` loader** -- exposes `Na__DevTools.na_run_export_2d` and `Na__DevTools.na_run_export_3d` thin wrappers so the dialog manager does not have to know about the inner exporter namespaces. Sub-modules are loaded lazily on first call.
+
+### New Files (Ruby - DevTools)
+1. **`65__DevTools/Na__DevTools__Main__.rb`** -- entry-point loader; lazy `require_relative` of the two exporters; exposes `na_run_export_2d` / `na_run_export_3d`; rescues `StandardError` so a broken exporter cannot freeze the dialog.
+2. **`65__DevTools/Na__DevTools__JsonExporter2D__.rb`** -- forked ValeSpec exporter (2D only).
+3. **`65__DevTools/Na__DevTools__JsonExporter3D__.rb`** -- moved from `Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__JsonExporter3D__.rb`.
+
+### New Files (JavaScript - Settings Tab)
+1. **`Na__WindowConfiguratorTool__SettingsTab__UiLogic__.js`** -- exposes `Na_SettingsUI` with the same lifecycle hooks the existing TabRouter expects (`na_mount`, `na_unmount`, `na_render`, `na_get_active_config`). Builds the Settings body declaratively from `NA_SETTINGS_SECTIONS` (two action sections + one info section).
+2. **`Na__WindowConfiguratorTool__SettingsTab__UiEventToRubyApiBridge__.js`** -- exposes `window.na_settingsReloadScripts`, `window.na_settingsExport2D`, `window.na_settingsExport3D`. Each delegates to the matching `sketchup.*` action callback and surfaces a status-bar update.
+
+### Existing Files Modified
+1. **`Na__WindowConfiguratorTool__Main__.rb`** -- second guarded `begin/rescue LoadError` block added to require `65__DevTools/Na__DevTools__Main__`.
+2. **`Na__WindowConfiguratorTool__DialogManager__.rb`** -- two new `add_action_callback`s next to `na_reloadScripts`: `na_settingsExport2D`, `na_settingsExport3D`. Two new private handlers `na_handle_settings_export_2d` / `na_handle_settings_export_3d` defensively check `defined?(::Na__DevTools)`, surface failures via the dialog status bar, and rescue `StandardError`.
+3. **`Na__WindowConfiguratorTool__UiLayout__.html`** -- removed the header `na-btn-reload` icon (Reload now lives in the Settings tab). Added a third tab button `data-na-tab-id="settings"` and a third tab panel `<div id="na-tab-settings">` with a heading + dynamic body container `#na-settings-body`. Added two new script includes for the Settings tab UI logic and bridge.
+4. **`Na__WindowConfiguratorTool__Styles__.css`** -- appended `.na-settings-body`, `.na-settings-section`, `.na-settings-section-info`, `.na-settings-heading`, `.na-settings-description`, `.na-settings-button-row`, `.na-settings-btn`, `.na-settings-helper`, `.na-settings-info-line`.
+5. **`Na__WindowConfiguratorTool__TabRouter__.js`** -- `na_resolve_tab_module` and `na_resolve_initial_config` extended to recognise the `'settings'` tab id and resolve `Na_SettingsUI` (returns `null` from `na_get_active_config` because the Settings tab is stateless).
+
+### Files Removed
+- **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__JsonExporter3D__.rb`** -- body moved to `65__DevTools/Na__DevTools__JsonExporter3D__.rb` and the old file deleted. Nothing required the old file, so this is safe.
+
+### Out of Scope (Future Work)
+- The Settings tab is intentionally minimal in this release. Future additions (defaults editor, asset library inspector, debug-mode toggle, log-level selector, plugin version display) will slot into new entries inside the existing `NA_SETTINGS_SECTIONS` array in `SettingsTab__UiLogic__.js`.
+
+# ---------------------------------------------------------
+## Architectural Configurator (Windows + Interior Doors) |  Version 0.11.0 - 01-May-2026 - Interior Door Configurator (New Tab)
+
+### New Feature - Interior Door Configurator (Page-Swap Tab)
+- **Concept:** The dialog is now a two-tab "Na Architectural Configurator". The Windows tab is unchanged; a new Interior Doors tab is a full page-swap (own previews, own controls, own callbacks) that lives in its own subfolder and never touches window data.
+- **Door anatomy built per ADR id:** lining (3-piece U, optionally `outer_shell`-fused), 40mm panel, front + back architraves swept along the lining perimeter via Follow-Me, two handles (one each side), 2D plan-view swing arc tagged `02__Linetype__DoorSwings`, a closed-state group (`Na__Door__Closed`) and an automatically-rotated open-state copy (`Na__Door__Open`).
+- **3-point measure tool:** width L->R, height upwards, then a third pick along the axis perpendicular to the opening for wall depth. Width/height overlay drawn in the existing blue style; **depth overlay drawn in red** and constrained to the perpendicular axis. Returns width / height / depth in mm + Point A (origin) in inches.
+- **Insert-at-Point-A (also retrofitted to the Window tab):** the very first click of any measurement is now cached as the next component's insertion origin. If a measurement is pending, `add_instance` is called with `Geom::Transformation.new(point_a_in)` and the placement crosshair is **not** activated. If no measurement is pending, behaviour falls back to the existing placement crosshair.
+- **Unified asset JSON format:** every door asset (handle / architrave / hinge) uses one schema with optional `Na__Asset__Plan2D`, `Na__Asset__Elevation2D`, `Na__Asset__Profile2D`, `Na__Asset__Mesh3D` blocks plus a full `meta` block and `Na__Asset__Has*` flags so consumers know what's authored.
+- **TrueVision 3D naming throughout:** `ADR001__InternalDoor`, `MOD001__ROT__90-Deg__DoorPanel`, `ROT001__RotationPoint__DoorHingeCentre`, plus tag assignment via `Na__Common__DataLib__CoreSuEntityStandards`.
+
+### ADR Door ID System (New)
+- IDs follow the pattern `ADR001`, `ADR002`, ... allocated by `DataSerializer.na_generate_next_door_id` by scanning every existing door instance in the model.
+- Component definitions are named `ADR###__InteriorDoor__<descriptionSuffix>`. Component instance names match the definition name.
+- Instance dictionary `Na__DoorConfiguratorInfo` stores `DoorID`, `SketchUpInstanceName`, `SketchUpDefinitionName`. Definition dictionary `Na__DoorConfigurator_<DoorID>` stores three JSON-serialised blocks: `Na__DoorMetadata`, `Na__DoorComponents`, `Na__DoorConfiguration`.
+
+### Tab System (Page-Swap)
+- New `Na__WindowConfiguratorTool__TabRouter__.js` exposes `Na_TabRouter.na_activateTab(tabId)`. Auto-registers on `DOMContentLoaded`, discovers tabs via `data-na-tab-id`, dispatches `na_unmount()` on the leaving tab, then `na_mount(initialConfig)` (falls back to `na_render(initialConfig)`) on the entering tab.
+- `UiLayout` updated: `<title>Na Architectural Configurator</title>`, new `<nav id="na-tab-bar">` with two buttons, two new `<div class="na-tab-panel">` containers (`#na-tab-windows`, `#na-tab-doors`).
+- `Styles` extended with `.na-tab-bar`, `.na-tab`, `.na-tab-active`, `.na-tab-panel`, `.na-tab-panel.na-hidden`, `.na-header-secondary`, `.na-tab-heading`, `.na-door-viewport-section`, `.na-door-dual-viewport`, `.na-door-viewport-cell`, `.na-door-viewport-label`, `#na-door-plan-wrapper`, `#na-door-elevation-wrapper`.
+- Dialog width raised 525 -> 720 to fit the two-tab layout.
+
+### New Files (Ruby - Interior Door subsystem)
+1. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Main__.rb`** -- entry point; module constants (paths, ADR id format, dictionary keys, default door config); late-loads sub-modules; exposes `na_init_door_callbacks(dialog)` plus `na_load_door_into_dialog` / `na_clear_door_from_dialog`.
+2. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DebugTools__.rb`** -- guarded `na_debug_door` logger with a per-namespace toggle.
+3. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__TagManager__.rb`** -- thin wrapper around `Na__Common__DataLib__CoreSuEntityStandards` for door tags (`02__Linetype__DoorSwings`, `Na__Door__Closed`, `Na__Door__Open`, `Proposed Doors`).
+4. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__AssetLibrary__.rb`** -- in-memory cache + lazy loader for unified asset JSONs across `Handles__/Architraves__/Hinges__`.
+5. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__GeometryHelpers__.rb`** -- `mm_to_inch`, transform builders, panel-rotation helper, perpendicular-axis helpers.
+6. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DataSerializer__.rb`** -- generates next ADR id; reads / writes the three definition-side dictionaries plus instance-side `DoorID`; mirrors the window tool's serialisation pattern exactly.
+7. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__GeometryBuilders__.rb`** -- builds the lining U, panel solid, swing arc, handle insertion mounts; everything is created inside the door's component definition.
+8. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__ArchitraveBuilder__.rb`** -- inlines the Follow-Me algorithm from `Na__ProfileTools__ProfilePathTracer` so the swept architrave geometry stays inside the door definition. Reads `Na__Asset__Profile2D` blocks; offsets the lining perimeter by the configured architrave offset (default 5mm).
+9. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__HandleBuilder3D__.rb`** -- reads `Na__Asset__Mesh3D`, builds a SketchUp `ComponentDefinition` once per asset key, applies +90deg rotation about Y on insertion, places one handle each side at the configured handle height with RH/LH `Na__PanelPlacement__` offsets honoured.
+10. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__FuseLiningParts__.rb`** -- optional `outer_shell` fuse of the three lining pieces (no architraves, no panel, no handles).
+11. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DoorAssemblyComposer__.rb`** -- bundles panel + handles + swing into `MOD001__ROT__90-Deg__DoorPanel`, then emits a 90deg-rotated copy as the open-state group.
+12. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__GeometryEngine__.rb`** -- top-level orchestrator (`na_create_door`, `na_update_door`, `na_resolve_insertion_transform`).
+13. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__MeasureDoorOpeningTool__.rb`** -- 3-point `Sketchup::Tool` (`:picking_a -> :picking_b -> :picking_depth`); blue overlay for width/height; **red** overlay for depth; depth pick constrained perpendicular to A->B; emits `(width_mm, height_mm, depth_mm, point_a.x, point_a.y, point_a.z)` to the router.
+14. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DialogRouter__.rb`** -- registers all door action callbacks (`na_createDoor`, `na_updateDoor`, `na_liveUpdateDoor`, `na_measureDoorOpening`, `na_doorRequestConfig`, `na_doorJsLog`); caches Point A as a one-shot insertion origin; consumed by `na_handle_create_door`.
+15. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__JsonExporter3D__.rb`** -- forked from `ValeSpec__CadObjectBuilder__JsonExporter__.rb`; reads `00__OriginPoint`, `01__PlanView`, `02__ElevationView`, `03__Model3D`, `04__Profile2D` groups under the user's selection and writes the unified `Na__Asset__*` JSON document with custom column-aligned pretty printing.
+
+### New Files (JavaScript - Interior Door tab)
+1. **`Na__WindowConfiguratorTool__TabRouter__.js`** -- page-swap router; tab-button bindings; lifecycle dispatch.
+2. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__DoorPanel__Config__.js`** -- five UI control descriptor arrays (`NA_DOOR_OPENING_CONFIG`, `NA_DOOR_PANEL_TAB_CONFIG`, `NA_DOOR_ARCHITRAVE_CONFIG`, `NA_DOOR_HANDLE_CONFIG`, `NA_DOOR_OPTIONS_CONFIG`) all using `Na__DoorConfig__*` ids that match Ruby keys.
+3. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Viewport__PlanGenerator__.js`** -- plan-view SVG: wall cutaway, lining, panel, dotted swing arc, dotted open-panel outline, width + depth dimension labels.
+4. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__Viewport__ElevationGenerator__.js`** -- front-elevation SVG: lining U, panel, optional architrave outline, simple handle marker, width + height dimensions.
+5. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__UiLogic__.js`** -- `Na_DoorUI`: dynamic control building, working config state, debounced live updates (150ms), refreshes both viewport SVGs on every change. Implements `na_mount(initialConfig)` / `na_unmount()` so `Na_TabRouter` can drive it.
+6. **`Na__InteriorDoorConfigurator__/Na__InteriorDoorConfigurator__UiEventToRubyApiBridge__.js`** -- mirrors the window bridge: `na_createDoor`, `na_updateDoor`, debounced `na_doorLiveUpdateRequested`, `na_measureDoorOpening`. Receives `na_setInitialDoorConfig`, `na_clearCurrentDoor`, `na_receiveDoorMeasurement(width, height, depth, originXIn, originYIn, originZIn)`, `na_doorMeasureCancelled` from Ruby.
+
+### Seed Asset JSONs
+1. **`04__InteriorDoorAssets/Handles__/Na__InteriorDoor__Handle__Default__.json`** -- generic round-rose lever; populates `Na__Asset__Plan2D`, `Na__Asset__Elevation2D`, `Na__Asset__Mesh3D` plus RH / LH `Na__PanelPlacement__` blocks.
+2. **`04__InteriorDoorAssets/Architraves__/Na__InteriorDoor__Architrave__Default__.json`** -- 70mm x 22mm chamfered architrave; `Na__Asset__Profile2D` only (no plan, elevation, or mesh) - extruded by Follow-Me.
+3. **`04__InteriorDoorAssets/Hinges__/Na__InteriorDoor__Hinge__Default__.json`** -- placeholder seed (`"Na__Asset__IsReleased": false`); establishes the folder + schema for future hinge insertion work.
+
+### Existing Files Modified
+1. **`Na__WindowConfiguratorTool__Main__.rb`** -- `require_relative` the door `Main__` (wrapped in `begin/rescue LoadError`); call `Na__InteriorDoorConfigurator.na_init_door_callbacks(shared_dialog)` after `DialogManager.na_show_dialog`; expose `self.na_load_door_into_dialog` / `self.na_clear_door_from_dialog` delegates so the SelectionObserver can stay in the existing namespace.
+2. **`Na__WindowConfiguratorTool__DialogManager__.rb`** -- dialog width 525 -> 720; added `@last_measure_origin` cache; `na_send_measurement_to_dialog` now accepts optional `origin_x_in / origin_y_in / origin_z_in` and forwards them to JS; added `na_consume_pending_measurement_origin`; `na_handle_create_window` consumes Point A and passes it to `GeometryEngine.na_create_window_geometry`; placement tool only activates when no Point A is pending.
+3. **`Na__WindowConfiguratorTool__GeometryEngine__.rb`** -- `na_create_window_geometry` now accepts `insertion_origin_in` (`Geom::Point3d` in inches). When supplied uses `Geom::Transformation.new(origin)`; falls back to `IDENTITY` (the existing behaviour).
+4. **`Na__WindowConfiguratorTool__MeasureOpeningTool__.rb`** -- captures Point A in inches and forwards it alongside width/height to the dialog router.
+5. **`Na__WindowConfiguratorTool__Observers__.rb`** -- `SelectionObserver.onSelectionBulkChange` now checks for a window id first, then falls back to a door id (only if the door module is loaded); empty selection clears both tabs.
+6. **`Na__WindowConfiguratorTool__UiLayout__.html`** -- title -> "Na Architectural Configurator"; new `<nav id="na-tab-bar">`; existing window UI wrapped in `<div id="na-tab-windows">`; new `<div id="na-tab-doors" class="na-tab-panel na-hidden">` with secondary header, dual SVG viewports, and door section placeholders. Script section includes `Na__WindowConfiguratorTool__TabRouter__.js` and the five door modules.
+7. **`Na__WindowConfiguratorTool__Styles__.css`** -- new tab + dual-viewport rules.
+8. **`Na__WindowConfiguratorTool__UiEventToRubyApiBridge__.js`** -- `na_receiveMeasurement` documented to accept (and ignore) the new `originXIn/Y/Z` trailing args; status message updated to flag "Insert at Point A queued.".
+9. **`Na__WindowConfiguratorTool__Architecture__.md`** -- appended "Feature Addendum - Interior Door Configurator (v0.11.0)" with folder layout, tab system table, JS / Ruby module tables, asset JSON schema, runtime config schema, insert-at-Point-A flow, observer extensions, and TrueVision naming map.
+
+### Out of Scope (Reserved for Future Versions)
+- Hinge geometry (placeholder JSON only).
+- Door beading / rebated profiles around the lining.
+- Multi-style parametric panel layouts (panelled doors, glazed doors, etc.).
+- Architrave finish / colour control (currently inherits the configured material id).
+- BIM metadata enrichment (manufacturer, cost, IFC mapping).
+
+### Status: IMPLEMENTED
+
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ## Window Configurator Tool |  Version 0.10.4 - 27-Apr-2026 - Per-Panel Casement Toggle (Transom-Aware)
 
 ### New Feature - Per-Panel Casement Removal

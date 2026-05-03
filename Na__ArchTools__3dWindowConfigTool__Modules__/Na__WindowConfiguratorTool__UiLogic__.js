@@ -18,9 +18,11 @@
    - Na__WindowConfiguratorTool__Ui__Config__.js
    - Na__WindowConfiguratorTool__Ui__Controls__.js
    - Na__WindowConfiguratorTool__Ui__Events__.js
-   - Na__WindowConfiguratorTool__Viewport__Validation__.js
-   - Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js
-   - Na__WindowConfiguratorTool__Viewport__Controls__.js
+   - 06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__SvgHelpers__.js
+   - 06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Validation__.js
+   - 06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__WindowSvgGenerator__.js   (exports window.Na__Viewport__SvgGenerator)
+   - 06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Controls__.js
+   - 06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Instance__.js
    - Na__WindowConfiguratorTool__Export__Dxf__.js
    
    NAMING CONVENTION:
@@ -834,104 +836,143 @@ const Na_DynamicUI = (function() {
 // endregion ===================================================================
 
 // =============================================================================
-// REGION | Viewport Module
+// REGION | Viewport Module - Window Tab (Thin Wrapper Over Na__Viewport__Instance)
+// =============================================================================
+// As of 01-May-2026 the per-tab viewport state machine was relocated into the
+// reusable Na__Viewport__Instance factory under
+// 06__PluginCore__HtmlDialogue__ViewportModules/. Na_Viewport now owns only
+// window-specific concerns:
+//   - validation gate (returns false to disable Create / Update buttons)
+//   - re-binding casement / transom / glazebar click delegation per render
+//   - the window-shaped reset fitter
+// All pan/zoom, viewBox state, and reset plumbing comes from the shared factory.
 // =============================================================================
 
 const Na_Viewport = (function() {
-    
-    // Module Variables
+
+    // MODULE VARIABLES | Bound Window Viewport Instance + DOM Reference
     // ------------------------------------------------------------
-    let _svgElement = null;                                          // SVG DOM element reference
-    let _viewBox = { x: -50, y: -50, width: 500, height: 400 };     // Current viewBox state
-    let _interactionState = {                                        // Interaction state object
-        scale: 1,
-        isPanning: false,
-        didPan: false,
-        lastMousePos: { x: 0, y: 0 },
-        panStartPos: { x: 0, y: 0 }
-    };
-    
-    // FUNCTION | Initialize the Viewport
+    let _instance   = null;                                          // <-- Shared viewport instance
+    let _svgElement = null;                                          // <-- Cached SVG element reference
+    // ---------------------------------------------------------------
+
+
+    // FUNCTION | Initialize the Window Viewport Instance
     // ------------------------------------------------------------
     function na_init() {
-        console.log('[NA_VIEWPORT] Initializing viewport');
-        
-        _svgElement = document.getElementById('na-viewport-svg');
-        if (!_svgElement) {
-            console.error('[NA_VIEWPORT] SVG element not found');
+        console.log('[NA_VIEWPORT] Initializing window viewport via Na__Viewport__Instance');
+
+        if (!window.Na__Viewport__Instance) {
+            console.error('[NA_VIEWPORT] Na__Viewport__Instance not loaded');
             return;
         }
-        
-        // Setup pan/zoom handlers using Controls module
-        window.Na__Viewport__Controls.na_setupPanZoom(
-            _svgElement,
-            _viewBox,
-            _interactionState,
-            () => window.Na__Viewport__Controls.na_updateViewBox(_svgElement, _viewBox)
-        );
-        
-        console.log('[NA_VIEWPORT] Viewport initialized');
+
+        _instance = window.Na__Viewport__Instance.na_create({
+            wrapperId          : 'na-canvas-wrapper',
+            svgId              : 'na-viewport-svg',
+            initialViewBox     : { x: -50, y: -50, width: 500, height: 400 },
+            autoResetOnRender  : false,                              // <-- na_render handles reset itself
+            fitToContent       : function (config) {
+                if (window.Na__Viewport__Controls &&
+                    typeof window.Na__Viewport__Controls.na_windowResetFitter === 'function') {
+                    return window.Na__Viewport__Controls.na_windowResetFitter(config);
+                }
+                return { x: 0, y: 0, width: 1000, height: 1000 };    // <-- Defensive fallback
+            },
+            onRender           : na_paint_window_svg                 // <-- Window-specific painter
+        });
+
+        if (!_instance) return;
+
+        _instance.na_init();                                          // <-- Eagerly bind pan/zoom
+
+        _svgElement = _instance.na_get_svg();
+        if (!_svgElement) {
+            console.error('[NA_VIEWPORT] Window SVG element not found after init');
+            return;
+        }
+
+        console.log('[NA_VIEWPORT] Window viewport initialized');
     }
     // ---------------------------------------------------------------
-    
-    // FUNCTION | Render the Window Model
+
+
+    // SUB FUNCTION | Paint the Window SVG Markup into the Bound Element
+    // ---------------------------------------------------------------
+    // Called by Na__Viewport__Instance after the validation hook has
+    // already gated the render, so this can assume `config` is valid.
+    function na_paint_window_svg(svgEl, config) {
+        const svgContent = window.Na__Viewport__SvgGenerator.na_generateWindowSvg(config);
+        if (!svgContent) {
+            throw new Error('Failed to generate window SVG');
+        }
+        svgEl.innerHTML = svgContent;                                 // <-- HTML string injection (legacy behaviour)
+    }
+    // ---------------------------------------------------------------
+
+
+    // SUB FUNCTION | (Re-)Bind Casement / Transom / Glaze Bar Click Delegation
+    // ---------------------------------------------------------------
+    // Uses the LIVE interaction state owned by the underlying instance so
+    // the click handler still sees `didPan === true` when a pan-drag has
+    // just finished, exactly mirroring the legacy direct-shared-state
+    // behaviour.
+    function na_bind_window_click_targets(svgEl) {
+        if (!svgEl || !window.Na__Viewport__Controls || !_instance) return;
+
+        const liveInteractionState = _instance.na_get_interaction_state();
+
+        window.Na__Viewport__Controls.na_setupCasementClickTargets(
+            svgEl,
+            liveInteractionState,
+            function (openingIndex, cellIndex, panelIndex) {
+                Na_DynamicUI.na_toggleCasementRemoval(openingIndex, cellIndex, panelIndex);
+            },
+            function (openingIndex, transomIndex) {
+                Na_DynamicUI.na_toggleTransomSegmentRemoval(openingIndex, transomIndex);
+            },
+            function (openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex) {
+                Na_DynamicUI.na_toggleGlazebarRemoval(
+                    openingIndex,
+                    cellIndex,
+                    panelIndex,
+                    sashIndex,
+                    orientation,
+                    barIndex
+                );
+            }
+        );
+    }
+    // ---------------------------------------------------------------
+
+
+    // FUNCTION | Render the Window Model (Validation-Gated)
     // ------------------------------------------------------------
     // @returns {boolean} True if SVG was generated successfully
     function na_render(config) {
-        if (!_svgElement) {
-            console.error('[NA_VIEWPORT] No SVG element');
+        if (!_instance) {
+            console.error('[NA_VIEWPORT] Instance not initialised');
             return false;
         }
-        
-        console.log('[NA_VIEWPORT] Rendering window preview');
-        
+
         try {
-            // Validate config using Validation module
             const validation = window.Na__Viewport__Validation.na_validateConfig(config);
             if (!validation.valid) {
                 console.warn('[NA_VIEWPORT] Invalid config:', validation.errors);
                 window.Na__Viewport__Validation.na_showValidationError(validation.errors);
                 return false;
             }
-            
-            // Generate SVG content using SvgGenerator module
-            const svgContent = window.Na__Viewport__SvgGenerator.na_generateWindowSvg(config);
-            
-            if (!svgContent) {
-                console.error('[NA_VIEWPORT] Failed to generate SVG');
-                return false;
-            }
-            
-            // Update SVG element
-            _svgElement.innerHTML = svgContent;
-            
-            // Setup click targets for casement toggling using Controls module
-            window.Na__Viewport__Controls.na_setupCasementClickTargets(
-                _svgElement,
-                _interactionState,
-                (openingIndex, cellIndex, panelIndex) =>
-                    Na_DynamicUI.na_toggleCasementRemoval(openingIndex, cellIndex, panelIndex),
-                (openingIndex, transomIndex) => Na_DynamicUI.na_toggleTransomSegmentRemoval(openingIndex, transomIndex),
-                (openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex) =>
-                    Na_DynamicUI.na_toggleGlazebarRemoval(
-                        openingIndex,
-                        cellIndex,
-                        panelIndex,
-                        sashIndex,
-                        orientation,
-                        barIndex
-                    )
-            );
-            
-            // Reset view to fit new content
-            na_resetView();
-            
-            // Show success indicator
+
+            const ok = _instance.na_render(config);                   // <-- Paint via shared instance
+            if (!ok) return false;
+
+            const svgEl = _instance.na_get_svg();
+            na_bind_window_click_targets(svgEl);                      // <-- Per-render click rebinding (legacy behaviour)
+            na_resetView();                                           // <-- Snap to fit after re-paint
+
             window.Na__Viewport__Validation.na_showValidationSuccess();
-            
-            console.log('[NA_VIEWPORT] SVG rendered successfully');
             return true;
-            
+
         } catch (e) {
             console.error('[NA_VIEWPORT] Error rendering:', e);
             window.Na__Viewport__Validation.na_showValidationError(['Render error: ' + e.message]);
@@ -939,15 +980,18 @@ const Na_Viewport = (function() {
         }
     }
     // ---------------------------------------------------------------
-    
+
+
     // FUNCTION | Reset View to Fit Window
     // ------------------------------------------------------------
     function na_resetView() {
+        if (!_instance) return;
         const config = Na_DynamicUI.na_getConfig();
-        window.Na__Viewport__Controls.na_resetView(_svgElement, _viewBox, _interactionState, config);
+        _instance.na_resetView(config);
     }
     // ---------------------------------------------------------------
-    
+
+
     // FUNCTION | Export Current Model as DXF
     // ------------------------------------------------------------
     function na_exportDxf() {
@@ -955,16 +999,17 @@ const Na_Viewport = (function() {
         return window.Na__Export__Dxf.na_exportDxf(config);
     }
     // ---------------------------------------------------------------
-    
+
+
     // Public API
     // ------------------------------------------------------------
     return {
-        na_init: na_init,
-        na_render: na_render,
-        na_resetView: na_resetView,
-        na_exportDxf: na_exportDxf
+        na_init      : na_init,
+        na_render    : na_render,
+        na_resetView : na_resetView,
+        na_exportDxf : na_exportDxf
     };
-    
+
 })();
 
 // endregion ===================================================================
@@ -1032,13 +1077,17 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('[NA_UI] ═══════════════════════════════════════════════════════');
     console.log('[NA_UI] NA WINDOW CONFIGURATOR - INITIALIZING');
     console.log('[NA_UI] ═══════════════════════════════════════════════════════');
-    
-    // Initialize Dynamic UI
-    Na_DynamicUI.na_init();
-    
-    // Initialize Viewport
+
+    // Initialise the Viewport FIRST so the SVG element reference is bound
+    // before Na_DynamicUI's first na_onConfigChange triggers Na_Viewport.na_render.
+    // Without this ordering the very first render returns false, _svgValid stays
+    // false, and the Create / Update buttons remain disabled even though the
+    // configuration is otherwise valid.
     Na_Viewport.na_init();
-    
+
+    // Now build the controls and run the initial render against the bound SVG.
+    Na_DynamicUI.na_init();
+
     // Initialize viewport resize handle
     na_initViewportResize();
     

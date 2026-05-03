@@ -30,7 +30,7 @@ require_relative 'Na__WindowConfiguratorTool__DataSerializer__'
 require_relative 'Na__WindowConfiguratorTool__GeometryEngine__'
 require_relative 'Na__WindowConfiguratorTool__DxfExporterLogic__'
 require_relative 'Na__WindowConfiguratorTool__PlacementTool__'
-require_relative 'Na__WindowConfiguratorTool__MeasureOpeningTool__'
+require_relative File.join('07__PluginCore__MeasurmentToolsModules', 'Na__MeasurementTools__TwoPointOpeningTool__')
 require_relative 'Na__WindowConfiguratorTool__FuseParts__'
 
 module Na__WindowConfiguratorTool
@@ -55,6 +55,9 @@ module Na__WindowConfiguratorTool
         @dialog = nil                  # HtmlDialog instance
         @window_component = nil        # Current window component being edited
         @config = nil                  # Current configuration hash
+        @last_measure_origin = nil     # <-- Point A from the most recent measurement (Geom::Point3d, inches). One-shot, consumed by next na_create_window.
+        @na_active_tab_id = "windows"  # <-- v0.11.6 Cache of the JS-side active tab; pushed by Na_AppContext via sketchup.na_setActiveTab.
+        @current_placement_tool = nil  # <-- v0.11.6 Active Na__WindowPlacementTool instance (declared explicitly; previously implicit).
 
 # endregion -------------------------------------------------------------------
 
@@ -73,12 +76,15 @@ module Na__WindowConfiguratorTool
             end
             
             # Create new dialog
+            # Width bumped from 525 -> 720 to accommodate the new dual-tab layout
+            # (Windows | Interior Doors) and the wider plan/elevation viewports
+            # used by the Interior Door tab.
             @dialog = UI::HtmlDialog.new(
-                dialog_title: "Na Window Configurator",
+                dialog_title: "Na Architectural Configurator",
                 preferences_key: "Na__WindowConfiguratorTool",
                 scrollable: true,
                 resizable: true,
-                width: 525,
+                width: 720,
                 height: 1200,
                 left: 100,
                 top: 100,
@@ -136,6 +142,42 @@ module Na__WindowConfiguratorTool
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Get the Cached Active Tab ID (v0.11.6)
+        # ------------------------------------------------------------
+        # Returns the JS-side active tab id that Na_AppContext pushed via
+        # sketchup.na_setActiveTab. Used by the SelectionObserver to
+        # decide whether to load window or door data and whether to
+        # request an auto-switch on the dialog.
+        # @return [String] One of "windows", "doors", "settings"
+        def self.na_get_active_tab_id
+            @na_active_tab_id || "windows"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Request the Dialog Switch to a Different Tab (v0.11.6)
+        # ------------------------------------------------------------
+        # Used by the SelectionObserver when the user clicks a component
+        # belonging to a tab they are not currently viewing - the dialog
+        # is asked to swap to the matching tab so the loaded config
+        # actually appears. Defensive: silently no-ops if the dialog is
+        # not visible. Sanitises the tab id so an unexpected character
+        # cannot escape the JS string literal.
+        # @param tab_id [String] The desired tab id ("windows", "doors", "settings")
+        def self.na_request_tab_switch(tab_id)
+            return unless @dialog && @dialog.visible?
+            return if tab_id.nil?
+
+            safe_id = tab_id.to_s.gsub(/[^A-Za-z0-9_-]/, "")                  # Strip any character that could break the literal
+            return if safe_id.empty?
+
+            @dialog.execute_script(
+                "if(window.Na_AppContext){Na_AppContext.na_activateTab('#{safe_id}');}"
+            )
+            @na_active_tab_id = safe_id                                       # Update cache eagerly; JS will confirm on next na_setActiveTab
+            DebugTools.na_debug_ui("Requested tab switch to #{safe_id}")
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Get Current Window Component
         # ------------------------------------------------------------
         # @return [Sketchup::ComponentInstance, nil] The current window component
@@ -185,6 +227,16 @@ module Na__WindowConfiguratorTool
             @dialog.add_action_callback("na_reloadScripts") do |action_context|
                 na_reload_scripts(plugin_root_path)
             end
+
+            # Callback: Settings Tab - Run the 2D-Only ValeSpec-Style JSON Exporter
+            @dialog.add_action_callback("na_settingsExport2D") do |_action_context|
+                na_handle_settings_export_2d
+            end
+
+            # Callback: Settings Tab - Run the Unified 2D + 3D Asset JSON Exporter
+            @dialog.add_action_callback("na_settingsExport3D") do |_action_context|
+                na_handle_settings_export_3d
+            end
             
             # Callback: Export DXF
             @dialog.add_action_callback("na_exportDxf") do |action_context, config_json|
@@ -218,7 +270,20 @@ module Na__WindowConfiguratorTool
                     @current_placement_tool.na_rotate
                 end
             end
-            
+
+            # Callback: Active Tab Sync (Pushed by Na_AppContext)
+            # ------------------------------------------------------------
+            # The JS-side Na_AppContext fires this every time the user
+            # switches tabs (and once on dialog load). The Ruby
+            # SelectionObserver consults the cached value before deciding
+            # whether to load window or door data, so the routing
+            # decision can be made without a synchronous call back into
+            # the dialog.
+            @dialog.add_action_callback("na_setActiveTab") do |_action_context, tab_id|
+                @na_active_tab_id = tab_id.to_s if tab_id
+                DebugTools.na_debug_ui("Active tab cached on Ruby side: #{@na_active_tab_id}")
+            end
+
             DebugTools.na_debug_success("Dialog callbacks configured")
         end
         # ---------------------------------------------------------------
@@ -251,9 +316,15 @@ module Na__WindowConfiguratorTool
                     @config["windowMetadata"][0]["LastModified"] = Time.now.strftime("%Y-%m-%d %H:%M:%S")
                 end
                 
-                # Create the window geometry (delegate to GeometryEngine)
-                @window_component = GeometryEngine.na_create_window_geometry(config["windowConfiguration"], window_id)
-                
+                # Consume any cached measurement origin (Point A) so the instance is
+                # placed automatically at the measurement's base corner. This is the
+                # priority insertion path when the user has just used the Measure tool.
+                pending_origin = na_consume_pending_measurement_origin
+
+                @window_component = GeometryEngine.na_create_window_geometry(
+                    config["windowConfiguration"], window_id, pending_origin
+                )
+
                 if @window_component && @window_component.valid?
                     # Fuse parts if enabled (post-processing boolean operations)
                     if config["windowConfiguration"] && config["windowConfiguration"]["fuse_parts"] == true
@@ -276,23 +347,25 @@ module Na__WindowConfiguratorTool
                     DataSerializer.na_save_window_data(window_id, @config)
                     
                     model.commit_operation
-                    
-                    # Activate placement tool
-                    placement_tool = Na__WindowPlacementTool.new(@window_component)
-                    @current_placement_tool = placement_tool
-                    Sketchup.active_model.select_tool(placement_tool)
 
-                    # Tell the dialog Tab key should now rotate instead of cycling focus.
-                    # Also blur the active element so the SketchUp viewport can pick up
-                    # other key events (arrow keys, ESC, etc.) once the mouse enters it.
-                    if @dialog && @dialog.visible?
-                        @dialog.execute_script("window.na_setPlacementActive(true);")
-                        @dialog.execute_script("if(document.activeElement){document.activeElement.blur();}")
+                    if pending_origin
+                        DebugTools.na_debug_success("Created window #{window_id} at measured Point A")
+                        fuse_msg = (config["windowConfiguration"] && config["windowConfiguration"]["fuse_parts"] == true) ? " (fused)" : ""
+                        na_send_status_to_dialog(nil, "success", "Window placed at measured Point A: #{window_id}#{fuse_msg}")
+                    else
+                        placement_tool = Na__WindowPlacementTool.new(@window_component)
+                        @current_placement_tool = placement_tool
+                        Sketchup.active_model.select_tool(placement_tool)
+
+                        if @dialog && @dialog.visible?
+                            @dialog.execute_script("window.na_setPlacementActive(true);")
+                            @dialog.execute_script("if(document.activeElement){document.activeElement.blur();}")
+                        end
+
+                        DebugTools.na_debug_success("Created window #{window_id}")
+                        fuse_msg = (config["windowConfiguration"] && config["windowConfiguration"]["fuse_parts"] == true) ? " (fused)" : ""
+                        na_send_status_to_dialog(nil, "success", "Window created: #{window_id}#{fuse_msg}")
                     end
-                    
-                    DebugTools.na_debug_success("Created window #{window_id}")
-                    fuse_msg = (config["windowConfiguration"] && config["windowConfiguration"]["fuse_parts"] == true) ? " (fused)" : ""
-                    na_send_status_to_dialog(nil, "success", "Window created: #{window_id}#{fuse_msg}")
                 else
                     model.abort_operation
                     DebugTools.na_debug_error("Failed to create window geometry")
@@ -531,8 +604,12 @@ module Na__WindowConfiguratorTool
                 end
             end
             
-            # Activate the Measure Opening Tool (tool handles bottom-frame logic internally)
-            measure_tool = Na__MeasureOpeningTool.new(self, cill_height_mm, frame_bottom_thickness_mm)
+            # Activate the shared two-point measurement tool. Now sourced from
+            # 07__PluginCore__MeasurmentToolsModules so the same module can serve
+            # both the Window and Interior Door tools without circular requires.
+            measure_tool = Na__MeasurementTools::Na__TwoPointOpeningTool.new(
+                self, cill_height_mm, frame_bottom_thickness_mm
+            )
             Sketchup.active_model.select_tool(measure_tool)
             
             DebugTools.na_debug_success("Measure Opening tool activated (cill_height=#{cill_height_mm}mm, frame_bottom_thickness=#{frame_bottom_thickness_mm}mm)")
@@ -542,15 +619,62 @@ module Na__WindowConfiguratorTool
         # FUNCTION | Send Measurement to Dialog
         # ------------------------------------------------------------
         # Called by the MeasureOpeningTool after the user completes the
-        # two-click measurement. Sends width and adjusted height to the
-        # HTML dialog to update the configurator sliders.
-        # @param width_mm [Numeric] Measured opening width in millimeters
-        # @param height_mm [Numeric] Adjusted opening height in millimeters
-        def self.na_send_measurement_to_dialog(width_mm, height_mm)
+        # two-click measurement. Sends width, adjusted height and the
+        # Point A origin (in inches) to the HTML dialog. Caches the
+        # Point A so the next na_handle_create_window can use it as the
+        # priority insertion origin (one-shot).
+        # @param width_mm    [Numeric]              Measured opening width in millimetres
+        # @param height_mm   [Numeric]              Adjusted opening height in millimetres
+        # @param origin_x_in [Numeric, nil]         Point A X in inches (optional, backward-compatible)
+        # @param origin_y_in [Numeric, nil]         Point A Y in inches
+        # @param origin_z_in [Numeric, nil]         Point A Z in inches
+        def self.na_send_measurement_to_dialog(width_mm, height_mm, origin_x_in = nil, origin_y_in = nil, origin_z_in = nil)
+            has_origin = origin_x_in && origin_y_in && origin_z_in
+
+            if has_origin
+                @last_measure_origin = Geom::Point3d.new(origin_x_in, origin_y_in, origin_z_in)
+                DebugTools.na_debug_info("Cached measure origin Point A (inches): #{@last_measure_origin.inspect}")
+            end
+
             return unless @dialog && @dialog.visible?
-            
-            DebugTools.na_debug_info("Sending measurement to dialog: W=#{width_mm}mm, H=#{height_mm}mm")
-            @dialog.execute_script("window.na_receiveMeasurement(#{width_mm}, #{height_mm});")
+
+            # v0.11.7 - Every numeric argument MUST be cast to Float before
+            # interpolation, otherwise SketchUp's Length#to_s injects a
+            # literal `"` or `'` into the JS source and the parser breaks
+            # before `na_receiveMeasurement` can run. See the Length-Safe
+            # execute_script Convention in the Architecture doc.
+            width_f  = Float(width_mm)
+            height_f = Float(height_mm)
+            DebugTools.na_debug_info(
+                "Sending measurement to dialog: W=#{width_f}mm, H=#{height_f}mm"
+            )
+
+            if has_origin
+                ax = Float(origin_x_in.to_f)                                  # <-- Length#to_f -> raw inch Float
+                ay = Float(origin_y_in.to_f)
+                az = Float(origin_z_in.to_f)
+                @dialog.execute_script(
+                    "window.na_receiveMeasurement(#{width_f}, #{height_f}, #{ax}, #{ay}, #{az});"
+                )
+            else
+                @dialog.execute_script(
+                    "window.na_receiveMeasurement(#{width_f}, #{height_f});"
+                )
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Consume the Cached Measurement Origin (One-Shot)
+        # ------------------------------------------------------------
+        # Returns the most-recently captured Point A as a Geom::Point3d
+        # (in inches) and clears the cache. Used by GeometryEngine to
+        # place a freshly-created window at the measurement's Point A.
+        # If no measurement has been taken since the last create, this
+        # returns nil and the caller falls back to the placement tool.
+        def self.na_consume_pending_measurement_origin
+            origin = @last_measure_origin
+            @last_measure_origin = nil
+            origin
         end
         # ---------------------------------------------------------------
 
@@ -563,6 +687,61 @@ module Na__WindowConfiguratorTool
             
             DebugTools.na_debug_info("Sending measure cancelled notification to dialog")
             @dialog.execute_script("window.na_measureCancelled();")
+        end
+        # ---------------------------------------------------------------
+
+        # MODULE CONSTANTS | Sub-Tool Folders That Must Reload With the Parent
+        # ------------------------------------------------------------
+        # Reload globs only the parent folder by default. Any sub-tool whose
+        # Ruby modules need to be re-evaluated by the in-dialog Reload
+        # Scripts button must be listed here. Adding a new sub-tool is a
+        # one-line change and keeps reload logic free of `**/*.rb`
+        # wildcards (which would also pull in third-party shared deps).
+        NA_RELOAD_SUBFOLDERS = [
+            "Na__InteriorDoorConfigurator__".freeze,                              # <-- Interior Door Configurator
+            "65__DevTools".freeze,                                                # <-- Tool-agnostic JSON exporters
+            "07__PluginCore__MeasurmentToolsModules".freeze                       # <-- Shared two/three-point measure tools
+        ].freeze
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Collect All Ruby Files That Should Reload Together
+        # ------------------------------------------------------------
+        # Returns a stable, de-duplicated, sorted list of `.rb` paths covering
+        # the plugin root plus every sub-tool folder declared in
+        # NA_RELOAD_SUBFOLDERS. Missing sub-folders are silently skipped so
+        # an optional sub-tool (e.g. dev-tools removed for shipping) does
+        # not break reload.
+        # @param plugin_root_path [String] Absolute path to the plugin module root
+        # @return [Array<String>] Absolute paths of every .rb file to reload
+        def self.na_collect_rb_files_for_reload(plugin_root_path)
+            collected = Dir.glob(File.join(plugin_root_path, "*.rb"))           # <-- Top-level files (window tool)
+
+            NA_RELOAD_SUBFOLDERS.each do |sub_folder|
+                sub_path = File.join(plugin_root_path, sub_folder)              # Resolve absolute sub-folder path
+                next unless File.directory?(sub_path)                           # Tolerate missing optional folders
+                collected.concat(Dir.glob(File.join(sub_path, "*.rb")))         # Append every .rb directly inside
+            end
+
+            collected.uniq.sort                                                 # Stable, predictable reload order
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Format a Reloaded File Path for Console Output
+        # ------------------------------------------------------------
+        # Returns the file path relative to the plugin root when possible,
+        # otherwise the bare basename. Keeps the reload log compact while
+        # still distinguishing files in sub-tool folders from top-level files.
+        # @param file_path [String]        Absolute path of the reloaded file
+        # @param plugin_root_path [String] Plugin module root path
+        # @return [String] Display label for console output
+        def self.na_format_reload_path(file_path, plugin_root_path)
+            normalized_root = plugin_root_path.tr("\\", "/")                    # Normalise Windows separators
+            normalized_file = file_path.tr("\\", "/")                           # Normalise Windows separators
+            if normalized_file.start_with?(normalized_root + "/")
+                normalized_file.sub(normalized_root + "/", "")                  # Strip plugin-root prefix
+            else
+                File.basename(file_path)                                        # Fallback to basename
+            end
         end
         # ---------------------------------------------------------------
 
@@ -579,32 +758,53 @@ module Na__WindowConfiguratorTool
             js_reload_count = 0
             error_count = 0
             
-            # Reload Ruby files
+            # Collect Ruby files from the parent folder AND every sub-tool
+            # folder declared in NA_RELOAD_SUBFOLDERS. Without this,
+            # files in Na__InteriorDoorConfigurator__/ and 65__DevTools/
+            # would never re-load and would silently run stale code after
+            # the user pressed Reload Scripts.
             puts "\nReloading Ruby (.rb) files:"
-            rb_files = Dir.glob(File.join(plugin_root_path, "*.rb"))
-            
+            puts "  [ROOT]      #{plugin_root_path}"
+            NA_RELOAD_SUBFOLDERS.each do |sub_folder|
+                sub_path = File.join(plugin_root_path, sub_folder)
+                marker   = File.directory?(sub_path) ? "[SUBFOLDER]" : "[MISSING] "
+                puts "  #{marker} #{sub_folder}/"
+            end
+
+            rb_files = na_collect_rb_files_for_reload(plugin_root_path)
+
             rb_files.each do |file|
                 begin
                     load file
-                    puts "  [OK] #{File.basename(file)}"
+                    rel_label = na_format_reload_path(file, plugin_root_path)   # Compact display path
+                    puts "  [OK] #{rel_label}"
                     rb_reload_count += 1
                 rescue => e
-                    puts "  [ERROR] #{File.basename(file)}: #{e.message}"
+                    rel_label = na_format_reload_path(file, plugin_root_path)
+                    puts "  [ERROR] #{rel_label}: #{e.message}"
                     error_count += 1
                 end
             end
             
             # JavaScript files to reload (in dependency order)
+            # All viewport modules now live in 06__PluginCore__HtmlDialogue__ViewportModules/
+            # and are listed here using folder-relative paths so File.exist? on the
+            # plugin root resolves them correctly. Order matters: SvgHelpers must
+            # load before any *Generator that calls into it.
             js_files = [
                 # Configuration (no dependencies)
                 "Na__WindowConfiguratorTool__Ui__Config__.js",
                 # UI Layer
                 "Na__WindowConfiguratorTool__Ui__Controls__.js",
                 "Na__WindowConfiguratorTool__Ui__Events__.js",
-                # Viewport Layer
-                "Na__WindowConfiguratorTool__Viewport__Validation__.js",
-                "Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js",
-                "Na__WindowConfiguratorTool__Viewport__Controls__.js",
+                # Shared Viewport Layer (folder-scoped)
+                "06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__SvgHelpers__.js",
+                "06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Validation__.js",
+                "06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__WindowSvgGenerator__.js",
+                "06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Controls__.js",
+                "06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__Instance__.js",
+                "06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__DoorPlanGenerator__.js",
+                "06__PluginCore__HtmlDialogue__ViewportModules/Na__Viewport__DoorElevationGenerator__.js",
                 # Export Layer
                 "Na__WindowConfiguratorTool__Export__Dxf__.js",
                 # Main Orchestrator
@@ -651,6 +851,52 @@ module Na__WindowConfiguratorTool
             end
             
             return {reload_dialog: true}  # Signal to caller to re-show dialog
+        end
+        # ---------------------------------------------------------------
+
+
+        # FUNCTION | Settings Tab Handler - Run the 2D-Only ValeSpec-Style Exporter
+        # ------------------------------------------------------------
+        # Resolves Na__DevTools defensively so a missing dev-tools folder
+        # does not crash the dialog.
+        def self.na_handle_settings_export_2d
+            DebugTools.na_debug_method("DialogManager.na_handle_settings_export_2d")
+
+            unless defined?(::Na__DevTools)
+                msg = "Dev tools not loaded - check 65__DevTools/ folder."
+                puts "\n!! Settings : #{msg}"
+                na_send_status_to_dialog(nil, "warning", msg)
+                return
+            end
+
+            ::Na__DevTools.na_run_export_2d
+            na_send_status_to_dialog(nil, "info", "2D exporter finished - see Ruby Console for output")
+        rescue StandardError => e
+            DebugTools.na_debug_error("Settings 2D export failed", e)
+            na_send_status_to_dialog(nil, "warning", "2D export failed : #{e.message}")
+        end
+        # ---------------------------------------------------------------
+
+
+        # FUNCTION | Settings Tab Handler - Run the Unified 2D + 3D Asset Exporter
+        # ------------------------------------------------------------
+        # Resolves Na__DevTools defensively so a missing dev-tools folder
+        # does not crash the dialog.
+        def self.na_handle_settings_export_3d
+            DebugTools.na_debug_method("DialogManager.na_handle_settings_export_3d")
+
+            unless defined?(::Na__DevTools)
+                msg = "Dev tools not loaded - check 65__DevTools/ folder."
+                puts "\n!! Settings : #{msg}"
+                na_send_status_to_dialog(nil, "warning", msg)
+                return
+            end
+
+            ::Na__DevTools.na_run_export_3d
+            na_send_status_to_dialog(nil, "info", "3D exporter finished - see Ruby Console for output")
+        rescue StandardError => e
+            DebugTools.na_debug_error("Settings 3D export failed", e)
+            na_send_status_to_dialog(nil, "warning", "3D export failed : #{e.message}")
         end
         # ---------------------------------------------------------------
 

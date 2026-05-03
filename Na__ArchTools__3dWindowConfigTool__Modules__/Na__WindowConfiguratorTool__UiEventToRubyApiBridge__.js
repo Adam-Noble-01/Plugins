@@ -95,21 +95,26 @@ window.na_setInitialConfig = function(configJson) {
 
 // FUNCTION | Clear Current Window (When Selection is Cleared)
 // ------------------------------------------------------------
-// Called by Ruby when no window is selected
+// Called by Ruby when no window is selected. v0.11.6 - Now also
+// resets the Description input so a stale label from the previously
+// loaded window cannot leak into the next na_createWindow call.
+// With the new tab-aware SelectionObserver this fires more often
+// (any deselect or off-tab selection clears both tabs).
 window.na_clearCurrentWindow = function() {
     console.log('[NA_BRIDGE] Clearing current window');
-    
+
     na_currentWindowId = null;
-    na_isEditMode = false;
-    na_loadedMetadata = null;
-    
-    // Hide window info section
+    na_isEditMode      = false;
+    na_loadedMetadata  = null;
+
     const infoSection = document.getElementById('na-window-info');
     if (infoSection) {
         infoSection.classList.add('na-hidden');
     }
-    
-    // Show create button, hide update button
+
+    const descInput = document.getElementById('na-info-description');         // <-- v0.11.6 Drop the previous window's description
+    if (descInput) descInput.value = '';
+
     na_toggleEditMode(false);
 };
 // ---------------------------------------------------------------
@@ -148,29 +153,51 @@ window.na_showStatus = function(type, message) {
 // ------------------------------------------------------------
 // Called by Ruby after user completes the two-click measurement in the 3D viewport.
 // Updates the width and height sliders in the UI with the measured values.
-// @param {number} widthMm - Measured opening width in millimeters
-// @param {number} heightMm - Adjusted opening height in millimeters (cill height already deducted)
-window.na_receiveMeasurement = function(widthMm, heightMm) {
+// @param {number} widthMm   - Measured opening width in millimeters
+// @param {number} heightMm  - Adjusted opening height in millimeters (cill height already deducted)
+// @param {number} [originXIn] - Point A x in inches  (cached server-side; ignored here)
+// @param {number} [originYIn] - Point A y in inches  (cached server-side; ignored here)
+// @param {number} [originZIn] - Point A z in inches  (cached server-side; ignored here)
+window.na_receiveMeasurement = function(widthMm, heightMm /*, originXIn, originYIn, originZIn */) {
+    // v0.11.7 - The Ruby bridge now casts every numeric argument to Float
+    // before interpolating into this script string, so widthMm and heightMm
+    // are guaranteed to be JS numbers, not undefined. If a future regression
+    // ever sends NaN / undefined / a string, the explicit type check below
+    // surfaces it loudly in the SketchUp Ruby Console.
+    if (typeof widthMm !== 'number' || isNaN(widthMm) ||
+        typeof heightMm !== 'number' || isNaN(heightMm)) {
+        console.error(
+            '[NA_BRIDGE] na_receiveMeasurement got bad args:',
+            'widthMm=', widthMm, 'heightMm=', heightMm
+        );
+        window.na_showStatus('error', 'Measurement data corrupted - check Ruby Console.');
+        return;
+    }
+
     console.log(`[NA_BRIDGE] Received measurement: Width=${widthMm}mm, Height=${heightMm}mm`);
-    
-    // Remove active class from button (measurement complete)
+
     const measureBtn = document.getElementById('na-btn-measure');
     if (measureBtn) {
         measureBtn.classList.remove('na-btn-measure-active');
     }
-    
+
     if (typeof Na_DynamicUI === 'undefined') {
         console.error('[NA_BRIDGE] Na_DynamicUI not available to apply measurement');
         return;
     }
-    
-    // Update the width and height configuration values
+
     Na_DynamicUI.na_setConfig({
-        width_mm: widthMm,
+        width_mm:  widthMm,
         height_mm: heightMm
     });
-    
-    window.na_showStatus('success', `Opening measured: ${widthMm}mm x ${heightMm}mm`);
+
+    // Point A is cached on the Ruby side; the next na_createWindow call will
+    // insert at Point A automatically, falling back to the placement crosshair
+    // if no measurement is pending.
+    window.na_showStatus(
+        'success',
+        `Opening measured: ${widthMm}mm x ${heightMm}mm  -  Insert at Point A queued.`
+    );
 };
 // ---------------------------------------------------------------
 
@@ -304,31 +331,13 @@ function na_reloadScripts() {
 }
 // ---------------------------------------------------------------
 
-// FUNCTION | Measure Opening (Activate 3D Measurement Tool)
-// ------------------------------------------------------------
-// Called when user clicks "Measure Opening" button.
-// Activates the Ruby-side MeasureOpeningTool for two-click measurement.
-function na_measureOpening() {
-    console.log('[NA_BRIDGE] Requesting Measure Opening tool');
-    
-    // Add active class to button to show orange styling
-    const measureBtn = document.getElementById('na-btn-measure');
-    if (measureBtn) {
-        measureBtn.classList.add('na-btn-measure-active');
-    }
-    
-    if (typeof sketchup !== 'undefined') {
-        sketchup.na_measureOpening();
-        window.na_showStatus('info', 'Click Point A (base corner) in the 3D viewport...');
-    } else {
-        console.log('[NA_BRIDGE] SketchUp not available for measure opening');
-        window.na_showStatus('warning', 'SketchUp connection not available');
-        // Remove active class if connection failed
-        if (measureBtn) {
-            measureBtn.classList.remove('na-btn-measure-active');
-        }
-    }
-}
+// v0.11.6 - na_measureOpening() and na_toggleLiveMode() were removed.
+// The global Measure Opening / Live Mode buttons are now wired through
+// Na_AppContext.na_dispatch_measure() and na_dispatch_live_toggle()
+// which call sketchup.na_measureOpening / na_setLiveModeFlag /
+// na_performLiveUpdate directly. The bridge keeps the receive-side
+// callbacks (window.na_receiveMeasurement, window.na_measureCancelled)
+// because Ruby still needs them.
 // ---------------------------------------------------------------
 
 // FUNCTION | Export DXF
@@ -402,30 +411,19 @@ function na_logToRuby(message) {
 }
 // ---------------------------------------------------------------
 
-// FUNCTION | Toggle Live Mode
+// FUNCTION | Set the Window-Tab Live Mode Flag (Called by Na_AppContext)
 // ------------------------------------------------------------
-// When enabled, sends config changes to SketchUp in real-time
-function na_toggleLiveMode() {
-    na_liveModeEnabled = !na_liveModeEnabled;
-    
-    const btn = document.getElementById('na-btn-live');
-    if (btn) {
-        if (na_liveModeEnabled) {
-            btn.classList.add('na-btn-live-active');
-            btn.textContent = 'Live Mode ON';
-            console.log('[NA_BRIDGE] Live Mode ENABLED');
-            window.na_showStatus('success', 'Live Mode enabled - select a window to sync changes');
-            
-            // Immediately send current config to sync with any selected window
-            na_performLiveUpdate();
-        } else {
-            btn.classList.remove('na-btn-live-active');
-            btn.textContent = 'Live Mode';
-            console.log('[NA_BRIDGE] Live Mode DISABLED');
-            window.na_showStatus('info', 'Live Mode disabled');
-        }
-    }
-}
+// v0.11.6 - The global Live Mode button is wired to
+// Na_AppContext.na_dispatch_live_toggle, which calls this setter to
+// flip the bridge-private na_liveModeEnabled boolean. The dispatcher
+// owns button label / class painting so this function does not touch
+// the DOM. Keeping the setter explicit means there is one tested
+// gateway into na_liveModeEnabled rather than every consumer poking
+// at the variable directly.
+window.na_setLiveModeFlag = function (enabled) {
+    na_liveModeEnabled = !!enabled;
+    console.log('[NA_BRIDGE] Live Mode flag =', na_liveModeEnabled);
+};
 // ---------------------------------------------------------------
 
 // FUNCTION | Send Live Update to SketchUp (Debounced)
@@ -449,6 +447,9 @@ function na_sendLiveUpdate() {
 
 // FUNCTION | Actually Perform the Live Update (Called After Debounce)
 // ------------------------------------------------------------
+// Exposed on window so Na_AppContext.na_dispatch_live_toggle can
+// trigger an immediate sync the moment the user enables Live Mode
+// (matches the previous na_toggleLiveMode behaviour).
 function na_performLiveUpdate() {
     if (!na_liveModeEnabled) return;
     
@@ -476,6 +477,7 @@ function na_performLiveUpdate() {
         console.log('[NA_BRIDGE] SketchUp not available for live update. Config:', config);
     }
 }
+window.na_performLiveUpdate = na_performLiveUpdate;                  // <-- v0.11.6 dispatcher entry-point
 // ---------------------------------------------------------------
 
 // FUNCTION | Check if Live Mode is Currently Enabled

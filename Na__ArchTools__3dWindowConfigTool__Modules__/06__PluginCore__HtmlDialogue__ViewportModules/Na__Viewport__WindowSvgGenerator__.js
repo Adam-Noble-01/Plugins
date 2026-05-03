@@ -1,11 +1,12 @@
 /* =============================================================================
-   NA WINDOW CONFIGURATOR TOOL - SVG GENERATOR
+   NA PLUGIN CORE - WINDOW VIEWPORT SVG GENERATOR
    =============================================================================
    
-   FILE       : Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js
+   FILE       : Na__Viewport__WindowSvgGenerator__.js
    AUTHOR     : Noble Architecture
-   PURPOSE    : SVG markup generation for window preview
+   PURPOSE    : SVG markup generation for the Window Configurator preview
    CREATED    : 2026
+   RELOCATED  : 01-May-2026 (was Na__WindowConfiguratorTool__Viewport__SvgGenerator__.js)
    
    DESCRIPTION:
    - Generates SVG markup from window configuration
@@ -15,10 +16,13 @@
    - Clickable casement removal targets
    - Dimension annotations
    - Pure rendering functions with no side effects
+   - Window-specific markup; door tab uses Door*Generator modules in this folder.
    
    NAMING CONVENTION:
    - All functions use na_ prefix (lowercase)
-   - Exported to window.Na__Viewport__SvgGenerator object
+   - Exported to window.Na__Viewport__SvgGenerator object (preserved global name
+     so existing consumers in Export__Dxf__.js, UiLogic__.js, and the bridge
+     keep working without any rename).
    
    ============================================================================= */
 
