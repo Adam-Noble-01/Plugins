@@ -3,6 +3,35 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.4.0 - 03-May-2026 - Swing-direction-conditional MOD name so inward doors animate the correct way
+
+### Context
+Live test in TrueVision3D after the V1.3.7 hierarchy fix: outward-opening doors animated correctly with `MOD001__ROT__-90-Deg__DoorPanel`, but inward-opening doors swung in the wrong direction (away from the room instead of into it). TV3D's `Na__DoorAnim__DEG_REGEX` parses the signed degree token from the MOD name and applies the same rotation to every door regardless of swing intent, so a single hard-coded sign cannot serve both door types.
+
+### Fix
+The MOD group name is now resolved per `Na__DoorConfig__SwingDirection` at build time:
+- **Outward** swing -> `MOD001__ROT__-90-Deg__DoorPanel` (clockwise from above in TV3D)
+- **Inward** swing -> `MOD001__ROT__90-Deg__DoorPanel` (counterclockwise from above)
+
+### Files touched
+- **`Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb`**:
+  - Replaced the single `NA_GROUP_NAME_MOD_PANEL` constant with three: `NA_GROUP_NAME_MOD_PANEL_OUTWARD`, `NA_GROUP_NAME_MOD_PANEL_INWARD`, plus a legacy alias `NA_GROUP_NAME_MOD_PANEL` (= outward) for any external code that imports it directly.
+  - Added private helper `na_resolve_mod_panel_name(config)` next to `na_translate_rot_marker_to_hinge` so MOD-name resolution and ROT-pivot positioning live in the same internal-helpers region. Defaults to inward when the configuration omits the field (matches the door schema default in `Na__DEFAULT_DOOR_CONFIG`).
+  - `na_compose_closed_assembly` now sets `mod_group.name = na_resolve_mod_panel_name(config)`.
+  - The open-state copy inherits the resolved name automatically via `Sketchup::Group#copy` -> `copy.name = source_group.name`, so both MODs in the same door always carry the same degree token.
+  - Updated file header DESCRIPTION block to document both names.
+
+- **`Na__AssemblyStudio__InteriorDoorSystem__Init__.rb`**: mirror constants updated to declare both `NA_GROUP_NAME_MOD_PANEL_OUTWARD` and `NA_GROUP_NAME_MOD_PANEL_INWARD`, with `NA_GROUP_NAME_MOD_PANEL` retained as the legacy outward alias.
+
+- **`Na__AssemblyStudio__Architecture__.md`**: updated the pivot helper subsection's "MOD rotation direction" bullet to explain the per-swing-direction naming and updated the group-nesting hierarchy diagram so the MOD entries read `MOD001__ROT__{NN}-Deg__DoorPanel` with `{NN}` legend (-90 outward / +90 inward).
+
+### Verified
+- The SketchUp open-state copy direction (`na_compute_open_rotation_transform`) is unchanged and remains visually consistent with the new TV3D animation - both depend on `SwingSide` + `SwingDirection`, so the closed and open MODs in SketchUp continue to mirror what TV3D will animate.
+- No callers reference `NA_GROUP_NAME_MOD_PANEL` outside DoorAssemblyComposer + Init, so the legacy alias is sufficient for backwards compatibility.
+
+# =============================================================================
+
+
 # =============================================================================
 ## Element Assembly Studio Pro | V1.3.9 - 03-May-2026 - DevMode log gating + quiet reload summary
 
