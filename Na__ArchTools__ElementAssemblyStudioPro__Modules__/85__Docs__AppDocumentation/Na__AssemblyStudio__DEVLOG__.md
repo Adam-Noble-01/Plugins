@@ -3,6 +3,104 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.4.1 - 03-May-2026 - Hinge pivot Y + panel face positioning + plan-view handle mirror
+
+### Context
+Closed-position panel Y, the open-state hinge pivot, the 2D plan swing arc, and the plan-view handle preview were all coupled to a single "panel centre line" calculation that was neither swing-direction-aware nor face-aware. Symptoms observed in testing:
+
+1. Panel was always centred in the wall depth regardless of `SwingDirection`, so the open-state copy swept THROUGH the reveal in both 3D and the 2D plan view instead of cleanly out of it.
+2. For `SwingDirection = Outward`, the open-state 3D panel landed offset by `panel_t` in both X and Y from the correct hinge-side corner (the "40 mm X + 40 mm Y" offset the user had to apply manually before this fix).
+3. The 2D plan swing arc always extended UP in SVG - correct for inward (arc into the room) but wrong for outward (arc should extend into the exterior, i.e. DOWN in SVG).
+4. The plan-view handle rose straddled the panel centre-line instead of sitting flush on a face.
+5. On `Outward`, the handle stayed on the near face with its body buried inside the panel instead of flipping to the far face.
+
+This release introduces two centralised Y helpers and a handle-mirror toggle so every consumer resolves the correct face / pivot from a single source of truth.
+
+### Single source of truth: panel-Y and hinge-Y helpers
+- **File:** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__.rb`
+- New `Na__GeometryHelpers.na_panel_y_origin_mm(config)` - panel front-face Y, swing-direction-aware:
+  - `Inward`  -> `face_offset` (near wall face / room-facing face of panel).
+  - `Outward` -> `face_offset + wall_depth - panel_t` (far wall face / exterior-facing face of panel).
+  - Fallback  -> centred in wall depth.
+- New `Na__GeometryHelpers.na_panel_centre_y_mm(config)` - derived `panel_y_origin + panel_t / 2`; used by the handle centre-line only.
+- New `Na__GeometryHelpers.na_hinge_y_origin_mm(config)` - hinge pivot Y, which sits on the hinge-side wall face and is DISTINCT from the panel front face for outward swings:
+  - `Inward`  -> `face_offset` (panel front face == near wall face == hinge face; same value as panel origin).
+  - `Outward` -> `face_offset + wall_depth` (far wall face == panel back face; one `panel_t` beyond the panel origin).
+  - Fallback  -> wall-depth centre.
+- The physical door-architecture model that drives these values: the door panel's hinge-side face is always flush with a wall face; for inward openings that face is the near/room face, for outward openings it is the far/exterior face. The door swings AWAY from the lining, never THROUGH the reveal.
+
+### Ruby consumers re-wired through the helpers
+- **File:** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__GeometryBuilders__.rb`
+- `Na__GeometryBuilders.na_build_panel` now reads panel Y from `GeometryHelpers.na_panel_y_origin_mm(config)` (replaces the old hand-computed `face_offset + (wall_depth - panel_t) / 2` centre-line).
+- `Na__GeometryBuilders.na_build_swing` (2D swing arc on the floor) reads hinge Y from `GeometryHelpers.na_hinge_y_origin_mm(config)` so the arc anchors at the hinge-side wall face, not the panel front face.
+- **File:** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb`
+- `na_translate_rot_marker_to_hinge` - ROT marker origin now sits at the hinge-side wall face via the new hinge helper. This is the value TrueVision3D reads as the click-to-open pivot.
+- `na_compute_open_rotation_transform` - open-state 90 deg rotation pivot also uses the hinge helper. Rotation direction math (`base_angle = +/-90` by `swing_side`, `sign = -1` for inward / `+1` for outward) remains correct for every hand/direction combination now that the pivot lands on the real hinge corner.
+- **File:** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb`
+- `na_compute_handle_transform` now resolves the panel centre via `GeometryHelpers.na_panel_centre_y_mm(config)` so both interior and exterior handle instances follow the shifted panel without the old hard-coded centre calculation.
+
+### Plan-view generator: `hingeY` distinct from `panelY`, arc direction, handle face + mirror
+- **File:** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__PlanGenerator__.js`
+- `na_compute_layout` now emits:
+  - `panelY` - panel front face in SVG (swing-direction-aware, mirrors Ruby `na_panel_y_origin_mm`).
+  - `hingeY` - hinge pivot Y in SVG (swing-direction-aware, mirrors Ruby `na_hinge_y_origin_mm`). Inward -> `wallTopY`. Outward -> `wallTopY + wallDepth`. Fallback -> centre.
+  - `swingDirection` - echoed onto the layout so downstream builders can branch.
+  - `handleMirrorX` - mirror local X when the door is left-hand (unchanged).
+  - `handleMirrorY` - NEW - mirror local Y when the door is outward-swinging; lets the handle asset's authored "face plane at local Y = 0, body in local -Y" contract work for either face of the panel.
+  - `handleY` - positions the rose on the correct panel face (not the centre-line): `panelY` for inward (near face) / `panelY + panelThickness` for outward (far face).
+- `na_build_closed_panel` - keeps using `layout.panelY` (panel geometry origin).
+- `na_build_open_panel_outline` - now uses `layout.hingeY` and flips the outline's Y range: `y = hingeY - panelClearWidth` for inward (extends UP = into the room), `y = hingeY` for outward (extends DOWN = into the exterior). Horizontal placement still mirrors swing side.
+- `na_build_swing_arc` - anchors at `layout.hingeY`, flips `endY` sign based on `swingDirection` (`-1` inward -> arc UP into the room / `+1` outward -> arc DOWN into the exterior) and flips `sweepFlag` accordingly (Left-hand swaps `0 <-> 1` between inward and outward; Right-hand does the same) so the arc bulges on the correct side of the wall.
+- `na_transform_handle_point_plan` - the handle asset's local coordinates are now mirrored twice when needed:
+  - `mirroredX = layout.handleMirrorX ? -localX : localX` - already present, handles left/right hand.
+  - `mirroredY = layout.handleMirrorY ? -localY : localY` - NEW, handles the outward case so the rose sits on the far face with the body extending into the exterior (larger SVG Y) instead of being drawn back into the panel.
+- Net effect in the plan view: with `SwingDirection = Outward` the closed panel sits at the bottom of the wall rect, the swing arc bulges downward into the exterior, the open panel outline extends downward from the hinge, and the handle rose sits flush on the panel's far face with its body pointing down into the exterior. With `SwingDirection = Inward` everything mirrors to the top of the wall / into the room.
+
+### How the four hand/direction combos now compose
+```mermaid
+flowchart TD
+    cfg[DoorConfig] --> panelY["na_panel_y_origin_mm"]
+    cfg --> hingeY["na_hinge_y_origin_mm"]
+    cfg --> centreY["na_panel_centre_y_mm"]
+    panelY --> panelSolid["Panel solid Y (Ruby + JS plan)"]
+    centreY --> handleInst["3D handle interior/exterior Y"]
+    hingeY --> swing3d["2D swing arc (SketchUp floor)"]
+    hingeY --> rotMarker["ROT marker origin"]
+    hingeY --> openRot["Open-state rotation pivot"]
+    hingeY --> planArc["Plan view swing arc anchor"]
+    hingeY --> planOutline["Plan view open panel outline anchor"]
+```
+
+With this single-source-of-truth model, every hand/direction combination pivots around the correct hinge corner of the reveal and sweeps entirely out of the lining depth, mirroring the real-world door architecture:
+
+| Hand + Direction | Hinge pivot (Ruby)                                  | Panel closed Y (Ruby)                  | 2D plan swing arc bulges |
+| ---------------- | --------------------------------------------------- | -------------------------------------- | ------------------------ |
+| Left + Inward    | `(lining_t, face_offset)`                           | `face_offset`                          | Up (into room)           |
+| Right + Inward   | `(opening_w - lining_t, face_offset)`               | `face_offset`                          | Up (into room)           |
+| Left + Outward   | `(lining_t, face_offset + wall_depth)`              | `face_offset + wall_depth - panel_t`   | Down (into exterior)     |
+| Right + Outward  | `(opening_w - lining_t, face_offset + wall_depth)`  | `face_offset + wall_depth - panel_t`   | Down (into exterior)     |
+
+### Files touched
+- `Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__.rb` (new `na_panel_y_origin_mm`, `na_panel_centre_y_mm`, `na_hinge_y_origin_mm`)
+- `Na__AssemblyStudio__InteriorDoorSystem__GeometryBuilders__.rb` (panel Y + swing arc hinge Y via helpers)
+- `Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb` (ROT marker origin + open-state rotation pivot via hinge helper)
+- `Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb` (handle centre-line via panel-centre helper)
+- `Na__AssemblyStudio__InteriorDoorSystem__Viewport__PlanGenerator__.js` (layout emits `panelY`, `hingeY`, `swingDirection`, `handleY`, `handleMirrorX`, `handleMirrorY`; arc / outline / handle transforms honour them)
+
+### Verification summary
+- Linter + `node --check` clean on every edited file.
+- SketchUp runtime confirmation across all four hand/direction combinations: closed panel lands flush with the hinge-side wall face, open-state copy rotates cleanly away from the lining, 2D swing arc anchors at the correct hinge corner, no hand-applied X/Y offsets required anywhere.
+- Plan-view runtime confirmation: closed panel, open outline, swing arc, and handle rose all flip to the correct face / side of the wall when `SwingDirection` is toggled. Handle rose body always projects AWAY from the panel into the open-swing side, never back into the panel.
+
+### Related context (already separately captured in the DEVLOG)
+- `V1.1.1` introduced the multi-step handle lay-back rotation and GLB-parity 3D exporter (per-vertex normals + edge soft/smooth/hidden flags).
+- `V1.3.5` bumped the handle mesh signature from `v2|` -> `v3|` so cached ComponentDefinitions rebuild when the handle edge-flag application and material-neutral mesh storage were introduced.
+- `V1.4.0` made the MOD group name swing-direction-conditional so TrueVision3D animates outward / inward doors in the correct rotational sense; the `V1.4.1` hinge-Y change here means the Ruby rotation pivot now matches the TV3D animation axis for outward doors as well, completing the alignment.
+
+# =============================================================================
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.4.0 - 03-May-2026 - Swing-direction-conditional MOD name so inward doors animate the correct way
 
 ### Context
