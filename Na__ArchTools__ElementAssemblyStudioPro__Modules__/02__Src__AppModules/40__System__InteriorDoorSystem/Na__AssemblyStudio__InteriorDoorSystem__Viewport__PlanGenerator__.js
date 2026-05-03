@@ -471,12 +471,16 @@
         var panelClearWidth  = openingWidth - (liningThickness * 2);
 
         var panelY;
+        var hingeY;                                                            // <-- Hinge pivot Y: panel's hinge-side face (= wall face the hinge sits on)
         if (swingDirection === 'inward') {
             panelY = wallTopY;                                                 // <-- Flush with NEAR wall face (hinge on near side; panel swings INTO room)
+            hingeY = wallTopY;                                                 // <-- Hinge on near wall face = panel front face
         } else if (swingDirection === 'outward') {
             panelY = wallTopY + wallDepth - panelThickness;                    // <-- Flush with FAR wall face (hinge on far side; panel swings INTO exterior)
+            hingeY = wallTopY + wallDepth;                                     // <-- Hinge on far wall face = panel back face (panelY + panelThickness)
         } else {
             panelY = wallTopY + ((wallDepth - panelThickness) / 2);            // <-- Centred fallback
+            hingeY = wallTopY + (wallDepth / 2);                               // <-- Centred fallback
         }
 
         var panelX           = (swingSide === 'Left')
@@ -495,6 +499,7 @@
             panelThickness   : panelThickness,
             panelClearWidth  : panelClearWidth,
             swingSide        : swingSide,
+            swingDirection   : swingDirection,
             handleMirrorX    : handleMirrorX,
             viewMinX         : 0,
             viewMaxX         : totalWidth,
@@ -503,6 +508,7 @@
             wallTopY         : wallTopY,
             openingX         : openingX,
             panelY           : panelY,
+            hingeY           : hingeY,
             handleX          : handleX,
             handleY          : handleY
         };

@@ -95,6 +95,17 @@
 // REGION | Handle Asset Sync (Ruby -> JS)
 // -----------------------------------------------------------------------------
 
+    // HELPER FUNCTION | Return the ArchitraveProfile descriptor record
+    // ------------------------------------------------------------
+    function na_door_get_architrave_descriptor() {
+        var source = window.NA_DOOR_ARCHITRAVE_CONFIG || [];
+        for (var i = 0; i < source.length; i++) {
+            if (source[i] && source[i].id === 'Na__DoorConfig__ArchitraveProfileKey') return source[i];
+        }
+        return null;
+    }
+    // ---------------------------------------------------------------
+
     // HELPER FUNCTION | Return the HandleAsset descriptor record
     // ------------------------------------------------------------
     function na_door_get_handle_descriptor() {
@@ -183,6 +194,18 @@
     };
     // ---------------------------------------------------------------
 
+    // FUNCTION | Request dynamic architrave option list from Ruby
+    // ------------------------------------------------------------
+    window.na_requestDoorArchitraveAssetOptions = function () {
+        if (!window.sketchup || typeof window.sketchup.na_requestDoorArchitraveAssetOptions !== 'function') return;
+        try {
+            window.sketchup.na_requestDoorArchitraveAssetOptions();
+        } catch (err) {
+            console.warn('[Na_DoorBridge] na_requestDoorArchitraveAssetOptions failed:', err);
+        }
+    };
+    // ---------------------------------------------------------------
+
     // FUNCTION | Request selected handle preview blocks from Ruby
     // ------------------------------------------------------------
     window.na_requestDoorHandlePreviewAsset = function (assetKey) {
@@ -236,6 +259,47 @@
             na_door_ensure_preview_cache_entry(selectedKey, 'asset-options-received');
         } catch (err) {
             console.error('[Na_DoorBridge] Failed to receive handle asset options:', err);
+        }
+    };
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Ruby -> JS - Receive dynamic architrave options list
+    // ------------------------------------------------------------
+    window.na_receiveDoorArchitraveAssetOptions = function (jsonString) {
+        try {
+            var payload = JSON.parse(jsonString || '{}');
+            var options = Array.isArray(payload.options) ? payload.options : [];
+            if (!options.length) {
+                console.warn('[Na_DoorBridge] No architrave options received from Ruby');
+                if (typeof window.na_showStatus === 'function') {
+                    window.na_showStatus('warning', 'No valid architrave assets available.');
+                }
+                return;
+            }
+
+            var descriptor = na_door_get_architrave_descriptor();
+            if (!descriptor) return;
+            descriptor.options = options;
+
+            var activePayload = (typeof Na_DoorUI !== 'undefined' && typeof Na_DoorUI.na_get_active_config === 'function')
+                ? Na_DoorUI.na_get_active_config()
+                : null;
+            var activeConfig = activePayload && activePayload['Na__DoorConfiguration'] ? activePayload['Na__DoorConfiguration'] : null;
+            var selectedKey = activeConfig ? activeConfig['Na__DoorConfig__ArchitraveProfileKey'] : null;
+
+            if (!selectedKey || !options.some(function (opt) { return opt.value === selectedKey; })) {
+                selectedKey = payload.defaultKey || options[0].value;
+                if (activeConfig) {
+                    activeConfig['Na__DoorConfig__ArchitraveProfileKey'] = selectedKey;
+                    if (typeof Na_DoorUI !== 'undefined' && typeof Na_DoorUI.na_set_active_config === 'function') {
+                        Na_DoorUI.na_set_active_config(activePayload);
+                    }
+                }
+            }
+
+            na_door_patch_select_options('Na__DoorConfig__ArchitraveProfileKey', options, selectedKey);
+        } catch (err) {
+            console.error('[Na_DoorBridge] Failed to receive architrave asset options:', err);
         }
     };
     // ---------------------------------------------------------------

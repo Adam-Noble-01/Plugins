@@ -28,6 +28,7 @@
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__'
+require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__'
 
 module Na__AssemblyStudio
 module Na__InteriorDoorSystem
@@ -37,8 +38,9 @@ module Na__InteriorDoorSystem
 # REGION | Module References
 # -----------------------------------------------------------------------------
 
-        DebugTools      = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
-        GeometryHelpers = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
+        DebugTools       = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        GeometryHelpers  = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
+        PanelDesignFrame = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__PanelDesignFrame
 
 # endregion -------------------------------------------------------------------
 
@@ -48,9 +50,10 @@ module Na__InteriorDoorSystem
 
         # FUNCTION | Build the Vertical-Narrow Subdivision Lines
         # ------------------------------------------------------------
-        # The shared frame has already drawn the inner perimeter
-        # rectangle. This function adds only the internal vertical
-        # dividers - one single edge per division.
+        # Draws the inner perimeter rectangle (no clipping, since the
+        # vertical dividers below are zero-thickness centerlines so
+        # there is no thickness band to clip against), then adds one
+        # full-height divider per internal pane.
         #
         # @param face_entities [Sketchup::Entities] Target group entities
         # @param layout [Hash] Layout from Na__PanelDesignFrame.na_compute_layout
@@ -60,8 +63,10 @@ module Na__InteriorDoorSystem
         def self.na_build_face_lines(face_entities, layout, preferred_pane_w_mm, y_mm)
             return 0 unless layout[:inner_perimeter_valid?]
 
+            count = PanelDesignFrame.na_draw_inner_perimeter(face_entities, layout, y_mm)
+
             divisions     = na_compute_division_count(layout[:inner_w], preferred_pane_w_mm)
-            return 0 if divisions <= 1                                          # <-- 1 pane = no internal dividers
+            return count if divisions <= 1                                      # <-- 1 pane = no internal dividers
 
             inner_x_min   = layout[:inner_x_min]
             inner_x_max   = layout[:inner_x_max]
@@ -69,7 +74,6 @@ module Na__InteriorDoorSystem
             inner_z_max   = layout[:inner_z_max]
             pane_width    = (inner_x_max - inner_x_min) / divisions.to_f
 
-            count = 0
             (1...divisions).each do |i|
                 x_div = inner_x_min + (pane_width * i)
                 count += 1 if GeometryHelpers.na_create_xz_line(
@@ -78,7 +82,7 @@ module Na__InteriorDoorSystem
             end
 
             DebugTools.na_debug_geometry(
-                "PanelDesign[VerticalNarrow]: #{divisions} panes, #{count} divider edges (pane_w=#{pane_width.round(1)}mm)"
+                "PanelDesign[VerticalNarrow]: #{divisions} panes, #{count} edges (pane_w=#{pane_width.round(1)}mm)"
             )
             count
         end

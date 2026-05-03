@@ -15,10 +15,12 @@
 # DESCRIPTION:
 # - Reads the inner-perimeter rect from the layout hash supplied by
 #   Na__PanelDesignFrame.
-# - Adds two horizontal cross-rail centerlines at z = inner_z_min + (1/3)*inner_h
-#   and z = inner_z_min + (2/3)*inner_h. Each is a SINGLE edge (no rail-pair
-#   thickness) so the elevation reads as a clean architectural division.
+# - Builds two horizontal cross-rails AS PAIRS at z = (1/3)*inner_h
+#   and z = (2/3)*inner_h, each spaced by inner_rail_t.
 # - No vertical mullion - each tier is a single full-width panel.
+# - The inner perimeter's left/right verticals are clipped at every
+#   cross-rail's thickness band so the joints with the perimeter
+#   read as clean butt-joints.
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
@@ -27,7 +29,7 @@
 
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
-require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__'
+require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__'
 
 module Na__AssemblyStudio
 module Na__InteriorDoorSystem
@@ -37,8 +39,8 @@ module Na__InteriorDoorSystem
 # REGION | Module References & Constants
 # -----------------------------------------------------------------------------
 
-        DebugTools      = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
-        GeometryHelpers = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
+        DebugTools       = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        PanelDesignFrame = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__PanelDesignFrame
 
         # CONSTANTS | Tier Boundary Ratios
         # ------------------------------------------------------------
@@ -54,10 +56,10 @@ module Na__InteriorDoorSystem
 
         # FUNCTION | Build the Horizontal-Three Subdivision Lines
         # ------------------------------------------------------------
-        # The shared frame has already drawn the inner perimeter
-        # rectangle. This function adds two horizontal cross-rails
-        # at the one-third and two-thirds Z boundaries of the inner
-        # perimeter. No vertical mullion is added.
+        # Computes the cross-rail specs, then draws the inner perimeter
+        # and two cross-rail pairs using the shared frame helpers
+        # (which apply joint clipping where the rails meet the
+        # perimeter's left/right verticals). No mullions in this style.
         #
         # @param face_entities [Sketchup::Entities] Target group entities
         # @param layout [Hash] Layout from Na__PanelDesignFrame.na_compute_layout
@@ -66,25 +68,25 @@ module Na__InteriorDoorSystem
         def self.na_build_face_lines(face_entities, layout, y_mm)
             return 0 unless layout[:inner_perimeter_valid?]
 
-            inner_x_min   = layout[:inner_x_min]
-            inner_x_max   = layout[:inner_x_max]
-            inner_z_min   = layout[:inner_z_min]
-            inner_h       = layout[:inner_h]
+            half_t          = layout[:inner_rail_t] / 2.0
+            inner_z_min     = layout[:inner_z_min]
+            inner_h         = layout[:inner_h]
+            lower_z_centre  = inner_z_min + (inner_h * NA_LOWER_BOUNDARY_RATIO)
+            upper_z_centre  = inner_z_min + (inner_h * NA_UPPER_BOUNDARY_RATIO)
 
-            lower_z_centre = inner_z_min + (inner_h * NA_LOWER_BOUNDARY_RATIO)
-            upper_z_centre = inner_z_min + (inner_h * NA_UPPER_BOUNDARY_RATIO)
+            cross_rails = [
+                { :z_low => lower_z_centre - half_t, :z_high => lower_z_centre + half_t, :z_centre => lower_z_centre },
+                { :z_low => upper_z_centre - half_t, :z_high => upper_z_centre + half_t, :z_centre => upper_z_centre }
+            ]
+            mullions = []
 
             count  = 0
-            count += 1 if GeometryHelpers.na_create_xz_line(
-                face_entities, inner_x_min, lower_z_centre, inner_x_max, lower_z_centre, y_mm
-            )
-            count += 1 if GeometryHelpers.na_create_xz_line(
-                face_entities, inner_x_min, upper_z_centre, inner_x_max, upper_z_centre, y_mm
-            )
+            count += PanelDesignFrame.na_draw_inner_perimeter(face_entities, layout, y_mm, mullions, cross_rails)
+            cross_rails.each do |cr|
+                count += PanelDesignFrame.na_draw_horizontal_rail_pair(face_entities, layout, cr[:z_centre], mullions, y_mm)
+            end
 
-            DebugTools.na_debug_geometry(
-                "PanelDesign[HorizontalThree]: drew #{count} division edges"
-            )
+            DebugTools.na_debug_geometry("PanelDesign[HorizontalThree]: drew #{count} edges")
             count
         end
         # ---------------------------------------------------------------

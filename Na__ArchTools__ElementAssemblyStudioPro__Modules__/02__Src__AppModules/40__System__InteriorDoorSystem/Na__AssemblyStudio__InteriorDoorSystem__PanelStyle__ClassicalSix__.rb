@@ -18,10 +18,16 @@
 # - Splits the inner height into three tiers using NA_TIER_RATIOS
 #   (24% top / 38% middle / 38% bottom). The top tier is intentionally
 #   shorter to match the classical Georgian proportion.
-# - Adds two horizontal cross-rail centerlines at the tier boundaries
-#   and one full-height vertical mullion centerline at the inner-perimeter
-#   centre. Each rail / mullion is a SINGLE edge (no rail-pair thickness)
-#   so the elevation reads as a clean architectural division.
+# - Builds two horizontal cross-rails AS PAIRS (each a pair of parallel
+#   edges spaced by inner_rail_t) at the tier boundaries, plus one
+#   full-height vertical mullion AS A PAIR at the inner-perimeter centre.
+# - All edges are clipped at every perpendicular rail's thickness band
+#   so each joint reads as a clean butt-joint - no segments visible
+#   inside another rail's thickness.
+# - The inner perimeter rectangle is drawn here (not by the builder)
+#   because the perimeter's left/right edges must be clipped by both
+#   cross-rails and the perimeter's top/bottom edges must be clipped
+#   by the mullion.
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
@@ -30,7 +36,7 @@
 
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
-require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__'
+require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__'
 
 module Na__AssemblyStudio
 module Na__InteriorDoorSystem
@@ -40,8 +46,8 @@ module Na__InteriorDoorSystem
 # REGION | Module References & Constants
 # -----------------------------------------------------------------------------
 
-        DebugTools      = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
-        GeometryHelpers = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
+        DebugTools       = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        PanelDesignFrame = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__PanelDesignFrame
 
         # CONSTANTS | Tier Height Ratios (must sum to 1.0)
         # ------------------------------------------------------------
@@ -61,9 +67,9 @@ module Na__InteriorDoorSystem
 
         # FUNCTION | Build the Classical Six-Panel Subdivision Lines
         # ------------------------------------------------------------
-        # The shared frame has already drawn the inner perimeter
-        # rectangle. This function adds the two horizontal cross-rails
-        # and the single vertical mullion that produce the 2+2+2 layout.
+        # Computes the rail/mullion specs, then draws the inner
+        # perimeter and the two cross-rail pairs and one mullion pair
+        # using the shared frame helpers (which apply joint clipping).
         #
         # @param face_entities [Sketchup::Entities] Target group entities
         # @param layout [Hash] Layout from Na__PanelDesignFrame.na_compute_layout
@@ -72,30 +78,34 @@ module Na__InteriorDoorSystem
         def self.na_build_face_lines(face_entities, layout, y_mm)
             return 0 unless layout[:inner_perimeter_valid?]
 
-            inner_x_min   = layout[:inner_x_min]
-            inner_x_max   = layout[:inner_x_max]
-            inner_z_min   = layout[:inner_z_min]
-            inner_z_max   = layout[:inner_z_max]
-            inner_h       = layout[:inner_h]
+            half_t              = layout[:inner_rail_t] / 2.0
+            inner_h             = layout[:inner_h]
+            inner_z_min         = layout[:inner_z_min]
+            inner_x_min         = layout[:inner_x_min]
+            inner_x_max         = layout[:inner_x_max]
 
-            tier_boundary_lower = inner_z_min + (inner_h * NA_TIER_RATIO_BOTTOM)
-            tier_boundary_upper = inner_z_min + (inner_h * (NA_TIER_RATIO_BOTTOM + NA_TIER_RATIO_MIDDLE))
+            cross_low_z_centre  = inner_z_min + (inner_h * NA_TIER_RATIO_BOTTOM)
+            cross_high_z_centre = inner_z_min + (inner_h * (NA_TIER_RATIO_BOTTOM + NA_TIER_RATIO_MIDDLE))
             mullion_x_centre    = (inner_x_min + inner_x_max) / 2.0
 
-            count  = 0
-            count += 1 if GeometryHelpers.na_create_xz_line(
-                face_entities, inner_x_min, tier_boundary_lower, inner_x_max, tier_boundary_lower, y_mm
-            )
-            count += 1 if GeometryHelpers.na_create_xz_line(
-                face_entities, inner_x_min, tier_boundary_upper, inner_x_max, tier_boundary_upper, y_mm
-            )
-            count += 1 if GeometryHelpers.na_create_xz_line(
-                face_entities, mullion_x_centre, inner_z_min, mullion_x_centre, inner_z_max, y_mm
-            )
+            cross_rails = [
+                { :z_low => cross_low_z_centre  - half_t, :z_high => cross_low_z_centre  + half_t, :z_centre => cross_low_z_centre  },
+                { :z_low => cross_high_z_centre - half_t, :z_high => cross_high_z_centre + half_t, :z_centre => cross_high_z_centre }
+            ]
+            mullions = [
+                { :x_left => mullion_x_centre - half_t, :x_right => mullion_x_centre + half_t, :x_centre => mullion_x_centre }
+            ]
 
-            DebugTools.na_debug_geometry(
-                "PanelDesign[ClassicalSixPanel]: drew #{count} division edges"
-            )
+            count  = 0
+            count += PanelDesignFrame.na_draw_inner_perimeter(face_entities, layout, y_mm, mullions, cross_rails)
+            cross_rails.each do |cr|
+                count += PanelDesignFrame.na_draw_horizontal_rail_pair(face_entities, layout, cr[:z_centre], mullions, y_mm)
+            end
+            mullions.each do |m|
+                count += PanelDesignFrame.na_draw_vertical_mullion_pair(face_entities, layout, m[:x_centre], cross_rails, y_mm)
+            end
+
+            DebugTools.na_debug_geometry("PanelDesign[ClassicalSixPanel]: drew #{count} edges")
             count
         end
         # ---------------------------------------------------------------

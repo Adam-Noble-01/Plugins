@@ -37,6 +37,7 @@
 # - Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__FourPanel__
 # - Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__HorizontalThree__
 # - Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__
+# - Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__
 # - Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__
 # - Na__AssemblyStudio__InteriorDoorSystem__GeometryEngine__
 # - Na__AssemblyStudio__MeasurementTools__ThreePointOpeningTool__ (06__Tools__MeasurementTools)
@@ -199,7 +200,7 @@ module Na__InteriorDoorSystem
             "Na__DoorConfig__PanelDesignTopRail_mm"         => 100,
             "Na__DoorConfig__PanelDesignBottomRail_mm"      => 200,
             "Na__DoorConfig__PanelDesignInnerRailThickness_mm" => 70,
-            "Na__DoorConfig__PanelDesignVerticalPaneWidth_mm"  => 90,
+            "Na__DoorConfig__PanelDesignVerticalPaneWidth_mm" => 90,
             "Na__DoorConfig__PanelDesignEdgeColourId"       => "MTE103__LineColour__DarkGrey__L40"
         }
     }.freeze
@@ -232,6 +233,7 @@ module Na__InteriorDoorSystem
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__FourPanel__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__HorizontalThree__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__'
+        require_relative 'Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__'
         require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryEngine__'
         require_relative '../06__Tools__MeasurementTools/Na__AssemblyStudio__MeasurementTools__ThreePointOpeningTool__'

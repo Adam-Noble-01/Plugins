@@ -100,12 +100,14 @@ module Na__InteriorDoorSystem
         NA_KEY_STILE_W          = "Na__DoorConfig__PanelDesignStileWidth_mm".freeze
         NA_KEY_TOP_RAIL         = "Na__DoorConfig__PanelDesignTopRail_mm".freeze
         NA_KEY_BOTTOM_RAIL      = "Na__DoorConfig__PanelDesignBottomRail_mm".freeze
+        NA_KEY_INNER_RAIL_T     = "Na__DoorConfig__PanelDesignInnerRailThickness_mm".freeze
         NA_KEY_VERTICAL_PANE_W  = "Na__DoorConfig__PanelDesignVerticalPaneWidth_mm".freeze
         NA_KEY_EDGE_COLOUR_ID   = "Na__DoorConfig__PanelDesignEdgeColourId".freeze
 
         NA_DEFAULT_STILE_W          = 95.0
         NA_DEFAULT_TOP_RAIL         = 100.0
         NA_DEFAULT_BOTTOM_RAIL      = 200.0
+        NA_DEFAULT_INNER_RAIL_T     = 70.0
         NA_DEFAULT_VERTICAL_PANE_W  = 90.0
         # ---------------------------------------------------------------
 
@@ -233,10 +235,12 @@ module Na__InteriorDoorSystem
 
         # HELPER FUNCTION | Build the Linework for a Single Panel Face
         # ------------------------------------------------------------
-        # Always draws the inner-perimeter rectangle, then dispatches
-        # to the requested style for its specific subdivisions.
+        # Each style is responsible for drawing the inner perimeter
+        # AND its own internal subdivisions. This is required so the
+        # style can compute the correct gap arrays (its own mullions
+        # and cross-rails) for clean butt-joint clipping where the
+        # rails meet the perimeter and each other.
         def self.na_build_face(face_entities, layout, style_key, config, y_mm)
-            PanelDesignFrame.na_draw_inner_perimeter(face_entities, layout, y_mm)
             na_dispatch_style(style_key, face_entities, layout, config, y_mm)
         end
         private_class_method :na_build_face

@@ -38,6 +38,8 @@
 
     var NA_LIVE_UPDATE_DEBOUNCE_MS = 150;                                     // <-- Mirrors window-tool live-update cadence
     var NA_DOOR_OBSOLETE_CONFIG_KEYS = ['Na__DoorConfig__HandleSide'];        // <-- Removed for Interior single-door workflow
+    var NA_DOOR_ARCHITRAVE_DEFAULT_PROFILE_KEY = 'Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm';
+    var NA_DOOR_ARCHITRAVE_LEGACY_DEFAULT_KEY = 'Na__InteriorDoor__Architrave__Default';
 
     // Material IDs no longer ride on visible JS descriptors (the Joinery /
     // Handle Finish swatch cards write them straight into na_active_config).
@@ -88,6 +90,7 @@
             }
         });
         na_prune_obsolete_config_keys(defaults);
+        na_normalize_architrave_config_keys(defaults, { stripLegacyKeys: false });
         return defaults;
     }
     // ---------------------------------------------------------------
@@ -101,6 +104,43 @@
                 delete configMap[key];
             }
         });
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Normalize Architrave Keys to Runtime Canonical Shape
+    // ------------------------------------------------------------
+    function na_normalize_architrave_config_keys(configMap, options) {
+        if (!configMap || typeof configMap !== 'object') return;
+
+        var runtimeOptions = options || {};
+        var shouldStripLegacy = runtimeOptions.stripLegacyKeys === true;
+        var profileKey = (configMap['Na__DoorConfig__ArchitraveProfileKey'] || '').toString().trim();
+        var legacyAssetKey = (configMap['Na__DoorConfig__ArchitraveAssetKey'] || '').toString().trim();
+
+        if (!profileKey && legacyAssetKey) {
+            profileKey = legacyAssetKey;
+        }
+        if (!profileKey || profileKey === NA_DOOR_ARCHITRAVE_LEGACY_DEFAULT_KEY) {
+            profileKey = NA_DOOR_ARCHITRAVE_DEFAULT_PROFILE_KEY;
+        }
+        configMap['Na__DoorConfig__ArchitraveProfileKey'] = profileKey;
+
+        if (Object.prototype.hasOwnProperty.call(configMap, 'Na__DoorConfig__ArchitraveEnabled')) {
+            var unifiedEnabled = configMap['Na__DoorConfig__ArchitraveEnabled'] !== false;
+            configMap['Na__DoorConfig__ArchitraveFrontEnabled'] = unifiedEnabled;
+            configMap['Na__DoorConfig__ArchitraveBackEnabled'] = unifiedEnabled;
+        } else {
+            var frontEnabled = configMap['Na__DoorConfig__ArchitraveFrontEnabled'] !== false;
+            var backEnabled = configMap['Na__DoorConfig__ArchitraveBackEnabled'] !== false;
+            configMap['Na__DoorConfig__ArchitraveFrontEnabled'] = frontEnabled;
+            configMap['Na__DoorConfig__ArchitraveBackEnabled'] = backEnabled;
+            configMap['Na__DoorConfig__ArchitraveEnabled'] = frontEnabled && backEnabled;
+        }
+
+        if (shouldStripLegacy) {
+            delete configMap['Na__DoorConfig__ArchitraveAssetKey'];
+            delete configMap['Na__DoorConfig__ArchitraveEnabled'];
+        }
     }
     // ---------------------------------------------------------------
 
@@ -336,6 +376,7 @@
     // ------------------------------------------------------------
     function na_handle_control_change(id, value) {
         na_active_config[id] = value;
+        na_normalize_architrave_config_keys(na_active_config, { stripLegacyKeys: false });
         if (id === 'Na__DoorConfig__HandleAssetKey') {
             na_reset_preview_request_state(value);
             na_request_handle_preview_if_needed('handle-select-change');
@@ -497,6 +538,9 @@
         if (typeof window.na_requestDoorHandleAssetOptions === 'function') {
             window.na_requestDoorHandleAssetOptions();
         }
+        if (typeof window.na_requestDoorArchitraveAssetOptions === 'function') {
+            window.na_requestDoorArchitraveAssetOptions();
+        }
         na_request_handle_preview_if_needed('door-ui-mount');
 
         if (window.Na_FrameFinishCards && typeof window.Na_FrameFinishCards.na_render_all === 'function') {
@@ -629,6 +673,7 @@
         }
 
         na_prune_obsolete_config_keys(na_active_config);
+        na_normalize_architrave_config_keys(na_active_config, { stripLegacyKeys: false });
         na_request_handle_preview_if_needed('set-active-config');
         na_sync_panel_design_visibility();
 
@@ -650,6 +695,7 @@
         Object.keys(updates).forEach(function (key) {
             na_active_config[key] = updates[key];
         });
+        na_normalize_architrave_config_keys(na_active_config, { stripLegacyKeys: false });
         na_schedule_rerender();
         na_schedule_live_update();
     };
@@ -689,6 +735,7 @@
     function na_build_full_config_payload() {
         var na_config_snapshot = Object.assign({}, na_active_config);
         na_prune_obsolete_config_keys(na_config_snapshot);
+        na_normalize_architrave_config_keys(na_config_snapshot, { stripLegacyKeys: true });
         return {
             'Na__DoorMetadata'      : [na_active_metadata],
             'Na__DoorComponents'    : [],

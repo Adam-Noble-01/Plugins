@@ -225,9 +225,7 @@ window.NA_DOOR_ARCHITRAVE_CONFIG = [
         label       : 'Profile',
         type        : 'select',
         default     : 'Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm',
-        options     : [
-            { value: 'Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm', label: 'Default Plan2D 70x20' }
-        ]
+        options     : []                                                     // <-- Dynamic options are injected from Ruby using JSON Na__Asset__Metadata.Na__Asset__Name
     }
 ];
 

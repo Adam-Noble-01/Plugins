@@ -78,6 +78,18 @@ The Plugins-root loader is `Na__ElementAssemblyStudioPro__Loader.rb`. SketchUp l
 - Interior single-door handle placement follows swing-side behavior.
 - The previous dedicated handle-side selector is removed from the UI workflow.
 
+## InteriorDoor rotation pivot helper (TrueVision3D contract)
+The `ROT001__RotationPoint__DoorHingeCentre` group inside every `ADR001__InternalDoor` assembly is the door's rotation pivot consumed by the downstream TrueVision3D `Na__DoorAnimation__` module. The Three.js scanner reads `rotObject.position` (the ROT child's local origin inside the ADR parent) as the pivot for the click-to-open animation.
+
+- The composer translates the ROT group to the hinge axis via `na_translate_rot_marker_to_hinge` and then `Na__RotationPivotBuilder.na_build_pivot_helper` populates it with visible debug geometry inside that group's local coordinate space (hinge centre = `(0, 0, 0)`).
+- The helper consists of: a vertical hinge axis line inset 100 mm from the bottom and top of the inner jamb opening, a 50x50 mm `+` crosshair on the XY plane at each end of the line, and a quarter-circle swing-direction arc + arrowhead at the top crosshair (computed from `Na__DoorConfig__SwingSide` + `Na__DoorConfig__SwingDirection`).
+- All helper edges are tagged on `02__DoorHelpers__RotationPivots`, which is red, dashed (`Sketchup::Layer#line_style = Sketchup.active_model.line_styles["Dash"]`), excluded from GLB export by both its `02__` numeric prefix (in `Na__DataLib__CoreIndex__Tags__.json` `meta.skipRanges`) and `Glb__FullyExcluded: true`.
+- The open-state ADR copy duplicates the helper for free via `Sketchup::Group#copy`; no extra handling is required.
+- The file naming uses one feature per module per workspace clean-code rules: see `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__.rb`.
+
+### Tag line style configuration (Layout__LineStyleName)
+Tag JSON entries gain an optional `Layout__LineStyleName` field (string) keyed off the SketchUp Ruby `Sketchup::LineStyles` collection. The list of supported names (case sensitive) is documented in the `LineStyleReference` block at the bottom of `Na__DataLib__CoreIndex__Tags__.json` along with a copy-paste tag template. `TagManager.na_get_or_create_tag` reads the field via `na_apply_line_style_for_role`, falls back to a small in-Ruby table (`NA_ROLE_DEFAULT_LINE_STYLES`), and applies via `Sketchup::Layer#line_style=` only if the active SketchUp version exposes the API.
+
 ## InteriorDoor handle asset + exporter contract
 - Canonical handle contract template lives at `04__Data__AssetLibrary/InteriorDoor__Handles__/Na__StandardTemplate.json`.
 - `65__Dev__DevTools/Na__AssemblyStudio__DevTools__JsonExporter2D__.rb` now emits Na__ unified roots (`meta`, `Na__Asset__Metadata`, and one of `Na__Asset__Plan2D` / `Na__Asset__Elevation2D`) rather than legacy ValeSpec keys.
@@ -163,10 +175,11 @@ ComponentDefinition: ADR001__InteriorDoor__
       Na__DoorPanel__DesignContainer             [NEW]
         Na__PanelDesign__FrontFace               [edges only, Y = panel_front_y - 0.5mm]
         Na__PanelDesign__BackFace                [edges only, Y = panel_back_y  + 0.5mm]
-    ROT001__RotationPoint__DoorHingeCentre
+    ROT001__RotationPoint__DoorHingeCentre       [origin = hinge centre; pivot read by TrueVision3D]
+      <pivot helper edges>                       [tag: 02__DoorHelpers__RotationPivots, red dashed]
   ADR001__InternalDoor (open copy)               [tag: door_open]
     <duplicated MOD via Sketchup::Group#copy - design propagates automatically>
-    ROT001__RotationPoint__DoorHingeCentre
+    ROT001__RotationPoint__DoorHingeCentre       [helper edges duplicated via Group#copy]
 ```
 The container sits inside `MOD` so the linework rotates with the door. The open ADR copy is built by duplicating the closed ADR, so the design subsystem only needs to run once per build (no manual mirroring).
 

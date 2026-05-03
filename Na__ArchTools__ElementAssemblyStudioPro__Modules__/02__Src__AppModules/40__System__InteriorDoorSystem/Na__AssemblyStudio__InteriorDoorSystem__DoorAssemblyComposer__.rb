@@ -14,9 +14,13 @@
 # DESCRIPTION:
 # - Hosts the algorithm that wraps the panel and handles into a movable
 #   group named "MOD001__ROT__90-Deg__DoorPanel".
-# - Adds an empty marker group "ROT001__RotationPoint__DoorHingeCentre" at
-#   the hinge axis so the TrueVision converter can pick up the rotation
-#   pivot.
+# - Adds the marker group "ROT001__RotationPoint__DoorHingeCentre" at the
+#   hinge axis so the TrueVision converter can pick up the rotation pivot
+#   from the group's transformation/origin. The group is then populated
+#   with red-dashed pivot helper linework (vertical hinge axis line +
+#   crosshairs at both ends + swing-direction arrow) by
+#   Na__RotationPivotBuilder. The helpers live on the dedicated tag
+#   `02__DoorHelpers__RotationPivots` and are stripped from GLB export.
 # - Wraps both into "ADR001__InternalDoor" - the outer assembly root.
 # - Tags the closed-state assembly with :door_closed.
 # - When config[:create_open_state_copy] is true (default), the closed
@@ -41,6 +45,7 @@ require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryBuilders__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__'
+require_relative 'Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__TagManager__'
 
 module Na__AssemblyStudio
@@ -51,12 +56,13 @@ module Na__InteriorDoorSystem
 # REGION | Module References
 # -----------------------------------------------------------------------------
 
-        DebugTools         = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
-        GeometryHelpers    = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
-        GeometryBuilders   = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryBuilders
-        HandleBuilder3D    = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D
-        PanelDesignBuilder = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__PanelDesignBuilder
-        TagManager         = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
+        DebugTools           = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        GeometryHelpers      = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
+        GeometryBuilders     = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryBuilders
+        HandleBuilder3D      = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D
+        PanelDesignBuilder   = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__PanelDesignBuilder
+        RotationPivotBuilder = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__RotationPivotBuilder
+        TagManager           = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
 
 # endregion -------------------------------------------------------------------
 
@@ -107,9 +113,10 @@ module Na__InteriorDoorSystem
             rot_group       = adr_ents.add_group
             rot_group.name  = NA_GROUP_NAME_ROT_HINGE
             na_translate_rot_marker_to_hinge(rot_group, config)
+            RotationPivotBuilder.na_build_pivot_helper(rot_group, config)
 
             TagManager.na_apply_tag_to_entity(adr_group, :door_closed)
-            DebugTools.na_debug_geometry("Composed closed assembly: ADR + MOD + ROT")
+            DebugTools.na_debug_geometry("Composed closed assembly: ADR + MOD + ROT (with pivot helper)")
 
             { :adr => adr_group, :mod => mod_group, :rot => rot_group }
         end
@@ -163,7 +170,7 @@ module Na__InteriorDoorSystem
             swing_side      = (config["Na__DoorConfig__SwingSide"] || "Left").downcase
 
             hinge_x_mm      = (swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm)
-            hinge_y_mm      = GeometryHelpers.na_panel_y_origin_mm(config)    # <-- Swing-direction-aware panel front-face Y
+            hinge_y_mm      = GeometryHelpers.na_hinge_y_origin_mm(config)    # <-- Hinge-face wall (near for inward, far for outward)
 
             translation     = Geom::Transformation.new(Geom::Point3d.new(
                 GeometryHelpers.na_mm_to_inch(hinge_x_mm),
@@ -190,7 +197,7 @@ module Na__InteriorDoorSystem
             swing_direction = (config["Na__DoorConfig__SwingDirection"] || "Inward").downcase
 
             hinge_x_mm      = (swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm)
-            hinge_y_mm      = GeometryHelpers.na_panel_y_origin_mm(config)    # <-- Swing-direction-aware panel front-face Y
+            hinge_y_mm      = GeometryHelpers.na_hinge_y_origin_mm(config)    # <-- Hinge-face wall (near for inward, far for outward)
 
             pivot           = Geom::Point3d.new(
                 GeometryHelpers.na_mm_to_inch(hinge_x_mm),

@@ -138,6 +138,51 @@ module Na__InteriorDoorSystem
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Resolve Hinge Pivot Y Origin (mm)
+        # ------------------------------------------------------------
+        # Returns the Y coordinate of the door's hinge pivot axis - i.e.
+        # the Y of the wall face the hinge sits on.  This is DIFFERENT
+        # from the panel front-face Y for outward-swinging doors:
+        #
+        #   * Inward  opening -> hinge on NEAR wall face; the panel's
+        #     front face is also the near face, so hinge_y = face_offset
+        #     (same as na_panel_y_origin_mm).
+        #   * Outward opening -> hinge on FAR wall face; the panel's
+        #     front face is the ROOM-facing face, so hinge_y sits one
+        #     panel_t beyond the panel origin, at
+        #     face_offset + wall_depth (the panel's back face, flush
+        #     with the far wall face).
+        #   * Any other / missing value -> centred in wall depth
+        #     (legacy fallback).
+        #
+        # Consumers that must pivot around the hinge axis:
+        #   * GeometryBuilders.na_build_swing (2D swing arc on floor)
+        #   * DoorAssemblyComposer.na_translate_rot_marker_to_hinge
+        #     (ROT marker group origin)
+        #   * DoorAssemblyComposer.na_compute_open_rotation_transform
+        #     (open-state copy rotation pivot)
+        #
+        # Panel geometry origin / handle centre-line consumers must
+        # continue to use na_panel_y_origin_mm / na_panel_centre_y_mm.
+        #
+        # @param config [Hash] Na__DoorConfiguration block
+        # @return [Float] Hinge pivot Y in millimetres
+        def self.na_hinge_y_origin_mm(config)
+            wall_depth_mm   = config["Na__DoorConfig__WallDepth_mm"].to_f
+            face_offset_mm  = config["Na__DoorConfig__LiningFaceOffset_mm"].to_f
+            swing_direction = config["Na__DoorConfig__SwingDirection"].to_s.downcase
+
+            case swing_direction
+            when "inward"
+                face_offset_mm                                        # <-- Near wall face (= panel front face)
+            when "outward"
+                face_offset_mm + wall_depth_mm                        # <-- Far wall face (= panel back face)
+            else
+                face_offset_mm + wall_depth_mm / 2.0                  # <-- Centred fallback
+            end
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Create a Named Box Group with Outward-Facing Normals
         # ------------------------------------------------------------
         # All eight corners are computed at final coordinates and the six
@@ -413,52 +458,72 @@ module Na__InteriorDoorSystem
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Draw a Horizontal Rail as a Pair of Parallel Edges
+        # FUNCTION | Draw a Horizontal Line as Multiple Segments, Skipping Gaps
         # ------------------------------------------------------------
-        # Architectural convention for representing a horizontal
-        # cross-rail in elevation: two parallel lines spaced by the
-        # rail thickness, centred on the rail's Z axis. Used by the
-        # multi-panel styles (Four-Panel, Six-Panel, Horizontal-Three).
+        # Architectural joint convention: where one rail/mullion crosses
+        # another, the inner segment is removed so the joint reads as a
+        # clean butt-joint. This helper walks left-to-right, skipping any
+        # interval where a perpendicular element is in the way.
         #
         # @param entities [Sketchup::Entities] Target entities collection
-        # @param x0_mm, x1_mm [Numeric] Horizontal extent of the rail (mm)
-        # @param z_centre_mm [Numeric] Centre-line Z of the rail (mm)
-        # @param thickness_mm [Numeric] Rail thickness (mm)
-        # @param y_mm [Numeric] Y plane the linework lives on (mm)
-        # @return [Integer] Count of edges drawn (2 on success)
-        def self.na_create_horizontal_rail_lines(entities, x0_mm, x1_mm, z_centre_mm, thickness_mm, y_mm)
-            half_t = thickness_mm.to_f / 2.0
-            z_top  = z_centre_mm + half_t
-            z_bot  = z_centre_mm - half_t
-
+        # @param x0_mm [Numeric] Line start X (mm)
+        # @param x1_mm [Numeric] Line end X (mm)
+        # @param z_mm [Numeric] Constant Z of the line (mm)
+        # @param y_mm [Numeric] Y plane the line lives on (mm)
+        # @param x_gaps [Array<Array<Numeric>>] Sorted, non-overlapping
+        #   [x_start, x_end] pairs to skip
+        # @return [Integer] Count of edges drawn
+        def self.na_create_horizontal_segmented(entities, x0_mm, x1_mm, z_mm, y_mm, x_gaps = [])
+            return 0 if x1_mm <= x0_mm
+            cursor = x0_mm.to_f
             count  = 0
-            count += 1 if na_create_xz_line(entities, x0_mm, z_top, x1_mm, z_top, y_mm)
-            count += 1 if na_create_xz_line(entities, x0_mm, z_bot, x1_mm, z_bot, y_mm)
+            (x_gaps || []).each do |gap|
+                gap_start = gap[0].to_f
+                gap_end   = gap[1].to_f
+                next if gap_end <= cursor
+                break if gap_start >= x1_mm
+                if gap_start > cursor
+                    count += 1 if na_create_xz_line(entities, cursor, z_mm, gap_start, z_mm, y_mm)
+                end
+                cursor = gap_end if gap_end > cursor
+            end
+            if cursor < x1_mm
+                count += 1 if na_create_xz_line(entities, cursor, z_mm, x1_mm, z_mm, y_mm)
+            end
             count
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Draw a Vertical Mullion as a Pair of Parallel Edges
+        # FUNCTION | Draw a Vertical Line as Multiple Segments, Skipping Gaps
         # ------------------------------------------------------------
-        # Architectural convention for representing a vertical
-        # mullion in elevation: two parallel lines spaced by the
-        # mullion thickness, centred on the mullion's X axis. Used
-        # by the Four-Panel and Six-Panel styles.
+        # Vertical equivalent of na_create_horizontal_segmented. Walks
+        # bottom-to-top through z_gaps and draws the visible segments.
         #
         # @param entities [Sketchup::Entities] Target entities collection
-        # @param x_centre_mm [Numeric] Centre-line X of the mullion (mm)
-        # @param z0_mm, z1_mm [Numeric] Vertical extent of the mullion (mm)
-        # @param thickness_mm [Numeric] Mullion thickness (mm)
-        # @param y_mm [Numeric] Y plane the linework lives on (mm)
-        # @return [Integer] Count of edges drawn (2 on success)
-        def self.na_create_vertical_rail_lines(entities, x_centre_mm, z0_mm, z1_mm, thickness_mm, y_mm)
-            half_t = thickness_mm.to_f / 2.0
-            x_lt   = x_centre_mm - half_t
-            x_rt   = x_centre_mm + half_t
-
+        # @param x_mm [Numeric] Constant X of the line (mm)
+        # @param z0_mm [Numeric] Line start Z (mm)
+        # @param z1_mm [Numeric] Line end Z (mm)
+        # @param y_mm [Numeric] Y plane the line lives on (mm)
+        # @param z_gaps [Array<Array<Numeric>>] Sorted, non-overlapping
+        #   [z_start, z_end] pairs to skip
+        # @return [Integer] Count of edges drawn
+        def self.na_create_vertical_segmented(entities, x_mm, z0_mm, z1_mm, y_mm, z_gaps = [])
+            return 0 if z1_mm <= z0_mm
+            cursor = z0_mm.to_f
             count  = 0
-            count += 1 if na_create_xz_line(entities, x_lt, z0_mm, x_lt, z1_mm, y_mm)
-            count += 1 if na_create_xz_line(entities, x_rt, z0_mm, x_rt, z1_mm, y_mm)
+            (z_gaps || []).each do |gap|
+                gap_start = gap[0].to_f
+                gap_end   = gap[1].to_f
+                next if gap_end <= cursor
+                break if gap_start >= z1_mm
+                if gap_start > cursor
+                    count += 1 if na_create_xz_line(entities, x_mm, cursor, x_mm, gap_start, y_mm)
+                end
+                cursor = gap_end if gap_end > cursor
+            end
+            if cursor < z1_mm
+                count += 1 if na_create_xz_line(entities, x_mm, cursor, x_mm, z1_mm, y_mm)
+            end
             count
         end
         # ---------------------------------------------------------------

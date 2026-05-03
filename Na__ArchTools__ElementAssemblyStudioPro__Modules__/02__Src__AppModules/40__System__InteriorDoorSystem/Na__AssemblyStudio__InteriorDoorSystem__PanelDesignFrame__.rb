@@ -82,10 +82,12 @@ module Na__InteriorDoorSystem
         # @param stile_w_mm [Numeric] Side stile width (both sides)
         # @param top_rail_mm [Numeric] Top rail height
         # @param bottom_rail_mm [Numeric] Bottom rail height
+        # @param inner_rail_t_mm [Numeric] Inner cross-rail / mullion thickness
         # @return [Hash] Layout hash (see keys below)
         def self.na_compute_layout(panel_origin_x_mm, panel_origin_z_mm,
                                    panel_w_mm, panel_h_mm,
-                                   stile_w_mm, top_rail_mm, bottom_rail_mm)
+                                   stile_w_mm, top_rail_mm, bottom_rail_mm,
+                                   inner_rail_t_mm)
 
             panel_x_min  = panel_origin_x_mm.to_f
             panel_x_max  = panel_x_min + panel_w_mm.to_f
@@ -114,6 +116,7 @@ module Na__InteriorDoorSystem
                 :stile_w          => stile_w_mm.to_f,
                 :top_rail         => top_rail_mm.to_f,
                 :bottom_rail      => bottom_rail_mm.to_f,
+                :inner_rail_t     => inner_rail_t_mm.to_f,
                 :inner_perimeter_valid? => (inner_w >= NA_MIN_INNER_DIMENSION_MM &&
                                             inner_h >= NA_MIN_INNER_DIMENSION_MM)
             }
@@ -126,34 +129,124 @@ module Na__InteriorDoorSystem
 # REGION | Public API - Frame Drawing
 # -----------------------------------------------------------------------------
 
-        # FUNCTION | Draw the Inner-Perimeter Rectangle
+        # FUNCTION | Draw the Inner-Perimeter Rectangle With Joint Clipping
         # ------------------------------------------------------------
         # The four edges of the inner perimeter are the visible
-        # boundary between the perimeter rails / stiles and the
-        # subdivided inner panels. Every style draws this rectangle
-        # exactly once before adding its own internal divisions.
+        # boundary between the perimeter rails/stiles and the
+        # subdivided inner panels. Each edge is broken at every
+        # perpendicular internal rail/mullion that meets it so the
+        # joints read as clean butt-joints (no short segment of the
+        # perimeter visible inside any rail's thickness band).
         #
         # @param face_entities [Sketchup::Entities] Target group entities
         # @param layout [Hash] Layout from na_compute_layout
         # @param y_mm [Numeric] Y plane the linework lives on (mm)
-        # @return [Integer] Number of edges added (4 on success)
-        def self.na_draw_inner_perimeter(face_entities, layout, y_mm)
+        # @param mullions [Array<Hash>] Each entry: { :x_left, :x_right }
+        #   - sorted ascending by :x_left, non-overlapping
+        # @param cross_rails [Array<Hash>] Each entry: { :z_low, :z_high }
+        #   - sorted ascending by :z_low, non-overlapping
+        # @return [Integer] Number of edges added
+        def self.na_draw_inner_perimeter(face_entities, layout, y_mm, mullions = [], cross_rails = [])
             return 0 unless layout[:inner_perimeter_valid?]
 
-            x_min = layout[:inner_x_min]
-            x_max = layout[:inner_x_max]
-            z_min = layout[:inner_z_min]
-            z_max = layout[:inner_z_max]
+            x_min   = layout[:inner_x_min]
+            x_max   = layout[:inner_x_max]
+            z_min   = layout[:inner_z_min]
+            z_max   = layout[:inner_z_max]
+            x_gaps  = na_mullions_to_x_gaps(mullions)
+            z_gaps  = na_cross_rails_to_z_gaps(cross_rails)
 
             count  = 0
-            count += 1 if GeometryHelpers.na_create_xz_line(face_entities, x_min, z_min, x_max, z_min, y_mm)
-            count += 1 if GeometryHelpers.na_create_xz_line(face_entities, x_max, z_min, x_max, z_max, y_mm)
-            count += 1 if GeometryHelpers.na_create_xz_line(face_entities, x_max, z_max, x_min, z_max, y_mm)
-            count += 1 if GeometryHelpers.na_create_xz_line(face_entities, x_min, z_max, x_min, z_min, y_mm)
+            count += GeometryHelpers.na_create_horizontal_segmented(face_entities, x_min, x_max, z_min, y_mm, x_gaps)
+            count += GeometryHelpers.na_create_horizontal_segmented(face_entities, x_min, x_max, z_max, y_mm, x_gaps)
+            count += GeometryHelpers.na_create_vertical_segmented(face_entities, x_min, z_min, z_max, y_mm, z_gaps)
+            count += GeometryHelpers.na_create_vertical_segmented(face_entities, x_max, z_min, z_max, y_mm, z_gaps)
 
             DebugTools.na_debug_geometry("PanelDesignFrame: drew inner perimeter (#{count} edges) at Y=#{y_mm}mm")
             count
         end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Draw a Horizontal Cross-Rail as a Gap-Clipped Pair
+        # ------------------------------------------------------------
+        # A cross-rail is rendered as TWO parallel horizontal edges at
+        # z = z_centre +/- (inner_rail_t / 2), spanning the inner
+        # perimeter X range and clipped at every mullion's X band so
+        # the joint with the mullion reads as a clean butt-joint.
+        #
+        # @param face_entities [Sketchup::Entities] Target group entities
+        # @param layout [Hash] Layout from na_compute_layout
+        # @param z_centre_mm [Numeric] Centre-line Z of the cross-rail (mm)
+        # @param mullions [Array<Hash>] Each entry: { :x_left, :x_right }
+        # @param y_mm [Numeric] Y plane the linework lives on (mm)
+        # @return [Integer] Number of edges added
+        def self.na_draw_horizontal_rail_pair(face_entities, layout, z_centre_mm, mullions, y_mm)
+            half_t = layout[:inner_rail_t] / 2.0
+            x_min  = layout[:inner_x_min]
+            x_max  = layout[:inner_x_max]
+            x_gaps = na_mullions_to_x_gaps(mullions)
+            z_top  = z_centre_mm + half_t
+            z_bot  = z_centre_mm - half_t
+
+            count  = 0
+            count += GeometryHelpers.na_create_horizontal_segmented(face_entities, x_min, x_max, z_top, y_mm, x_gaps)
+            count += GeometryHelpers.na_create_horizontal_segmented(face_entities, x_min, x_max, z_bot, y_mm, x_gaps)
+            count
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Draw a Vertical Mullion as a Gap-Clipped Pair
+        # ------------------------------------------------------------
+        # A mullion is rendered as TWO parallel vertical edges at
+        # x = x_centre +/- (inner_rail_t / 2), spanning the inner
+        # perimeter Z range and clipped at every cross-rail's Z band
+        # so the joint with the cross-rail reads as a clean butt-joint.
+        #
+        # @param face_entities [Sketchup::Entities] Target group entities
+        # @param layout [Hash] Layout from na_compute_layout
+        # @param x_centre_mm [Numeric] Centre-line X of the mullion (mm)
+        # @param cross_rails [Array<Hash>] Each entry: { :z_low, :z_high }
+        # @param y_mm [Numeric] Y plane the linework lives on (mm)
+        # @return [Integer] Number of edges added
+        def self.na_draw_vertical_mullion_pair(face_entities, layout, x_centre_mm, cross_rails, y_mm)
+            half_t = layout[:inner_rail_t] / 2.0
+            z_min  = layout[:inner_z_min]
+            z_max  = layout[:inner_z_max]
+            z_gaps = na_cross_rails_to_z_gaps(cross_rails)
+            x_lt   = x_centre_mm - half_t
+            x_rt   = x_centre_mm + half_t
+
+            count  = 0
+            count += GeometryHelpers.na_create_vertical_segmented(face_entities, x_lt, z_min, z_max, y_mm, z_gaps)
+            count += GeometryHelpers.na_create_vertical_segmented(face_entities, x_rt, z_min, z_max, y_mm, z_gaps)
+            count
+        end
+        # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Internal Helpers - Joint Gap Computation
+# -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | Convert Mullion Specs to X-Range Gaps
+        # ------------------------------------------------------------
+        def self.na_mullions_to_x_gaps(mullions)
+            return [] unless mullions.is_a?(Array) && !mullions.empty?
+            mullions.map { |m| [m[:x_left].to_f, m[:x_right].to_f] }
+                    .sort_by { |gap| gap[0] }
+        end
+        private_class_method :na_mullions_to_x_gaps
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Convert Cross-Rail Specs to Z-Range Gaps
+        # ------------------------------------------------------------
+        def self.na_cross_rails_to_z_gaps(cross_rails)
+            return [] unless cross_rails.is_a?(Array) && !cross_rails.empty?
+            cross_rails.map { |c| [c[:z_low].to_f, c[:z_high].to_f] }
+                       .sort_by { |gap| gap[0] }
+        end
+        private_class_method :na_cross_rails_to_z_gaps
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

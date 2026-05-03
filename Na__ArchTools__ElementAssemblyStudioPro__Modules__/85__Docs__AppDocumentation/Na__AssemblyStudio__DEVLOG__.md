@@ -3,6 +3,99 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.3.4 - 03-May-2026 - Asset-Library Driven Architrave + Handle Menus
+
+### Architrave default migration to Plan2D profile source
+- Default interior-door architrave profile key now points to `Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm`.
+- `Na__ArchitraveBuilder` now accepts both profile contracts:
+  - Primary: `Na__Asset__Profile2D`
+  - Fallback/alternate: `Na__Asset__Plan2D` polygon path converted to sweep profile points
+- Legacy profile was archived for rollback as `Na__InteriorDoor__Architrave__Default__LEGACY__.json`.
+- Door payload migration normalises legacy keys (`ArchitraveAssetKey` / unified enabled toggle) into canonical runtime keys and persists upgrades on load/update.
+
+### Dynamic architrave menu (no hardcoded option labels)
+- Architrave profile dropdown options are now populated at runtime from `InteriorDoor__Architraves__`.
+- Ruby callback `na_requestDoorArchitraveAssetOptions` was added to `Na__DialogRouter`.
+- Option labels come directly from JSON metadata field `Na__Asset__Metadata.Na__Asset__Name`.
+- JS bridge receives and applies options through `window.na_receiveDoorArchitraveAssetOptions(...)`.
+
+### Dynamic handle menu now includes all handle JSON assets
+- Handle option building no longer filters by filename prefix; every JSON discovered in `InteriorDoor__Handles__` is eligible.
+- Handle labels continue to come from `Na__Asset__Metadata.Na__Asset__Name` (same metadata-driven pattern as architraves).
+- Added test duplicate asset `Na__InteriorDoor__Handle__Default__TestCopy__.json` with unique `Na__Asset__Name` for dropdown verification.
+
+### Why this matters
+- Asset menus now scale with the library folders: adding/removing JSON assets updates UI options without JS edits.
+- The UI now consistently treats architrave and handle assets as data-driven catalogs, not hardcoded lists.
+# =============================================================================
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.3.3 - 03-May-2026 - Panel Design: Joint Clipping + Elevation Preview Mirror
+
+### Joint clipping for the multi-panel styles (Classical Six / Four-Panel / Horizontal Three)
+- v1.3.0 drew each cross-rail and mullion as a pair of parallel edges spaced by `inner_rail_t`. Where two pairs crossed, the four short segments inside the intersection were left visible, producing a small "X" of unwanted lines at every joint and obscuring the offset that gives a panel door its readable proportions.
+- The styles now compute `cross_rails` (each `{ :z_low, :z_high, :z_centre }`) and `mullions` (each `{ :x_left, :x_right, :x_centre }`) up-front and feed them into three new shared helpers on `Na__PanelDesignFrame`:
+  - `na_draw_inner_perimeter(face_entities, layout, y_mm, mullions = [], cross_rails = [])` - the perimeter's left/right verticals are clipped by every cross-rail's Z band, and the perimeter's top/bottom horizontals are clipped by every mullion's X band. No segment of the perimeter survives inside another rail's thickness.
+  - `na_draw_horizontal_rail_pair(face_entities, layout, z_centre_mm, mullions, y_mm)` - two horizontal edges at `z_centre +/- inner_rail_t/2`, each broken at every mullion's X band.
+  - `na_draw_vertical_mullion_pair(face_entities, layout, x_centre_mm, cross_rails, y_mm)` - two vertical edges at `x_centre +/- inner_rail_t/2`, each broken at every cross-rail's Z band.
+- The clipping work is delegated to two new low-level primitives on `Na__GeometryHelpers`:
+  - `na_create_horizontal_segmented(entities, x0, x1, z, y, x_gaps)` - walks left-to-right, drawing only the visible portions of a horizontal line.
+  - `na_create_vertical_segmented(entities, x, z0, z1, y, z_gaps)` - vertical equivalent.
+- The old `na_create_horizontal_rail_lines` / `na_create_vertical_rail_lines` helpers are removed (their thickness pair-drawing is now handled by the frame helpers above with proper clipping).
+- `Na__PanelDesignBuilder.na_build_face` no longer pre-draws the inner perimeter; each style is now responsible for drawing its own perimeter alongside its cross-rails and mullions, so it can pass the matching `mullions` / `cross_rails` arrays for joint clipping. `Na__PanelStyle__VerticalNarrow` calls `na_draw_inner_perimeter` with empty arrays (its dividers are zero-thickness, no joints to clip).
+- Net visual effect: each rail/mullion now reads as a clean butt-joint where it meets the inner perimeter or another rail. The "offset" of each sub-panel is fully visible at every corner.
+
+### Elevation preview mirror (`Na_DoorPanelDesignDrawer`)
+- The dialog's elevation preview now renders the panel design linework on the panel face, faithfully reproducing the 3D output as the user adjusts the controls. Implemented as a self-contained drawer module:
+  - New file: `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__PanelDesignDrawer__.js` (browser global `Na_DoorPanelDesignDrawer`).
+  - Public API: `Na_DoorPanelDesignDrawer.na_render(svg, panelLayout, config)`.
+  - Mirrors the Ruby builder + frame helpers + style modules in JS, with SVG-space Y coordinates substituted for Ruby Z. Same gap-clipping algorithm so the preview shows the exact same joints the 3D model does.
+- `Na__AssemblyStudio__InteriorDoorSystem__Viewport__ElevationGenerator__.js` `Na_DoorElevationGenerator.na_render` now calls a new `na_build_panel_design(svg, layout, config)` between the panel rectangle and the handle preview, which delegates straight to the drawer.
+- `Na__AssemblyStudio__UiLayout__.html` loads the drawer JS file via a new `<script>` tag positioned BEFORE the elevation generator so the global is available on first render.
+
+### Why this matters
+- The dialog now provides instant feedback for every panel-design tweak (style change, slider adjustment, stile/rail/mullion size). Previously the user had to commit a Live Update to see the result on the 3D model and there was no way to preview the design before adding it to the SketchUp document.
+- The joint clipping makes the 3D model's elevation read as a properly proportioned UK panel door at every style + slider combination, rather than as an "X-and-grid" overlay. The `inner_rail_t` slider is now meaningful again - it controls the visible offset between rail edges at every joint.
+# =============================================================================
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.3.2 - 03-May-2026 - Interior door rotation pivot helper + tag line styles
+
+### Context
+- TrueVision3D's click-to-open animation reads the local origin of the `ROT001__RotationPoint__DoorHingeCentre` group inside each `ADR001__InternalDoor` assembly to drive its hinge rotation. Until now the ROT group was empty and invisible in SketchUp, so authors could not see whether a door's pivot had landed on the correct hinge corner.
+- This release introduces a visible **red dashed pivot helper** drawn inside the ROT group while preserving the TrueVision3D contract (the group transformation/origin is unchanged).
+
+### What was added
+- **NEW module** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__.rb`. Single public entry: `Na__RotationPivotBuilder.na_build_pivot_helper(rot_group, config)`. Internal helpers each have one task per the workspace clean-code rules (vertical line, crosshair, swing-direction arc + arrowhead, math/coord utilities, tagging).
+- **DoorAssemblyComposer wiring** — after the existing `na_translate_rot_marker_to_hinge` call inside `na_compose_closed_assembly`, the new builder is invoked. The open-state ADR copy duplicates the helper geometry automatically via `Sketchup::Group#copy`, so no extra logic is required for the open state.
+- **Init dependency order** — the new builder is required in `na_require_door_modules` immediately before `DoorAssemblyComposer`, and listed in the file header dependency block.
+
+### Helper geometry (drawn in ROT-local coords, hinge centre = (0, 0, 0))
+- Vertical hinge axis line from `z = 100mm` to `z = (opening_h_mm - lining_t_mm) - 100mm` (100 mm inset from each end of the inner jamb).
+- 50x50 mm `+` crosshair on the XY plane at both ends of the vertical line.
+- 90 deg swing-direction arc, radius 100 mm, 8 segments at the top crosshair Z, going from the closed-latch direction to the open-latch direction (matches the existing 2D swing arc convention based on `SwingSide` + `SwingDirection`).
+- 25 mm `V` arrowhead at the open end of the arc, pointing tangent to the rotation direction.
+
+### Tag system additions
+- **NEW tag** `02__DoorHelpers__RotationPivots` under `00__SystemAndUtilityTags__` in `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json`. Excluded from GLB export by both its `02__` prefix (already in `meta.skipRanges`) and `Glb__FullyExcluded: true`. Also appended to `ExportExclusions.FullyExcludedTagNames`.
+- **NEW JSON field** `Layout__LineStyleName` (string) on tag entries, documented in `meta.fieldPrefixes`. The new helper tag uses `"Dash"` and `Layout__EdgeColourRGB: [255, 0, 0]`.
+- **NEW reference template `LineStyleReference`** appended to the bottom of the tags JSON. Lists every line style name accepted by the SketchUp Ruby API (`Sketchup.active_model.line_styles[name]`), the Ruby usage example, the API doc URL, the SketchUp version since the API was introduced (2019), and a copy-paste tag template for future tags that need a non-solid line style.
+- **TagManager extension** — `:door_helpers` role added to `NA_ROLE_FALLBACKS` and `NA_ROLE_DEFAULT_COLORS`, plus a new `NA_ROLE_DEFAULT_LINE_STYLES` table. `na_get_or_create_tag` now applies the resolved line style after creating or fetching a layer via the new internal helpers `na_apply_line_style_for_role`, `na_apply_line_style_to_tag`, `na_resolve_line_style_name`, `na_resolve_line_style_from_datalib`, and `na_find_tag_node_in_datalib`. Every API call is `respond_to?`-guarded so older SketchUp versions degrade silently to a solid line.
+
+### Why "02__" for the helper tag
+- `02` is already in `Na__DataLib__CoreIndex__Tags__.json` `meta.skipRanges` (the GLB exporter skips entities on tags whose numeric prefix is in `[0, 2, 3, 4, 5, 6]`), so the helper is silently dropped from production GLBs without the exporter needing any change. The category mirrors the existing `02__Linetype__DoorSwings` and `02__ClearanceLines` system-utility-linework tags.
+
+### What was deliberately not changed
+- Group naming (`ADR001__InternalDoor`, `MOD001__ROT__90-Deg__DoorPanel`, `ROT001__RotationPoint__DoorHingeCentre`) — these match the TrueVision3D scanner's prefix matching and the docs at `30__TrueVision__CoreAppCode/02__Src__AppModules/25__System__3dObject__InteractionSystem/3dObjectIInteraction__Animation__ClickToOpenDoors__README__.md`.
+- The translation of the ROT group to the hinge axis (still done in `na_translate_rot_marker_to_hinge`) — this is what TrueVision3D reads as the pivot.
+- The lining / architrave / 2D swing geometry at the definition root — untouched.
+
+# =============================================================================
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.3.1 - 03-May-2026 - Developer reload sweep + Interior door handle orientation (3D)
 
 ### Context

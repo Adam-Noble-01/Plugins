@@ -177,7 +177,7 @@ module Na__InteriorDoorSystem
             return nil if radius_mm <= 0
 
             hinge_x_mm      = (swing_side == :left) ? lining_t_mm : (opening_w_mm - lining_t_mm)
-            hinge_y_mm      = GeometryHelpers.na_panel_y_origin_mm(config)        # <-- Match panel front face (Y origin), not wall centre
+            hinge_y_mm      = GeometryHelpers.na_hinge_y_origin_mm(config)        # <-- Hinge-face wall (near for inward, far for outward)
             hinge_pt_mm     = [hinge_x_mm, hinge_y_mm]
 
             DebugTools.na_debug_geometry("Build swing: side=#{swing_side} dir=#{swing_direction} r=#{radius_mm}mm")

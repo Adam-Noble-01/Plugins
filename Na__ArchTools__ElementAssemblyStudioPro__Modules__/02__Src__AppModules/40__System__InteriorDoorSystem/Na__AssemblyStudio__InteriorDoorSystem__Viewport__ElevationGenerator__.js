@@ -450,9 +450,29 @@
         if (layout.archEnabled) na_build_architrave_outline(svgElement, layout);
         na_build_lining_u_shape(svgElement, layout, palette);
         na_build_panel(svgElement, layout, palette);
+        na_build_panel_design(svgElement, layout, config);
         na_build_handle_preview(svgElement, layout, palette, config);
         na_build_dimension_labels(svgElement, layout);
     };
+    // ---------------------------------------------------------------
+
+
+    // SUB FUNCTION | Overlay the Panel Design Linework on the Panel Face
+    // ------------------------------------------------------------
+    // Delegates to Na_DoorPanelDesignDrawer (see
+    // Na__AssemblyStudio__InteriorDoorSystem__Viewport__PanelDesignDrawer__.js)
+    // which mirrors the Ruby Na__PanelDesignBuilder so the elevation
+    // preview tracks the 3D output exactly as the user adjusts the
+    // panel design controls.
+    function na_build_panel_design(svg, layout, config) {
+        if (!window.Na_DoorPanelDesignDrawer) return;
+        window.Na_DoorPanelDesignDrawer.na_render(svg, {
+            panelX            : layout.panelX,
+            panelTopY         : layout.panelTopY,
+            panelClearWidth   : layout.panelClearWidth,
+            panelClearHeight  : layout.panelClearHeight
+        }, config);
+    }
     // ---------------------------------------------------------------
 
 

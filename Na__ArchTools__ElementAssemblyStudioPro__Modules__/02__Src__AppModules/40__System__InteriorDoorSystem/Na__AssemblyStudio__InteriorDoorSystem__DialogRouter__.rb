@@ -183,6 +183,10 @@ module Na__InteriorDoorSystem
                 na_send_handle_asset_options_to_dialog
             end
 
+            dialog.add_action_callback("na_requestDoorArchitraveAssetOptions") do |_ac|
+                na_send_architrave_asset_options_to_dialog
+            end
+
             dialog.add_action_callback("na_requestDoorHandlePreviewAsset") do |_ac, asset_key|
                 na_send_handle_preview_asset_to_dialog(asset_key)
             end
@@ -208,6 +212,7 @@ module Na__InteriorDoorSystem
             begin
                 config_root        = JSON.parse(config_json)
                 na_prune_obsolete_config_keys!(config_root)
+                na_normalize_architrave_config_keys!(config_root)
                 @na_current_config = config_root
 
                 model.start_operation("Create Interior Door", true)
@@ -253,6 +258,7 @@ module Na__InteriorDoorSystem
             begin
                 config_root        = JSON.parse(config_json)
                 na_prune_obsolete_config_keys!(config_root)
+                na_normalize_architrave_config_keys!(config_root)
                 @na_current_config = config_root
 
                 unless @na_current_door_inst && @na_current_door_inst.valid?
@@ -305,6 +311,7 @@ module Na__InteriorDoorSystem
             begin
                 config_root         = JSON.parse(config_json)
                 na_prune_obsolete_config_keys!(config_root)
+                na_normalize_architrave_config_keys!(config_root)
 
                 incoming_id         = na_extract_unique_id(config_root)
                 current_id          = nil
@@ -453,7 +460,13 @@ module Na__InteriorDoorSystem
             data                  = DataSerializer.na_load_door_data_from_instance(instance, door_id)
 
             if data
+                architrave_migrated = na_normalize_architrave_config_keys!(data)
                 @na_current_config = data
+
+                if architrave_migrated
+                    DataSerializer.na_save_door_data(door_id, data)
+                end
+
                 na_send_door_config_to_dialog
                 na_send_status_to_dialog("info", "Loaded door: #{door_id}")
             else
@@ -507,7 +520,7 @@ module Na__InteriorDoorSystem
             # Ensure fresh reads when users export/replace files mid-session.
             AssetLibrary.na_clear_caches if AssetLibrary.respond_to?(:na_clear_caches)
 
-            keys = AssetLibrary.na_list_assets(:handles).select { |key| key.to_s.start_with?("Na__InteriorDoor__Handle__") }
+            keys = AssetLibrary.na_list_assets(:handles)
             options = keys.map { |key| na_build_handle_option(key) }.compact
             options.sort_by! { |option| option["label"].to_s.downcase }
 
@@ -533,6 +546,46 @@ module Na__InteriorDoorSystem
             DebugTools.na_debug_error("Failed to send handle asset options", e)
         end
         private_class_method :na_send_handle_asset_options_to_dialog
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Send Door Architrave Asset Options to the Dialog
+        # ------------------------------------------------------------
+        # Builds the architrave profile select options dynamically from the
+        # current AssetLibrary folder so every architrave JSON appears in
+        # the menu without hardcoded labels in JS.
+        def self.na_send_architrave_asset_options_to_dialog
+            dialog = na_active_dialog
+            return unless dialog && dialog.visible?
+
+            # Ensure fresh reads when users add/replace files mid-session.
+            AssetLibrary.na_clear_caches if AssetLibrary.respond_to?(:na_clear_caches)
+
+            keys = AssetLibrary.na_list_assets(:architraves)
+            options = keys.map { |key| na_build_architrave_option(key) }.compact
+            options.sort_by! { |option| option["label"].to_s.downcase }
+
+            config_key = @na_current_config.dig(NA_DOOR_CONFIG_KEY, NA_ARCHITRAVE_PROFILE_KEY)
+            default_key = if options.any? { |opt| opt["value"] == config_key }
+                              config_key
+                          elsif @na_default_config.dig(NA_DOOR_CONFIG_KEY, NA_ARCHITRAVE_PROFILE_KEY)
+                              @na_default_config.dig(NA_DOOR_CONFIG_KEY, NA_ARCHITRAVE_PROFILE_KEY)
+                          else
+                              options.first && options.first["value"]
+                          end
+
+            payload = {
+                "options"    => options,
+                "defaultKey" => default_key
+            }
+
+            UiBridge.na_execute_json_function(dialog, "window.na_receiveDoorArchitraveAssetOptions", payload)
+            if options.empty?
+                na_send_status_to_dialog("warning", "No valid architrave assets found in InteriorDoor__Architraves__.")
+            end
+        rescue StandardError => e
+            DebugTools.na_debug_error("Failed to send architrave asset options", e)
+        end
+        private_class_method :na_send_architrave_asset_options_to_dialog
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Send Selected Handle 2D Preview Blocks to JS
@@ -598,6 +651,28 @@ module Na__InteriorDoorSystem
             { "value" => key.to_s, "label" => label }
         end
         private_class_method :na_build_handle_option
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build an Architrave Select Option from Asset Metadata
+        # ------------------------------------------------------------
+        def self.na_build_architrave_option(key)
+            asset = AssetLibrary.na_load_architrave_asset(key)
+            return nil unless asset.is_a?(Hash)
+
+            metadata = asset["Na__Asset__Metadata"]
+            unless metadata.is_a?(Hash)
+                DebugTools.na_debug_warn("Architrave option '#{key}' missing Na__Asset__Metadata - skipping option")
+                return nil
+            end
+
+            label = metadata["Na__Asset__Name"].to_s.strip
+            if label.empty?
+                DebugTools.na_debug_warn("Architrave option '#{key}' missing Na__Asset__Name - skipping option")
+                return nil
+            end
+            { "value" => key.to_s, "label" => label }
+        end
+        private_class_method :na_build_architrave_option
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Validate and Sanitize 2D Preview Block
@@ -688,6 +763,13 @@ module Na__InteriorDoorSystem
         NA_DOOR_CONFIG_KEY    = "Na__DoorConfiguration".freeze
         NA_DOOR_METADATA_KEY  = "Na__DoorMetadata".freeze
         NA_OBSOLETE_DOOR_CONFIG_KEYS = ["Na__DoorConfig__HandleSide"].freeze
+        NA_ARCHITRAVE_PROFILE_KEY               = "Na__DoorConfig__ArchitraveProfileKey".freeze
+        NA_ARCHITRAVE_LEGACY_ASSET_KEY          = "Na__DoorConfig__ArchitraveAssetKey".freeze
+        NA_ARCHITRAVE_ENABLED_KEY               = "Na__DoorConfig__ArchitraveEnabled".freeze
+        NA_ARCHITRAVE_FRONT_ENABLED_KEY         = "Na__DoorConfig__ArchitraveFrontEnabled".freeze
+        NA_ARCHITRAVE_BACK_ENABLED_KEY          = "Na__DoorConfig__ArchitraveBackEnabled".freeze
+        NA_ARCHITRAVE_LEGACY_DEFAULT_PROFILE_KEY= "Na__InteriorDoor__Architrave__Default".freeze
+        NA_ARCHITRAVE_DEFAULT_PROFILE_KEY       = "Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm".freeze
 
         # HELPER FUNCTION | Deep Clone via Marshal
         # ------------------------------------------------------------
@@ -762,6 +844,64 @@ module Na__InteriorDoorSystem
             end
         end
         private_class_method :na_prune_obsolete_config_keys!
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Normalize Architrave Keys for Legacy Payloads
+        # ------------------------------------------------------------
+        # Returns true when one or more migration changes are applied.
+        def self.na_normalize_architrave_config_keys!(config_root)
+            return false unless config_root.is_a?(Hash)
+            config_block = config_root[NA_DOOR_CONFIG_KEY]
+            return false unless config_block.is_a?(Hash)
+
+            changed = false
+            profile_key = config_block[NA_ARCHITRAVE_PROFILE_KEY].to_s.strip
+            legacy_asset_key = config_block[NA_ARCHITRAVE_LEGACY_ASSET_KEY].to_s.strip
+
+            if profile_key.empty? && !legacy_asset_key.empty?
+                profile_key = legacy_asset_key
+            end
+
+            if profile_key.empty? || profile_key == NA_ARCHITRAVE_LEGACY_DEFAULT_PROFILE_KEY
+                profile_key = NA_ARCHITRAVE_DEFAULT_PROFILE_KEY
+            end
+
+            if config_block[NA_ARCHITRAVE_PROFILE_KEY] != profile_key
+                config_block[NA_ARCHITRAVE_PROFILE_KEY] = profile_key
+                changed = true
+            end
+
+            if config_block.key?(NA_ARCHITRAVE_LEGACY_ASSET_KEY)
+                config_block.delete(NA_ARCHITRAVE_LEGACY_ASSET_KEY)
+                changed = true
+            end
+
+            if config_block.key?(NA_ARCHITRAVE_ENABLED_KEY)
+                enabled = (config_block[NA_ARCHITRAVE_ENABLED_KEY] != false)
+                if config_block[NA_ARCHITRAVE_FRONT_ENABLED_KEY] != enabled
+                    config_block[NA_ARCHITRAVE_FRONT_ENABLED_KEY] = enabled
+                    changed = true
+                end
+                if config_block[NA_ARCHITRAVE_BACK_ENABLED_KEY] != enabled
+                    config_block[NA_ARCHITRAVE_BACK_ENABLED_KEY] = enabled
+                    changed = true
+                end
+                config_block.delete(NA_ARCHITRAVE_ENABLED_KEY)
+                changed = true
+            else
+                unless config_block.key?(NA_ARCHITRAVE_FRONT_ENABLED_KEY)
+                    config_block[NA_ARCHITRAVE_FRONT_ENABLED_KEY] = true
+                    changed = true
+                end
+                unless config_block.key?(NA_ARCHITRAVE_BACK_ENABLED_KEY)
+                    config_block[NA_ARCHITRAVE_BACK_ENABLED_KEY] = true
+                    changed = true
+                end
+            end
+
+            changed
+        end
+        private_class_method :na_normalize_architrave_config_keys!
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
