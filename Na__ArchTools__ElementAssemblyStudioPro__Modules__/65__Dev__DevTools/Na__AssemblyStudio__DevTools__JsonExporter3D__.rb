@@ -485,6 +485,7 @@ module Na__DevTools
             root_world          = container[:world_transform]
             hierarchy_nodes     = []
             face_records        = []
+            edge_records        = []
             node_seq            = 0
 
             root_node_id        = na_next_node_id(node_seq)
@@ -512,12 +513,13 @@ module Na__DevTools
                 hierarchy_nodes,
                 face_records,
                 node_seq,
-                {}
+                {},
+                edge_records
             )
 
             return [nil, nil] if face_records.empty?
 
-            mesh_block      = na_build_mesh_block(face_records, origin_pt)
+            mesh_block      = na_build_mesh_block(face_records, origin_pt, edge_records)
             hierarchy_block = na_build_hierarchy_block(hierarchy_nodes, face_records)
             [mesh_block, hierarchy_block]
         end
@@ -533,6 +535,7 @@ module Na__DevTools
         def self.na_extract_mesh_bundle_from_selection(selection, origin_pt, excluded_entities = [])
             hierarchy_nodes = []
             face_records    = []
+            edge_records    = []
             node_seq        = 0
 
             root_node_id = na_next_node_id(node_seq)
@@ -552,6 +555,7 @@ module Na__DevTools
             definition_guard = {}
             selection.each do |entity|
                 next if excluded_entities.include?(entity)
+                next if na_entity_excluded?(entity)
 
                 case entity
                 when Sketchup::Face
@@ -559,6 +563,11 @@ module Na__DevTools
                         :face            => entity,
                         :world_transform => Geom::Transformation.new,
                         :node_id         => root_node_id
+                    }
+                when Sketchup::Edge
+                    edge_records << {
+                        :edge            => entity,
+                        :world_transform => Geom::Transformation.new
                     }
                 when Sketchup::Group
                     local_transform = entity.transformation
@@ -579,7 +588,8 @@ module Na__DevTools
                         hierarchy_nodes,
                         face_records,
                         node_seq,
-                        definition_guard
+                        definition_guard,
+                        edge_records
                     )
                 when Sketchup::ComponentInstance
                     local_transform = entity.transformation
@@ -603,7 +613,8 @@ module Na__DevTools
                         hierarchy_nodes,
                         face_records,
                         node_seq,
-                        definition_guard
+                        definition_guard,
+                        edge_records
                     )
                     definition_guard.delete(definition_id)
                 end
@@ -611,7 +622,7 @@ module Na__DevTools
 
             return [nil, nil] if face_records.empty?
 
-            mesh_block      = na_build_mesh_block(face_records, origin_pt)
+            mesh_block      = na_build_mesh_block(face_records, origin_pt, edge_records)
             hierarchy_block = na_build_hierarchy_block(hierarchy_nodes, face_records)
             [mesh_block, hierarchy_block]
         end
@@ -625,10 +636,33 @@ module Na__DevTools
 # REGION | Geometry Collection Helpers
 # -----------------------------------------------------------------------------
 
+        # HELPER FUNCTION | Determine Whether an Entity Should be Skipped
+        # ------------------------------------------------------------
+        # Mirrors the GLB builder's visibility filter (see
+        # Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__.rb
+        # line ~95 and LineworkModelHandling__.rb line ~54). Hidden
+        # entities and entities on hidden layers are excluded from
+        # geometry collection so the exported JSON matches what is
+        # visible in SketchUp's viewport.
+        #
+        # @param entity [Sketchup::Entity]
+        # @return [Boolean] true when the entity should be excluded
+        def self.na_entity_excluded?(entity)
+            return true unless entity
+            return true if entity.respond_to?(:hidden?) && entity.hidden?
+            if entity.respond_to?(:layer) && entity.layer && entity.layer.respond_to?(:visible?) && !entity.layer.visible?
+                return true
+            end
+            false
+        end
+        private_class_method :na_entity_excluded?
+        # ---------------------------------------------------------------
+
         # HELPER FUNCTION | Collect Edges/Faces Recursively with World Transform
         # ------------------------------------------------------------
         def self.na_collect_edges_and_faces_recursive(entities, world_transform, edges = [], faces = [], definition_guard = {})
             entities.each do |entity|
+                next if na_entity_excluded?(entity)
                 case entity
                 when Sketchup::Edge
                     edges << {
@@ -661,6 +695,72 @@ module Na__DevTools
             [edges, faces]
         end
         private_class_method :na_collect_edges_and_faces_recursive
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | 3x3 Determinant of a Transformation
+        # ------------------------------------------------------------
+        # Mirrors Na__GlbEngine__CalcDeterminant3x3 from the GLB builder.
+        # A negative determinant indicates mirrored geometry (e.g. Flip
+        # Along / scale -1) and requires normal negation + triangle
+        # winding correction.
+        #
+        # @param transform [Geom::Transformation]
+        # @return [Float] determinant of the upper-left 3x3
+        def self.na_calc_determinant_3x3(transform)
+            m = transform.to_a
+            m[0] * (m[5] * m[10] - m[6] * m[9]) -
+            m[4] * (m[1] * m[10] - m[2] * m[9]) +
+            m[8] * (m[1] * m[6]  - m[2] * m[5])
+        end
+        private_class_method :na_calc_determinant_3x3
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Cofactor of Upper-Left 3x3 (Normal Matrix)
+        # ------------------------------------------------------------
+        # Mirrors Na__GlbEngine__CalcNormalMatrix. The correct transform
+        # for normal vectors is the inverse-transpose of the upper-left
+        # 3x3; since we normalize after applying the matrix, the 1/det
+        # factor cancels and we only need the cofactor matrix.
+        #
+        # @param transform [Geom::Transformation]
+        # @return [Array<Float>] 9-element row-major cofactor matrix
+        def self.na_calc_normal_matrix(transform)
+            m = transform.to_a
+            [
+                 (m[5] * m[10] - m[9] * m[6]),  -(m[1] * m[10] - m[9] * m[2]),   (m[1] * m[6] - m[5] * m[2]),
+                -(m[4] * m[10] - m[8] * m[6]),   (m[0] * m[10] - m[8] * m[2]),  -(m[0] * m[6] - m[4] * m[2]),
+                 (m[4] * m[9]  - m[8] * m[5]),  -(m[0] * m[9]  - m[8] * m[1]),   (m[0] * m[5] - m[4] * m[1])
+            ]
+        end
+        private_class_method :na_calc_normal_matrix
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Transform a Normal Vector Using Cofactor Matrix
+        # ------------------------------------------------------------
+        # Mirrors Na__GlbEngine__TransformNormal. Applies the cofactor
+        # matrix to a local-space normal and normalizes the result.
+        # Falls back to Z-up if the transformed vector is degenerate
+        # (our coord system is SketchUp's right-handed Z-up).
+        #
+        # @param normal_matrix [Array<Float>] 9-element cofactor matrix
+        # @param nx [Float] local-space normal x
+        # @param ny [Float] local-space normal y
+        # @param nz [Float] local-space normal z
+        # @return [Array<Float>] world-space normalized normal [x, y, z]
+        def self.na_transform_normal(normal_matrix, nx, ny, nz)
+            c  = normal_matrix
+            rx = c[0] * nx + c[1] * ny + c[2] * nz
+            ry = c[3] * nx + c[4] * ny + c[5] * nz
+            rz = c[6] * nx + c[7] * ny + c[8] * nz
+
+            len = Math.sqrt(rx * rx + ry * ry + rz * rz)
+            if len > 1.0e-10
+                [rx / len, ry / len, rz / len]
+            else
+                [0.0, 0.0, 1.0]
+            end
+        end
+        private_class_method :na_transform_normal
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Build Transform Key for Deduping Curve Instances
@@ -802,10 +902,16 @@ module Na__DevTools
 # REGION | Mesh Hierarchy + Geometry Builder
 # -----------------------------------------------------------------------------
 
-        # HELPER FUNCTION | Collect Mesh Faces + Hierarchy from Entity Tree
+        # HELPER FUNCTION | Collect Mesh Faces + Edges + Hierarchy from Entity Tree
         # ------------------------------------------------------------
-        def self.na_collect_mesh_tree(entities, parent_world, parent_node_id, hierarchy_nodes, face_records, node_seq, definition_guard = {})
+        # Traverses the entity tree recursively and captures
+        #   * Face records (face + world_transform + node_id)
+        #   * Edge records (edge + world_transform) so soft/smooth/hidden
+        #     flags survive export
+        #   * Hierarchy nodes (one per Group / ComponentInstance)
+        def self.na_collect_mesh_tree(entities, parent_world, parent_node_id, hierarchy_nodes, face_records, node_seq, definition_guard = {}, edge_records = nil)
             entities.each do |entity|
+                next if na_entity_excluded?(entity)
                 case entity
                 when Sketchup::Face
                     face_records << {
@@ -813,6 +919,11 @@ module Na__DevTools
                         :world_transform => parent_world,
                         :node_id         => parent_node_id
                     }
+                when Sketchup::Edge
+                    edge_records << {
+                        :edge            => entity,
+                        :world_transform => parent_world
+                    } if edge_records
                 when Sketchup::Group
                     local_transform = entity.transformation
                     world_transform = parent_world * local_transform
@@ -832,7 +943,8 @@ module Na__DevTools
                         hierarchy_nodes,
                         face_records,
                         node_seq,
-                        definition_guard
+                        definition_guard,
+                        edge_records
                     )
                 when Sketchup::ComponentInstance
                     definition_id = entity.definition.object_id
@@ -856,7 +968,8 @@ module Na__DevTools
                         hierarchy_nodes,
                         face_records,
                         node_seq,
-                        definition_guard
+                        definition_guard,
+                        edge_records
                     )
                     definition_guard.delete(definition_id)
                 end
@@ -906,24 +1019,58 @@ module Na__DevTools
         private_class_method :na_transform_to_matrix
         # ---------------------------------------------------------------
 
-        # HELPER FUNCTION | Build Mesh Block from Face Records
+        # HELPER FUNCTION | Build Mesh Block from Face + Edge Records
         # ------------------------------------------------------------
-        def self.na_build_mesh_block(face_records, origin_pt)
-            vertex_id_lookup   = {}
-            vertices_out       = []
-            faces_out          = []
-            edge_lookup        = {}
+        # Uses per-vertex normals (via face.mesh(7)) and real Sketchup::Edge
+        # records so softened/smoothed edges survive the export, mirroring
+        # the approach in Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__.
+        #
+        # Vertex records are deduplicated by (position + normal) so hard
+        # edges produce two distinct vertex records at the same position
+        # with different normals. A secondary position-only index is
+        # maintained so edge endpoints map to a stable vertex id.
+        def self.na_build_mesh_block(face_records, origin_pt, edge_records = [])
+            vertex_id_lookup      = {}                                             # <-- Key: "x|y|z|nx|ny|nz" -> VertexId (per-vertex-normal dedupe)
+            position_to_vertex_id = {}                                             # <-- Key: "x|y|z"          -> first VertexId at that world position
+            vertices_out          = []
+            faces_out             = []
 
             face_records.each_with_index do |face_record, idx|
                 face      = face_record[:face]
                 transform = face_record[:world_transform]
                 node_id   = face_record[:node_id]
 
-                outer_ids = na_loop_vertex_ids(face.outer_loop.vertices, transform, origin_pt, vertex_id_lookup, vertices_out)
+                determinant    = na_calc_determinant_3x3(transform)
+                is_mirrored    = determinant < 0
+                normal_matrix  = na_calc_normal_matrix(transform)
+
+                loop_mesh = na_begin_face_polygon_mesh(face)
+
+                outer_ids = na_loop_vertex_ids_with_normals(
+                    face.outer_loop.vertices,
+                    transform,
+                    origin_pt,
+                    loop_mesh,
+                    normal_matrix,
+                    is_mirrored,
+                    vertex_id_lookup,
+                    position_to_vertex_id,
+                    vertices_out
+                )
                 next if outer_ids.length < 3
 
-                inner_loops = face.loops.reject(&:outer?).map do |loop|
-                    na_loop_vertex_ids(loop.vertices, transform, origin_pt, vertex_id_lookup, vertices_out)
+                inner_loops = face.loops.reject(&:outer?).map do |face_loop|
+                    na_loop_vertex_ids_with_normals(
+                        face_loop.vertices,
+                        transform,
+                        origin_pt,
+                        loop_mesh,
+                        normal_matrix,
+                        is_mirrored,
+                        vertex_id_lookup,
+                        position_to_vertex_id,
+                        vertices_out
+                    )
                 end
 
                 normal_vec = face.normal.transform(transform)
@@ -951,22 +1098,26 @@ module Na__DevTools
                     "MaterialName"         => material_name,
                     "Na__Object__NodeId"   => node_id
                 }
-
-                na_add_loop_edges_to_lookup(edge_lookup, outer_ids)
-                inner_loops.each { |loop_ids| na_add_loop_edges_to_lookup(edge_lookup, loop_ids) }
             end
 
-            edges_out = na_edges_from_lookup(edge_lookup)
+            edges_out = na_edges_from_real_edges(edge_records, position_to_vertex_id, origin_pt)
             bbox      = na_calc_bbox_xyz(vertices_out)
+
+            soft_edge_count   = edges_out.count { |record| record["IsSoft"] }
+            smooth_edge_count = edges_out.count { |record| record["IsSmooth"] }
+            hard_edge_count   = edges_out.count { |record| !record["IsSoft"] && !record["IsSmooth"] }
 
             {
                 "Na__Geometry__OriginNote"  => "Local 0,0,0 = centre of 00__OriginPoint group.",
                 "Na__Geometry__CoordSystem" => "Right-handed | X=right, Y=front, Z=up | Units=mm",
                 "Na__Geometry__BoundingBox" => bbox,
                 "Na__Geometry__Counts"      => {
-                    "Na__Geometry__VertexCount" => vertices_out.length,
-                    "Na__Geometry__FaceCount"   => faces_out.length,
-                    "Na__Geometry__EdgeCount"   => edges_out.length
+                    "Na__Geometry__VertexCount"   => vertices_out.length,
+                    "Na__Geometry__FaceCount"     => faces_out.length,
+                    "Na__Geometry__EdgeCount"     => edges_out.length,
+                    "Na__Geometry__HardEdgeCount" => hard_edge_count,
+                    "Na__Geometry__SoftEdgeCount" => soft_edge_count,
+                    "Na__Geometry__SmoothEdgeCount" => smooth_edge_count
                 },
                 "Na__Geometry__Vertices"    => vertices_out,
                 "Na__Geometry__Faces"       => faces_out,
@@ -996,63 +1147,157 @@ module Na__DevTools
         private_class_method :na_build_hierarchy_block
         # ---------------------------------------------------------------
 
-        # HELPER FUNCTION | Resolve Vertex IDs for Loop Vertices
+        # HELPER FUNCTION | Build Face PolygonMesh for Per-Vertex Normal Lookup
         # ------------------------------------------------------------
-        def self.na_loop_vertex_ids(loop_vertices, transform, origin_pt, vertex_id_lookup, vertices_out)
+        # Flags = 4 (PolygonMeshPoints) | 1 (UVQFront) | 2 (UVQBack) = 7.
+        # Matches the GLB builder (see
+        # Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__.rb
+        # line 290). Returns nil when the face cannot produce a mesh.
+        def self.na_begin_face_polygon_mesh(face)
+            return nil unless face && face.valid?
+            face.mesh(7)
+        rescue StandardError
+            nil
+        end
+        private_class_method :na_begin_face_polygon_mesh
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Local-Space Vertex Normal from a Face's PolygonMesh
+        # ------------------------------------------------------------
+        # Uses Geom::PolygonMesh#add_point (canonical SketchUp API) to
+        # resolve the 1-based mesh index that corresponds to a given
+        # SketchUp vertex position, then reads the averaged local normal
+        # via normal_at. Falls back to the face normal if anything goes
+        # wrong (shared edges smoothed/softened by the user are already
+        # averaged into the PolygonMesh normals).
+        def self.na_local_normal_at_vertex(face, polygon_mesh, vertex_position)
+            if polygon_mesh
+                begin
+                    index = polygon_mesh.add_point(vertex_position)
+                    local_normal = polygon_mesh.normal_at(index) if index && index > 0
+                    return local_normal if local_normal
+                rescue StandardError
+                    # fall through to face normal fallback
+                end
+            end
+            face ? face.normal : Geom::Vector3d.new(0, 0, 1)
+        end
+        private_class_method :na_local_normal_at_vertex
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Resolve Vertex IDs + Per-Vertex Normals for Loop
+        # ------------------------------------------------------------
+        # Builds a deduped vertex record per (position, normal) pair. A
+        # parallel position-only index is populated so downstream edge
+        # mapping always has a stable vertex id per world position.
+        def self.na_loop_vertex_ids_with_normals(loop_vertices, transform, origin_pt, polygon_mesh, normal_matrix, is_mirrored, vertex_id_lookup, position_to_vertex_id, vertices_out)
             loop_vertices.map do |vertex|
                 world_point = vertex.position.transform(transform)
-                point_hash = {
-                    "PosX_mm" => ((world_point.x - origin_pt.x) * NA_INCH_TO_MM).round(3),
-                    "PosY_mm" => ((world_point.y - origin_pt.y) * NA_INCH_TO_MM).round(3),
-                    "PosZ_mm" => ((world_point.z - origin_pt.z) * NA_INCH_TO_MM).round(3)
-                }
-                key = "#{point_hash["PosX_mm"]}|#{point_hash["PosY_mm"]}|#{point_hash["PosZ_mm"]}"
-                unless vertex_id_lookup[key]
+                pos_x_mm = ((world_point.x - origin_pt.x) * NA_INCH_TO_MM).round(3)
+                pos_y_mm = ((world_point.y - origin_pt.y) * NA_INCH_TO_MM).round(3)
+                pos_z_mm = ((world_point.z - origin_pt.z) * NA_INCH_TO_MM).round(3)
+
+                local_normal = na_local_normal_at_vertex(nil, polygon_mesh, vertex.position)
+                nx, ny, nz = na_transform_normal(
+                    normal_matrix,
+                    local_normal.x.to_f,
+                    local_normal.y.to_f,
+                    local_normal.z.to_f
+                )
+                if is_mirrored
+                    nx = -nx
+                    ny = -ny
+                    nz = -nz
+                end
+
+                normal_x = nx.round(6)
+                normal_y = ny.round(6)
+                normal_z = nz.round(6)
+
+                position_key = "#{pos_x_mm}|#{pos_y_mm}|#{pos_z_mm}"
+                combined_key = "#{position_key}|#{normal_x}|#{normal_y}|#{normal_z}"
+
+                unless vertex_id_lookup[combined_key]
                     vertex_id = "V%03d" % (vertices_out.length + 1)
-                    vertex_id_lookup[key] = vertex_id
+                    vertex_id_lookup[combined_key] = vertex_id
+                    position_to_vertex_id[position_key] ||= vertex_id
                     vertices_out << {
                         "VertexId"   => vertex_id,
                         "VertexName" => "Na__Mesh__Vertex__#{vertex_id}",
-                        "PosX_mm"    => point_hash["PosX_mm"],
-                        "PosY_mm"    => point_hash["PosY_mm"],
-                        "PosZ_mm"    => point_hash["PosZ_mm"]
+                        "PosX_mm"    => pos_x_mm,
+                        "PosY_mm"    => pos_y_mm,
+                        "PosZ_mm"    => pos_z_mm,
+                        "Normal_X"   => normal_x,
+                        "Normal_Y"   => normal_y,
+                        "Normal_Z"   => normal_z
                     }
                 end
-                vertex_id_lookup[key]
+                vertex_id_lookup[combined_key]
             end
         end
-        private_class_method :na_loop_vertex_ids
+        private_class_method :na_loop_vertex_ids_with_normals
         # ---------------------------------------------------------------
 
-        # HELPER FUNCTION | Add Edges from Closed Loop Vertex IDs
+        # HELPER FUNCTION | Convert Real Sketchup::Edge Records to JSON Records
         # ------------------------------------------------------------
-        def self.na_add_loop_edges_to_lookup(edge_lookup, loop_ids)
-            return if loop_ids.length < 2
-            loop_ids.each_with_index do |start_vid, idx|
-                end_vid = loop_ids[(idx + 1) % loop_ids.length]
-                next if start_vid == end_vid
-                key = [start_vid, end_vid].sort.join("|")
-                edge_lookup[key] = [start_vid, end_vid] unless edge_lookup[key]
-            end
-        end
-        private_class_method :na_add_loop_edges_to_lookup
-        # ---------------------------------------------------------------
-
-        # HELPER FUNCTION | Convert Edge Lookup into Na__Geometry__Edges
-        # ------------------------------------------------------------
-        def self.na_edges_from_lookup(edge_lookup)
+        # For each captured edge we look up its endpoint vertex ids from
+        # the position-only index built during face export. Edge flags
+        # (IsSoft, IsSmooth, IsHidden, CastsShadows) mirror the GLB
+        # builder's visibility rules (see Na__LineworkEngine__TraverseEdges
+        # in Na__TrueVision__GlbBuilder__EngineCore__LineworkModelHandling__.rb
+        # lines 52-57).
+        #
+        # Undirected uniqueness: the first encounter of a given undirected
+        # pair wins the EdgeId, later duplicates are dropped.
+        def self.na_edges_from_real_edges(edge_records, position_to_vertex_id, origin_pt)
+            seen  = {}
             edges = []
-            edge_lookup.values.each_with_index do |pair, idx|
-                edge_id = "E%03d" % (idx + 1)
+
+            edge_records.each do |record|
+                edge = record[:edge]
+                next unless edge && edge.valid?
+                transform = record[:world_transform]
+
+                start_world = edge.start.position.transform(transform)
+                end_world   = edge.end.position.transform(transform)
+
+                start_key   = na_position_key_mm(start_world, origin_pt)
+                end_key     = na_position_key_mm(end_world,   origin_pt)
+                start_vid   = position_to_vertex_id[start_key]
+                end_vid     = position_to_vertex_id[end_key]
+                next unless start_vid && end_vid
+                next if start_vid == end_vid
+
+                pair_key = [start_vid, end_vid].sort.join("|")
+                next if seen[pair_key]
+                seen[pair_key] = true
+
+                edge_id = "E%03d" % (edges.length + 1)
                 edges << {
-                    "EdgeId"      => edge_id,
-                    "StartVertex" => pair[0],
-                    "EndVertex"   => pair[1]
+                    "EdgeId"       => edge_id,
+                    "StartVertex"  => start_vid,
+                    "EndVertex"    => end_vid,
+                    "IsSoft"       => edge.respond_to?(:soft?)          ? !!edge.soft?          : false,
+                    "IsSmooth"     => edge.respond_to?(:smooth?)        ? !!edge.smooth?        : false,
+                    "IsHidden"     => edge.respond_to?(:hidden?)        ? !!edge.hidden?        : false,
+                    "CastsShadows" => edge.respond_to?(:casts_shadows?) ? !!edge.casts_shadows? : true
                 }
             end
+
             edges
         end
-        private_class_method :na_edges_from_lookup
+        private_class_method :na_edges_from_real_edges
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build Position Key (mm, Rounded 3 dp) for Vertex Lookup
+        # ------------------------------------------------------------
+        def self.na_position_key_mm(world_point, origin_pt)
+            x = ((world_point.x - origin_pt.x) * NA_INCH_TO_MM).round(3)
+            y = ((world_point.y - origin_pt.y) * NA_INCH_TO_MM).round(3)
+            z = ((world_point.z - origin_pt.z) * NA_INCH_TO_MM).round(3)
+            "#{x}|#{y}|#{z}"
+        end
+        private_class_method :na_position_key_mm
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

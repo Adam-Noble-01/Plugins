@@ -585,7 +585,10 @@ module Na__InteriorDoorSystem
             return nil unless asset.is_a?(Hash)
 
             metadata = asset["Na__Asset__Metadata"]
-            return nil unless metadata.is_a?(Hash)
+            unless metadata.is_a?(Hash)
+                DebugTools.na_debug_warn("Handle option '#{key}' missing Na__Asset__Metadata - using key label fallback")
+                return { "value" => key.to_s, "label" => key.to_s }
+            end
 
             label = metadata["Na__Asset__Name"].to_s.strip
             label = key.to_s if label.empty?

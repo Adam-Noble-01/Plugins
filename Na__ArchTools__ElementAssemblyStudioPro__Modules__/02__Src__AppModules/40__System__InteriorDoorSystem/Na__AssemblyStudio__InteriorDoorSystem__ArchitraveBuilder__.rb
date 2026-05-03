@@ -12,11 +12,19 @@
 #
 # DESCRIPTION:
 # - Reads the architrave asset JSON from Na__AssetLibrary.
-# - Builds a 3-segment perimeter path offset 5mm (configurable) around the
-#   outside of the door lining: top run + left jamb + right jamb.
-# - There is NO bottom architrave (UK convention).
-# - The 2D profile is loaded from the asset's Na__Asset__Profile2D block
-#   (vertices use PosY_mm / PosZ_mm authored on the local YZ plane).
+# - Builds a 3-segment perimeter path that traces the architrave's
+#   INNER-EDGE corners offset from the LINING'S INNER FACES (UK
+#   reveal detail). Default offset is 5mm (configurable via
+#   Na__DoorConfig__ArchitraveOffset_mm); this offset is the strip
+#   of lining inner face that remains visible past the architrave.
+# - Path runs: bottom of left jamb -> top of left jamb -> top of
+#   right jamb -> bottom of right jamb. There is NO bottom
+#   architrave (UK convention - the path stays open at the floor).
+# - The 2D profile is loaded from the asset's Na__Asset__Profile2D
+#   block (vertices use PosY_mm / PosZ_mm authored on the local YZ
+#   plane). The profile face is built in the XY plane so it is
+#   perpendicular to the +Z first-edge tangent of the path,
+#   keeping Follow Me well-defined for the vertical jamb sweeps.
 # - Mirrors the algorithm used by Na__ProfileTools__ProfilePathTracer's
 #   GeometryBuilders.Na__Geometry__BuildProfileAlongPath but operates on
 #   a caller-supplied entities collection (so the resulting solid lives
@@ -197,6 +205,7 @@ module Na__InteriorDoorSystem
             opening_w_mm   = config["Na__DoorConfig__OpeningWidth_mm"].to_f
             opening_h_mm   = config["Na__DoorConfig__OpeningHeight_mm"].to_f
             wall_depth_mm  = config["Na__DoorConfig__WallDepth_mm"].to_f
+            lining_t_mm    = config["Na__DoorConfig__LiningThickness_mm"].to_f
             face_offset_mm = config["Na__DoorConfig__LiningFaceOffset_mm"].to_f
             arch_offset_mm = config["Na__DoorConfig__ArchitraveOffset_mm"].to_f
             arch_offset_mm = 5.0 if arch_offset_mm <= 0
@@ -205,13 +214,12 @@ module Na__InteriorDoorSystem
             wrapper.name   = (side == :front) ? "Na__Architrave__Front" : "Na__Architrave__Back"
             wrapper_ents   = wrapper.entities
 
-            ordered_path_pts = na_compute_perimeter_path_inches(opening_w_mm, opening_h_mm, arch_offset_mm, side, face_offset_mm, wall_depth_mm)
+            ordered_path_pts = na_compute_perimeter_path_inches(opening_w_mm, opening_h_mm, lining_t_mm, arch_offset_mm, side, face_offset_mm, wall_depth_mm)
             return nil if ordered_path_pts.length < 2
 
             path_edges       = na_create_path_edges(wrapper_ents, ordered_path_pts)
             return nil if path_edges.empty?
 
-            sweep_axis       = (side == :front) ? Z_AXIS.reverse : Z_AXIS                     # <-- Front profile mirrors Z so it projects outward
             profile_face     = na_create_profile_face(wrapper_ents, profile_pts_mm, ordered_path_pts.first, side, face_offset_mm, wall_depth_mm)
 
             unless profile_face && profile_face.valid?
@@ -240,14 +248,33 @@ module Na__InteriorDoorSystem
 
         # SUB HELPER FUNCTION | Compute the Perimeter Path Points (Inches)
         # ------------------------------------------------------------
-        # Three-segment polyline (5 vertices): bottom of left jamb, top of
-        # left jamb, top of right jamb, bottom of right jamb. The path
-        # leaves the bottom open (no architrave under the door).
-        def self.na_compute_perimeter_path_inches(opening_w_mm, opening_h_mm, arch_offset_mm, side, face_offset_mm, wall_depth_mm)
-            x_left_mm   = -arch_offset_mm
-            x_right_mm  = opening_w_mm + arch_offset_mm
+        # Three-segment polyline (4 vertices, 3 edges): bottom of left
+        # jamb, top of left jamb, top of right jamb, bottom of right
+        # jamb. The path leaves the bottom open (no architrave under
+        # the door - UK convention).
+        #
+        # The path traces the architrave inner-edge corners offset
+        # from the LINING'S INNER FACES (UK reveal detail). The
+        # offset is applied AWAY from the passage on every side, so
+        # all three architrave outer edges end up the same distance
+        # beyond the structural opening (profile_width - lining_t +
+        # offset) and all three inner edges leave the same 'offset'
+        # mm strip of lining inner face visible as a reveal:
+        #   * Left jamb path x  = lining_t - offset
+        #     (move from the left lining inner face TOWARD the wall
+        #      = -X = subtract the offset)
+        #   * Right jamb path x = (opening_w - lining_t) + offset
+        #     (TOWARD the wall = +X for the right jamb = add)
+        #   * Top path z        = (opening_h - lining_t) + offset
+        #     (TOWARD the wall = +Z for the head = add the offset
+        #      so the architrave bottom sits 'offset' mm above the
+        #      head lining bottom face, NOT below it)
+        #   * Bottom path z     = 0 (path stays open at the floor)
+        def self.na_compute_perimeter_path_inches(opening_w_mm, opening_h_mm, lining_t_mm, arch_offset_mm, side, face_offset_mm, wall_depth_mm)
+            x_left_mm   = lining_t_mm - arch_offset_mm
+            x_right_mm  = (opening_w_mm - lining_t_mm) + arch_offset_mm
             z_bottom_mm = 0
-            z_top_mm    = opening_h_mm + arch_offset_mm
+            z_top_mm    = (opening_h_mm - lining_t_mm) + arch_offset_mm
 
             y_face_mm   = (side == :front) ? face_offset_mm : (face_offset_mm + wall_depth_mm)
 
@@ -278,12 +305,21 @@ module Na__InteriorDoorSystem
 
         # SUB HELPER FUNCTION | Create the Profile Face at the Path Start
         # ------------------------------------------------------------
-        # Profile is authored on the local YZ plane (Y outward, Z forward).
-        # We orient it perpendicular to the path tangent at the start:
-        # * Path tangent at the start of the bottom-left -> top-left
-        #   segment is +Z, so the profile face must lie in the XY plane.
-        # * For the front face, the profile projects in -Y (outwards from
-        #   the wall's front face); for the back face it projects in +Y.
+        # Profile is authored on the local YZ plane (Y = profile width
+        # running outward from the lining, Z = profile depth running
+        # forward into the room). Follow Me requires the face to lie
+        # perpendicular to the path tangent at the start vertex:
+        # * Path tangent at the bottom-left -> top-left segment is +Z,
+        #   so the face must lie in the XY plane (constant Z).
+        # * Profile width (Y field) -> -X so the architrave extends
+        #   outward from the lining (away from the opening) at the
+        #   left jamb start point.
+        # * Profile depth (Z field) -> y_sign * Y so the front
+        #   architrave projects in -Y (out of the wall front face)
+        #   and the back architrave projects in +Y.
+        # * The face normal is forced to align with the +Z path
+        #   tangent so Follow Me extrudes a closed solid in both
+        #   front and back copies.
         def self.na_create_profile_face(entities, profile_pts_mm, start_point, side, face_offset_mm, wall_depth_mm)
             mm = ->(v) { GeometryHelpers.na_mm_to_inch(v) }
 
@@ -293,13 +329,15 @@ module Na__InteriorDoorSystem
 
             transformed_points = profile_pts_mm.map do |y_mm, z_mm|
                 Geom::Point3d.new(
-                    x_at_start + mm.call(y_mm) * 0.0,                                      # <-- Profile width does not move along path tangent at start
-                    start_point.y + y_sign * mm.call(z_mm),                                # <-- Profile projection (Z field) lays along the wall normal
-                    z_at_start - mm.call(y_mm)                                             # <-- Profile width (Y field) lays along negative Z so face stays oriented outward
+                    x_at_start - mm.call(y_mm),                                            # <-- Profile width (Y field) extends outward from the lining (-X at left jamb)
+                    start_point.y + y_sign * mm.call(z_mm),                                # <-- Profile depth (Z field) projects forward (-Y front) or backward (+Y back)
+                    z_at_start                                                             # <-- Face stays in the XY plane (perpendicular to +Z path tangent)
                 )
             end
 
             face = entities.add_face(transformed_points)
+            return face unless face && face.valid?
+            face.reverse! if face.normal.dot(Z_AXIS) < 0                                    # <-- Align face normal with path tangent so Follow Me sweeps in +Z
             face
         end
         private_class_method :na_create_profile_face

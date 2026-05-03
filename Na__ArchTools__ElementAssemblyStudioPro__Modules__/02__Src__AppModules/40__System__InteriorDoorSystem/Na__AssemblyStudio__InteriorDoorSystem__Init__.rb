@@ -73,7 +73,7 @@ module Na__InteriorDoorSystem
     NA_MODULE_ROOT_PATH         = File.dirname(__FILE__).freeze
     # v2/EASP: assets moved to root 04__Data__AssetLibrary so multiple systems can share.
     NA_ASSETS_ROOT_PATH         = File.expand_path(
-        File.join(NA_MODULE_ROOT_PATH, "..", "..", "..", "04__Data__AssetLibrary")
+        File.join(NA_MODULE_ROOT_PATH, "..", "..", "04__Data__AssetLibrary")
     ).freeze
     # ---------------------------------------------------------------
 

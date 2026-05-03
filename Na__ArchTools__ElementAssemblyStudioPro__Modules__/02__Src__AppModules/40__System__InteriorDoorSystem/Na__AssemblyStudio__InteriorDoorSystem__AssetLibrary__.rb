@@ -101,7 +101,7 @@ module Na__InteriorDoorSystem
             return @na_assets_root_path if @na_assets_root_path
 
             module_dir = File.dirname(__FILE__)
-            File.expand_path(File.join(module_dir, "..", "..", "..", NA_ASSETS_ROOT_FOLDER_FALLBACK))
+            File.expand_path(File.join(module_dir, "..", "..", NA_ASSETS_ROOT_FOLDER_FALLBACK))
         end
         # ---------------------------------------------------------------
 

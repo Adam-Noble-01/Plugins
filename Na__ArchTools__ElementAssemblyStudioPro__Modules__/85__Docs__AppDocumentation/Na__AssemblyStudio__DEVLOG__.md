@@ -3,6 +3,121 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | v1.2.1 - Interior Door Architrave Top-Edge Symmetry Fix
+
+### Top architrave bottom edge now sits ABOVE the head lining bottom face (sign correction)
+- v1.2.0 introduced the lining-inner-face reveal but mis-signed the top of the perimeter path:
+  - `z_top_mm = (opening_h_mm - lining_t_mm) - arch_offset_mm` placed the architrave bottom edge BELOW the head lining bottom face (5 mm INTO the door passage opening), so the top architrave's outer edge only reached 30 mm above the structural opening top while the side architraves extended 40 mm beyond the structural opening edges. The asymmetric extent read as "the top is too short" in the SketchUp 3D view.
+- The reveal must always move AWAY from the passage on every side. For the head, "away from the passage" is +Z (upward toward the wall above), so the offset is now ADDED instead of subtracted in `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__ArchitraveBuilder__.rb` `na_compute_perimeter_path_inches`:
+  - `z_top_mm = (opening_h_mm - lining_t_mm) + arch_offset_mm`
+  - With `lining_t = 35` and `arch_offset = 5`, the architrave bottom edge sits at `opening_h - 30` (5 mm above the head lining bottom face), the architrave top edge sits at `opening_h + 40`, and the 5 mm reveal of the head lining bottom face is now visible past the architrave - exactly the symmetric behaviour the side jambs already had.
+- The doc-comment block in `na_compute_perimeter_path_inches` is updated to spell out the rule explicitly: "the offset is applied AWAY from the passage on every side", with worked notes for left jamb (-X), right jamb (+X), and head (+Z).
+
+### Dialog 2D elevation preview tracks the corrected top edge
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__ElevationGenerator__.js` `na_build_architrave_outline` had matched the wrong v1.2.0 sign. Updated to:
+  - `y = openingTopY + (liningThickness - archOffset)` (was `+ archOffset`).
+  - With SVG Y flipped, this places the dashed top edge 30 mm below `openingTopY`, matching the new 3D `opening_h - 30` architrave bottom edge.
+- The width / open-bottom logic is unchanged.
+
+### Why this matters
+- The interior door now reads as a properly proportioned UK architrave on all three sides: 70 mm profile, 5 mm reveal of the lining face on every side, and the architrave outer edge sits the same 40 mm beyond the structural opening on the left, right, AND top.
+- The dialog's dashed 2D outline matches the rebuilt 3D solid in both X and Z, so the preview is no longer misleading.
+# =============================================================================
+
+
+# =============================================================================
+## Element Assembly Studio Pro | v1.2.0 - Interior Door Architrave Fix (Inner-Face Reveal + Profile Plane)
+
+### Follow Me profile face moved into the XY plane (vertical jamb sweeps now produce a closed solid)
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__ArchitraveBuilder__.rb` `na_create_profile_face` previously authored the cross-section in the YZ plane (constant X) AND extruded its width below the floor (`z_at_start - mm.call(y_mm)`), which left the face *parallel* to the +Z first-edge tangent of the perimeter path. Follow Me degenerated on the vertical-jamb sweeps and produced residual flat geometry under the floor that read as a phantom "bottom architrave" running across the door opening in the SketchUp view.
+- The profile is now built in the XY plane (constant Z = `z_at_start`) so it lies *perpendicular* to the +Z first-edge tangent:
+  - Profile width (Y field) extends in -X (outward from the lining at the bottom-left start point).
+  - Profile depth (Z field) extends in `y_sign * Y` (-Y forward for the front copy, +Y backward for the back copy).
+  - After the face is created, the normal is forced to align with `Z_AXIS` via `face.reverse! if face.normal.dot(Z_AXIS) < 0` so Follow Me sweeps in the same direction as the path on both front and back copies.
+- The unused `sweep_axis` local in `na_build_single_architrave` (it was never consumed by `followme`) has been removed.
+
+### Architrave perimeter path now traces from the LINING'S INNER FACES (UK reveal detail)
+- `na_compute_perimeter_path_inches` previously offset the path from the **structural opening edges** (`x_left = -arch_offset`, `x_right = opening_w + arch_offset`, `z_top = opening_h + arch_offset`), which placed the architrave inner edge OUTSIDE the lining outer edges - not the standard UK joinery layout.
+- The function now takes a `lining_t_mm` parameter and derives the four corner points from the lining inner faces, with `Na__DoorConfig__ArchitraveOffset_mm` acting as the reveal (the strip of lining that stays visible past the architrave):
+  - `x_left_mm   = lining_t_mm - arch_offset_mm`
+  - `x_right_mm  = (opening_w_mm - lining_t_mm) + arch_offset_mm`
+  - `z_bottom_mm = 0` (no bottom architrave - path stays open at the floor)
+  - `z_top_mm    = (opening_h_mm - lining_t_mm) - arch_offset_mm`
+- `na_build_single_architrave` now reads `Na__DoorConfig__LiningThickness_mm` from the configuration block and passes it through.
+- The file `# DESCRIPTION` block and the `na_compute_perimeter_path_inches` doc comment are updated to spell out the new offset semantics (offset = reveal from lining inner face, not outset from structural opening). The `Na__DoorConfig__ArchitraveOffset_mm` config key keeps its name and `5` mm default - only its meaning has shifted.
+
+### Dialog 2D elevation preview now matches the 3D architrave outline
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__ElevationGenerator__.js` `na_build_architrave_outline` previously rectangled around the structural opening (`openingX - archOffset` etc.) and so disagreed with the 3D model.
+- Outline rebuilt to use the same lining-inner-face + reveal convention as the Ruby builder:
+  - `x = openingX + liningThickness - archOffset`
+  - Top SVG y = `openingTopY + (liningThickness + archOffset)` (SVG Y is flipped, so the architrave top edge - which sits below the head lining bottom by `liningThickness + archOffset` in 3D - lands at the same distance below the SVG opening top).
+  - Bottom y = `openingBottomY` (path stays open at the floor).
+  - Width = `openingWidth - (liningThickness * 2) + (archOffset * 2)`.
+- `layout.liningThickness` is already exposed by `na_compute_layout`, so no extra plumbing was required.
+
+### Why this matters
+- The SketchUp model now builds a clean three-sided architrave (left jamb + head + right jamb) with the bottom open at the floor on both the front and back copies.
+- The architrave inner edge is now positioned to standard UK joinery convention (5 mm reveal of the lining inner face visible past the architrave by default), so the door reads correctly as a finished installed assembly.
+- The dialog's 2D dashed architrave outline lines up with the rebuilt 3D solid, so the preview no longer misleads the user.
+# =============================================================================
+
+
+# =============================================================================
+## Element Assembly Studio Pro | v1.1.1 - Handle Lay-Back Rotation Fix + GLB-Parity 3D Exporter
+
+### Handle insertion rotation corrected to Z then X around ORIGIN
+- Replaced the single `-90 deg` Y-axis lay-back rotation in `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb` with a dedicated helper `na_compute_handle_lay_back_rotation` that composes:
+  1. `Geom::Transformation.rotation(ORIGIN, Z_AXIS, -90.degrees)`
+  2. `Geom::Transformation.rotation(ORIGIN, X_AXIS, -90.degrees)`
+  and returns `t_x * t_z` (right-to-left composition so Z is applied first, then X). Both rotations are anchored at `ORIGIN`, which aligns with the `00__OriginPoint` group used by the 3D exporter.
+- `na_compute_handle_transform` now calls the helper via `t_lay_back = na_compute_handle_lay_back_rotation`; the existing face-flip, handing (RH/LH), and origin translation remain untouched.
+- Updated the file header description and the `na_compute_handle_transform` comment block to describe the new two-step correction.
+
+### Dev-tools 3D exporter: GLB-parity mesh extraction
+- Upgraded `65__Dev__DevTools/Na__AssemblyStudio__DevTools__JsonExporter3D__.rb` to mirror the proven extraction path from `Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__.rb` while keeping the `Na__AssemblyStudio::Na__DevTools` namespace.
+
+#### New namespaced math + visibility helpers
+- `na_calc_determinant_3x3(transform)` - detects mirrored geometry (det < 0) for winding-order / normal correction.
+- `na_calc_normal_matrix(transform)` - cofactor of the upper-left 3x3 (inverse-transpose shortcut, 1/det cancels after normalization).
+- `na_transform_normal(normal_matrix, nx, ny, nz)` - applies the cofactor matrix and re-normalizes; falls back to Z-up when degenerate.
+- `na_entity_excluded?(entity)` - skips hidden entities and hidden layers, mirroring the GLB builder's visibility rules.
+
+#### Per-vertex normals via `face.mesh(7)`
+- `na_begin_face_polygon_mesh(face)` wraps `face.mesh(7)` (PolygonMeshPoints + UVQFront + UVQBack).
+- `na_local_normal_at_vertex(face, polygon_mesh, vertex_position)` resolves the correct mesh index via `PolygonMesh#add_point` (canonical SketchUp API), then reads the averaged local normal via `PolygonMesh#normal_at`. Softened/smoothed edges produce averaged vertex normals automatically.
+- `na_loop_vertex_ids_with_normals` now writes each vertex record with `PosX_mm`, `PosY_mm`, `PosZ_mm`, `Normal_X`, `Normal_Y`, `Normal_Z`. Deduplication key is `position + normal`, so hard edges emit distinct vertex records at the same position with different normals - matching what three.js / glTF consumers need for correct shading.
+
+#### Real-edge export with soft/smooth/hidden flags
+- Added edge collection to `na_collect_mesh_tree` (new optional `edge_records` parameter) and to both `na_extract_mesh_bundle` / `na_extract_mesh_bundle_from_selection`.
+- Retired the loop-synthesized `na_add_loop_edges_to_lookup` / `na_edges_from_lookup` pair.
+- New `na_edges_from_real_edges(edge_records, position_to_vertex_id, origin_pt)` writes `Na__Geometry__Edges` records of shape:
+
+```json
+{
+  "EdgeId": "E001",
+  "StartVertex": "V001",
+  "EndVertex": "V002",
+  "IsSoft": false,
+  "IsSmooth": false,
+  "IsHidden": false,
+  "CastsShadows": true
+}
+```
+
+- Undirected uniqueness preserved via `[start_vid, end_vid].sort.join("|")`.
+- Endpoint ids resolved via a new position-only index (`position_to_vertex_id`) so per-vertex-normal dedupe doesn't break edge->vertex mapping.
+
+#### Expanded `Na__Geometry__Counts`
+- Now emits `Na__Geometry__HardEdgeCount`, `Na__Geometry__SoftEdgeCount`, `Na__Geometry__SmoothEdgeCount` alongside the existing `VertexCount`, `FaceCount`, `EdgeCount`.
+
+### Consumer compatibility
+- `Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb` reads only `PosX_mm/PosY_mm/PosZ_mm` and `OuterLoop_VertexIds` from handle asset JSON, so new per-vertex `Normal_*` fields and new edge flag fields are ignored by existing builders. Older handle JSON (without per-vertex normals or edge flags) continues to load unchanged.
+
+### Why this matters
+- The handle's 3D instance now stands up correctly on the door panel, matching the user-validated `Z -90 deg then X -90 deg` authoring convention of the exporter's `00__OriginPoint` space.
+- Future re-exports of handles / architraves / hinges preserve softened and smoothed edges, enabling downstream renderers (TrueVision3D GLB builder, ValeVision3D web viewer) to reproduce the intended curved lever aesthetic without re-soften/re-smooth passes.
+# =============================================================================
+
 
 # =============================================================================
 ## Element Assembly Studio Pro | v1.1.0 - Swatch Push Reliability + Reload-Forced Materials Refresh

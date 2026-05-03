@@ -17,8 +17,10 @@
 #   key per session (cached in @na_handle_def_cache) and reuses it for
 #   both the interior and exterior instances.
 # - The asset is authored lying on its back (Z+ = front face) so this
-#   module applies a -90 deg rotation about the Y axis when inserting
-#   into the door, per the user's spec.
+#   module applies a three-step lay-back rotation (Z axis -90 deg, then
+#   X axis -90 deg, then another X axis -90 deg, all around the
+#   00__OriginPoint reference) to stand the handle up with the lever
+#   pointing out of the door panel's interior face.
 # - Reads RH/LH offsets and ScaleX from the asset metadata's
 #   Na__PanelPlacement__RightHand / Na__PanelPlacement__LeftHand blocks
 #   so a single asset works for either hand of door.
@@ -31,7 +33,9 @@
 # =============================================================================
 
 require 'sketchup.rb'
+require 'json'
 require 'set'
+require 'digest'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__AssetLibrary__'
@@ -57,6 +61,8 @@ module Na__InteriorDoorSystem
 # -----------------------------------------------------------------------------
 
         @na_handle_def_cache = {}                                              # <-- AssetKey -> Sketchup::ComponentDefinition
+        NA_HANDLE_DEF_SIGNATURE_DICT = "Na__InteriorDoor__HandleBuilder3D".freeze
+        NA_HANDLE_DEF_SIGNATURE_KEY  = "Na__MeshSignature".freeze
 
 # endregion -------------------------------------------------------------------
 
@@ -238,10 +244,13 @@ module Na__InteriorDoorSystem
         # session. Otherwise builds a fresh definition from the asset's
         # Na__Asset__Mesh3D block and caches it.
         def self.na_get_or_build_handle_definition(asset_key, mesh_block, material)
+            mesh_signature = na_build_mesh_signature(mesh_block)
             cached = @na_handle_def_cache[asset_key]
             if cached && cached.valid?
-                return cached if na_definition_has_mesh_faces?(cached)
-                DebugTools.na_debug_warn("Handle definition cache for '#{asset_key}' was empty - rebuilding")
+                if na_definition_has_mesh_faces?(cached) && na_definition_matches_mesh_signature?(cached, mesh_signature)
+                    return cached
+                end
+                DebugTools.na_debug_warn("Handle definition cache for '#{asset_key}' is stale or empty - rebuilding from JSON mesh")
                 @na_handle_def_cache.delete(asset_key)
             end
 
@@ -250,7 +259,9 @@ module Na__InteriorDoorSystem
 
             def_name    = "Na__InteriorDoor__Handle__#{asset_key}"
             existing    = model.definitions[def_name]
-            if existing && existing.valid? && na_definition_has_mesh_faces?(existing)
+            if existing && existing.valid? &&
+               na_definition_has_mesh_faces?(existing) &&
+               na_definition_matches_mesh_signature?(existing, mesh_signature)
                 @na_handle_def_cache[asset_key] = existing
                 return existing
             end
@@ -268,6 +279,7 @@ module Na__InteriorDoorSystem
                 return nil
             end
 
+            na_write_definition_mesh_signature(definition, mesh_signature)
             @na_handle_def_cache[asset_key] = definition
             DebugTools.na_debug_geometry("Built handle definition '#{def_name}' with #{built_faces} faces")
             definition
@@ -343,6 +355,40 @@ module Na__InteriorDoorSystem
         private_class_method :na_definition_has_mesh_faces?
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Build Stable Mesh Signature for Definition Reuse
+        # ------------------------------------------------------------
+        def self.na_build_mesh_signature(mesh_block)
+            Digest::SHA256.hexdigest(JSON.generate(mesh_block || {}))
+        rescue StandardError
+            nil
+        end
+        private_class_method :na_build_mesh_signature
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Compare Definition Signature to Mesh Signature
+        # ------------------------------------------------------------
+        def self.na_definition_matches_mesh_signature?(definition, mesh_signature)
+            return false if mesh_signature.to_s.empty?
+            stored = definition.get_attribute(NA_HANDLE_DEF_SIGNATURE_DICT, NA_HANDLE_DEF_SIGNATURE_KEY, "").to_s
+            return false if stored.empty?
+            stored == mesh_signature.to_s
+        rescue StandardError
+            false
+        end
+        private_class_method :na_definition_matches_mesh_signature?
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Persist Mesh Signature onto ComponentDefinition
+        # ------------------------------------------------------------
+        def self.na_write_definition_mesh_signature(definition, mesh_signature)
+            return if mesh_signature.to_s.empty?
+            definition.set_attribute(NA_HANDLE_DEF_SIGNATURE_DICT, NA_HANDLE_DEF_SIGNATURE_KEY, mesh_signature.to_s)
+        rescue StandardError => e
+            DebugTools.na_debug_warn("Failed to write handle mesh signature: #{e.message}")
+        end
+        private_class_method :na_write_definition_mesh_signature
+        # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -379,7 +425,8 @@ module Na__InteriorDoorSystem
         # HELPER FUNCTION | Compute the Insertion Transform for a Handle
         # ------------------------------------------------------------
         # Combines four transformations:
-        #   1. -90 deg rotation about Y axis (asset is authored lying on back)
+        #   1. Handle lay-back rotation (Z -90, X -90, X -90 around
+        #      ORIGIN / 00__OriginPoint) - see na_compute_handle_lay_back_rotation
         #   2. Optional X mirror for left-hand handing (ScaleX = -1)
         #   3. Translation to the panel face (interior or exterior side)
         #   4. Translation along X to the hinge offset and along Z to handle height
@@ -387,7 +434,7 @@ module Na__InteriorDoorSystem
             metadata             = asset["Na__Asset__Metadata"] || {}
             handle_height_mm     = config["Na__DoorConfig__HandleHeight_mm"].to_f
             handle_height_mm     = metadata["Na__PanelPlacement__DefaultHeight_mm"].to_f if handle_height_mm <= 0
-            handle_height_mm     = 1050 if handle_height_mm <= 0                          # <-- Final fallback
+            handle_height_mm     = 900 if handle_height_mm <= 0                          # <-- Final fallback
 
             opening_w_mm         = config["Na__DoorConfig__OpeningWidth_mm"].to_f
             wall_depth_mm        = config["Na__DoorConfig__WallDepth_mm"].to_f
@@ -421,13 +468,46 @@ module Na__InteriorDoorSystem
             base_origin   = Geom::Point3d.new(mm.call(handle_x_mm), mm.call(handle_y_mm), mm.call(handle_height_mm))
 
             t_origin      = Geom::Transformation.new(base_origin)
-            t_lay_back    = Geom::Transformation.rotation(ORIGIN, Y_AXIS, -90.degrees)            # <-- Asset authored on back
+            t_lay_back    = na_compute_handle_lay_back_rotation                                  # <-- Handle-specific Z -90 then X -90 correction
             t_face_flip   = (face == :exterior) ? Geom::Transformation.rotation(ORIGIN, Z_AXIS, 180.degrees) : Geom::Transformation.new
             t_handing     = (scale_x < 0) ? Geom::Transformation.scaling(ORIGIN, -1, 1, 1) : Geom::Transformation.new
 
             t_origin * t_face_flip * t_handing * t_lay_back
         end
         private_class_method :na_compute_handle_transform
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Compose Handle Lay-Back Rotation (Z -90, X -90, X -90)
+        # ------------------------------------------------------------
+        # The unified handle assets are authored lying on their back so
+        # that the exporter's 00__OriginPoint sits at the handle spindle
+        # with Z+ pointing out of the front face of the lever. To stand
+        # the handle up correctly on a vertical door panel, with the
+        # lever projecting horizontally out of the door's interior face,
+        # the builder must rotate the asset by:
+        #   1. -90 deg around the Z axis
+        #   2. -90 deg around the X axis
+        #   3. -90 deg around the X axis (second time, to lay the lever
+        #      from vertical down onto the door's interior face)
+        # All three rotations are anchored at ORIGIN (the asset's local
+        # 00__OriginPoint reference).
+        #
+        # Geom::Transformation composition is right-to-left, so the
+        # composition for "apply Z first, then X, then X again" is:
+        #
+        #   T_final = T_x2 * T_x1 * T_z
+        #
+        # The two X-axis rotations could be collapsed into a single
+        # X -180 deg, but they are kept as separate steps here so the
+        # correction history stays readable and easy to tune.
+        #
+        # @return [Geom::Transformation] Combined lay-back rotation
+        def self.na_compute_handle_lay_back_rotation
+            t_z  = Geom::Transformation.rotation(ORIGIN, Z_AXIS, -180.degrees)
+            t_x1 = Geom::Transformation.rotation(ORIGIN, X_AXIS, -90.degrees)
+            t_x1 * t_z
+        end
+        private_class_method :na_compute_handle_lay_back_rotation
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

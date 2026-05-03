@@ -170,6 +170,7 @@
             ? panelX + panelClearWidth - 60
             : panelX + 60;
         var handleY = panelBottomY - handleHeight;
+        var handleMirrorX = (swingSide === 'Left');                             // <-- Mirror local X so the asset lever + rose swap to the handed side
 
         return {
             totalWidth       : totalWidth,
@@ -186,7 +187,8 @@
             panelClearWidth  : panelClearWidth,
             panelClearHeight : panelClearHeight,
             handleX          : handleX,
-            handleY          : handleY
+            handleY          : handleY,
+            handleMirrorX    : handleMirrorX
         };
     }
 
@@ -210,11 +212,15 @@
 
     // HELPER FUNCTION | Transform asset local XY point into SVG XY
     // ------------------------------------------------------------
+    // Mirrors X when the door is left-hand so the handle's rose and
+    // lever project from the correct edge of the panel, matching the
+    // 3D handle builder's ScaleX = -1 handing rule.
     function na_transform_handle_point_elevation(layout, point) {
         var localX = na_to_number(point && point.X, 0);
         var localY = na_to_number(point && point.Y, 0);
+        var mirroredX = layout.handleMirrorX ? -localX : localX;
         return {
-            x: layout.handleX + localX,
+            x: layout.handleX + mirroredX,
             y: layout.handleY - localY
         };
     }
@@ -336,13 +342,27 @@
     }
     // ---------------------------------------------------------------
 
-    // SUB FUNCTION | Build the Architrave Outline (3 sides + offset)
+    // SUB FUNCTION | Build the Architrave Outline (3 sides, inner-face reveal)
     // ------------------------------------------------------------
+    // Traces the architrave's inner-edge corners offset from the
+    // LINING'S INNER FACES (UK reveal detail), matching the 3D
+    // builder in Na__AssemblyStudio__InteriorDoorSystem__ArchitraveBuilder__.rb.
+    // The offset is applied AWAY from the passage on all three
+    // sides, so the architrave bottom edge sits 'archOffset' mm
+    // ABOVE the head lining bottom face (i.e. INSIDE the structural
+    // opening by liningThickness - archOffset). SVG Y is flipped
+    // (top of opening at low Y):
+    //   * Left jamb path x  = openingX + liningThickness - archOffset
+    //   * Right jamb path x = openingX + (openingWidth - liningThickness) + archOffset
+    //   * Top path y        = openingTopY + (liningThickness - archOffset)   (+Y == down)
+    //   * Bottom path y     = openingBottomY (path stays open at the floor)
     function na_build_architrave_outline(svg, layout) {
-        var x  = layout.openingX - layout.archOffset;
-        var y  = layout.openingTopY - layout.archOffset;
-        var w  = layout.openingWidth + (layout.archOffset * 2);
-        var h  = layout.openingHeight + layout.archOffset;
+        var openingBottomY = layout.openingTopY + layout.openingHeight;
+
+        var x  = layout.openingX + layout.liningThickness - layout.archOffset;
+        var y  = layout.openingTopY + (layout.liningThickness - layout.archOffset);
+        var w  = layout.openingWidth - (layout.liningThickness * 2) + (layout.archOffset * 2);
+        var h  = openingBottomY - y;
 
         var d = 'M ' + x + ' ' + (y + h) +
                 ' L ' + x + ' ' + y +

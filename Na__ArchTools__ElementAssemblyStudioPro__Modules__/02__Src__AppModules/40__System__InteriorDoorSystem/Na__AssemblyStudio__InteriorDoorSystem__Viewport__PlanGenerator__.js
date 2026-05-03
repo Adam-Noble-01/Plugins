@@ -168,11 +168,15 @@
 
     // HELPER FUNCTION | Transform asset local XY point into plan SVG XY
     // ------------------------------------------------------------
+    // Mirrors X when the door is left-hand so the handle lever always
+    // projects outward from the hinge into the room side of the panel,
+    // matching the 3D handle builder's ScaleX = -1 handing rule.
     function na_transform_handle_point_plan(layout, point) {
         var localX = na_to_number(point && point.X, 0);
         var localY = na_to_number(point && point.Y, 0);
+        var mirroredX = layout.handleMirrorX ? -localX : localX;
         return {
-            x: layout.handleX + localX,
+            x: layout.handleX + mirroredX,
             y: layout.handleY + localY
         };
     }
@@ -472,6 +476,7 @@
             ? panelX + panelClearWidth - 60
             : panelX + 60;
         var handleY          = panelY + (panelThickness / 2);
+        var handleMirrorX    = (swingSide === 'Left');                         // <-- Mirror local X so the lever points out of the handed side
 
         return {
             openingWidth     : openingWidth,
@@ -480,6 +485,7 @@
             panelThickness   : panelThickness,
             panelClearWidth  : panelClearWidth,
             swingSide        : swingSide,
+            handleMirrorX    : handleMirrorX,
             viewMinX         : 0,
             viewMaxX         : totalWidth,
             viewMinY         : 0,
