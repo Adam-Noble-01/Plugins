@@ -20,6 +20,13 @@
             "logTimestamps"       : true
         },
 
+        "Na__DevMode__Config": {
+            "Na__DevMode__Enabled"              : false,
+            "Na__DevMode__FileLoggingEnabled"   : false,
+            "Na__DevMode__LogFileBasename"      : "na_assembly_studio_debug.log",
+            "Na__DevMode__LogTimestampsEnabled" : true
+        },
+
         "attributeDictionaries": {
             "windowSystem": {
                 "instanceDictName"        : "Na__WindowConfiguratorInfo",

@@ -1,5 +1,5 @@
 {
-  "cached_at": 1777834171,
+  "cached_at": 1777839080,
   "data": {
     "meta": {
       "fileName": "Na__DataLib__CoreIndex__Tags__.json",
@@ -11,7 +11,7 @@
         "Tag__": "Core SketchUp tag identity (name, description)",
         "Glb__": "GLB exporter behaviour (export ranges, exclusion, filename stem)",
         "Storey__": "Storey-based export system (container flag, element name)",
-        "Layout__": "SketchUp Layout integration (edge colour mapping, usage notes)"
+        "Layout__": "SketchUp Layout + SketchUp model edge presentation (edge colour mapping, line style, usage notes). Layout__LineStyleName drives Sketchup::Layer#line_style= via Sketchup.active_model.line_styles[name]; valid names are listed in the LineStyleReference block at the bottom of this file."
       },
       "skipRanges": [
         0,
@@ -47,6 +47,18 @@
           "Tag__Description": "Clearance zone linework (e.g. furniture clearances, accessibility zones). Always excluded from GLB export.",
           "Glb__ExportRangeNumbers": null,
           "Glb__FullyExcluded": true
+        },
+        "02__DoorHelpers__RotationPivots": {
+          "Tag__SketchUpName": "02__DoorHelpers__RotationPivots",
+          "Tag__Description": "Visible debug helpers showing the door rotation pivot consumed by TrueVision3D (ROT group inside each ADR door assembly). Drawn as red dashed lines (vertical hinge axis line + crosshairs at both ends + swing direction arc). Toggle this tag off in production - the helper geometry sits inside the ROT group whose origin is the pivot point read by the downstream Three.js animation system. Always excluded from GLB export.",
+          "Glb__ExportRangeNumbers": null,
+          "Glb__FullyExcluded": true,
+          "Layout__LineStyleName": "Dash",
+          "Layout__EdgeColourRGB": [
+            255,
+            0,
+            0
+          ]
         }
       },
       "03__LayoutDrawingLineworkTags__": {
@@ -489,7 +501,8 @@
       "FullyExcludedTagNames": [
         "02__Linetype__DoorSwings",
         "00__Util__Linework__ColumnBackers",
-        "02__ClearanceLines"
+        "02__ClearanceLines",
+        "02__DoorHelpers__RotationPivots"
       ],
       "FullyExcludedNote": "Entities on these tags are completely skipped during GLB export at any nesting depth.",
       "TreatAsUntaggedTagNames": [
@@ -504,6 +517,40 @@
         "03__LineThickness__00.15pt"
       ],
       "TreatAsUntaggedNote": "Entities on these tags are exported in the GLB but treated as Layer0/Untagged for segmentation. Edge vertex colours (MTE greyscale) are preserved for downstream depth cueing."
+    },
+    "LineStyleReference": {
+      "Description": "Authoritative list of SketchUp Ruby API line style names accepted by Sketchup::Layer#line_style= via Sketchup.active_model.line_styles[name]. Names are CASE SENSITIVE per the official API. Use any value below as a tag's Layout__LineStyleName field to programmatically apply a non-solid line style to that SketchUp tag (layer). Note: this is the ONLY supported way to set tag line styles from Ruby - SketchUp does not expose a freeform stroke pattern API like Layout::Style does, so you are limited to this fixed set of named styles built into the running model. Apply via the TagManager (na_apply_line_style_to_tag) which guards on respond_to? for backwards compatibility.",
+      "ApiUsage__Ruby": "layer.line_style = Sketchup.active_model.line_styles['Dash']",
+      "ApiDoc__LineStyles": "https://ruby.sketchup.com/Sketchup/LineStyles.html",
+      "ApiDoc__Layer": "https://ruby.sketchup.com/Sketchup/Layer.html#line_style-instance_method",
+      "ApiSince__SketchUp": "2019",
+      "AvailableLineStyles": [
+        "Solid Basic",
+        "Short dash",
+        "Dash",
+        "Dot",
+        "Dash dot",
+        "Dash double-dot",
+        "Dash triple-dot",
+        "Double-dash dot",
+        "Double-dash double-dot",
+        "Double-dash triple-dot",
+        "Long-dash dash",
+        "Long-dash double-dash"
+      ],
+      "TagTemplate__Example": {
+        "Description": "Copy this object as a starting point when adding a new tag that needs a non-solid line style. Replace NN with a numeric prefix that matches one of the established ranges, fill in Category and Subcategory, then set Layout__LineStyleName to one of the AvailableLineStyles values above. Optional Layout__EdgeColourRGB is the [R, G, B] colour applied to the tag's swatch when the tag is created at runtime.",
+        "Tag__SketchUpName": "NN__YourCategory__YourSubcategory",
+        "Tag__Description": "Describe what this tag is for and why a non-solid line style is appropriate.",
+        "Glb__ExportRangeNumbers": null,
+        "Glb__FullyExcluded": true,
+        "Layout__LineStyleName": "Dash",
+        "Layout__EdgeColourRGB": [
+          255,
+          0,
+          0
+        ]
+      }
     }
   }
 }

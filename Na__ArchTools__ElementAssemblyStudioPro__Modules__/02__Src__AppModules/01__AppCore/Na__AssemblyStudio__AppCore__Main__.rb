@@ -73,18 +73,20 @@ module Na__AssemblyStudio
     def self.na_init
         DebugTools.na_debug_method("Na__AssemblyStudio.na_init")
 
-        # Route the shared DataLib cache to this plugin's local cache folder
-        # so cached web data is co-located with the plugin and survives across
-        # SketchUp's temp_dir cleanups.
-        Na__DataLib__CacheData.Na__Cache__SetCacheDirOverride(NA_CACHE_DIR_PATH)
-
-        # Load app config + materials library + standard materials
+        # Load app config first so DevMode can drive downstream log gates.
         begin
             cfg = Na__AssemblyStudio::Na__AppData::Na__ConfigLoader.na_load
             DebugTools.na_debug_info("AppConfig loaded (v#{cfg.dig('metadata', 'version')})") if cfg
         rescue StandardError => e
             DebugTools.na_debug_error("AppConfig load failed", e)
         end
+
+        # Route verbose cache diagnostics through the same debug/dev-mode gate
+        # and keep DataLib cache files local to this plugin folder.
+        Na__DataLib__CacheData.Na__Cache__SetVerboseLogging(DebugTools.na_debug_mode?)
+        Na__DataLib__CacheData.Na__Cache__SetCacheDirOverride(NA_CACHE_DIR_PATH)
+
+        # Load materials library + standard materials
 
         MaterialManager.na_load_materials_library
         MaterialManager.na_initialize_standard_materials

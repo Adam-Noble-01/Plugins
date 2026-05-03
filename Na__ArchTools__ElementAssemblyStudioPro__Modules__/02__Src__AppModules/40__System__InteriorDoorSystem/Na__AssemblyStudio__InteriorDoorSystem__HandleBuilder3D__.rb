@@ -40,6 +40,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__AssetLibrary__'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__TagManager__'
+require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__'
 
 module Na__AssemblyStudio
 module Na__InteriorDoorSystem
@@ -53,6 +54,7 @@ module Na__InteriorDoorSystem
         GeometryHelpers = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
         AssetLibrary    = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__AssetLibrary
         TagManager      = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
+        EdgeColourManager = Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager
 
 # endregion -------------------------------------------------------------------
 
@@ -96,6 +98,7 @@ module Na__InteriorDoorSystem
 
             interior_inst = na_place_handle_instance(entities, handle_def, asset, config, :interior, material)
             exterior_inst = na_place_handle_instance(entities, handle_def, asset, config, :exterior, material)
+            na_apply_standard_dark_grey_edge_colour(interior_inst || exterior_inst)
 
             { :interior => interior_inst, :exterior => exterior_inst }
         end
@@ -506,6 +509,26 @@ module Na__InteriorDoorSystem
             instance
         end
         private_class_method :na_place_handle_instance
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Apply Standard Dark-Grey Edge Colour to Handle Mesh
+        # ------------------------------------------------------------
+        # Final generation step for handles. Reuses the same DataLib-backed
+        # EdgeColourManager path used by the panel design subsystem so all
+        # handle edges are always rendered with the canonical dark grey MTE.
+        #
+        # @param handle_instance [Sketchup::ComponentInstance, nil]
+        # @return [Integer] Number of edges painted
+        def self.na_apply_standard_dark_grey_edge_colour(handle_instance)
+            return 0 unless handle_instance && handle_instance.valid?
+
+            edge_colour_id = EdgeColourManager::NA_DEFAULT_DARK_GREY_KEY
+            EdgeColourManager.na_apply_edge_colour_to_group(handle_instance, edge_colour_id)
+        rescue StandardError => e
+            DebugTools.na_debug_error("Failed to apply standard dark-grey edge colour to handle", e)
+            0
+        end
+        private_class_method :na_apply_standard_dark_grey_edge_colour
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Compute the Insertion Transform for a Handle

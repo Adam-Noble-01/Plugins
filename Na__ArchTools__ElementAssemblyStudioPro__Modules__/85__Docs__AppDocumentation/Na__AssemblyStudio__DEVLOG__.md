@@ -3,6 +3,145 @@
 
 
 # =============================================================================
+# =============================================================================
+## Element Assembly Studio Pro | V1.3.9 - 03-May-2026 - DevMode log gating + quiet reload summary
+
+### Context
+Developer reload and runtime data fetch paths were flooding the Ruby console with high-volume diagnostics (`[Na__DataLib__Cache]`, `[DialogManager]`, `[FrameFinishSwatches]`) and long constant redefinition warning streams during `load`-based script replay. This made real issues harder to spot and slowed iteration.
+
+### Changes
+- Added a new AppConfig DevMode block using three-section naming keys:
+  - `Na__DevMode__Config`
+  - `Na__DevMode__Enabled`
+  - `Na__DevMode__FileLoggingEnabled`
+  - `Na__DevMode__LogFileBasename`
+  - `Na__DevMode__LogTimestampsEnabled`
+- `Na__DebugTools` now reads `Na__DevMode__Config` as the primary source (with legacy `debug` fallback retained for compatibility).
+- `Na__DataLib__CacheData` now uses a verbose logging gate (`Na__Cache__SetVerboseLogging`) so cache diagnostics only print when DevMode/debug is enabled.
+- Swatch and dialog bridge diagnostic `puts` calls were routed through `Na__DebugTools` so they obey DevMode.
+- Developer reload (`na_reload_scripts`) now suppresses constant redefinition warning spam by temporarily disabling Ruby verbose warnings during each file reload.
+- Reload console output was simplified to a single summary line:
+  - Success: `✅ <count> scripts reloaded`
+  - Partial failure: `⚠ <count> scripts reloaded (<errors> errors)`
+
+### Files touched
+- `02__Src__AppModules/02__AppData/Na__AssemblyStudio__AppConfig__Main.json`
+- `02__Src__AppModules/03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__.rb`
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__Main__.rb`
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__DialogManager__.rb`
+- `02__Src__AppModules/02__AppData/Na__AssemblyStudio__AppData__FrameFinishSwatches__.rb`
+- `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__.rb`
+
+# =============================================================================
+
+## Element Assembly Studio Pro | V1.3.8 - 03-May-2026 - Standardise interior door handle edges to dark-grey edge palette
+
+### Context
+The handle mesh generation path was building and placing interior/exterior handle instances correctly, but it did not run the same edge-colour finalisation that the panel design system already uses. This meant handle edge appearance could vary depending on inherited/default edge display state instead of always matching the project-standard dark-grey linework.
+
+### Fix
+Reuse the existing DataLib-backed edge-colour pipeline (`Na__EdgeColourManager`) used by panel styles, and run it as the final step of handle generation.
+
+- **File:** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb`
+- Added `require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__'` and module reference `EdgeColourManager = Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager`.
+- In `na_build_handles(...)`, after interior/exterior placement, added finalisation call `na_apply_standard_dark_grey_edge_colour(interior_inst || exterior_inst)`.
+- Added private helper `na_apply_standard_dark_grey_edge_colour(handle_instance)` that applies:
+  - `EdgeColourManager::NA_DEFAULT_DARK_GREY_KEY`
+  - via `EdgeColourManager.na_apply_edge_colour_to_group(...)`
+- Result: all generated handle edges are now consistently painted with `MTE103__LineColour__DarkGrey__L40` (same canonical dark-grey source as panel design edge linework).
+
+### Files touched
+- `Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb`
+
+# =============================================================================
+
+## Element Assembly Studio Pro | V1.3.7 - 03-May-2026 - Drop inner ADR wrapper so TrueVision3D finds the MOD prefix in the GLB
+
+### Context
+Live test in TrueVision3D (with the V1.3.6 pivot helper at the definition root) revealed that the click-to-open animation was still not registering the door because the GLB Builder was collapsing the redundant inner `ADR001__InternalDoor` wrapper. The exported GLB scene graph showed:
+
+```
+ADR013__InteriorDoor__               (outer ComponentDefinition - this IS the ADR)
+  Na__Lining__Container
+  Na__Architrave__Front
+  Na__Architrave__Back
+  ADR001__InternalDoor               (the inner ADR wrapper - now flattened by GLB Builder)
+    Na__DoorPanelDefault             (panel mesh promoted up after MOD layer was collapsed)
+    Na__DoorHandleDefault            (handle mesh promoted up)
+  ROT001__RotationPoint__DoorHingeCentre
+```
+
+The MOD prefix that TrueVision3D's `Na__DoorAnim__FindModRotChild` needs (`MOD` + `__ROT__` token) was getting stripped because the MOD group held no transform of its own and was a sole child of an empty wrapper. Without a MOD child of `ADR013__InteriorDoor__`, the door was skipped from the registry and never animated.
+
+### Fix
+Remove the inner ADR wrapper entirely and build the MOD group directly at the ComponentDefinition root. The outer ComponentDefinition itself (`ADRnnn__InteriorDoor__`) now serves as the ADR for TrueVision3D's prefix-matching scanner.
+
+- **File:** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb`
+- `na_compose_closed_assembly` no longer creates a wrapper group named `ADR001__InternalDoor`. The MOD group (`MOD001__ROT__-90-Deg__DoorPanel`) is now the top-level container for the panel + handles + panel design, added directly via `entities.add_group` (the ComponentDefinition root entities). The `:door_closed` tag is applied directly to the MOD group.
+- `na_compose_open_state_copy` now duplicates the MOD group itself (instead of duplicating an ADR and finding the MOD child inside) and rotates the duplicate 90 deg about the hinge. The single ROT marker stays at the definition root and is shared between the closed and open MODs.
+- The legacy private helper `na_find_child_group_by_name` is removed (no longer needed).
+- The constant `NA_GROUP_NAME_ADR_OUTER = "ADR001__InternalDoor"` is removed from both `DoorAssemblyComposer__.rb` and `Init__.rb`.
+- The function still returns `{ :mod, :rot, :adr }` where `:adr` aliases `:mod`, preserving compatibility with any caller that reads the old key (currently only `Na__GeometryEngine.na_create_door` / `na_update_door` read `closed_assembly[:adr]`, and they only need a top-level group reference for transform handling).
+
+### Resulting GLB structure (after the fix)
+```
+ADR013__InteriorDoor__               (outer ComponentDefinition - the ADR)
+  Na__Lining__Container              (static)
+  Na__Architrave__Front              (static)
+  Na__Architrave__Back               (static)
+  MOD001__ROT__-90-Deg__DoorPanel    (closed)   -- TrueVision3D MOD child
+  MOD001__ROT__-90-Deg__DoorPanel    (open)     -- visual open-state copy
+  ROT001__RotationPoint__DoorHingeCentre        -- TrueVision3D ROT child
+```
+
+### Files touched
+- `Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb` (header rewrite, constant removed, both compose functions refactored, helper removed)
+- `Na__AssemblyStudio__InteriorDoorSystem__Init__.rb` (mirror constant removed)
+- `Na__AssemblyStudio__Architecture__.md` (group nesting hierarchy diagram + pivot helper subsection)
+
+# =============================================================================
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.3.6 - 03-May-2026 - Pivot helper UX + red edge paint + MOD rotation flip
+
+### Context
+Field-test feedback from the V1.3.2 pivot helper revealed three issues that needed addressing before the helper was usable in production:
+1. The ROT helper sat **inside** the ADR group, so the SketchUp author had to drill into the door panel hierarchy (or explode the door block) every time they wanted to inspect / move / verify the pivot.
+2. The dashed red **tag** colour was set correctly, but most of the time the user views the model with "Color by material" instead of "Color by tag", so the helper edges actually rendered with whatever edge colour was inherited from the parent context - usually grey, not red.
+3. TrueVision3D's `Na__DoorAnim__DEG_REGEX` parsed `90` from the MOD name and rotated the door anticlockwise (from above), which was the wrong direction for the door's actual swing in the test model.
+
+### Hierarchy change: ROT is now a sibling of ADR at the ComponentDefinition root
+- **File:** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb`
+- `na_compose_closed_assembly` now creates the ROT group via `entities.add_group` (the ComponentDefinition root entities) rather than `adr_ents.add_group` (inside the ADR group).
+- One ROT is shared by the closed and open ADR copies because both reference the same hinge axis at the same physical location; there is no need to duplicate the helper geometry.
+- `na_compose_open_state_copy` is unchanged - it duplicates only the ADR group, and since ROT is no longer inside ADR, the helper geometry is not redundantly cloned.
+- File header documentation updated to describe the new hierarchy (helper at definition root level).
+- No callers were affected - `closed_assembly[:adr]` is the only key read downstream (`Na__GeometryEngine` lines 101 and 160); `:rot` is informational only in the returned hash.
+
+### Red edge paint via Na__EdgeColourManager (final build step)
+- **File:** `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__.rb`
+- New module reference `EdgeColourManager = Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager` (with matching `require_relative`).
+- New constant `NA_HELPER_EDGE_COLOUR_ID = "MTE201__LineColour__Red".freeze` (Material Design Red 600 from `Na__DataLib__CoreIndex__EdgeMaterials__.json`).
+- New private helper `na_paint_helper_edges_red(rot_group)` invokes `EdgeColourManager.na_apply_edge_colour_to_group(rot_group, NA_HELPER_EDGE_COLOUR_ID)` as the **final** build step inside `na_build_pivot_helper`, after all geometry has been added. This mirrors how `Na__PanelDesignBuilder` paints the door panel design linework dark-grey via the same recursive walker.
+- The helper edges now appear unambiguously red in SketchUp regardless of the active "Color by tag" / "Color by material" display setting, since `EdgeColourManager` assigns a `Sketchup::Material` to each edge.
+
+### MOD constant rename: MOD001__ROT__-90-Deg__DoorPanel
+- **Files:** `Na__AssemblyStudio__InteriorDoorSystem__Init__.rb`, `Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb`.
+- `NA_GROUP_NAME_MOD_PANEL` now reads `MOD001__ROT__-90-Deg__DoorPanel`. TrueVision3D's `Na__DoorAnim__DEG_REGEX` (`/(-?\d+)-Deg/i` in `3dObjectIInteraction__Animation__ClickToOpenDoors__.js`) parses `-90` from the new name to drive a clockwise (when viewed from above) door swing.
+- The SketchUp open-state ADR copy still rotates 90deg about the hinge based on `SwingSide` + `SwingDirection` (computed independently in `na_compute_open_rotation_transform`); the constant rename only affects the parsed degrees in the downstream Three.js animation.
+- To flip the swing direction for a future door, change the sign in this single constant; both Init.rb and DoorAssemblyComposer.rb mirror it.
+
+### Files touched
+- `Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb` (hierarchy + MOD name + header)
+- `Na__AssemblyStudio__InteriorDoorSystem__Init__.rb` (mirror of MOD name constant)
+- `Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__.rb` (EdgeColourManager wiring + final-step red paint + header)
+- `Na__AssemblyStudio__Architecture__.md` (refreshed pivot helper subsection + group nesting hierarchy diagram)
+
+# =============================================================================
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.3.5 - 03-May-2026 - Interior Door Handle Finish Sync + Default Material Alignment
 
 ### Handle finish update regression fixed (3D model + observer/menu sync)
@@ -95,6 +234,14 @@
 ### Why this matters
 - The dialog now provides instant feedback for every panel-design tweak (style change, slider adjustment, stile/rail/mullion size). Previously the user had to commit a Live Update to see the result on the 3D model and there was no way to preview the design before adding it to the SketchUp document.
 - The joint clipping makes the 3D model's elevation read as a properly proportioned UK panel door at every style + slider combination, rather than as an "X-and-grid" overlay. The `inner_rail_t` slider is now meaningful again - it controls the visible offset between rail edges at every joint.
+
+### Verification summary
+- No linter errors on touched files.
+- Runtime confirmation in SketchUp 2026: live-toggling the Panel Design Style select cycles `None` -> `VerticalNarrow` -> `ClassicalSixPanel` -> `FourPanel` -> `HorizontalThree` and the 3D model + the dialog elevation preview update in lock-step on every change.
+- Slider-driven joint clipping verified across all four styles: cross-rail / mullion pairs read as clean butt-joints at every intersection (no remaining "X" segments inside any joint), and the inner perimeter no longer carries short stubs inside any rail's thickness band.
+- Joint clipping survives on both the closed and open ADR copies (the open copy is a `Sketchup::Group#copy` of the closed one, so the design + clipping propagate automatically through the existing assembly composer).
+- Design linework continues to receive the `MTE103__LineColour__DarkGrey__L40` edge material via `Na__EdgeColourManager` after each rebuild.
+- Vertical Pane Width slider conditional visibility (only shown for `VerticalNarrow`) continues to work unchanged.
 # =============================================================================
 
 

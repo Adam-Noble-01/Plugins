@@ -79,13 +79,19 @@ The Plugins-root loader is `Na__ElementAssemblyStudioPro__Loader.rb`. SketchUp l
 - The previous dedicated handle-side selector is removed from the UI workflow.
 
 ## InteriorDoor rotation pivot helper (TrueVision3D contract)
-The `ROT001__RotationPoint__DoorHingeCentre` group inside every `ADR001__InternalDoor` assembly is the door's rotation pivot consumed by the downstream TrueVision3D `Na__DoorAnimation__` module. The Three.js scanner reads `rotObject.position` (the ROT child's local origin inside the ADR parent) as the pivot for the click-to-open animation.
+`ROT001__RotationPoint__DoorHingeCentre` is the door's rotation pivot consumed by the downstream TrueVision3D `Na__DoorAnimation__` module, which reads `rotObject.position` (the group's local origin) as the pivot for the click-to-open animation.
 
-- The composer translates the ROT group to the hinge axis via `na_translate_rot_marker_to_hinge` and then `Na__RotationPivotBuilder.na_build_pivot_helper` populates it with visible debug geometry inside that group's local coordinate space (hinge centre = `(0, 0, 0)`).
-- The helper consists of: a vertical hinge axis line inset 100 mm from the bottom and top of the inner jamb opening, a 50x50 mm `+` crosshair on the XY plane at each end of the line, and a quarter-circle swing-direction arc + arrowhead at the top crosshair (computed from `Na__DoorConfig__SwingSide` + `Na__DoorConfig__SwingDirection`).
-- All helper edges are tagged on `02__DoorHelpers__RotationPivots`, which is red, dashed (`Sketchup::Layer#line_style = Sketchup.active_model.line_styles["Dash"]`), excluded from GLB export by both its `02__` numeric prefix (in `Na__DataLib__CoreIndex__Tags__.json` `meta.skipRanges`) and `Glb__FullyExcluded: true`.
-- The open-state ADR copy duplicates the helper for free via `Sketchup::Group#copy`; no extra handling is required.
-- The file naming uses one feature per module per workspace clean-code rules: see `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__.rb`.
+- **No inner ADR wrapper**: the door's ComponentDefinition itself (`ADRnnn__InteriorDoor__`) is the ADR for TrueVision3D's prefix-matching scanner. MOD and ROT are direct siblings at the definition root - we deliberately do NOT wrap them in an inner `ADR001__InternalDoor` group because the GLB Builder collapses redundant single-child groups, which used to strip the MOD prefix and break the click-to-open animation.
+- **Hierarchy placement**: the ROT group lives at the **ComponentDefinition root level** (sibling of the MOD group) so the SketchUp author can grab the pivot helper without drilling into the door panel hierarchy. A single ROT is shared between the closed and open MOD copies.
+- **Pivot positioning**: the composer translates the ROT group to the hinge axis via `na_translate_rot_marker_to_hinge` and then `Na__RotationPivotBuilder.na_build_pivot_helper` populates it with visible debug geometry inside that group's local coordinate space (hinge centre = `(0, 0, 0)`).
+- **Helper geometry**: a vertical hinge axis line inset 100 mm from the bottom and top of the inner jamb opening, a 50x50 mm `+` crosshair on the XY plane at each end of the line, and a quarter-circle swing-direction arc + arrowhead at the top crosshair (computed from `Na__DoorConfig__SwingSide` + `Na__DoorConfig__SwingDirection`).
+- **Red colouring**: as the final build step every helper edge is painted red via `Na__EdgeColourManager.na_apply_edge_colour_to_group(rot_group, "MTE201__LineColour__Red")`. This mirrors the dark-grey edge-colour application used by `Na__PanelDesignBuilder` for door panel design linework, and ensures the helper is unambiguously red in SketchUp regardless of the active "colour by tag" display option.
+- **Tag visibility control**: all helper edges are tagged on `02__DoorHelpers__RotationPivots`, which is red, dashed (`Sketchup::Layer#line_style = Sketchup.active_model.line_styles["Dash"]`), excluded from GLB export by both its `02__` numeric prefix (in `Na__DataLib__CoreIndex__Tags__.json` `meta.skipRanges`) and `Glb__FullyExcluded: true`.
+- **MOD rotation direction (per swing direction)**: the moving panel group is named according to the door's `Na__DoorConfig__SwingDirection`, picked at build time by `Na__DoorAssemblyComposer.na_resolve_mod_panel_name(config)`:
+    - **Outward** -> `MOD001__ROT__-90-Deg__DoorPanel` (clockwise when viewed from above in TrueVision3D)
+    - **Inward** -> `MOD001__ROT__90-Deg__DoorPanel` (counterclockwise when viewed from above)
+  TrueVision3D's `Na__DoorAnim__DEG_REGEX` (`/(-?\d+)-Deg/i`) parses the signed degrees from the group name to drive its click-to-open Y-axis rotation. The SketchUp open-state copy direction is computed independently from `SwingSide` + `SwingDirection` in `na_compute_open_rotation_transform` and remains visually consistent with the TV3D animation.
+- **Module file** (one feature per file per workspace rules): `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__.rb`.
 
 ### Tag line style configuration (Layout__LineStyleName)
 Tag JSON entries gain an optional `Layout__LineStyleName` field (string) keyed off the SketchUp Ruby `Sketchup::LineStyles` collection. The list of supported names (case sensitive) is documented in the `LineStyleReference` block at the bottom of `Na__DataLib__CoreIndex__Tags__.json` along with a copy-paste tag template. `TagManager.na_get_or_create_tag` reads the field via `na_apply_line_style_for_role`, falls back to a small in-Ruby table (`NA_ROLE_DEFAULT_LINE_STYLES`), and applies via `Sketchup::Layer#line_style=` only if the active SketchUp version exposes the API.
@@ -167,20 +173,22 @@ Decorative UK-style panel linework on the front and back faces of an interior do
 
 ### Group nesting hierarchy
 ```
-ComponentDefinition: ADR001__InteriorDoor__
-  ADR001__InternalDoor (closed)                  [tag: door_closed]
-    MOD001__ROT__90-Deg__DoorPanel
-      Na__DoorPanel__Solid
-      <handle groups>
-      Na__DoorPanel__DesignContainer             [NEW]
-        Na__PanelDesign__FrontFace               [edges only, Y = panel_front_y - 0.5mm]
-        Na__PanelDesign__BackFace                [edges only, Y = panel_back_y  + 0.5mm]
-    ROT001__RotationPoint__DoorHingeCentre       [origin = hinge centre; pivot read by TrueVision3D]
-      <pivot helper edges>                       [tag: 02__DoorHelpers__RotationPivots, red dashed]
-  ADR001__InternalDoor (open copy)               [tag: door_open]
-    <duplicated MOD via Sketchup::Group#copy - design propagates automatically>
-    ROT001__RotationPoint__DoorHingeCentre       [helper edges duplicated via Group#copy]
+ComponentDefinition: ADRnnn__InteriorDoor__       [outer ADR for TrueVision3D - ComponentDefinition itself]
+  Na__Lining__Container                          [static]
+  <architraves>                                  [static]
+  Na__DoorSwing__2D                              [static]
+  ROT001__RotationPoint__DoorHingeCentre         [origin = hinge; shared by closed + open MODs]
+    <pivot helper edges>                         [tag: 02__DoorHelpers__RotationPivots, MTE201 red, dashed line style]
+  MOD001__ROT__{NN}-Deg__DoorPanel (closed)      [tag: door_closed]   {NN} = -90 outward, +90 inward
+    Na__DoorPanel__Solid
+    <handle groups>
+    Na__DoorPanel__DesignContainer
+      Na__PanelDesign__FrontFace                 [edges only, Y = panel_front_y - 0.5mm]
+      Na__PanelDesign__BackFace                  [edges only, Y = panel_back_y  + 0.5mm]
+  MOD001__ROT__{NN}-Deg__DoorPanel (open copy)   [tag: door_open]    {NN} matches the closed MOD
+    <duplicated MOD via Sketchup::Group#copy, rotated 90deg about the hinge>
 ```
+There is NO inner `ADR001__InternalDoor` wrapper group around the MOD - the door's ComponentDefinition (`ADRnnn__InteriorDoor__`) is the ADR for TrueVision3D's prefix-matching scanner, and MOD/ROT sit as direct siblings inside it. A redundant single-child wrapper group would otherwise be flattened by the GLB Builder, stripping the MOD prefix that the click-to-open animation needs.
 The container sits inside `MOD` so the linework rotates with the door. The open ADR copy is built by duplicating the closed ADR, so the design subsystem only needs to run once per build (no manual mirroring).
 
 ### Module layout (one responsibility per file)

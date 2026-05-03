@@ -12,30 +12,43 @@
 # CREATED    : 01-May-2026
 #
 # DESCRIPTION:
-# - Hosts the algorithm that wraps the panel and handles into a movable
-#   group named "MOD001__ROT__90-Deg__DoorPanel".
-# - Adds the marker group "ROT001__RotationPoint__DoorHingeCentre" at the
-#   hinge axis so the TrueVision converter can pick up the rotation pivot
-#   from the group's transformation/origin. The group is then populated
-#   with red-dashed pivot helper linework (vertical hinge axis line +
-#   crosshairs at both ends + swing-direction arrow) by
+# - Builds the moving door panel as a top-level group at the
+#   ComponentDefinition root. The group name is chosen per swing
+#   direction so TrueVision3D's click-to-open animation rotates each
+#   door the correct way (the JS scanner parses the signed degree
+#   token from the group name via Na__DoorAnim__DEG_REGEX):
+#     * Outward swing -> "MOD001__ROT__-90-Deg__DoorPanel" (clockwise from above)
+#     * Inward  swing -> "MOD001__ROT__90-Deg__DoorPanel"  (counterclockwise from above)
+#   The MOD group holds the panel solid, the handles, and the panel
+#   design linework.
+# - There is NO inner ADR wrapper group. The outer ComponentDefinition
+#   itself (e.g. ADR013__InteriorDoor__) is the ADR for TrueVision3D's
+#   scanner, and MOD/ROT sit as direct siblings inside it. This avoids
+#   the GLB Builder collapsing a redundant single-child ADR layer and
+#   stripping the MOD prefix that the click-to-open animation needs.
+# - Adds the marker group "ROT001__RotationPoint__DoorHingeCentre" at
+#   the ComponentDefinition root level (sibling of MOD) so the SketchUp
+#   author can grab the pivot helper without drilling into the door
+#   panel. The group's origin is the hinge axis - downstream tools read
+#   its transformation/origin to derive the rotation pivot. The group is
+#   then populated with red pivot helper linework (vertical hinge axis
+#   line + crosshairs at both ends + swing-direction arrow) by
 #   Na__RotationPivotBuilder. The helpers live on the dedicated tag
-#   `02__DoorHelpers__RotationPivots` and are stripped from GLB export.
-# - Wraps both into "ADR001__InternalDoor" - the outer assembly root.
-# - Tags the closed-state assembly with :door_closed.
-# - When config[:create_open_state_copy] is true (default), the closed
-#   assembly is duplicated, the inner MOD group is rotated 90 degrees
-#   about the hinge axis, and the duplicate is tagged :door_open. This
-#   matches the user's workflow of toggling between open and closed
-#   state visibility tags in SketchUp / Layout.
-# - The lining, architraves, and the single 2D swing arc are NOT enclosed
-#   in the MOD/ROT/ADR hierarchy: they are static parts of the assembly
-#   and remain at the ComponentDefinition root so the swing is shared by
-#   both the closed and open ADR copies (drawn once, never rotated).
+#   `02__DoorHelpers__RotationPivots`, are painted with the
+#   `MTE201__LineColour__Red` edge material, and are stripped from GLB
+#   export by the `02__` numeric prefix + `Glb__FullyExcluded: true`.
+# - Tags the closed-state MOD with :door_closed.
+# - When config[:create_open_state_copy] is true (default), the MOD
+#   group is duplicated and the duplicate is rotated 90 degrees about
+#   the hinge axis, then tagged :door_open. This matches the user's
+#   workflow of toggling between open and closed state visibility tags
+#   in SketchUp / Layout. Both MODs share the single ROT marker.
+# - The lining, architraves, and the single 2D swing arc remain at the
+#   ComponentDefinition root and are NOT duplicated for the open state.
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
-# - Hierarchy names follow the TrueVision spec exactly.
+# - Hierarchy names follow the TrueVision3D animation spec.
 #
 # =============================================================================
 
@@ -72,9 +85,28 @@ module Na__InteriorDoorSystem
 
         # CONSTANTS | TrueVision Hierarchy Names
         # ------------------------------------------------------------
-        NA_GROUP_NAME_ADR_OUTER     = "ADR001__InternalDoor".freeze            # <-- Assembly root
-        NA_GROUP_NAME_MOD_PANEL     = "MOD001__ROT__90-Deg__DoorPanel".freeze  # <-- Movable subassembly
-        NA_GROUP_NAME_ROT_HINGE     = "ROT001__RotationPoint__DoorHingeCentre".freeze
+        # The OUTER ADR is the door's ComponentDefinition itself
+        # (e.g. ADR013__InteriorDoor__) - we do NOT wrap an inner ADR
+        # group around the MOD because the GLB Builder flattens a
+        # redundant single-child group, which would strip the MOD
+        # prefix that TrueVision3D's animation scanner relies on.
+        #
+        # The MOD group name encodes the rotation direction in its
+        # degree token. TrueVision3D's Na__DoorAnim__DEG_REGEX
+        # (`/(-?\d+)-Deg/i`) parses the signed integer and rotates
+        # the door panel about the Y axis through the ROT pivot.
+        # The sign is chosen per swing direction so each door type
+        # opens in the correct direction (verified empirically):
+        #   * Outward swing  ->  -90-Deg   (correct for outward in TV3D)
+        #   * Inward  swing  ->  +90-Deg   (flips so the panel swings into the room)
+        # The static legacy alias NA_GROUP_NAME_MOD_PANEL preserves
+        # the previous default (outward) for any code that imports
+        # the constant directly; the composer routes through
+        # na_resolve_mod_panel_name(config) at build time.
+        NA_GROUP_NAME_MOD_PANEL_OUTWARD = "MOD001__ROT__-90-Deg__DoorPanel".freeze
+        NA_GROUP_NAME_MOD_PANEL_INWARD  = "MOD001__ROT__90-Deg__DoorPanel".freeze
+        NA_GROUP_NAME_MOD_PANEL         = NA_GROUP_NAME_MOD_PANEL_OUTWARD                   # <-- legacy alias
+        NA_GROUP_NAME_ROT_HINGE         = "ROT001__RotationPoint__DoorHingeCentre".freeze
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -85,71 +117,76 @@ module Na__InteriorDoorSystem
 
         # FUNCTION | Compose the Closed Door Assembly
         # ------------------------------------------------------------
-        # Builds the panel + handles inside a MOD group, attaches a ROT
-        # marker, and wraps everything in the ADR outer assembly. The
-        # caller supplies the door's component-definition entities (the
-        # assembly is added at the root of the definition). The 2D swing
-        # arc is NOT built here - it lives at the definition root so a
-        # single arc is shared between the closed and open ADR copies.
+        # Builds the moving door panel (panel + handles + panel design)
+        # directly inside a top-level MOD group, then drops the ROT pivot
+        # marker as a sibling. The OUTER ADR is the door's
+        # ComponentDefinition itself (the caller's `entities` is the
+        # definition's entities), so MOD and ROT end up as direct
+        # children of the GLB ADR node where TrueVision3D's animation
+        # scanner expects them.
+        #
+        # The 2D swing arc and lining/architraves live at the same
+        # definition root level but are tag-controlled and remain shared
+        # between the closed MOD and the open-state MOD duplicate.
         #
         # @param config [Hash] Door configuration block
         # @param entities [Sketchup::Entities] Definition-level entities
         # @param panel_material [Sketchup::Material, nil]
         # @param handle_material [Sketchup::Material, nil]
-        # @return [Hash] { :adr => Group, :mod => Group, :rot => Group }
+        # @return [Hash] { :mod => Group, :rot => Group, :adr => Group }
+        #                (`:adr` aliases `:mod` for legacy callers; the
+        #                door no longer has a separate ADR wrapper group)
         def self.na_compose_closed_assembly(config, entities, panel_material, handle_material)
-            adr_group       = entities.add_group
-            adr_group.name  = NA_GROUP_NAME_ADR_OUTER
-            adr_ents        = adr_group.entities
-
-            mod_group       = adr_ents.add_group
-            mod_group.name  = NA_GROUP_NAME_MOD_PANEL
+            mod_group       = entities.add_group
+            mod_group.name  = na_resolve_mod_panel_name(config)
             mod_ents        = mod_group.entities
 
             GeometryBuilders.na_build_panel(config, mod_ents, panel_material)
             HandleBuilder3D.na_build_handles(config, mod_ents, handle_material)
             PanelDesignBuilder.na_build_panel_design(config, mod_ents)
 
-            rot_group       = adr_ents.add_group
+            # ROT lives at the ComponentDefinition root level (sibling of
+            # the MOD group) so the SketchUp author can grab the pivot
+            # helper without drilling into the door panel hierarchy. A
+            # single ROT is shared between the closed and open MOD copies.
+            rot_group       = entities.add_group
             rot_group.name  = NA_GROUP_NAME_ROT_HINGE
             na_translate_rot_marker_to_hinge(rot_group, config)
             RotationPivotBuilder.na_build_pivot_helper(rot_group, config)
 
-            TagManager.na_apply_tag_to_entity(adr_group, :door_closed)
-            DebugTools.na_debug_geometry("Composed closed assembly: ADR + MOD + ROT (with pivot helper)")
+            TagManager.na_apply_tag_to_entity(mod_group, :door_closed)
+            DebugTools.na_debug_geometry("Composed closed assembly: MOD + ROT at definition root (no inner ADR wrapper)")
 
-            { :adr => adr_group, :mod => mod_group, :rot => rot_group }
+            { :mod => mod_group, :rot => rot_group, :adr => mod_group }
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Compose the Open-State Copy of the Closed Assembly
+        # FUNCTION | Compose the Open-State Copy of the Closed MOD
         # ------------------------------------------------------------
-        # Duplicates the closed ADR group and rotates the inner MOD group
-        # 90 degrees about the hinge axis so the door reads as open. The
-        # outer ADR copy is tagged :door_open. The lining and architraves
-        # remain shared (they sit at the definition root, not inside ADR).
+        # Duplicates the closed MOD group at the ComponentDefinition root
+        # level and rotates the duplicate 90 degrees about the hinge axis
+        # so it reads as the door in its open position. The duplicate is
+        # tagged :door_open so the SketchUp author can toggle between the
+        # closed and open visual via tag visibility. The single ROT
+        # marker is shared - it never moves and never duplicates, so both
+        # MODs rotate around the same authored hinge centre.
         #
         # @param config [Hash] Door configuration
         # @param closed_assembly [Hash] Result of na_compose_closed_assembly
         # @param entities [Sketchup::Entities] Same definition entities used above
-        # @return [Sketchup::Group, nil] The open-state ADR group
+        # @return [Sketchup::Group, nil] The open-state MOD group
         def self.na_compose_open_state_copy(config, closed_assembly, entities)
-            return nil unless closed_assembly[:adr] && closed_assembly[:adr].valid?
+            return nil unless closed_assembly[:mod] && closed_assembly[:mod].valid?
 
-            adr_open                  = na_duplicate_group(closed_assembly[:adr], entities)
-            return nil unless adr_open
+            mod_open                  = na_duplicate_group(closed_assembly[:mod], entities)
+            return nil unless mod_open
 
-            mod_open                  = na_find_child_group_by_name(adr_open, NA_GROUP_NAME_MOD_PANEL)
-            if mod_open
-                rotation_transform    = na_compute_open_rotation_transform(config)
-                mod_open.transform!(rotation_transform)
-            else
-                DebugTools.na_debug_warn("Open-state copy missing MOD group; skipping rotation")
-            end
+            rotation_transform        = na_compute_open_rotation_transform(config)
+            mod_open.transform!(rotation_transform)
 
-            TagManager.na_apply_tag_to_entity(adr_open, :door_open)
-            DebugTools.na_debug_geometry("Composed open-state copy with 90deg rotation")
-            adr_open
+            TagManager.na_apply_tag_to_entity(mod_open, :door_open)
+            DebugTools.na_debug_geometry("Composed open-state MOD copy with 90deg rotation around hinge")
+            mod_open
         end
         # ---------------------------------------------------------------
 
@@ -158,6 +195,28 @@ module Na__InteriorDoorSystem
 # -----------------------------------------------------------------------------
 # REGION | Internal Helpers - Geometry
 # -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | Resolve the MOD Panel Group Name for the Door's Swing Direction
+        # ------------------------------------------------------------
+        # TrueVision3D's Na__DoorAnim__DEG_REGEX parses the signed
+        # degree token from the MOD group name and rotates the door
+        # panel about the Y axis through the ROT pivot. We pick the
+        # sign per swing direction so each door type opens in the
+        # correct direction in the click-to-open animation:
+        #   * Outward swing -> "-90-Deg" (clockwise from above in TV3D)
+        #   * Inward  swing -> "90-Deg"  (counterclockwise from above)
+        # Defaults to inward when the configuration omits the field
+        # (matches the Na__DoorConfiguration default).
+        def self.na_resolve_mod_panel_name(config)
+            swing_direction = (config["Na__DoorConfig__SwingDirection"] || "Inward").to_s.downcase
+            case swing_direction
+            when "inward"  then NA_GROUP_NAME_MOD_PANEL_INWARD
+            when "outward" then NA_GROUP_NAME_MOD_PANEL_OUTWARD
+            else                NA_GROUP_NAME_MOD_PANEL_INWARD
+            end
+        end
+        private_class_method :na_resolve_mod_panel_name
+        # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Move the Empty ROT Marker Group to the Hinge Axis
         # ------------------------------------------------------------
@@ -212,15 +271,6 @@ module Na__InteriorDoorSystem
             Geom::Transformation.rotation(pivot, Z_AXIS, angle)
         end
         private_class_method :na_compute_open_rotation_transform
-        # ---------------------------------------------------------------
-
-        # HELPER FUNCTION | Find the First Child Group Matching a Name
-        # ------------------------------------------------------------
-        def self.na_find_child_group_by_name(parent_group, child_name)
-            return nil unless parent_group && parent_group.valid?
-            parent_group.entities.grep(Sketchup::Group).find { |g| g.name == child_name }
-        end
-        private_class_method :na_find_child_group_by_name
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Duplicate a Group at the Same Position

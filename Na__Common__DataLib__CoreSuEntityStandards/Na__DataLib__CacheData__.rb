@@ -57,6 +57,7 @@ module Na__DataLib__CacheData
     # ------------------------------------------------------------
     @na_last_source         = {}                                              # <-- { file_key => :url | :cache | :local | :failed }
     @na_cache_dir_override  = nil                                             # <-- Optional per-plugin cache directory
+    @na_verbose_logging     = false                                           # <-- Console logging gate (dev-mode controlled)
     # ------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -64,6 +65,23 @@ module Na__DataLib__CacheData
 # -----------------------------------------------------------------------------
 # REGION | Cache Directory Override (Per-Plugin Opt-In)
 # -----------------------------------------------------------------------------
+
+    # FUNCTION | Enable/Disable Verbose Cache Logging
+    # ------------------------------------------------------------
+    # Intended to be driven by a plugin-level dev-mode toggle.
+    # ---------------------------------------------------------------
+    def self.Na__Cache__SetVerboseLogging(enabled)
+        @na_verbose_logging = !!enabled
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Conditional Console Logger (Verbose Only)
+    # ---------------------------------------------------------------
+    def self.Na__Cache__Log(message)
+        return unless @na_verbose_logging
+        puts message
+    end
+    # ---------------------------------------------------------------
 
     # FUNCTION | Set Per-Plugin Cache Directory Override
     # ------------------------------------------------------------
@@ -79,7 +97,7 @@ module Na__DataLib__CacheData
 
         @na_cache_dir_override = absolute_path.to_s
         FileUtils.mkdir_p(@na_cache_dir_override) unless Dir.exist?(@na_cache_dir_override)
-        puts "    [Na__DataLib__Cache] Cache directory override set: #{@na_cache_dir_override}"
+        Na__Cache__Log("    [Na__DataLib__Cache] Cache directory override set: #{@na_cache_dir_override}")
         @na_cache_dir_override
     end
     # ---------------------------------------------------------------
@@ -132,14 +150,14 @@ module Na__DataLib__CacheData
             age       = Time.now.to_i - cached_at
 
             if age < CACHE_MAX_AGE_SECONDS
-                puts "    [Na__DataLib__Cache] Cache hit for :#{file_key} (age: #{age}s)"
+                Na__Cache__Log("    [Na__DataLib__Cache] Cache hit for :#{file_key} (age: #{age}s)")
                 return wrapper["data"]
             else
-                puts "    [Na__DataLib__Cache] Cache stale for :#{file_key} (age: #{age}s, max: #{CACHE_MAX_AGE_SECONDS}s)"
+                Na__Cache__Log("    [Na__DataLib__Cache] Cache stale for :#{file_key} (age: #{age}s, max: #{CACHE_MAX_AGE_SECONDS}s)")
                 return nil
             end
         rescue => e
-            puts "    [Na__DataLib__Cache] Cache read error for :#{file_key}: #{e.message}"
+            Na__Cache__Log("    [Na__DataLib__Cache] Cache read error for :#{file_key}: #{e.message}")
             nil
         end
     end
@@ -157,9 +175,9 @@ module Na__DataLib__CacheData
 
         begin
             File.write(cache_path, JSON.pretty_generate(wrapper), encoding: 'UTF-8')
-            puts "    [Na__DataLib__Cache] Cache written for :#{file_key}"
+            Na__Cache__Log("    [Na__DataLib__Cache] Cache written for :#{file_key}")
         rescue => e
-            puts "    [Na__DataLib__Cache] Cache write error for :#{file_key}: #{e.message}"
+            Na__Cache__Log("    [Na__DataLib__Cache] Cache write error for :#{file_key}: #{e.message}")
         end
     end
     # ---------------------------------------------------------------
@@ -174,14 +192,14 @@ module Na__DataLib__CacheData
         if File.exist?(cache_path)
             begin
                 File.delete(cache_path)
-                puts "    [Na__DataLib__Cache] Cache purged for :#{file_key}"
+                Na__Cache__Log("    [Na__DataLib__Cache] Cache purged for :#{file_key}")
                 return true
             rescue => e
-                puts "    [Na__DataLib__Cache] Cache purge error for :#{file_key}: #{e.message}"
+                Na__Cache__Log("    [Na__DataLib__Cache] Cache purge error for :#{file_key}: #{e.message}")
                 return false
             end
         end
-        puts "    [Na__DataLib__Cache] No cache file to purge for :#{file_key}"
+        Na__Cache__Log("    [Na__DataLib__Cache] No cache file to purge for :#{file_key}")
         false
     end
     # ---------------------------------------------------------------
@@ -199,7 +217,7 @@ module Na__DataLib__CacheData
         return nil unless url
 
         begin
-            puts "    [Na__DataLib__Cache] Fetching :#{file_key} from URL..."
+            Na__Cache__Log("    [Na__DataLib__Cache] Fetching :#{file_key} from URL...")
             uri  = URI.parse(url)
             http = Net::HTTP.new(uri.host, uri.port)
             http.use_ssl      = true
@@ -210,16 +228,16 @@ module Na__DataLib__CacheData
             response = http.request(request)
 
             unless response.is_a?(Net::HTTPSuccess)
-                puts "    [Na__DataLib__Cache] HTTP #{response.code}: #{response.message}"
+                Na__Cache__Log("    [Na__DataLib__Cache] HTTP #{response.code}: #{response.message}")
                 return nil
             end
 
             parsed = JSON.parse(response.body)
-            puts "    [Na__DataLib__Cache] Fetch success for :#{file_key}"
+            Na__Cache__Log("    [Na__DataLib__Cache] Fetch success for :#{file_key}")
             parsed
 
         rescue StandardError => e
-            puts "    [Na__DataLib__Cache] Fetch failed for :#{file_key}: #{e.message}"
+            Na__Cache__Log("    [Na__DataLib__Cache] Fetch failed for :#{file_key}: #{e.message}")
             nil
         end
     end
@@ -278,7 +296,7 @@ module Na__DataLib__CacheData
 
         stale_cache = Na__Cache__ReadAnyCache(file_key)
         if stale_cache
-            puts "    [Na__DataLib__Cache] URL unavailable - falling back to cached copy for :#{file_key}"
+            Na__Cache__Log("    [Na__DataLib__Cache] URL unavailable - falling back to cached copy for :#{file_key}")
             @na_last_source[file_key] = :cache
             return stale_cache
         end
@@ -300,7 +318,7 @@ module Na__DataLib__CacheData
             wrapper = JSON.parse(raw)
             wrapper["data"]
         rescue => e
-            puts "    [Na__DataLib__Cache] Stale cache read error for :#{file_key}: #{e.message}"
+            Na__Cache__Log("    [Na__DataLib__Cache] Stale cache read error for :#{file_key}: #{e.message}")
             nil
         end
     end
@@ -316,6 +334,7 @@ module Na__DataLib__CacheData
     # FUNCTION | Print Startup Status Report for Loaded Data Files
     # ------------------------------------------------------------
     def self.Na__Cache__PrintStartupReport(file_keys)
+        return unless @na_verbose_logging
         puts ""
         puts "    ┌─────────────────────────────────────────────────────────┐"
         puts "    │  Na__DataLib - Data File Status Report                  │"

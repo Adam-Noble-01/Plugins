@@ -157,15 +157,15 @@ module Na__AssemblyStudio
             # On failure also raises a persistent toast in #na-status-bar.
             # ---------------------------------------------------------------
             def self.na_push_to_dialog(dialog)
-                puts "    [FrameFinishSwatches] na_push_to_dialog called"
+                DebugTools.na_debug_ui("[FrameFinishSwatches] na_push_to_dialog called")
                 unless dialog && dialog.respond_to?(:execute_script)
-                    puts "    [FrameFinishSwatches] ERROR: dialog not pushable (nil or no execute_script)"
+                    DebugTools.na_debug_error("[FrameFinishSwatches] dialog not pushable (nil or no execute_script)")
                     return false
                 end
 
                 meta_present = !MaterialManager.na_meta.nil?
                 load_status  = MaterialManager.na_load_status
-                puts "    [FrameFinishSwatches] meta_present=#{meta_present} load_status=#{load_status.inspect}"
+                DebugTools.na_debug_ui("[FrameFinishSwatches] meta_present=#{meta_present} load_status=#{load_status.inspect}")
 
                 frame_swatches  = na_get_swatches(:frame_finish)
                 handle_swatches = na_get_swatches(:handle_finish)
@@ -173,7 +173,7 @@ module Na__AssemblyStudio
                 handle_default  = na_default_key(:handle_finish)
                 status          = na_status_for_js
 
-                puts "    [FrameFinishSwatches] frame=#{frame_swatches.length} (default=#{frame_default}), handle=#{handle_swatches.length} (default=#{handle_default}), status=#{status}"
+                DebugTools.na_debug_ui("[FrameFinishSwatches] frame=#{frame_swatches.length} (default=#{frame_default}), handle=#{handle_swatches.length} (default=#{handle_default}), status=#{status}")
 
                 script = na_build_push_script(
                     frame_swatches, frame_default,
@@ -181,7 +181,7 @@ module Na__AssemblyStudio
                     status
                 )
                 dialog.execute_script(script)
-                puts "    [FrameFinishSwatches] execute_script delivered (#{script.length} chars)"
+                DebugTools.na_debug_ui("[FrameFinishSwatches] execute_script delivered (#{script.length} chars)")
 
                 if status == "failed"
                     UiBridge.na_send_status(dialog, "error", NA_TOAST_FAIL_MESSAGE, persistent: true)

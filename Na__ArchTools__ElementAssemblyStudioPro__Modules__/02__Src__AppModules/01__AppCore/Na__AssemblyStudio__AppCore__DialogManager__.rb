@@ -121,7 +121,7 @@ module Na__AssemblyStudio
             # sketchup.na_requestFrameFinishSwatches() on DOMContentLoaded.
             def self.na_register_swatch_push_callback(dialog)
                 dialog.add_action_callback("na_requestFrameFinishSwatches") do |_ctx|
-                    puts "    [DialogManager] na_requestFrameFinishSwatches callback invoked from JS"
+                    DebugTools.na_debug_ui("[DialogManager] na_requestFrameFinishSwatches callback invoked from JS")
                     FrameFinishSwatches.na_push_to_dialog(dialog)
                 end
             end
@@ -137,11 +137,11 @@ module Na__AssemblyStudio
                 UI.start_timer(0.5, false) do
                     begin
                         if dialog && dialog.respond_to?(:visible?) && dialog.visible?
-                            puts "    [DialogManager] Proactive swatch push (0.5s after show)"
+                            DebugTools.na_debug_ui("[DialogManager] Proactive swatch push (0.5s after show)")
                             FrameFinishSwatches.na_push_to_dialog(dialog)
                         end
                     rescue StandardError => e
-                        puts "    [DialogManager] Proactive swatch push failed: #{e.message}"
+                        DebugTools.na_debug_error("[DialogManager] Proactive swatch push failed", e)
                     end
                 end
             end
@@ -250,6 +250,21 @@ module Na__AssemblyStudio
                 File.basename(file_path)
             end
 
+            # HELPER FUNCTION | Reload Ruby File With Constant Warnings Silenced
+            # ------------------------------------------------------------
+            # During developer reload we intentionally re-evaluate modules.
+            # Temporarily disabling $VERBOSE suppresses noisy "already
+            # initialized constant" warnings for that reload pass only.
+            # ---------------------------------------------------------------
+            def self.na_reload_file_without_verbose_constant_warnings(file_path)
+                previous_verbose = $VERBOSE
+                $VERBOSE = nil
+                load file_path
+            ensure
+                $VERBOSE = previous_verbose
+            end
+            private_class_method :na_reload_file_without_verbose_constant_warnings
+
             # FUNCTION | Replay Interior-Door Bootstrap Side Effects Post-Reload
             # ------------------------------------------------------------
             # `Kernel#load` replaces method bodies but does not unwind
@@ -289,25 +304,15 @@ module Na__AssemblyStudio
                 # reloading Ruby files. This guarantees the next dialog open
                 # sees the latest published palette (face materials, edge
                 # MTE colours, swatches) and is NOT served stale on-disk
-                # cached JSON. Uses raw puts so output appears regardless
-                # of debug-mode flag.
-                puts ""
-                puts "    [Reload] ===== Force-refreshing materials JSON from URL ====="
+                # cached JSON.
                 materials_source = na_force_refresh_materials_json
-                puts "    [Reload] Materials refresh source: #{materials_source.inspect}"
-
-                puts "    [Reload] ===== Force-refreshing edge materials JSON from URL ====="
                 edge_materials_source = na_force_refresh_edge_materials_json
-                puts "    [Reload] Edge materials refresh source: #{edge_materials_source.inspect}"
-                puts ""
 
                 # STEP 2 | Reload all plugin Ruby files in place (`load`).
                 files = na_collect_rb_files_for_reload(modules_root_path)
-                puts "    [Reload] Discovered #{files.length} Ruby file(s) under 02__Src__AppModules + 65__Dev__DevTools"
                 files.each do |file|
                     begin
-                        load file
-                        DebugTools.na_debug_info("[OK] #{na_format_reload_path(file, modules_root_path)}")
+                        na_reload_file_without_verbose_constant_warnings(file)
                         rb_count += 1
                     rescue StandardError => e
                         DebugTools.na_debug_error("[ERROR] #{na_format_reload_path(file, modules_root_path)}: #{e.message}", e)
@@ -326,10 +331,16 @@ module Na__AssemblyStudio
                     na_show_dialog(@na_html_path, modules_root_path)
                 end
 
-                summary = "Reloaded #{rb_count} Ruby files | Materials: #{materials_source} | Edges: #{edge_materials_source}"
+                summary = "✅ #{rb_count} scripts reloaded"
+                if materials_source == :failed || edge_materials_source == :failed
+                    summary = "#{summary} (asset refresh fallback)"
+                end
                 if error_count > 0
-                    UiBridge.na_send_status(@na_dialog, "warning", "#{summary} (#{error_count} errors)")
+                    summary = "⚠ #{rb_count} scripts reloaded (#{error_count} errors)"
+                    puts "    [Reload] #{summary}"
+                    UiBridge.na_send_status(@na_dialog, "warning", summary)
                 else
+                    puts "    [Reload] #{summary}"
                     UiBridge.na_send_status(@na_dialog, "success", summary)
                 end
 
@@ -345,7 +356,7 @@ module Na__AssemblyStudio
                 source = Na__DataLib__CacheData.Na__Cache__LastSource(:materials)
                 source || :failed
             rescue StandardError => e
-                puts "    [Reload] Materials force-fetch raised: #{e.message}"
+                DebugTools.na_debug_warn("[Reload] Materials force-fetch raised: #{e.message}")
                 :failed
             end
             private_class_method :na_force_refresh_materials_json
@@ -360,7 +371,7 @@ module Na__AssemblyStudio
                 source = Na__DataLib__CacheData.Na__Cache__LastSource(:edge_materials)
                 source || :failed
             rescue StandardError => e
-                puts "    [Reload] Edge materials force-fetch raised: #{e.message}"
+                DebugTools.na_debug_warn("[Reload] Edge materials force-fetch raised: #{e.message}")
                 :failed
             end
             private_class_method :na_force_refresh_edge_materials_json

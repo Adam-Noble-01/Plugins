@@ -14,19 +14,26 @@
 #
 # DESCRIPTION:
 # - The TrueVision3D Three.js importer reads
-#   `rotObject.position` (the ROT child's local origin inside the ADR parent)
-#   as the door rotation pivot. The README explicitly states the ROT group
-#   "Can be empty (no geometry) - position vector used as pivot", so adding
-#   visible debug geometry inside the group is safe provided we DO NOT alter
-#   the group's transformation/origin (which the composer has already
-#   translated to the hinge centre via na_translate_rot_marker_to_hinge).
+#   `rotObject.position` (the ROT group's local origin) as the door
+#   rotation pivot. The composer now places ROT at the ComponentDefinition
+#   root level (sibling of the ADR groups, NOT inside them) so the SketchUp
+#   author can grab the helper without drilling into the door panel. The
+#   group's transformation/origin must remain at the hinge centre - the
+#   composer ensures this via na_translate_rot_marker_to_hinge before
+#   calling this builder.
 # - All geometry is drawn in LOCAL coordinates relative to the ROT group's
 #   origin: hinge centre = (0, 0, 0). This makes the helper invariant under
-#   the parent ADR's world placement.
-# - All edges live on the new tag `02__DoorHelpers__RotationPivots`
+#   the parent component's world placement.
+# - As the FINAL build step every edge is painted red via
+#   Na__EdgeColourManager.na_apply_edge_colour_to_group with MTE id
+#   `MTE201__LineColour__Red`. This mirrors the dark-grey edge-colour
+#   application used by Na__PanelDesignBuilder for door panel design
+#   linework so the helper looks unambiguously red in the SketchUp model
+#   regardless of any colour-by-tag display option.
+# - All edges also live on the tag `02__DoorHelpers__RotationPivots`
 #   (numeric prefix `02` is in the GLB exporter skipRanges, so the helper
-#   never reaches production GLBs). The tag is red and dashed; toggle its
-#   visibility to hide pivots in clean SketchUp views.
+#   never reaches production GLBs). The tag itself is red and dashed;
+#   toggle its visibility to hide pivots in clean SketchUp views.
 #
 # COORDINATE SYSTEM (ROT-local, mirrors door-local):
 # - Origin       = hinge axis on the inside corner of the hinge-side jamb.
@@ -42,6 +49,7 @@
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__TagManager__'
+require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__'
 
 module Na__AssemblyStudio
@@ -52,9 +60,10 @@ module Na__InteriorDoorSystem
 # REGION | Module References
 # -----------------------------------------------------------------------------
 
-        DebugTools      = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
-        TagManager      = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
-        GeometryHelpers = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
+        DebugTools        = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        TagManager        = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
+        EdgeColourManager = Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager
+        GeometryHelpers   = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryHelpers
 
 # endregion -------------------------------------------------------------------
 
@@ -77,6 +86,14 @@ module Na__InteriorDoorSystem
         NA_SWING_ARROW_RADIUS_MM        = 100                           # <-- Arc radius for the rotation indicator
         NA_SWING_ARROW_SEGMENT_COUNT    = 8                             # <-- Polyline segments for the 90deg arc
         NA_SWING_ARROW_HEAD_LENGTH_MM   = 25                            # <-- Length of each arrowhead 'V' edge
+        # ---------------------------------------------------------------
+
+        # CONSTANTS | Red Edge Colour For The Pivot Helper Linework
+        # ------------------------------------------------------------
+        # Resolved against the live MTE edge-material library through
+        # Na__EdgeColourManager. Mirrors the dark-grey edge colour used
+        # by Na__PanelDesignBuilder for door panel design linework.
+        NA_HELPER_EDGE_COLOUR_ID        = "MTE201__LineColour__Red".freeze
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -111,6 +128,8 @@ module Na__InteriorDoorSystem
             na_draw_crosshair_at(entities, bottom_z_mm)
             na_draw_crosshair_at(entities, top_z_mm)
             na_draw_swing_direction_arrow(entities, top_z_mm, config)
+
+            na_paint_helper_edges_red(rot_group)
 
             DebugTools.na_debug_geometry(
                 "Built rotation pivot helper (hinge axis z=#{bottom_z_mm.round}..#{top_z_mm.round}mm)"
@@ -301,7 +320,7 @@ module Na__InteriorDoorSystem
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Internal Helpers - Tagging
+# REGION | Internal Helpers - Tagging & Edge Colour
 # -----------------------------------------------------------------------------
 
         # HELPER FUNCTION | Tag An Edge With The :door_helpers Role
@@ -314,6 +333,21 @@ module Na__InteriorDoorSystem
             TagManager.na_apply_tag_to_entity(edge, :door_helpers)
         end
         private_class_method :na_apply_helper_tag
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Paint Every Helper Edge With The Red MTE Colour
+        # ------------------------------------------------------------
+        # Mirrors how Na__PanelDesignBuilder finalises panel design
+        # linework with EdgeColourManager.na_apply_edge_colour_to_group:
+        # call this AFTER all geometry has been added so the recursive
+        # walker hits every edge added by the helpers above. The MTE
+        # material is created on the active model on first use and
+        # cached for subsequent doors in the session.
+        def self.na_paint_helper_edges_red(rot_group)
+            return unless rot_group && rot_group.respond_to?(:valid?) && rot_group.valid?
+            EdgeColourManager.na_apply_edge_colour_to_group(rot_group, NA_HELPER_EDGE_COLOUR_ID)
+        end
+        private_class_method :na_paint_helper_edges_red
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

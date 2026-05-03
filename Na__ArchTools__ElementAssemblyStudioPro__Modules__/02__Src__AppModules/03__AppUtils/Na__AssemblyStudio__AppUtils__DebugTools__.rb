@@ -13,8 +13,10 @@
 # DESCRIPTION:
 # - All output flows through na_debug_log(message, prefix); domain helpers only
 #   choose the channel prefix constant.
-# - na_sync_with_config merges AppConfig Loader `debug` once per load when
+# - na_sync_with_config merges AppConfig Loader values once per load when
 #   Na__AssemblyStudio::Na__AppData::Na__ConfigLoader is defined.
+# - Prefers the namespaced Na__DevMode__Config block, with legacy `debug`
+#   keys kept as a backwards-compatible fallback.
 #
 # DESIGN     : Safe no-op paths when disabled; errors can still optionally
 #              print even when callers force na_debug_error.
@@ -82,11 +84,31 @@ module Na__AssemblyStudio
             end
             # ---------------------------------------------------------------
 
-            # HELPER FUNCTION | Read `debug` hash from Loader without raising
+            # HELPER FUNCTION | Read normalised debug/dev-mode hash safely
             # ------------------------------------------------------------
             def self.na_safe_config
                 return nil unless defined?(Na__AssemblyStudio::Na__AppData::Na__ConfigLoader)
-                Na__AssemblyStudio::Na__AppData::Na__ConfigLoader.na_get('debug')
+                loader = Na__AssemblyStudio::Na__AppData::Na__ConfigLoader
+
+                legacy_cfg = loader.na_get('debug')
+                dev_cfg    = loader.na_get('Na__DevMode__Config')
+
+                merged_cfg = {}
+                if legacy_cfg.is_a?(Hash)
+                    merged_cfg['enabled']         = legacy_cfg['enabled']         unless legacy_cfg['enabled'].nil?
+                    merged_cfg['fileLogging']     = legacy_cfg['fileLogging']     unless legacy_cfg['fileLogging'].nil?
+                    merged_cfg['logTimestamps']   = legacy_cfg['logTimestamps']   unless legacy_cfg['logTimestamps'].nil?
+                    merged_cfg['logFileBasename'] = legacy_cfg['logFileBasename'] unless legacy_cfg['logFileBasename'].nil?
+                end
+
+                if dev_cfg.is_a?(Hash)
+                    merged_cfg['enabled']         = dev_cfg['Na__DevMode__Enabled']              unless dev_cfg['Na__DevMode__Enabled'].nil?
+                    merged_cfg['fileLogging']     = dev_cfg['Na__DevMode__FileLoggingEnabled']   unless dev_cfg['Na__DevMode__FileLoggingEnabled'].nil?
+                    merged_cfg['logTimestamps']   = dev_cfg['Na__DevMode__LogTimestampsEnabled'] unless dev_cfg['Na__DevMode__LogTimestampsEnabled'].nil?
+                    merged_cfg['logFileBasename'] = dev_cfg['Na__DevMode__LogFileBasename']      unless dev_cfg['Na__DevMode__LogFileBasename'].nil?
+                end
+
+                merged_cfg.empty? ? nil : merged_cfg
             rescue StandardError
                 nil
             end

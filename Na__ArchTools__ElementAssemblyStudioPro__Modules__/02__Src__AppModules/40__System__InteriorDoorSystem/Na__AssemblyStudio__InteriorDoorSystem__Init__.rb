@@ -100,10 +100,15 @@ module Na__InteriorDoorSystem
 
     # MODULE CONSTANTS | Component Naming Conventions (TrueVision compatible)
     # ------------------------------------------------------------
-    NA_DEFINITION_SUFFIX_DOOR    = "__InteriorDoor__".freeze                   # <-- e.g. ADR001__InteriorDoor__
-    NA_GROUP_NAME_ADR_OUTER      = "ADR001__InternalDoor".freeze               # <-- TrueVision outer assembly
-    NA_GROUP_NAME_MOD_PANEL      = "MOD001__ROT__90-Deg__DoorPanel".freeze     # <-- TrueVision rotation modifier
-    NA_GROUP_NAME_ROT_HINGE      = "ROT001__RotationPoint__DoorHingeCentre".freeze
+    NA_DEFINITION_SUFFIX_DOOR        = "__InteriorDoor__".freeze                          # <-- ComponentDefinition is the ADR (e.g. ADR013__InteriorDoor__); MOD/ROT are direct siblings inside its entities
+    # MOD name is resolved per swing direction at build time by
+    # Na__DoorAssemblyComposer.na_resolve_mod_panel_name(config) so
+    # TrueVision3D's click-to-open animation parses the right sign and
+    # rotates each door the correct way:
+    NA_GROUP_NAME_MOD_PANEL_OUTWARD  = "MOD001__ROT__-90-Deg__DoorPanel".freeze            # <-- Outward swing -> clockwise from above in TV3D
+    NA_GROUP_NAME_MOD_PANEL_INWARD   = "MOD001__ROT__90-Deg__DoorPanel".freeze             # <-- Inward  swing -> counterclockwise from above in TV3D
+    NA_GROUP_NAME_MOD_PANEL          = NA_GROUP_NAME_MOD_PANEL_OUTWARD                     # <-- legacy alias, defaults to outward
+    NA_GROUP_NAME_ROT_HINGE          = "ROT001__RotationPoint__DoorHingeCentre".freeze
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

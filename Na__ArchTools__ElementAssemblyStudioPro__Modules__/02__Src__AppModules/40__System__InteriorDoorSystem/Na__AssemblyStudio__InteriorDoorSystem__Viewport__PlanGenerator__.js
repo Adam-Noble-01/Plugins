@@ -171,13 +171,19 @@
     // Mirrors X when the door is left-hand so the handle lever always
     // projects outward from the hinge into the room side of the panel,
     // matching the 3D handle builder's ScaleX = -1 handing rule.
+    //
+    // Mirrors Y when the door swings outward so the handle rose sits
+    // on the FAR (exterior-facing) face of the panel with the handle
+    // body extending into the exterior, rather than on the near face
+    // with the body buried inside the panel.
     function na_transform_handle_point_plan(layout, point) {
         var localX = na_to_number(point && point.X, 0);
         var localY = na_to_number(point && point.Y, 0);
         var mirroredX = layout.handleMirrorX ? -localX : localX;
+        var mirroredY = layout.handleMirrorY ? -localY : localY;
         return {
             x: layout.handleX + mirroredX,
-            y: layout.handleY + localY
+            y: layout.handleY + mirroredY
         };
     }
     // ---------------------------------------------------------------
@@ -508,7 +514,28 @@
         var handleX          = (swingSide === 'Left')
             ? panelX + panelClearWidth - 60
             : panelX + 60;
-        var handleY          = panelY + (panelThickness / 2);
+
+        // Handle rose + body mirror across the panel centre-line based
+        // on swing direction so the rose always sits on the panel face
+        // that is being operated from, with the body extending AWAY
+        // from the panel (never back into it).
+        //
+        //   * Inward  -> rose on near (room-facing) face. handleY sits
+        //     on panelY (top of panel rect in SVG). Asset's local -Y
+        //     body extends to smaller SVG Y = into room above wall.
+        //   * Outward -> rose on far (exterior-facing) face. handleY
+        //     sits on panelY + panelThickness (bottom of panel rect).
+        //     Asset's local -Y body must be mirrored to +Y so the
+        //     body extends to larger SVG Y = into exterior below wall.
+        var handleY;
+        var handleMirrorY;
+        if (swingDirection === 'outward') {
+            handleY       = panelY + panelThickness;                           // <-- Far face (bottom of panel in SVG)
+            handleMirrorY = true;                                              // <-- Flip asset local Y so body extends into exterior
+        } else {
+            handleY       = panelY;                                            // <-- Near face (top of panel in SVG)
+            handleMirrorY = false;                                             // <-- Asset's local -Y already extends into room
+        }
         var handleMirrorX    = (swingSide === 'Left');                         // <-- Mirror local X so the lever points out of the handed side
 
         return {
@@ -520,6 +547,7 @@
             swingSide        : swingSide,
             swingDirection   : swingDirection,
             handleMirrorX    : handleMirrorX,
+            handleMirrorY    : handleMirrorY,
             viewMinX         : 0,
             viewMaxX         : totalWidth,
             viewMinY         : 0,
