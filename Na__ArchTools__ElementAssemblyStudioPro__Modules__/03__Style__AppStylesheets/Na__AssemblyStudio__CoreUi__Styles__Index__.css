@@ -1,0 +1,22 @@
+/* =============================================================================
+   ELEMENT ASSEMBLY STUDIO PRO - MASTER STYLESHEET INDEX
+   =============================================================================
+   FILE       : Na__AssemblyStudio__CoreUi__Styles__Index__.css
+   PURPOSE    : Single stylesheet linked from Na__AssemblyStudio__UiLayout__.html.
+                Imports the new brand-header + tab-strip rebrand stylesheets,
+                then Na__AssemblyStudio__Styles__Combined__.css (legacy bundle of
+                window, door, settings, and viewport rules).
+
+   FUTURE WORK
+   - The combined fallback should eventually be split into per-system files:
+       20__System__WindowSystem/...Styles__.css
+       30__System__ExteriorDoorSystem/...Styles__.css
+       40__System__InteriorDoorSystem/...Styles__.css
+       03__AppUtils/...SettingsTab__Styles__.css
+   - When that split happens, replace the single combined import with one
+     @import per system stylesheet.
+   ============================================================================= */
+
+@import url('Na__AssemblyStudio__UiFeature__Styles__BrandHeader__.css');
+@import url('Na__AssemblyStudio__UiFeature__Styles__TabStrip__.css');
+@import url('Na__AssemblyStudio__Styles__Combined__.css');

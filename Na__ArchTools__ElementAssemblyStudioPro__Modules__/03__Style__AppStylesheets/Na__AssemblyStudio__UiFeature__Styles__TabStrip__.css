@@ -1,0 +1,44 @@
+/* =============================================================================
+   ELEMENT ASSEMBLY STUDIO PRO - TAB STRIP STYLES (NEW for v2 rebrand)
+   =============================================================================
+   FILE       : Na__AssemblyStudio__UiFeature__Styles__TabStrip__.css
+   PURPOSE    : Tab strip layout that hosts both the per-tab buttons (left)
+                and the moved Live Mode ON / Measure Opening action buttons
+                (right). Replaces the legacy header-action layout.
+   ============================================================================= */
+
+.na-tab-strip {
+    display              : flex;
+    align-items          : stretch;
+    justify-content      : space-between;
+    border-bottom        : 1px solid #d8d8d8;
+    background           : #f5f5f5;
+}
+
+.na-tab-strip__tabs {
+    display              : flex;
+    align-items          : stretch;
+}
+
+.na-tab-strip__actions {
+    display              : flex;
+    align-items          : center;
+    gap                  : 8px;
+    padding              : 6px 12px;
+}
+
+.na-tab-strip__actions .na-btn,
+.na-tab-strip__actions button {
+    height               : 30px;
+    padding              : 0 12px;
+    font-size            : 12px;
+    border-radius        : 4px;
+}
+
+/* Hide the legacy button container that lived in the header so it does not
+   render twice when the new tab strip is in use. The Ruby/JS wiring still
+   targets the same #na-btn-live and #na-btn-measure ids; only the visual
+   home has moved. */
+.na-header-actions--legacy {
+    display              : none !important;
+}

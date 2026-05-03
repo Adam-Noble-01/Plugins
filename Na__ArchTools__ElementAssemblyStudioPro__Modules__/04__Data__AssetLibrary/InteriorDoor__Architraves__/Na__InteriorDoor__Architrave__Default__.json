@@ -1,0 +1,78 @@
+{
+    "meta": {
+        "fileName"          : "Na__InteriorDoor__Architrave__Default__.json",
+        "description"       : "Default Noble Architecture interior architrave profile - simple 70mm x 22mm chamfered architrave moulding intended to be Follow-Me'd around the door lining perimeter. 2D profile only (no 3D mesh). Compatible with Na__ProfileTools__ProfilePathTracer rich-geometry profile format.",
+        "version"           : "1.0.0",
+        "lastUpdated"       : "01-May-2026",
+        "namingConvention"  : "All custom keys prefixed Na__. Three-stage form Na__Section__SubSection__FieldName. Profile2D uses Profile Path Tracer compatible vertices/edges/faces structure.",
+        "fieldPrefixes"     : {
+            "Na__Asset__"     : "Top-level asset metadata and content blocks",
+            "Na__Geometry__"  : "Geometry-related sub-fields (BoundingBox, Counts, OriginNote, CoordSystem)",
+            "Na__Profile__"   : "Profile sweep behaviour (axis convention, sweep direction)"
+        },
+        "Data__URL"         : "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__ArchTools__ElementAssemblyStudioPro__Modules__/04__Data__AssetLibrary/InteriorDoor__Architraves__/Na__InteriorDoor__Architrave__Default__.json"
+    },
+
+    "Na__Asset__Metadata": {
+        "Na__Asset__Name"                  : "Default Chamfered Architrave 70x22",
+        "Na__Asset__Code"                  : "NA__ARC__001",
+        "Na__Asset__Type"                  : "Architrave",
+        "Na__Asset__Description"           : "Simple architrave profile - 70mm wide, 22mm projection, with a 6mm chamfer to the inner edge. Suitable as a default before custom profiles are added to the library.",
+        "Na__Asset__Notes"                 : "2D Profile only. Consumer (ArchitraveBuilder) extrudes via Follow Me along the door lining perimeter (top + jamb-L + jamb-R, no bottom).",
+        "Na__Asset__Supplier"              : "",
+        "Na__Asset__SupplierProductCode"   : "",
+        "Na__Asset__SupplierPrice_GBP"     : "",
+        "Na__Asset__Has2dPlan"             : false,
+        "Na__Asset__Has2dElevation"        : false,
+        "Na__Asset__Has2dProfile"          : true,
+        "Na__Asset__Has3d"                 : false,
+        "Na__Asset__AvailableFinishes"     : ["MAT120__GenericWood", "MAT121__Painted__White", "MAT122__Painted__OffWhite"],
+        "Na__Profile__Width_mm"            : 70,
+        "Na__Profile__Projection_mm"       : 22,
+        "Na__Profile__InnerEdgeKey"        : "InnerLiningEdge",
+        "Na__Profile__SweepAxisNote"       : "Profile is authored on the local YZ plane with X=0; the lining-perimeter path defines the actual 3D sweep position."
+    },
+
+    "Na__Asset__Profile2D": {
+        "Na__Geometry__OriginNote"   : "Local 0,0 = inner-bottom corner of the architrave (touches the lining edge). Y+ runs outward away from the door opening (architrave width); Z+ runs forward into the room (architrave projection).",
+        "Na__Geometry__CoordSystem"  : "YZ plane | Y=outward, Z=projection | Units=mm | X discarded (Follow Me sweep direction)",
+        "Na__Geometry__BoundingBox"  : {
+            "Na__Geometry__MinY_mm"  :  0,
+            "Na__Geometry__MaxY_mm"  : 70,
+            "Na__Geometry__MinZ_mm"  :  0,
+            "Na__Geometry__MaxZ_mm"  : 22,
+            "Na__Geometry__Width_mm" : 70,
+            "Na__Geometry__Height_mm": 22
+        },
+        "Na__Geometry__Counts"       : {
+            "Na__Geometry__VertexCount" :  6,
+            "Na__Geometry__EdgeCount"   :  6,
+            "Na__Geometry__FaceCount"   :  1
+        },
+        "Na__Geometry__Vertices"     : [
+            { "VertexId" : "V001", "VertexName" : "InnerLiningEdge",      "PosY_mm" :  0, "PosZ_mm" :  0 },
+            { "VertexId" : "V002", "VertexName" : "InnerProjectionEdge", "PosY_mm" :  6, "PosZ_mm" : 16 },
+            { "VertexId" : "V003", "VertexName" : "InnerFlatStart",      "PosY_mm" :  6, "PosZ_mm" : 22 },
+            { "VertexId" : "V004", "VertexName" : "OuterFlatEnd",        "PosY_mm" : 70, "PosZ_mm" : 22 },
+            { "VertexId" : "V005", "VertexName" : "OuterReturnTop",      "PosY_mm" : 70, "PosZ_mm" :  0 },
+            { "VertexId" : "V006", "VertexName" : "InnerLiningEdgeReturn","PosY_mm" :  0, "PosZ_mm" :  0 }
+        ],
+        "Na__Geometry__Edges"        : [
+            { "EdgeId" : "E001", "EdgeName" : "Chamfer",         "FromVertexId" : "V001", "ToVertexId" : "V002", "EdgeType" : "Line" },
+            { "EdgeId" : "E002", "EdgeName" : "InnerVertical",   "FromVertexId" : "V002", "ToVertexId" : "V003", "EdgeType" : "Line" },
+            { "EdgeId" : "E003", "EdgeName" : "TopFlat",         "FromVertexId" : "V003", "ToVertexId" : "V004", "EdgeType" : "Line" },
+            { "EdgeId" : "E004", "EdgeName" : "OuterReturn",     "FromVertexId" : "V004", "ToVertexId" : "V005", "EdgeType" : "Line" },
+            { "EdgeId" : "E005", "EdgeName" : "BackFace",        "FromVertexId" : "V005", "ToVertexId" : "V001", "EdgeType" : "Line" }
+        ],
+        "Na__Geometry__Faces"        : [
+            {
+                "FaceId"             : "F001",
+                "FaceName"           : "Architrave_Profile_Cap",
+                "OuterLoop_VertexIds": ["V001", "V002", "V003", "V004", "V005"],
+                "InnerLoops"         : [],
+                "Normal"             : [1, 0, 0],
+                "MaterialName"       : "MAT120__GenericWood"
+            }
+        ]
+    }
+}

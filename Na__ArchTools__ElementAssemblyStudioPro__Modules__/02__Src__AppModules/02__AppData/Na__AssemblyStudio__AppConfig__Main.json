@@ -1,0 +1,136 @@
+{
+    "appConfig": {
+        "metadata": {
+            "appName"           : "Element Assembly Studio Pro",
+            "publisher"         : "Noble Architecture",
+            "version"           : "1.0.1",
+            "schemaVersion"     : 1
+        },
+
+        "tabs": [
+            { "id": "windows",  "label": "Windows",        "showHeaderActions": true  },
+            { "id": "doors",    "label": "Interior Doors", "showHeaderActions": true  },
+            { "id": "settings", "label": "Settings",       "showHeaderActions": false }
+        ],
+
+        "debug": {
+            "enabled"             : false,
+            "fileLogging"         : false,
+            "logFileBasename"     : "na_assembly_studio_debug.log",
+            "logTimestamps"       : true
+        },
+
+        "attributeDictionaries": {
+            "windowSystem": {
+                "instanceDictName"        : "Na__WindowConfiguratorInfo",
+                "instanceIdAttribute"     : "WindowID",
+                "definitionDictPrefix"    : "Na__WindowConfigurator_",
+                "metadataKey"             : "windowMetadata",
+                "componentsKey"           : "windowComponents",
+                "configurationKey"        : "windowConfiguration",
+                "idRegex"                 : "^AWN\\d{3}$",
+                "idFormat"                : "AWN%03d",
+                "definitionNameSuffix"    : "__Window__"
+            },
+            "interiorDoorSystem": {
+                "instanceDictName"        : "Na__DoorConfiguratorInfo",
+                "instanceIdAttribute"     : "DoorID",
+                "definitionDictPrefix"    : "Na__DoorConfigurator_",
+                "metadataKey"             : "Na__DoorMetadata",
+                "componentsKey"           : "Na__DoorComponents",
+                "configurationKey"        : "Na__DoorConfiguration",
+                "idRegex"                 : "^ADR\\d{3}$",
+                "idFormat"                : "ADR%03d",
+                "definitionNameSuffix"    : "__InteriorDoor__"
+            }
+        },
+
+        "measurement": {
+            "callbacks": {
+                "windowSystem": {
+                    "completeCallback"  : "na_send_measurement_to_dialog",
+                    "cancelCallback"    : "na_send_measure_cancelled_to_dialog",
+                    "statusLabel"       : "Measure Window Opening"
+                },
+                "interiorDoorSystem": {
+                    "completeCallback"  : "na_send_door_measurement_to_dialog",
+                    "cancelCallback"    : "na_send_door_measure_cancelled_to_dialog",
+                    "statusLabel"       : "Measure Door Opening"
+                }
+            }
+        },
+
+        "devTools": {
+            "originGroupName"   : "00__OriginPoint",
+            "exportFolderName"  : "Na__AssemblyStudio__DevExports"
+        },
+
+        "assetLibrary": {
+            "rootFolder"        : "04__Data__AssetLibrary",
+            "remoteBaseUrl"     : "https://raw.githubusercontent.com/Adam-Noble-01/Noble-Architecture-Public-Assets/main/Na__AssemblyStudio__Assets",
+            "indexFile"         : "Na__AssemblyStudio__AssetIndex__.json",
+            "interiorDoor": {
+                "architraves"   : "InteriorDoor__Architraves__",
+                "handles"       : "InteriorDoor__Handles__",
+                "hinges"        : "InteriorDoor__Hinges__"
+            }
+        },
+
+        "windowSystem": {
+            "defaults": {
+                "slidingSashOverlapMm"     : 20,
+                "doorPanelHeightMm"        : 1850,
+                "doorPanelColumns"         : 1,
+                "doorPanelRows"            : 4,
+                "doorPanelRailWidthMm"     : 80,
+                "doorPanelStileWidthMm"    : 80,
+                "doorMidRailWidthMm"       : 200,
+                "doorBaseRailWidthMm"      : 200,
+                "doorPanelMarginMm"        : 5,
+                "doorPanelRecessDepthMm"   : 8,
+                "doorPanelTrimWidthMm"     : 20,
+                "doorPanelTrimDepthMm"     : 12,
+                "doorPanelMouldingInsetMm" : 6,
+                "doorPanelShowTrim"        : true
+            }
+        },
+
+        "dxf": {
+            "layers": {
+                "frame"         : "NA_FRAME",
+                "mullion"       : "NA_MULLION",
+                "transom"       : "NA_TRANSOM",
+                "casement"      : "NA_CASEMENT",
+                "glass"         : "NA_GLASS",
+                "glazebar"      : "NA_GLAZEBAR",
+                "cill"          : "NA_CILL",
+                "doorPanel"     : "NA_DOOR_PANEL",
+                "doorTrim"      : "NA_DOOR_TRIM"
+            }
+        },
+
+        "theme": {
+            "previewColors": {
+                "frameStroke"           : "#606060",
+                "frameFill"             : "#FFFFFF",
+                "glassFill"             : "#87CEEB",
+                "glassStroke"           : "#000000",
+                "glazebarStroke"        : "#000000",
+                "doorPanelTimber"       : "#C9A175",
+                "doorPanelStroke"       : "#7A5B33",
+                "doorTrimFill"          : "#A88663",
+                "swingArcStroke"        : "#888888",
+                "dimensionText"         : "#202020",
+                "viewportBackground"    : "#F2F2F2"
+            }
+        },
+
+        "previewMaterials": {
+            "Default Frame"         : "#FFFFFF",
+            "Painted Frame - White" : "#FFFFFF",
+            "Painted Frame - Cream" : "#F5F5DC",
+            "Stained Oak"           : "#A0763C",
+            "Stained Walnut"        : "#5C3A1E"
+        }
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "Na__AssemblyStudio__AssetIndex": {
+        "schemaVersion": 1,
+        "buckets": {
+            "InteriorDoor__Architraves__": {
+                "category": "Interior Door Architrave Profiles",
+                "consumers": ["Na__AssemblyStudio::Na__InteriorDoorSystem::Na__ArchitraveBuilder"]
+            },
+            "InteriorDoor__Handles__": {
+                "category": "Interior Door Handle 3D Models",
+                "consumers": ["Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D"]
+            },
+            "InteriorDoor__Hinges__": {
+                "category": "Interior Door Hinge 3D Models",
+                "consumers": ["Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D"]
+            }
+        }
+    }
+}

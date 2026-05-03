@@ -1,0 +1,53 @@
+/* =============================================================================
+   ELEMENT ASSEMBLY STUDIO PRO - BRAND HEADER STYLES (NEW for v2 rebrand)
+   =============================================================================
+   FILE       : Na__AssemblyStudio__UiFeature__Styles__BrandHeader__.css
+   PURPOSE    : Top bar with Noble Architecture logo on the left and the
+                "Element Assembly Studio Pro" wordmark + "by Noble Architecture"
+                subline on the right. The Live Mode + Measure Opening buttons
+                that previously sat in this bar have moved to the tab strip
+                (see TabStrip stylesheet).
+   ============================================================================= */
+
+.na-brand-header {
+    display              : flex;
+    align-items          : center;
+    justify-content      : space-between;
+    padding              : 12px 16px;
+    border-bottom        : 1px solid #d8d8d8;
+    background           : #ffffff;
+}
+
+.na-brand-header__left {
+    display              : flex;
+    align-items          : center;
+    gap                  : 12px;
+}
+
+.na-brand-header__logo {
+    height               : 36px;
+    width                : auto;
+    display              : block;
+}
+
+.na-brand-header__right {
+    display              : flex;
+    flex-direction       : column;
+    align-items          : flex-end;
+    gap                  : 2px;
+}
+
+.na-brand-header__title {
+    font-size            : 18px;
+    font-weight          : 600;
+    color                : #1a1a1a;
+    line-height          : 1;
+    letter-spacing       : 0.2px;
+}
+
+.na-brand-header__subtitle {
+    font-size            : 11px;
+    color                : #6a6a6a;
+    line-height          : 1;
+    letter-spacing       : 0.3px;
+}
