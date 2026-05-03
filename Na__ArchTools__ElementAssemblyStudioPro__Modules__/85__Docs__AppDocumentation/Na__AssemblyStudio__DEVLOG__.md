@@ -127,6 +127,11 @@ The MOD group name is now resolved per `Na__DoorConfig__SwingDirection` at build
 - The SketchUp open-state copy direction (`na_compute_open_rotation_transform`) is unchanged and remains visually consistent with the new TV3D animation - both depend on `SwingSide` + `SwingDirection`, so the closed and open MODs in SketchUp continue to mirror what TV3D will animate.
 - No callers reference `NA_GROUP_NAME_MOD_PANEL` outside DoorAssemblyComposer + Init, so the legacy alias is sufficient for backwards compatibility.
 
+### Field test result (CONFIRMED working in TrueVision3D)
+- **Outward** doors authored with `MOD001__ROT__-90-Deg__DoorPanel` open clockwise from above, swinging cleanly out of the room. Verified across left-hand and right-hand outward configurations.
+- **Inward** doors authored with `MOD001__ROT__90-Deg__DoorPanel` open counterclockwise from above, swinging cleanly into the room. Verified across left-hand and right-hand inward configurations.
+- The click-to-open animation, raycast hit detection on the MOD child of the outer `ADRnnn__InteriorDoor__` ComponentDefinition, and the ROT pivot read all behave as expected end-to-end. With the V1.3.7 hierarchy fix (no inner ADR wrapper) plus this V1.4.0 swing-aware MOD naming, the SketchUp authoring path is now fully aligned with the TrueVision3D click-to-open contract for every hand / direction permutation.
+
 # =============================================================================
 
 
