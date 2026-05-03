@@ -3,6 +3,44 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.3.5 - 03-May-2026 - Interior Door Handle Finish Sync + Default Material Alignment
+
+### Handle finish update regression fixed (3D model + observer/menu sync)
+- Root cause traced to `Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb` reusing mesh-signature-cached handle `ComponentDefinition`s that could carry baked face materials from a previous finish selection.
+- `Na__HandleBuilder3D` now builds handle definitions as material-neutral geometry:
+  - Removed per-face material assignment from `na_build_mesh_into_definition`.
+  - Kept finish application at instance placement (`na_place_handle_instance`) so each door instance can carry its own handle material.
+- Mesh signature token bumped from `v2|` to `v3|` in `na_build_mesh_signature` to force a one-time rebuild of stale cached definitions and eliminate carry-over finish lock-in.
+- Result: handle swatch changes now propagate correctly through the existing JS -> Ruby live/update path without desynchronising model/menu state.
+
+### Door default materials aligned to requested baseline
+- Interior door default material IDs were updated in both Ruby and JS default sources to keep all creation/reset flows consistent:
+  - Joinery defaults (`Lining`, `Panel`, `Architrave`) -> `MAT001__Default`
+  - Handle default -> `MAT615__Metal__Ironmongery__Chrome`
+- Updated files:
+  - `Na__AssemblyStudio__InteriorDoorSystem__Init__.rb` (`NA_DEFAULT_*_MATERIAL_ID`)
+  - `Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js` (`NA_DOOR_MATERIAL_DEFAULTS`)
+
+### Swatch default key alignment (Frame/Handle cards)
+- Materials UI defaults metadata now matches the requested runtime defaults:
+  - `Na__DataLib__UiDefaults__FrameFinish__DefaultSwatchKey` -> `MAT001__Default`
+  - `Na__DataLib__UiDefaults__HandleFinish__DefaultSwatchKey` -> `MAT615__Metal__Ironmongery__Chrome`
+- `Na__AssemblyStudio__AppData__FrameFinishSwatches__.rb` handle palette fallback key updated to Chrome so fallback behavior remains consistent when metadata is unavailable.
+- Handle finish row retains explicit `Default` card availability (`MAT001__Default`) and ordering logic, while active default selection now resolves to Chrome.
+
+### UX parity updates for Interior Door tab
+- Added draggable 2D preview resize handle to the Interior Door viewport section (Window-tab parity):
+  - New handle element in `Na__AssemblyStudio__UiLayout__.html`
+  - Drag logic in `Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js`
+  - Door preview wrapper CSS adjusted in `Na__AssemblyStudio__Styles__Combined__.css` for runtime height resizing.
+
+### Verification summary
+- No linter errors on touched files.
+- Runtime confirmation: swatch click path, 3D update behavior, and default card/material presentation now behave as intended.
+# =============================================================================
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.3.4 - 03-May-2026 - Asset-Library Driven Architrave + Handle Menus
 
 ### Architrave default migration to Plan2D profile source

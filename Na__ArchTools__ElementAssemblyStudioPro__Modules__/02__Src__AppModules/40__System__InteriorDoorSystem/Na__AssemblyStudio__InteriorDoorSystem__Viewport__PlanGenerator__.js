@@ -365,16 +365,23 @@
 
     // SUB FUNCTION | Build the Open-Position (Dotted) Panel Outline
     // ------------------------------------------------------------
+    // The open-position panel rectangle is anchored at the hinge-side
+    // corner of the reveal (layout.hingeY) and extends perpendicular
+    // to the wall on the side the door opens to - above for inward,
+    // below for outward. Horizontal placement mirrors the swing side.
     function na_build_open_panel_outline(svg, layout) {
         var hingeX = (layout.swingSide === 'Left')
             ? layout.openingX + layout.liningThickness
             : layout.openingX + layout.openingWidth - layout.liningThickness;
-        var hingeY = layout.panelY;
+        var hingeY = layout.hingeY;
 
-        var dirSign  = (layout.swingSide === 'Left') ? 1 : -1;
+        var outward = (layout.swingDirection === 'outward');
+        var rectY   = outward ? hingeY : hingeY - layout.panelClearWidth;       // <-- Extend DOWN for outward, UP for inward
+        var rectX   = (layout.swingSide === 'Left') ? hingeX : hingeX - layout.panelThickness;
+
         var openRect = na_make_svg('rect', {
-            x      : hingeX,
-            y      : hingeY - layout.panelClearWidth,
+            x      : rectX,
+            y      : rectY,
             width  : layout.panelThickness,
             height : layout.panelClearWidth,
             fill   : 'none',
@@ -382,29 +389,41 @@
             'stroke-width'      : 0.5,
             'stroke-dasharray'  : '4 3'
         });
-        if (dirSign === -1) {
-            openRect.setAttribute('x', hingeX - layout.panelThickness);
-        }
         svg.appendChild(openRect);
     }
     // ---------------------------------------------------------------
 
     // SUB FUNCTION | Build the Dotted Swing Arc
     // ------------------------------------------------------------
+    // The arc anchors at the hinge-side corner of the reveal and
+    // sweeps 90 deg to the open position on the room side (inward)
+    // or the exterior side (outward). layout.hingeY sits on the
+    // correct wall face for each swing direction; the arc's endY
+    // sign and sweepFlag flip for outward so the arc bulges on the
+    // correct side of the wall.
     function na_build_swing_arc(svg, layout) {
         var hingeX = (layout.swingSide === 'Left')
             ? layout.openingX + layout.liningThickness
             : layout.openingX + layout.openingWidth - layout.liningThickness;
-        var hingeY = layout.panelY;
+        var hingeY = layout.hingeY;
 
         var startX = (layout.swingSide === 'Left')
             ? hingeX + layout.panelClearWidth
             : hingeX - layout.panelClearWidth;
         var startY = hingeY;
         var endX   = hingeX;
-        var endY   = hingeY - layout.panelClearWidth;
 
-        var sweepFlag = (layout.swingSide === 'Left') ? 0 : 1;
+        var outward = (layout.swingDirection === 'outward');
+        var signY   = outward ? +1 : -1;                                       // <-- UP (smaller Y) for inward, DOWN (larger Y) for outward
+        var endY    = hingeY + signY * layout.panelClearWidth;
+
+        var sweepFlag;
+        if (outward) {
+            sweepFlag = (layout.swingSide === 'Left') ? 1 : 0;                 // <-- Arc bulges on the exterior side
+        } else {
+            sweepFlag = (layout.swingSide === 'Left') ? 0 : 1;                 // <-- Arc bulges on the room side
+        }
+
         var d = 'M ' + startX + ' ' + startY +
                 ' A ' + layout.panelClearWidth + ' ' + layout.panelClearWidth +
                 ' 0 0 ' + sweepFlag + ' ' + endX + ' ' + endY;
