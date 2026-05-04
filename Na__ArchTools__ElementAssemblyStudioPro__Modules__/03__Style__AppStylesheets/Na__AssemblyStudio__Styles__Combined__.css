@@ -374,6 +374,74 @@ body {
 }
 
 /* =============================================================================
+   BINARY TOGGLE CONTROL
+   Two labelled options on either side of a sliding thumb. Left option maps
+   to --left state, right option maps to --right state. Clicking anywhere
+   on the control flips between the two values.
+   ============================================================================= */
+
+.na-binary-toggle {
+    display             : flex;
+    align-items         : center;
+    gap                 : var(--na-spacing-sm);
+    cursor              : pointer;
+    user-select         : none;
+    -webkit-user-select : none;
+}
+
+.na-binary-toggle__option {
+    flex        : 1;
+    font-size   : var(--na-font-size-sm);
+    color       : var(--na-text-muted);
+    transition  : color var(--na-transition-fast), font-weight var(--na-transition-fast);
+    white-space : nowrap;
+}
+
+.na-binary-toggle__option--left {
+    text-align : right;
+}
+
+.na-binary-toggle__option--right {
+    text-align : left;
+}
+
+/* Active side label highlight */
+.na-binary-toggle--left  .na-binary-toggle__option--left,
+.na-binary-toggle--right .na-binary-toggle__option--right {
+    color       : var(--na-text-primary);
+    font-weight : 600;
+}
+
+.na-binary-toggle__track {
+    position      : relative;
+    width         : 44px;
+    height        : 24px;
+    background    : var(--na-bg-tertiary);
+    border-radius : 12px;
+    flex-shrink   : 0;
+    transition    : background var(--na-transition-normal);
+}
+
+.na-binary-toggle--right .na-binary-toggle__track {
+    background : var(--na-accent-blue);
+}
+
+.na-binary-toggle__thumb {
+    position      : absolute;
+    top           : 2px;
+    left          : 2px;
+    width         : 20px;
+    height        : 20px;
+    background    : var(--na-text-primary);
+    border-radius : 50%;
+    transition    : left var(--na-transition-normal);
+}
+
+.na-binary-toggle--right .na-binary-toggle__thumb {
+    left : 22px;
+}
+
+/* =============================================================================
    COLOR PICKER
    ============================================================================= */
 

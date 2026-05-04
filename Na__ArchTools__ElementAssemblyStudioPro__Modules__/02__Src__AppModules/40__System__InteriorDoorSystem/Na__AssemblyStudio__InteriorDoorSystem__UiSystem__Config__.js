@@ -91,7 +91,7 @@ window.NA_DOOR_PANEL_TAB_CONFIG = [
     {
         id          : 'Na__DoorConfig__SwingSide',
         label       : 'Swing Side',
-        type        : 'select',
+        type        : 'binary_toggle',
         default     : 'Right',
         options     : [
             { value: 'Left',  label: 'Left Hand'  },
@@ -101,7 +101,7 @@ window.NA_DOOR_PANEL_TAB_CONFIG = [
     {
         id          : 'Na__DoorConfig__SwingDirection',
         label       : 'Swing Direction',
-        type        : 'select',
+        type        : 'binary_toggle',
         default     : 'Inward',
         options     : [
             { value: 'Inward',  label: 'Inward'  },

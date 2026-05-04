@@ -284,6 +284,77 @@
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | Create a Binary Toggle Control DOM Subtree
+    // ------------------------------------------------------------
+    // Mirrors the na-toggle-container layout: descriptor label on the left,
+    // and the two-option inline toggle (left label | track | right label)
+    // on the right — matching the row alignment of checkbox controls.
+    // options[0] = left side value, options[1] = right side value.
+    function na_build_binary_toggle_control(descriptor, currentValue) {
+        var options                       = descriptor.options || [];
+        var leftOpt                       = options[0] || { value: '', label: '' };
+        var rightOpt                      = options[1] || { value: '', label: '' };
+        var isRight                       = (currentValue === rightOpt.value);
+
+        var wrapper                       = document.createElement('div');
+        wrapper.className                 = 'na-control-item';
+        wrapper.setAttribute('data-control-id', descriptor.id);
+
+        var container                     = document.createElement('div');
+        container.className               = 'na-toggle-container';                // <-- Reuse existing label-left / control-right row layout
+
+        var labelSpan                     = document.createElement('span');
+        labelSpan.className               = 'na-control-label';
+        labelSpan.textContent             = descriptor.label;
+        container.appendChild(labelSpan);
+
+        var toggle                        = document.createElement('div');
+        toggle.className                  = 'na-binary-toggle' + (isRight ? ' na-binary-toggle--right' : ' na-binary-toggle--left');
+        toggle.id                         = descriptor.id + '-btoggle';
+        toggle.setAttribute('data-value', currentValue);
+
+        var leftLabel                     = document.createElement('span');
+        leftLabel.className               = 'na-binary-toggle__option na-binary-toggle__option--left';
+        leftLabel.textContent             = leftOpt.label;
+
+        var track                         = document.createElement('div');
+        track.className                   = 'na-binary-toggle__track';
+
+        var thumb                         = document.createElement('div');
+        thumb.className                   = 'na-binary-toggle__thumb';
+        track.appendChild(thumb);
+
+        var rightLabel                    = document.createElement('span');
+        rightLabel.className              = 'na-binary-toggle__option na-binary-toggle__option--right';
+        rightLabel.textContent            = rightOpt.label;
+
+        toggle.appendChild(leftLabel);
+        toggle.appendChild(track);
+        toggle.appendChild(rightLabel);
+
+        container.appendChild(toggle);
+        wrapper.appendChild(container);
+
+        var onClick = function () {
+            var currentVal = toggle.getAttribute('data-value');
+            var newVal     = (currentVal === rightOpt.value) ? leftOpt.value : rightOpt.value;
+            var goingRight = (newVal === rightOpt.value);
+
+            toggle.setAttribute('data-value', newVal);
+            toggle.classList.toggle('na-binary-toggle--left',  !goingRight);
+            toggle.classList.toggle('na-binary-toggle--right', goingRight);
+
+            na_handle_control_change(descriptor.id, newVal);
+        };
+        toggle.addEventListener('click', onClick);
+        na_change_listeners.push(function () {
+            toggle.removeEventListener('click', onClick);
+        });
+
+        return wrapper;
+    }
+    // ---------------------------------------------------------------
+
     // HELPER FUNCTION | Create a Checkbox Control DOM Subtree
     // ------------------------------------------------------------
     function na_build_checkbox_control(descriptor, currentValue) {
@@ -334,10 +405,11 @@
         if (current === undefined) current = descriptor.default;
 
         switch (descriptor.type) {
-            case 'slider':   return na_build_slider_control(descriptor, current);
-            case 'select':   return na_build_select_control(descriptor, current);
-            case 'checkbox': return na_build_checkbox_control(descriptor, current);
-            default:         return null;
+            case 'slider':        return na_build_slider_control(descriptor, current);
+            case 'select':        return na_build_select_control(descriptor, current);
+            case 'binary_toggle': return na_build_binary_toggle_control(descriptor, current);
+            case 'checkbox':      return na_build_checkbox_control(descriptor, current);
+            default:              return null;
         }
     }
     // ---------------------------------------------------------------
@@ -381,7 +453,8 @@
             na_reset_preview_request_state(value);
             na_request_handle_preview_if_needed('handle-select-change');
         }
-        if (id === 'Na__DoorConfig__PanelDesignStyle') {
+        if (id === 'Na__DoorConfig__PanelDesignStyle' ||
+            id === 'Na__DoorConfig__PanelDesignEnabled') {
             na_sync_panel_design_visibility();
         }
         na_schedule_rerender();
@@ -391,17 +464,38 @@
 
     // SUB FUNCTION | Sync Conditional Visibility of Panel Design Controls
     // ------------------------------------------------------------
-    // The Vertical Pane Width slider only matters for the
-    // VerticalNarrow style. Hide its wrapper for any other style
-    // so the panel tab stays uncluttered. The control descriptor
-    // is still mounted so the value persists across style changes.
+    // When PanelDesignEnabled is false the entire sub-block of style/
+    // dimension controls is hidden. When it is true, the VerticalNarrow
+    // slider is additionally shown/hidden based on the active style.
+    // Control wrappers are not removed so values persist across toggles.
+    var NA_PANEL_DESIGN_SUB_CONTROLS = [                                  // <-- All controls gated by PanelDesignEnabled
+        'Na__DoorConfig__PanelDesignStyle',
+        'Na__DoorConfig__PanelDesignStileWidth_mm',
+        'Na__DoorConfig__PanelDesignTopRail_mm',
+        'Na__DoorConfig__PanelDesignBottomRail_mm',
+        'Na__DoorConfig__PanelDesignInnerRailThickness_mm',
+        'Na__DoorConfig__PanelDesignVerticalPaneWidth_mm'
+    ];
+
     function na_sync_panel_design_visibility() {
-        var style = na_active_config['Na__DoorConfig__PanelDesignStyle'];
-        var wrapper = document.querySelector(
-            '[data-control-id="Na__DoorConfig__PanelDesignVerticalPaneWidth_mm"]'
-        );
-        if (!wrapper) return;
-        wrapper.style.display = (style === 'VerticalNarrow') ? '' : 'none';
+        var enabled = na_active_config['Na__DoorConfig__PanelDesignEnabled'] !== false;
+        var style   = na_active_config['Na__DoorConfig__PanelDesignStyle'];
+
+        NA_PANEL_DESIGN_SUB_CONTROLS.forEach(function (controlId) {
+            var wrapper = document.querySelector('[data-control-id="' + controlId + '"]');
+            if (!wrapper) return;
+
+            if (!enabled) {
+                wrapper.style.display = 'none';
+                return;
+            }
+
+            if (controlId === 'Na__DoorConfig__PanelDesignVerticalPaneWidth_mm') {
+                wrapper.style.display = (style === 'VerticalNarrow') ? '' : 'none';
+            } else {
+                wrapper.style.display = '';
+            }
+        });
     }
     // ---------------------------------------------------------------
 
