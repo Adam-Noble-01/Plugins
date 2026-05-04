@@ -388,7 +388,8 @@
             "02__Linetype__DoorSwings",
             "00__Util__Linework__ColumnBackers",
             "02__ClearanceLines",
-            "02__DoorHelpers__RotationPivots"
+            "02__DoorHelpers__RotationPivots",
+            "Na__Door__Open"
         ],
         "FullyExcludedNote"        : "Entities on these tags are completely skipped during GLB export at any nesting depth.",
         "TreatAsUntaggedTagNames"  : [
