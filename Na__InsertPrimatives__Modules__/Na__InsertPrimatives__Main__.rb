@@ -17,6 +17,8 @@
 # MODULE ARCHITECTURE:
 # - Na__InsertPrimatives__UserInput__VcbFunctions__ : VCB parsing and unit conversion
 # - Na__InsertPrimatives__3dPreviewGraphics__       : Crosshair and wireframe preview rendering
+# - Na__InsertPrimatives__PlaneMode__               : Rectangle mode parsing, preview, and camera-aligned plane creation
+# - Na__InsertPrimatives__RightClickPopup__         : HtmlDialog right-click primitive menu
 # - Na__InsertPrimatives__KeyboardHandlers__        : Key bindings, VCB callbacks, status text
 #
 # =============================================================================
@@ -24,6 +26,8 @@
 require 'sketchup.rb'
 require_relative 'Na__InsertPrimatives__UserInput__VcbFunctions__'
 require_relative 'Na__InsertPrimatives__3dPreviewGraphics__'
+require_relative 'Na__InsertPrimatives__PlaneMode__'
+require_relative 'Na__InsertPrimatives__RightClickPopup__'
 require_relative 'Na__InsertPrimatives__KeyboardHandlers__'
 
 module Na__InsertPrimatives
@@ -68,6 +72,8 @@ module Na__InsertPrimatives
             @ip                   = Sketchup::InputPoint.new
             @cursor_pos           = nil
             @crosshair_size       = 300.mm
+            @primitive_mode       = :cube
+            @plane_faces_enabled  = true
             @cube_size_x          = 1000.mm
             @cube_size_y          = 1000.mm
             @cube_size_z          = 1000.mm
@@ -75,7 +81,13 @@ module Na__InsertPrimatives
             @key_tab_held         = false
             @last_cube_group      = nil
             @last_corner_position = nil
+            @last_plane_group     = nil
+            @last_plane_position  = nil
             @last_rotation_state  = 0
+            @na_exit_scheduled    = false
+            @na_context_click_x   = 0
+            @na_context_click_y   = 0
+            @na_popup_menu_scheduled = false
         end
         # ---------------------------------------------------------------
 
@@ -84,16 +96,27 @@ module Na__InsertPrimatives
         def activate
             puts "\n"
             puts "----------------------------------------"
-            puts "PRIMITIVE CUBE TOOL ACTIVATED"
-            puts "Click to place cube (snaps to 5mm grid)"
+            puts "PRIMITIVE TOOL ACTIVATED"
+            puts "Default mode: Cube"
+            puts "Click to place primitive (snaps to 5mm grid)"
             puts "TAB to rotate 90 degrees around Z axis"
-            puts "VCB: single value (all sides) or X,Y,Z"
+            puts "VCB mode switch: '..' + Enter => Plane mode"
+            puts "Cube VCB: single value (all sides) or X,Y,Z"
+            puts "Plane VCB: single value or X,Y"
             puts "Units: mm cm m (bare number = mm)"
-            puts "Example: 1m  |  2000,4000,100  |  2m,4m,100mm"
+            puts "Example: 1m  |  2000,4000,100  |  2m,4m,100mm  |  ..  |  1m,600mm"
             puts "Default: 1000mm x 1000mm x 1000mm"
             puts "----------------------------------------"
             na_key__update_status_text()
-            Na__InsertPrimatives.Na__VcbInput__UpdateDisplay(@cube_size_x, @cube_size_y, @cube_size_z)
+            Na__PrimitiveMode__RefreshVcbDisplay()
+        end
+        # ---------------------------------------------------------------
+
+        # DEACTIVATE | Refresh View When Another Tool Is Selected
+        # ------------------------------------------------------------
+        def deactivate(view)
+            Na__InsertPrimatives.Na__RightClickPopup__CloseMenu()
+            view.invalidate if view
         end
         # ---------------------------------------------------------------
 
@@ -102,7 +125,7 @@ module Na__InsertPrimatives
         def resume(view)
             view.invalidate
             na_key__update_status_text()
-            Na__InsertPrimatives.Na__VcbInput__UpdateDisplay(@cube_size_x, @cube_size_y, @cube_size_z)
+            Na__PrimitiveMode__RefreshVcbDisplay()
         end
         # ---------------------------------------------------------------
 
@@ -123,7 +146,12 @@ module Na__InsertPrimatives
             @ip.draw(view)
             snapped = Na__InsertPrimatives.round_point_to_nearest_5mm(@cursor_pos)
             Na__InsertPrimatives.Na__Preview__DrawCrosshair(view, @cursor_pos, @crosshair_size)
-            Na__InsertPrimatives.Na__Preview__DrawCubeBox(view, snapped, @cube_size_x, @cube_size_y, @cube_size_z, @rotation_step)
+
+            if @primitive_mode == :plane
+                Na__InsertPrimatives.Na__PlaneMode__DrawPlanePreview(view, snapped, @cube_size_x, @cube_size_y, @rotation_step)
+            else
+                Na__InsertPrimatives.Na__Preview__DrawCubeBox(view, snapped, @cube_size_x, @cube_size_y, @cube_size_z, @rotation_step)
+            end
         end
         # ---------------------------------------------------------------
 
@@ -134,12 +162,178 @@ module Na__InsertPrimatives
             position = @ip.position
 
             if position
-                Na__Primitive__CreateCubeGeometry(position)
+                if @primitive_mode == :plane
+                    plane_group, plane_corner = Na__InsertPrimatives.Na__PlaneMode__CreatePlaneGeometry(
+                        position,
+                        @cube_size_x,
+                        @cube_size_y,
+                        view,
+                        @rotation_step,
+                        @plane_faces_enabled
+                    )
+
+                    if plane_group
+                        @last_plane_group    = plane_group
+                        @last_plane_position = plane_corner
+                        @last_rotation_state = @rotation_step
+                        @last_cube_group     = nil
+                    end
+                else
+                    Na__Primitive__CreateCubeGeometry(position)
+                end
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # GET MENU | Schedule HtmlDialog Popup Without Adding Native Items
+        # ------------------------------------------------------------
+        def getMenu(menu, *args)
+            puts "PRIMITIVE TOOL RIGHT CLICK MENU REQUESTED (args=#{args.length})"
+            Na__PrimitiveMode__ScheduleRightClickPopupFromMenuArgs(args)
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # ON RIGHT BUTTON DOWN | Track Right-Click Coordinates
+        # ------------------------------------------------------------
+        def onRButtonDown(flags, x, y, view)
+            @na_context_click_x = x
+            @na_context_click_y = y
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # ON RIGHT BUTTON UP | Fallback Popup When Native Context Menu Is Missing
+        # ------------------------------------------------------------
+        def onRButtonUp(flags, x, y, view)
+            @na_context_click_x = x
+            @na_context_click_y = y
+            Na__PrimitiveMode__ScheduleRightClickPopup(x, y)
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # ON CANCEL | Exit Tool When Escape Is Pressed
+        # ------------------------------------------------------------
+        def onCancel(reason, view)
+            if reason == 0
+                Na__PrimitiveMode__ScheduleExitTool()
+            else
+                view.invalidate if view
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Switch Tool State to Cube Mode
+        # ------------------------------------------------------------
+        def Na__PrimitiveMode__SetCubeMode
+            @primitive_mode = :cube
+            Na__PrimitiveMode__RefreshVcbDisplay()
+            na_key__update_status_text()
+            Sketchup.active_model.active_view.invalidate
+            Sketchup::set_status_text("Mode switched: Cube", SB_PROMPT)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Switch Tool State to Plane Mode
+        # ------------------------------------------------------------
+        def Na__PrimitiveMode__SetPlaneMode
+            @primitive_mode = :plane
+            Na__PrimitiveMode__RefreshVcbDisplay()
+            na_key__update_status_text()
+            Sketchup.active_model.active_view.invalidate
+            Na__InsertPrimatives.Na__PlaneMode__ShowModePrompt()
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Toggle Plane Face Creation
+        # ------------------------------------------------------------
+        def Na__PrimitiveMode__TogglePlaneFaces
+            @plane_faces_enabled = !@plane_faces_enabled
+            view = Sketchup.active_model.active_view
+            view.invalidate if view
+
+            state_label = @plane_faces_enabled ? "enabled" : "disabled"
+            Sketchup::set_status_text("Plane faces #{state_label}", SB_PROMPT)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Plane Face Creation Enabled?
+        # ------------------------------------------------------------
+        def Na__PrimitiveMode__PlaneFacesEnabled?
+            @plane_faces_enabled != false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Schedule Right Click Popup Fallback
+        # ------------------------------------------------------------
+        def Na__PrimitiveMode__ScheduleRightClickPopup(x, y)
+            return if @na_popup_menu_scheduled
+
+            @na_popup_menu_scheduled = true
+
+            UI.start_timer(0.05, false) do
+                begin
+                    puts "PRIMITIVE RIGHT CLICK POPUP FALLBACK REQUESTED"
+                    Na__InsertPrimatives.Na__RightClickPopup__ShowPrimitiveMenu(self, x, y)
+                ensure
+                    @na_popup_menu_scheduled = false
+                end
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Schedule Right Click Popup From getMenu Arguments
+        # ------------------------------------------------------------
+        def Na__PrimitiveMode__ScheduleRightClickPopupFromMenuArgs(args)
+            if args.length >= 4
+                x = args[1]
+                y = args[2]
+            else
+                x = @na_context_click_x
+                y = @na_context_click_y
+            end
+
+            Na__PrimitiveMode__ScheduleRightClickPopup(x, y)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Exit Primitive Tool
+        # ------------------------------------------------------------
+        def Na__PrimitiveMode__ExitTool
+            Sketchup.active_model.select_tool(nil)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Schedule Safe Exit from Active Tool
+        # ------------------------------------------------------------
+        def Na__PrimitiveMode__ScheduleExitTool
+            return if @na_exit_scheduled
+            @na_exit_scheduled = true
+
+            UI.start_timer(0, false) do
+                begin
+                    model = Sketchup.active_model
+                    model.select_tool(nil) if model
+                ensure
+                    @na_exit_scheduled = false
+                end
             end
         end
         # ---------------------------------------------------------------
 
         private
+
+        # FUNCTION | Update VCB Display for Active Primitive Mode
+        # ------------------------------------------------------------
+        def Na__PrimitiveMode__RefreshVcbDisplay
+            if @primitive_mode == :plane
+                Na__InsertPrimatives.Na__PlaneMode__UpdateVcbDisplay(@cube_size_x, @cube_size_y)
+            else
+                Na__InsertPrimatives.Na__VcbInput__UpdateDisplay(@cube_size_x, @cube_size_y, @cube_size_z)
+            end
+        end
+        # ---------------------------------------------------------------
 
         # FUNCTION | Rebuild Cube with New Dimensions at Same Corner Position
         # ------------------------------------------------------------
@@ -170,6 +364,52 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Rebuild Plane with New Dimensions at Same Corner Position
+        # ------------------------------------------------------------
+        def Na__PrimitiveMode__RegeneratePlane(plane_group, corner_position, view)
+            return unless plane_group && plane_group.valid?
+
+            model = Sketchup.active_model
+
+            model.start_operation('Regenerate Primitive Plane', true)
+
+            plane_group.transformation = Geom::Transformation.new
+            plane_group.entities.clear!
+
+            p0, p1, p2, p3 = Na__InsertPrimatives.Na__PlaneMode__BuildPlaneCorners(
+                corner_position,
+                @cube_size_x,
+                @cube_size_y,
+                view,
+                @last_rotation_state
+            )
+
+            plane_geometry = Na__InsertPrimatives.Na__PlaneMode__AddPlaneEntities(
+                plane_group.entities,
+                [p0, p1, p2, p3],
+                view,
+                @plane_faces_enabled
+            )
+
+            unless plane_geometry
+                model.abort_operation
+                UI.beep
+                Sketchup::set_status_text("Plane regeneration failed", SB_PROMPT)
+                return
+            end
+
+            model.commit_operation
+
+            puts "\n"
+            puts "----------------------------------------"
+            puts "PRIMITIVE PLANE REGENERATED"
+            puts "New Size: #{@cube_size_x.to_mm.round}mm x #{@cube_size_y.to_mm.round}mm"
+            puts "Faces: #{@plane_faces_enabled ? 'Enabled' : 'Disabled'}"
+            puts "Rotation: #{Na__InsertPrimatives::KeyboardHandlers::NA_ROTATION_STEPS[@last_rotation_state]}°"
+            puts "----------------------------------------"
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Build Cube Geometry at Specified Click Position
         # ------------------------------------------------------------
         def Na__Primitive__CreateCubeGeometry(click_point)
@@ -192,6 +432,8 @@ module Na__InsertPrimatives
             @last_cube_group      = cube_group
             @last_corner_position = snapped_corner
             @last_rotation_state  = @rotation_step
+            @last_plane_group     = nil
+            @last_plane_position  = nil
 
             model.commit_operation
 

@@ -88,40 +88,84 @@ module Na__InsertPrimatives
         # FUNCTION | Handle User Text Input in VCB
         # ------------------------------------------------------------
         def onUserText(text, view)
-            begin
-                dims = Na__InsertPrimatives.Na__VcbInput__ParseDimensions(text)
+            cleaned_text = text.to_s.strip
+            return if cleaned_text.empty?
 
-                x_val, y_val, z_val = dims
+            if Na__InsertPrimatives.Na__PlaneMode__SwitchToken?(cleaned_text)
+                Na__PrimitiveMode__SetPlaneMode()
+                return
+            end
 
-                if x_val > 0 && y_val > 0 && z_val > 0
-                    @cube_size_x = x_val
-                    @cube_size_y = y_val
-                    @cube_size_z = z_val
+            if @primitive_mode == :plane
+                Na__VcbHandler__HandlePlaneInput(cleaned_text, view)
+            else
+                Na__VcbHandler__HandleCubeInput(cleaned_text, view)
+            end
+        rescue ArgumentError => e
+            UI.beep
+            Sketchup::set_status_text("Invalid input: #{e.message}", SB_PROMPT)
+        end
+        # ---------------------------------------------------------------
 
-                    Na__InsertPrimatives.Na__VcbInput__UpdateDisplay(@cube_size_x, @cube_size_y, @cube_size_z)
+        # FUNCTION | Handle Standard Cube VCB Input
+        # ------------------------------------------------------------
+        def Na__VcbHandler__HandleCubeInput(text, view)
+            dims = Na__InsertPrimatives.Na__VcbInput__ParseDimensions(text)
 
-                    if @last_cube_group && @last_cube_group.valid? && @last_corner_position
-                        Na__Primitive__RegenerateCube(@last_cube_group, @last_corner_position)
+            x_val, y_val, z_val = dims
 
-                        x_mm = @cube_size_x.to_mm.round
-                        y_mm = @cube_size_y.to_mm.round
-                        z_mm = @cube_size_z.to_mm.round
-                        Sketchup::set_status_text("Cube regenerated: #{x_mm}mm x #{y_mm}mm x #{z_mm}mm", SB_PROMPT)
-                    else
-                        x_mm = @cube_size_x.to_mm.round
-                        y_mm = @cube_size_y.to_mm.round
-                        z_mm = @cube_size_z.to_mm.round
-                        Sketchup::set_status_text("Dimensions set: #{x_mm}mm x #{y_mm}mm x #{z_mm}mm", SB_PROMPT)
-                    end
+            if x_val > 0 && y_val > 0 && z_val > 0
+                @cube_size_x = x_val
+                @cube_size_y = y_val
+                @cube_size_z = z_val
 
-                    view.invalidate
+                Na__InsertPrimatives.Na__VcbInput__UpdateDisplay(@cube_size_x, @cube_size_y, @cube_size_z)
+
+                if @last_cube_group && @last_cube_group.valid? && @last_corner_position
+                    Na__Primitive__RegenerateCube(@last_cube_group, @last_corner_position)
+
+                    x_mm = @cube_size_x.to_mm.round
+                    y_mm = @cube_size_y.to_mm.round
+                    z_mm = @cube_size_z.to_mm.round
+                    Sketchup::set_status_text("Cube regenerated: #{x_mm}mm x #{y_mm}mm x #{z_mm}mm", SB_PROMPT)
                 else
-                    UI.beep
-                    Sketchup::set_status_text("Dimensions must be positive", SB_PROMPT)
+                    x_mm = @cube_size_x.to_mm.round
+                    y_mm = @cube_size_y.to_mm.round
+                    z_mm = @cube_size_z.to_mm.round
+                    Sketchup::set_status_text("Dimensions set: #{x_mm}mm x #{y_mm}mm x #{z_mm}mm", SB_PROMPT)
                 end
-            rescue ArgumentError => e
+
+                view.invalidate
+            else
                 UI.beep
-                Sketchup::set_status_text("Invalid input: #{e.message}", SB_PROMPT)
+                Sketchup::set_status_text("Dimensions must be positive", SB_PROMPT)
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Handle Rectangle Plane Mode VCB Input
+        # ------------------------------------------------------------
+        def Na__VcbHandler__HandlePlaneInput(text, view)
+            dims = Na__InsertPrimatives.Na__PlaneMode__ParseDimensions(text)
+            x_val, y_val = dims
+
+            if x_val > 0 && y_val > 0
+                @cube_size_x = x_val
+                @cube_size_y = y_val
+
+                Na__InsertPrimatives.Na__PlaneMode__UpdateVcbDisplay(@cube_size_x, @cube_size_y)
+
+                if @last_plane_group && @last_plane_group.valid? && @last_plane_position
+                    Na__PrimitiveMode__RegeneratePlane(@last_plane_group, @last_plane_position, view)
+                    Na__InsertPrimatives.Na__PlaneMode__ShowDimensionsPrompt(@cube_size_x, @cube_size_y, true)
+                else
+                    Na__InsertPrimatives.Na__PlaneMode__ShowDimensionsPrompt(@cube_size_x, @cube_size_y, false)
+                end
+
+                view.invalidate
+            else
+                UI.beep
+                Sketchup::set_status_text("Dimensions must be positive", SB_PROMPT)
             end
         end
         # ---------------------------------------------------------------
@@ -139,7 +183,8 @@ module Na__InsertPrimatives
         def na_key__update_status_text
             step    = @rotation_step.to_i
             degrees = NA_ROTATION_STEPS[step]
-            Sketchup::set_status_text("Click to place | Rotation: #{degrees}° [TAB to rotate]", SB_PROMPT)
+            mode_label = @primitive_mode == :plane ? "Mode: Plane" : "Mode: Cube"
+            Sketchup::set_status_text("#{mode_label} | Click to place | Rotation: #{degrees}° [TAB to rotate]", SB_PROMPT)
         end
         private :na_key__update_status_text
         # ---------------------------------------------------------------

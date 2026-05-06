@@ -3,6 +3,24 @@
 
 # =============================================================================
 
+## Version 0.4.6 - 06-May-2026 - HtmlDialog Primitive Right-Click Menu
+
+### Update — HtmlDialog-Only Right-Click Menu
+- Replaced the native/global SketchUp context-menu approach with a dedicated `UI::HtmlDialog` popup triggered from the active primitive tool's right-click callbacks.
+- Deprecated `Na__InsertPrimatives__ContextMenu__.rb` as a no-op shim because `UI.add_context_menu_handler` is unreliable for empty viewport space and clutters SketchUp's normal context menu.
+- Removed `getMenu`/native menu wiring from `PrimitiveCubeTool`; right-click now uses the popup as the single source of truth for primitive options.
+- Popup actions cover cube mode, plane mode, plane face enable/disable, and exiting the tool.
+
+### Files Modified:
+1. **`Na__InsertPrimatives__Loader__.rb`**
+2. **`Na__InsertPrimatives__Modules__/Na__InsertPrimatives__Main__.rb`**
+3. **`Na__InsertPrimatives__Modules__/Na__InsertPrimatives__RightClickPopup__.rb`**
+4. **`Na__InsertPrimatives__Modules__/Na__InsertPrimatives__ContextMenu__.rb`**
+
+### Status: IMPLEMENTED
+
+# =============================================================================
+
 ## Version 0.4.5 - 10-Mar-2026 - Remove Imperial Units
 
 ### Update — Metric-Only VCB Input
