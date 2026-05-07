@@ -8,6 +8,34 @@
 ## Version History
 
 # ---------------------------------------------------------
+### Na Edge Util - Version 1.0.4 - 07-May-2026
+#### Main Tab Removal, Tab Order Update, and Dead Code Cleanup
+
+- **Main tab removed from UI**: Deleted the old `Main` tab panel and all of its controls (dropdown, selection info text, quick palette, and Paint button) from `UiLayout__.html`.
+- **Tab order updated**: Reordered the dialog tabs to:
+  - `Swatches`
+  - `Edge Tools`
+  - `Advanced`
+  - `Settings`
+- **Default tab changed**: Set `Swatches` as the default active tab on dialog open.
+- **Ruby bridge cleanup in `Main__.rb`**:
+  - Removed Main-tab placeholder injection (`{{DYNAMIC_PALETTE_HTML}}`, `{{OPTIONS_HTML}}`, `{{INITIAL_INFO}}`).
+  - Removed obsolete callbacks (`apply_colour`, `apply_palette_colour`).
+  - Removed Main-tab refresh plumbing and selection-observer wiring that only updated removed DOM nodes.
+  - Kept swatch painting + Edge Tools + Advanced + Settings callback flows intact.
+- **Quick palette module retired**: Removed the now-unused `Na__EdgeUtil__PaintDeepNestedEdges__PaletteManager__.rb` module and its `require_relative` from `Main__.rb`.
+- **Stylesheet cleanup**: Removed Main-tab-only selectors from `Styles__.css` (`#info`, `.naQuickPalette*`, `#btnRow`, and unused `select` block), plus deleted unused variable `--NaEdgeUtil_ButtonMargin`.
+
+**Files Modified:**
+- `Na__EdgeUtil__PaintDeepNestedEdges__UiLayout__.html` (removed Main tab, reordered tabs, set Swatches active by default)
+- `Na__EdgeUtil__PaintDeepNestedEdges__Main__.rb` (removed Main-tab callbacks/placeholders/selection observer and palette integration)
+- `Na__EdgeUtil__PaintDeepNestedEdges__Styles__.css` (pruned Main-tab-only styles)
+
+**Files Removed:**
+- `Na__EdgeUtil__PaintDeepNestedEdges__PaletteManager__.rb`
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### Na Edge Util - Version 1.0.4 - 16-Apr-2026
 #### Chamfer Edge Corners Tool, UI Config + Native Shortcut Command
 

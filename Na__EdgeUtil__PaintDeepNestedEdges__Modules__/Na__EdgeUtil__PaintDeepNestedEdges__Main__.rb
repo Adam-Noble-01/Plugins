@@ -42,7 +42,6 @@ require 'sketchup.rb'
 require 'json'
 
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__HotkeyBinder__'
-require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__PaletteManager__'
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__ApplyLineThicknessTags__'
 require_relative 'Na__EdgeUtil__PaintDeepNestedEdges__RefreshPluginData__'
 require_relative '10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__RepairUtil__EdgeCleaner__Module__'
@@ -74,8 +73,6 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     @na_mte_colours       = nil                                               # <-- Flattened { SketchUpName => HexValue } colour hash
     @na_mte_swatches      = nil                                               # <-- Array of { key, hex, swatch_name } for Swatches tab
     @na_mte_meta          = nil                                               # <-- MTE meta block (uiDefaults, naming convention, etc.)
-    @na_selection_observer = nil
-    @na_observed_selection = nil
     # ------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -410,47 +407,11 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     end
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Return Default Quick Palette Colour Key
-    # ---------------------------------------------------------------
-    def self.na_dynamic_palette_default_key
-        na_load_mte_data unless @na_mte_meta
-        ui_defaults = @na_mte_meta && @na_mte_meta["uiDefaults"]
-        configured_default_key = ui_defaults ? ui_defaults.fetch("DynamicPaletteDefaultKey", "") : ""
-        return configured_default_key if na_colours.key?(configured_default_key)
-
-        detected_white_key = na_colours.find { |_colour_key, colour_spec| colour_spec.to_s.upcase == '#FFFFFF' }
-        return detected_white_key[0] if detected_white_key
-
-        return na_default_colour_key
-    end
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | Return Quick Palette Slot Count
-    # ---------------------------------------------------------------
-    def self.na_dynamic_palette_slot_count
-        na_load_mte_data unless @na_mte_meta
-        ui_defaults = @na_mte_meta && @na_mte_meta["uiDefaults"]
-        ui_defaults ? ui_defaults.fetch("DynamicPaletteSlotCount", 4).to_i : 4
-    end
-    # ---------------------------------------------------------------
-
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 # REGION | Edge Collection and Analysis Helper Functions
 # -----------------------------------------------------------------------------
-
-    # HELPER FUNCTION | Count Selected Edges for User Feedback
-    # ---------------------------------------------------------------
-    def self.na_edge_count_selection
-        model = Sketchup.active_model
-        return 0 unless model
-
-        edges = []
-        model.selection.each { |entity| na_collect_edges(entity, edges) }
-        return edges.length
-    end
-    # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Recursively Collect Edges From Entities
     # ---------------------------------------------------------------
@@ -623,13 +584,6 @@ module Na__EdgeUtil__PaintDeepNestedEdges
 # REGION | HtmlDialog Rendering and Management
 # -----------------------------------------------------------------------------
 
-    # HELPER FUNCTION | Build Select Options Html From Colour Data
-    # ---------------------------------------------------------------
-    def self.na_build_options_html
-        na_colours.keys.map { |colour_key| "<option value=\"#{colour_key}\">#{colour_key}</option>" }.join
-    end
-    # ---------------------------------------------------------------
-
     # HELPER FUNCTION | Build Swatches Tab Html Grid From MTE Data
     # ---------------------------------------------------------------
     def self.na_build_swatches_html
@@ -711,7 +665,6 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     # HELPER FUNCTION | Render Complete Dialog Html
     # ---------------------------------------------------------------
     def self.na_render_dialog_html
-        initial_info                  = "#{na_edge_count_selection} edges selected."
         max_gap_mm_string             = na_number_for_html_input(
             Na__EdgeTools__RepairEdgeCorners.Na__EdgeTools__RepairEdgeCorners__StoredMaxGapMm
         )
@@ -729,8 +682,6 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             .gsub('{{DIALOG_TITLE}}', na_dialog_title)
             .gsub('{{STYLESHEET_CONTENT}}', na_dialog_stylesheet_content)
             .gsub('{{UI_HELPERS_SCRIPT}}', na_dialog_ui_helpers_script)
-            .gsub('{{DYNAMIC_PALETTE_HTML}}', Na__PaletteManager.na_build_palette_html)
-            .gsub('{{OPTIONS_HTML}}', na_build_options_html)
             .gsub('{{SWATCHES_HTML}}', na_build_swatches_html)
             .gsub('{{MAPPING_TABLE_HTML}}', na_build_mapping_table_html)
             .gsub('{{REPAIR_CORNER_MAX_GAP_MM}}', max_gap_mm_string)
@@ -738,22 +689,6 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             .gsub('{{CHAMFER_BUILD_CORNERS_CHECKED}}', build_corners_checked_attr)
             .gsub('{{CHAMFER_BUILD_CORNER_CONFIG_CLASS}}', build_corner_config_class)
             .gsub('{{CHAMFER_BUILD_CORNER_MAX_GAP_MM}}', build_corner_max_gap_mm_string)
-            .gsub('{{INITIAL_INFO}}', initial_info)
-    end
-    # ---------------------------------------------------------------
-
-    # SUB FUNCTION | Refresh Dialog Info and Dynamic Palette Content
-    # ---------------------------------------------------------------
-    def self.na_refresh_dialog_state(dialog, selected_colour_key = nil)
-        selection_info_text = "#{na_edge_count_selection} edges selected."
-        palette_html = Na__PaletteManager.na_build_palette_html
-
-        dialog.execute_script("document.getElementById('info').textContent=#{selection_info_text.to_json};")
-        dialog.execute_script("document.getElementById('quickPaletteRow').innerHTML=#{palette_html.to_json};")
-
-        if selected_colour_key
-            dialog.execute_script("document.getElementById('colour').value=#{selected_colour_key.to_json};")
-        end
     end
     # ---------------------------------------------------------------
 
@@ -765,89 +700,11 @@ module Na__EdgeUtil__PaintDeepNestedEdges
     end
     # ---------------------------------------------------------------
 
-    # SUB FUNCTION | Handle Selection Changes While Dialog Is Open
-    # ---------------------------------------------------------------
-    def self.na_handle_selection_changed
-        return unless @na_dialog
-        return unless @na_dialog.visible?
-
-        selection_info_text = "#{na_edge_count_selection} edges selected."
-        @na_dialog.execute_script("var el=document.getElementById('info'); if(el){el.textContent=#{selection_info_text.to_json};}")
-    end
-    # ---------------------------------------------------------------
-
-    # SUB FUNCTION | Attach Selection Observer to Active Model Selection
-    # ---------------------------------------------------------------
-    def self.na_attach_selection_observer
-        model = Sketchup.active_model
-        return unless model
-
-        selection = model.selection
-        return if @na_observed_selection == selection && @na_selection_observer
-
-        na_detach_selection_observer
-
-        @na_selection_observer ||= Na__DialogSelectionObserver.new
-        selection.add_observer(@na_selection_observer)
-        @na_observed_selection = selection
-    end
-    # ---------------------------------------------------------------
-
-    # SUB FUNCTION | Detach Selection Observer from Previous Selection
-    # ---------------------------------------------------------------
-    def self.na_detach_selection_observer
-        return unless @na_observed_selection && @na_selection_observer
-
-        @na_observed_selection.remove_observer(@na_selection_observer)
-        @na_observed_selection = nil
-    rescue StandardError
-        @na_observed_selection = nil
-    end
-    # ---------------------------------------------------------------
-
-    # OBSERVER CLASS | Listen to SketchUp Selection Events
-    # ---------------------------------------------------------------
-    class Na__DialogSelectionObserver < Sketchup::SelectionObserver
-        def onSelectionBulkChange(_selection)
-            Na__EdgeUtil__PaintDeepNestedEdges.na_handle_selection_changed
-        end
-
-        def onSelectionAdded(_selection, _entity)
-            Na__EdgeUtil__PaintDeepNestedEdges.na_handle_selection_changed
-        end
-
-        def onSelectionRemoved(_selection, _entity)
-            Na__EdgeUtil__PaintDeepNestedEdges.na_handle_selection_changed
-        end
-
-        def onSelectionCleared(_selection)
-            Na__EdgeUtil__PaintDeepNestedEdges.na_handle_selection_changed
-        end
-    end
-    # ---------------------------------------------------------------
-
     # SUB FUNCTION | Configure Dialog Callbacks For User Interaction
     # ---------------------------------------------------------------
     def self.na_setup_dialog_callbacks(dialog)
-        dialog.add_action_callback('apply_colour') do |_context, colour_key|
-            if na_paint_edges(colour_key)
-                Na__PaletteManager.na_remember_colour(colour_key)
-                na_refresh_dialog_state(dialog, colour_key)
-            end
-        end
-
-        dialog.add_action_callback('apply_palette_colour') do |_context, colour_key|
-            if na_paint_edges(colour_key)
-                Na__PaletteManager.na_remember_colour(colour_key)
-                na_refresh_dialog_state(dialog, colour_key)
-            end
-        end
-
         dialog.add_action_callback('apply_swatch_colour') do |_context, colour_key|
-            if na_paint_edges(colour_key)
-                Na__PaletteManager.na_remember_colour(colour_key)
-                na_refresh_dialog_state(dialog, colour_key)
-            end
+            na_paint_edges(colour_key)
         end
 
         dialog.add_action_callback('apply_line_tags') do |_context, _value|
@@ -861,7 +718,6 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             result         = Na__EdgeTools__EdgeCleaner.Na__EdgeTools__EdgeCleaner__Execute
             status_modifier = result[:success] ? 'naEdgeTools__Status--success' : 'naEdgeTools__Status--error'
             na_update_status_element(dialog, 'edgeToolsStatus', 'naEdgeTools__Status', result[:message], status_modifier)
-            na_refresh_dialog_state(dialog)
         end
 
         dialog.add_action_callback('set_repair_corner_max_gap_mm') do |_context, max_gap_mm|
@@ -874,14 +730,12 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             result = Na__EdgeTools__RepairEdgeCorners.Na__EdgeTools__RepairEdgeCorners__ExecuteRepair(max_gap_mm)
             status_modifier = result[:success] ? 'naEdgeTools__Status--success' : 'naEdgeTools__Status--error'
             na_update_status_element(dialog, 'edgeToolsStatus', 'naEdgeTools__Status', result[:message], status_modifier)
-            na_refresh_dialog_state(dialog)
         end
 
         dialog.add_action_callback('run_insert_points_along_path') do |_context, _value|
             result          = Na__EdgeTools__InsertPointsAlongPaths.Na__EdgeTools__InsertPointsAlongPaths__Execute
             status_modifier = result[:success] ? 'naEdgeTools__Status--success' : 'naEdgeTools__Status--error'
             na_update_status_element(dialog, 'edgeToolsStatus', 'naEdgeTools__Status', result[:message], status_modifier)
-            na_refresh_dialog_state(dialog)
         end
 
         dialog.add_action_callback('set_chamfer_size_mm') do |_context, chamfer_size_mm|
@@ -917,7 +771,6 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             )
             status_modifier = result[:success] ? 'naEdgeTools__Status--success' : 'naEdgeTools__Status--error'
             na_update_status_element(dialog, 'edgeToolsStatus', 'naEdgeTools__Status', result[:message], status_modifier)
-            na_refresh_dialog_state(dialog)
         end
 
         dialog.add_action_callback('reload_plugin_data') do |_context, _value|
@@ -959,9 +812,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         @na_dialog = UI::HtmlDialog.new(dialog_options)
         @na_dialog.set_html(na_render_dialog_html)
         na_setup_dialog_callbacks(@na_dialog)
-        na_attach_selection_observer
         @na_dialog.set_on_closed do
-            na_detach_selection_observer
             @na_dialog = nil
         end
         @na_dialog.show

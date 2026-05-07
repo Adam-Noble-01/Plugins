@@ -9,7 +9,6 @@
     --NaEdgeUtil_BorderColour         : #cccccc;
     --NaEdgeUtil_AccentColour         : #336699;
     --NaEdgeUtil_ButtonPadding        : 8px 18px;
-    --NaEdgeUtil_ButtonMargin         : 14px 0 0 0;
     --NaEdgeUtil_FontSize_MainText    : 14px;
     --NaEdgeUtil_FontSize_SmallText   : 13px;
     --NaEdgeUtil_FontSize_TinyText    : 10px;
@@ -91,7 +90,6 @@ body {
 /* ----------------------------------------------------------------- */
 
 label,
-select,
 button {
     font-size         : var(--NaEdgeUtil_FontSize_MainText);
 }
@@ -99,104 +97,6 @@ button {
 label {
     display           : inline-block;
     margin-bottom     : 10px;
-}
-
-select {
-    width             : 100%;
-    padding           : 8px 10px;
-    border            : 1px solid var(--NaEdgeUtil_BorderColour);
-    box-sizing        : border-box;
-    background-color  : #ffffff;
-}
-
-/* endregion ----------------------------------------------------------------- */
-
-/* ----------------------------------------------------------------- */
-/* REGION | Information Display */
-/* ----------------------------------------------------------------- */
-
-#info {
-    margin-top        : 16px;
-    margin-bottom     : 12px;
-    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
-    color             : var(--NaEdgeUtil_FontColour_MutedText);
-}
-
-/* endregion ----------------------------------------------------------------- */
-
-/* ----------------------------------------------------------------- */
-/* REGION | Quick Palette Panel - Swatches Row */
-/* ----------------------------------------------------------------- */
-
-.naQuickPalettePanel {
-    margin-top        : 8px;
-}
-
-.naQuickPalettePanel__Title {
-    margin            : 0 0 8px 0;
-    font-size         : var(--NaEdgeUtil_FontSize_SmallText);
-    color             : var(--NaEdgeUtil_FontColour_MutedText);
-}
-
-#quickPaletteRow {
-    display           : flex;
-    gap               : 12px;
-    flex-wrap         : wrap;
-}
-
-.naQuickPaletteSwatch {
-    width             : 48px;
-    min-width         : 48px;
-    height            : 48px;
-    margin            : 0;
-    padding           : 4px;
-    border            : 1px solid var(--NaEdgeUtil_BorderColour);
-    background-color  : #ffffff;
-    display           : flex;
-    align-items       : center;
-    justify-content   : center;
-    position          : relative;
-}
-
-.naQuickPaletteSwatch__Colour {
-    width             : 100%;
-    height            : 100%;
-    display           : block;
-    border            : 1px solid #b5b5b5;
-    box-sizing        : border-box;
-}
-
-.naQuickPaletteSwatch__Label {
-    position          : absolute;
-    right             : 4px;
-    bottom            : 2px;
-    font-size         : var(--NaEdgeUtil_FontSize_TinyText);
-    line-height       : 1;
-    color             : #555555;
-    background-color  : rgba(255, 255, 255, 0.85);
-    padding           : 1px 3px;
-}
-
-/* endregion ----------------------------------------------------------------- */
-
-/* ----------------------------------------------------------------- */
-/* REGION | Button Layout and Styling */
-/* ----------------------------------------------------------------- */
-
-#btnRow {
-    display           : flex;
-    gap               : 14px;
-    margin-top        : 10px;
-    flex-wrap         : wrap;
-}
-
-#btnRow button {
-    margin            : var(--NaEdgeUtil_ButtonMargin);
-    padding           : var(--NaEdgeUtil_ButtonPadding);
-    border            : 1px solid var(--NaEdgeUtil_BorderColour);
-    background-color  : #ffffff;
-    cursor            : pointer;
-    min-width         : 160px;
 }
 
 /* endregion ----------------------------------------------------------------- */
