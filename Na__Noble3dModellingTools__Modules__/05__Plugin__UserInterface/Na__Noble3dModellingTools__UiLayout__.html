@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<!--
+=============================================================================
+NA NOBLE3D MODELLING TOOLS - HTMLDIALOG UI LAYOUT
+
+FILE       : Na__Noble3dModellingTools__UiLayout__.html
+PURPOSE    : Shell markup; placeholders for title, inlined CSS/JS, tab regions
+=============================================================================
+-->
+<html lang="en">
+<head>
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Document Head — Charset, Title, Inlined Stylesheet          -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <meta charset="utf-8">
+    <title>{{DIALOG_TITLE}}</title>
+    <style>
+    {{STYLESHEET_CONTENT}}
+    </style>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+</head>
+<body>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Application Shell                                           -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <div class="naNoble3d__Shell">
+
+        <!-- REGION | Shell — brand header (logo left, title right) -->
+
+        <header class="na-brand-header">
+            <div class="na-brand-header__left">
+                <img src="{{LOGO_FILE_URI}}"
+                     class="na-brand-header__logo"
+                     alt="Noble Architecture"
+                     onerror="this.style.display='none'">
+            </div>
+            <div class="na-brand-header__right">
+                <span class="na-brand-header__title">3D Modelling Tools</span>
+            </div>
+        </header>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+
+        <!-- REGION | Shell — horizontal tab navigation -->
+
+        <nav class="naNoble3d__TabBar">
+            {{TAB_BUTTONS_HTML}}
+        </nav>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+
+        <!-- REGION | Shell — scrollable tab content host -->
+
+        <main class="naNoble3d__MainContent">
+            {{TAB_CONTENT_HTML}}
+        </main>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+
+        <!-- REGION | Shell — footer status line -->
+
+        <footer class="naNoble3d__Footer">
+            <p id="naNoble3dStatus" class="naNoble3d__Status naNoble3d__Status--info">Ready.</p>
+        </footer>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+    </div>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Inlined Behaviour — SketchUp UiBridge Script               -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <script>
+    {{UI_BRIDGE_SCRIPT}}
+    </script>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+</body>
+</html>

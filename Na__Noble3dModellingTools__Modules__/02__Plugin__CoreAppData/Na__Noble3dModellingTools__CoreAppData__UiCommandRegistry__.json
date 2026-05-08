@@ -1,0 +1,211 @@
+{
+    "extension_name"         : "Na Noble3d Modelling Tools",
+    "dialog_title"           : "Na Noble3d Modelling Tools",
+    "dialog_preferences_key" : "Na__Noble3dModellingTools",
+    "dialog_width"           : 560,
+    "dialog_height"          : 620,
+    "dialog_resizable"       : true,
+    "tabs"                   : [
+        {
+            "tab_id"          : "selection_tools",
+            "tab_name"        : "Selection Tools",
+            "tab_order"       : 10,
+            "tab_description" : "Selection-focused scripts for fast modelling workflows."
+        },
+        {
+            "tab_id"          : "geometry_tools",
+            "tab_name"        : "Geometry Tools",
+            "tab_order"       : 20,
+            "tab_description" : "Geometry generation tools for rapid concept modelling."
+        },
+        {
+            "tab_id"          : "settings",
+            "tab_name"        : "Settings",
+            "tab_order"       : 90,
+            "tab_description" : "Reload plugin data and Ruby files for rapid iteration."
+        }
+    ],
+    "commands"               : [
+        {
+            "command_id"        : "open_main_dialog",
+            "command_name"      : "Na Noble3d Modelling Tools - Open Dialog",
+            "tooltip"           : "Open the Na Noble3d Modelling Tools dialog",
+            "status_bar_text"   : "Open Na Noble3d Modelling Tools",
+            "menu_text"         : "Open Noble3d Modelling Tools",
+            "handler_key"       : "open_main_dialog",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "select_quad_face_rings_shortest",
+            "command_name"      : "Na Noble3d - Select Quad Face Rings (Shortest)",
+            "tooltip"           : "Select quad face rings using shortest opposite edges",
+            "status_bar_text"   : "Select quad face rings with shortest direction strategy",
+            "menu_text"         : "Select Quad Face Rings (Shortest)",
+            "handler_key"       : "select_quad_face_rings_shortest",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "select_quad_face_rings_longest",
+            "command_name"      : "Na Noble3d - Select Quad Face Rings (Longest)",
+            "tooltip"           : "Select quad face rings using longest opposite edges",
+            "status_bar_text"   : "Select quad face rings with longest direction strategy",
+            "menu_text"         : "Select Quad Face Rings (Longest)",
+            "handler_key"       : "select_quad_face_rings_longest",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "select_quad_face_rings_largest",
+            "command_name"      : "Na Noble3d - Select Quad Face Rings (Largest Count)",
+            "tooltip"           : "Select quad face rings using largest face-count strategy",
+            "status_bar_text"   : "Select quad face rings with largest face-count strategy",
+            "menu_text"         : "Select Quad Face Rings (Largest Count)",
+            "handler_key"       : "select_quad_face_rings_largest",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "lattice_maker_prompt",
+            "command_name"      : "Na Noble3d - Lattice Maker (Prompt)",
+            "tooltip"           : "Create lattice bars from selected edges with input prompt",
+            "status_bar_text"   : "Run Lattice Maker with prompt",
+            "menu_text"         : "Lattice Maker (Prompt)",
+            "handler_key"       : "lattice_maker_prompt",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "lattice_maker_last",
+            "command_name"      : "Na Noble3d - Lattice Maker (Use Last Values)",
+            "tooltip"           : "Create lattice bars from selected edges using last values",
+            "status_bar_text"   : "Run Lattice Maker with stored values",
+            "menu_text"         : "Lattice Maker (Use Last Values)",
+            "handler_key"       : "lattice_maker_last",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "auto_group_utility",
+            "command_name"      : "Na Noble3d - Auto Group Utility",
+            "tooltip"           : "Group disconnected geometry islands from the active selection",
+            "status_bar_text"   : "Auto-group disconnected solid islands",
+            "menu_text"         : "Auto Group Utility",
+            "handler_key"       : "auto_group_utility",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "auto_group_face_islands",
+            "command_name"      : "Na Noble3d - Auto Group Face Islands",
+            "tooltip"           : "Group each individual face in the selection into its own group",
+            "status_bar_text"   : "Auto-group each face into a separate island group",
+            "menu_text"         : "Auto Group Face Islands",
+            "handler_key"       : "auto_group_face_islands",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "reload_plugin_data",
+            "command_name"      : "Na Noble3d - Reload Plugin Data",
+            "tooltip"           : "Reload Noble3d Ruby files and refresh the active dialog",
+            "status_bar_text"   : "Reload Noble3d plugin data and UI",
+            "menu_text"         : "Reload Plugin Data",
+            "handler_key"       : "reload_plugin_data",
+            "expose_to_hotkeys" : true
+        }
+    ],
+    "buttons"                : [
+        {
+            "button_id"    : "btn_select_quad_shortest",
+            "tab_name"     : "Selection Tools",
+            "button_label" : "Select Quad Face Rings (Shortest)",
+            "command_id"   : "select_quad_face_rings_shortest",
+            "description"  : "Traverses connected quad rings using shortest opposite edges."
+        },
+        {
+            "button_id"    : "btn_select_quad_longest",
+            "tab_name"     : "Selection Tools",
+            "button_label" : "Select Quad Face Rings (Longest)",
+            "command_id"   : "select_quad_face_rings_longest",
+            "description"  : "Traverses connected quad rings using longest opposite edges."
+        },
+        {
+            "button_id"    : "btn_select_quad_largest",
+            "tab_name"     : "Selection Tools",
+            "button_label" : "Select Quad Face Rings (Largest Count)",
+            "command_id"   : "select_quad_face_rings_largest",
+            "description"  : "Picks the candidate ring direction with the highest face count."
+        },
+        {
+            "button_id"    : "btn_lattice_prompt",
+            "tab_name"     : "Geometry Tools",
+            "button_label" : "Lattice Maker (Prompt)",
+            "command_id"   : "lattice_maker_prompt",
+            "description"  : "Creates lattice bars with explicit width/depth/mode prompt."
+        },
+        {
+            "button_id"    : "btn_lattice_last",
+            "tab_name"     : "Geometry Tools",
+            "button_label" : "Lattice Maker (Use Last Values)",
+            "command_id"   : "lattice_maker_last",
+            "description"  : "Creates lattice bars immediately using saved width/depth/mode."
+        },
+        {
+            "button_id"    : "btn_auto_group_utility",
+            "tab_name"     : "Geometry Tools",
+            "button_label" : "Auto Group Utility",
+            "command_id"   : "auto_group_utility",
+            "description"  : "Groups each disconnected geometry island in the selection into its own SketchUp group."
+        },
+        {
+            "button_id"    : "btn_auto_group_face_islands",
+            "tab_name"     : "Geometry Tools",
+            "button_label" : "Auto Group Face Islands",
+            "command_id"   : "auto_group_face_islands",
+            "description"  : "Groups each individual face in the selection into a sequentially named SketchUp group."
+        },
+        {
+            "button_id"    : "btn_reload_plugin",
+            "tab_name"     : "Settings",
+            "button_label" : "Reload Plugin Data",
+            "command_id"   : "reload_plugin_data",
+            "description"  : "Reloads Ruby source and refreshes the dialog without restart."
+        }
+    ],
+    "settings"               : {
+        "reload_command_id" : "reload_plugin_data",
+        "status_element_id" : "naNoble3dStatus"
+    },
+    "hotkey_bindings"        : [
+        {
+            "command_id"        : "open_main_dialog",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "select_quad_face_rings_shortest",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "select_quad_face_rings_longest",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "select_quad_face_rings_largest",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "lattice_maker_prompt",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "lattice_maker_last",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "auto_group_utility",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "auto_group_face_islands",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "reload_plugin_data",
+            "expose_to_hotkeys" : true
+        }
+    ]
+}

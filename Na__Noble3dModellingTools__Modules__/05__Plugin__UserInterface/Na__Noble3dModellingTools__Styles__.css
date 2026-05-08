@@ -1,0 +1,254 @@
+/* ============================================================================= */
+/* NA NOBLE3D MODELLING TOOLS - PLUGIN UI STYLES                                 */
+/*                                                                               */
+/* FILE       : Na__Noble3dModellingTools__Styles__.css                          */
+/* PURPOSE    : Stylesheet content inlined into HtmlDialog layout template       */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens (:root Variables)
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    --naNoble3d_Bg          : #f4f6f8;
+    --naNoble3d_PanelBg     : #ffffff;
+    --naNoble3d_Text        : #1b1f24;
+    --naNoble3d_MutedText   : #5b636d;
+    --naNoble3d_Border      : #d6dbe1;
+    --naNoble3d_Accent      : #2f77d5;
+    --naNoble3d_AccentHover : #2464b8;
+    --naNoble3d_Success     : #1f7a42;
+    --naNoble3d_Error       : #b32d2d;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout — Document, Shell
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing              : border-box;
+}
+
+html,
+body {
+    margin                  : 0;
+    padding                 : 0;
+    width                   : 100%;
+    height                  : 100%;
+    font-family             : "Segoe UI", Arial, sans-serif;
+    background              : var(--naNoble3d_Bg);
+    color                   : var(--naNoble3d_Text);
+}
+
+.naNoble3d__Shell {
+    display                 : flex;
+    flex-direction          : column;
+    width                   : 100%;
+    height                  : 100%;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Brand Header — Logo Left, Title Right
+ * ----------------------------------------------------------------------------- */
+
+.na-brand-header {
+    display                 : flex;
+    align-items             : center;
+    justify-content         : space-between;
+    padding                 : 12px 16px;
+    border-bottom           : 1px solid var(--naNoble3d_Border);
+    background              : var(--naNoble3d_PanelBg);
+}
+
+.na-brand-header__left {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 12px;
+}
+
+.na-brand-header__logo {
+    height                  : 36px;
+    width                   : auto;
+    display                 : block;
+}
+
+.na-brand-header__right {
+    display                 : flex;
+    flex-direction          : column;
+    align-items             : flex-end;
+    gap                     : 2px;
+}
+
+.na-brand-header__title {
+    font-size               : 18px;
+    font-weight             : 600;
+    color                   : #1a1a1a;
+    line-height             : 1;
+    letter-spacing          : 0.2px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Tabs — Tab Bar, Buttons, Active State
+ * ----------------------------------------------------------------------------- */
+
+.naNoble3d__TabBar {
+    display                 : flex;
+    flex-wrap               : wrap;
+    gap                     : 6px;
+    padding                 : 10px 12px;
+    border-bottom           : 1px solid var(--naNoble3d_Border);
+    background              : var(--naNoble3d_PanelBg);
+}
+
+.naNoble3d__TabButton {
+    border                  : 1px solid var(--naNoble3d_Border);
+    border-radius           : 4px;
+    background              : #fdfdfd;
+    padding                 : 7px 10px;
+    font-size               : 12px;
+    cursor                  : pointer;
+}
+
+.naNoble3d__TabButton:hover {
+    border-color            : var(--naNoble3d_Accent);
+}
+
+.naNoble3d__TabButton--active {
+    color                   : #ffffff;
+    background              : var(--naNoble3d_Accent);
+    border-color            : var(--naNoble3d_Accent);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Main Content — Scroll Area, Tab Panels, Panel Headers
+ * ----------------------------------------------------------------------------- */
+
+.naNoble3d__MainContent {
+    flex                    : 1;
+    overflow                : auto;
+    padding                 : 12px;
+}
+
+.naNoble3d__TabPanel {
+    display                 : none;
+}
+
+.naNoble3d__TabPanel--active {
+    display                 : block;
+}
+
+.naNoble3d__TabHeader {
+    margin-bottom           : 12px;
+}
+
+.naNoble3d__TabTitle {
+    margin                  : 0;
+    font-size               : 15px;
+}
+
+.naNoble3d__TabDescription {
+    margin                  : 6px 0 0;
+    font-size               : 12px;
+    color                   : var(--naNoble3d_MutedText);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Tool Grid — Cards, Actions, Empty State
+ * ----------------------------------------------------------------------------- */
+
+.naNoble3d__ToolGrid {
+    display                 : grid;
+    grid-template-columns   : repeat(auto-fit, minmax(220px, 1fr));
+    gap                     : 10px;
+}
+
+.naNoble3d__ToolCard {
+    background              : var(--naNoble3d_PanelBg);
+    border                  : 1px solid var(--naNoble3d_Border);
+    border-radius           : 6px;
+    padding                 : 10px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 10px;
+}
+
+.naNoble3d__ToolDescription {
+    margin                  : 0;
+    font-size               : 12px;
+    color                   : var(--naNoble3d_MutedText);
+    min-height              : 34px;
+}
+
+.naNoble3d__ActionButton {
+    border                  : 1px solid var(--naNoble3d_Accent);
+    border-radius           : 4px;
+    background              : var(--naNoble3d_Accent);
+    color                   : #ffffff;
+    padding                 : 8px 10px;
+    text-align              : left;
+    cursor                  : pointer;
+    font-size               : 12px;
+}
+
+.naNoble3d__ActionButton:hover {
+    background              : var(--naNoble3d_AccentHover);
+    border-color            : var(--naNoble3d_AccentHover);
+}
+
+.naNoble3d__EmptyState {
+    margin                  : 0;
+    font-size               : 12px;
+    color                   : var(--naNoble3d_MutedText);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Footer — Status Line And Variants
+ * ----------------------------------------------------------------------------- */
+
+.naNoble3d__Footer {
+    border-top              : 1px solid var(--naNoble3d_Border);
+    background              : var(--naNoble3d_PanelBg);
+    padding                 : 10px 12px;
+}
+
+.naNoble3d__Status {
+    margin                  : 0;
+    font-size               : 12px;
+}
+
+.naNoble3d__Status--info {
+    color                   : var(--naNoble3d_MutedText);
+}
+
+.naNoble3d__Status--success {
+    color                   : var(--naNoble3d_Success);
+}
+
+.naNoble3d__Status--error {
+    color                   : var(--naNoble3d_Error);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+/* ============================================================================= */
+/* END OF FILE                                                                   */
+/* ============================================================================= */
