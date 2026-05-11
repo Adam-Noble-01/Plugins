@@ -38,6 +38,7 @@ var NA_DEFAULTS = {
 var na_currentType         = 'dentil';
 var na_currentAnchor       = 'local_axis';
 var na_currentDistribution = 'fixed';
+var na_currentKeepUpright  = false;                                              // <-- Off by default; locks unit +Z to world +Z when true
 
 var NA_DIST_HINTS = {
     'fixed':     'Fixed step: walks the path with constant unit + spacing.',
@@ -125,6 +126,21 @@ function na_setAnchorMode(mode) {
     if (btnCentre) btnCentre.classList.toggle('na-active', mode === 'centre');
 }
 
+// FUNCTION | Toggle Orientation Mode (Follow Path vs Keep Upright)
+// ----------------------------------------------------------------------------
+// 'path'    : default - units pitch with the path slope
+// 'upright' : forward is projected onto the horizontal plane so unit +Z
+//             stays aligned with world +Z (spindles, posts, balusters)
+function na_setOrientation(mode) {
+    na_currentKeepUpright = (mode === 'upright');
+
+    var btnPath    = document.getElementById('na-btn-orient-path');
+    var btnUpright = document.getElementById('na-btn-orient-upright');
+
+    if (btnPath)    btnPath.classList.toggle('na-active',    mode === 'path');
+    if (btnUpright) btnUpright.classList.toggle('na-active', mode === 'upright');
+}
+
 // endregion ===================================================================
 
 // =============================================================================
@@ -187,7 +203,8 @@ function na_buildBoxConfig() {
         unit_height_mm: parseFloat(document.getElementById('na-unit-height').value) || 75,
         spacing_mm:     parseFloat(document.getElementById('na-spacing').value)     || 0,
         distribution:   na_currentDistribution,
-        inset_mm:       na_readInsetMm()
+        inset_mm:       na_readInsetMm(),
+        keep_upright:   na_currentKeepUpright
     };
 }
 
@@ -201,7 +218,8 @@ function na_buildObjectConfig() {
         anchor_mode:  na_currentAnchor,
         spacing_mm:   parseFloat(document.getElementById('na-object-spacing').value) || 0,
         distribution: na_currentDistribution,
-        inset_mm:     na_readInsetMm()
+        inset_mm:     na_readInsetMm(),
+        keep_upright: na_currentKeepUpright
     };
 }
 

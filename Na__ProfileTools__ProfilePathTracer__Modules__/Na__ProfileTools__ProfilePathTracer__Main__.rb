@@ -17,14 +17,17 @@ require_relative 'Na__ProfileTools__ProfilePathTracer__DependencyBootstrap__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__AssetResolver__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__ProfileLibrary__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__MirrorProfile__'
-require_relative 'Na__ProfileTools__ProfilePathTracer__GeometryBuilders__'
+require_relative 'Na__ProfileTools__ProfilePathTracer__GeometryBuilders__UnifiedOverrides__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__PathAnalysis__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__ProfilePlacementEngine__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__3dPreviewGraphics__'
+require_relative 'Na__ProfileTools__ProfilePathTracer__AxisLockMixin__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__KeyboardHandlers__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__PathSelectionTool__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__HeadlessRunner__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__PluginReloader__'
+require_relative 'Na__ProfileTools__ProfilePathTracer__SceneProfileRegistry__'
+require_relative 'Na__ProfileTools__ProfilePathTracer__SceneProfilePicker__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__Observers__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__ProfileExporter__'
 require_relative 'Na__ProfileTools__ProfilePathTracer__DialogManager__'
@@ -39,6 +42,10 @@ module Na__ProfileTools__ProfilePathTracer
     NA_PLUGIN_ROOT = File.dirname(__FILE__).freeze
     NA_HTML_FILE   = File.join(NA_PLUGIN_ROOT, 'Na__ProfileTools__ProfilePathTracer__UiLayout__.html').freeze
     NA_CONFIG_FILE = File.join(NA_PLUGIN_ROOT, 'Na__ProfileTools__ProfilePathTracer__Config__.json').freeze
+    NA_UNIFIED_GEOMETRY_BUILDERS_FILE = File.join(
+        NA_PLUGIN_ROOT,
+        'Na__ProfileTools__ProfilePathTracer__GeometryBuilders__UnifiedOverrides__.rb'
+    ).freeze
 
     # endregion ----------------------------------------------------------------
 
@@ -48,7 +55,9 @@ module Na__ProfileTools__ProfilePathTracer
 
     NA_FALLBACK_RUN_CONFIG = {
         'profileKey'        => nil,
-        'pathMode'          => 'selection',
+        'profileSourceMode' => 'library',
+        'pathMode'          => 'interactive',
+        'rotationStep'      => 0,
         'isPreviewEnabled'  => true,
         'isHeadless'        => false
     }.freeze
@@ -93,6 +102,36 @@ module Na__ProfileTools__ProfilePathTracer
         NA_FALLBACK_RUN_CONFIG.merge(self.Na__Config__Defaults).merge(
             'toggleStates' => self.Na__Config__ToggleDefaults
         )
+    end
+
+    def self.Na__Runtime__GeometryBuilderSourceLocation
+        return '' unless defined?(Na__GeometryBuilders)
+        return '' unless Na__GeometryBuilders.respond_to?(:Na__Geometry__BuildProfileAlongPath)
+
+        source_location = Na__GeometryBuilders.method(:Na__Geometry__BuildProfileAlongPath).source_location
+        return '' unless source_location.is_a?(Array) && source_location.length >= 1
+        source_location[0].to_s
+    rescue
+        ''
+    end
+
+    def self.Na__Runtime__EnsureUnifiedGeometryBuilders
+        load NA_UNIFIED_GEOMETRY_BUILDERS_FILE
+        refreshed_source_location = self.Na__Runtime__GeometryBuilderSourceLocation
+        is_unified = refreshed_source_location.include?('GeometryBuilders__UnifiedOverrides__.rb')
+        {
+            'isUnified' => is_unified,
+            'sourceLocation' => refreshed_source_location,
+            'statusMessage' => is_unified ?
+                'Unified geometry builder runtime reloaded and active.' :
+                'Unified geometry builder runtime could not be asserted.'
+        }
+    rescue => error
+        {
+            'isUnified' => false,
+            'sourceLocation' => '',
+            'statusMessage' => "Geometry runtime sync failed: #{error.message}"
+        }
     end
 
     # endregion ----------------------------------------------------------------

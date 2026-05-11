@@ -64,6 +64,7 @@ module Na__ArrayBuilderTools
             unit_w = ((config['unit_width_mm']  || 110).to_f).mm
             unit_d = ((config['unit_depth_mm']  || 30).to_f).mm
             unit_h = ((config['unit_height_mm'] || 75).to_f).mm
+            keep_upright = config['keep_upright'] == true                          # <-- Locks unit +Z to world +Z when true
 
             model.start_operation("Create #{type.capitalize} Course", true)
 
@@ -76,7 +77,7 @@ module Na__ArrayBuilderTools
                     na_create_unit_at_position(
                         comp_entities, pos[:point], pos[:direction],
                         unit_w, unit_d, unit_h,
-                        type, idx, material
+                        type, idx, material, keep_upright
                     )
                 end
 
@@ -119,6 +120,7 @@ module Na__ArrayBuilderTools
 
             model = Sketchup.active_model
             anchor_mode  = config['anchor_mode'] || 'local_axis'
+            keep_upright = config['keep_upright'] == true                          # <-- Locks unit +Z to world +Z when true
             anchor_offset = na_compute_anchor_offset(source_def, anchor_mode)
 
             model.start_operation("Create Object Array", true)
@@ -130,7 +132,7 @@ module Na__ArrayBuilderTools
 
                 positions.each do |pos|
                     tr = na_build_instance_transform(
-                        pos[:point], pos[:direction], anchor_offset
+                        pos[:point], pos[:direction], anchor_offset, keep_upright
                     )
                     parent_def.entities.add_instance(source_def, tr)
                 end
@@ -179,20 +181,32 @@ module Na__ArrayBuilderTools
         # The lateral (local +Y) is computed as forward × up so the basis
         # remains orthonormal even on non-horizontal segments.
         #
+        # When keep_upright is true the forward vector is projected onto
+        # the horizontal plane and world +Z is forced as up, so the unit
+        # only yaws around world Z and never pitches with the path slope.
+        #
         # Final transform = translate_to_path_point * basis * anchor_offset
-        def self.na_build_instance_transform(point, direction, anchor_offset)
-            forward = na_unit_vector_or_default(direction, X_AXIS)
-            up      = Z_AXIS.clone
-
-            lateral = forward.cross(up)
-            if lateral.length < 0.001
-                lateral = Y_AXIS.clone
+        def self.na_build_instance_transform(point, direction, anchor_offset, keep_upright = false)
+            if keep_upright
+                forward   = na_horizontal_forward_or_default(direction, X_AXIS)
+                up        = Z_AXIS.clone
+                lateral   = forward.cross(up)
+                lateral.length = 1.0 if lateral.length > 0
+                actual_up = Z_AXIS.clone                                           # <-- Horizontal forward keeps actual_up == world +Z
             else
-                lateral.length = 1.0
-            end
+                forward = na_unit_vector_or_default(direction, X_AXIS)
+                up      = Z_AXIS.clone
 
-            actual_up = lateral.cross(forward)
-            actual_up.length = 1.0 if actual_up.length > 0
+                lateral = forward.cross(up)
+                if lateral.length < 0.001
+                    lateral = Y_AXIS.clone
+                else
+                    lateral.length = 1.0
+                end
+
+                actual_up = lateral.cross(forward)
+                actual_up.length = 1.0 if actual_up.length > 0
+            end
 
             basis    = Geom::Transformation.axes(ORIGIN, forward, lateral, actual_up)
             position = Geom::Transformation.translation(point)
@@ -212,6 +226,24 @@ module Na__ArrayBuilderTools
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Return Horizontally-Projected Unit Forward Or a Default
+        # ------------------------------------------------------------
+        # Used by the Keep Upright orientation mode: projects the path
+        # segment direction onto the XY plane so the resulting basis
+        # only yaws around world Z and never pitches. Falls back to the
+        # supplied default vector when the segment is (near-)vertical
+        # and projection would collapse to zero length.
+        def self.na_horizontal_forward_or_default(direction, default_vector)
+            return default_vector.clone if direction.nil?
+
+            horiz = Geom::Vector3d.new(direction.x, direction.y, 0.0)
+            return default_vector.clone if horiz.length < 0.001
+
+            horiz.length = 1.0
+            horiz
+        end
+        # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -220,21 +252,29 @@ module Na__ArrayBuilderTools
 
         # FUNCTION | Create Single Unit at Position
         # ------------------------------------------------------------
-        def self.na_create_unit_at_position(entities, origin, direction, w, d, h, type, index, material)
-            forward = direction.clone
-            forward.length = 1.0 if forward.length > 0
-
-            up = Z_AXIS.clone
-
-            lateral = forward.cross(up)
-            if lateral.length < 0.001
-                lateral = Y_AXIS.clone
+        def self.na_create_unit_at_position(entities, origin, direction, w, d, h, type, index, material, keep_upright = false)
+            if keep_upright
+                forward   = na_horizontal_forward_or_default(direction, X_AXIS)
+                up        = Z_AXIS.clone
+                lateral   = forward.cross(up)
+                lateral.length = 1.0 if lateral.length > 0
+                actual_up = Z_AXIS.clone                                           # <-- Horizontal forward keeps actual_up == world +Z
             else
-                lateral.length = 1.0
-            end
+                forward = direction.clone
+                forward.length = 1.0 if forward.length > 0
 
-            actual_up = lateral.cross(forward)
-            actual_up.length = 1.0 if actual_up.length > 0
+                up = Z_AXIS.clone
+
+                lateral = forward.cross(up)
+                if lateral.length < 0.001
+                    lateral = Y_AXIS.clone
+                else
+                    lateral.length = 1.0
+                end
+
+                actual_up = lateral.cross(forward)
+                actual_up.length = 1.0 if actual_up.length > 0
+            end
 
             if type == 'dogtooth'
                 rot = Geom::Transformation.rotation(ORIGIN, forward, 45.degrees)

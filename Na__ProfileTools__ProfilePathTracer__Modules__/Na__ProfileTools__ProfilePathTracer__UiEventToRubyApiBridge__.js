@@ -53,12 +53,20 @@
 
         window.Na__ProfilePathTracer__ReceiveBootstrap({
             profileKey: '',
-            pathMode: 'selection',
+            profileSourceMode: 'library',
+            pathMode: 'interactive',
+            rotationStep: 0,
             isPreviewEnabled: true,
             toggleDefinitions: {},
             toggleStates: {},
             profileOptions: [],
             profilesByKey: {},
+            sceneProfileStatus: {
+                isValid: false,
+                displayName: '',
+                profileKey: '',
+                statusMessage: 'No scene profile selected.'
+            },
             isBootstrapError: true,
             statusMessage: 'Bootstrap failed: SketchUp bridge callback is unavailable.'
         });
@@ -113,6 +121,38 @@
         });
     }
 
+    function Na__ProfilePathTracer__Bridge__PickSceneProfile() {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_pick_scene_profile')) {
+            Na__Bridge__SetStatus('Pick scene profile source in viewport...');
+            window.sketchup.na_profilepathtracer_pick_scene_profile();
+            return;
+        }
+        Na__Bridge__SetStatus('Scene profile picker callback is not available.');
+    }
+
+    function Na__ProfilePathTracer__Bridge__ClearSceneProfile() {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_clear_scene_profile')) {
+            window.sketchup.na_profilepathtracer_clear_scene_profile();
+            return;
+        }
+        Na__Bridge__SetStatus('Clear scene profile callback is not available.');
+    }
+
+    function Na__ProfilePathTracer__Bridge__RequestSceneProfileStatus() {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_request_scene_profile_status')) {
+            window.sketchup.na_profilepathtracer_request_scene_profile_status();
+            return;
+        }
+        if (typeof window.Na__ProfilePathTracer__ReceiveSceneProfileStatus === 'function') {
+            window.Na__ProfilePathTracer__ReceiveSceneProfileStatus({
+                isValid: false,
+                displayName: '',
+                profileKey: '',
+                statusMessage: 'Scene profile status bridge is unavailable.'
+            });
+        }
+    }
+
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
@@ -124,6 +164,9 @@
     window.Na__ProfilePathTracer__Bridge__Generate = Na__ProfilePathTracer__Bridge__Generate;
     window.Na__ProfilePathTracer__Bridge__ValidateForExport = Na__ProfilePathTracer__Bridge__ValidateForExport;
     window.Na__ProfilePathTracer__Bridge__SaveProfile = Na__ProfilePathTracer__Bridge__SaveProfile;
+    window.Na__ProfilePathTracer__Bridge__PickSceneProfile = Na__ProfilePathTracer__Bridge__PickSceneProfile;
+    window.Na__ProfilePathTracer__Bridge__ClearSceneProfile = Na__ProfilePathTracer__Bridge__ClearSceneProfile;
+    window.Na__ProfilePathTracer__Bridge__RequestSceneProfileStatus = Na__ProfilePathTracer__Bridge__RequestSceneProfileStatus;
 
     // endregion ----------------------------------------------------------------
 

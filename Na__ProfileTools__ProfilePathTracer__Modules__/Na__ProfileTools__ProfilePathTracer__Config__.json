@@ -6,7 +6,9 @@
     },
     "defaults" : {
         "profileKey"        : null,
-        "pathMode"          : "selection",
+        "profileSourceMode" : "library",
+        "pathMode"          : "interactive",
+        "rotationStep"      : 0,
         "isPreviewEnabled"  : true,
         "isHeadless"        : false
     },
@@ -36,6 +38,7 @@
         {
             "presetKey"  : "DefaultPreset",
             "profileKey" : null,
+            "profileSourceMode" : "library",
             "pathMode"   : "selection",
             "notes"      : "Placeholder preset for ecosystem API calls."
         }

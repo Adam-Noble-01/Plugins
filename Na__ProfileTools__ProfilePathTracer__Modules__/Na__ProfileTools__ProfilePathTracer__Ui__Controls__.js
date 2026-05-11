@@ -42,17 +42,39 @@
     function Na__Ui__RenderControls(state) {
         const config = window.Na__ProfilePathTracer__Ui__Config;
         const profileValue = state.profileKey || config.defaults.profileKey;
+        const profileSourceModeValue = state.profileSourceMode || config.defaults.profileSourceMode || 'library';
         const pathModeValue = state.pathMode || config.defaults.pathMode;
         const previewChecked = state.isPreviewEnabled ? ' checked' : '';
         const toggleDefinitions = state.toggleDefinitions || config.toggleDefinitions || {};
         const toggleStates = state.toggleStates || config.defaults.toggleStates || {};
+        const rotationStep = Number(state.rotationStep || 0) % 4;
+        const rotationDegrees = rotationStep * 90;
+        const isSceneMode = profileSourceModeValue === 'scene';
+        const sceneStatus = state.sceneProfileStatus || {};
+        const sceneProfileName = sceneStatus.displayName || 'No scene profile selected';
+        const sceneProfileReady = sceneStatus.isValid === true;
+        const sceneReadyClass = sceneProfileReady ? 'naSceneStatus--ready' : 'naSceneStatus--pending';
+        const sceneHint = sceneProfileReady ? 'Scene source ready' : 'Pick scene source';
 
         return [
+            '<div class="naFormRow">',
+            '  <label for="naProfileSourceModeSelect">Profile Source</label>',
+            '  <select class="naSelect" id="naProfileSourceModeSelect">',
+            Na__Ui__BuildOptionsHtml(config.profileSourceModeOptions, profileSourceModeValue),
+            '  </select>',
+            '</div>',
             '<div class="naFormRow">',
             '  <label for="naProfileSelect">Profile</label>',
             '  <select class="naSelect" id="naProfileSelect">',
             Na__Ui__BuildOptionsHtml(config.profileOptions, profileValue),
             '  </select>',
+            '</div>',
+            '<div class="naSceneSourceWrap' + (isSceneMode ? '' : ' naSceneSourceWrap--hidden') + '">',
+            '  <div class="naSceneStatus ' + sceneReadyClass + '">' + sceneHint + ': ' + sceneProfileName + '</div>',
+            '  <div class="naSceneActions">',
+            '    <button class="naButton" id="naBtnPickSceneProfile">Pick Scene Profile</button>',
+            '    <button class="naButton naButtonSecondary" id="naBtnClearSceneProfile">Clear</button>',
+            '  </div>',
             '</div>',
             '<div class="naFormRow">',
             '  <label for="naPathModeSelect">Path Mode</label>',
@@ -66,6 +88,7 @@
             '</div>',
             Na__Ui__BuildToggleRowsHtml(toggleDefinitions, toggleStates),
             '<div class="naActions">',
+            '  <button class="naButton naButtonRotate" id="naBtnRotateProfile">Rotate 90 deg (' + rotationDegrees + ' deg)</button>',
             '  <button class="naButton naButtonPrimary" id="naBtnGenerate">Generate</button>',
             '  <button class="naButton naButtonCreate" id="naBtnCreateProfile">Create New Profile</button>',
             '</div>'

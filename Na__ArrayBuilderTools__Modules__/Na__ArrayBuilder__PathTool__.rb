@@ -69,9 +69,10 @@ module Na__ArrayBuilderTools
             @waypoints = []
             @state = :picking_start
 
-            @array_type  = config['type'] || 'dentil'
-            @anchor_mode = config['anchor_mode'] || 'local_axis'
-            @spacing     = (config['spacing_mm'] || 115).to_f.mm
+            @array_type   = config['type'] || 'dentil'
+            @anchor_mode  = config['anchor_mode'] || 'local_axis'
+            @keep_upright = config['keep_upright'] == true                         # <-- Locks unit +Z to world +Z when true
+            @spacing      = (config['spacing_mm'] || 115).to_f.mm
 
             # Distribution mode: 'fixed' (default) | 'normalise' | 'inset'.
             # Falls back to the legacy `normalise_distance` boolean so
@@ -618,20 +619,27 @@ module Na__ArrayBuilderTools
             d = @unit_depth
             h = @unit_height
 
-            forward = direction.clone
-            forward.length = 1.0 if forward.length > 0
-
-            up = Z_AXIS.clone
-
-            lateral = forward.cross(up)
-            if lateral.length < 0.001
-                lateral = Y_AXIS.clone
+            if @keep_upright
+                forward   = na_horizontal_forward_for_preview(direction)
+                lateral   = forward.cross(Z_AXIS)
+                lateral.length = 1.0 if lateral.length > 0
+                actual_up = Z_AXIS.clone                                           # <-- Preview must mirror placement: locked to world +Z
             else
-                lateral.length = 1.0
-            end
+                forward = direction.clone
+                forward.length = 1.0 if forward.length > 0
 
-            actual_up = lateral.cross(forward)
-            actual_up.length = 1.0 if actual_up.length > 0
+                up = Z_AXIS.clone
+
+                lateral = forward.cross(up)
+                if lateral.length < 0.001
+                    lateral = Y_AXIS.clone
+                else
+                    lateral.length = 1.0
+                end
+
+                actual_up = lateral.cross(forward)
+                actual_up.length = 1.0 if actual_up.length > 0
+            end
 
             if @array_type == 'dogtooth'
                 rot = Geom::Transformation.rotation(origin, forward, 45.degrees)
@@ -686,6 +694,23 @@ module Na__ArrayBuilderTools
             origin
                 .offset(forward, -width * 0.5)
                 .offset(up,      -height * 0.5)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Horizontally-Projected Forward For Keep-Upright Preview
+        # ------------------------------------------------------------
+        # Mirrors GeometryBuilder.na_horizontal_forward_or_default so the
+        # live wireframe preview matches the placed geometry exactly.
+        # Falls back to X_AXIS when the segment is (near-)vertical and
+        # projection would collapse to zero length.
+        def na_horizontal_forward_for_preview(direction)
+            return X_AXIS.clone if direction.nil?
+
+            horiz = Geom::Vector3d.new(direction.x, direction.y, 0.0)
+            return X_AXIS.clone if horiz.length < 0.001
+
+            horiz.length = 1.0
+            horiz
         end
         # ---------------------------------------------------------------
 

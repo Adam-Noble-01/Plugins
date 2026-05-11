@@ -3,6 +3,144 @@
 ## Version History
 
 # =======================================================================================
+## ProfileTools Version 0.3.3 - 11-May-2026
+
+### Closed-Loop Miter, Duplicate-Builder Purge, Selection/Interactive Parity
+
+- Removed legacy `Na__ProfileTools__ProfilePathTracer__GeometryBuilders__.rb`:
+  - File contained `Na__GeometryBuilders` redefined 5 times with 5 mismatched signatures of `BuildProfileAlongPath`, `ApplyUnifiedEdgeStates`, `BuildPathFrame`, `BuildPreviewSweepSegments` and related methods.
+  - Removal eliminates the root cause of first-run vs post-reload behavioural drift (correct edge smoothing without manual reload).
+  - `Na__ProfileTools__ProfilePathTracer__PluginReloader__.rb` now exposes an empty exclude list; nothing to skip.
+- Added Profile Builder-style closed-loop miter in `GeometryBuilders__UnifiedOverrides__.rb`:
+  - `Na__Geometry__BuildPathFrame` now rotates the start profile face onto the bisector plane at the closure corner for closed loops.
+  - New helpers `Na__Geometry__BuildStartFrameTangent`, `OutgoingTangentAtIndex`, `IncomingTangentAtIndex`, `BisectorTangent` make the maths explicit and one-responsibility-per-function.
+  - `Na__Geometry__RemoveClosureSeamFaces` defensively erases the implicit end-cap face SketchUp leaves on the bisector plane after `followme`, so the result is a clean continuous loop.
+- Added closed-loop winding normalisation in `Na__ProfileTools__ProfilePathTracer__PathAnalysis__.rb`:
+  - `Na__Path__OrderEdges` now normalises closed-loop chirality via signed-area in the loop's dominant plane (XY/XZ/YZ chosen by best-fit normal).
+  - Selection-mode profile now lands on the same side of the path as interactive mode for the same loop.
+  - Open paths are not modified; user-picked direction is preserved.
+- Cleaned up the per-generation runtime guard in `ProfilePlacementEngine__.rb`:
+  - `Na__Engine__GenerateFromPathData` no longer force-`load`s unified overrides every click (no longer compensating for a deleted file).
+  - `Na__Engine__LogActiveBuilderRuntimeOnce` continues to log the active geometry builder source for diagnostics.
+
+# =======================================================================================
+## ProfileTools Version 0.3.2 - 11-May-2026
+
+### First-Run Edge-State Timing Fix (No Manual Reload Required)
+
+- Updated geometry runtime sync in `Main__.rb`:
+  - `Na__Runtime__EnsureUnifiedGeometryBuilders` now force-loads unified geometry builder overrides on generation-time sync.
+  - This removes stale first-launch method drift and aligns first-run behaviour with post-reload behaviour.
+- Updated edge classification in `GeometryBuilders__UnifiedOverrides__.rb`:
+  - connector/run edges now use topology-first classification (`edge.faces.length >= 2`) after path/cap exclusion.
+  - end-cap/perimeter profile edges remain hard.
+- Updated generation diagnostics in `ProfilePlacementEngine__.rb`:
+  - one-time console log reports active geometry builder source file.
+  - generation status now includes styled edge count for immediate runtime verification.
+
+# =======================================================================================
+## ProfileTools Version 0.3.1 - 11-May-2026
+
+### Smoothing Runtime Determinism + Connector-Only Soft/Smooth Inference
+
+- Canonicalized geometry runtime activation:
+  - Added runtime source-location validation in `Main__.rb`.
+  - Added runtime self-heal (`load` unified overrides file) when stale geometry builder implementation is detected.
+  - Generation now blocks with explicit status if unified runtime cannot be asserted.
+- Stabilized reload determinism:
+  - `PluginReloader` now forces `GeometryBuilders__UnifiedOverrides__.rb` and `Main__.rb` to reload last.
+  - `DialogManager` now validates unified geometry runtime after reload before reopening status handoff.
+- Reworked unified edge styling classification:
+  - Style pass now excludes path edges and end-cap plane edges.
+  - Added path-direction parallel filter so only connector/run extrusion edges are style candidates.
+  - Soft/smooth defaults now infer from source profile edge-state presence and are applied only to connector/run edges.
+- Confirmed both generation entry modes converge on the same build/style path:
+  - Selection-mode generate and interactive finish both route through `ProfilePlacementEngine.Na__Engine__GenerateFromPathData`.
+
+# =======================================================================================
+## ProfileTools Version 0.3.0 - 11-May-2026
+
+### Unified Schema Migration + Origin UCS Save Workflow
+
+- Replaced ProfilePathTracer save/load/profile-source contract with unified schema only:
+  - `meta`
+  - `Na__Asset__Metadata`
+  - `Na__Asset__Profile2D`
+  - `Na__Asset__Mesh3D`
+- Exporter now captures edge state fidelity in mesh edges:
+  - `IsSoft`, `IsSmooth`, `IsHidden`, `CastsShadows`
+  - `EdgeMaterialName`, `EdgeColourId`, `EdgeColourHex`
+- Added cursor-picked origin workflow before file save:
+  - User clicks viewport point to define local UCS origin.
+  - Export creates persistent `00__OriginPoint` helper at that location.
+  - Helper tag: `02__DoorHelpers__RotationPivots`.
+  - Helper edge colour: `MTE201__LineColour__Red`.
+- Scene profile registry now emits unified schema payloads instead of `polyline2d`.
+- Profile library parser is now strict unified-schema-only and rejects legacy file roots.
+- Added `GeometryBuilders` unified override module for deterministic runtime behaviour:
+  - `Na__ProfileTools__ProfilePathTracer__GeometryBuilders__UnifiedOverrides__.rb`
+  - Generation path now uses unified schema and reapplies hidden/soft/smooth/edge-colour states.
+- Updated dependency bootstrap to preload `:edge_materials` from DataLib.
+- Updated SVG preview/UI bridge to read unified `Na__Asset__Profile2D` records only.
+- Added roundtrip validation API:
+  - `Na__PublicApi__RunRoundtripValidation(profile_key, selected_entities = nil)`
+  - Reports source edge stats, generated edge stats, and deltas for soft/smooth/hidden/colour counts.
+- Updated plugin reload flow to exclude legacy `GeometryBuilders__.rb` from hot-reload execution and use unified override module.
+- Updated architecture/readme docs to reflect unified schema contract and legacy removal.
+
+# =======================================================================================
+## ProfileTools Version 0.2.0 - 11-May-2026
+
+### Interactive Profile Builder Rewrite (Array-Style Live Drawing)
+
+- Added new modules:
+  - `Na__ProfileTools__ProfilePathTracer__AxisLockMixin__.rb`
+  - `Na__ProfileTools__ProfilePathTracer__SceneProfileRegistry__.rb`
+  - `Na__ProfileTools__ProfilePathTracer__SceneProfilePicker__.rb`
+
+- Rebuilt `Na__ProfileTools__ProfilePathTracer__PathSelectionTool__.rb`:
+  - Switched from click-vertex-on-preselected-path flow to waypoint free-draw flow.
+  - Added Enter/right-click/double-click finish gestures.
+  - Added Backspace/Delete undo and ESC cancel handling.
+  - Added per-frame preview cache for path length and sweep preview data.
+  - Added TAB profile rotation parity inside interactive draw loop.
+
+- Added arrow-key axis locking support (ported interaction pattern from Array Builder):
+  - Right/Left/Up/Down locks for X/Y/Z/parallel inference modes.
+  - Uses SketchUp native `view.lock_inference` for projection + visual feedback.
+  - Lock re-anchors after each committed waypoint.
+
+- Added scene profile source workflow:
+  - New scene picker tool for top-level Group/Component selection.
+  - Strict extraction rule: exactly one top-level planar face, no inner loops.
+  - Extracted scene profile stored in registry as `polyline2d` profile payload.
+
+- Updated generation pipeline:
+  - `ProfilePlacementEngine` now resolves profile source mode (`library` or `scene`).
+  - Added interactive path generation entrypoint from waypoint arrays.
+  - Kept selection-mode generation path for backward compatibility.
+
+- Updated geometry/preview modules:
+  - `GeometryBuilders` now builds sweep wireframe preview segments across path frames.
+  - `3dPreviewGraphics` now renders waypoint markers and sweep segment previews.
+
+- Updated dialog/UI/bridge integration:
+  - Added profile source mode control (`library` vs `scene`).
+  - Added scene source controls (`Pick Scene Profile`, `Clear`).
+  - Added bridge callbacks for scene pick/clear/status.
+  - Bootstrap now carries scene profile status + profile source defaults.
+  - Default path mode updated to interactive in config/bootstrap fallbacks.
+
+- Updated observers and lifecycle:
+  - Replaced observer scaffold with app + definitions observers.
+  - Scene profile registry now auto-clears on model switch or picked definition removal.
+  - `PublicApi` now installs observers before opening dialog.
+
+- Updated docs:
+  - Architecture dependency graph and runtime flow now reflect interactive draw and scene-source modules.
+  - README now reflects non-scaffold feature state.
+
+# =======================================================================================
 ## ProfileTools Version 0.1.4 - 26-Mar-2026
 
 ### Reload Completion Fix + Header Relocation

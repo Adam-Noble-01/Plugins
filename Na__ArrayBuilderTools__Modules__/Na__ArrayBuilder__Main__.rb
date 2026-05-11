@@ -29,7 +29,7 @@ module Na__ArrayBuilderTools
 # REGION | Constants
 # =============================================================================
 
-    NA_PLUGIN_VERSION = '0.0.8'.freeze
+    NA_PLUGIN_VERSION = '0.0.9'.freeze
 
     # Set to true to enable diagnostic puts output. Off by default so the
     # SketchUp Ruby Console stays quiet during normal use - even small

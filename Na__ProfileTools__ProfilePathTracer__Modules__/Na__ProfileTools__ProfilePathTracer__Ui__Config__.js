@@ -14,9 +14,15 @@
             { value: 'selection', label: 'Use current selection' },
             { value: 'interactive', label: 'Interactive path picking' }
         ],
+        profileSourceModeOptions: [
+            { value: 'library', label: 'Profile Library' },
+            { value: 'scene', label: 'Scene Pick (Group/Component Face)' }
+        ],
         defaults: {
             profileKey: '',
-            pathMode: 'selection',
+            profileSourceMode: 'library',
+            pathMode: 'interactive',
+            rotationStep: 0,
             isPreviewEnabled: true,
             toggleStates: {}
         }

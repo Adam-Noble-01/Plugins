@@ -15,6 +15,8 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | File Lists
     # -------------------------------------------------------------------------
 
+        NA_RUBY_RELOAD_EXCLUDE_FILES = [].freeze                    # <-- Legacy duplicate GeometryBuilders__.rb removed; no exclusions needed
+
         NA_UI_JS_FILES = [
             'Na__ProfileTools__ProfilePathTracer__Ui__Config__.js',
             'Na__ProfileTools__ProfilePathTracer__Ui__Controls__.js',
@@ -22,6 +24,11 @@ module Na__ProfileTools__ProfilePathTracer
             'Na__ProfileTools__ProfilePathTracer__Viewport__SvgGenerator__.js',
             'Na__ProfileTools__ProfilePathTracer__UiLogic__.js',
             'Na__ProfileTools__ProfilePathTracer__UiEventToRubyApiBridge__.js'
+        ].freeze
+
+        NA_FORCE_RELOAD_LAST = [
+            'Na__ProfileTools__ProfilePathTracer__GeometryBuilders__UnifiedOverrides__.rb',
+            'Na__ProfileTools__ProfilePathTracer__Main__.rb'
         ].freeze
 
     # endregion ----------------------------------------------------------------
@@ -36,12 +43,24 @@ module Na__ProfileTools__ProfilePathTracer
             error_messages = []
 
             rb_files = Dir.glob(File.join(plugin_root_path, '*.rb')).sort
+            rb_files = rb_files.reject do |rb_file|
+                NA_RUBY_RELOAD_EXCLUDE_FILES.include?(File.basename(rb_file))
+            end
+            rb_files = rb_files.sort_by do |rb_file|
+                file_name = File.basename(rb_file)
+                sort_weight = NA_FORCE_RELOAD_LAST.include?(file_name) ? 1 : 0
+                [sort_weight, file_name]
+            end
             rb_files.each do |rb_file|
                 begin
+                    previous_verbose = $VERBOSE
+                    $VERBOSE = nil
                     load rb_file
                     rb_reload_count += 1
                 rescue => error
                     error_messages << "Ruby reload failed for #{File.basename(rb_file)}: #{error.message}"
+                ensure
+                    $VERBOSE = previous_verbose
                 end
             end
 

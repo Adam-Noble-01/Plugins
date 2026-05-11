@@ -3,6 +3,69 @@
 ## Version History
 
 # =======================================================================================
+## Array Builder Version 0.0.9 - 11-May-2026
+
+### New Feature: Keep Upright Orientation Toggle
+
+A new "Orientation" section is added above the Distribution selector with
+a two-button pill toggle:
+
+- **Follow Path** (default active) - existing behaviour. Each unit's
+  local +X follows the path segment direction, so units pitch with the
+  path slope.
+- **Keep Upright** - the segment direction is projected onto the
+  horizontal (XY) plane before the per-instance basis is built, and
+  world +Z is forced as the up vector. Units only yaw around world Z
+  and never pitch. Primary use case: stair spindles, posts and
+  balusters placed along a sloped stair stringer.
+
+Off by default; applies to all three array types (dentil, dog-tooth,
+custom object).
+
+#### Math (Single Rule, Applied at Three Call Sites)
+
+When Keep Upright is on, `forward` is replaced by
+`Vector3d(direction.x, direction.y, 0).normalised`, with `actual_up`
+forced to `Z_AXIS`. When the segment is (near-)vertical the projection
+collapses to zero length and the basis falls back to `X_AXIS` as
+forward to avoid a degenerate transform.
+
+#### Module Audit (No Duplication)
+
+| Concern | Lives where | Touched? |
+|---|---|---|
+| Object-array per-instance basis | `Na__ArrayBuilder__GeometryBuilder__.rb` `na_build_instance_transform` | Yes (new `keep_upright` arg + branch) |
+| Box-array per-unit basis | `Na__ArrayBuilder__GeometryBuilder__.rb` `na_create_unit_at_position` | Yes (new `keep_upright` arg + branch) |
+| Horizontal projection helper | `Na__ArrayBuilder__GeometryBuilder__.rb` `na_horizontal_forward_or_default` | New helper |
+| Live wireframe preview basis | `Na__ArrayBuilder__PathTool__.rb` `na_collect_preview_unit_segments` | Yes (mirrors the placement math) |
+| Preview helper | `Na__ArrayBuilder__PathTool__.rb` `na_horizontal_forward_for_preview` | New helper (preview-only, X_AXIS fallback) |
+| Orientation UI section | `Na__ArrayBuilder__UiLayout__.html` | Yes (new section above Distribution) |
+| Orientation state + config | `Na__ArrayBuilder__UiBridge__.js` | Yes (`na_currentKeepUpright`, `na_setOrientation`, `keep_upright` in both `build*Config()` payloads) |
+
+The dog-tooth 45-degree rotation around `forward` is unchanged; with
+Keep Upright on the rotation axis is simply horizontal, which is the
+same geometric setup as a flat-ground dog-tooth course today.
+
+#### Files Touched
+- `Na__ArrayBuilder__UiLayout__.html` - new Orientation section.
+- `Na__ArrayBuilder__UiBridge__.js` - state, handler, config payload.
+- `Na__ArrayBuilder__GeometryBuilder__.rb` - helper + two threaded branches.
+- `Na__ArrayBuilder__PathTool__.rb` - state + preview substitution + preview helper.
+- `Na__ArrayBuilder__Main__.rb` - version bump to 0.0.9.
+
+#### Verification
+
+- Tested in SketchUp 2026 with **Custom Object** arrays along a sloped
+  path, **Normalise** distribution, and **Keep Upright** selected:
+  preview wireframes stayed vertical (world Z) with the path, and
+  committed geometry matched that behaviour after placement.
+- If the Ruby console reports `wrong number of arguments` after a code
+  edit, the dialog **Reload Scripts** button (or a SketchUp restart)
+  must pick up all `.rb` files in the modules folder — otherwise an
+  older method definition for `na_build_instance_transform` can remain
+  loaded while the caller passes the new fourth argument.
+
+# =======================================================================================
 ## Array Builder Version 0.0.8 - 01-May-2026
 
 ### New Feature: Fixed Start/End Inset Distribution Mode

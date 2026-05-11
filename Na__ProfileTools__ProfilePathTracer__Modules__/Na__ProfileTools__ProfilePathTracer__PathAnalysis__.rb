@@ -134,6 +134,12 @@ module Na__ProfileTools__ProfilePathTracer
                 return { isValid: false, reason: 'Selection contains disconnected edge sets.' }
             end
 
+            if is_closed_loop
+                normalised = self.Na__Path__NormaliseClosedLoopWinding(ordered_points, ordered_edges)
+                ordered_points = normalised[:ordered_points]
+                ordered_edges = normalised[:ordered_edges]
+            end
+
             {
                 isValid: true,
                 reason: nil,
@@ -142,6 +148,77 @@ module Na__ProfileTools__ProfilePathTracer
                 orderedPoints: ordered_points,
                 startVertex: start_vertex
             }
+        end
+
+        def self.Na__Path__NormaliseClosedLoopWinding(ordered_points, ordered_edges)
+            return { ordered_points: ordered_points, ordered_edges: ordered_edges } if ordered_points.nil? || ordered_points.length < 3
+
+            dominant_axis = self.Na__Path__DominantPlaneAxis(ordered_points)
+            signed_area = self.Na__Path__SignedAreaInPlane(ordered_points, dominant_axis)
+            return { ordered_points: ordered_points, ordered_edges: ordered_edges } if signed_area >= 0
+
+            reversed_points = self.Na__Path__ReverseClosedLoopPoints(ordered_points)
+            reversed_edges = Array(ordered_edges).reverse
+            { ordered_points: reversed_points, ordered_edges: reversed_edges }
+        end
+
+        def self.Na__Path__ReverseClosedLoopPoints(ordered_points)
+            points = Array(ordered_points)
+            return points if points.length < 2
+            return points.reverse if points.first != points.last     # <-- Open list of unique vertices
+            head = points[0...-1].reverse                            # <-- Keep first vertex anchored when list repeats it
+            head + [head.first]
+        end
+
+        def self.Na__Path__DominantPlaneAxis(ordered_points)
+            points = Array(ordered_points)
+            return :z if points.length < 3
+
+            centroid = self.Na__Path__Centroid(points)
+            normal_sum = Geom::Vector3d.new(0, 0, 0)
+            (0...points.length).each do |index|
+                a = points[index] - centroid
+                b = points[(index + 1) % points.length] - centroid
+                normal_sum.x += (a.y * b.z) - (a.z * b.y)
+                normal_sum.y += (a.z * b.x) - (a.x * b.z)
+                normal_sum.z += (a.x * b.y) - (a.y * b.x)
+            end
+
+            abs_x = normal_sum.x.abs
+            abs_y = normal_sum.y.abs
+            abs_z = normal_sum.z.abs
+            return :x if abs_x >= abs_y && abs_x >= abs_z
+            return :y if abs_y >= abs_z
+            :z
+        end
+
+        def self.Na__Path__Centroid(points)
+            total = points.length.to_f
+            sum_x = points.inject(0.0) { |acc, point| acc + point.x }
+            sum_y = points.inject(0.0) { |acc, point| acc + point.y }
+            sum_z = points.inject(0.0) { |acc, point| acc + point.z }
+            Geom::Point3d.new(sum_x / total, sum_y / total, sum_z / total)
+        end
+
+        def self.Na__Path__SignedAreaInPlane(ordered_points, dominant_axis)
+            return 0.0 if ordered_points.nil? || ordered_points.length < 3
+
+            total = 0.0
+            ordered_points.each_with_index do |point, index|
+                next_point = ordered_points[(index + 1) % ordered_points.length]
+                u_current, v_current = self.Na__Path__ProjectToPlane(point, dominant_axis)
+                u_next, v_next = self.Na__Path__ProjectToPlane(next_point, dominant_axis)
+                total += (u_current * v_next) - (u_next * v_current)
+            end
+            total * 0.5
+        end
+
+        def self.Na__Path__ProjectToPlane(point, dominant_axis)
+            case dominant_axis
+            when :x then [point.y, point.z]
+            when :y then [point.z, point.x]
+            else         [point.x, point.y]
+            end
         end
 
     # endregion ----------------------------------------------------------------

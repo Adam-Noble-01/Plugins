@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # FILE       : Na__ProfileTools__ProfilePathTracer__ProfileExporter__.rb
-# PURPOSE    : Export selected SketchUp geometry as rich JSON profile files
+# PURPOSE    : Export selected profile geometry to the unified Na__ schema
 # CREATED    : 2026
 #
 # =============================================================================
@@ -18,9 +18,16 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Constants
     # -------------------------------------------------------------------------
 
-        NA_MM_PER_INCH     = 25.4
-        NA_TOLERANCE_MM    = 0.0001
-        NA_DATA_FILES_DIR  = File.join(File.dirname(__FILE__), '01__ProfileDataFiles').freeze
+        NA_MM_PER_INCH = 25.4
+        NA_TOLERANCE_MM = 0.0001
+        NA_DATA_FILES_DIR = File.join(File.dirname(__FILE__), '01__ProfileDataFiles').freeze
+
+        NA_ORIGIN_HELPER_GROUP_NAME = '00__OriginPoint'.freeze
+        NA_ORIGIN_HELPER_TAG_NAME = '00__OriginPoint'.freeze
+        NA_ORIGIN_HELPER_COLOUR_ID = 'MTE201__LineColour__Red'.freeze
+        NA_ORIGIN_HELPER_SIZE_MM = 120.0
+
+        NA_DEFAULT_EDGE_HEX = '#666666'.freeze
 
     # endregion ----------------------------------------------------------------
 
@@ -28,7 +35,7 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Selection Validation
     # -------------------------------------------------------------------------
 
-        def self.Na__Exporter__ValidateSelection
+        def self.Na__Exporter__ValidateSelection(origin_point = nil)
             model = Sketchup.active_model
             return { 'isValid' => false, 'reason' => 'No active model.' } unless model
 
@@ -43,37 +50,91 @@ module Na__ProfileTools__ProfilePathTracer
                 return { 'isValid' => false, 'reason' => 'Selection contains no faces or edges.' }
             end
 
+            if self.Na__Exporter__CountUniqueVertices(faces, edges) < 3
+                return { 'isValid' => false, 'reason' => 'Selection must contain at least three unique vertices.' }
+            end
+
             {
                 'isValid' => true,
                 'reason' => nil,
                 'faceCount' => faces.length,
                 'edgeCount' => edges.length,
                 'vertexCount' => self.Na__Exporter__CountUniqueVertices(faces, edges),
-                'previewPoints' => self.Na__Exporter__ExtractPreviewPoints(faces, edges)
+                'previewPoints' => self.Na__Exporter__ExtractPreviewPoints(faces, edges, origin_point)
             }
         end
 
-        def self.Na__Exporter__ExtractPreviewPoints(faces, edges)
+        def self.Na__Exporter__ExtractPreviewPoints(faces, edges, origin_point = nil)
+            if origin_point
+                frame = self.Na__Exporter__BuildLocalFrame(faces, edges, origin_point)
+                if faces.any?
+                    face = faces.first
+                    return face.outer_loop.vertices.map do |vertex|
+                        y_mm, z_mm = self.Na__Exporter__ProjectPointToLocalYZ(vertex.position, frame)
+                        [y_mm, z_mm]
+                    end
+                end
+
+                return edges.flat_map { |edge| [edge.start, edge.end] }
+                            .uniq { |vertex| vertex.persistent_id }
+                            .map do |vertex|
+                    y_mm, z_mm = self.Na__Exporter__ProjectPointToLocalYZ(vertex.position, frame)
+                    [y_mm, z_mm]
+                end
+            end
+
             if faces.any?
                 face = faces.first
-                face.outer_loop.vertices.map do |vertex|
+                return face.outer_loop.vertices.map do |vertex|
                     pos = vertex.position
                     [(pos.x.to_f * NA_MM_PER_INCH).round(6), (pos.y.to_f * NA_MM_PER_INCH).round(6)]
                 end
-            else
-                edges.flat_map { |e| [e.start, e.end] }
-                     .uniq { |v| v.persistent_id }
-                     .map do |vertex|
-                    pos = vertex.position
-                    [(pos.x.to_f * NA_MM_PER_INCH).round(6), (pos.y.to_f * NA_MM_PER_INCH).round(6)]
-                end
+            end
+
+            edges.flat_map { |edge| [edge.start, edge.end] }
+                 .uniq { |vertex| vertex.persistent_id }
+                 .map do |vertex|
+                pos = vertex.position
+                [(pos.x.to_f * NA_MM_PER_INCH).round(6), (pos.y.to_f * NA_MM_PER_INCH).round(6)]
             end
         end
 
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | Entity Collection From Selection
+    # REGION | Export Workflow
+    # -------------------------------------------------------------------------
+
+        def self.Na__Exporter__RunExport(meta_fields, origin_point = nil)
+            helper_result = self.Na__Exporter__CreateOriginHelperAtPoint(origin_point)
+
+            geometry_data = self.Na__Exporter__CollectGeometry(origin_point)
+            unless geometry_data
+                return {
+                    'isSaved' => false,
+                    'reason' => 'No geometry collected from selection.',
+                    'originHelperCreated' => helper_result['isCreated'] == true,
+                    'originHelperReason' => helper_result['reason'],
+                    'originHelperName' => helper_result['groupName']
+                }
+            end
+
+            json_data = self.Na__Exporter__BuildJsonPayload(geometry_data, meta_fields || {})
+            suggested_name = (json_data.dig('Na__Asset__Metadata', 'Na__Asset__Code') || '').to_s
+            suggested_name = (json_data.dig('Na__Asset__Metadata', 'Na__Asset__Name') || '').to_s if suggested_name.strip.empty?
+
+            save_result = self.Na__Exporter__PromptAndSave(json_data, suggested_name)
+            save_result.merge(
+                'originHelperCreated' => helper_result['isCreated'] == true,
+                'originHelperReason' => helper_result['reason'],
+                'originHelperName' => helper_result['groupName']
+            )
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Entity Collection
     # -------------------------------------------------------------------------
 
         def self.Na__Exporter__CollectEntitiesFromSelection(entities, faces, edges)
@@ -83,21 +144,18 @@ module Na__ProfileTools__ProfilePathTracer
             Array(entities).each do |entity|
                 case entity
                 when Sketchup::Face
-                    unless seen_faces[entity.persistent_id]
-                        seen_faces[entity.persistent_id] = true
-                        faces << entity
-                        entity.edges.each do |edge|
-                            unless seen_edges[edge.persistent_id]
-                                seen_edges[edge.persistent_id] = true
-                                edges << edge
-                            end
-                        end
+                    next if seen_faces[entity.persistent_id]
+                    seen_faces[entity.persistent_id] = true
+                    faces << entity
+                    entity.edges.each do |edge|
+                        next if seen_edges[edge.persistent_id]
+                        seen_edges[edge.persistent_id] = true
+                        edges << edge
                     end
                 when Sketchup::Edge
-                    unless seen_edges[entity.persistent_id]
-                        seen_edges[entity.persistent_id] = true
-                        edges << entity
-                    end
+                    next if seen_edges[entity.persistent_id]
+                    seen_edges[entity.persistent_id] = true
+                    edges << entity
                 when Sketchup::Group
                     self.Na__Exporter__CollectEntitiesFromSelection(entity.entities.to_a, faces, edges)
                 when Sketchup::ComponentInstance
@@ -108,18 +166,18 @@ module Na__ProfileTools__ProfilePathTracer
 
         def self.Na__Exporter__CountUniqueVertices(faces, edges)
             vertex_ids = {}
-            faces.each { |f| f.vertices.each { |v| vertex_ids[v.persistent_id] = true } }
-            edges.each { |e| [e.start, e.end].each { |v| vertex_ids[v.persistent_id] = true } }
+            faces.each { |face| face.vertices.each { |vertex| vertex_ids[vertex.persistent_id] = true } }
+            edges.each { |edge| [edge.start, edge.end].each { |vertex| vertex_ids[vertex.persistent_id] = true } }
             vertex_ids.length
         end
 
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | Geometry Collection (Selection -> Hash)
+    # REGION | Geometry Collection (Selection -> Unified Blocks)
     # -------------------------------------------------------------------------
 
-        def self.Na__Exporter__CollectGeometry
+        def self.Na__Exporter__CollectGeometry(origin_point)
             model = Sketchup.active_model
             return nil unless model
 
@@ -129,183 +187,343 @@ module Na__ProfileTools__ProfilePathTracer
             faces = []
             edges = []
             self.Na__Exporter__CollectEntitiesFromSelection(selection, faces, edges)
+            return nil if faces.empty? && edges.empty?
 
-            vtx_index = {}
-            vertices  = []
-            edge_list = []
-            face_list = []
+            export_origin = origin_point || self.Na__Exporter__DetermineFallbackOrigin(faces, edges)
+            frame = self.Na__Exporter__BuildLocalFrame(faces, edges, export_origin)
 
-            faces.each do |face|
-                self.Na__Exporter__IndexFaceVertices(face, vtx_index, vertices)
-            end
+            vertex_lookup = {}
+            profile_vertices = []
+            profile_edges = []
+            mesh_edges = []
+
+            seen_pairs = {}
+            edge_index = 0
+
             edges.each do |edge|
-                self.Na__Exporter__IndexEdgeVertices(edge, vtx_index, vertices)
+                start_vertex_id = self.Na__Exporter__IndexProjectedPoint(edge.start.position, frame, vertex_lookup, profile_vertices)
+                end_vertex_id = self.Na__Exporter__IndexProjectedPoint(edge.end.position, frame, vertex_lookup, profile_vertices)
+                next unless start_vertex_id && end_vertex_id
+                next if start_vertex_id == end_vertex_id
+
+                pair_key = [start_vertex_id, end_vertex_id].sort.join('|')
+                next if seen_pairs[pair_key]
+                seen_pairs[pair_key] = true
+
+                edge_index += 1
+                edge_id = format('E%03d', edge_index)
+                profile_edges << {
+                    'EdgeId' => edge_id,
+                    'StartVertex' => start_vertex_id,
+                    'EndVertex' => end_vertex_id
+                }
+                mesh_edges << self.Na__Exporter__BuildMeshEdgeRecord(edge, edge_id, start_vertex_id, end_vertex_id)
             end
 
-            edges.each do |edge|
-                edge_list << self.Na__Exporter__BuildEdgeRecord(edge, vtx_index)
+            profile_faces = self.Na__Exporter__BuildProfileFaceRecords(faces, frame, vertex_lookup, profile_vertices)
+            if profile_faces.empty?
+                fallback_face = self.Na__Exporter__BuildFallbackFaceRecord(profile_edges)
+                profile_faces << fallback_face if fallback_face
             end
 
-            faces.each do |face|
-                face_list << self.Na__Exporter__BuildFaceRecord(face, vtx_index)
-            end
+            return nil if profile_vertices.empty? || profile_edges.empty? || profile_faces.empty?
+
+            mesh_vertices = self.Na__Exporter__BuildMeshVertices(profile_vertices)
+            mesh_faces = self.Na__Exporter__BuildMeshFaces(profile_faces)
+            mesh_bbox = self.Na__Exporter__BuildMeshBoundingBox(mesh_vertices)
 
             {
-                'vertices' => { 'count' => vertices.length, 'items' => vertices },
-                'edges'    => { 'count' => edge_list.length, 'items' => edge_list },
-                'faces'    => { 'count' => face_list.length, 'items' => face_list }
+                'originPoint' => export_origin,
+                'frame' => frame,
+                'profileVertices' => profile_vertices,
+                'profileEdges' => profile_edges,
+                'profileFaces' => profile_faces,
+                'meshVertices' => mesh_vertices,
+                'meshEdges' => mesh_edges,
+                'meshFaces' => mesh_faces,
+                'meshBoundingBox' => mesh_bbox
             }
         end
 
-    # endregion ----------------------------------------------------------------
-
-    # -------------------------------------------------------------------------
-    # REGION | Vertex Indexing
-    # -------------------------------------------------------------------------
-
-        def self.Na__Exporter__PointToMm(point)
-            [
-                (point.x.to_f * NA_MM_PER_INCH).round(6),
-                (point.y.to_f * NA_MM_PER_INCH).round(6),
-                (point.z.to_f * NA_MM_PER_INCH).round(6)
-            ]
+        def self.Na__Exporter__DetermineFallbackOrigin(faces, edges)
+            return edges.first.start.position if edges.any?
+            return faces.first.outer_loop.vertices.first.position if faces.any?
+            Geom::Point3d.new(0, 0, 0)
         end
 
-        def self.Na__Exporter__QuantKey(mm)
-            [
-                (mm[0] / NA_TOLERANCE_MM).round,
-                (mm[1] / NA_TOLERANCE_MM).round,
-                (mm[2] / NA_TOLERANCE_MM).round
-            ].join('|')
-        end
+        def self.Na__Exporter__BuildLocalFrame(faces, edges, origin_point)
+            axis_y = self.Na__Exporter__SeedAxisY(faces, edges)
+            axis_y = X_AXIS if axis_y.length <= 0.001
+            axis_y.normalize!
 
-        def self.Na__Exporter__IndexPoint(point, vtx_index, vertices)
-            mm  = self.Na__Exporter__PointToMm(point)
-            key = self.Na__Exporter__QuantKey(mm)
-
-            return vtx_index[key] if vtx_index.key?(key)
-
-            idx = vertices.length
-            vertices << {
-                'VertexId' => nil,
-                'PosX'     => mm[0],
-                'PosY'     => mm[1],
-                'PosZ'     => mm[2],
-                'W'        => 0.0
-            }
-            vtx_index[key] = idx
-            idx
-        end
-
-        def self.Na__Exporter__IndexFaceVertices(face, vtx_index, vertices)
-            face.vertices.each do |vertex|
-                self.Na__Exporter__IndexPoint(vertex.position, vtx_index, vertices)
-            end
-        end
-
-        def self.Na__Exporter__IndexEdgeVertices(edge, vtx_index, vertices)
-            self.Na__Exporter__IndexPoint(edge.start.position, vtx_index, vertices)
-            self.Na__Exporter__IndexPoint(edge.end.position, vtx_index, vertices)
-        end
-
-    # endregion ----------------------------------------------------------------
-
-    # -------------------------------------------------------------------------
-    # REGION | Edge Record Builder
-    # -------------------------------------------------------------------------
-
-        def self.Na__Exporter__BuildEdgeRecord(edge, vtx_index)
-            s_mm = self.Na__Exporter__PointToMm(edge.start.position)
-            e_mm = self.Na__Exporter__PointToMm(edge.end.position)
-
-            v1 = vtx_index[self.Na__Exporter__QuantKey(s_mm)]
-            v2 = vtx_index[self.Na__Exporter__QuantKey(e_mm)]
-
-            vec = edge.end.position - edge.start.position
-            len_mm = (vec.length * NA_MM_PER_INCH).round(6)
-
-            dir = if vec.length > 0.0
-                vn = vec.clone
-                vn.normalize!
-                [vn.x.to_f.round(6), vn.y.to_f.round(6), vn.z.to_f.round(6)]
+            normal = if faces.any?
+                face_normal = faces.first.normal
+                face_normal.length <= 0.001 ? Z_AXIS.clone : face_normal
             else
-                [0.0, 0.0, 0.0]
+                Z_AXIS.clone
+            end
+            normal = Y_AXIS.clone if axis_y.parallel?(normal)
+            normal.normalize! if normal.length > 0.001
+
+            axis_z = normal * axis_y
+            axis_z = Z_AXIS * axis_y if axis_z.length <= 0.001
+            axis_z = Y_AXIS.clone if axis_z.length <= 0.001
+            axis_z.normalize!
+
+            {
+                origin: origin_point,
+                axis_y: axis_y,
+                axis_z: axis_z
+            }
+        end
+
+        def self.Na__Exporter__SeedAxisY(faces, edges)
+            if faces.any?
+                outer_vertices = faces.first.outer_loop.vertices
+                if outer_vertices.length >= 2
+                    vector = outer_vertices[1].position - outer_vertices[0].position
+                    return vector if vector.length > 0.001
+                end
             end
 
-            {
-                'v1'        => v1,
-                'v2'        => v2,
-                'direction' => dir,
-                'length_mm' => len_mm,
-                'soft'      => edge.soft?,
-                'smooth'    => edge.smooth?,
-                'hidden'    => edge.hidden?
-            }
+            if edges.any?
+                vector = edges.first.end.position - edges.first.start.position
+                return vector if vector.length > 0.001
+            end
+
+            X_AXIS.clone
         end
 
-    # endregion ----------------------------------------------------------------
+        def self.Na__Exporter__IndexProjectedPoint(point, frame, vertex_lookup, profile_vertices)
+            y_mm, z_mm = self.Na__Exporter__ProjectPointToLocalYZ(point, frame)
+            quant_key = self.Na__Exporter__QuantKey(y_mm, z_mm)
+            return vertex_lookup[quant_key] if vertex_lookup.key?(quant_key)
 
-    # -------------------------------------------------------------------------
-    # REGION | Face Record Builder
-    # -------------------------------------------------------------------------
-
-        def self.Na__Exporter__BuildFaceRecord(face, vtx_index)
-            outer_loop  = face.outer_loop
-            inner_loops = face.loops.reject { |lp| lp == outer_loop }
-
-            outer_indices = self.Na__Exporter__LoopVertexIndices(outer_loop, vtx_index)
-            inner_indices = inner_loops.map { |lp| self.Na__Exporter__LoopVertexIndices(lp, vtx_index) }
-
-            n = face.normal
-            normal = [n.x.to_f.round(6), n.y.to_f.round(6), n.z.to_f.round(6)]
-            area_mm2 = (face.area * NA_MM_PER_INCH * NA_MM_PER_INCH).round(6)
-
-            {
-                'outer'    => outer_indices,
-                'inners'   => inner_indices,
-                'normal'   => normal,
-                'area_mm2' => area_mm2
+            vertex_id = format('V%03d', profile_vertices.length + 1)
+            profile_vertices << {
+                'VertexId' => vertex_id,
+                'PosY_mm' => y_mm,
+                'PosZ_mm' => z_mm
             }
+            vertex_lookup[quant_key] = vertex_id
+            vertex_id
         end
 
-        def self.Na__Exporter__LoopVertexIndices(loop, vtx_index)
+        def self.Na__Exporter__ProjectPointToLocalYZ(point, frame)
+            delta = point - frame[:origin]
+            y_mm = (delta.dot(frame[:axis_y]) * NA_MM_PER_INCH).round(6)
+            # Flip local vertical so created profiles are not upside-down when reused.
+            z_mm = (-delta.dot(frame[:axis_z]) * NA_MM_PER_INCH).round(6)
+            [y_mm, z_mm]
+        end
+
+        def self.Na__Exporter__QuantKey(y_mm, z_mm)
+            y_quant = (y_mm / NA_TOLERANCE_MM).round
+            z_quant = (z_mm / NA_TOLERANCE_MM).round
+            "#{y_quant}|#{z_quant}"
+        end
+
+        def self.Na__Exporter__BuildProfileFaceRecords(faces, frame, vertex_lookup, profile_vertices)
+            face_records = []
+            face_counter = 0
+
+            faces.each do |face|
+                outer_loop_ids = self.Na__Exporter__LoopVertexIds(face.outer_loop, frame, vertex_lookup, profile_vertices)
+                next if outer_loop_ids.length < 3
+
+                face_counter += 1
+                face_records << {
+                    'FaceId' => format('F%03d', face_counter),
+                    'OuterLoopVertices' => outer_loop_ids
+                }
+            end
+
+            face_records
+        end
+
+        def self.Na__Exporter__LoopVertexIds(loop, frame, vertex_lookup, profile_vertices)
             loop.vertices.map do |vertex|
-                mm  = self.Na__Exporter__PointToMm(vertex.position)
-                key = self.Na__Exporter__QuantKey(mm)
-                vtx_index[key]
+                self.Na__Exporter__IndexProjectedPoint(vertex.position, frame, vertex_lookup, profile_vertices)
+            end.compact
+        end
+
+        def self.Na__Exporter__BuildFallbackFaceRecord(profile_edges)
+            ids = []
+            profile_edges.each do |edge|
+                ids << edge['StartVertex']
+                ids << edge['EndVertex']
             end
+            loop_ids = ids.uniq
+            return nil if loop_ids.length < 3
+
+            {
+                'FaceId' => 'F001',
+                'OuterLoopVertices' => loop_ids
+            }
+        end
+
+        def self.Na__Exporter__BuildMeshVertices(profile_vertices)
+            profile_vertices.map do |vertex|
+                vertex_id = vertex['VertexId']
+                y_mm = vertex['PosY_mm'].to_f
+                z_mm = vertex['PosZ_mm'].to_f
+                {
+                    'VertexId' => vertex_id,
+                    'VertexName' => "Na__ProfileMesh__Vertex__#{vertex_id}",
+                    'PosX_mm' => y_mm,
+                    'PosY_mm' => z_mm,
+                    'PosZ_mm' => 0.0,
+                    'Normal_X' => 0.0,
+                    'Normal_Y' => 0.0,
+                    'Normal_Z' => 1.0
+                }
+            end
+        end
+
+        def self.Na__Exporter__BuildMeshFaces(profile_faces)
+            profile_faces.map do |face|
+                face_id = face['FaceId']
+                {
+                    'FaceId' => face_id,
+                    'FaceName' => "Na__ProfileMesh__Face__#{face_id}",
+                    'OuterLoop_VertexIds' => face['OuterLoopVertices'],
+                    'InnerLoops' => [],
+                    'Normal' => [0.0, 0.0, 1.0],
+                    'Area_mm2' => nil,
+                    'MaterialName' => ''
+                }
+            end
+        end
+
+        def self.Na__Exporter__BuildMeshBoundingBox(mesh_vertices)
+            return {} if mesh_vertices.empty?
+
+            xs = mesh_vertices.map { |vertex| vertex['PosX_mm'].to_f }
+            ys = mesh_vertices.map { |vertex| vertex['PosY_mm'].to_f }
+            zs = mesh_vertices.map { |vertex| vertex['PosZ_mm'].to_f }
+
+            {
+                'Na__Geometry__MinX_mm' => xs.min.round(6),
+                'Na__Geometry__MaxX_mm' => xs.max.round(6),
+                'Na__Geometry__MinY_mm' => ys.min.round(6),
+                'Na__Geometry__MaxY_mm' => ys.max.round(6),
+                'Na__Geometry__MinZ_mm' => zs.min.round(6),
+                'Na__Geometry__MaxZ_mm' => zs.max.round(6)
+            }
+        end
+
+        def self.Na__Exporter__BuildMeshEdgeRecord(edge, edge_id, start_vertex_id, end_vertex_id)
+            material_name = edge.material ? edge.material.display_name.to_s : ''
+            colour_id = self.Na__Exporter__ResolveEdgeColourId(material_name)
+            colour_hex = self.Na__Exporter__ResolveEdgeColourHex(edge, colour_id)
+
+            {
+                'EdgeId' => edge_id,
+                'StartVertex' => start_vertex_id,
+                'EndVertex' => end_vertex_id,
+                'IsSoft' => edge.soft? == true,
+                'IsSmooth' => edge.smooth? == true,
+                'IsHidden' => edge.hidden? == true,
+                'CastsShadows' => edge.respond_to?(:casts_shadows?) ? (edge.casts_shadows? == true) : true,
+                'EdgeMaterialName' => material_name,
+                'EdgeColourId' => colour_id,
+                'EdgeColourHex' => colour_hex
+            }
         end
 
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | JSON Payload Builder
+    # REGION | Unified JSON Payload Builder
     # -------------------------------------------------------------------------
 
         def self.Na__Exporter__BuildJsonPayload(geometry_data, meta_fields)
             timestamp = Time.now.getlocal.strftime('%d-%b-%Y__%H:%M')
+            profile_name = meta_fields['Meta_ProfileName'].to_s.strip
+            profile_name = 'Na Profile' if profile_name.empty?
 
-            meta = {
-                'Meta_ProfileName' => meta_fields['Meta_ProfileName'].to_s,
-                'Meta_Description' => meta_fields['Meta_Description'].to_s,
-                'Meta_Timestamp'   => timestamp,
-                'Meta_GlobalUnits' => 'millimetres',
-                'Meta_Keywords'    => Array(meta_fields['Meta_Keywords']),
-                'Meta_ProfileId'   => meta_fields['Meta_ProfileId'].to_s
-            }
+            profile_code = meta_fields['Meta_ProfileId'].to_s.strip
+            profile_code = profile_name.gsub(/[^\w\-.]+/, '__') if profile_code.empty?
+
+            profile_description = meta_fields['Meta_Description'].to_s
+            profile_keywords = Array(meta_fields['Meta_Keywords'])
+
+            mesh_edges = geometry_data['meshEdges'] || []
+            soft_count = mesh_edges.count { |edge| edge['IsSoft'] == true }
+            smooth_count = mesh_edges.count { |edge| edge['IsSmooth'] == true }
+            hard_count = mesh_edges.count { |edge| edge['IsSoft'] != true && edge['IsSmooth'] != true }
 
             {
-                'meta'     => meta,
-                'vertices' => geometry_data['vertices'],
-                'edges'    => geometry_data['edges'],
-                'faces'    => geometry_data['faces']
+                'meta' => {
+                    'fileName' => "#{profile_code}.json",
+                    'description' => 'Profile exported by Na__ProfileTools__ProfilePathTracer.',
+                    'version' => '1.0.0',
+                    'lastUpdated' => Time.now.strftime('%d-%b-%Y'),
+                    'namingConvention' => 'All custom keys use Na__ prefixed three-stage naming.',
+                    'fieldPrefixes' => {
+                        'Na__Asset__' => 'Top-level asset metadata and content blocks',
+                        'Na__Geometry__' => 'Geometry fields and coordinate metadata',
+                        'Na__PanelPlacement__' => 'Reserved placement metadata'
+                    },
+                    'Meta_ProfileTimestamp' => timestamp,
+                    'Meta_ProfileKeywords' => profile_keywords
+                },
+                'Na__Asset__Metadata' => {
+                    'Na__Asset__Name' => profile_name,
+                    'Na__Asset__Code' => profile_code,
+                    'Na__Asset__Type' => 'Profile2D',
+                    'Na__Asset__Description' => profile_description,
+                    'Na__Asset__Notes' => 'Generated by Na__ProfileTools__ProfilePathTracer.',
+                    'Na__Asset__Has2dPlan' => false,
+                    'Na__Asset__Has2dElevation' => false,
+                    'Na__Asset__Has2dProfile' => true,
+                    'Na__Asset__Has3d' => true,
+                    'Na__Asset__Supplier' => '',
+                    'Na__Asset__SupplierProductCode' => '',
+                    'Na__Asset__SupplierPrice_GBP' => '',
+                    'Na__PanelPlacement__DefaultHeight_mm' => nil,
+                    'Na__PanelPlacement__RightHand' => {
+                        'Na__PanelPlacement__OffsetX_mm' => nil,
+                        'Na__PanelPlacement__OffsetY_mm' => nil,
+                        'Na__PanelPlacement__ScaleX' => nil
+                    },
+                    'Na__PanelPlacement__LeftHand' => {
+                        'Na__PanelPlacement__OffsetX_mm' => nil,
+                        'Na__PanelPlacement__OffsetY_mm' => nil,
+                        'Na__PanelPlacement__ScaleX' => nil
+                    },
+                    'Na__Asset__AvailableFinishes' => []
+                },
+                'Na__Asset__Profile2D' => {
+                    'Na__Geometry__OriginNote' => 'Local 0,0 = clicked 00__OriginPoint helper location.',
+                    'Na__Geometry__CoordSystem' => 'Y=profile horizontal axis, Z=profile vertical axis | Units=mm',
+                    'Na__Geometry__Vertices' => geometry_data['profileVertices'],
+                    'Na__Geometry__Edges' => geometry_data['profileEdges'],
+                    'Na__Geometry__Faces' => geometry_data['profileFaces']
+                },
+                'Na__Asset__Mesh3D' => {
+                    'Na__Geometry__OriginNote' => 'Local 0,0,0 = clicked 00__OriginPoint helper location.',
+                    'Na__Geometry__CoordSystem' => 'Right-handed | X=profile-width surrogate, Y=profile-height surrogate, Z=0 | Units=mm',
+                    'Na__Geometry__BoundingBox' => geometry_data['meshBoundingBox'],
+                    'Na__Geometry__Counts' => {
+                        'Na__Geometry__VertexCount' => (geometry_data['meshVertices'] || []).length,
+                        'Na__Geometry__FaceCount' => (geometry_data['meshFaces'] || []).length,
+                        'Na__Geometry__EdgeCount' => mesh_edges.length,
+                        'Na__Geometry__HardEdgeCount' => hard_count,
+                        'Na__Geometry__SoftEdgeCount' => soft_count,
+                        'Na__Geometry__SmoothEdgeCount' => smooth_count
+                    },
+                    'Na__Geometry__Vertices' => geometry_data['meshVertices'],
+                    'Na__Geometry__Faces' => geometry_data['meshFaces'],
+                    'Na__Geometry__Edges' => mesh_edges
+                }
             }
         end
 
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | File Save (OS Dialog + Write)
+    # REGION | File Save
     # -------------------------------------------------------------------------
 
         def self.Na__Exporter__PromptAndSave(json_data, suggested_filename)
@@ -322,15 +540,14 @@ module Na__ProfileTools__ProfilePathTracer
             path += '.json' unless path.end_with?('.json')
 
             json_state = JSON::State.new(
-                indent:       '  ',
-                space:        '  ',
+                indent: '  ',
+                space: '  ',
                 space_before: '  ',
-                object_nl:    "\n",
-                array_nl:     "\n"
+                object_nl: "\n",
+                array_nl: "\n"
             )
 
-            File.open(path, 'w:utf-8') { |f| f.write(JSON.generate(json_data, json_state)) }
-
+            File.open(path, 'w:utf-8') { |file| file.write(JSON.generate(json_data, json_state)) }
             { 'isSaved' => true, 'filePath' => path, 'reason' => nil }
         rescue => error
             { 'isSaved' => false, 'reason' => "Save failed: #{error.message}" }
@@ -339,18 +556,206 @@ module Na__ProfileTools__ProfilePathTracer
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | Full Export Workflow (called from DialogManager)
+    # REGION | Origin Helper Creation (Tag + MTE Red Edge Material)
     # -------------------------------------------------------------------------
 
-        def self.Na__Exporter__RunExport(meta_fields)
-            geometry_data = self.Na__Exporter__CollectGeometry
-            return { 'isSaved' => false, 'reason' => 'No geometry collected from selection.' } unless geometry_data
+        def self.Na__Exporter__CreateOriginHelperAtPoint(origin_point)
+            return { 'isCreated' => false, 'reason' => 'No origin point was supplied.' } unless origin_point
 
-            json_data = self.Na__Exporter__BuildJsonPayload(geometry_data, meta_fields)
-            suggested_name = meta_fields['Meta_ProfileId'].to_s
-            suggested_name = meta_fields['Meta_ProfileName'].to_s if suggested_name.strip.empty?
+            model = Sketchup.active_model
+            return { 'isCreated' => false, 'reason' => 'No active model.' } unless model
 
-            self.Na__Exporter__PromptAndSave(json_data, suggested_name)
+            model.start_operation('Na__ProfilePathTracer__CreateOriginHelper', true)
+
+            group = model.active_entities.add_group
+            group.name = NA_ORIGIN_HELPER_GROUP_NAME
+            entities = group.entities
+            size = NA_ORIGIN_HELPER_SIZE_MM.mm
+
+            centre = origin_point
+            entities.add_line(centre, Geom::Point3d.new(centre.x + size, centre.y, centre.z))
+            entities.add_line(centre, Geom::Point3d.new(centre.x - size, centre.y, centre.z))
+            entities.add_line(centre, Geom::Point3d.new(centre.x, centre.y + size, centre.z))
+            entities.add_line(centre, Geom::Point3d.new(centre.x, centre.y - size, centre.z))
+            entities.add_line(centre, Geom::Point3d.new(centre.x, centre.y, centre.z + size))
+            entities.add_line(centre, Geom::Point3d.new(centre.x, centre.y, centre.z - size))
+
+            helper_tag = self.Na__Exporter__EnsureOriginHelperTag(model)
+            group.layer = helper_tag if helper_tag
+
+            helper_material = self.Na__Exporter__EnsureOriginHelperMaterial(model)
+            if helper_material
+                entities.grep(Sketchup::Edge).each { |edge| edge.material = helper_material }
+            end
+
+            model.commit_operation
+            {
+                'isCreated' => true,
+                'reason' => nil,
+                'groupName' => group.name
+            }
+        rescue => error
+            model.abort_operation if model
+            {
+                'isCreated' => false,
+                'reason' => "Origin helper creation failed: #{error.message}"
+            }
+        end
+
+        def self.Na__Exporter__EnsureOriginHelperTag(model)
+            layer = model.layers[NA_ORIGIN_HELPER_TAG_NAME] || model.layers.add(NA_ORIGIN_HELPER_TAG_NAME)
+            layer.visible = true if layer.respond_to?(:visible=)
+            tag_entry = self.Na__Exporter__FindTagEntryByName(NA_ORIGIN_HELPER_TAG_NAME)
+
+            if tag_entry && tag_entry['Layout__EdgeColourRGB'].is_a?(Array) && tag_entry['Layout__EdgeColourRGB'].length == 3
+                rgb = tag_entry['Layout__EdgeColourRGB'].map(&:to_i)
+                layer.color = Sketchup::Color.new(*rgb) if layer.respond_to?(:color=)
+            end
+
+            line_style_name = tag_entry ? tag_entry['Layout__LineStyleName'].to_s : ''
+            if !line_style_name.empty? && layer.respond_to?(:line_style=) && model.respond_to?(:line_styles)
+                styles = model.line_styles
+                style = styles[line_style_name] if styles.respond_to?(:[])
+                layer.line_style = style if style
+            end
+
+            layer
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Origin helper tag setup failed: #{error.message}")
+            nil
+        end
+
+        def self.Na__Exporter__EnsureOriginHelperMaterial(model)
+            edge_lookup = self.Na__Exporter__LoadEdgeMaterialLookup
+            colour_entry = edge_lookup[NA_ORIGIN_HELPER_COLOUR_ID]
+
+            material_name = if colour_entry && colour_entry['SketchUpName'].to_s.strip.length > 0
+                colour_entry['SketchUpName'].to_s
+            else
+                NA_ORIGIN_HELPER_COLOUR_ID
+            end
+
+            material = model.materials[material_name] || model.materials.add(material_name)
+
+            rgb = if colour_entry && colour_entry['RgbValue'].is_a?(Array) && colour_entry['RgbValue'].length == 3
+                colour_entry['RgbValue'].map(&:to_i)
+            elsif colour_entry
+                self.Na__Exporter__HexToRgb(colour_entry['HexValue'])
+            else
+                [229, 57, 53]
+            end
+            material.color = Sketchup::Color.new(*rgb)
+            material
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Origin helper material setup failed: #{error.message}")
+            nil
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | DataLib Helpers (Tags + Edge Materials)
+    # -------------------------------------------------------------------------
+
+        def self.Na__Exporter__FindTagEntryByName(target_tag_name)
+            data = Na__DataLib__CacheData.Na__Cache__LoadData(:tags)
+            return nil unless data.is_a?(Hash)
+
+            tags_root = data['Na__DataLib__CoreIndex__Tags']
+            return nil unless tags_root.is_a?(Hash)
+
+            self.Na__Exporter__FindTagNodeRecursive(tags_root, target_tag_name)
+        rescue
+            nil
+        end
+
+        def self.Na__Exporter__FindTagNodeRecursive(node, target_tag_name)
+            return nil unless node.is_a?(Hash)
+
+            node.each_value do |value|
+                next unless value.is_a?(Hash)
+                return value if value['Tag__SketchUpName'].to_s == target_tag_name
+
+                nested_result = self.Na__Exporter__FindTagNodeRecursive(value, target_tag_name)
+                return nested_result if nested_result
+            end
+
+            nil
+        end
+
+        def self.Na__Exporter__LoadEdgeMaterialLookup
+            return @na_edge_material_lookup if @na_edge_material_lookup.is_a?(Hash)
+
+            lookup = {}
+            data = Na__DataLib__CacheData.Na__Cache__LoadData(:edge_materials)
+            if data.is_a?(Hash)
+                library = data['Na__DataLib__CoreIndex__EdgeMaterials']
+                if library.is_a?(Hash)
+                    library.each do |series_key, series_value|
+                        next unless series_value.is_a?(Hash)
+                        series_value.each do |entry_key, entry_value|
+                            next unless entry_value.is_a?(Hash)
+                            lookup[entry_key] = entry_value
+                            sketchup_name = entry_value['SketchUpName'].to_s
+                            lookup[sketchup_name] = entry_value unless sketchup_name.empty?
+                        end
+                    end
+                end
+            end
+
+            @na_edge_material_lookup = lookup
+            lookup
+        rescue
+            @na_edge_material_lookup = {}
+            @na_edge_material_lookup
+        end
+
+        def self.Na__Exporter__ResolveEdgeColourId(material_name)
+            return nil if material_name.to_s.strip.empty?
+            return material_name if material_name.start_with?('MTE')
+
+            edge_entry = self.Na__Exporter__LoadEdgeMaterialLookup[material_name]
+            return nil unless edge_entry.is_a?(Hash)
+            edge_entry['SketchUpName'].to_s
+        end
+
+        def self.Na__Exporter__ResolveEdgeColourHex(edge, colour_id)
+            if edge.material && edge.material.color
+                colour = edge.material.color
+                return self.Na__Exporter__RgbToHex(colour.red, colour.green, colour.blue)
+            end
+
+            if colour_id
+                edge_entry = self.Na__Exporter__LoadEdgeMaterialLookup[colour_id]
+                if edge_entry.is_a?(Hash)
+                    return edge_entry['HexValue'].to_s if edge_entry['HexValue'].to_s.strip.length > 0
+                    if edge_entry['RgbValue'].is_a?(Array) && edge_entry['RgbValue'].length == 3
+                        rgb = edge_entry['RgbValue'].map(&:to_i)
+                        return self.Na__Exporter__RgbToHex(rgb[0], rgb[1], rgb[2])
+                    end
+                end
+            end
+
+            NA_DEFAULT_EDGE_HEX
+        rescue
+            NA_DEFAULT_EDGE_HEX
+        end
+
+        def self.Na__Exporter__HexToRgb(hex_value)
+            sanitized_hex = hex_value.to_s.strip.delete('#')
+            return [102, 102, 102] unless sanitized_hex.length == 6
+
+            [
+                sanitized_hex[0..1].to_i(16),
+                sanitized_hex[2..3].to_i(16),
+                sanitized_hex[4..5].to_i(16)
+            ]
+        rescue
+            [102, 102, 102]
+        end
+
+        def self.Na__Exporter__RgbToHex(red, green, blue)
+            format('#%02X%02X%02X', red.to_i, green.to_i, blue.to_i)
         end
 
     # endregion ----------------------------------------------------------------

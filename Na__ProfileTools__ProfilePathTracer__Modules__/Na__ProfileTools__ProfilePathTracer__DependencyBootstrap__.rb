@@ -19,6 +19,7 @@ module Na__ProfileTools__ProfilePathTracer
 
         NA_DATALIB_CACHE_KEY_TAGS      = :tags
         NA_DATALIB_CACHE_KEY_MATERIALS = :materials
+        NA_DATALIB_CACHE_KEY_EDGE_MATERIALS = :edge_materials
 
     # endregion ----------------------------------------------------------------
 
@@ -26,6 +27,7 @@ module Na__ProfileTools__ProfilePathTracer
         def self.Na__Dependencies__PreloadCoreData
             self.Na__Dependencies__LoadTags
             self.Na__Dependencies__LoadMaterials
+            self.Na__Dependencies__LoadEdgeMaterials
         end
 
         def self.Na__Dependencies__LoadTags
@@ -39,6 +41,13 @@ module Na__ProfileTools__ProfilePathTracer
             Na__DataLib__CacheData.Na__Cache__LoadData(NA_DATALIB_CACHE_KEY_MATERIALS)
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Failed to preload materials from DataLib: #{error.message}")
+            nil
+        end
+
+        def self.Na__Dependencies__LoadEdgeMaterials
+            Na__DataLib__CacheData.Na__Cache__LoadData(NA_DATALIB_CACHE_KEY_EDGE_MATERIALS)
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Failed to preload edge materials from DataLib: #{error.message}")
             nil
         end
 

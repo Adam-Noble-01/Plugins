@@ -129,6 +129,42 @@ body {
     margin-top         : 8px;
 }
 
+.naSceneSourceWrap {
+    margin-bottom      : 10px;
+    padding            : 10px;
+    border             : 1px solid var(--na-border);
+    border-radius      : 6px;
+    background         : #fafbfc;
+}
+
+.naSceneSourceWrap--hidden {
+    display            : none;
+}
+
+.naSceneStatus {
+    margin-bottom      : 8px;
+    padding            : 8px;
+    border-radius      : 4px;
+    font-size          : 12px;
+    font-weight        : 600;
+}
+
+.naSceneStatus--ready {
+    background         : #e7f7ee;
+    color              : #1a5e3a;
+}
+
+.naSceneStatus--pending {
+    background         : #fff4e5;
+    color              : #7a4a00;
+}
+
+.naSceneActions {
+    display            : flex;
+    gap                : 8px;
+    flex-wrap          : wrap;
+}
+
 .naButton {
     border             : 1px solid var(--na-accent);
     background         : var(--na-accent);
@@ -243,6 +279,16 @@ body {
     border-color       : #583a99;
 }
 
+.naButtonRotate {
+    border-color       : #805a12;
+    background         : #9a6d16;
+}
+
+.naButtonRotate:hover {
+    border-color       : #6e4c0d;
+    background         : #6e4c0d;
+}
+
 .naValidationSummary {
     padding            : 8px;
     margin-bottom      : 10px;
@@ -295,6 +341,18 @@ body {
 
 .naProfileStartPoint {
     fill               : #d32f2f;
+}
+
+.naProfileOriginLine {
+    stroke             : #c98b00;
+    stroke-width       : 0.9;
+    stroke-dasharray   : 2 2;
+}
+
+.naProfileOriginPoint {
+    fill               : #f9b233;
+    stroke             : #8a5a00;
+    stroke-width       : 0.9;
 }
 
 .naStatus {

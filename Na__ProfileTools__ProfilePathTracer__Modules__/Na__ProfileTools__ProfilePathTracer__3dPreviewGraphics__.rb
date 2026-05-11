@@ -37,12 +37,45 @@ module Na__ProfileTools__ProfilePathTracer
             view.draw(GL_LINE_STRIP, ordered_points)
         end
 
+        def self.Na__Preview__DrawWaypointMarkers(view, waypoints, marker_size)
+            return if waypoints.nil? || waypoints.empty?
+
+            view.line_stipple  = ''
+            view.line_width    = 3
+            view.drawing_color = Sketchup::Color.new(255, 220, 0)
+
+            waypoints.each do |waypoint|
+                view.draw_line(
+                    waypoint.offset(X_AXIS, -marker_size),
+                    waypoint.offset(X_AXIS, marker_size)
+                )
+                view.draw_line(
+                    waypoint.offset(Y_AXIS, -marker_size),
+                    waypoint.offset(Y_AXIS, marker_size)
+                )
+                view.draw_line(
+                    waypoint.offset(Z_AXIS, -marker_size),
+                    waypoint.offset(Z_AXIS, marker_size)
+                )
+            end
+        end
+
         def self.Na__Preview__DrawCandidateVertex(view, candidate_point)
             return unless candidate_point
             view.line_stipple  = ''
             view.line_width    = 6
             view.drawing_color = Sketchup::Color.new(255, 120, 0)
             view.draw_points([candidate_point], 10, 3, 'x')
+        end
+
+        def self.Na__Preview__DrawSweepSegments(view, sweep_segments)
+            return unless sweep_segments.is_a?(Array)
+            return if sweep_segments.empty?
+
+            view.line_stipple  = ''
+            view.line_width    = 1
+            view.drawing_color = Sketchup::Color.new(0, 200, 180, 160)
+            view.draw(GL_LINES, sweep_segments)
         end
 
         def self.Na__Preview__DrawProfileGhost(view, transformed_profile_points)

@@ -7,10 +7,20 @@
     // -------------------------------------------------------------------------
 
     function Na__Ui__AttachEvents(handlers) {
+        const profileSourceModeSelect = document.getElementById('naProfileSourceModeSelect');
         const profileSelect = document.getElementById('naProfileSelect');
         const pathModeSelect = document.getElementById('naPathModeSelect');
         const previewEnabled = document.getElementById('naPreviewEnabled');
+        const btnRotateProfile = document.getElementById('naBtnRotateProfile');
         const btnGenerate = document.getElementById('naBtnGenerate');
+        const btnPickSceneProfile = document.getElementById('naBtnPickSceneProfile');
+        const btnClearSceneProfile = document.getElementById('naBtnClearSceneProfile');
+
+        if (profileSourceModeSelect) {
+            profileSourceModeSelect.addEventListener('change', function() {
+                handlers.Na__Events__OnProfileSourceModeChange(profileSourceModeSelect.value);
+            });
+        }
 
         if (profileSelect) {
             profileSelect.addEventListener('change', function() {
@@ -43,6 +53,24 @@
         if (btnGenerate) {
             btnGenerate.addEventListener('click', function() {
                 handlers.Na__Events__OnGenerate();
+            });
+        }
+
+        if (btnRotateProfile) {
+            btnRotateProfile.addEventListener('click', function() {
+                handlers.Na__Events__OnRotateProfile();
+            });
+        }
+
+        if (btnPickSceneProfile) {
+            btnPickSceneProfile.addEventListener('click', function() {
+                handlers.Na__Events__OnPickSceneProfile();
+            });
+        }
+
+        if (btnClearSceneProfile) {
+            btnClearSceneProfile.addEventListener('click', function() {
+                handlers.Na__Events__OnClearSceneProfile();
             });
         }
 

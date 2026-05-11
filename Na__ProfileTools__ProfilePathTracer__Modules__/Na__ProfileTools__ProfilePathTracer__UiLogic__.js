@@ -7,11 +7,19 @@
 
     const Na__UiState = {
         profileKey: '',
-        pathMode: 'selection',
+        profileSourceMode: 'library',
+        pathMode: 'interactive',
+        rotationStep: 0,
         isPreviewEnabled: true,
         toggleDefinitions: {},
         toggleStates: {},
         profiles: {},
+        sceneProfileStatus: {
+            isValid: false,
+            displayName: '',
+            profileKey: '',
+            statusMessage: 'No scene profile selected.'
+        },
         lastGeneratePayload: null,
         isCreateProfileFormVisible: false,
         lastExportValidation: null
@@ -41,6 +49,12 @@
     // -------------------------------------------------------------------------
 
     function Na__Ui__SelectedProfileRecord() {
+        if (Na__UiState.profileSourceMode === 'scene' && Na__UiState.sceneProfileStatus && Na__UiState.sceneProfileStatus.isValid === true) {
+            var sceneProfileKey = Na__UiState.sceneProfileStatus.profileKey || '';
+            if (sceneProfileKey && Na__UiState.profiles[sceneProfileKey]) {
+                return Na__UiState.profiles[sceneProfileKey];
+            }
+        }
         return Na__UiState.profiles[Na__UiState.profileKey] || null;
     }
 
@@ -62,7 +76,8 @@
 
         const selectedProfile = Na__Ui__SelectedProfileRecord();
         const previewResult = window.Na__ProfilePathTracer__Viewport__SvgGenerator.Na__Svg__GenerateProfile(selectedProfile, {
-            toggleStates: Na__UiState.toggleStates
+            toggleStates: Na__UiState.toggleStates,
+            rotationStep: Na__UiState.rotationStep
         });
 
         viewportSvg.setAttribute('viewBox', previewResult.viewBox || '-120 -120 240 240');
@@ -138,9 +153,69 @@
     function Na__Ui__BuildGeneratePayload() {
         return {
             profileKey: Na__UiState.profileKey,
+            profileSourceMode: Na__UiState.profileSourceMode,
             pathMode: Na__UiState.pathMode,
+            rotationStep: Na__UiState.rotationStep,
             isPreviewEnabled: Na__UiState.isPreviewEnabled,
             toggleStates: Na__UiState.toggleStates
+        };
+    }
+
+    function Na__Ui__BuildUnifiedPreviewRecordFromPoints(points) {
+        var sourcePoints = Array.isArray(points) ? points : [];
+        if (sourcePoints.length < 3) return null;
+
+        var vertices = sourcePoints.map(function(point, index) {
+            return {
+                VertexId: 'V' + String(index + 1).padStart(3, '0'),
+                PosY_mm: Number(point[0]),
+                PosZ_mm: Number(point[1])
+            };
+        });
+
+        var edges = vertices.map(function(vertex, index) {
+            var nextIndex = (index + 1) % vertices.length;
+            return {
+                EdgeId: 'E' + String(index + 1).padStart(3, '0'),
+                StartVertex: vertex.VertexId,
+                EndVertex: vertices[nextIndex].VertexId
+            };
+        });
+
+        var meshEdges = edges.map(function(edge) {
+            return {
+                EdgeId: edge.EdgeId,
+                StartVertex: edge.StartVertex,
+                EndVertex: edge.EndVertex,
+                IsSoft: false,
+                IsSmooth: false,
+                IsHidden: false,
+                CastsShadows: true,
+                EdgeMaterialName: '',
+                EdgeColourId: '',
+                EdgeColourHex: ''
+            };
+        });
+
+        return {
+            profileData: {
+                type: 'na_unified_asset',
+                assetData: {
+                    meta: {},
+                    Na__Asset__Metadata: {},
+                    Na__Asset__Profile2D: {
+                        Na__Geometry__Vertices: vertices,
+                        Na__Geometry__Edges: edges,
+                        Na__Geometry__Faces: [{
+                            FaceId: 'F001',
+                            OuterLoopVertices: vertices.map(function(vertex) { return vertex.VertexId; })
+                        }]
+                    },
+                    Na__Asset__Mesh3D: {
+                        Na__Geometry__Edges: meshEdges
+                    }
+                }
+            }
         };
     }
 
@@ -151,6 +226,16 @@
     // -------------------------------------------------------------------------
 
     const Na__UiEventHandlers = {
+        Na__Events__OnProfileSourceModeChange: function(profileSourceMode) {
+            Na__UiState.profileSourceMode = profileSourceMode || 'library';
+            Na__Ui__Render();
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus('Profile source mode: ' + Na__UiState.profileSourceMode);
+
+            if (Na__UiState.profileSourceMode === 'scene' && window.Na__ProfilePathTracer__Bridge__RequestSceneProfileStatus) {
+                window.Na__ProfilePathTracer__Bridge__RequestSceneProfileStatus();
+            }
+        },
         Na__Events__OnProfileChange: function(profileKey) {
             Na__UiState.profileKey = profileKey;
             Na__Ui__RenderProfilePreview();
@@ -159,6 +244,12 @@
         Na__Events__OnPathModeChange: function(pathMode) {
             Na__UiState.pathMode = pathMode;
             Na__Ui__SetStatus('Path mode changed: ' + pathMode);
+        },
+        Na__Events__OnRotateProfile: function() {
+            Na__UiState.rotationStep = (Number(Na__UiState.rotationStep) + 1) % 4;
+            Na__Ui__Render();
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus('Rotation set to ' + (Na__UiState.rotationStep * 90) + ' deg');
         },
         Na__Events__OnPreviewToggle: function(isEnabled) {
             Na__UiState.isPreviewEnabled = isEnabled;
@@ -172,9 +263,23 @@
             Na__Ui__SetStatus('Toggle updated: ' + toggleKey + ' = ' + (isEnabled ? 'ON' : 'OFF'));
         },
         Na__Events__OnGenerate: function() {
+            if (Na__UiState.profileSourceMode === 'scene' && Na__UiState.sceneProfileStatus.isValid !== true) {
+                Na__Ui__SetStatus('Pick a scene profile source before generating.');
+                return;
+            }
             Na__UiState.lastGeneratePayload = Na__Ui__BuildGeneratePayload();
             if (window.Na__ProfilePathTracer__Bridge__Generate) {
                 window.Na__ProfilePathTracer__Bridge__Generate(Na__UiState.lastGeneratePayload);
+            }
+        },
+        Na__Events__OnPickSceneProfile: function() {
+            if (window.Na__ProfilePathTracer__Bridge__PickSceneProfile) {
+                window.Na__ProfilePathTracer__Bridge__PickSceneProfile();
+            }
+        },
+        Na__Events__OnClearSceneProfile: function() {
+            if (window.Na__ProfilePathTracer__Bridge__ClearSceneProfile) {
+                window.Na__ProfilePathTracer__Bridge__ClearSceneProfile();
             }
         },
         Na__Events__OnReloadPlugin: function() {
@@ -218,9 +323,16 @@
 
             Na__UiState.profiles = profileMap;
             Na__UiState.profileKey = payload.profileKey || '';
-            Na__UiState.pathMode = payload.pathMode || 'selection';
+            Na__UiState.profileSourceMode = payload.profileSourceMode || 'library';
+            Na__UiState.pathMode = payload.pathMode || 'interactive';
+            Na__UiState.rotationStep = Number(payload.rotationStep || 0) % 4;
             Na__UiState.isPreviewEnabled = payload.isPreviewEnabled !== false;
             Na__UiState.toggleDefinitions = payload.toggleDefinitions || {};
+            Na__UiState.sceneProfileStatus = payload.sceneProfileStatus || Na__UiState.sceneProfileStatus;
+            if (Na__UiState.sceneProfileStatus && Na__UiState.sceneProfileStatus.isValid === true && Na__UiState.sceneProfileStatus.profileData) {
+                Na__UiState.profiles[Na__UiState.sceneProfileStatus.profileData.profileKey] = Na__UiState.sceneProfileStatus.profileData;
+                Na__UiState.sceneProfileStatus.profileKey = Na__UiState.sceneProfileStatus.profileData.profileKey;
+            }
 
             var defaultToggleStates = payload.toggleStates || {};
             var nextToggleStates = {};
@@ -267,30 +379,56 @@
         Na__Ui__SetStatus(result.statusMessage || 'Generate callback complete.');
     }
 
+    function Na__ProfilePathTracer__ReceiveSceneProfileStatus(result) {
+        if (!result || typeof result !== 'object') {
+            Na__Ui__SetStatus('Scene profile status returned no payload.');
+            return;
+        }
+
+        Na__UiState.sceneProfileStatus = {
+            isValid: result.isValid === true,
+            displayName: result.displayName || '',
+            profileKey: result.profileKey || '',
+            statusMessage: result.statusMessage || ''
+        };
+
+        if (Na__UiState.sceneProfileStatus.isValid && result.profileData && result.profileData.profileKey) {
+            Na__UiState.profiles[result.profileData.profileKey] = result.profileData;
+            Na__UiState.sceneProfileStatus.profileKey = result.profileData.profileKey;
+        }
+
+        Na__Ui__Render();
+        Na__Ui__RenderProfilePreview();
+        if (result.statusMessage) {
+            Na__Ui__SetStatus(result.statusMessage);
+        }
+    }
+
     function Na__ProfilePathTracer__ReceiveExportValidation(result) {
         if (!result || typeof result !== 'object') {
             Na__Ui__SetStatus('Export validation returned no result.');
             return;
         }
 
+        if (result.isPendingOrigin === true) {
+            Na__Ui__SetStatus(result.statusMessage || 'Click in model to place 00__OriginPoint first.');
+            return;
+        }
+
         if (!result.isValid) {
-            Na__Ui__SetStatus('Cannot create profile: ' + (result.reason || 'Unknown error.'));
+            Na__Ui__SetStatus(result.statusMessage || ('Cannot create profile: ' + (result.reason || 'Unknown error.')));
             return;
         }
 
         Na__UiState.lastExportValidation = result;
 
         if (Array.isArray(result.previewPoints) && result.previewPoints.length >= 2) {
-            var exportPreviewRecord = {
-                profileData: {
-                    type: 'polyline2d',
-                    points: result.previewPoints
-                }
-            };
+            var exportPreviewRecord = Na__Ui__BuildUnifiedPreviewRecordFromPoints(result.previewPoints);
             var viewportSvg = document.getElementById('naProfileViewportSvg');
-            if (viewportSvg) {
+            if (viewportSvg && exportPreviewRecord) {
                     var previewResult = window.Na__ProfilePathTracer__Viewport__SvgGenerator.Na__Svg__GenerateProfile(exportPreviewRecord, {
-                        toggleStates: Na__UiState.toggleStates
+                        toggleStates: Na__UiState.toggleStates,
+                        rotationStep: Na__UiState.rotationStep
                     });
                 viewportSvg.setAttribute('viewBox', previewResult.viewBox || '-120 -120 240 240');
                 viewportSvg.innerHTML = previewResult.svg || '';
@@ -298,7 +436,7 @@
         }
 
         Na__Ui__ShowCreateProfilePanel(result);
-        Na__Ui__SetStatus('Selection validated. Fill in the profile details below.');
+        Na__Ui__SetStatus(result.statusMessage || 'Origin point set. Fill in profile details, then click Save Profile Data File.');
     }
 
     function Na__ProfilePathTracer__ReceiveSaveProfileResult(result) {
@@ -307,9 +445,13 @@
             return;
         }
 
-        Na__Ui__HideCreateProfilePanel();
+        if (result.isPending === true) {
+            Na__Ui__SetStatus(result.statusMessage || 'Click in model to place the origin helper point.');
+            return;
+        }
 
         if (result.isSaved) {
+            Na__Ui__HideCreateProfilePanel();
             Na__Ui__SetStatus(result.statusMessage || 'Profile saved successfully.');
         } else {
             Na__Ui__SetStatus(result.statusMessage || 'Profile save failed.');
@@ -325,6 +467,7 @@
     window.Na__ProfilePathTracer__ReceiveBootstrap = Na__ProfilePathTracer__ReceiveBootstrap;
     window.Na__ProfilePathTracer__ReceiveHeadlessResult = Na__ProfilePathTracer__ReceiveHeadlessResult;
     window.Na__ProfilePathTracer__ReceiveGenerateResult = Na__ProfilePathTracer__ReceiveGenerateResult;
+    window.Na__ProfilePathTracer__ReceiveSceneProfileStatus = Na__ProfilePathTracer__ReceiveSceneProfileStatus;
     window.Na__ProfilePathTracer__ReceiveExportValidation = Na__ProfilePathTracer__ReceiveExportValidation;
     window.Na__ProfilePathTracer__ReceiveSaveProfileResult = Na__ProfilePathTracer__ReceiveSaveProfileResult;
     window.Na__ProfilePathTracer__Ui__Render = Na__Ui__Render;
