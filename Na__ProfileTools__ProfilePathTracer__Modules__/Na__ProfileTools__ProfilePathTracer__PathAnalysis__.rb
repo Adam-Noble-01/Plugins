@@ -155,7 +155,7 @@ module Na__ProfileTools__ProfilePathTracer
 
             dominant_axis = self.Na__Path__DominantPlaneAxis(ordered_points)
             signed_area = self.Na__Path__SignedAreaInPlane(ordered_points, dominant_axis)
-            return { ordered_points: ordered_points, ordered_edges: ordered_edges } if signed_area >= 0
+            return { ordered_points: ordered_points, ordered_edges: ordered_edges } if signed_area <= 0    # <-- Force CW traversal so profile lands on the exterior side (matches typical interactive convention)
 
             reversed_points = self.Na__Path__ReverseClosedLoopPoints(ordered_points)
             reversed_edges = Array(ordered_edges).reverse

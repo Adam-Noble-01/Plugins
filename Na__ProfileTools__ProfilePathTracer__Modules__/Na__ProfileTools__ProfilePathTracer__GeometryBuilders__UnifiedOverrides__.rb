@@ -535,6 +535,8 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Edge styling — cap planes — reference records
     # -------------------------------------------------------------------------
 
+        NA_RUN_EDGE_SOFTEN_ANGLE_RADIANS = 20.0 * Math::PI / 180.0      # <-- Default SketchUp soft-edges threshold
+
         def self.Na__Geometry__ApplyUnifiedEdgeStates(entities, model, profile_data, path_edge_ids, path_data)
             style_reference = self.Na__Geometry__BuildStyleReferenceRecords(profile_data)
             return 0 if style_reference.empty?
@@ -555,18 +557,48 @@ module Na__ProfileTools__ProfilePathTracer
             end
             return 0 if run_edges.empty?
 
-            run_style_defaults = self.Na__Geometry__BuildRunStyleDefaults(style_reference)
             styled_count = 0
             run_edges.each do |edge|
                 reference = self.Na__Geometry__FindClosestStyleReference(edge, style_reference)
-                style_payload = (reference || {}).merge(
-                    'IsSoft' => run_style_defaults['IsSoft'],
-                    'IsSmooth' => run_style_defaults['IsSmooth']
-                )
+                style_payload = self.Na__Geometry__BuildPerEdgeStylePayload(edge, reference)
                 self.Na__Geometry__ApplyEdgeState(edge, model, style_payload)
                 styled_count += 1
             end
             styled_count
+        end
+
+        def self.Na__Geometry__BuildPerEdgeStylePayload(edge, reference)
+            base_payload = (reference || {}).dup
+            should_soften = self.Na__Geometry__ShouldSoftenRunEdgeByAngle?(edge)
+            base_payload['IsSoft']   = should_soften
+            base_payload['IsSmooth'] = should_soften
+            base_payload
+        end
+
+        def self.Na__Geometry__ShouldSoftenRunEdgeByAngle?(edge)
+            return false unless edge && edge.valid?
+            faces = Array(edge.faces).select(&:valid?)
+            return false unless faces.length == 2
+
+            angle = self.Na__Geometry__DihedralAngleBetween(faces[0], faces[1])
+            return false unless angle
+            angle <= NA_RUN_EDGE_SOFTEN_ANGLE_RADIANS
+        rescue
+            false
+        end
+
+        def self.Na__Geometry__DihedralAngleBetween(face_a, face_b)
+            return nil unless face_a && face_b && face_a.valid? && face_b.valid?
+            normal_a = face_a.normal
+            normal_b = face_b.normal
+            return nil if normal_a.length <= 0.001 || normal_b.length <= 0.001
+
+            cos_angle = (normal_a.dot(normal_b)) / (normal_a.length * normal_b.length)
+            cos_angle = -1.0 if cos_angle < -1.0
+            cos_angle = 1.0 if cos_angle > 1.0
+            Math.acos(cos_angle.abs)                                    # <-- Absolute value gives unoriented angle (0..pi/2)
+        rescue
+            nil
         end
 
         def self.Na__Geometry__BuildPathCapPlanes(path_data)
@@ -608,12 +640,6 @@ module Na__ProfileTools__ProfilePathTracer
             end
         end
 
-        def self.Na__Geometry__BuildPathDirectionVectors(path_data)
-            ordered_points = self.Na__Geometry__BuildSanitizedPathPoints((path_data || {})[:ordered_points] || [])
-            directions = self.Na__Geometry__BuildPathSegmentDirections(ordered_points)
-            directions.select { |direction| direction.length > 0.001 }
-        end
-
         def self.Na__Geometry__ClassifyAsConnectorRunEdge?(edge)
             return false unless edge && edge.valid?
             return false unless edge.respond_to?(:faces)
@@ -622,34 +648,6 @@ module Na__ProfileTools__ProfilePathTracer
             faces.length >= 2
         rescue
             false
-        end
-
-        def self.Na__Geometry__EdgeParallelToPath?(edge, path_directions)
-            return false unless edge && edge.valid?
-            return false unless path_directions.is_a?(Array) && !path_directions.empty?
-
-            edge_vector = edge.end.position - edge.start.position
-            return false if edge_vector.length <= 0.001
-            edge_vector.normalize!
-
-            parallel_threshold = 0.985
-            path_directions.any? do |direction|
-                begin
-                    edge_vector.dot(direction).abs >= parallel_threshold
-                rescue
-                    false
-                end
-            end
-        end
-
-        def self.Na__Geometry__BuildRunStyleDefaults(style_reference)
-            references = Array(style_reference)
-            soft_enabled = references.any? { |reference| reference['IsSoft'] == true }
-            smooth_enabled = references.any? { |reference| reference['IsSmooth'] == true }
-            {
-                'IsSoft' => soft_enabled,
-                'IsSmooth' => smooth_enabled
-            }
         end
 
         def self.Na__Geometry__BuildStyleReferenceRecords(profile_data)

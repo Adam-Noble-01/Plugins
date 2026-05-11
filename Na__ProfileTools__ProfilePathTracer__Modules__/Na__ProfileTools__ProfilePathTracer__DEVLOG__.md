@@ -3,6 +3,20 @@
 ## Version History
 
 # =======================================================================================
+## ProfileTools Version 0.3.4 - 11-May-2026
+
+### Per-Edge Dihedral Smoothing + Winding-Flip For Selection Mode
+
+- Replaced over-smoothing logic in `Na__Geometry__ApplyUnifiedEdgeStates`:
+  - Previously, `BuildRunStyleDefaults` used `any?` to force ALL run edges to soft+smooth if any profile mesh edge was IsSoft/IsSmooth. Cause of the "heavy smoothing on entire object" symptom that persisted across first-load and reload.
+  - New `Na__Geometry__ShouldSoftenRunEdgeByAngle?` decides per edge using the dihedral angle between adjacent faces (threshold 20 deg, matching SketchUp's built-in soften default).
+  - New `Na__Geometry__DihedralAngleBetween` and `Na__Geometry__BuildPerEdgeStylePayload` keep each function single-responsibility.
+  - Removed dead helpers `BuildRunStyleDefaults`, `BuildPathDirectionVectors`, `EdgeParallelToPath?` (no longer referenced).
+- Flipped closed-loop winding normalisation in `Na__Path__NormaliseClosedLoopWinding`:
+  - Selection-mode loops are now normalised to CW from the dominant plane axis (was CCW). This matches the typical interactive convention where the profile lands on the exterior of the loop (picture-frame trim around a perimeter).
+- Net effect: first-time generation now produces correct edge smoothing without requiring `Reload Plugin`, and selection mode generates the profile on the same side as interactive mode.
+
+# =======================================================================================
 ## ProfileTools Version 0.3.3 - 11-May-2026
 
 ### Closed-Loop Miter, Duplicate-Builder Purge, Selection/Interactive Parity
