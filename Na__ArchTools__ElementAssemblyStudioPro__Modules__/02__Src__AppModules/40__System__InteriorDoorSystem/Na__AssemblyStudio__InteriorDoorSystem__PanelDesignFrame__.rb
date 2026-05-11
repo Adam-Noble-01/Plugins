@@ -170,7 +170,7 @@ module Na__InteriorDoorSystem
         # FUNCTION | Draw a Horizontal Cross-Rail as a Gap-Clipped Pair
         # ------------------------------------------------------------
         # A cross-rail is rendered as TWO parallel horizontal edges at
-        # z = z_centre +/- (inner_rail_t / 2), spanning the inner
+        # z = z_centre +/- (rail_thickness / 2), spanning the inner
         # perimeter X range and clipped at every mullion's X band so
         # the joint with the mullion reads as a clean butt-joint.
         #
@@ -179,9 +179,12 @@ module Na__InteriorDoorSystem
         # @param z_centre_mm [Numeric] Centre-line Z of the cross-rail (mm)
         # @param mullions [Array<Hash>] Each entry: { :x_left, :x_right }
         # @param y_mm [Numeric] Y plane the linework lives on (mm)
+        # @param rail_thickness_mm [Numeric, nil] Override rail thickness (mm);
+        #   falls back to layout[:inner_rail_t] when nil
         # @return [Integer] Number of edges added
-        def self.na_draw_horizontal_rail_pair(face_entities, layout, z_centre_mm, mullions, y_mm)
-            half_t = layout[:inner_rail_t] / 2.0
+        def self.na_draw_horizontal_rail_pair(face_entities, layout, z_centre_mm, mullions, y_mm, rail_thickness_mm = nil)
+            thickness = (rail_thickness_mm && rail_thickness_mm > 0) ? rail_thickness_mm.to_f : layout[:inner_rail_t]
+            half_t = thickness / 2.0
             x_min  = layout[:inner_x_min]
             x_max  = layout[:inner_x_max]
             x_gaps = na_mullions_to_x_gaps(mullions)

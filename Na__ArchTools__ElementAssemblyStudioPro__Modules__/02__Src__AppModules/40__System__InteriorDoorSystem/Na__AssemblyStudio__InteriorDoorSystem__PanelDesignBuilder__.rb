@@ -95,20 +95,30 @@ module Na__InteriorDoorSystem
 
         # CONSTANTS | Configuration Keys + Defaults
         # ------------------------------------------------------------
-        NA_KEY_ENABLED          = "Na__DoorConfig__PanelDesignEnabled".freeze
-        NA_KEY_STYLE            = "Na__DoorConfig__PanelDesignStyle".freeze
-        NA_KEY_STILE_W          = "Na__DoorConfig__PanelDesignStileWidth_mm".freeze
-        NA_KEY_TOP_RAIL         = "Na__DoorConfig__PanelDesignTopRail_mm".freeze
-        NA_KEY_BOTTOM_RAIL      = "Na__DoorConfig__PanelDesignBottomRail_mm".freeze
-        NA_KEY_INNER_RAIL_T     = "Na__DoorConfig__PanelDesignInnerRailThickness_mm".freeze
-        NA_KEY_VERTICAL_PANE_W  = "Na__DoorConfig__PanelDesignVerticalPaneWidth_mm".freeze
-        NA_KEY_EDGE_COLOUR_ID   = "Na__DoorConfig__PanelDesignEdgeColourId".freeze
+        NA_KEY_ENABLED                  = "Na__DoorConfig__PanelDesignEnabled".freeze
+        NA_KEY_STYLE                    = "Na__DoorConfig__PanelDesignStyle".freeze
+        NA_KEY_STILE_W                  = "Na__DoorConfig__PanelDesignStileWidth_mm".freeze
+        NA_KEY_TOP_RAIL                 = "Na__DoorConfig__PanelDesignTopRail_mm".freeze
+        NA_KEY_BOTTOM_RAIL              = "Na__DoorConfig__PanelDesignBottomRail_mm".freeze
+        NA_KEY_INNER_RAIL_T             = "Na__DoorConfig__PanelDesignInnerRailThickness_mm".freeze
+        NA_KEY_VERTICAL_PANE_W          = "Na__DoorConfig__PanelDesignVerticalPaneWidth_mm".freeze
+        NA_KEY_EDGE_COLOUR_ID           = "Na__DoorConfig__PanelDesignEdgeColourId".freeze
+        # Four-panel style specific: cross-rail thickness and handle height reference
+        NA_KEY_FOUR_PANEL_CROSS_RAIL_T  = "Na__DoorConfig__FourPanel__CrossRailThickness_mm".freeze # <-- Overrides inner_rail_t for the horizontal lockrail only
+        NA_KEY_HANDLE_HEIGHT            = "Na__DoorConfig__HandleHeight_mm".freeze                  # <-- Used to centre the lockrail at handle height
+        # Classical six-panel style specific: independent per-rail thickness
+        NA_KEY_SIX_PANEL_LOCK_RAIL_T    = "Na__DoorConfig__ClassicalSix__LockRailThickness_mm".freeze # <-- Lower lockrail (at handle height)
+        NA_KEY_SIX_PANEL_MID_RAIL_T     = "Na__DoorConfig__ClassicalSix__MidRailThickness_mm".freeze  # <-- Upper mid-rail
 
-        NA_DEFAULT_STILE_W          = 95.0
-        NA_DEFAULT_TOP_RAIL         = 100.0
-        NA_DEFAULT_BOTTOM_RAIL      = 200.0
-        NA_DEFAULT_INNER_RAIL_T     = 70.0
-        NA_DEFAULT_VERTICAL_PANE_W  = 90.0
+        NA_DEFAULT_STILE_W                  = 95.0
+        NA_DEFAULT_TOP_RAIL                 = 100.0
+        NA_DEFAULT_BOTTOM_RAIL              = 200.0
+        NA_DEFAULT_INNER_RAIL_T             = 70.0
+        NA_DEFAULT_VERTICAL_PANE_W          = 90.0
+        NA_DEFAULT_FOUR_PANEL_CROSS_RAIL_T  = 200.0                                                 # <-- Standard lockrail height (mm)
+        NA_DEFAULT_HANDLE_HEIGHT            = 900.0                                                  # <-- Typical UK lever handle height (mm)
+        NA_DEFAULT_SIX_PANEL_LOCK_RAIL_T    = 200.0                                                 # <-- Standard lockrail (lower, at handle height)
+        NA_DEFAULT_SIX_PANEL_MID_RAIL_T     = 125.0                                                 # <-- Standard mid-rail (upper)
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -254,9 +264,13 @@ module Na__InteriorDoorSystem
                 preferred_pane_w = na_config_number(config, NA_KEY_VERTICAL_PANE_W, NA_DEFAULT_VERTICAL_PANE_W)
                 StyleVerticalNarrow.na_build_face_lines(face_entities, layout, preferred_pane_w, y_mm)
             when NA_STYLE_CLASSICAL_SIX
-                StyleClassicalSixPanel.na_build_face_lines(face_entities, layout, y_mm)
+                lock_rail_t = na_config_number(config, NA_KEY_SIX_PANEL_LOCK_RAIL_T, NA_DEFAULT_SIX_PANEL_LOCK_RAIL_T)
+                mid_rail_t  = na_config_number(config, NA_KEY_SIX_PANEL_MID_RAIL_T,  NA_DEFAULT_SIX_PANEL_MID_RAIL_T)
+                StyleClassicalSixPanel.na_build_face_lines(face_entities, layout, y_mm, lock_rail_t, mid_rail_t)
             when NA_STYLE_FOUR_PANEL
-                StyleFourPanel.na_build_face_lines(face_entities, layout, y_mm)
+                cross_rail_t       = na_config_number(config, NA_KEY_FOUR_PANEL_CROSS_RAIL_T, NA_DEFAULT_FOUR_PANEL_CROSS_RAIL_T)
+                handle_height_z_mm = na_config_number(config, NA_KEY_HANDLE_HEIGHT,           NA_DEFAULT_HANDLE_HEIGHT)
+                StyleFourPanel.na_build_face_lines(face_entities, layout, y_mm, cross_rail_t, handle_height_z_mm)
             when NA_STYLE_HORIZONTAL_THREE
                 StyleHorizontalThree.na_build_face_lines(face_entities, layout, y_mm)
             else

@@ -71,14 +71,24 @@ module Na__InteriorDoorSystem
         # perimeter and the two cross-rail pairs and one mullion pair
         # using the shared frame helpers (which apply joint clipping).
         #
+        # Each cross-rail uses its own thickness so the proportions
+        # match a real Georgian door:
+        #   - lock_rail_t_mm  : lower lockrail at ~38% height (default 200 mm)
+        #   - mid_rail_t_mm   : upper mid-rail  at ~76% height (default 125 mm)
+        # The vertical mullion keeps using layout[:inner_rail_t] (default 70 mm).
+        #
         # @param face_entities [Sketchup::Entities] Target group entities
         # @param layout [Hash] Layout from Na__PanelDesignFrame.na_compute_layout
         # @param y_mm [Numeric] Y plane the linework lives on (mm)
+        # @param lock_rail_t_mm [Numeric] Lower lockrail thickness (mm)
+        # @param mid_rail_t_mm [Numeric] Upper mid-rail thickness (mm)
         # @return [Integer] Number of edges drawn
-        def self.na_build_face_lines(face_entities, layout, y_mm)
+        def self.na_build_face_lines(face_entities, layout, y_mm, lock_rail_t_mm = 200.0, mid_rail_t_mm = 125.0)
             return 0 unless layout[:inner_perimeter_valid?]
 
-            half_t              = layout[:inner_rail_t] / 2.0
+            half_mullion        = layout[:inner_rail_t] / 2.0
+            half_lock           = lock_rail_t_mm.to_f / 2.0
+            half_mid            = mid_rail_t_mm.to_f  / 2.0
             inner_h             = layout[:inner_h]
             inner_z_min         = layout[:inner_z_min]
             inner_x_min         = layout[:inner_x_min]
@@ -89,23 +99,22 @@ module Na__InteriorDoorSystem
             mullion_x_centre    = (inner_x_min + inner_x_max) / 2.0
 
             cross_rails = [
-                { :z_low => cross_low_z_centre  - half_t, :z_high => cross_low_z_centre  + half_t, :z_centre => cross_low_z_centre  },
-                { :z_low => cross_high_z_centre - half_t, :z_high => cross_high_z_centre + half_t, :z_centre => cross_high_z_centre }
+                { :z_low => cross_low_z_centre  - half_lock, :z_high => cross_low_z_centre  + half_lock, :z_centre => cross_low_z_centre  },
+                { :z_low => cross_high_z_centre - half_mid,  :z_high => cross_high_z_centre + half_mid,  :z_centre => cross_high_z_centre  }
             ]
             mullions = [
-                { :x_left => mullion_x_centre - half_t, :x_right => mullion_x_centre + half_t, :x_centre => mullion_x_centre }
+                { :x_left => mullion_x_centre - half_mullion, :x_right => mullion_x_centre + half_mullion, :x_centre => mullion_x_centre }
             ]
 
             count  = 0
             count += PanelDesignFrame.na_draw_inner_perimeter(face_entities, layout, y_mm, mullions, cross_rails)
-            cross_rails.each do |cr|
-                count += PanelDesignFrame.na_draw_horizontal_rail_pair(face_entities, layout, cr[:z_centre], mullions, y_mm)
-            end
+            count += PanelDesignFrame.na_draw_horizontal_rail_pair(face_entities, layout, cross_low_z_centre,  mullions, y_mm, lock_rail_t_mm)
+            count += PanelDesignFrame.na_draw_horizontal_rail_pair(face_entities, layout, cross_high_z_centre, mullions, y_mm, mid_rail_t_mm)
             mullions.each do |m|
                 count += PanelDesignFrame.na_draw_vertical_mullion_pair(face_entities, layout, m[:x_centre], cross_rails, y_mm)
             end
 
-            DebugTools.na_debug_geometry("PanelDesign[ClassicalSixPanel]: drew #{count} edges")
+            DebugTools.na_debug_geometry("PanelDesign[ClassicalSixPanel]: drew #{count} edges (lock=#{lock_rail_t_mm}mm, mid=#{mid_rail_t_mm}mm)")
             count
         end
         # ---------------------------------------------------------------

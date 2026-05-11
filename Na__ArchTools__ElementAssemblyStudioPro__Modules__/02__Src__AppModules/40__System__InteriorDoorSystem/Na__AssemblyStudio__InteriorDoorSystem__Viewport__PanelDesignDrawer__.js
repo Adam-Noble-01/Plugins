@@ -55,11 +55,15 @@
     var NA_STYLE_FOUR_PANEL           = 'FourPanel';
     var NA_STYLE_HORIZONTAL_THREE     = 'HorizontalThree';
 
-    var NA_DEFAULT_STILE_W            = 95;
-    var NA_DEFAULT_TOP_RAIL           = 100;
-    var NA_DEFAULT_BOTTOM_RAIL        = 200;
-    var NA_DEFAULT_INNER_RAIL_T       = 70;
-    var NA_DEFAULT_VERTICAL_PANE_W    = 90;
+    var NA_DEFAULT_STILE_W                = 95;
+    var NA_DEFAULT_TOP_RAIL               = 100;
+    var NA_DEFAULT_BOTTOM_RAIL            = 200;
+    var NA_DEFAULT_INNER_RAIL_T           = 70;
+    var NA_DEFAULT_VERTICAL_PANE_W        = 90;
+    var NA_DEFAULT_FOUR_PANEL_CROSS_RAIL_T  = 200;                              // <-- Mirrors Ruby NA_DEFAULT_FOUR_PANEL_CROSS_RAIL_T
+    var NA_DEFAULT_HANDLE_HEIGHT            = 900;                              // <-- Mirrors Ruby NA_DEFAULT_HANDLE_HEIGHT
+    var NA_DEFAULT_SIX_PANEL_LOCK_RAIL_T   = 200;                              // <-- Mirrors Ruby NA_DEFAULT_SIX_PANEL_LOCK_RAIL_T
+    var NA_DEFAULT_SIX_PANEL_MID_RAIL_T    = 125;                              // <-- Mirrors Ruby NA_DEFAULT_SIX_PANEL_MID_RAIL_T
 
     var NA_MIN_INNER_DIMENSION_MM     = 50.0;
     var NA_DESIGN_STROKE              = '#5a4324';
@@ -109,28 +113,50 @@
     function na_compute_layout(panelLayout, config) {
         var panelW       = panelLayout.panelClearWidth;
         var panelH       = panelLayout.panelClearHeight;
-        var stileW       = na_num(config, 'Na__DoorConfig__PanelDesignStileWidth_mm', NA_DEFAULT_STILE_W);
-        var topRail      = na_num(config, 'Na__DoorConfig__PanelDesignTopRail_mm',    NA_DEFAULT_TOP_RAIL);
-        var bottomRail   = na_num(config, 'Na__DoorConfig__PanelDesignBottomRail_mm', NA_DEFAULT_BOTTOM_RAIL);
-        var innerRailT   = na_num(config, 'Na__DoorConfig__PanelDesignInnerRailThickness_mm', NA_DEFAULT_INNER_RAIL_T);
+        var stileW       = na_num(config, 'Na__DoorConfig__PanelDesignStileWidth_mm',          NA_DEFAULT_STILE_W);
+        var topRail      = na_num(config, 'Na__DoorConfig__PanelDesignTopRail_mm',             NA_DEFAULT_TOP_RAIL);
+        var bottomRail   = na_num(config, 'Na__DoorConfig__PanelDesignBottomRail_mm',          NA_DEFAULT_BOTTOM_RAIL);
+        var innerRailT   = na_num(config, 'Na__DoorConfig__PanelDesignInnerRailThickness_mm',  NA_DEFAULT_INNER_RAIL_T);
+        var crossRailT      = na_num(config, 'Na__DoorConfig__FourPanel__CrossRailThickness_mm',  NA_DEFAULT_FOUR_PANEL_CROSS_RAIL_T);
+        var handleHeight    = na_num(config, 'Na__DoorConfig__HandleHeight_mm',                   NA_DEFAULT_HANDLE_HEIGHT);
+        var sixLockRailT    = na_num(config, 'Na__DoorConfig__ClassicalSix__LockRailThickness_mm', NA_DEFAULT_SIX_PANEL_LOCK_RAIL_T);
+        var sixMidRailT     = na_num(config, 'Na__DoorConfig__ClassicalSix__MidRailThickness_mm',  NA_DEFAULT_SIX_PANEL_MID_RAIL_T);
 
         var innerW       = panelW - (stileW * 2);
         var innerH       = panelH - topRail - bottomRail;
 
+        var innerYMin    = panelLayout.panelTopY + topRail;                     // <-- SVG Y at INNER top (corresponds to Ruby inner_z_max)
+        var innerYMax    = panelLayout.panelTopY + panelH - bottomRail;         // <-- SVG Y at INNER bottom (corresponds to Ruby inner_z_min)
+        var midY         = (innerYMin + innerYMax) / 2.0;
+
+        // Resolve the four-panel cross-rail centre at handle height, clamped to fit inside the inner perimeter.
+        // SVG Y is flipped: handle height rises from the panel BOTTOM, so crossRailY = panelTopY + panelH - handleHeight.
+        var halfCross    = crossRailT / 2.0;
+        var yMinSafe     = innerYMin + halfCross;                               // <-- Highest safe centre (small SVG Y)
+        var yMaxSafe     = innerYMax - halfCross;                               // <-- Lowest safe centre (large SVG Y)
+        var rawY         = panelLayout.panelTopY + panelH - handleHeight;
+        var fourPanelCrossRailYCentre = (yMinSafe < yMaxSafe)
+            ? Math.min(yMaxSafe, Math.max(yMinSafe, rawY))
+            : midY;                                                             // <-- Fallback: geometric mid if perimeter is too small
+
         return {
-            panelX           : panelLayout.panelX,                              // <-- Absolute SVG X of panel left edge
-            panelTopY        : panelLayout.panelTopY,                           // <-- Absolute SVG Y of panel top edge
-            panelW           : panelW,
-            panelH           : panelH,
-            innerXMin        : panelLayout.panelX + stileW,
-            innerXMax        : panelLayout.panelX + panelW - stileW,
-            innerYMin        : panelLayout.panelTopY + topRail,                 // <-- SVG Y at INNER top (corresponds to Ruby inner_z_max)
-            innerYMax        : panelLayout.panelTopY + panelH - bottomRail,     // <-- SVG Y at INNER bottom (corresponds to Ruby inner_z_min)
-            innerW           : innerW,
-            innerH           : innerH,
-            innerRailT       : innerRailT,
-            innerPerimValid  : (innerW >= NA_MIN_INNER_DIMENSION_MM &&
-                                innerH >= NA_MIN_INNER_DIMENSION_MM)
+            panelX                    : panelLayout.panelX,
+            panelTopY                 : panelLayout.panelTopY,
+            panelW                    : panelW,
+            panelH                    : panelH,
+            innerXMin                 : panelLayout.panelX + stileW,
+            innerXMax                 : panelLayout.panelX + panelW - stileW,
+            innerYMin                 : innerYMin,
+            innerYMax                 : innerYMax,
+            innerW                    : innerW,
+            innerH                    : innerH,
+            innerRailT                : innerRailT,
+            crossRailT                : crossRailT,                            // <-- Four-panel lockrail thickness (mm)
+            fourPanelCrossRailYCentre : fourPanelCrossRailYCentre,             // <-- Clamped handle-height position (SVG Y)
+            sixLockRailT              : sixLockRailT,                          // <-- Classical Six lower lockrail thickness (mm)
+            sixMidRailT               : sixMidRailT,                           // <-- Classical Six upper mid-rail thickness (mm)
+            innerPerimValid           : (innerW >= NA_MIN_INNER_DIMENSION_MM &&
+                                        innerH >= NA_MIN_INNER_DIMENSION_MM)
         };
     }
     // ---------------------------------------------------------------
@@ -243,8 +269,12 @@
 
     // HELPER FUNCTION | Draw a Horizontal Cross-Rail Pair (Gap-Clipped)
     // ------------------------------------------------------------
-    function na_draw_horizontal_rail_pair(svg, layout, yCentre, mullions) {
-        var halfT = layout.innerRailT / 2.0;
+    // railThicknessMm overrides layout.innerRailT when supplied and > 0,
+    // allowing the FourPanel lockrail to use 200 mm while other callers
+    // retain the shared innerRailT (70 mm default).
+    function na_draw_horizontal_rail_pair(svg, layout, yCentre, mullions, railThicknessMm) {
+        var thickness = (railThicknessMm && railThicknessMm > 0) ? railThicknessMm : layout.innerRailT;
+        var halfT = thickness / 2.0;
         var xGaps = na_mullions_to_x_gaps(mullions);
         na_draw_horizontal_segmented(svg, layout.innerXMin, layout.innerXMax, yCentre - halfT, xGaps);
         na_draw_horizontal_segmented(svg, layout.innerXMin, layout.innerXMax, yCentre + halfT, xGaps);
@@ -288,26 +318,31 @@
     // ------------------------------------------------------------
     // SVG Y is top-down so the "lower tier boundary" (Ruby Z space)
     // corresponds to a HIGHER SVG Y value (closer to bottom of canvas).
+    // Each cross-rail now uses its own thickness to match real Georgian doors:
+    //   - Lower lockrail (crossLowYCentre)  : sixLockRailT (default 200 mm)
+    //   - Upper mid-rail (crossHighYCentre) : sixMidRailT  (default 125 mm)
+    // The vertical mullion keeps using innerRailT (default 70 mm).
     function na_build_classical_six(svg, layout) {
-        var halfT = layout.innerRailT / 2.0;
-        var innerH = layout.innerH;
-        var innerYMax = layout.innerYMax;                                       // <-- bottom of inner perimeter (high SVG Y)
+        var halfLock    = layout.sixLockRailT / 2.0;
+        var halfMid     = layout.sixMidRailT  / 2.0;
+        var halfMullion = layout.innerRailT   / 2.0;
+        var innerH      = layout.innerH;
+        var innerYMax   = layout.innerYMax;                                     // <-- bottom of inner perimeter (high SVG Y)
         var crossLowYCentre  = innerYMax - (innerH * NA_TIER_RATIO_BOTTOM);
         var crossHighYCentre = innerYMax - (innerH * (NA_TIER_RATIO_BOTTOM + NA_TIER_RATIO_MIDDLE));
         var mullionXCentre   = (layout.innerXMin + layout.innerXMax) / 2.0;
 
         var crossRails = [
-            { yTop: crossLowYCentre  - halfT, yBottom: crossLowYCentre  + halfT, yCentre: crossLowYCentre  },
-            { yTop: crossHighYCentre - halfT, yBottom: crossHighYCentre + halfT, yCentre: crossHighYCentre }
+            { yTop: crossLowYCentre  - halfLock, yBottom: crossLowYCentre  + halfLock, yCentre: crossLowYCentre  },
+            { yTop: crossHighYCentre - halfMid,  yBottom: crossHighYCentre + halfMid,  yCentre: crossHighYCentre }
         ];
         var mullions = [
-            { xLeft: mullionXCentre - halfT, xRight: mullionXCentre + halfT, xCentre: mullionXCentre }
+            { xLeft: mullionXCentre - halfMullion, xRight: mullionXCentre + halfMullion, xCentre: mullionXCentre }
         ];
 
         na_draw_inner_perimeter(svg, layout, mullions, crossRails);
-        crossRails.forEach(function (cr) {
-            na_draw_horizontal_rail_pair(svg, layout, cr.yCentre, mullions);
-        });
+        na_draw_horizontal_rail_pair(svg, layout, crossLowYCentre,  mullions, layout.sixLockRailT); // <-- 200 mm lockrail
+        na_draw_horizontal_rail_pair(svg, layout, crossHighYCentre, mullions, layout.sixMidRailT);  // <-- 125 mm mid-rail
         mullions.forEach(function (m) {
             na_draw_vertical_mullion_pair(svg, layout, m.xCentre, crossRails);
         });
@@ -316,20 +351,24 @@
 
     // SUB FUNCTION | Four-Panel - 2x2 grid
     // ------------------------------------------------------------
+    // Mirrors Ruby Na__PanelDesignStyles__FourPanel.na_build_face_lines:
+    // - Cross-rail centred at handle height (clamped), thickness = crossRailT (200 mm default).
+    // - Vertical mullion uses innerRailT (70 mm default) independently.
     function na_build_four_panel(svg, layout) {
-        var halfT = layout.innerRailT / 2.0;
-        var crossYCentre = (layout.innerYMin + layout.innerYMax) / 2.0;
+        var halfCross      = layout.crossRailT / 2.0;
+        var halfMullion    = layout.innerRailT / 2.0;
+        var crossYCentre   = layout.fourPanelCrossRailYCentre;                 // <-- Handle-height-aligned, pre-clamped
         var mullionXCentre = (layout.innerXMin + layout.innerXMax) / 2.0;
 
         var crossRails = [
-            { yTop: crossYCentre - halfT, yBottom: crossYCentre + halfT, yCentre: crossYCentre }
+            { yTop: crossYCentre - halfCross, yBottom: crossYCentre + halfCross, yCentre: crossYCentre }
         ];
         var mullions = [
-            { xLeft: mullionXCentre - halfT, xRight: mullionXCentre + halfT, xCentre: mullionXCentre }
+            { xLeft: mullionXCentre - halfMullion, xRight: mullionXCentre + halfMullion, xCentre: mullionXCentre }
         ];
 
         na_draw_inner_perimeter(svg, layout, mullions, crossRails);
-        na_draw_horizontal_rail_pair(svg, layout, crossYCentre, mullions);
+        na_draw_horizontal_rail_pair(svg, layout, crossYCentre, mullions, layout.crossRailT); // <-- Pass 200 mm thickness
         na_draw_vertical_mullion_pair(svg, layout, mullionXCentre, crossRails);
     }
     // ---------------------------------------------------------------

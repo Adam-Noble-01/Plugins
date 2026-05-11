@@ -373,8 +373,9 @@
     // ------------------------------------------------------------
     // The open-position panel rectangle is anchored at the hinge-side
     // corner of the reveal (layout.hingeY) and extends perpendicular
-    // to the wall on the side the door opens to - above for inward,
-    // below for outward. Horizontal placement mirrors the swing side.
+    // to the wall on the side the door opens to:
+    //   Outward  -> ABOVE the wall (small SVG Y = exterior)
+    //   Inward   -> BELOW the wall (large SVG Y = room)
     function na_build_open_panel_outline(svg, layout) {
         var hingeX = (layout.swingSide === 'Left')
             ? layout.openingX + layout.liningThickness
@@ -382,7 +383,7 @@
         var hingeY = layout.hingeY;
 
         var outward = (layout.swingDirection === 'outward');
-        var rectY   = outward ? hingeY : hingeY - layout.panelClearWidth;       // <-- Extend DOWN for outward, UP for inward
+        var rectY   = outward ? hingeY - layout.panelClearWidth : hingeY;       // <-- Extend UP (small Y) for outward, DOWN (large Y) for inward
         var rectX   = (layout.swingSide === 'Left') ? hingeX : hingeX - layout.panelThickness;
 
         var openRect = na_make_svg('rect', {
@@ -402,11 +403,11 @@
     // SUB FUNCTION | Build the Dotted Swing Arc
     // ------------------------------------------------------------
     // The arc anchors at the hinge-side corner of the reveal and
-    // sweeps 90 deg to the open position on the room side (inward)
-    // or the exterior side (outward). layout.hingeY sits on the
-    // correct wall face for each swing direction; the arc's endY
-    // sign and sweepFlag flip for outward so the arc bulges on the
-    // correct side of the wall.
+    // sweeps 90 deg to the open position:
+    //   Outward -> end is ABOVE (smaller SVG Y = exterior side)
+    //   Inward  -> end is BELOW (larger SVG Y = room side)
+    // layout.hingeY is on the exterior face for outward and the
+    // room face for inward (matching panelY positioning in na_compute_layout).
     function na_build_swing_arc(svg, layout) {
         var hingeX = (layout.swingSide === 'Left')
             ? layout.openingX + layout.liningThickness
@@ -420,14 +421,14 @@
         var endX   = hingeX;
 
         var outward = (layout.swingDirection === 'outward');
-        var signY   = outward ? +1 : -1;                                       // <-- UP (smaller Y) for inward, DOWN (larger Y) for outward
+        var signY   = outward ? -1 : +1;                                       // <-- UP (smaller Y) for outward, DOWN (larger Y) for inward
         var endY    = hingeY + signY * layout.panelClearWidth;
 
         var sweepFlag;
         if (outward) {
-            sweepFlag = (layout.swingSide === 'Left') ? 1 : 0;                 // <-- Arc bulges on the exterior side
+            sweepFlag = (layout.swingSide === 'Left') ? 0 : 1;                 // <-- Arc bulges on the exterior side (above wall)
         } else {
-            sweepFlag = (layout.swingSide === 'Left') ? 0 : 1;                 // <-- Arc bulges on the room side
+            sweepFlag = (layout.swingSide === 'Left') ? 1 : 0;                 // <-- Arc bulges on the room side (below wall)
         }
 
         var d = 'M ' + startX + ' ' + startY +
@@ -495,14 +496,22 @@
 
         var panelClearWidth  = openingWidth - (liningThickness * 2);
 
+        // SVG Y AXIS NOTE:
+        // Ruby 3D Y+ maps to the TOP of the SVG plan (small SVG Y), so the
+        // mapping is: exterior (far / large Ruby Y) = small SVG Y (top) and
+        // room (near / small Ruby Y) = large SVG Y (bottom).
+        // Outward opens toward exterior (top / small Y); inward opens toward
+        // room (bottom / large Y).  Panel and hinge positions are set
+        // accordingly so the closed panel lies on the correct wall face and
+        // the swing arc bulges on the correct side.
         var panelY;
         var hingeY;                                                            // <-- Hinge pivot Y: panel's hinge-side face (= wall face the hinge sits on)
-        if (swingDirection === 'inward') {
-            panelY = wallTopY;                                                 // <-- Flush with NEAR wall face (hinge on near side; panel swings INTO room)
-            hingeY = wallTopY;                                                 // <-- Hinge on near wall face = panel front face
-        } else if (swingDirection === 'outward') {
-            panelY = wallTopY + wallDepth - panelThickness;                    // <-- Flush with FAR wall face (hinge on far side; panel swings INTO exterior)
-            hingeY = wallTopY + wallDepth;                                     // <-- Hinge on far wall face = panel back face (panelY + panelThickness)
+        if (swingDirection === 'outward') {
+            panelY = wallTopY;                                                 // <-- Flush with TOP wall face (exterior side = small SVG Y); panel swings UP into exterior
+            hingeY = wallTopY;                                                 // <-- Hinge on exterior face (top of wall strip)
+        } else if (swingDirection === 'inward') {
+            panelY = wallTopY + wallDepth - panelThickness;                    // <-- Flush with BOTTOM wall face (room side = large SVG Y); panel swings DOWN into room
+            hingeY = wallTopY + wallDepth;                                     // <-- Hinge on room face (bottom of wall strip)
         } else {
             panelY = wallTopY + ((wallDepth - panelThickness) / 2);            // <-- Centred fallback
             hingeY = wallTopY + (wallDepth / 2);                               // <-- Centred fallback
@@ -520,21 +529,21 @@
         // that is being operated from, with the body extending AWAY
         // from the panel (never back into it).
         //
-        //   * Inward  -> rose on near (room-facing) face. handleY sits
-        //     on panelY (top of panel rect in SVG). Asset's local -Y
-        //     body extends to smaller SVG Y = into room above wall.
-        //   * Outward -> rose on far (exterior-facing) face. handleY
-        //     sits on panelY + panelThickness (bottom of panel rect).
-        //     Asset's local -Y body must be mirrored to +Y so the
-        //     body extends to larger SVG Y = into exterior below wall.
+        //   * Outward -> rose on TOP face of panel (exterior side, small SVG Y).
+        //     handleY sits on panelY (top of panel rect in SVG). Asset's
+        //     local -Y body extends to smaller SVG Y = into exterior above wall.
+        //   * Inward  -> rose on BOTTOM face of panel (room side, large SVG Y).
+        //     handleY sits on panelY + panelThickness (bottom of panel rect).
+        //     Asset's local -Y body must be mirrored to +Y so the body
+        //     extends to larger SVG Y = into room below wall.
         var handleY;
         var handleMirrorY;
-        if (swingDirection === 'outward') {
-            handleY       = panelY + panelThickness;                           // <-- Far face (bottom of panel in SVG)
-            handleMirrorY = true;                                              // <-- Flip asset local Y so body extends into exterior
+        if (swingDirection === 'inward') {
+            handleY       = panelY + panelThickness;                           // <-- Room face (bottom of panel in SVG)
+            handleMirrorY = true;                                              // <-- Flip asset local Y so body extends into room (downward)
         } else {
-            handleY       = panelY;                                            // <-- Near face (top of panel in SVG)
-            handleMirrorY = false;                                             // <-- Asset's local -Y already extends into room
+            handleY       = panelY;                                            // <-- Exterior face (top of panel in SVG)
+            handleMirrorY = false;                                             // <-- Asset's local -Y already extends into exterior (upward)
         }
         var handleMirrorX    = (swingSide === 'Left');                         // <-- Mirror local X so the lever points out of the handed side
 

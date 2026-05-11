@@ -3,6 +3,119 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.4.5 - 11-May-2026 - Plan view: fix outward/inward swing direction (SVG Y-axis inversion)
+
+### Context
+The 2D SVG plan view showed the swing arc and open-position panel on the wrong side of the wall for outward-opening doors. The root cause was a coordinate-mapping inversion: Ruby 3D Y+ maps to the TOP of the SketchUp top-down plan (small SVG Y), so **exterior (far / large Ruby Y) = top of SVG (small Y)** and **room (near / small Ruby Y) = bottom of SVG (large Y)**. The code had this backwards for both directions, though the user first noticed it on outward doors.
+
+### Fix
+
+#### `Na__AssemblyStudio__InteriorDoorSystem__Viewport__PlanGenerator__.js`
+Full swap of inward/outward conditions in three places:
+
+1. **`na_compute_layout` — `panelY` and `hingeY`:**
+   - Outward: panel/hinge now on the **top** wall face (`wallTopY`), representing the exterior face (small SVG Y). Door sweeps upward (toward exterior).
+   - Inward: panel/hinge now on the **bottom** wall face (`wallTopY + wallDepth`), representing the room face (large SVG Y). Door sweeps downward (toward room).
+
+2. **`na_compute_layout` — `handleY` and `handleMirrorY`:**
+   - Outward: handle rose on top face (`panelY`), body extends upward into exterior. No Y-mirror needed.
+   - Inward: handle rose on bottom face (`panelY + panelThickness`), body must be Y-mirrored to extend downward into room.
+
+3. **`na_build_open_panel_outline` — `rectY`:**
+   - Outward: `rectY = hingeY - panelClearWidth` (extends upward, above wall).
+   - Inward: `rectY = hingeY` (extends downward, below wall).
+
+4. **`na_build_swing_arc` — `signY` and `sweepFlag`:**
+   - Outward: `signY = -1` (end point above hinge = exterior). `sweepFlag`: Left=0, Right=1.
+   - Inward: `signY = +1` (end point below hinge = room). `sweepFlag`: Left=1, Right=0.
+
+---
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.4.4 - 11-May-2026 - ClassicalSixPanel: per-rail thicknesses (200mm lockrail + 125mm mid-rail)
+
+### Context
+The Classical Six-Panel style used the single shared `inner_rail_t` (70mm) for both cross-rails and the mullion, resulting in unrealistically thin horizontal rails. Real Georgian six-panel doors have a wide lockrail (~200mm) at the lower tier boundary and a narrower mid-rail (~125mm) at the upper tier boundary, with narrower stiles and mullion.
+
+### Changes
+
+#### `Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__ClassicalSix__.rb`
+- `na_build_face_lines` now accepts `lock_rail_t_mm` (default 200 mm) and `mid_rail_t_mm` (default 125 mm) parameters.
+- `half_t` replaced by three separate half-values: `half_lock`, `half_mid`, `half_mullion`.
+- `cross_rails` array entries now carry their own correct `:z_low` / `:z_high` bands based on their individual thicknesses — critical for clean butt-joint clipping at the mullion/cross-rail intersections.
+- Each `na_draw_horizontal_rail_pair` call passes its own `rail_thickness_mm` override.
+- The mullion continues to use `layout[:inner_rail_t]` (70mm default).
+
+#### `Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__.rb`
+- New config key constants: `NA_KEY_SIX_PANEL_LOCK_RAIL_T` and `NA_KEY_SIX_PANEL_MID_RAIL_T`.
+- New defaults: `NA_DEFAULT_SIX_PANEL_LOCK_RAIL_T = 200.0` and `NA_DEFAULT_SIX_PANEL_MID_RAIL_T = 125.0`.
+- `NA_STYLE_CLASSICAL_SIX` dispatch reads both from config (with fallbacks) and passes them to `StyleClassicalSixPanel.na_build_face_lines`.
+
+#### `Na__AssemblyStudio__InteriorDoorSystem__Viewport__PanelDesignDrawer__.js`
+- New constants `NA_DEFAULT_SIX_PANEL_LOCK_RAIL_T = 200` and `NA_DEFAULT_SIX_PANEL_MID_RAIL_T = 125`.
+- `na_compute_layout` reads `Na__DoorConfig__ClassicalSix__LockRailThickness_mm` and `Na__DoorConfig__ClassicalSix__MidRailThickness_mm` from config; adds `sixLockRailT` and `sixMidRailT` to the returned layout object.
+- `na_build_classical_six` updated to use `halfLock`, `halfMid`, `halfMullion` independently; each `na_draw_horizontal_rail_pair` call passes its own thickness override.
+
+---
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.4.3 - 11-May-2026 - FourPanel 2D elevation preview: mirror handle-height + 200mm lockrail into JS drawer
+
+### Context
+After the V1.4.2 Ruby fix the 3D door panel correctly showed the lockrail at handle height with 200 mm thickness, but the 2D elevation preview in the dialog still showed the old mid-height, 70 mm cross-rail because `Na_DoorPanelDesignDrawer` (`Viewport__PanelDesignDrawer__.js`) had not been updated to match.
+
+### Changes
+
+#### `Na__AssemblyStudio__InteriorDoorSystem__Viewport__PanelDesignDrawer__.js`
+- Added constants `NA_DEFAULT_FOUR_PANEL_CROSS_RAIL_T = 200` and `NA_DEFAULT_HANDLE_HEIGHT = 900` mirroring the Ruby builder.
+- `na_compute_layout` now reads `Na__DoorConfig__FourPanel__CrossRailThickness_mm` (default 200) and `Na__DoorConfig__HandleHeight_mm` (default 900) from config.
+  - Converts handle height to SVG-space Y: `rawY = panelTopY + panelH - handleHeight` (Y axis is flipped: up in Ruby = down in SVG).
+  - Clamps to `[innerYMin + halfCross, innerYMax - halfCross]` so the full rail fits inside the inner perimeter, with geometric mid-height fallback if the perimeter is too small.
+  - Two new layout keys returned: `crossRailT` and `fourPanelCrossRailYCentre`.
+- `na_draw_horizontal_rail_pair` gained an optional `railThicknessMm` parameter, overriding `layout.innerRailT` when supplied. All other style callers pass no override and are unaffected.
+- `na_build_four_panel` updated to:
+  - Use `halfCross = layout.crossRailT / 2.0` for the cross-rail (200 mm default).
+  - Use `halfMullion = layout.innerRailT / 2.0` for the vertical mullion (70 mm default).
+  - Use `layout.fourPanelCrossRailYCentre` (handle-height-aligned) instead of geometric mid-height.
+  - Pass `layout.crossRailT` as the thickness override to `na_draw_horizontal_rail_pair`.
+
+---
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.4.2 - 11-May-2026 - FourPanel lockrail: handle-height positioning + 200mm cross-rail thickness
+
+### Context
+The four-panel door style placed its horizontal cross-rail at the geometric mid-height of the inner perimeter, which produced an unrealistically centred split. Real four-panel doors have a lockrail aligned with the door handle, and that rail is significantly wider (≈200 mm) than the narrow inner subdivision joints (70 mm).
+
+### Changes
+
+#### `Na__AssemblyStudio__InteriorDoorSystem__PanelDesignFrame__.rb`
+- `na_draw_horizontal_rail_pair` now accepts an optional `rail_thickness_mm` parameter.
+  - When supplied (and > 0) it overrides `layout[:inner_rail_t]` for that specific cross-rail's edge pair.
+  - All existing callers (ClassicalSix, HorizontalThree) pass no override so behaviour is unchanged.
+
+#### `Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__FourPanel__.rb`
+- `na_build_face_lines` now accepts `cross_rail_thickness_mm` (default 200 mm) and `handle_height_z_mm` (default nil).
+- Cross-rail thickness is now **independent** of `layout[:inner_rail_t]` (the vertical mullion keeps using inner_rail_t).
+- New private helper `na_resolve_cross_rail_z_centre`:
+  - Centres the cross-rail at `handle_height_z_mm` when provided.
+  - Clamps the value to `[inner_z_min + half_cross, inner_z_max - half_cross]` so the rail always fits inside the inner perimeter.
+  - Falls back to geometric mid-height when no handle height is supplied or when the clamped range is degenerate.
+- The `cross_rail_thickness_mm` override is forwarded to `na_draw_horizontal_rail_pair` so the outer edge pair respects the 200 mm thickness.
+- The `mullions` array continues to use `half_mullion = inner_rail_t / 2` (70 mm default) for the vertical member.
+
+#### `Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__.rb`
+- Two new config key constants:
+  - `NA_KEY_FOUR_PANEL_CROSS_RAIL_T` → `"Na__DoorConfig__FourPanel__CrossRailThickness_mm"` (default 200 mm)
+  - `NA_KEY_HANDLE_HEIGHT`           → `"Na__DoorConfig__HandleHeight_mm"` (default 900 mm)
+- Two new default constants:
+  - `NA_DEFAULT_FOUR_PANEL_CROSS_RAIL_T = 200.0`
+  - `NA_DEFAULT_HANDLE_HEIGHT = 900.0`
+- The `NA_STYLE_FOUR_PANEL` dispatch now resolves both values from config (with fallbacks) and passes them to `StyleFourPanel.na_build_face_lines`.
+
+---
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.4.1 - 03-May-2026 - Hinge pivot Y + panel face positioning + plan-view handle mirror
 
 ### Context
