@@ -41,8 +41,9 @@
         }
 
         Na__Ui__Config.profileOptions = profileOptions.map(function(profileOption) {
-            const label = profileOption.category
-                ? profileOption.category + ' :: ' + profileOption.displayName
+            const category = profileOption.category;
+            const label = category && category !== 'Profile2D'
+                ? category + ' :: ' + profileOption.displayName
                 : profileOption.displayName;
 
             return {
