@@ -238,6 +238,7 @@
         var rotationStep = (options && options.rotationStep) ? Number(options.rotationStep) : 0;
         points = Na__Svg__ApplyMirrorToggles(points, toggleStates);
         points = Na__Svg__ApplyRotationStep(points, rotationStep);
+        points = Na__Svg__FlipAcrossYAtX(points, 0);
 
         const bounds = Na__Svg__Bounds(points, { includeOrigin: true });
         const profileLine = Na__Svg__ClosedPolyline(points, 'naProfileLine');
