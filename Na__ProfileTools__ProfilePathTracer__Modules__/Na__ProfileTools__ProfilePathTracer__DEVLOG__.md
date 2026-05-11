@@ -3,6 +3,23 @@
 ## Version History
 
 # =======================================================================================
+## ProfileTools Version 0.3.5 - 11-May-2026
+
+### Deterministic World-Up Local Frame For Profile Preview And Export
+
+- Root cause of the rotated balustrade preview (and identically-rotated JSON coordinates) was that the local frame's horizontal axis was seeded from the **direction of the first edge of the face's outer loop**. SketchUp's loop iteration order is not deterministic from the user's perspective, so complex profiles whose first loop edge was diagonal or curved were rotated by that arbitrary angle.
+- Reworked `Na__Exporter__BuildLocalFrame` in `Na__ProfileTools__ProfilePathTracer__ProfileExporter__.rb` to derive the frame from `face.normal` + a world reference vector, independent of edge order:
+  - World "up" reference is `Z_AXIS` by default, falling back to `Y_AXIS` for plan-flat faces (where the normal is parallel to `Z_AXIS`).
+  - Local `axis_z` (profile-vertical) is that reference projected onto the face plane.
+  - Local `axis_y` (profile-horizontal) is `normal x axis_z` (right-hand rule).
+  - Removed the edge-order-dependent `Na__Exporter__SeedAxisY` helper.
+  - Added small helpers `Na__Exporter__DeriveFaceNormal`, `Na__Exporter__FindLongestEdgeVector`, `Na__Exporter__ProjectVectorOntoPlane` for one-responsibility-per-function.
+- Removed the compensating sign-flip on `z_mm` in `Na__Exporter__ProjectPointToLocalYZ`. The new frame already produces a world-up-aligned local Z, so the explicit negation that was masking the rotation bug is no longer needed (and would now mirror the profile vertically).
+- Applied the same world-up frame logic in `Na__ProfileTools__ProfilePathTracer__SceneProfileRegistry__.rb` (`Na__SceneProfileRegistry__ExtractUnifiedGeometry`), which independently had the identical edge-order bug. Scene-picked components/groups now project face vertices into a deterministic frame; origin remains at the first vertex of the outer loop.
+- Removed `Na__Svg__ApplyDefaultPreviewAxisFlip` and its call site in `Na__ProfileTools__ProfilePathTracer__Viewport__SvgGenerator__.js`. That hard-coded mirror was compensating for the rotation bug; with the deterministic frame it would now mirror the preview horizontally. User-driven flip toggles (`flipXCenter`, `flipYCenter`, `flipXWorld`, `flipYWorld`) and the rotate-90 step are retained for intentional reorientation.
+- Net effect: balustrade and other complex profiles preview upright with no rotation, and the saved `PosY_mm` / `PosZ_mm` values match what the user sees in the preview (world-up maps to profile-up).
+
+# =======================================================================================
 ## ProfileTools Version 0.3.4 - 11-May-2026
 
 ### Per-Edge Dihedral Smoothing + Winding-Flip For Selection Mode

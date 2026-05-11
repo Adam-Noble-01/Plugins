@@ -150,12 +150,6 @@
         return mirroredPoints;
     }
 
-    function Na__Svg__ApplyDefaultPreviewAxisFlip(points) {
-        if (!Array.isArray(points) || points.length === 0) return [];
-        // Mirror across world Y axis so preview orientation matches SketchUp profile expectation.
-        return Na__Svg__FlipAcrossYAtX(points, 0);
-    }
-
     function Na__Svg__ApplyRotationStep(points, rotationStep) {
         if (!Array.isArray(points) || points.length === 0) return [];
         var normalizedStep = Number(rotationStep || 0) % 4;
@@ -244,7 +238,6 @@
         var rotationStep = (options && options.rotationStep) ? Number(options.rotationStep) : 0;
         points = Na__Svg__ApplyMirrorToggles(points, toggleStates);
         points = Na__Svg__ApplyRotationStep(points, rotationStep);
-        points = Na__Svg__ApplyDefaultPreviewAxisFlip(points);
 
         const bounds = Na__Svg__Bounds(points, { includeOrigin: true });
         const profileLine = Na__Svg__ClosedPolyline(points, 'naProfileLine');

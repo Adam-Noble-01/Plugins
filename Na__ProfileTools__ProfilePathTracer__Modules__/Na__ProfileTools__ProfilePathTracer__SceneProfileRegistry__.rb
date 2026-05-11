@@ -222,18 +222,20 @@ module Na__ProfileTools__ProfilePathTracer
             world_points = face.outer_loop.vertices.map { |vertex| vertex.position.transform(instance_transform) }
             return nil if world_points.length < 3
 
-            origin = world_points.first
-            axis_y = world_points[1] - origin
-            return nil if axis_y.length <= 0.001
-            axis_y.normalize!
-
-            normal = face.normal.transform(instance_transform)
+            normal = face.normal.transform(instance_transform)                       # <-- Face normal in world space
             return nil if normal.length <= 0.001
             normal.normalize!
 
-            axis_z = normal * axis_y
+            world_up = normal.parallel?(Z_AXIS) ? Y_AXIS.clone : Z_AXIS.clone        # <-- World "up" reference; Y fallback for plan-flat faces
+            axis_z = Na__ProfileExporter.Na__Exporter__ProjectVectorOntoPlane(world_up, normal)
             return nil if axis_z.length <= 0.001
             axis_z.normalize!
+
+            axis_y = normal * axis_z                                                 # <-- Profile horizontal = normal x axis_z
+            return nil if axis_y.length <= 0.001
+            axis_y.normalize!
+
+            origin = world_points.first                                              # <-- Preserve current scene-pick origin (first vertex of outer loop)
 
             profile_vertices = world_points.each_with_index.map do |point, index|
                 vector = point - origin

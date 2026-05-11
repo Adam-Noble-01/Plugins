@@ -252,23 +252,18 @@ module Na__ProfileTools__ProfilePathTracer
         end
 
         def self.Na__Exporter__BuildLocalFrame(faces, edges, origin_point)
-            axis_y = self.Na__Exporter__SeedAxisY(faces, edges)
-            axis_y = X_AXIS if axis_y.length <= 0.001
-            axis_y.normalize!
+            normal = self.Na__Exporter__DeriveFaceNormal(faces, edges)              # <-- Face plane normal (or implied from edges)
+            normal = Z_AXIS.clone if normal.length <= 0.001                         # <-- Defensive fallback
+            normal.normalize!
 
-            normal = if faces.any?
-                face_normal = faces.first.normal
-                face_normal.length <= 0.001 ? Z_AXIS.clone : face_normal
-            else
-                Z_AXIS.clone
-            end
-            normal = Y_AXIS.clone if axis_y.parallel?(normal)
-            normal.normalize! if normal.length > 0.001
-
-            axis_z = normal * axis_y
-            axis_z = Z_AXIS * axis_y if axis_z.length <= 0.001
+            world_up = normal.parallel?(Z_AXIS) ? Y_AXIS.clone : Z_AXIS.clone       # <-- World "up" reference; Y fallback for plan-flat faces
+            axis_z = self.Na__Exporter__ProjectVectorOntoPlane(world_up, normal)    # <-- Profile vertical = worldUp projected into face plane
             axis_z = Y_AXIS.clone if axis_z.length <= 0.001
             axis_z.normalize!
+
+            axis_y = normal * axis_z                                                 # <-- Profile horizontal = normal x axis_z (right-hand rule)
+            axis_y = X_AXIS.clone if axis_y.length <= 0.001
+            axis_y.normalize!
 
             {
                 origin: origin_point,
@@ -277,21 +272,45 @@ module Na__ProfileTools__ProfilePathTracer
             }
         end
 
-        def self.Na__Exporter__SeedAxisY(faces, edges)
+        def self.Na__Exporter__DeriveFaceNormal(faces, edges)
             if faces.any?
-                outer_vertices = faces.first.outer_loop.vertices
-                if outer_vertices.length >= 2
-                    vector = outer_vertices[1].position - outer_vertices[0].position
-                    return vector if vector.length > 0.001
-                end
+                face_normal = faces.first.normal
+                return face_normal if face_normal.length > 0.001
             end
 
             if edges.any?
-                vector = edges.first.end.position - edges.first.start.position
-                return vector if vector.length > 0.001
+                longest_edge_vector = self.Na__Exporter__FindLongestEdgeVector(edges)
+                if longest_edge_vector && longest_edge_vector.length > 0.001
+                    world_up = longest_edge_vector.parallel?(Z_AXIS) ? Y_AXIS.clone : Z_AXIS.clone
+                    implied_normal = longest_edge_vector * world_up                  # <-- Plane normal from edge x worldUp
+                    return implied_normal if implied_normal.length > 0.001
+                end
             end
 
-            X_AXIS.clone
+            Z_AXIS.clone
+        end
+
+        def self.Na__Exporter__FindLongestEdgeVector(edges)
+            longest_vector = nil
+            longest_length = 0.0
+
+            edges.each do |edge|
+                candidate = edge.end.position - edge.start.position
+                next unless candidate.length > longest_length
+                longest_vector = candidate
+                longest_length = candidate.length
+            end
+
+            longest_vector
+        end
+
+        def self.Na__Exporter__ProjectVectorOntoPlane(vector, plane_normal)
+            dot_value = vector.dot(plane_normal)
+            Geom::Vector3d.new(
+                vector.x - plane_normal.x * dot_value,
+                vector.y - plane_normal.y * dot_value,
+                vector.z - plane_normal.z * dot_value
+            )
         end
 
         def self.Na__Exporter__IndexProjectedPoint(point, frame, vertex_lookup, profile_vertices)
@@ -312,8 +331,7 @@ module Na__ProfileTools__ProfilePathTracer
         def self.Na__Exporter__ProjectPointToLocalYZ(point, frame)
             delta = point - frame[:origin]
             y_mm = (delta.dot(frame[:axis_y]) * NA_MM_PER_INCH).round(6)
-            # Flip local vertical so created profiles are not upside-down when reused.
-            z_mm = (-delta.dot(frame[:axis_z]) * NA_MM_PER_INCH).round(6)
+            z_mm = (delta.dot(frame[:axis_z]) * NA_MM_PER_INCH).round(6)             # <-- Frame axis_z now points world-up, so no negation needed
             [y_mm, z_mm]
         end
 
