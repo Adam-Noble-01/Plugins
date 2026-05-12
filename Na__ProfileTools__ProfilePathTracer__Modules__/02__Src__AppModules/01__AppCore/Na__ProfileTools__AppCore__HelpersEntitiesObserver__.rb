@@ -100,9 +100,13 @@ module Na__ProfileTools__ProfilePathTracer
                 return
             end
 
-            return unless Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
+            unless Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
+                Na__DebugTools.Na__Debug__Info("HelpersObserver: DynRegen disabled on #{parent_group.name} — skipping.")
+                return
+            end
             return if Na__RegenEngine.Na__RegenEngine__InProgress?
 
+            Na__DebugTools.Na__Debug__Info("HelpersObserver: firing regen for #{parent_group.name}.")
             Na__RegenEngine.Na__RegenEngine__RegenerateFromHelpers(parent_group)
         rescue => error
             Na__DebugTools.Na__Debug__Warn("HelpersObserver: fire regen failed: #{error.message}")

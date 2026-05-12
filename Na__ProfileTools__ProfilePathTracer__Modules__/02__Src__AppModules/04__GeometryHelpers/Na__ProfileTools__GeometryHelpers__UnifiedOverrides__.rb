@@ -425,10 +425,32 @@ module Na__ProfileTools__ProfilePathTracer
             )
 
             model.commit_operation
+
+            self.Na__Geometry__AutoEnableDynamicRegen(parent_group, helpers_group)
+
             { 'isBuilt' => true, 'groupName' => parent_group.name, 'styledEdgeCount' => styled_edge_count }
         rescue => error
             self.Na__Geometry__AbortOperationSafely(model)
             { 'isBuilt' => false, 'reason' => error.message }
+        end
+
+        def self.Na__Geometry__AutoEnableDynamicRegen(parent_group, helpers_group)
+            return unless parent_group && helpers_group
+            return unless helpers_group.respond_to?(:valid?) && helpers_group.valid?
+            return unless defined?(Na__ObserverRegistry)
+
+            Na__ObserverRegistry.Na__ObserverRegistry__AttachToHelpers(helpers_group)
+
+            if defined?(Na__ContextMenuHandlers) &&
+               Na__ContextMenuHandlers.respond_to?(:Na__ContextMenu__UpdateGroupNameSuffix)
+                Na__ContextMenuHandlers.Na__ContextMenu__UpdateGroupNameSuffix(parent_group, true)
+            end
+
+            Na__DebugTools.Na__Debug__Info(
+                "DynamicRegen auto-enabled on #{parent_group.name} (observer attached)."
+            )
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("AutoEnableDynamicRegen failed: #{error.message}")
         end
 
         def self.Na__Geometry__SweepProfileIntoGroup(target_entities:, model:, profile_data:,
@@ -465,9 +487,18 @@ module Na__ProfileTools__ProfilePathTracer
             styled_edge_count = self.Na__Geometry__ApplyUnifiedEdgeStates(
                 target_entities, model, profile_data, path_edge_ids, resolved_path_data
             )
+            self.Na__Geometry__ErasePathRailEdges(target_entities, path_edges)
             { 'isSwept' => true, 'styledEdgeCount' => styled_edge_count }
         rescue => error
             { 'isSwept' => false, 'reason' => error.message }
+        end
+
+        def self.Na__Geometry__ErasePathRailEdges(target_entities, path_edges)
+            to_erase = path_edges.select { |edge| edge && edge.respond_to?(:valid?) && edge.valid? }
+            return if to_erase.empty?
+            target_entities.erase_entities(to_erase)
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Path rail edge erasure warning: #{error.message}")
         end
 
         def self.Na__Geometry__AbortOperationSafely(model)

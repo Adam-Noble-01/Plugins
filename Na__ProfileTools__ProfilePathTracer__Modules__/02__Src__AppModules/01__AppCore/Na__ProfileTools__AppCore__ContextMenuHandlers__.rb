@@ -73,8 +73,8 @@ module Na__ProfileTools__ProfilePathTracer
         def self.Na__ContextMenu__AddToggleItem(menu, parent_group)
             currently_on = Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
             label = currently_on ?
-                'Dynamic Regeneration: ON  →  Toggle OFF' :
-                'Dynamic Regeneration: OFF →  Toggle ON'
+                'Disable Dynamic Regeneration (currently ON)' :
+                'Enable Dynamic Regeneration (currently OFF)'
 
             menu.add_item(label) do
                 self.Na__ContextMenu__ExecuteToggle(parent_group)

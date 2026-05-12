@@ -3,6 +3,66 @@
 ## Version History
 
 # =======================================================================================
+## Profile Path Tracer - v1.1.2 - 12-May-2026
+
+### Feature: Helper path tag, rail cleanup, and dynamic regeneration
+
+#### Summary
+
+Apply Profile generation now builds a **three-level assembly**: a parent group
+`Na__ProfileTrace__<profileKey>`, a **Helpers** child containing the canonical path
+polylines (tag `02__ProfilePathTracer_Helpers`, line style from DataLib `Tag__LineStyle__Config`,
+edge paint from `Tag__EdgeMaterial__Config` via `Na__TagApplier`), and a **SweptSolid**
+child for the Follow Me result. Attribute dictionaries stamp each trace for later
+recognition (`Na__ProfilePathTracer__Info` on the parent, `Na__ProfilePathTracer__HelpersInfo`
+on Helpers) with sequential IDs `NPT0001`, `NPT0002`, etc. (Outliner names may still
+duplicate; identity is dictionary + `persistent_id`, not display name.)
+
+After a successful sweep, **loose rail edges inside SweptSolid are erased**
+(`Na__Geometry__ErasePathRailEdges`) so only the Helpers copy remains — no doubled
+guideline fighting the mesh.
+
+**Dynamic regeneration**: a `Sketchup::EntitiesObserver` on the Helpers group's
+`entities` debounces edits (~150 ms) and calls `Na__RegenEngine__RegenerateFromHelpers`,
+which rebuilds only the SweptSolid sub-group from the current helper edge chain.
+`DynamicRegenEnabled` defaults to **true**; on first build, the code auto-attaches the
+observer and appends ` [DynRegen]` to the parent group name. Context menu on a single
+selected stamped parent: Enable/Disable Dynamic Regeneration, Regenerate Now. Settings tab:
+Enable All / Disable All / Detach All Observers plus live stats (`na_profilepathtracer_dynregen_*`
+callbacks). Observers are re-attached on model switch via existing `Na__Observers` AppObserver
+walker; uninstall clears `Na__ObserverRegistry`.
+
+Shared sweep logic lives in `Na__Geometry__SweepProfileIntoGroup` (used by initial build and
+regen). Exporter tag lookup delegates to `Na__TagApplier` for DRY.
+
+#### Files touched (new)
+
+| Path | Role |
+|---|---|
+| `02__Src__AppModules/03__AppUtils/Na__ProfileTools__AppUtils__TagApplier__.rb` | DataLib-driven tag/layer + MTE edge paint |
+| `02__Src__AppModules/02__AppData/Na__ProfileTools__AppData__DataSerializer__.rb` | Stamp/read profile-trace dictionaries, NPT IDs |
+| `02__Src__AppModules/20__System__ApplyProfileAlongPath/Na__ProfileTools__RegenerationEngine__Main__.rb` | `Na__RegenEngine__RegenerateFromHelpers` |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__HelpersEntitiesObserver__.rb` | `Na__HelpersEntitiesObserver` + `Na__ObserverRegistry` |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__ContextMenuHandlers__.rb` | Right-click Enable/Disable / Regenerate Now |
+
+#### Files touched (modified)
+
+| Path | Change |
+|---|---|
+| `02__Src__AppModules/04__GeometryHelpers/Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | Parent/Helpers/SweptSolid build, `SweepProfileIntoGroup`, stamp, auto dyn-regen attach, erase path rails |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__Main__.rb` | Requires: TagApplier, DataSerializer, RegenEngine, HelpersEntitiesObserver, ContextMenuHandlers |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__Observers__.rb` | Attach stamped helpers on install/model change; detach all on uninstall |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__DialogManager__.rb` | DynRegen stats / enable-all / disable-all / detach-all callbacks |
+| `02__Src__AppModules/10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__Exporter__.rb` | `@delegate` tag lookup → `Na__TagApplier` |
+| `02__Src__AppModules/03__AppUtils/Na__ProfileTools__AppUtils__SettingsTab__UiLogic__.js` | Dynamic Regeneration section + stats row |
+| `02__Src__AppModules/03__AppUtils/Na__ProfileTools__AppUtils__SettingsTab__Bridge__.js` | JS bridge for dyn-regen actions |
+
+#### Note for older models
+
+Traces created before this version may have `DynamicRegenEnabled` false in the dictionary
+and no observer; use context menu **Enable Dynamic Regeneration** or Settings **Enable All**.
+
+# =======================================================================================
 ## Profile Path Tracer - v1.1.1 - 12-May-2026
 
 ### Feature: Dedicated "Create Profile" Tab + UI Restructure

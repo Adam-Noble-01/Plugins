@@ -72,7 +72,7 @@ module Na__ProfileTools__ProfilePathTracer
             dict['ToggleStates']        = self.Na__DataSerializer__SerialiseToggleStates(payload_hash['ToggleStates'])
             dict['IsClosedLoop']        = (payload_hash['IsClosedLoop'] == true).to_s
             dict['StartPoint']          = self.Na__DataSerializer__SerialisePoint(payload_hash['StartPoint'])
-            dict['DynamicRegenEnabled'] = 'false'
+            dict['DynamicRegenEnabled'] = 'true'
             dict['SchemaVersion']       = NA_SCHEMA_VERSION
             dict['CreatedAt']           = Time.now.utc.iso8601
         rescue => error
