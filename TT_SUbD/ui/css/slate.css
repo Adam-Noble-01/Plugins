@@ -1,0 +1,195 @@
+html, .btn, label {
+  cursor: default !important;
+}
+
+input, select, textarea, a[href]
+{
+  cursor: auto;
+}
+
+
+
+/* http://blog.koalite.com/bbg/v2/ */
+.btn-subd {
+  color: #333333;
+  /*text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25);*/
+  background-color: #DDDDDD;
+  *background-color: #DDDDDD;
+  background-image: -moz-linear-gradient(top, #F6F6F6, #DDDDDD);
+  background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#F6F6F6), to(#DDDDDD));
+  background-image: -webkit-linear-gradient(top, #F6F6F6, #DDDDDD);
+  background-image: -o-linear-gradient(top, #F6F6F6, #DDDDDD);
+  background-image: linear-gradient(to bottom, #F6F6F6, #DDDDDD);
+  background-repeat: repeat-x;
+  border-color: #DDDDDD;
+  border-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.35);
+  /*border-color: rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.25);*/
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#F6F6F6', endColorstr='#DDDDDD', GradientType=0);
+  filter: progid:DXImageTransform.Microsoft.gradient(enabled=false);
+}
+.btn-subd:hover,
+.btn-subd:focus,
+.btn-subd:active,
+.btn-subd.active,
+.btn-subd.disabled,
+.btn-subd[disabled] {
+  color: #666666;
+  background-color: #DDDDDD;
+  *background-color: #003bb3;
+}
+
+
+
+.ui-slider {
+  background: #ddd;
+  height: 0.4em;
+  margin-top: 1.5em;
+  /*margin-bottom: 0.5em;*/
+}
+
+.ui-slider-horizontal .ui-slider-handle {
+  top: -.5em;
+}
+
+.ui-slider .ui-slider-handle {
+  border-radius: 50%;
+  color: #333333;
+  /*text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25);*/
+  background-color: #DDDDDD;
+  *background-color: #DDDDDD;
+  background-image: -moz-linear-gradient(top, #F6F6F6, #DDDDDD);
+  background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#F6F6F6), to(#DDDDDD));
+  background-image: -webkit-linear-gradient(top, #F6F6F6, #DDDDDD);
+  background-image: -o-linear-gradient(top, #F6F6F6, #DDDDDD);
+  background-image: linear-gradient(to bottom, #F6F6F6, #DDDDDD);
+  background-repeat: repeat-x;
+  border-color: #DDDDDD;
+  border-color: rgba(0, 0, 0, 0.25) rgba(0, 0, 0, 0.25) rgba(0, 0, 0, 0.35);
+  /*border-color: rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.25);*/
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#F6F6F6', endColorstr='#DDDDDD', GradientType=0);
+  filter: progid:DXImageTransform.Microsoft.gradient(enabled=false);
+  outline: none;
+}
+
+
+input[type="checkbox"].styled:checked + label:after,
+input[type="radio"].styled:checked + label:after,
+.checkbox input[type=checkbox]:checked + label:after {
+  font-family: 'Glyphicons Halflings';
+  content: "\e013";
+}
+
+input[type="checkbox"].styled.indeterminate:checked + label:after,
+input[type="radio"].styled.indeterminate:checked + label:after,
+.checkbox input[type=checkbox].indeterminate + label:after {
+  font-family: 'Glyphicons Halflings';
+  content: "\e013";
+  opacity: 0.3;
+}
+
+input[type="checkbox"].styled:checked label:after,
+input[type="radio"].styled:checked label:after,
+.checkbox label:after {
+  padding-left: 4px;
+  padding-top: 2px;
+  font-size: 9px;
+}
+
+
+.ticks {
+  margin-top: -2px;
+}
+.tick {
+  border-left: 1px solid #ccc;
+  width: 33.3%;
+  display: inline-block;
+  height: 12px
+}
+.tick:last-child {
+  border-right: 1px solid #ccc;
+}
+
+
+body.ui {
+  font-family: 'Source Sans Pro', sans-serif;
+  background: #eee;
+}
+
+.ui hr {
+  border-top: 1px solid #ccc;
+}
+
+.ui hr.hr-sm {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  border-top: 1px solid #ddd;
+}
+
+#subdivisions_iterations {
+  font-size: 12px;
+  color: #555;
+}
+
+.header-option {
+  font-weight: normal;
+  text-align: center;
+  color: #555;
+}
+
+.checkbox label {
+  font-size: 12px;
+}
+
+.option select {
+  font-size: 12px;
+}
+
+.option label {
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.option .description {
+  padding-left: 6px;
+}
+
+.option .description {
+  padding-bottom: 2px; /* Use margin instead */
+  font-size: 12px;
+  color: #666666;
+}
+
+.note {
+  font-size: 12px;
+  background: #fafafa;
+  padding: 5px;
+  margin: 5px 0;
+  border: 1px solid #666666;
+  border-radius: 3px;
+  border-left: 3px solid #4466ff;
+}
+
+.footer {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  text-align: right;
+  padding: 15px;
+  z-index: 10;
+  background: #eee;
+}
+
+.footer .btn {
+  width: 80px;
+  margin-left: 5px;
+}
+
+#ie_legacy_error {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  padding: 5px;
+  background: #ffa;
+  color: #000;
+  z-index: 1000;
+}

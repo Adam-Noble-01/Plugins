@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta http-equiv="MSThemeCompatible" content="Yes">
+
+  <link rel='stylesheet' type='text/css' href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700'>
+  <link rel="stylesheet" type="text/css" href="../css/base.css">
+  <link rel="stylesheet" type="text/css" href="../js/jquery-ui/jquery-ui.css">
+
+  <script type="text/javascript" src="../js/jquery.js"></script>
+  <script type="text/javascript" src="../js/core.js"></script>
+  <script type="text/javascript" src="../js/welcome.js"></script>
+</head>
+<body class="platform-windows">
+
+<h1>Getting Started</h1>
+
+<ul class="nav">
+  <li>
+    <a href="#content-subdividing">Subdividing</a>
+  </li>
+  <li>
+    <a href="#content-quads">Quads</a>
+  </li>
+  <li>
+    <a href="#content-documentation">Documentation</a>
+  </li>
+  <li>
+    <a href="#content-help">Help</a>
+  </li>
+</ul>
+
+<div id="content">
+
+<div id="content-subdividing" class="tab">
+
+  <h2>Subdivide to Smooth the Mesh</h2>
+  <p>
+    <img src="../images/intro-subdivide.gif" class="animation">
+  </p>
+  <ol>
+    <li>Select a group or component containing only faces.</li>
+    <li>Toggle Subdivision on or off.</li>
+  </ol>
+  <p>
+    Adjust the smoothness by increasing or decreasing the number of smoothing
+    iterations.
+  </p>
+  <p>
+    Toggle subdivision off to return to the control-mesh whenever you need to
+    edit the geometry.
+  </p>
+
+  <h2>Refine the Mesh with Creasing</h2>
+  <p>
+    <img src="../../instructor/images/CreaseTool.gif" class="animation">
+  </p>
+  <p>
+    Create creases in the subdivided mesh to refine the shape without having
+    to add extra control loops in the control mesh.
+  </p>
+  <p>
+    <img src="../images/intro-crease-tool.png">
+  </p>
+
+  <h2>Optimized for Quads</h2>
+  <p>
+    <img src="../images/intro-catmull-clark.gif" class="animation">
+  </p>
+  <p>
+    SUbD uses a Catmull-Clark based algorithm for the subdivision. This type of
+    subdivision is optimized for quadrilaterals.
+  </p>
+  <p>
+    For each subdivision each quad produce four new quads.
+  </p>
+  <p>
+    Each triangle produce three new quads.
+  </p>
+  <p>
+    Other polygons are triangulated prior to subdivision.
+  </p>
+  <p>
+    <a href="skp:launchEW@quadface-tools"
+       data-rbz="https://evilsoftwareempire.com/quadfacetools/download/latest"
+        >Get QuadFace Tools</a>
+  </p>
+
+  <h2>Next</h2>
+  <p><a href="#content-quads">Next: Working with Quads</a></p>
+
+</div>
+
+<div id="content-quads" class="tab">
+
+  <h2>Why Work with Quads?</h2>
+  <p>
+    <img src="../images/loops-rings.gif" class="animation">
+  </p>
+  <p>
+    When you have a mesh based on quads it add a lot of benefits. The mesh
+    becomes more regular and predictable. The grid structure that comes from
+    quads provide meshes with directions of flow.
+  </p>
+  <p>
+    Tools can follow an edge and select loops in a predictable order.
+  </p>
+  <p>
+    Or they can select every opposite edge, making a ring selection.
+  </p>
+  <p>
+    UV mapping is also easier - the grid makes the mesh easier to map seamless
+    texture mapping.
+  </p>
+
+  <h3>More</h3>
+  <ul>
+    <li>
+      <a href="https://blog.digitaltutors.com/modeling-with-quads-or-triangles/">
+        "Modeling with Quads or Triangles"
+      </a>
+      (digitaltutors.com)
+    </li>
+    <li>
+      <a href="https://blog.digitaltutors.com/ngons-triangles-bad/">
+        "Why Are Ngons and Triangles so Bad?"
+      </a>
+      (digitaltutors.com)
+    </li>
+    <li>
+      <a href="https://topology-guides.tumblr.com/">
+        "Topology Guides"
+      </a>
+      (topology-guides.tumblr.com)
+    </li>
+    <li>
+      <a href="https://resources.squid.io/checkmate-3d-modeling-standard/checkmate-specifications-overview/checkmate-pro-checklist/tris-quads-n-gons/">
+        "Quads, Tris, & N-Gons"
+      </a>
+      (resources.squid.io)
+    </li>
+  </ul>
+
+  <h2>Working with Quads in SketchUp</h2>
+  <p>
+    When working with quad based meshes you quickly discover the need for quads
+    where the vertices aren't
+    <a href="https://www.mathopenref.com/coplanar.html">coplanar</a>.
+  </p>
+  <p>
+    In SketchUp this can be a challenge because SketchUp's
+    <a href="https://help.sketchup.com/en/article/94865">Auto-Fold</a> feature
+    will break a quad into two triangles once it's vertices isn't coplanar any
+    more.
+  </p>
+  <p>
+    To allow extensions to work with quads that are not coplanar they need to be
+    able to determine which pair of triangles represent a quad. There is no
+    official standard for this, but the de-facto standard is the QuadFace Tools
+    type of quads.
+  </p>
+  <p>
+    The definition of a QuadFace Tools quad is that two triangles share an edge
+    which is
+    <a href="https://www.thomthom.net/thoughts/2012/06/soft-vs-smooth-vs-hidden-edges/">
+      soft and smooth
+    </a> - with Cast Shadows turned off.
+  </p>
+  <p>
+    It is highly recommended that you also install QuadFace Tools to assist in
+    creating quad based meshes for subdividing with SUbD. I is a core tool for
+    creating ideal geometry that subdivide well.
+  </p>
+
+  <h3>More</h3>
+  <ul>
+    <li>
+      <a href="skp:launchEW@quadface-tools"
+         data-rbz="https://evilsoftwareempire.com/quadfacetools/download/latest"
+          >Get QuadFace Tools</a>
+    </li>
+    <li>
+      <a href="https://evilsoftwareempire.com/quadfacetools/manual">
+        QuadFace Tools Manual
+      </a>
+    </li>
+    <li>
+      <a href="https://evilsoftwareempire.com/subd/quads/extensions">
+        Discover more extensions working with quads
+      </a>
+    </li>
+  </ul>
+
+</div>
+
+<div id="content-documentation" class="tab">
+
+  <h2>Manual</h2>
+  <ul>
+    <li>
+      <a href="https://evilsoftwareempire.com/subd/manual">
+        SUbD Manual
+      </a>
+    </li>
+    <li>
+      <a href="https://evilsoftwareempire.com/quadfacetools/manual">
+        QuadFace Tools Manual
+      </a>
+    </li>
+  </ul>
+
+  <h2>Videos</h2>
+  <ul>
+    <li>
+      <a href="https://evilsoftwareempire.com/subd/videos">
+        SUbD Videos
+      </a>
+    </li>
+    <li>
+      <a href="https://evilsoftwareempire.com/quadfacetools/videos">
+        QuadFace Tools Videos
+      </a>
+    </li>
+  </ul>
+
+</div>
+
+<div id="content-help" class="tab">
+
+  <h2>Need assistance using SUbD?</h2>
+  <p>
+    For general assistance on how to use SUbD, please post your question at the
+    <a href="https://forums.sketchup.com/c/extensions">SketchUp Forums</a>.
+  </p>
+  <div class="padded">
+    <p class="center">
+      <a href="https://forums.sketchup.com/c/extensions" title="Ask a question">
+        <img src="../images/forums.svg" width="50%">
+      </a>
+    </p>
+    <p class="center">
+      <a href="https://forums.sketchup.com/c/extensions">Ask a Question</a>
+    </p>
+  </div>
+  <p class="info">
+    Asking your question in the forums helps other people by making it readable to everyone. Additionally you
+    will benefit from the collective knowledge of the community and most likely get a faster response.
+  </p>
+
+  <h2>Problems with licenses, purchases or bugs?</h2>
+  <p>
+    Enquires that doesn't fall into the above category can be submitted via
+    the
+    <a href="https://evilsoftwareempire.com/subd/help">contact form</a>.
+  </p>
+
+</div>
+
+</div>
+
+<div id="dialog-update">
+  <h1>Update Available</h1>
+  <p>A newer version <b>0.0.0</b> is available.</p>
+  <ul>
+    <li>
+      <a href="skp:launchEW@subd">
+        Open Extension Warehouse
+      </a>
+    </li>
+    <li>
+      <a href="https://evilsoftwareempire.com/subd/update">
+        Open SUbD Website
+      </a>
+    </li>
+  </ul>
+  <div class="footer">
+    <button>Close</button>
+  </div>
+</div>
+
+</body>
+</html>

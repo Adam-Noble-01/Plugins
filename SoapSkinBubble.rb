@@ -1,10 +1,10 @@
-# Copyright 2006 - 2025 Josef Leibinger
+# Copyright 2006 - 2026 Josef Leibinger
 
 # Name :          
 # Description :   
 # Author :        Josef Leibinger
 # Usage :         
-# Date :          2025.04.08
+# Date :          2026.04.01
 # Type :          Soap Skin & Bubble Tool
 
 require 'sketchup.rb'
@@ -16,7 +16,7 @@ soapSkinBubbleExtension.description = ("Adds Tools-> Soap Skin & Bubble to the S
 
 soapSkinBubbleExtension.name = "Soap Skin & Bubble"
 soapSkinBubbleExtension.creator = "Josef Leibinger"
-soapSkinBubbleExtension.copyright = "2006 - 2025 Josef Leibinger"
-soapSkinBubbleExtension.version = "1.0.35"
+soapSkinBubbleExtension.copyright = "2006 - 2026 Josef Leibinger"
+soapSkinBubbleExtension.version = "1.0.36"
 
 Sketchup.register_extension soapSkinBubbleExtension, true
