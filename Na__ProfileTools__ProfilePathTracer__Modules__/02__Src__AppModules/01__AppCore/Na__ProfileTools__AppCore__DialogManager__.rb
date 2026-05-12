@@ -209,6 +209,43 @@ module Na__ProfileTools__ProfilePathTracer
                     { 'isSaved' => false, 'reason' => "Save failed: #{error.message}" }
                 )
             end
+
+            dialog.add_action_callback('na_profilepathtracer_dynregen_stats') do |_context|
+                stats = self.Na__Dialog__HandleDynRegenStats
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveDynRegenStats', stats)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('DynRegen stats callback failed.', error)
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_dynregen_enable_all') do |_context|
+                result = self.Na__Dialog__HandleDynRegenEnableAll
+                self.Na__Dialog__SetStatusFromRuby(result['statusMessage'])
+                stats = self.Na__Dialog__HandleDynRegenStats
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveDynRegenStats', stats)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('DynRegen enable-all callback failed.', error)
+                self.Na__Dialog__SetStatusFromRuby("Enable all failed: #{error.message}")
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_dynregen_disable_all') do |_context|
+                result = self.Na__Dialog__HandleDynRegenDisableAll
+                self.Na__Dialog__SetStatusFromRuby(result['statusMessage'])
+                stats = self.Na__Dialog__HandleDynRegenStats
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveDynRegenStats', stats)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('DynRegen disable-all callback failed.', error)
+                self.Na__Dialog__SetStatusFromRuby("Disable all failed: #{error.message}")
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_dynregen_detach_all') do |_context|
+                Na__ObserverRegistry.Na__ObserverRegistry__DetachAll if defined?(Na__ObserverRegistry)
+                self.Na__Dialog__SetStatusFromRuby('All Dynamic Regeneration observers detached.')
+                stats = self.Na__Dialog__HandleDynRegenStats
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveDynRegenStats', stats)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('DynRegen detach-all callback failed.', error)
+                self.Na__Dialog__SetStatusFromRuby("Detach all failed: #{error.message}")
+            end
         end
 
     # endregion ----------------------------------------------------------------
@@ -239,6 +276,84 @@ module Na__ProfileTools__ProfilePathTracer
                 'statusMessage' => purge_result ? 'Edge materials cache purged. Fresh copy downloaded.' : 'Cache purge failed or fresh download unavailable.',
                 'loadStatus' => status.to_s
             }
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Dynamic Regeneration Handlers
+    # -------------------------------------------------------------------------
+
+        def self.Na__Dialog__HandleDynRegenStats
+            return { 'total' => 0, 'enabled' => 0, 'active' => 0 } unless defined?(Na__DataSerializer) && defined?(Na__ObserverRegistry)
+
+            model = Sketchup.active_model
+            return { 'total' => 0, 'enabled' => 0, 'active' => 0 } unless model
+
+            parents = Na__DataSerializer.Na__DataSerializer__FindAllParentGroups(model)
+            total   = parents.length
+            enabled = parents.count { |g| Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(g) }
+            active  = Na__ObserverRegistry.Na__ObserverRegistry__Count
+
+            { 'total' => total, 'enabled' => enabled, 'active' => active }
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__Dialog__HandleDynRegenStats failed: #{error.message}")
+            { 'total' => 0, 'enabled' => 0, 'active' => 0 }
+        end
+
+        def self.Na__Dialog__HandleDynRegenEnableAll
+            return { 'statusMessage' => 'DataSerializer not loaded.' } unless defined?(Na__DataSerializer) && defined?(Na__ObserverRegistry)
+
+            model = Sketchup.active_model
+            return { 'statusMessage' => 'No active model.' } unless model
+
+            parents = Na__DataSerializer.Na__DataSerializer__FindAllParentGroups(model)
+            count = 0
+
+            model.start_operation('Na__ProfilePathTracer__DynRegenEnableAll', true)
+            parents.each do |parent_group|
+                Na__DataSerializer.Na__DataSerializer__SetDynamicRegen(parent_group, true)
+                helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
+                next unless helpers_group
+                Na__ObserverRegistry.Na__ObserverRegistry__AttachToHelpers(helpers_group)
+                Na__ContextMenuHandlers.Na__ContextMenu__UpdateGroupNameSuffix(parent_group, true) \
+                    if defined?(Na__ContextMenuHandlers)
+                count += 1
+            end
+            model.commit_operation
+
+            { 'statusMessage' => "Dynamic Regeneration enabled on #{count} profile trace(s)." }
+        rescue => error
+            model.abort_operation rescue nil
+            Na__DebugTools.Na__Debug__Warn("Na__Dialog__HandleDynRegenEnableAll failed: #{error.message}")
+            { 'statusMessage' => "Enable all failed: #{error.message}" }
+        end
+
+        def self.Na__Dialog__HandleDynRegenDisableAll
+            return { 'statusMessage' => 'DataSerializer not loaded.' } unless defined?(Na__DataSerializer) && defined?(Na__ObserverRegistry)
+
+            model = Sketchup.active_model
+            return { 'statusMessage' => 'No active model.' } unless model
+
+            Na__ObserverRegistry.Na__ObserverRegistry__DetachAll
+
+            parents = Na__DataSerializer.Na__DataSerializer__FindAllParentGroups(model)
+            count = 0
+
+            model.start_operation('Na__ProfilePathTracer__DynRegenDisableAll', true)
+            parents.each do |parent_group|
+                Na__DataSerializer.Na__DataSerializer__SetDynamicRegen(parent_group, false)
+                Na__ContextMenuHandlers.Na__ContextMenu__UpdateGroupNameSuffix(parent_group, false) \
+                    if defined?(Na__ContextMenuHandlers)
+                count += 1
+            end
+            model.commit_operation
+
+            { 'statusMessage' => "Dynamic Regeneration disabled on #{count} profile trace(s)." }
+        rescue => error
+            model.abort_operation rescue nil
+            Na__DebugTools.Na__Debug__Warn("Na__Dialog__HandleDynRegenDisableAll failed: #{error.message}")
+            { 'statusMessage' => "Disable all failed: #{error.message}" }
         end
 
     # endregion ----------------------------------------------------------------

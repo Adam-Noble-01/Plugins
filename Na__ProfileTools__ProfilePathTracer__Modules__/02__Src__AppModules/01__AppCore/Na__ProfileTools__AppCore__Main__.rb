@@ -25,12 +25,14 @@ require 'json'
 
 require_relative '../03__AppUtils/Na__ProfileTools__AppUtils__DebugTools__'
 require_relative '../03__AppUtils/Na__ProfileTools__AppUtils__AssetResolver__'
+require_relative '../03__AppUtils/Na__ProfileTools__AppUtils__TagApplier__'
 
 # -------------------------------------------------------------------------
 # REGION | AppData
 # -------------------------------------------------------------------------
 
 require_relative '../02__AppData/Na__ProfileTools__AppData__EdgeColourManager__'
+require_relative '../02__AppData/Na__ProfileTools__AppData__DataSerializer__'
 
 # -------------------------------------------------------------------------
 # REGION | Dependency Bootstrap (loads shared DataLib, sets cache dir)
@@ -59,6 +61,7 @@ require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyPr
 require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__HeadlessRunner__'
 require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__SceneProfileRegistry__'
 require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__SceneProfilePicker__'
+require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__RegenerationEngine__Main__'
 
 # -------------------------------------------------------------------------
 # REGION | System - Create New Profile
@@ -70,10 +73,12 @@ require_relative '../10__System__CreateNewProfile/Na__ProfileTools__CreateNewPro
 # REGION | AppCore (must load last — depends on all systems above)
 # -------------------------------------------------------------------------
 
+require_relative 'Na__ProfileTools__AppCore__HelpersEntitiesObserver__'
 require_relative 'Na__ProfileTools__AppCore__Observers__'
 require_relative 'Na__ProfileTools__AppCore__PluginReloader__'
 require_relative 'Na__ProfileTools__AppCore__DialogManager__'
 require_relative 'Na__ProfileTools__AppCore__PublicApi__'
+require_relative 'Na__ProfileTools__AppCore__ContextMenuHandlers__'
 
 # =============================================================================
 

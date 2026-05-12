@@ -3,6 +3,88 @@
 ## Version History
 
 # =======================================================================================
+## Profile Path Tracer - v1.1.1 - 12-May-2026
+
+### Feature: Dedicated "Create Profile" Tab + UI Restructure
+
+#### Summary
+
+Introduced a dedicated **Create Profile** tab, separating profile creation from the
+Apply Profile workflow. All profile-creation forms, validation actions, and save logic
+are now consolidated in one place, making the UI significantly more intuitive.
+
+Also added the missing `Na__EdgeColours__CanonicalIdForMaterial` method to the
+`Na__EdgeColourManager` module, which was called by the Exporter but never implemented,
+causing profile saves to fail with `undefined method`.
+
+---
+
+#### UI Changes
+
+**New tab order:** Apply Profile | **Create Profile** | Gallery | Settings
+
+The "Create Profile" tab runs a two-state workflow:
+
+1. **Instruction state** — explains the three steps; shows a **Validate Selection** button.
+   Clicking this calls `Bridge__ValidateForExport` which triggers Ruby-side geometry
+   inspection. On success, the tab automatically transitions to the form state.
+2. **Form state** — shows the Geometry Summary (face/edge/vertex count + SVG preview),
+   then the Profile Details form (Name, Description, Keywords, Profile ID, Timestamp,
+   Units). **Save Profile Data File** submits to Ruby. **Start Over** resets back to the
+   instruction state.
+
+The Apply Profile tab is now focused exclusively on generating extruded profiles —
+the "Create New Profile" button and the hidden slide-in panel have been removed from it.
+
+---
+
+#### Ruby Fix: Missing `Na__EdgeColours__CanonicalIdForMaterial`
+
+##### Problem
+
+Saving a profile failed with:
+
+```
+Save failed: undefined method `Na__EdgeColours__CanonicalIdForMaterial'
+for Na__ProfileTools__ProfilePathTracer::Na__EdgeColourManager:Module
+```
+
+`Na__Exporter__BuildMeshEdgeRecord` (line 443 of `Na__ProfileTools__CreateNewProfile__Exporter__.rb`)
+called `Na__EdgeColourManager.Na__EdgeColours__CanonicalIdForMaterial` but this method
+was never defined in the module.
+
+##### Fix
+
+Added `Na__EdgeColours__CanonicalIdForMaterial(material_name, _edge = nil)` to the
+`Na__EdgeColourManager` module. It delegates to the existing `Na__EdgeColours__GetEntryByName`
+and returns the entry's `MteKey` if the material name resolves to a Noble Architecture
+standard edge material, otherwise `nil`.
+
+```ruby
+def self.Na__EdgeColours__CanonicalIdForMaterial(material_name, _edge = nil)
+    return nil if material_name.to_s.strip.empty?
+    entry = self.Na__EdgeColours__GetEntryByName(material_name.to_s)
+    return nil unless entry
+    mte_key = entry['MteKey'].to_s
+    mte_key.empty? ? nil : mte_key
+end
+```
+
+---
+
+#### Files Touched
+
+| Path | Change |
+|---|---|
+| `Na__ProfileTools__UiLayout__.html` | Added "Create Profile" tab button and panel; added script tag for new MainUiLogic |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__TabRouter__.js` | Added `'create-profile'` → `Na__ProfileTools__CreateNewProfile__Tab` to lookup table |
+| `02__Src__AppModules/10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__UiSystem__MainUiLogic__.js` | **NEW** — Owns full Create Profile tab lifecycle and `ReceiveExportValidation` / `ReceiveSaveProfileResult` callbacks |
+| `02__Src__AppModules/10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js` | Removed "Create New Profile" button + hidden `naCreateProfilePanel` div from Apply Profile tab body |
+| `02__Src__AppModules/20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__UiSystem__Events__.js` | Removed `btnCreateProfile` event wiring |
+| `02__Src__AppModules/20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js` | Removed `ShowCreateProfilePanel`, `HideCreateProfilePanel`, `BuildUnifiedPreviewRecordFromPoints`, `OnCreateProfile` handler, `ReceiveExportValidation`, `ReceiveSaveProfileResult` — all moved to new module |
+| `02__Src__AppModules/02__AppData/Na__ProfileTools__AppData__EdgeColourManager__.rb` | Added missing `Na__EdgeColours__CanonicalIdForMaterial` method |
+
+# =======================================================================================
 ## Profile Path Tracer - v1.1.0 - 12-May-2026
 
 ### Fix: Scene Pick Profile Extraction — Broken Edge Colour Resolution

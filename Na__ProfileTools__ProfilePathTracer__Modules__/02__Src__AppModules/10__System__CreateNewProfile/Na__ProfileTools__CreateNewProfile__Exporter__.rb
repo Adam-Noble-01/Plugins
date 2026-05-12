@@ -683,30 +683,13 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | DataLib Helpers (Tags + Edge Materials)
     # -------------------------------------------------------------------------
 
+        # @delegate: ../../../03__AppUtils/Na__ProfileTools__AppUtils__TagApplier__
         def self.Na__Exporter__FindTagEntryByName(target_tag_name)
-            data = Na__DataLib__CacheData.Na__Cache__LoadData(:tags)
-            return nil unless data.is_a?(Hash)
-
-            tags_root = data['Na__DataLib__CoreIndex__Tags']
-            return nil unless tags_root.is_a?(Hash)
-
-            self.Na__Exporter__FindTagNodeRecursive(tags_root, target_tag_name)
-        rescue
-            nil
+            Na__TagApplier.Na__TagApplier__FindTagEntryByName(target_tag_name)
         end
 
         def self.Na__Exporter__FindTagNodeRecursive(node, target_tag_name)
-            return nil unless node.is_a?(Hash)
-
-            node.each_value do |value|
-                next unless value.is_a?(Hash)
-                return value if value['Tag__SketchUpName'].to_s == target_tag_name
-
-                nested_result = self.Na__Exporter__FindTagNodeRecursive(value, target_tag_name)
-                return nested_result if nested_result
-            end
-
-            nil
+            Na__TagApplier.Na__TagApplier__FindTagNodeRecursive(node, target_tag_name)
         end
 
         def self.Na__Exporter__LoadEdgeMaterialLookup

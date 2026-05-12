@@ -14,12 +14,13 @@
 #   LOCAL MIRROR IS NEVER READ.
 #
 # PUBLIC API:
-#   Na__EdgeColours__ForceRefreshFromUrl     - Called on every dialog open
-#   Na__EdgeColours__GetEntryByName(name)    - Lookup by MTE id or SketchUp name
-#   Na__EdgeColours__EnsureSketchUpMaterial  - Create/reuse SU material with exact RGB
-#   Na__EdgeColours__IsStandardName?(name)   - Returns true for MTE pattern names
-#   Na__EdgeColours__PurgeCache              - Purge + fresh download
-#   Na__EdgeColours__LoadStatus              - Returns :url | :cache_stale | :failed | :pending
+#   Na__EdgeColours__ForceRefreshFromUrl              - Called on every dialog open
+#   Na__EdgeColours__GetEntryByName(name)             - Lookup by MTE id or SketchUp name
+#   Na__EdgeColours__CanonicalIdForMaterial(name)     - Returns MTE key if name matches a standard, else nil
+#   Na__EdgeColours__EnsureSketchUpMaterial           - Create/reuse SU material with exact RGB
+#   Na__EdgeColours__IsStandardName?(name)            - Returns true for MTE pattern names
+#   Na__EdgeColours__PurgeCache                       - Purge + fresh download
+#   Na__EdgeColours__LoadStatus                       - Returns :url | :cache_stale | :failed | :pending
 #
 # =============================================================================
 
@@ -116,6 +117,17 @@ module Na__ProfileTools__ProfilePathTracer
         def self.Na__EdgeColours__IsStandardName?(name)
             return false if name.to_s.strip.empty?
             !!(name.to_s =~ NA_MTE_PATTERN)
+        end
+
+        def self.Na__EdgeColours__CanonicalIdForMaterial(material_name, _edge = nil)
+            return nil if material_name.to_s.strip.empty?
+            entry = self.Na__EdgeColours__GetEntryByName(material_name.to_s)
+            return nil unless entry
+            mte_key = entry['MteKey'].to_s
+            mte_key.empty? ? nil : mte_key
+        rescue => error
+            puts "⚠ [Na__EdgeColourManager] CanonicalIdForMaterial failed: #{error.message}"
+            nil
         end
 
         def self.Na__EdgeColours__LoadStatus

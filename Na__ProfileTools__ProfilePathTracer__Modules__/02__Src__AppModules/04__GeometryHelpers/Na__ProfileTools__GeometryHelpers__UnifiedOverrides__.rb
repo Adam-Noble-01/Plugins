@@ -382,54 +382,92 @@ module Na__ProfileTools__ProfilePathTracer
             frame_transform = self.Na__Geometry__BuildPathFrame(start_point, resolved_path_data)
             return { 'isBuilt' => false, 'reason' => 'Path frame could not be built.' } unless frame_transform
 
+            profile_key = profile_data['profileKey'] || 'Unnamed'
             model.start_operation('Na__ProfilePathTracer__GenerateUnifiedProfile', true)
-            group = model.active_entities.add_group
-            group.name = "Na__ProfileTrace__#{profile_data['profileKey'] || 'Unnamed'}"
-            entities = group.entities
 
-            path_edges = []
-            path_edge_ids = []
-            (0...(ordered_points.length - 1)).each do |index|
-                edge = entities.add_line(ordered_points[index], ordered_points[index + 1])
-                if edge && edge.valid?
-                    path_edges << edge
-                    begin
-                        path_edge_ids << edge.persistent_id
-                    rescue
-                        # Stale edge id at creation time — safe to ignore.
-                    end
-                end
-            end
-            if is_closed_loop
-                closing_edge = entities.add_line(ordered_points[-1], ordered_points[0])
-                if closing_edge && closing_edge.valid?
-                    path_edges << closing_edge
-                    begin
-                        path_edge_ids << closing_edge.persistent_id
-                    rescue
-                        # Stale edge id at creation time — safe to ignore.
-                    end
-                end
-            end
+            parent_group = model.active_entities.add_group
+            parent_group.name = "Na__ProfileTrace__#{profile_key}"
 
-            face_result = self.Na__Geometry__BuildTransformedProfileFace(entities, profile_data, frame_transform, rotation_step, toggle_states)
-            unless face_result['isValid']
+            helpers_group = parent_group.entities.add_group
+            helpers_group.name = 'Na__ProfileTrace__Helpers'
+
+            solid_group = parent_group.entities.add_group
+            solid_group.name = 'Na__ProfileTrace__SweptSolid'
+            solid_entities = solid_group.entities
+
+            swept = self.Na__Geometry__SweepProfileIntoGroup(
+                target_entities:    solid_entities,
+                model:              model,
+                profile_data:       profile_data,
+                ordered_points:     ordered_points,
+                is_closed_loop:     is_closed_loop,
+                frame_transform:    frame_transform,
+                rotation_step:      rotation_step,
+                toggle_states:      toggle_states,
+                resolved_path_data: resolved_path_data
+            )
+            unless swept['isSwept']
                 self.Na__Geometry__AbortOperationSafely(model)
-                return { 'isBuilt' => false, 'reason' => face_result['reason'] }
+                return { 'isBuilt' => false, 'reason' => swept['reason'] }
             end
+            styled_edge_count = swept['styledEdgeCount']
 
-            profile_face = face_result['profileFace']
-            profile_face.followme(path_edges)
-            entities.erase_entities(profile_face) if profile_face.valid?
+            self.Na__Geometry__BuildHelpersSubGroup(model, helpers_group, ordered_points, is_closed_loop)
 
-            self.Na__Geometry__RemoveClosureSeamFaces(entities, ordered_points, frame_transform, is_closed_loop)
+            # @delegate: ../02__AppData/Na__ProfileTools__AppData__DataSerializer__
+            self.Na__Geometry__StampAssemblyDictionaries(
+                model, parent_group, helpers_group,
+                profile_key: profile_key,
+                rotation_step: rotation_step,
+                toggle_states: toggle_states,
+                is_closed_loop: is_closed_loop,
+                start_point: start_point
+            )
 
-            styled_edge_count = self.Na__Geometry__ApplyUnifiedEdgeStates(entities, model, profile_data, path_edge_ids, resolved_path_data)
             model.commit_operation
-            { 'isBuilt' => true, 'groupName' => group.name, 'styledEdgeCount' => styled_edge_count }
+            { 'isBuilt' => true, 'groupName' => parent_group.name, 'styledEdgeCount' => styled_edge_count }
         rescue => error
             self.Na__Geometry__AbortOperationSafely(model)
             { 'isBuilt' => false, 'reason' => error.message }
+        end
+
+        def self.Na__Geometry__SweepProfileIntoGroup(target_entities:, model:, profile_data:,
+                                                        ordered_points:, is_closed_loop:, frame_transform:,
+                                                        rotation_step:, toggle_states:, resolved_path_data:)
+            path_edges    = []
+            path_edge_ids = []
+
+            (0...(ordered_points.length - 1)).each do |index|
+                edge = target_entities.add_line(ordered_points[index], ordered_points[index + 1])
+                if edge && edge.valid?
+                    path_edges << edge
+                    begin; path_edge_ids << edge.persistent_id; rescue; end
+                end
+            end
+            if is_closed_loop
+                closing_edge = target_entities.add_line(ordered_points[-1], ordered_points[0])
+                if closing_edge && closing_edge.valid?
+                    path_edges << closing_edge
+                    begin; path_edge_ids << closing_edge.persistent_id; rescue; end
+                end
+            end
+
+            face_result = self.Na__Geometry__BuildTransformedProfileFace(
+                target_entities, profile_data, frame_transform, rotation_step, toggle_states
+            )
+            return { 'isSwept' => false, 'reason' => face_result['reason'] } unless face_result['isValid']
+
+            profile_face = face_result['profileFace']
+            profile_face.followme(path_edges)
+            target_entities.erase_entities(profile_face) if profile_face.valid?
+
+            self.Na__Geometry__RemoveClosureSeamFaces(target_entities, ordered_points, frame_transform, is_closed_loop)
+            styled_edge_count = self.Na__Geometry__ApplyUnifiedEdgeStates(
+                target_entities, model, profile_data, path_edge_ids, resolved_path_data
+            )
+            { 'isSwept' => true, 'styledEdgeCount' => styled_edge_count }
+        rescue => error
+            { 'isSwept' => false, 'reason' => error.message }
         end
 
         def self.Na__Geometry__AbortOperationSafely(model)
@@ -437,6 +475,47 @@ module Na__ProfileTools__ProfilePathTracer
             model.abort_operation
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Abort operation warning: #{error.message}")
+        end
+
+        def self.Na__Geometry__BuildHelpersSubGroup(model, helpers_group, ordered_points, is_closed_loop)
+            entities = helpers_group.entities
+            helper_edges = []
+
+            (0...(ordered_points.length - 1)).each do |index|
+                edge = entities.add_line(ordered_points[index], ordered_points[index + 1])
+                helper_edges << edge if edge && edge.valid?
+            end
+
+            if is_closed_loop
+                closing_edge = entities.add_line(ordered_points[-1], ordered_points[0])
+                helper_edges << closing_edge if closing_edge && closing_edge.valid?
+            end
+
+            # @delegate: ../03__AppUtils/Na__ProfileTools__AppUtils__TagApplier__
+            helpers_tag = Na__TagApplier.Na__TagApplier__EnsureTagFromDataLib(model, NA_HELPERS_TAG_NAME)
+            Na__TagApplier.Na__TagApplier__ApplyTagToEntity(helpers_group, helpers_tag)
+            Na__TagApplier.Na__TagApplier__PaintEdgesWithMteMaterial(model, helper_edges, NA_HELPERS_MATERIAL_ID)
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Helpers sub-group build warning: #{error.message}")
+        end
+
+        def self.Na__Geometry__StampAssemblyDictionaries(model, parent_group, helpers_group,
+                                                          profile_key:, rotation_step:, toggle_states:,
+                                                          is_closed_loop:, start_point:)
+            return unless defined?(Na__DataSerializer)
+
+            trace_id = Na__DataSerializer.Na__DataSerializer__GenerateNextProfileTraceId(model)
+            Na__DataSerializer.Na__DataSerializer__StampParent(parent_group, {
+                'ProfileTraceId' => trace_id,
+                'ProfileKey'     => profile_key,
+                'RotationStep'   => rotation_step,
+                'ToggleStates'   => toggle_states,
+                'IsClosedLoop'   => is_closed_loop,
+                'StartPoint'     => start_point
+            })
+            Na__DataSerializer.Na__DataSerializer__StampHelpers(helpers_group, trace_id)
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Assembly dictionary stamp warning: #{error.message}")
         end
 
         def self.Na__Geometry__RemoveClosureSeamFaces(entities, ordered_points, frame_transform, is_closed_loop)
@@ -536,6 +615,8 @@ module Na__ProfileTools__ProfilePathTracer
     # -------------------------------------------------------------------------
 
         NA_RUN_EDGE_SOFTEN_ANGLE_RADIANS = 20.0 * Math::PI / 180.0
+        NA_HELPERS_TAG_NAME    = '02__ProfilePathTracer_Helpers'.freeze
+        NA_HELPERS_MATERIAL_ID = 'MTE201__LineColour__Red'.freeze
 
         def self.Na__Geometry__ApplyUnifiedEdgeStates(entities, model, profile_data, path_edge_ids, path_data)
             style_reference = self.Na__Geometry__BuildStyleReferenceRecords(profile_data)

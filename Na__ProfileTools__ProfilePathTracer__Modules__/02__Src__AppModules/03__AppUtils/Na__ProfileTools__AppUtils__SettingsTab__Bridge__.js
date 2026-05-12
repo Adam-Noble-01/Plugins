@@ -74,4 +74,50 @@
     };
 
     // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Dynamic Regeneration Actions
+    // -------------------------------------------------------------------------
+
+    window.na_profiletools_settingsDynRegenEnableAll = function () {
+        na_status('Enabling Dynamic Regeneration on all profile traces...');
+        if (window.Na__ProfileTools__BridgeBase) {
+            window.Na__ProfileTools__BridgeBase.Na__BridgeBase__CallSafe('na_profilepathtracer_dynregen_enable_all');
+        } else if (window.sketchup) {
+            window.sketchup.na_profilepathtracer_dynregen_enable_all();
+        } else {
+            na_status('DynRegen enable-all bridge is not available.');
+        }
+    };
+
+    window.na_profiletools_settingsDynRegenDisableAll = function () {
+        na_status('Disabling Dynamic Regeneration on all profile traces...');
+        if (window.Na__ProfileTools__BridgeBase) {
+            window.Na__ProfileTools__BridgeBase.Na__BridgeBase__CallSafe('na_profilepathtracer_dynregen_disable_all');
+        } else if (window.sketchup) {
+            window.sketchup.na_profilepathtracer_dynregen_disable_all();
+        } else {
+            na_status('DynRegen disable-all bridge is not available.');
+        }
+    };
+
+    window.na_profiletools_settingsDynRegenDetachAll = function () {
+        var confirmed = window.confirm(
+            'This will detach all active Dynamic Regeneration observers without disabling the stored flag.\n\nProceed?'
+        );
+        if (!confirmed) {
+            na_status('Detach all observers cancelled.');
+            return;
+        }
+        na_status('Detaching all Dynamic Regeneration observers...');
+        if (window.Na__ProfileTools__BridgeBase) {
+            window.Na__ProfileTools__BridgeBase.Na__BridgeBase__CallSafe('na_profilepathtracer_dynregen_detach_all');
+        } else if (window.sketchup) {
+            window.sketchup.na_profilepathtracer_dynregen_detach_all();
+        } else {
+            na_status('DynRegen detach-all bridge is not available.');
+        }
+    };
+
+    // endregion ----------------------------------------------------------------
 })();

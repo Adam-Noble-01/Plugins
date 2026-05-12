@@ -31,7 +31,10 @@ module Na__ProfileTools__ProfilePathTracer
             Sketchup.add_observer(@na_app_observer)
 
             active_model = Sketchup.active_model
-            self.Na__Observers__AttachDefinitionsObserver(active_model) if active_model
+            if active_model
+                self.Na__Observers__AttachDefinitionsObserver(active_model)
+                self.Na__Observers__AttachToAllStampedHelpers(active_model)
+            end
         end
 
         def self.Na__Observers__UninstallExisting
@@ -41,6 +44,7 @@ module Na__ProfileTools__ProfilePathTracer
             end
 
             self.Na__Observers__DetachDefinitionsObserver
+            Na__ObserverRegistry.Na__ObserverRegistry__DetachAll if defined?(Na__ObserverRegistry)
         end
 
     # endregion ----------------------------------------------------------------
@@ -66,6 +70,27 @@ module Na__ProfileTools__ProfilePathTracer
             @na_attached_definitions.remove_observer(@na_definitions_observer) rescue nil
             @na_definitions_observer = nil
             @na_attached_definitions = nil
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Dynamic Regen — Stamped Helpers Walker
+    # -------------------------------------------------------------------------
+
+        def self.Na__Observers__AttachToAllStampedHelpers(model)
+            return unless model
+            return unless defined?(Na__DataSerializer) && defined?(Na__ObserverRegistry)
+
+            parent_groups = Na__DataSerializer.Na__DataSerializer__FindAllParentGroups(model)
+            parent_groups.each do |parent_group|
+                next unless Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
+                helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
+                next unless helpers_group
+                Na__ObserverRegistry.Na__ObserverRegistry__AttachToHelpers(helpers_group)
+            end
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Observers: AttachToAllStampedHelpers failed: #{error.message}")
         end
 
     # endregion ----------------------------------------------------------------
@@ -129,8 +154,11 @@ module Na__ProfileTools__ProfilePathTracer
         private
 
         def Na__Observers__HandleModelChange(model)
+            Na__ProfileTools__ProfilePathTracer::Na__ObserverRegistry.Na__ObserverRegistry__DetachAll \
+                if defined?(Na__ProfileTools__ProfilePathTracer::Na__ObserverRegistry)
             Na__ProfileTools__ProfilePathTracer::Na__Observers.Na__Observers__AttachDefinitionsObserver(model)
             Na__ProfileTools__ProfilePathTracer::Na__Observers.Na__Observers__ClearSceneRegistryAndNotify
+            Na__ProfileTools__ProfilePathTracer::Na__Observers.Na__Observers__AttachToAllStampedHelpers(model)
         end
     end
 

@@ -1,0 +1,328 @@
+# =============================================================================
+# NA PROFILE TOOLS - APP DATA - DATA SERIALIZER
+# =============================================================================
+#
+# FILE       : Na__ProfileTools__AppData__DataSerializer__.rb
+# NAMESPACE  : Na__ProfileTools__ProfilePathTracer::Na__DataSerializer
+# PURPOSE    : AttributeDictionary stamping, reading, and ID management for
+#              Profile Trace assemblies. Enables the Dynamic Regeneration system
+#              to identify, cross-link, and reconstruct profile trace groups.
+#
+# DICTIONARY SCHEMA
+#   Parent assembly group  -> Na__ProfilePathTracer__Info
+#     ProfileTraceId       String   e.g. "NPT0001"
+#     ProfileKey           String   Library key used to generate the profile
+#     RotationStep         Integer  0-3
+#     ToggleStates         String   JSON-encoded hash of toggle flags
+#     IsClosedLoop         String   "true" | "false"
+#     StartPoint           String   JSON-encoded [x, y, z] in inches
+#     DynamicRegenEnabled  String   "true" | "false"
+#     SchemaVersion        String   "1.0.0"
+#     CreatedAt            String   ISO-8601 timestamp
+#
+#   Helpers sub-group      -> Na__ProfilePathTracer__HelpersInfo
+#     ProfileTraceId       String   Back-reference to the parent assembly id
+#     SchemaVersion        String   "1.0.0"
+#
+# PUBLIC API
+#   Na__DataSerializer__StampParent(parent_group, payload_hash)
+#   Na__DataSerializer__StampHelpers(helpers_group, profile_trace_id)
+#   Na__DataSerializer__ReadParentPayload(group) -> Hash or nil
+#   Na__DataSerializer__IsProfileTraceParent?(group) -> Boolean
+#   Na__DataSerializer__IsHelpersSubGroup?(group) -> Boolean
+#   Na__DataSerializer__FindHelpersSubGroup(parent_group) -> group or nil
+#   Na__DataSerializer__FindParentFromHelpers(helpers_group) -> group or nil
+#   Na__DataSerializer__SetDynamicRegen(parent_group, enabled_bool)
+#   Na__DataSerializer__DynamicRegenEnabled?(parent_group) -> Boolean
+#   Na__DataSerializer__GenerateNextProfileTraceId(model) -> String
+#
+# =============================================================================
+
+require 'json'
+require 'time'
+
+module Na__ProfileTools__ProfilePathTracer
+    module Na__DataSerializer
+
+    # -------------------------------------------------------------------------
+    # REGION | Constants
+    # -------------------------------------------------------------------------
+
+        NA_PROFILE_TRACE_DICT  = 'Na__ProfilePathTracer__Info'.freeze
+        NA_HELPERS_DICT        = 'Na__ProfilePathTracer__HelpersInfo'.freeze
+        NA_SCHEMA_VERSION      = '1.0.0'.freeze
+        NA_ID_PREFIX           = 'NPT'.freeze
+        NA_ID_REGEX            = /^NPT\d{4}$/.freeze
+        NA_HELPERS_GROUP_NAME  = 'Na__ProfileTrace__Helpers'.freeze
+        NA_SOLID_GROUP_NAME    = 'Na__ProfileTrace__SweptSolid'.freeze
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Stamp Operations
+    # -------------------------------------------------------------------------
+
+        def self.Na__DataSerializer__StampParent(parent_group, payload_hash)
+            return unless parent_group && payload_hash.is_a?(Hash)
+
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT, true)
+            dict['ProfileTraceId']      = payload_hash['ProfileTraceId'].to_s
+            dict['ProfileKey']          = payload_hash['ProfileKey'].to_s
+            dict['RotationStep']        = payload_hash['RotationStep'].to_i.to_s
+            dict['ToggleStates']        = self.Na__DataSerializer__SerialiseToggleStates(payload_hash['ToggleStates'])
+            dict['IsClosedLoop']        = (payload_hash['IsClosedLoop'] == true).to_s
+            dict['StartPoint']          = self.Na__DataSerializer__SerialisePoint(payload_hash['StartPoint'])
+            dict['DynamicRegenEnabled'] = 'false'
+            dict['SchemaVersion']       = NA_SCHEMA_VERSION
+            dict['CreatedAt']           = Time.now.utc.iso8601
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: StampParent failed: #{error.message}")
+        end
+
+        def self.Na__DataSerializer__StampHelpers(helpers_group, profile_trace_id)
+            return unless helpers_group && profile_trace_id.is_a?(String)
+
+            dict = helpers_group.attribute_dictionary(NA_HELPERS_DICT, true)
+            dict['ProfileTraceId'] = profile_trace_id
+            dict['SchemaVersion']  = NA_SCHEMA_VERSION
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: StampHelpers failed: #{error.message}")
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Read Operations
+    # -------------------------------------------------------------------------
+
+        def self.Na__DataSerializer__ReadParentPayload(group)
+            return nil unless group && group.respond_to?(:attribute_dictionary)
+            dict = group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+            return nil unless dict
+
+            {
+                'ProfileTraceId'     => dict['ProfileTraceId'].to_s,
+                'ProfileKey'         => dict['ProfileKey'].to_s,
+                'RotationStep'       => dict['RotationStep'].to_i,
+                'ToggleStates'       => self.Na__DataSerializer__DeserialiseToggleStates(dict['ToggleStates']),
+                'IsClosedLoop'       => dict['IsClosedLoop'] == 'true',
+                'StartPoint'         => self.Na__DataSerializer__DeserialisePoint(dict['StartPoint']),
+                'DynamicRegenEnabled'=> dict['DynamicRegenEnabled'] == 'true',
+                'SchemaVersion'      => dict['SchemaVersion'].to_s
+            }
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: ReadParentPayload failed: #{error.message}")
+            nil
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Discriminators
+    # -------------------------------------------------------------------------
+
+        def self.Na__DataSerializer__IsProfileTraceParent?(group)
+            return false unless self.Na__DataSerializer__GroupValid?(group)
+            dict = group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+            return false unless dict
+            id = dict['ProfileTraceId'].to_s
+            id.match?(NA_ID_REGEX)
+        rescue
+            false
+        end
+
+        def self.Na__DataSerializer__IsHelpersSubGroup?(group)
+            return false unless self.Na__DataSerializer__GroupValid?(group)
+            dict = group.attribute_dictionary(NA_HELPERS_DICT)
+            return false unless dict
+            id = dict['ProfileTraceId'].to_s
+            id.match?(NA_ID_REGEX)
+        rescue
+            false
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Group Navigation
+    # -------------------------------------------------------------------------
+
+        def self.Na__DataSerializer__FindHelpersSubGroup(parent_group)
+            return nil unless self.Na__DataSerializer__GroupValid?(parent_group)
+            parent_group.entities.grep(Sketchup::Group).find do |child|
+                child.name == NA_HELPERS_GROUP_NAME || self.Na__DataSerializer__IsHelpersSubGroup?(child)
+            end
+        rescue
+            nil
+        end
+
+        def self.Na__DataSerializer__FindSolidSubGroup(parent_group)
+            return nil unless self.Na__DataSerializer__GroupValid?(parent_group)
+            parent_group.entities.grep(Sketchup::Group).find do |child|
+                child.name == NA_SOLID_GROUP_NAME
+            end
+        rescue
+            nil
+        end
+
+        def self.Na__DataSerializer__FindParentFromHelpers(helpers_group)
+            return nil unless self.Na__DataSerializer__GroupValid?(helpers_group)
+            dict = helpers_group.attribute_dictionary(NA_HELPERS_DICT)
+            return nil unless dict
+            target_id = dict['ProfileTraceId'].to_s
+            return nil if target_id.empty?
+
+            self.Na__DataSerializer__FindParentByIdInModel(target_id)
+        rescue
+            nil
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Toggle Operations
+    # -------------------------------------------------------------------------
+
+        def self.Na__DataSerializer__SetDynamicRegen(parent_group, enabled_bool)
+            return unless self.Na__DataSerializer__GroupValid?(parent_group)
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT, true)
+            dict['DynamicRegenEnabled'] = (enabled_bool == true).to_s
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: SetDynamicRegen failed: #{error.message}")
+        end
+
+        def self.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
+            return false unless self.Na__DataSerializer__GroupValid?(parent_group)
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+            return false unless dict
+            dict['DynamicRegenEnabled'] == 'true'
+        rescue
+            false
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | ID Generation
+    # -------------------------------------------------------------------------
+
+        def self.Na__DataSerializer__GenerateNextProfileTraceId(model)
+            return "#{NA_ID_PREFIX}0001" unless model
+            highest = self.Na__DataSerializer__ScanHighestId(model)
+            format("#{NA_ID_PREFIX}%04d", highest + 1)
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Model-wide Helpers
+    # -------------------------------------------------------------------------
+
+        def self.Na__DataSerializer__FindAllParentGroups(model)
+            return [] unless model
+            self.Na__DataSerializer__CollectStampedGroups(model.entities, [])
+        end
+
+        def self.Na__DataSerializer__FindParentByIdInModel(target_id)
+            model = Sketchup.active_model
+            return nil unless model
+            self.Na__DataSerializer__SearchGroupsForId(model.entities, target_id)
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Private - Serialisation Helpers
+    # -------------------------------------------------------------------------
+
+        def self.Na__DataSerializer__SerialiseToggleStates(toggle_states)
+            return '{}' unless toggle_states.is_a?(Hash)
+            JSON.generate(toggle_states)
+        rescue
+            '{}'
+        end
+
+        def self.Na__DataSerializer__DeserialiseToggleStates(json_string)
+            return {} unless json_string.is_a?(String) && !json_string.empty?
+            parsed = JSON.parse(json_string)
+            parsed.is_a?(Hash) ? parsed : {}
+        rescue
+            {}
+        end
+
+        def self.Na__DataSerializer__SerialisePoint(point)
+            return '[0,0,0]' unless point
+            coords = [point.x.to_f, point.y.to_f, point.z.to_f]
+            JSON.generate(coords)
+        rescue
+            '[0,0,0]'
+        end
+
+        def self.Na__DataSerializer__DeserialisePoint(json_string)
+            return nil unless json_string.is_a?(String) && !json_string.empty?
+            coords = JSON.parse(json_string)
+            return nil unless coords.is_a?(Array) && coords.length == 3
+            Geom::Point3d.new(coords[0].to_f, coords[1].to_f, coords[2].to_f)
+        rescue
+            nil
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Private - Group Safety + Scanning
+    # -------------------------------------------------------------------------
+
+        def self.Na__DataSerializer__GroupValid?(group)
+            group && group.respond_to?(:valid?) && group.valid? && group.respond_to?(:entities)
+        end
+
+        def self.Na__DataSerializer__ScanHighestId(model)
+            highest = 0
+            self.Na__DataSerializer__FindAllParentGroups(model).each do |group|
+                dict = group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+                next unless dict
+                id_string = dict['ProfileTraceId'].to_s
+                next unless id_string.match?(NA_ID_REGEX)
+                number = id_string[NA_ID_PREFIX.length..].to_i
+                highest = number if number > highest
+            end
+            highest
+        end
+
+        def self.Na__DataSerializer__CollectStampedGroups(entities, accumulator)
+            return accumulator unless entities
+            entities.grep(Sketchup::Group).each do |group|
+                next unless group.valid?
+                accumulator << group if self.Na__DataSerializer__IsProfileTraceParent?(group)
+                self.Na__DataSerializer__CollectStampedGroups(group.entities, accumulator)
+            end
+            accumulator
+        rescue
+            accumulator
+        end
+
+        def self.Na__DataSerializer__SearchGroupsForId(entities, target_id)
+            return nil unless entities
+            entities.grep(Sketchup::Group).each do |group|
+                next unless group.valid?
+                if self.Na__DataSerializer__IsProfileTraceParent?(group)
+                    dict = group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+                    return group if dict && dict['ProfileTraceId'].to_s == target_id
+                end
+                result = self.Na__DataSerializer__SearchGroupsForId(group.entities, target_id)
+                return result if result
+            end
+            nil
+        rescue
+            nil
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    end
+end
+
+# =============================================================================
+# END OF FILE
+# =============================================================================
