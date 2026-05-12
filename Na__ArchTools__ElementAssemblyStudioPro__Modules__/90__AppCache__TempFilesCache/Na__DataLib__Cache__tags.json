@@ -1,5 +1,5 @@
 {
-  "cached_at": 1778575293,
+  "cached_at": 1778601795,
   "data": {
     "meta": {
       "fileName": "Na__DataLib__CoreIndex__Tags__.json",
@@ -44,7 +44,17 @@
         },
         "02__ClearanceLines": {
           "Tag__SketchUpName": "02__ClearanceLines",
+          "Tag__LineStyle__Config": "Short dash",
+          "Tag__EdgeMaterial__Config": "MTE104__LineColour__MidGrey__L60",
           "Tag__Description": "Clearance zone linework (e.g. furniture clearances, accessibility zones). Always excluded from GLB export.",
+          "Glb__ExportRangeNumbers": null,
+          "Glb__FullyExcluded": true
+        },
+        "02__ProfilePathTracer_Helpers": {
+          "Tag__SketchUpName": "02__ProfilePathTracer_Helpers",
+          "Tag__LineStyle__Config": "Short dash",
+          "Tag__EdgeMaterial__Config": "MTE201__LineColour__Red",
+          "Tag__Description": "Helpers for the Profile Path Tracer tool. These are used to help the user to create a profile path for the Profile Path Tracer tool. Always excluded from GLB export.",
           "Glb__ExportRangeNumbers": null,
           "Glb__FullyExcluded": true
         },
