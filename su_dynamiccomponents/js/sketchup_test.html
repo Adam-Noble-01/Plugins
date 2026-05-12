@@ -364,13 +364,13 @@ function testSetAttribute() {
 //  Content Management
 //  ---
 
-function testGetContent() {
-  assertEquals('su.js unit tests', su.getContent('page_name'));
+function testGetHtml() {
+  assertEquals('su.js unit tests', su.getHtml('page_name'));
 }
 
-function testSetContent() {
-  su.setContent('page_name', 'sketchup_test.html');
-  assertEquals('sketchup_test.html', su.getContent('page_name'));
+function testSetHtml() {
+  su.setHtml('page_name', 'sketchup_test.html');
+  assertEquals('sketchup_test.html', su.getHtml('page_name'));
 }
 
 //  ---

@@ -706,3 +706,9 @@ conv.feetToBase = function(value) {
     return feet * 12 + inches;
   }
 };
+
+// Export conv for Bun/Node.js test environments while keeping it global in browsers.
+// Checks for module.exports to detect CommonJS environment.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = conv;
+}

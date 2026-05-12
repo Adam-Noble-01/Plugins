@@ -1,26 +1,9 @@
-# Copyright 2013-2023, Trimble Inc
-
-# This software is provided as an example of using the Ruby interface
-# to SketchUp.
-
-# Permission to use, copy, modify, and distribute this software for
-# any purpose and without fee is hereby granted, provided that the above
-# copyright notice appear in all copies.
+# Copyright 2013-2026, Trimble Inc
 
 # THIS SOFTWARE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR
 # IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 
-#-----------------------------------------------------------------------------
-# Name        :   Dynamic Components Extension
-# Description :   A script that loads the Dynamic Components as an
-#                 extension to SketchUp
-# Menu Item   :   N/A
-# Context Menu:   N/A
-# Usage       :   N/A
-# Date        :   12/12/2019
-# Type        :   N/A
-#-----------------------------------------------------------------------------
 require 'sketchup.rb'
 require 'extensions.rb'
 require 'langhandler.rb'
@@ -46,9 +29,10 @@ $dc_extension.description = $dc_strings.GetString("Provides ability to " +
 # SketchUp 2021.1: 1.8.1
 # SketchUp 2022.0: 1.8.2
 # SketchUp 2023.1: 1.8.3
-$dc_extension.version = "1.8.2"
-$dc_extension.version = "1.8.3"
+# Security patch: 1.8.4
+# Security patch: 1.8.5
+$dc_extension.version = "1.8.5"
 $dc_extension.creator = "SketchUp"
-$dc_extension.copyright = "2021-2023, Trimble Inc."
+$dc_extension.copyright = "2021-2026, Trimble Inc."
 
 Sketchup.register_extension $dc_extension, true

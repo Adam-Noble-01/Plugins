@@ -1146,7 +1146,7 @@ su.contains = function(aCollection, aValue) {
  * @param {string|Element} elementOrID The element or element ID to find.
  * @return {string} The HTML content of the element.
  */
-su.getContent = function(elementOrID) {
+su.getHtml = function(elementOrID) {
   var el = $(elementOrID);
   if (su.isValid(el)) {
     return el.innerHTML;
@@ -1154,20 +1154,22 @@ su.getContent = function(elementOrID) {
 };
 
 /**
- * Sets the content of the element provided or identified by ID. The content
- * is checked for HTML and stripped of any script tags which are found.
+ * Sets the HTML content of the element provided or identified by ID.
+ *
+ * Note: If the provided HTML is built using user-provided strings such as
+ * names or attributes from the model, they must be escaped to avoid code
+ * injection.
  * @param {string|Element} elementOrID The element or element ID to find.
- * @param {string} content The new content to use for the element.
- * @param {boolean} sanitize True to force the content to be safety-checked.
+ * @param {string} html The new content to use for the element.
  * @return {Element} The element identified by elementOrID.
  */
-su.setContent = function(elementOrID, content, sanitize) {
+su.setHtml = function(elementOrID, html) {
   var el = $(elementOrID);
   if (su.notValid(el)) {
     return;
   }
 
-  var text = content || '';
+  var text = html || '';
 
   try {
     el.innerHTML = '' + text;
@@ -1779,7 +1781,7 @@ su.stopPropagation = function(opt_evt) {
 su.escapeHTML = function(text) {
   return text.replace(/&/g, '&amp;'
     ).replace(/"/g, '&quot;'
-    ).replace(/'/g, '&apos;'
+    ).replace(/'/g, '&#x27;'
     ).replace(/</g, '&lt;'
     ).replace(/>/g, '&gt;'
     ).replace(/\\/g, '&#92;');
@@ -1918,13 +1920,13 @@ su.truncate = function(aString, aLength)
 su.unescapeHTML = function(text) {
   // Force convert to a string.
   text = text + '';
-  return text.replace(/&amp;/g, '&'
-    ).replace(/&quot;/g, '"'
+  return text.replace(/&quot;/g, '"'
     ).replace(/&apos;/g, "'"
     ).replace(/&lt;/g, '<'
     ).replace(/&gt;/g, '>'
     ).replace(/&nbsp;/g, ' '
     ).replace(/&#92;/g, '\\'
+    ).replace(/&amp;/g, '&' // Must be last to prevent double-decoding (e.g., &amp;quot; → &quot; not ")
     ).replace(/^\s*(.*)\s$/, '$1');
 };
 
@@ -2030,6 +2032,19 @@ su.sanitizeHTML = function(aString) {
       
     });
 };
+
+/**
+ * Returns a sanitized version of url, meaning "javascript:" and "data:" scheme
+ * are removed.
+ * When building HTML as a string, also use su.escapeHTML() to remove clsoing
+ * quatation marks and inject additional attributes.
+ * @param {string}
+ * @return {string}
+ */
+su.santizieURL = function (url) {
+  return url.replace(/javascript:/g, '')
+    .replace(/data:/g, '');
+}
 
 //  --------------------------------------------------------------------------
 //  Key/Value Management
@@ -2700,3 +2715,8 @@ su.setRubyResponse_ = function(queryid, value) {
   return su.setRubyData_(queryid, su.RUBY_RESPONSE, value);
 };
 
+// Export for Bun/Node.js test environments while keeping globals in browsers.
+// Checks for module.exports to detect CommonJS environment.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { su: su, skp: skp };
+}

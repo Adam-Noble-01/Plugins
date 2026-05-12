@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>NA Selection Statistics</title>
+  <style>
+    :root {
+      --bg: #111827;
+      --panel: #182235;
+      --panel-2: #0f172a;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --line: rgba(148, 163, 184, 0.22);
+      --accent: #7dd3fc;
+      --warning: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      padding: 16px 18px;
+      background: linear-gradient(180deg, rgba(17, 24, 39, 0.98), rgba(17, 24, 39, 0.88));
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+    }
+    h1 {
+      margin: 0 0 5px 0;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .header-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px 16px;
+    }
+    .header-copy {
+      flex: 1 1 240px;
+    }
+    .header-actions {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      min-width: 216px;
+    }
+    button.na-btn-report {
+      appearance: none;
+      font: inherit;
+      cursor: pointer;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(125, 211, 252, 0.12);
+      color: var(--text);
+      text-align: center;
+    }
+    button.na-btn-report:hover {
+      background: rgba(125, 211, 252, 0.2);
+    }
+    button.na-btn-report:active {
+      transform: translateY(1px);
+    }
+    .report-status {
+      font-size: 11px;
+      line-height: 1.35;
+      color: var(--muted);
+      white-space: pre-wrap;
+      min-height: 1.35em;
+    }
+    .report-status.busy { color: var(--accent); }
+    .report-status.success { color: #86efac; }
+    .report-status.error { color: var(--warning); }
+    main {
+      padding: 16px 18px 22px 18px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 13px;
+      min-height: 72px;
+    }
+    .metric-label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 7px;
+    }
+    .metric-value {
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .section {
+      margin-top: 14px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .section h2 {
+      margin: 0;
+      padding: 12px 13px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--line);
+    }
+    .section-body {
+      padding: 12px 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .empty {
+      color: var(--muted);
+      padding: 4px 0;
+    }
+    .pill {
+      display: inline-block;
+      padding: 3px 7px;
+      margin: 2px 3px 2px 0;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--text);
+      background: rgba(125, 211, 252, 0.08);
+      font-size: 11px;
+    }
+    .warning {
+      color: var(--warning);
+    }
+    .small {
+      color: var(--muted);
+      font-size: 11px;
+    }
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div class="header-copy">
+        <h1>Selection Statistics</h1>
+        <div class="subtitle"><span id="model-title">Active Model</span> · Updated <span id="last-updated">-</span> · Selection Items <span id="selection-count">0</span></div>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="na-btn-report" id="selection-stats-export-md">Export Markdown Report…</button>
+        <div id="report-status" class="report-status muted"></div>
+      </div>
+    </div>
+  </header>
+  <main>
+    <div class="grid">
+      <div class="card"><div class="metric-label">Triangles</div><div id="triangles" class="metric-value">0</div><div class="small">Triangulated face mesh</div></div>
+      <div class="card"><div class="metric-label">Edges</div><div id="edges" class="metric-value">0</div><div class="small">Unique per instance path</div></div>
+      <div class="card"><div class="metric-label">Faces</div><div id="faces" class="metric-value">0</div><div class="small">Recursive total</div></div>
+      <div class="card"><div class="metric-label">Vertices</div><div id="vertices" class="metric-value">0</div><div class="small">Unique per instance path</div></div>
+      <div class="card"><div class="metric-label">Quads</div><div id="quads" class="metric-value">0</div><div class="small">Simple 4-vertex faces</div></div>
+      <div class="card"><div class="metric-label">Native Tri Faces</div><div id="native-triangular-faces" class="metric-value">0</div><div class="small">Simple 3-vertex faces</div></div>
+      <div class="card"><div class="metric-label">Groups</div><div id="groups" class="metric-value">0</div><div class="small">Selected or nested</div></div>
+      <div class="card"><div class="metric-label">Components</div><div id="component-instances" class="metric-value">0</div><div class="small">Selected or nested</div></div>
+    </div>
+
+    <section class="section">
+      <h2>Materials</h2>
+      <div class="section-body" id="materials"></div>
+    </section>
+
+    <section class="section">
+      <h2>Entity Type Breakdown</h2>
+      <div class="section-body" id="entity-types"></div>
+    </section>
+
+    <section class="section">
+      <h2>Associated Model Dictionaries</h2>
+      <div class="section-body" id="model-dictionaries"></div>
+    </section>
+
+    <section class="section">
+      <h2>Associated Selection / Entity Dictionaries</h2>
+      <div class="section-body" id="entity-dictionaries"></div>
+    </section>
+
+    <section class="section">
+      <h2>Warnings</h2>
+      <div class="section-body" id="warnings"></div>
+    </section>
+  </main>
+
+  <script>
+    function NaSelectionStatsElement(id) {
+      return document.getElementById(id);
+    }
+
+    function NaSelectionStatsFormatNumber(value) {
+      const number = Number(value || 0);
+      return number.toLocaleString('en-GB');
+    }
+
+    function NaSelectionStatsEscapeHtml(value) {
+      return String(value === undefined || value === null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function NaSelectionStatsRenderNameCountTable(items, emptyText) {
+      if (!items || items.length === 0) {
+        return '<div class="empty">' + NaSelectionStatsEscapeHtml(emptyText) + '</div>';
+      }
+      let html = '<table><thead><tr><th>Name</th><th>Count</th></tr></thead><tbody>';
+      items.forEach(function(item) {
+        html += '<tr><td>' + NaSelectionStatsEscapeHtml(item.name) + '</td><td>' + NaSelectionStatsFormatNumber(item.count) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
+    function NaSelectionStatsRenderMaterials(items) {
+      if (!items || items.length === 0) {
+        return '<div class="empty">No materials found in the current selection.</div>';
+      }
+      let html = '<table><thead><tr><th>Material</th><th>Assignments</th><th>Slots</th></tr></thead><tbody>';
+      items.forEach(function(item) {
+        const slots = (item.slots || []).map(function(slot) {
+          return '<span class="pill">' + NaSelectionStatsEscapeHtml(slot.name) + ': ' + NaSelectionStatsFormatNumber(slot.count) + '</span>';
+        }).join('');
+        html += '<tr><td>' + NaSelectionStatsEscapeHtml(item.name) + '</td><td>' + NaSelectionStatsFormatNumber(item.count) + '</td><td>' + slots + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
+    function NaSelectionStatsRenderDictionaries(items, emptyText) {
+      if (!items || items.length === 0) {
+        return '<div class="empty">' + NaSelectionStatsEscapeHtml(emptyText) + '</div>';
+      }
+      let html = '<table><thead><tr><th>Owner</th><th>Dictionary</th><th>Keys</th></tr></thead><tbody>';
+      items.forEach(function(item) {
+        if (item.truncated) {
+          html += '<tr><td colspan="3" class="warning">List truncated. Omitted ' + NaSelectionStatsFormatNumber(item.omitted_count) + ' further dictionary rows.</td></tr>';
+          return;
+        }
+        const keys = (item.keys || []).map(function(key) {
+          return '<span class="pill">' + NaSelectionStatsEscapeHtml(key) + '</span>';
+        }).join('');
+        html += '<tr><td>' + NaSelectionStatsEscapeHtml(item.owner) + '<div class="small">' + NaSelectionStatsEscapeHtml(item.owner_type) + '</div></td><td>' + NaSelectionStatsEscapeHtml(item.name) + '</td><td>' + NaSelectionStatsFormatNumber(item.key_count) + '<div>' + keys + '</div></td></tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
+    function NaSelectionStatsRenderWarnings(items) {
+      if (!items || items.length === 0) {
+        return '<div class="empty">No warnings.</div>';
+      }
+      var html = '';
+      items.forEach(function(item) {
+        if (item && typeof item === 'object' && item.truncated) {
+          var omitted = Number(item.omitted_count || 0);
+          html += '<div class="warning">List truncated. Omitted ' + NaSelectionStatsFormatNumber(omitted) + ' further warnings.</div>';
+          return;
+        }
+        html += '<div class="warning">' + NaSelectionStatsEscapeHtml(item) + '</div>';
+      });
+      return html || '<div class="empty">No warnings.</div>';
+    }
+
+    window.NaSelectionStatsSetReportStatus = function(kind, message) {
+      var el = document.getElementById('report-status');
+      if (!el) { return; }
+      el.textContent = message ? String(message) : '';
+      el.classList.remove('busy', 'success', 'error', 'muted');
+      var tone = kind ? String(kind) : 'muted';
+      if (tone === 'busy' || tone === 'success' || tone === 'error' || tone === 'muted') {
+        el.classList.add(tone);
+      } else {
+        el.classList.add('muted');
+      }
+    };
+
+    function NaSelectionStatsGenerateMarkdownReport() {
+      if (typeof sketchup === 'undefined' || typeof sketchup.na_generateMarkdownReport !== 'function') {
+        window.NaSelectionStatsSetReportStatus('error', 'Ruby bridge unavailable (sketchup.na_generateMarkdownReport missing). Reload the extension.');
+        return;
+      }
+      try {
+        sketchup.na_generateMarkdownReport();
+      } catch (ex) {
+        window.NaSelectionStatsSetReportStatus('error', String(ex || 'Markdown export invocation failed'));
+      }
+    }
+
+    window.NaSelectionStatsSetData = function(data) {
+      data = data || {};
+      NaSelectionStatsElement('model-title').textContent = data.model_title || 'Active Model';
+      NaSelectionStatsElement('last-updated').textContent = data.last_updated || '-';
+      NaSelectionStatsElement('selection-count').textContent = NaSelectionStatsFormatNumber(data.selection_count);
+      NaSelectionStatsElement('triangles').textContent = NaSelectionStatsFormatNumber(data.triangles);
+      NaSelectionStatsElement('edges').textContent = NaSelectionStatsFormatNumber(data.edges);
+      NaSelectionStatsElement('faces').textContent = NaSelectionStatsFormatNumber(data.faces);
+      NaSelectionStatsElement('vertices').textContent = NaSelectionStatsFormatNumber(data.vertices);
+      NaSelectionStatsElement('quads').textContent = NaSelectionStatsFormatNumber(data.quads);
+      NaSelectionStatsElement('native-triangular-faces').textContent = NaSelectionStatsFormatNumber(data.native_triangular_faces);
+      NaSelectionStatsElement('groups').textContent = NaSelectionStatsFormatNumber(data.groups);
+      NaSelectionStatsElement('component-instances').textContent = NaSelectionStatsFormatNumber(data.component_instances);
+      NaSelectionStatsElement('materials').innerHTML = NaSelectionStatsRenderMaterials(data.materials);
+      NaSelectionStatsElement('entity-types').innerHTML = NaSelectionStatsRenderNameCountTable(data.entity_types, 'No selected entities.');
+      NaSelectionStatsElement('model-dictionaries').innerHTML = NaSelectionStatsRenderDictionaries(data.model_dictionaries, 'No model-level attribute dictionaries found.');
+      NaSelectionStatsElement('entity-dictionaries').innerHTML = NaSelectionStatsRenderDictionaries(data.entity_dictionaries, 'No selection/entity attribute dictionaries found.');
+      NaSelectionStatsElement('warnings').innerHTML = NaSelectionStatsRenderWarnings(data.warnings);
+    };
+
+    (function NaSelectionStatsBindReportExport() {
+      var btn = document.getElementById('selection-stats-export-md');
+      if (btn) {
+        btn.addEventListener('click', NaSelectionStatsGenerateMarkdownReport);
+      }
+    })();
+  </script>
+</body>
+</html>

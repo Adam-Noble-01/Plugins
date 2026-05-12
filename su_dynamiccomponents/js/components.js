@@ -1,4 +1,4 @@
-//  Copyright 2012, Trimble Navigation Limited
+//  Copyright 2012-2026, Trimble Navigation Limited
 //  License: All Rights Reserved.
 
 /**
@@ -268,6 +268,19 @@ comp.parseFraction = function(value) {
 };
 
 /**
+ * Unescapes quotes in a string.
+ * NOTE: This function is needed because some strings in our code are only 
+ * partially escaped. It unescapes only quotation marks due to constraints 
+ * in the translation workflow.
+ * @param {string} text The string to unescape.
+ * @returns {string} The unescaped string.
+ */
+comp.unescapeQuotes = function (text) {
+  text = su.ifEmpty(text, '');
+  return text.replace(/&quot;/gi, '"');
+};
+
+/**
  * Escapes text to avoid problems with embedded quotes.
  * @param {string} text The string to escape.
  * @return {string} The escaped string.
@@ -315,22 +328,22 @@ comp.getAttributeFormattedValue = function(entity, attribute,
  * Processes a string of text which will ultimately become part of an
  * element's content. This means the string undergoes certain filtering for
  * potentially insecure content as well as entity processing as needed.
- * @param {string} text The text to format.
+ * @param {string} html The text to format.
  * @return {string} The reformatted text.
  */
-comp.formatContent = function(text) {
+comp.formatHtml = function(html) {
 
   // Force convert to string in case undefined is passed.
-  text = su.ifEmpty(text, '');
+  html = su.ifEmpty(html, '');
 
-  text = su.sanitizeHTML(text);
+  html = su.sanitizeHTML(html);
 
   // Alter the string that is to displayed as HTML so that any links open in a
   // new window via Ruby. Otherwise links would open inside the config window.
-  text = text.replace(/\&quot;/gi, '"');
-  text = text.replace(/href=(?=[^\"])/gi, 'href=skp:do_open_url@url=');
-  text = text.replace(/href=\"/gi, 'href="skp:do_open_url@url=');
-  return text;
+  html = html.replace(/\&quot;/gi, '"');
+  html = html.replace(/href=(?=[^\"])/gi, 'href=skp:do_open_url@url=');
+  html = html.replace(/href=\"/gi, 'href="skp:do_open_url@url=');
+  return html;
 };
 
 /**
@@ -1041,3 +1054,9 @@ comp.handlePullSelectionIdsSuccess = function(queryid) {
 
   comp.selectionIds = ids;
 };
+
+// Export comp for Bun/Node.js test environments while keeping it global in browsers.
+// Checks for module.exports to detect CommonJS environment.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = comp;
+}

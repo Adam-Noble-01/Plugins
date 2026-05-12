@@ -146,11 +146,11 @@ cfg.initUI = function() {
 
   root = cfg.rootEntity;
   if (su.notValid(root)) {
-    su.setContent(document.body, cfg.ZERO_ENTITIES_MESSAGE);
+    su.setHtml(document.body, cfg.ZERO_ENTITIES_MESSAGE);
     return;
   }
 
-  su.setContent(document.body, cfg.originalHTML);
+  su.setHtml(document.body, cfg.originalHTML);
 
   arr = [];
 
@@ -170,12 +170,12 @@ cfg.initUI = function() {
 
   // Handle top heading (name). Show the count message as the default.
   value = root.name || su.translateString('Unnamed Component');
-  su.setContent('config-head', comp.formatContent(value));
+  su.setHtml('config-head', comp.formatHtml(value));
 
   // Handle subheading (summary).
   value = comp.getAttributeValue(root, 'summary') || '';
   if (su.isEmpty(value) == false) {
-    su.setContent('config-subhead', comp.formatContent(value));
+    su.setHtml('config-subhead', comp.formatHtml(value));
     su.show('config-subhead')
   } else {
     su.hide('config-subhead')
@@ -189,7 +189,7 @@ cfg.initUI = function() {
     if (cfg.$single == false) {
       value += ' ' + su.translateString('total');
     }
-    su.setContent('config-msrp', comp.formatContent(value));
+    su.setHtml('config-msrp', comp.formatHtml(value));
     su.show('config-msrp')
   } else {
     su.hide('config-msrp')
@@ -197,7 +197,7 @@ cfg.initUI = function() {
 
   value = comp.getAttributeValue(root, 'description') || '';
   if (su.isEmpty(value) == false) {
-    su.setContent('config-description', comp.formatContent(value));
+    su.setHtml('config-description', comp.formatHtml(value));
     su.show('config-description')
   } else {
     su.hide('config-description')
@@ -205,8 +205,8 @@ cfg.initUI = function() {
 
   value = comp.getAttributeValue(root, 'creator') || '';
   if (su.isEmpty(value) == false) {
-    su.setContent('config-creator', su.translateString('by ') +
-      comp.formatContent(value));
+    su.setHtml('config-creator', su.translateString('by ') +
+      comp.formatHtml(value));
     su.show('config-creator')
   } else {
     su.hide('config-creator')
@@ -214,7 +214,7 @@ cfg.initUI = function() {
 
   value = comp.getAttributeValue(root, 'itemcode') || '';
   if (su.isEmpty(value) == false) {
-    su.setContent('config-itemcode', comp.formatContent(value));
+    su.setHtml('config-itemcode', comp.formatHtml(value));
     su.show('config-itemcode')
   } else {
     su.hide('config-itemcode')
@@ -232,13 +232,13 @@ cfg.initUI = function() {
   }
 
   arr.length = 0;
-  arr.push('<img id="thumbnail" src="', value, '" alt="',
+  arr.push('<img id="thumbnail" src="', su.escapeHTML(su.santizieURL(value)), '" alt="',
     su.translateString('Component'), '" class="config-thumb');
   if (cfg.$single == false) {
     arr.push('-multiselect');
   }
   arr.push('"/>');
-  su.setContent('config-image', arr.join(''));
+  su.setHtml('config-image', arr.join(''));
 
   // This checks to see if the image loads. If there is a load error, then
   // we will set the path of our image to the default thumb path.
@@ -246,7 +246,7 @@ cfg.initUI = function() {
   img.onerror = function() {
       $('thumbnail').src = skp.tempPath() + '/config-thumb.png?' + Math.random();
     };
-  img.src = value;
+  img.src = su.santizieURL(value);
 
   // Handle attribute table.
   totalFields = 0;
@@ -357,17 +357,17 @@ cfg.initUI = function() {
 
   if (totalFields > 0) {
     su.show('config-options');
-    su.setContent('config-error', '')
+    su.setHtml('config-error', '')
   } else {
     su.hide('config-options');
     if (cfg.$single == false) {
-      su.setContent('config-error', cfg.NO_MATCHING_MESSAGE)
+      su.setHtml('config-error', cfg.NO_MATCHING_MESSAGE)
     } else {
-      su.setContent('config-error', cfg.ZERO_OPTIONS_MESSAGE)
+      su.setHtml('config-error', cfg.ZERO_OPTIONS_MESSAGE)
     }
   }
 
-  su.setContent('config-options', arr.join(''));
+  su.setHtml('config-options', arr.join(''));
 
   document.getElementById('content').style.top =
     su.elementHeight(document.getElementById('header')) + 'px';
@@ -1121,7 +1121,7 @@ cfg.handlePullSelectionIdsComplete = function(queryid, idlist) {
 
   if (su.isEmpty(ids)) {
     cfg.clearCustomStyle();
-    su.setContent(document.body, cfg.ZERO_ENTITIES_MESSAGE);
+    su.setHtml(document.body, cfg.ZERO_ENTITIES_MESSAGE);
     return;
   }
 
@@ -1130,14 +1130,14 @@ cfg.handlePullSelectionIdsComplete = function(queryid, idlist) {
   if (len == 0) {
     // No length? No selection -- 0 entities selected.
     cfg.clearCustomStyle();
-    su.setContent(document.body, cfg.ZERO_ENTITIES_MESSAGE);
+    su.setHtml(document.body, cfg.ZERO_ENTITIES_MESSAGE);
     return;
   } else if (len > cfg.CONFIRM_SIZE) {
     // Over the limit, have to confirm and then either cancel or
     // continue.
     if (!confirm('Merging multiple items might be slow. Continue?')) {
       cfg.clearCustomStyle();
-      su.setContent(document.body, len + ' entities selected.');
+      su.setHtml(document.body, len + ' entities selected.');
       return;
     }
   }
@@ -1159,3 +1159,9 @@ cfg.clearCustomStyle = function() {
     cfg.lastCustomCSS_ = null;
   }
 };
+
+// Export cfg for Bun/Node.js test environments while keeping it global in browsers.
+// Checks for module.exports to detect CommonJS environment.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = cfg;
+}

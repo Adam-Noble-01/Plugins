@@ -347,7 +347,7 @@ mgr.handlePullAttributesComplete = function(queryid) {
     mgr.setTab('basic');
 
     su.show('message-panel');
-    su.setContent('message-panel', mgr.SELECT_MESSAGE);
+    su.setHtml('message-panel', mgr.SELECT_MESSAGE);
     return;
   } else {
     su.hide('message-panel');
@@ -439,7 +439,7 @@ mgr.initUI = function() {
 
     // Complete the extras html content and inject it into the UI.
     var html = arr.join('');
-    su.setContent('extras', html);
+    su.setHtml('extras', html);
   }
 
   // Cache references to the edit panel and scroll panel for better
@@ -1264,7 +1264,7 @@ mgr.resetValueCell = function(opt_entityName) {
  * @param {string} value The new value for the entity/attribute cell.
  */
 mgr.setValueCell = function(entity, attribute, value) {
-  su.setContent('value_' + entity.id + '_' + attribute, value);
+  su.setHtml('value_' + entity.id + '_' + attribute, value);
 };
 
 // ---
@@ -1500,11 +1500,11 @@ mgr.renameEntity = function(entityID, currentName) {
 
 /**
  * Sets the value(s) in the status bar for the manager panel.
- * @param {string} str The overall status string for the status bar.
+ * @param {string} html The overall status string for the status bar.
  * @param {string} opt_iconName The name of an optional icon to display.
  */
-mgr.setStatusBar = function(str, opt_iconName) {
-  su.setContent('mgr-status', str);
+mgr.setStatusBar = function (html, opt_iconName) {
+  su.setHtml('mgr-status', html);
 
   if (su.isValid(comp.RESERVED[opt_iconName])) {
     $('mgr-icon').className = 'mgr-icon-' + opt_iconName +
@@ -1757,7 +1757,7 @@ mgr.updateEditorLayout = function() {
     // is if we're entering a new attribute name.
     if (mgr.isEditing() && target.innerHTML.indexOf(
         su.translateString(mgr.ADD_ATTRIBUTE)) == -1) {
-      su.setContent(target, '&nbsp;');
+      su.setHtml(target, '&nbsp;');
     }
   } else {
     var contentHeight = Math.max(15, box.height);
@@ -2133,7 +2133,7 @@ AttributeTree.prototype.addBlankOption = function() {
 
   comp.setAttributeOptions(entity, attribute, options);
 
-  su.setContent('options-panel', this.dumpOptionsTable(entity, attribute));
+  su.setHtml('options-panel', this.dumpOptionsTable(entity, attribute));
 
   var i = 1;
   while ($('option-label-' + i)) {
@@ -2780,22 +2780,24 @@ AttributeTree.prototype.editAttributeValue = function(target, opt_entityID,
     this.showDetailPanel();
   }
 
-  var statusStr = '<b>' + su.truncate(
-      comp.getAttributeLabel(entity, attrName), 40) + '</b>';
+  var statusHtml = '<b>' + su.truncate(
+    comp.getAttributeLabel(entity, attrName), 40) + '</b>';
 
   var reserved = comp.RESERVED[attrName];
   if (su.isValid(reserved)) {
-    statusStr += ' &middot; ' + su.translateString(reserved.summary);
+    statusHtml += ' &middot; ' + su.translateString(reserved.summary);
     if (su.notEmpty(formula)) {
-      statusStr += '<br/>=' + comp.getAttributeFormula(entity, attrName);
+      var formulaHtml = su.escapeHTML(comp.unescapeQuotes(comp.getAttributeFormula(entity, attrName)));
+      statusHtml += '<br/>=' + formulaHtml;
     }
-    mgr.setStatusBar(statusStr, attrName);
+    mgr.setStatusBar(statusHtml, attrName);
   } else {
-    statusStr += ' &middot; ' + su.translateString('Custom attribute.');
+    statusHtml += ' &middot; ' + su.translateString('Custom attribute.');
     if (su.notEmpty(formula)) {
-      statusStr += '<br/>=' + comp.getAttributeFormula(entity, attrName);
+      var formulaHtml = su.escapeHTML(comp.unescapeQuotes(comp.getAttributeFormula(entity, attrName)));
+      statusHtml += '<br/>=' + formulaHtml;
     }
-    mgr.setStatusBar(statusStr, 'custom');
+    mgr.setStatusBar(statusHtml, 'custom');
   }
 
   // Update our editor height to match the height of its content. This is to
@@ -3000,7 +3002,7 @@ AttributeTree.prototype.handleEdit = function(opt_formField, opt_target,
 
       if (comp.getAttributeFormula(entity, name) != rawFormula) {
         mgr.setValueCell(entity, name, field.value);
-        var thisAtt = comp.getAttribute(entity, attrName);
+        comp.getAttribute(entity, attrName);
         comp.setAttributeFormula(entity, name, rawFormula)
         comp.setAttributeLabel(entity, name,
             this.lastAttributeSelected.label);
@@ -3605,14 +3607,14 @@ AttributeTree.prototype.highlight = function(opt_target, opt_entityID,
   }
   var label = attr.label;
 
-  var statusStr = '<b>' + su.truncate(label, 40) + '</b> &middot; ';
+  var statusHtml = '<b>' + su.truncate(label, 40) + '</b> &middot; ';
   var reserved = comp.RESERVED[label.toLowerCase()];
   if (su.isValid(reserved)) {
-    statusStr += su.translateString(reserved.summary);
-    mgr.setStatusBar(statusStr, label);
+    statusHtml += su.translateString(reserved.summary);
+    mgr.setStatusBar(statusHtml, label);
   } else {
-    statusStr += su.translateString('Custom attribute.');
-    mgr.setStatusBar(statusStr, 'custom');
+    statusHtml += su.translateString('Custom attribute.');
+    mgr.setStatusBar(statusHtml, 'custom');
   }
 
   // Highlighting is as relevant to current focus as editing is, so once
@@ -3667,7 +3669,7 @@ AttributeTree.prototype.render = function() {
       '</div>',
       '<br/><br/>');
 
-  su.setContent('content', arr.join(''));
+  su.setHtml('content', arr.join(''));
 
   // Any time we rebuild the tree's UI elements we want to refocus so any
   // previous editor or highlighting state is restored.
@@ -3861,7 +3863,7 @@ AttributeTree.prototype.showDetailPanel = function() {
 
   if (su.isValid(attr)) {
 
-    mgr.setStatusBar('<b>' + entity.name + '!' + attr.label +
+    mgr.setStatusBar('<b>' + entity.name + '!' + attr.label+
       '</b> &middot; ' + su.translateString(attr.summary), attrName);
 
     hasLiveValue = attr.hasLiveValue;
@@ -3959,13 +3961,15 @@ AttributeTree.prototype.showDetailPanel = function() {
     }
   }
 
+  formLabel = comp.unescapeQuotes(formLabel);
+  
   arr.push('<tr id="formlabel-row">',
       '<td align="right"><nobr>', su.translateString(formLabelPrompt),
       '</nobr></td>',
       '<td>',
       '<input name="formlabel-textbox" id="formlabel-textbox" type="textbox" ' +
       'class="formlabel-field"',
-      ' value="', formLabel, '" style="width: 100%"/>',
+      ' value="', su.escapeHTML(formLabel), '" style="width: 100%"/>',
       '</td></tr>');
 
   // Output the unit selection row.
@@ -4052,7 +4056,7 @@ AttributeTree.prototype.showDetailPanel = function() {
   arr.push('</table></form></div>');
 
   var html = arr.join('');
-  su.setContent('details-panel', html);
+  su.setHtml('details-panel', html);
 
   this.showAccessRows(access);
 
@@ -4079,8 +4083,8 @@ AttributeTree.prototype.showEditPanel = function(target) {
   var tab = $('edit-field-reference-tab');
 
   if (su.isValid(this.lastAttributeSelected)) {
-    tab.innerHTML = this.lastEntitySelected.name + '!' +
-        this.lastAttributeSelected.label;
+    tab.innerHTML = su.escapeHTML(this.lastEntitySelected.name) + '!' +
+      this.lastAttributeSelected.label;
   } else {
     tab.innerHTML = '&nbsp;'
   }
@@ -4202,7 +4206,7 @@ AttributeTree.prototype.showListPanel = function(entity) {
 
   var html = arr.join('');
 
-  su.setContent('list-panel', html);
+  su.setHtml('list-panel', html);
 
   // To get the list panel to position properly, move it offscreen,
   // make it visible so IE6 can get at its sizing attributes, and then
@@ -4315,7 +4319,7 @@ AttributeTree.prototype.storeOptions = function(wasEditingLabel, target) {
   comp.setAttributeOptions(entity, attrName, options);
 
   if (foundEmptyLabel == true) {
-    su.setContent('options-panel', this.dumpOptionsTable(entity, attrName));
+    su.setHtml('options-panel', this.dumpOptionsTable(entity, attrName));
   }
 };
 
@@ -4360,3 +4364,8 @@ AttributeTree.prototype.toggleCollapse = function(headElement, entityID) {
   }
 };
 
+// Export mgr for Bun/Node.js test environments while keeping it global in browsers.
+// Checks for module.exports to detect CommonJS environment.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { mgr: mgr };
+}
