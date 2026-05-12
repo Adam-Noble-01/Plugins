@@ -3,6 +3,40 @@
 ## Version History
 
 # =======================================================================================
+## Selection Statistics Version 1.1.1 - 12-May-2026
+
+### SketchUp Names + Dynamic Component Key/Value Reporting
+
+- Added **`Na__SelectionStats__StatsBuilder__NameAndDynamicAttributeCollector__.rb`**
+  under `12__Core__StatsBuilder`.
+- The recursive walk now reports named SketchUp owners alongside existing geometry stats:
+  - group names / group instance names
+  - component definition names (`definition.name`)
+  - component instance names (`instance.name`)
+  - generic instance names for any named SketchUp owner that responds to `name`
+- Dynamic Component attributes are now collected from both selected / nested entities and
+  their component or group definitions when dictionaries named `dynamic_attributes` or
+  `_dynamic_attributes` are found.
+- The live HtmlDialog gains two new sections:
+  - **SketchUp Names**
+  - **Dynamic Component Attributes**
+- Markdown export now includes matching **SketchUp Names** and **Dynamic Component Attributes**
+  tables so exported reports preserve the same name and key/value data shown in the HUD.
+- The new rows use the existing truncation path (`MAX_LIST_ITEMS`) so large models do not flood
+  the dialog bridge or Markdown export.
+
+#### Files Touched
+
+| Path | Purpose |
+|---|---|
+| `12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__NameAndDynamicAttributeCollector__.rb` | New collector for names and Dynamic Component key/value rows |
+| `01__AppCore/Na__SelectionStats__AppCore__Main__.rb` | Added `@delegate` and require for the new collector |
+| `12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__Main__.rb` | Added `sketchup_names` and `dynamic_attributes` payload arrays |
+| `12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__EntityWalker__.rb` | Calls collector during recursive entity/definition traversal |
+| `Na__SelectionStats__UiLayout__.html` | Renders the new HUD sections |
+| `20__System__GenerateReport__MarkdownFile/Na__SelectionStats__GenerateReport__MarkdownFile__Main__.rb` | Adds matching Markdown sections |
+
+# =======================================================================================
 ## Selection Statistics Version 1.1.0 - 12-May-2026
 
 ### Markdown Report Export (.md via UI.savepanel)

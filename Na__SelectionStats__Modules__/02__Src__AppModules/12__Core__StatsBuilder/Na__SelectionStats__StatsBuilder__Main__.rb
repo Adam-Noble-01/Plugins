@@ -75,6 +75,8 @@ module Na__SelectionStats
             stats[:vertices]           = tracker[:vertices].length
             stats[:materials]          = DF.na_material_hash_to_sorted_array(tracker[:materials])
             stats[:entity_types]       = DF.na_hash_to_sorted_name_count_array(tracker[:entity_types])
+            stats[:sketchup_names]       = DF.na_trim_array(stats[:sketchup_names], const_mod::MAX_LIST_ITEMS)
+            stats[:dynamic_attributes]   = DF.na_trim_array(stats[:dynamic_attributes], const_mod::MAX_LIST_ITEMS)
             stats[:entity_dictionaries] = DF.na_trim_array(stats[:entity_dictionaries], const_mod::MAX_LIST_ITEMS)
             stats[:model_dictionaries]    = DF.na_trim_array(stats[:model_dictionaries], const_mod::MAX_LIST_ITEMS)
             stats[:warnings]              = DF.na_trim_array(stats[:warnings], const_mod::WARNINGS_TRUNCATE_AFTER)
@@ -105,6 +107,8 @@ module Na__SelectionStats
                 nested_containers: 0,
                 materials: [],
                 entity_types: [],
+                sketchup_names: [],
+                dynamic_attributes: [],
                 model_dictionaries: [],
                 entity_dictionaries: [],
                 warnings: []

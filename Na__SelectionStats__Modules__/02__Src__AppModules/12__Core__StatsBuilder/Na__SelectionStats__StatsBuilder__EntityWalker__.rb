@@ -29,6 +29,7 @@ module Na__SelectionStats
         FA = Na__SelectionStats::Na__GeometryHelpers::Na__FaceAnalysis
         MT = Na__SelectionStats::Na__MaterialTracker
         DC = Na__SelectionStats::Na__DictionaryCollector
+        NC = Na__SelectionStats::Na__NameAndDynamicAttributeCollector
 
 # endregion -------------------------------------------------------------------
 
@@ -49,6 +50,8 @@ module Na__SelectionStats
                 owner_label,
                 stats[:entity_dictionaries]
             )
+            NC.na_collect_entity_names(entity, type_name, owner_label, stats[:sketchup_names])
+            NC.na_collect_dynamic_component_attributes(entity, type_name, owner_label, stats[:dynamic_attributes])
             MT.na_record_entity_material(entity, tracker, owner_label)
 
             case entity
@@ -59,6 +62,13 @@ module Na__SelectionStats
             when Sketchup::Group
                 stats[:groups] += 1
                 stats[:nested_containers] += 1 unless definition_stack.empty?
+                group_definition = entity.respond_to?(:definition) ? entity.definition : nil
+                NC.na_collect_dynamic_component_attributes(
+                    group_definition,
+                    'GroupDefinition',
+                    "#{owner_label} > Definition",
+                    stats[:dynamic_attributes]
+                )
                 na_accumulate_entities_collection_recursive(
                     entity.entities,
                     stats,
@@ -141,6 +151,12 @@ module Na__SelectionStats
                 'ComponentDefinition',
                 "#{owner_label} > Definition",
                 stats[:entity_dictionaries]
+            )
+            NC.na_collect_dynamic_component_attributes(
+                definition,
+                'ComponentDefinition',
+                "#{owner_label} > Definition",
+                stats[:dynamic_attributes]
             )
 
             na_accumulate_entities_collection_recursive(

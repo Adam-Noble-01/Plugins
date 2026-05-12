@@ -210,6 +210,16 @@
     </section>
 
     <section class="section">
+      <h2>SketchUp Names</h2>
+      <div class="section-body" id="sketchup-names"></div>
+    </section>
+
+    <section class="section">
+      <h2>Dynamic Component Attributes</h2>
+      <div class="section-body" id="dynamic-attributes"></div>
+    </section>
+
+    <section class="section">
       <h2>Associated Model Dictionaries</h2>
       <div class="section-body" id="model-dictionaries"></div>
     </section>
@@ -290,6 +300,38 @@
       return html;
     }
 
+    function NaSelectionStatsRenderSketchupNames(items) {
+      if (!items || items.length === 0) {
+        return '<div class="empty">No named groups, component definitions, or component instances found.</div>';
+      }
+      let html = '<table><thead><tr><th>Owner</th><th>Type</th><th>Name Role</th><th>Name</th></tr></thead><tbody>';
+      items.forEach(function(item) {
+        if (item.truncated) {
+          html += '<tr><td colspan="4" class="warning">List truncated. Omitted ' + NaSelectionStatsFormatNumber(item.omitted_count) + ' further name rows.</td></tr>';
+          return;
+        }
+        html += '<tr><td>' + NaSelectionStatsEscapeHtml(item.owner) + '</td><td>' + NaSelectionStatsEscapeHtml(item.owner_type) + '</td><td>' + NaSelectionStatsEscapeHtml(item.role) + '</td><td>' + NaSelectionStatsEscapeHtml(item.name) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
+    function NaSelectionStatsRenderDynamicAttributes(items) {
+      if (!items || items.length === 0) {
+        return '<div class="empty">No Dynamic Component attribute keys or values found.</div>';
+      }
+      let html = '<table><thead><tr><th>Owner</th><th>Type</th><th>Dictionary</th><th>Key</th><th>Value</th></tr></thead><tbody>';
+      items.forEach(function(item) {
+        if (item.truncated) {
+          html += '<tr><td colspan="5" class="warning">List truncated. Omitted ' + NaSelectionStatsFormatNumber(item.omitted_count) + ' further dynamic attribute rows.</td></tr>';
+          return;
+        }
+        html += '<tr><td>' + NaSelectionStatsEscapeHtml(item.owner) + '</td><td>' + NaSelectionStatsEscapeHtml(item.owner_type) + '</td><td>' + NaSelectionStatsEscapeHtml(item.dictionary) + '</td><td>' + NaSelectionStatsEscapeHtml(item.key) + '</td><td>' + NaSelectionStatsEscapeHtml(item.value) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
     function NaSelectionStatsRenderWarnings(items) {
       if (!items || items.length === 0) {
         return '<div class="empty">No warnings.</div>';
@@ -346,6 +388,8 @@
       NaSelectionStatsElement('component-instances').textContent = NaSelectionStatsFormatNumber(data.component_instances);
       NaSelectionStatsElement('materials').innerHTML = NaSelectionStatsRenderMaterials(data.materials);
       NaSelectionStatsElement('entity-types').innerHTML = NaSelectionStatsRenderNameCountTable(data.entity_types, 'No selected entities.');
+      NaSelectionStatsElement('sketchup-names').innerHTML = NaSelectionStatsRenderSketchupNames(data.sketchup_names);
+      NaSelectionStatsElement('dynamic-attributes').innerHTML = NaSelectionStatsRenderDynamicAttributes(data.dynamic_attributes);
       NaSelectionStatsElement('model-dictionaries').innerHTML = NaSelectionStatsRenderDictionaries(data.model_dictionaries, 'No model-level attribute dictionaries found.');
       NaSelectionStatsElement('entity-dictionaries').innerHTML = NaSelectionStatsRenderDictionaries(data.entity_dictionaries, 'No selection/entity attribute dictionaries found.');
       NaSelectionStatsElement('warnings').innerHTML = NaSelectionStatsRenderWarnings(data.warnings);

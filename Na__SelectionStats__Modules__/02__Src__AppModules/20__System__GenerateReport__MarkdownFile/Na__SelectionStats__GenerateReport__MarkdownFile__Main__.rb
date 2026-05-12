@@ -137,6 +137,14 @@ module Na__SelectionStats
                 parts << ''
                 ents.each { |line| parts << line }
 
+                names = na_render_sketchup_names_section(stats[:sketchup_names])
+                parts << ''
+                names.each { |line| parts << line }
+
+                dynamic_attrs = na_render_dynamic_attributes_section(stats[:dynamic_attributes])
+                parts << ''
+                dynamic_attrs.each { |line| parts << line }
+
                 mdict = na_render_dictionary_section(
                     'Model Attribute Dictionaries',
                     stats[:model_dictionaries],
@@ -237,6 +245,109 @@ module Na__SelectionStats
                     end.join('; ')
 
                     lines << "| #{na_markdown_escape_cell(item[:name].to_s)} | #{na_format_plain_integer(item[:count])} | #{slots_text.empty? ? "\u2014" : slots_text} |"
+                end
+
+                lines
+            end
+
+            def na_render_sketchup_names_section(rows)
+                lines = []
+                lines << '## SketchUp Names'
+                lines << ''
+
+                list = rows.is_a?(Array) ? rows : []
+                list = na_symbolize_hashes_in_array(list)
+
+                omitted_note = nil
+                filtered = []
+
+                list.each do |item|
+                    next unless item.is_a?(Hash)
+
+                    if truthy_truncation_marker?(item)
+                        omit = item[:omitted_count].to_i
+                        omitted_note = "List truncated (#{omit} further name rows omitted)." if omit.positive?
+                        next
+                    end
+
+                    filtered << item
+                end
+
+                if filtered.empty?
+                    lines << na_markdown_blockquote('No named groups, component definitions, or component instances found.')
+                    unless omitted_note.nil?
+                        lines << ''
+                        lines << na_markdown_blockquote(omitted_note)
+                    end
+                    return lines
+                end
+
+                lines << '| Owner | Type | Name role | Name |'
+                lines << '| --- | --- | --- | --- |'
+
+                filtered.each do |item|
+                    owner = na_markdown_escape_cell(item[:owner].to_s)
+                    otype = na_markdown_escape_cell(item[:owner_type].to_s)
+                    role = na_markdown_escape_cell(item[:role].to_s)
+                    name = na_markdown_escape_cell(item[:name].to_s)
+                    lines << "| #{owner} | #{otype} | #{role} | #{name} |"
+                end
+
+                unless omitted_note.nil?
+                    lines << ''
+                    lines << na_markdown_blockquote(omitted_note)
+                end
+
+                lines
+            end
+
+            def na_render_dynamic_attributes_section(rows)
+                lines = []
+                lines << '## Dynamic Component Attributes'
+                lines << ''
+
+                list = rows.is_a?(Array) ? rows : []
+                list = na_symbolize_hashes_in_array(list)
+
+                omitted_note = nil
+                filtered = []
+
+                list.each do |item|
+                    next unless item.is_a?(Hash)
+
+                    if truthy_truncation_marker?(item)
+                        omit = item[:omitted_count].to_i
+                        omitted_note = "List truncated (#{omit} further dynamic attribute rows omitted)." if omit.positive?
+                        next
+                    end
+
+                    filtered << item
+                end
+
+                if filtered.empty?
+                    lines << na_markdown_blockquote('No Dynamic Component attribute keys or values found.')
+                    unless omitted_note.nil?
+                        lines << ''
+                        lines << na_markdown_blockquote(omitted_note)
+                    end
+                    return lines
+                end
+
+                lines << '| Owner | Type | Dictionary | Key | Value |'
+                lines << '| --- | --- | --- | --- | --- |'
+
+                filtered.each do |item|
+                    owner = na_markdown_escape_cell(item[:owner].to_s)
+                    otype = na_markdown_escape_cell(item[:owner_type].to_s)
+                    dictionary = na_markdown_escape_cell(item[:dictionary].to_s)
+                    key = na_markdown_escape_cell(item[:key].to_s)
+                    value = na_markdown_escape_cell(item[:value].to_s)
+                    lines << "| #{owner} | #{otype} | #{dictionary} | #{key} | #{value} |"
+                end
+
+                unless omitted_note.nil?
+                    lines << ''
+                    lines << na_markdown_blockquote(omitted_note)
                 end
 
                 lines

@@ -24,6 +24,8 @@ require_relative '../04__GeometryHelpers/Na__SelectionStats__GeometryHelpers__Fa
 require_relative '../12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__MaterialTracker__'
 # @delegate: ../12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__DictionaryCollector__.rb
 require_relative '../12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__DictionaryCollector__'
+# @delegate: ../12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__NameAndDynamicAttributeCollector__.rb
+require_relative '../12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__NameAndDynamicAttributeCollector__'
 # @delegate: ../12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__EntityWalker__.rb
 require_relative '../12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__EntityWalker__'
 # @delegate: ../12__Core__StatsBuilder/Na__SelectionStats__StatsBuilder__Main__.rb
