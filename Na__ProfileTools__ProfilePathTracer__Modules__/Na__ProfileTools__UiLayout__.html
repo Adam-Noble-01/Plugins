@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- =============================================================================
+     NA PROFILE TOOLS - PROFILE PATH TRACER - UI LAYOUT
+     =============================================================================
+     FILE       : Na__ProfileTools__UiLayout__.html
+     PURPOSE    : Main HtmlDialog layout — EAS-style brand header, 3-tab strip,
+                  and shared status bar.
+     TABS       : Apply Profile (default) | Gallery (placeholder) | Settings
+     ============================================================================= -->
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Na Profile Path Tracer by Noble Architecture</title>
+
+    <link rel="stylesheet" href="03__Style__AppStylesheets/Na__ProfileTools__CoreUi__Styles__Index__.css">
+</head>
+
+<body>
+
+<div class="na-app-shell">
+
+    <!-- ==========================================================================
+         REGION | Brand Header
+         ========================================================================== -->
+    <header class="na-brand-header">
+        <div class="na-brand-header__left">
+            <img src="01__AppAssets__ProfilePathTracer/Na__ProfileTools__Brand__NobleLogo__.png"
+                 class="na-brand-header__logo"
+                 alt="Noble Architecture"
+                 onerror="this.style.display='none'">
+        </div>
+        <div class="na-brand-header__right">
+            <span class="na-brand-header__title">Na Profile Path Tracer</span>
+            <span class="na-brand-header__subtitle">by Noble Architecture</span>
+        </div>
+    </header>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
+         REGION | Tab Strip
+         ========================================================================== -->
+    <div class="na-tab-strip">
+        <nav id="na-tab-bar" class="na-tab-bar na-tab-strip__tabs" role="tablist">
+            <button id="na-tab-button-apply-profile"
+                    class="na-tab na-tab-active"
+                    role="tab"
+                    aria-controls="na-tab-apply-profile"
+                    aria-selected="true"
+                    data-na-tab-id="apply-profile"
+                    onclick="Na_TabRouter.na_activateTab('apply-profile')">
+                Apply Profile
+            </button>
+            <button id="na-tab-button-create-profile"
+                    class="na-tab"
+                    role="tab"
+                    aria-controls="na-tab-create-profile"
+                    aria-selected="false"
+                    data-na-tab-id="create-profile"
+                    onclick="Na_TabRouter.na_activateTab('create-profile')">
+                Create Profile
+            </button>
+            <button id="na-tab-button-gallery"
+                    class="na-tab"
+                    role="tab"
+                    aria-controls="na-tab-gallery"
+                    aria-selected="false"
+                    data-na-tab-id="gallery"
+                    onclick="Na_TabRouter.na_activateTab('gallery')">
+                Gallery
+            </button>
+            <button id="na-tab-button-settings"
+                    class="na-tab"
+                    role="tab"
+                    aria-controls="na-tab-settings"
+                    aria-selected="false"
+                    data-na-tab-id="settings"
+                    onclick="Na_TabRouter.na_activateTab('settings')">
+                Settings
+            </button>
+        </nav>
+    </div>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
+         REGION | Tab Panels Container
+         ========================================================================== -->
+    <div class="na-tab-panels-container">
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Apply Profile (default active)
+             ====================================================================== -->
+        <div id="na-tab-apply-profile"
+             class="na-tab-panel na-tab-active"
+             role="tabpanel"
+             aria-labelledby="na-tab-button-apply-profile"
+             data-na-tab-id="apply-profile"
+             style="overflow-y:auto;">
+
+            <div id="naApplyProfileTabBody"></div>
+
+        </div>
+        <!-- endregion ============================================================ -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Create Profile
+             ====================================================================== -->
+        <div id="na-tab-create-profile"
+             class="na-tab-panel na-hidden"
+             role="tabpanel"
+             aria-labelledby="na-tab-button-create-profile"
+             data-na-tab-id="create-profile"
+             style="overflow-y:auto;">
+
+            <div id="na-create-profile-tab-body"></div>
+
+        </div>
+        <!-- endregion ============================================================ -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Gallery (placeholder)
+             ====================================================================== -->
+        <div id="na-tab-gallery"
+             class="na-tab-panel na-hidden"
+             role="tabpanel"
+             aria-labelledby="na-tab-button-gallery"
+             data-na-tab-id="gallery">
+
+            <div id="na-tab-gallery-body" style="display:flex;flex-direction:column;flex:1;"></div>
+
+        </div>
+        <!-- endregion ============================================================ -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Settings
+             ====================================================================== -->
+        <div id="na-tab-settings"
+             class="na-tab-panel na-hidden"
+             role="tabpanel"
+             aria-labelledby="na-tab-button-settings"
+             data-na-tab-id="settings"
+             style="overflow-y:auto;">
+
+            <header class="na-section" style="background:var(--na-tab-strip-bg);border-bottom:1px solid var(--na-border);">
+                <h2 style="margin:0;font-size:13px;font-weight:700;color:var(--na-subtle);text-transform:uppercase;letter-spacing:0.06em;">
+                    Settings &amp; Developer Tools
+                </h2>
+            </header>
+
+            <div id="na-tab-settings-body" class="na-settings-body"></div>
+
+        </div>
+        <!-- endregion ============================================================ -->
+
+    </div>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
+         REGION | Status Bar (shared across tabs)
+         ========================================================================== -->
+    <div id="na-status-bar" class="na-status-bar na-hidden">
+        <span id="na-status-message"></span>
+    </div>
+    <!-- endregion ============================================================== -->
+
+</div>
+
+<!-- ==========================================================================
+     REGION | JavaScript Includes (load order matters)
+     ==========================================================================
+
+     LOAD ORDER:
+     1. AppCore foundation  — BridgeBase, MainShell (no cross-module deps)
+     2. Create Profile      — Config (used by Controls)
+     3. Viewport engine     — SvgGenerator (used by MainUiLogic)
+     4. Create Profile      — Controls, Bridge (depend on Config)
+     5. Apply Profile       — MainUiLogic (depends on Controls, Bridge, SvgGenerator)
+     6. Apply Profile       — Events (depends on MainUiLogic)
+     7. Settings Tab        — UiLogic, Bridge
+     8. Gallery             — Placeholder
+     9. TabRouter           — must load AFTER tab modules so it can resolve them
+    10. AppContext          — must load AFTER TabRouter
+
+     ========================================================================== -->
+
+<!-- AppCore foundation -->
+<script src="02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__UiSystem__BridgeBase__.js"></script>
+<script src="02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__UiSystem__MainShell__.js"></script>
+
+<!-- Create New Profile — Config (needed early by Controls) -->
+<script src="02__Src__AppModules/10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__UiSystem__Config__.js"></script>
+
+<!-- Viewport Engine -->
+<script src="02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__ProfileTools__Viewport__SvgGenerator__.js"></script>
+
+<!-- Create New Profile — Controls and Bridge -->
+<script src="02__Src__AppModules/10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js"></script>
+<script src="02__Src__AppModules/10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__UiSystem__Bridge__.js"></script>
+
+<!-- Create New Profile — Main UI Logic (owns form workflow + ReceiveExportValidation) -->
+<script src="02__Src__AppModules/10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__UiSystem__MainUiLogic__.js"></script>
+
+<!-- Apply Profile — Main UI Logic and Events -->
+<script src="02__Src__AppModules/20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__UiSystem__Events__.js"></script>
+
+<!-- Settings Tab -->
+<script src="02__Src__AppModules/03__AppUtils/Na__ProfileTools__AppUtils__SettingsTab__UiLogic__.js"></script>
+<script src="02__Src__AppModules/03__AppUtils/Na__ProfileTools__AppUtils__SettingsTab__Bridge__.js"></script>
+
+<!-- Gallery Mode Placeholder -->
+<script src="02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__Placeholder__.js"></script>
+
+<!-- TabRouter + AppContext (must load AFTER tab modules) -->
+<script src="02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__TabRouter__.js"></script>
+<script src="02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__AppContext__.js"></script>
+
+<!-- endregion ============================================================== -->
+
+</body>
+
+</html>
+<!-- =============================================================================
+     END OF FILE
+     ============================================================================= -->

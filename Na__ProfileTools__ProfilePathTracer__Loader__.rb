@@ -25,8 +25,8 @@ unless file_loaded?(__FILE__)
 
         na_plugin_root      = File.dirname(__FILE__)
         na_plugin_folder    = File.join(na_plugin_root, 'Na__ProfileTools__ProfilePathTracer__Modules__')
-        na_main_file        = File.join(na_plugin_folder, 'Na__ProfileTools__ProfilePathTracer__Main__.rb')
-        na_fallback_icon    = File.join(na_plugin_folder, '02__PluginImageAssets', 'Na__ProfileTools__ProfilePathTracer__Icon__.png')
+        na_main_file        = File.join(na_plugin_folder, '02__Src__AppModules', '01__AppCore', 'Na__ProfileTools__AppCore__Main__.rb')
+        na_fallback_icon    = File.join(na_plugin_folder, '01__AppAssets__ProfilePathTracer', 'Na__ProfileTools__Brand__CustomToolbarIcon__.png')
         na_plugin_name      = 'Na Profile Path Tracer'
         na_toolbar_name     = 'NA Profile Tools'
         na_command_text     = 'Na__ProfileTools__ProfilePathTracer'

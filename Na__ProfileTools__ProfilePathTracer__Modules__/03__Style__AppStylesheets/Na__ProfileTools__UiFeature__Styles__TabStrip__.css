@@ -1,0 +1,135 @@
+/* =============================================================================
+   NA PROFILE TOOLS - TAB STRIP STYLES
+   =============================================================================
+   FILE       : Na__ProfileTools__UiFeature__Styles__TabStrip__.css
+   PURPOSE    : Tab navigation strip and tab panel layout matching EAS pattern.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Strip */
+/* ----------------------------------------------------------------- */
+
+.na-tab-strip {
+    display             : flex;
+    align-items         : stretch;
+    background          : var(--na-tab-strip-bg, #f0f2f5);
+    border-bottom       : 1px solid var(--na-border);
+    flex-shrink         : 0;
+}
+
+.na-tab-bar {
+    display             : flex;
+    align-items         : stretch;
+    flex                : 1;
+    gap                 : 0;
+}
+
+.na-tab {
+    padding             : 10px 18px;
+    background          : transparent;
+    border              : none;
+    border-bottom       : 3px solid transparent;
+    cursor              : pointer;
+    font-size           : 13px;
+    font-weight         : 500;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+    transition          : color 0.15s, border-color 0.15s;
+}
+
+.na-tab:hover {
+    color               : var(--na-text);
+    background          : rgba(0, 0, 0, 0.04);
+}
+
+.na-tab.na-tab-active {
+    color               : var(--na-accent);
+    border-bottom-color : var(--na-accent);
+    font-weight         : 600;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Panels */
+/* ----------------------------------------------------------------- */
+
+.na-tab-panel {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    overflow-y          : auto;
+    padding             : 0;
+}
+
+.na-tab-panel.na-hidden {
+    display             : none;
+}
+
+.na-tab-panel.na-tab-active {
+    display             : flex;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Section Containers */
+/* ----------------------------------------------------------------- */
+
+.na-section {
+    background          : var(--na-panel);
+    border-bottom       : 1px solid var(--na-border);
+    padding             : 14px 16px;
+}
+
+.na-section:last-child {
+    border-bottom       : none;
+}
+
+.na-section-header {
+    display             : flex;
+    align-items         : center;
+    justify-content     : space-between;
+    margin-bottom       : 10px;
+}
+
+.na-section-header h2 {
+    margin              : 0;
+    font-size           : 13px;
+    font-weight         : 600;
+    color               : var(--na-subtle);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+}
+
+.na-actions-section {
+    display             : flex;
+    gap                 : 10px;
+    flex-wrap           : wrap;
+    align-items         : center;
+    padding             : 14px 16px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Status Bar */
+/* ----------------------------------------------------------------- */
+
+.na-status-bar {
+    background          : var(--na-status-bg, #eef3fb);
+    border-top          : 1px solid var(--na-border);
+    padding             : 6px 16px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    min-height          : 28px;
+    display             : flex;
+    align-items         : center;
+    flex-shrink         : 0;
+}
+
+.na-status-bar.na-hidden {
+    display             : none;
+}
+
+/* endregion ----------------------------------------------------------------- */

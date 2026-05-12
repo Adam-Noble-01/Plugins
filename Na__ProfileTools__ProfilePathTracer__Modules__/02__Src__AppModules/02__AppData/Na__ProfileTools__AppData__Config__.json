@@ -1,0 +1,46 @@
+{
+    "meta" : {
+        "schemaVersion" : "0.1.0",
+        "pluginName"    : "Na__ProfileTools__ProfilePathTracer",
+        "description"   : "App config for Profile Path Tracer plugin."
+    },
+    "defaults" : {
+        "profileKey"        : null,
+        "profileSourceMode" : "library",
+        "pathMode"          : "interactive",
+        "rotationStep"      : 0,
+        "isPreviewEnabled"  : true,
+        "isHeadless"        : false
+    },
+    "toggles" : {
+        "flipXCenter": {
+            "text"        : "Flip X (Center)",
+            "description" : "Mirror profile across its local centre X axis (invert Y around centre).",
+            "default"     : false
+        },
+        "flipYCenter": {
+            "text"        : "Flip Y (Center)",
+            "description" : "Mirror profile across its local centre Y axis (invert X around centre).",
+            "default"     : false
+        },
+        "flipXWorld": {
+            "text"        : "Flip X (World Origin)",
+            "description" : "Mirror profile across local/world X axis at Y=0 (invert Y).",
+            "default"     : false
+        },
+        "flipYWorld": {
+            "text"        : "Flip Y (World Origin)",
+            "description" : "Mirror profile across local/world Y axis at X=0 (invert X).",
+            "default"     : false
+        }
+    },
+    "headlessPresets" : [
+        {
+            "presetKey"  : "DefaultPreset",
+            "profileKey" : null,
+            "profileSourceMode" : "library",
+            "pathMode"   : "selection",
+            "notes"      : "Placeholder preset for ecosystem API calls."
+        }
+    ]
+}

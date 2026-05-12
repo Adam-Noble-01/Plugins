@@ -1,0 +1,150 @@
+/* =============================================================================
+   NA PROFILE TOOLS - SETTINGS TAB STYLES
+   =============================================================================
+   FILE       : Na__ProfileTools__UiFeature__Styles__Settings__.css
+   PURPOSE    : Settings tab body: section cards, buttons, helper text, About.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Settings Tab Body */
+/* ----------------------------------------------------------------- */
+
+.na-settings-body {
+    padding             : 16px;
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 16px;
+    flex                : 1;
+}
+
+.na-settings-section {
+    background          : var(--na-panel);
+    border             : 1px solid var(--na-border);
+    border-radius       : 8px;
+    padding             : 14px 16px;
+}
+
+.na-settings-section-info {
+    background          : #fafbfc;
+}
+
+.na-settings-heading {
+    margin              : 0 0 8px;
+    font-size           : 14px;
+    font-weight         : 700;
+    color               : var(--na-text);
+}
+
+.na-settings-description {
+    margin              : 0 0 12px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    line-height         : 1.5;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Settings Buttons */
+/* ----------------------------------------------------------------- */
+
+.na-settings-button-row {
+    margin-bottom       : 10px;
+}
+
+.na-settings-button-row:last-child {
+    margin-bottom       : 0;
+}
+
+.na-btn {
+    padding             : 8px 14px;
+    border-radius       : 4px;
+    border              : 1px solid transparent;
+    cursor              : pointer;
+    font-size           : 13px;
+    font-weight         : 500;
+    transition          : background 0.12s, border-color 0.12s;
+}
+
+.na-btn-primary {
+    background          : var(--na-accent);
+    border-color        : var(--na-accent);
+    color               : #ffffff;
+}
+
+.na-btn-primary:hover {
+    background          : var(--na-accent-hover);
+    border-color        : var(--na-accent-hover);
+}
+
+.na-settings-btn {
+    display             : inline-block;
+    margin-bottom       : 4px;
+}
+
+.na-settings-helper {
+    margin              : 0;
+    font-size           : 11px;
+    color               : var(--na-subtle);
+    line-height         : 1.5;
+}
+
+.na-settings-info-line {
+    margin              : 0 0 4px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Gallery Placeholder */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-placeholder {
+    display             : flex;
+    flex-direction      : column;
+    align-items         : center;
+    justify-content     : center;
+    padding             : 40px 20px;
+    text-align          : center;
+    flex                : 1;
+}
+
+.na-gallery-placeholder__icon {
+    font-size           : 48px;
+    margin-bottom       : 16px;
+    opacity             : 0.4;
+}
+
+.na-gallery-placeholder__title {
+    font-size           : 18px;
+    font-weight         : 600;
+    color               : var(--na-text);
+    margin              : 0 0 8px;
+}
+
+.na-gallery-placeholder__copy {
+    font-size           : 13px;
+    color               : var(--na-subtle);
+    max-width           : 320px;
+    margin              : 0 0 24px;
+    line-height         : 1.6;
+}
+
+.na-gallery-grid-stub {
+    display             : grid;
+    grid-template-columns : 1fr 1fr;
+    gap                 : 12px;
+    width               : 100%;
+    max-width           : 280px;
+}
+
+.na-gallery-grid-stub__cell {
+    background          : var(--na-border);
+    border-radius       : 6px;
+    min-height          : 72px;
+    opacity             : 0.5;
+}
+
+/* endregion ----------------------------------------------------------------- */

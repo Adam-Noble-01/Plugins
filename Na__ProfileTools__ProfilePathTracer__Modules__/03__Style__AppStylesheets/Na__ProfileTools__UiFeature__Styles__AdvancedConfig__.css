@@ -1,0 +1,156 @@
+/* =============================================================================
+   NA PROFILE TOOLS - ADVANCED CONFIGURATION STYLES
+   =============================================================================
+   FILE       : Na__ProfileTools__UiFeature__Styles__AdvancedConfig__.css
+   PURPOSE    : Collapsible <details> Advanced Config panel, toggle-button
+                pills, and rotation selector pills.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Advanced Config Collapsible */
+/* ----------------------------------------------------------------- */
+
+.na-advanced-config {
+    border-bottom       : 1px solid var(--na-border);
+    background          : var(--na-panel);
+}
+
+.na-advanced-config__summary {
+    padding             : 10px 16px;
+    cursor              : pointer;
+    font-size           : 13px;
+    font-weight         : 600;
+    color               : var(--na-subtle);
+    text-transform      : uppercase;
+    letter-spacing      : 0.05em;
+    list-style          : none;
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    user-select         : none;
+}
+
+.na-advanced-config__summary::-webkit-details-marker {
+    display             : none;
+}
+
+.na-advanced-config__summary::before {
+    content             : '▶';
+    font-size           : 9px;
+    transition          : transform 0.15s;
+    color               : var(--na-subtle);
+}
+
+.na-advanced-config[open] > .na-advanced-config__summary::before {
+    transform           : rotate(90deg);
+}
+
+.na-advanced-config__body {
+    padding             : 12px 16px 14px;
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 14px;
+    border-top          : 1px solid var(--na-border);
+}
+
+.na-advanced-config__group {
+    display             : flex;
+    align-items         : center;
+    gap                 : 12px;
+    flex-wrap           : wrap;
+}
+
+.na-advanced-config__label {
+    font-size           : 12px;
+    font-weight         : 600;
+    color               : var(--na-subtle);
+    min-width           : 56px;
+    flex-shrink         : 0;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Toggle Button Pills (Mirror toggles) */
+/* ----------------------------------------------------------------- */
+
+.na-toggle-btn-group {
+    display             : flex;
+    gap                 : 6px;
+    flex-wrap           : wrap;
+}
+
+.na-toggle-btn {
+    padding             : 5px 12px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 20px;
+    background          : var(--na-panel);
+    color               : var(--na-subtle);
+    font-size           : 12px;
+    font-weight         : 500;
+    cursor              : pointer;
+    transition          : background 0.12s, color 0.12s, border-color 0.12s;
+    white-space         : nowrap;
+}
+
+.na-toggle-btn:hover {
+    border-color        : var(--na-accent);
+    color               : var(--na-accent);
+}
+
+.na-toggle-btn--active,
+.na-toggle-btn[aria-pressed="true"] {
+    background          : var(--na-accent);
+    border-color        : var(--na-accent);
+    color               : #ffffff;
+}
+
+.na-toggle-btn--active:hover,
+.na-toggle-btn[aria-pressed="true"]:hover {
+    background          : var(--na-accent-hover);
+    border-color        : var(--na-accent-hover);
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Rotation Pills */
+/* ----------------------------------------------------------------- */
+
+.na-rotation-pills {
+    display             : flex;
+    gap                 : 4px;
+}
+
+.na-rotation-pill {
+    padding             : 5px 10px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : var(--na-panel);
+    color               : var(--na-subtle);
+    font-size           : 12px;
+    font-weight         : 500;
+    cursor              : pointer;
+    transition          : background 0.12s, color 0.12s;
+    white-space         : nowrap;
+    min-width           : 42px;
+    text-align          : center;
+}
+
+.na-rotation-pill:hover {
+    border-color        : #9a6d16;
+    color               : #9a6d16;
+}
+
+.na-rotation-pill--active {
+    background          : #9a6d16;
+    border-color        : #9a6d16;
+    color               : #ffffff;
+}
+
+.na-rotation-pill--active:hover {
+    background          : #7a5210;
+    border-color        : #7a5210;
+}
+
+/* endregion ----------------------------------------------------------------- */

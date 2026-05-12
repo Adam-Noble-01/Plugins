@@ -1,0 +1,692 @@
+# =============================================================================
+# NA PROFILE TOOLS - APP CORE - DIALOG MANAGER
+# =============================================================================
+#
+# FILE       : Na__ProfileTools__AppCore__DialogManager__.rb
+# NAMESPACE  : Na__ProfileTools__ProfilePathTracer::Na__DialogManager
+# PURPOSE    : HtmlDialog lifecycle and JS <-> Ruby callbacks
+#
+# =============================================================================
+
+require 'json'
+
+module Na__ProfileTools__ProfilePathTracer
+    module Na__DialogManager
+
+    # -------------------------------------------------------------------------
+    # REGION | Dialog State
+    # -------------------------------------------------------------------------
+
+        @na_dialog = nil
+        @na_pending_save_meta = nil
+        @na_pending_create_validation = false
+        @na_pending_export_origin_point = nil
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Dialog Options
+    # -------------------------------------------------------------------------
+
+        NA_DIALOG_TITLE           = 'Na Profile Path Tracer'.freeze
+        NA_DIALOG_PREFERENCES_KEY = 'Na__ProfileTools__ProfilePathTracer'.freeze
+
+        NA_DIALOG_WIDTH           = 980
+        NA_DIALOG_HEIGHT          = 740
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Public Surface
+    # -------------------------------------------------------------------------
+
+        def self.Na__Dialog__Show
+            return @na_dialog.bring_to_front if @na_dialog && @na_dialog.visible?
+
+            Na__EdgeColourManager.Na__EdgeColours__ForceRefreshFromUrl if defined?(Na__EdgeColourManager)
+
+            @na_dialog = UI::HtmlDialog.new(self.Na__Dialog__Options)
+
+            self.Na__Dialog__BindCallbacks(@na_dialog)
+            @na_dialog.set_file(Na__ProfileTools__ProfilePathTracer::NA_HTML_FILE)
+            @na_dialog.show
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Dialog Options Builder
+    # -------------------------------------------------------------------------
+
+        def self.Na__Dialog__Options
+            {
+                dialog_title:     NA_DIALOG_TITLE,
+                preferences_key:  NA_DIALOG_PREFERENCES_KEY,
+                scrollable:       true,
+                resizable:        true,
+                width:            NA_DIALOG_WIDTH,
+                height:           NA_DIALOG_HEIGHT,
+                style:            UI::HtmlDialog::STYLE_DIALOG
+            }
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Callback Binding (JS -> Ruby)
+    # -------------------------------------------------------------------------
+
+        def self.Na__Dialog__BindCallbacks(dialog)
+            dialog.add_action_callback('na_profilepathtracer_request_bootstrap') do |_context|
+                payload = self.Na__Dialog__BuildBootstrapPayload
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveBootstrap', payload)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Bootstrap callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveBootstrap',
+                    {
+                        'profileKey' => '',
+                        'profileSourceMode' => 'library',
+                        'pathMode' => 'interactive',
+                        'rotationStep' => 0,
+                        'isPreviewEnabled' => true,
+                        'toggleDefinitions' => {},
+                        'toggleStates' => {},
+                        'profileOptions' => [],
+                        'profilesByKey' => {},
+                        'sceneProfileStatus' => Na__SceneProfileRegistry.Na__SceneProfileRegistry__StatusPayload,
+                        'edgeMaterialsStatus' => 'failed',
+                        'isBootstrapError' => true,
+                        'statusMessage' => "Bootstrap failed: #{error.message}"
+                    }
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_run_headless') do |_context, json_payload|
+                config = JSON.parse(json_payload.to_s)
+                result = Na__HeadlessRunner.Na__Headless__Run(config)
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveHeadlessResult', result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Headless callback failed.', error)
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_reload_plugin') do |_context|
+                dialog_reference = dialog
+                reload_result = Na__PluginReloader.Na__Reload__PluginFiles(Na__ProfileTools__ProfilePathTracer::NA_PLUGIN_ROOT)
+                self.Na__Dialog__HandleReloadCompletion(dialog_reference, reload_result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Plugin reload callback failed.', error)
+                self.Na__Dialog__HandleReloadCompletion(
+                    dialog,
+                    {
+                        'isSuccess' => false,
+                        'statusMessage' => "Reload failed: #{error.message}",
+                        'issues' => [error.message]
+                    }
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_refresh_edge_materials') do |_context|
+                result = self.Na__Dialog__HandleRefreshEdgeMaterials
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveEdgeMaterialsStatus', result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Refresh edge materials callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveEdgeMaterialsStatus',
+                    { 'isSuccess' => false, 'statusMessage' => "Refresh failed: #{error.message}", 'loadStatus' => 'failed' }
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_purge_edge_materials_cache') do |_context|
+                result = self.Na__Dialog__HandlePurgeEdgeMaterialsCache
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveEdgeMaterialsStatus', result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Purge edge materials cache callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveEdgeMaterialsStatus',
+                    { 'isSuccess' => false, 'statusMessage' => "Purge failed: #{error.message}", 'loadStatus' => 'failed' }
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_generate') do |_context, json_payload|
+                generate_config = JSON.parse(json_payload.to_s)
+                generate_result = self.Na__Dialog__HandleGenerateRequest(generate_config)
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveGenerateResult', generate_result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Generate callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveGenerateResult',
+                    { 'isStarted' => false, 'statusMessage' => "Generate failed: #{error.message}" }
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_pick_scene_profile') do |_context|
+                model = Sketchup.active_model
+                unless model
+                    self.Na__Dialog__SetStatusFromRuby('No active model for scene profile picking.')
+                    next
+                end
+                model.select_tool(Na__SceneProfilePicker.new(self))
+                self.Na__Dialog__SetStatusFromRuby('Pick a Group/Component with one planar face to use as scene profile.')
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Pick scene profile callback failed.', error)
+                self.Na__Dialog__SetStatusFromRuby("Scene profile pick failed: #{error.message}")
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_clear_scene_profile') do |_context|
+                Na__SceneProfileRegistry.Na__SceneProfileRegistry__Clear
+                self.Na__Dialog__PushSceneProfileStatus('Scene profile source cleared.')
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Clear scene profile callback failed.', error)
+                self.Na__Dialog__SetStatusFromRuby("Scene profile clear failed: #{error.message}")
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_request_scene_profile_status') do |_context|
+                self.Na__Dialog__PushSceneProfileStatus
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Scene profile status callback failed.', error)
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_validate_for_export') do |_context|
+                create_result = self.Na__Dialog__HandleCreateProfileRequest
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveExportValidation', create_result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Export validation callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveExportValidation',
+                    { 'isValid' => false, 'reason' => "Validation failed: #{error.message}" }
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_save_profile') do |_context, json_payload|
+                meta_fields = JSON.parse(json_payload.to_s)
+                save_result = self.Na__Dialog__HandleSaveProfileRequest(meta_fields)
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveSaveProfileResult', save_result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Save profile callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveSaveProfileResult',
+                    { 'isSaved' => false, 'reason' => "Save failed: #{error.message}" }
+                )
+            end
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Edge Materials Handlers
+    # -------------------------------------------------------------------------
+
+        def self.Na__Dialog__HandleRefreshEdgeMaterials
+            return { 'isSuccess' => false, 'statusMessage' => 'Edge colour manager not loaded.', 'loadStatus' => 'failed' } unless defined?(Na__EdgeColourManager)
+
+            Na__EdgeColourManager.Na__EdgeColours__ForceRefreshFromUrl
+            status = Na__EdgeColourManager.Na__EdgeColours__LoadStatus
+            {
+                'isSuccess' => status == :url,
+                'statusMessage' => status == :url ? 'Edge materials refreshed from URL.' : "Edge materials status: #{status}",
+                'loadStatus' => status.to_s
+            }
+        end
+
+        def self.Na__Dialog__HandlePurgeEdgeMaterialsCache
+            return { 'isSuccess' => false, 'statusMessage' => 'Edge colour manager not loaded.', 'loadStatus' => 'failed' } unless defined?(Na__EdgeColourManager)
+
+            purge_result = Na__EdgeColourManager.Na__EdgeColours__PurgeCache
+            status = Na__EdgeColourManager.Na__EdgeColours__LoadStatus
+            {
+                'isSuccess' => purge_result == true,
+                'statusMessage' => purge_result ? 'Edge materials cache purged. Fresh copy downloaded.' : 'Cache purge failed or fresh download unavailable.',
+                'loadStatus' => status.to_s
+            }
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Payload Builders / Request Handlers
+    # -------------------------------------------------------------------------
+
+        def self.Na__Dialog__BuildBootstrapPayload
+            default_run_config = Na__ProfileTools__ProfilePathTracer.Na__State__DefaultRunConfig
+            default_profile_key = Na__ProfileLibrary.Na__ProfileLibrary__DefaultProfileKey
+            scene_profile_status = Na__SceneProfileRegistry.Na__SceneProfileRegistry__StatusPayload
+
+            edge_materials_status = if defined?(Na__EdgeColourManager)
+                Na__EdgeColourManager.Na__EdgeColours__LoadStatus.to_s
+            else
+                'pending'
+            end
+
+            default_run_config.merge(
+                'profileKey'      => default_run_config['profileKey'] || default_profile_key,
+                'toggleDefinitions' => Na__ProfileTools__ProfilePathTracer.Na__Config__ToggleDefinitions,
+                'profileOptions'  => Na__ProfileLibrary.Na__ProfileLibrary__UiProfileOptions,
+                'profilesByKey'   => Na__ProfileLibrary.Na__ProfileLibrary__ProfilesByKey,
+                'sceneProfileStatus' => scene_profile_status,
+                'edgeMaterialsStatus' => edge_materials_status
+            )
+        end
+
+        def self.Na__Dialog__HandleCreateProfileRequest
+            validation = Na__ProfileExporter.Na__Exporter__ValidateSelection
+            unless validation['isValid']
+                return validation.merge(
+                    'isPendingOrigin' => false,
+                    'statusMessage' => "Create blocked: #{validation['reason']}"
+                )
+            end
+
+            model = Sketchup.active_model
+            unless model
+                return {
+                    'isValid' => false,
+                    'isPendingOrigin' => false,
+                    'reason' => 'No active model.',
+                    'statusMessage' => 'Create blocked: no active model.'
+                }
+            end
+
+            @na_pending_create_validation = true
+            @na_pending_export_origin_point = nil
+            model.select_tool(Na__Dialog__OriginPointPickerTool.new(self, :create_profile))
+
+            validation.merge(
+                'isPendingOrigin' => true,
+                'statusMessage' => 'Click in model to place 00__OriginPoint first for create-profile preview.'
+            )
+        end
+
+        def self.Na__Dialog__HandleSaveProfileRequest(meta_fields)
+            origin_point = @na_pending_export_origin_point
+            validation = Na__ProfileExporter.Na__Exporter__ValidateSelection(origin_point)
+            unless validation['isValid']
+                return {
+                    'isSaved' => false,
+                    'isPending' => false,
+                    'reason' => validation['reason'],
+                    'statusMessage' => "Save blocked: #{validation['reason']}"
+                }
+            end
+
+            model = Sketchup.active_model
+            unless model
+                return {
+                    'isSaved' => false,
+                    'isPending' => false,
+                    'reason' => 'No active model.',
+                    'statusMessage' => 'Save blocked: no active model.'
+                }
+            end
+
+            resolved_meta_fields = meta_fields.is_a?(Hash) ? meta_fields : {}
+            if origin_point
+                @na_pending_export_origin_point = nil
+                @na_pending_create_validation = false
+                save_result = Na__ProfileExporter.Na__Exporter__RunExport(resolved_meta_fields, origin_point)
+
+                if save_result['isSaved']
+                    updated_bootstrap = self.Na__Dialog__BuildBootstrapPayload
+                    self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveBootstrap', updated_bootstrap)
+                end
+
+                return self.Na__Dialog__BuildSaveResultPayload(save_result)
+            end
+
+            @na_pending_save_meta = resolved_meta_fields
+            model.select_tool(Na__Dialog__OriginPointPickerTool.new(self, :save_profile))
+
+            {
+                'isSaved' => false,
+                'isPending' => true,
+                'reason' => nil,
+                'statusMessage' => 'Click in model to place 00__OriginPoint and continue export.'
+            }
+        end
+
+        def self.Na__Dialog__FinalizePendingCreateProfileOrigin(origin_point)
+            unless @na_pending_create_validation == true
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveExportValidation',
+                    {
+                        'isValid' => false,
+                        'isPendingOrigin' => false,
+                        'reason' => 'No pending create-profile request was found.',
+                        'statusMessage' => 'Create profile cancelled: no pending request.'
+                    }
+                )
+                return
+            end
+
+            @na_pending_create_validation = false
+            @na_pending_export_origin_point = origin_point
+            validation = Na__ProfileExporter.Na__Exporter__ValidateSelection(origin_point)
+
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveExportValidation',
+                validation.merge(
+                    'isPendingOrigin' => false,
+                    'originPointPicked' => true,
+                    'statusMessage' => validation['isValid'] ? 'Origin point set. Fill in profile details and save.' : "Create blocked: #{validation['reason']}"
+                )
+            )
+        rescue => error
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveExportValidation',
+                {
+                    'isValid' => false,
+                    'isPendingOrigin' => false,
+                    'reason' => error.message,
+                    'statusMessage' => "Create profile failed: #{error.message}"
+                }
+            )
+        end
+
+        def self.Na__Dialog__CancelPendingCreateProfileOrigin
+            @na_pending_create_validation = false
+            @na_pending_export_origin_point = nil
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveExportValidation',
+                {
+                    'isValid' => false,
+                    'isPendingOrigin' => false,
+                    'reason' => 'Origin point selection cancelled.',
+                    'statusMessage' => 'Create profile cancelled: origin point selection was cancelled.'
+                }
+            )
+        end
+
+        def self.Na__Dialog__FinalizePendingSave(origin_point)
+            pending_meta = @na_pending_save_meta
+            @na_pending_save_meta = nil
+
+            unless pending_meta.is_a?(Hash)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveSaveProfileResult',
+                    {
+                        'isSaved' => false,
+                        'isPending' => false,
+                        'reason' => 'No pending save request was found.',
+                        'statusMessage' => 'Save cancelled: no pending request.'
+                    }
+                )
+                return
+            end
+
+            save_result = Na__ProfileExporter.Na__Exporter__RunExport(pending_meta, origin_point)
+
+            if save_result['isSaved']
+                updated_bootstrap = self.Na__Dialog__BuildBootstrapPayload
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveBootstrap', updated_bootstrap)
+            end
+
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveSaveProfileResult',
+                self.Na__Dialog__BuildSaveResultPayload(save_result)
+            )
+        rescue => error
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveSaveProfileResult',
+                {
+                    'isSaved' => false,
+                    'isPending' => false,
+                    'reason' => error.message,
+                    'statusMessage' => "Save failed: #{error.message}"
+                }
+            )
+        end
+
+        def self.Na__Dialog__BuildSaveResultPayload(save_result)
+            helper_created = save_result['originHelperCreated'] == true
+            helper_reason = save_result['originHelperReason'].to_s
+            helper_status_message = if helper_created
+                'Origin helper inserted at picked point.'
+            elsif !helper_reason.empty?
+                "Origin helper note: #{helper_reason}"
+            else
+                ''
+            end
+
+            {
+                'isSaved' => save_result['isSaved'] == true,
+                'isPending' => false,
+                'reason' => save_result['reason'],
+                'filePath' => save_result['filePath'],
+                'originHelperCreated' => helper_created,
+                'originHelperReason' => save_result['originHelperReason'],
+                'statusMessage' => save_result['isSaved'] ?
+                    "Profile saved: #{save_result['filePath']} #{helper_status_message}".strip :
+                    "Save failed: #{save_result['reason']} #{helper_status_message}".strip
+            }
+        end
+
+        def self.Na__Dialog__CancelPendingSave
+            @na_pending_save_meta = nil
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveSaveProfileResult',
+                {
+                    'isSaved' => false,
+                    'isPending' => false,
+                    'reason' => 'Origin point selection cancelled.',
+                    'statusMessage' => 'Save cancelled: origin point selection was cancelled.'
+                }
+            )
+        end
+
+        def self.Na__Dialog__HandleGenerateRequest(generate_config)
+            profile_resolution = Na__ProfilePlacementEngine.Na__Engine__ResolveProfileData(generate_config)
+            unless profile_resolution['isValid']
+                return {
+                    'isStarted' => false,
+                    'statusMessage' => "Generate blocked: #{profile_resolution['reason']}"
+                }
+            end
+
+            path_mode = generate_config['pathMode'].to_s
+            path_mode = 'selection' if path_mode.empty?
+
+            profile_key = profile_resolution['profileKey']
+            profile_data = profile_resolution['profileData']
+            toggle_states = self.Na__Dialog__NormalizedToggleStates(generate_config)
+            rotation_step = generate_config['rotationStep'].to_i % 4
+
+            if path_mode == 'selection'
+                validation = Na__PathAnalysis.Na__Path__BuildSegments(Sketchup.active_model.selection.to_a)
+                unless validation[:isValid]
+                    return {
+                        'isStarted' => false,
+                        'statusMessage' => "Generate blocked: #{validation[:reason]}"
+                    }
+                end
+
+                path_data = {
+                    ordered_points: validation[:orderedPoints],
+                    ordered_edges: validation[:orderedEdges],
+                    is_closed_loop: validation[:isClosedLoop]
+                }
+
+                generation_result = Na__ProfilePlacementEngine.Na__Engine__GenerateFromPathData(
+                    profile_key: profile_key,
+                    profile_data: profile_data,
+                    path_data: path_data,
+                    start_point: path_data[:ordered_points].first,
+                    rotation_step: rotation_step,
+                    toggle_states: toggle_states
+                )
+
+                return {
+                    'isStarted' => generation_result['isBuilt'] == true,
+                    'statusMessage' => generation_result['statusMessage']
+                }
+            end
+
+            model = Sketchup.active_model
+            interactive_tool = Na__PathSelectionTool.new(profile_key, profile_data, toggle_states, rotation_step)
+            model.select_tool(interactive_tool)
+
+            {
+                'isStarted' => true,
+                'statusMessage' => "Interactive drawing active. Rotation #{rotation_step * 90} deg. Click to set start, then draw waypoints. Enter/right-click/double-click to finish."
+            }
+        end
+
+        def self.Na__Dialog__HandleReloadCompletion(previous_dialog, reload_result)
+            status_payload = self.Na__Dialog__BuildReloadStatusPayload(reload_result)
+            runtime_status = Na__ProfileTools__ProfilePathTracer.Na__Runtime__EnsureUnifiedGeometryBuilders
+            if runtime_status['isUnified'] != true
+                status_payload['isSuccess'] = false
+                status_payload['statusMessage'] = "#{status_payload['statusMessage']} Runtime sync issue: #{runtime_status['statusMessage']}"
+            end
+
+            begin
+                previous_dialog.close if previous_dialog && previous_dialog.visible?
+            rescue => error
+                Na__DebugTools.Na__Debug__Warn("Reload close warning: #{error.message}")
+            end
+
+            self.Na__Dialog__Show
+            self.Na__Dialog__SendReloadStatus(status_payload)
+        end
+
+        def self.Na__Dialog__BuildReloadStatusPayload(reload_result)
+            status_message = 'Reload complete.'
+            is_success = true
+            issues = []
+
+            if reload_result.is_a?(Hash)
+                status_message = reload_result['statusMessage'].to_s.strip
+                status_message = 'Reload complete.' if status_message.empty?
+                is_success = reload_result['isSuccess'] != false
+                issues = reload_result['issues'].is_a?(Array) ? reload_result['issues'] : []
+            else
+                is_success = false
+                status_message = 'Reload finished with unknown response.'
+            end
+
+            if !is_success && !issues.empty?
+                status_message = "#{status_message} First issue: #{issues.first}"
+            end
+
+            {
+                'statusMessage' => status_message,
+                'isSuccess' => is_success
+            }
+        end
+
+        def self.Na__Dialog__SendReloadStatus(status_payload)
+            return unless @na_dialog
+
+            status_message = status_payload['statusMessage'].to_s
+            escaped_status = status_message.gsub('\\', '\\\\').gsub("'", "\\\\'")
+            @na_dialog.execute_script("window.setTimeout(function(){ if (window.Na__ProfilePathTracer__Ui__SetStatusFromBridge) { window.Na__ProfilePathTracer__Ui__SetStatusFromBridge('#{escaped_status}'); } }, 700);")
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Ruby -> JS Bridge
+    # -------------------------------------------------------------------------
+
+        def self.Na__Dialog__SetStatusFromRuby(message)
+            return unless @na_dialog
+            escaped_status = message.to_s.gsub('\\', '\\\\').gsub("'", "\\\\'")
+            @na_dialog.execute_script(
+                "if (window.Na__ProfilePathTracer__Ui__SetStatusFromBridge) { window.Na__ProfilePathTracer__Ui__SetStatusFromBridge('#{escaped_status}'); }"
+            )
+        end
+
+        def self.Na__Dialog__PushSceneProfileStatus(status_message_override = nil)
+            status_payload = Na__SceneProfileRegistry.Na__SceneProfileRegistry__StatusPayload
+            status_payload = status_payload.merge('statusMessage' => status_message_override.to_s) if status_message_override
+            self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveSceneProfileStatus', status_payload)
+            self.Na__Dialog__SetStatusFromRuby(status_payload['statusMessage'])
+        end
+
+        def self.Na__Dialog__SendToJs(function_name, payload)
+            return unless @na_dialog
+            @na_dialog.execute_script("window.#{function_name}(#{payload.to_json});")
+        end
+
+        def self.Na__Dialog__NormalizedToggleStates(generate_config)
+            incoming_toggle_states = generate_config['toggleStates']
+            default_toggle_states = Na__ProfileTools__ProfilePathTracer.Na__Config__ToggleDefaults
+            return default_toggle_states unless incoming_toggle_states.is_a?(Hash)
+
+            default_toggle_states.each_with_object({}) do |(toggle_key, default_value), normalized|
+                if incoming_toggle_states.key?(toggle_key)
+                    normalized[toggle_key] = incoming_toggle_states[toggle_key] == true
+                else
+                    normalized[toggle_key] = default_value
+                end
+            end
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    end
+
+    class Na__Dialog__OriginPointPickerTool
+
+        NA_STATUS_PROMPT_KEY = SB_PROMPT
+        NA_CROSSHAIR_SIZE = 180.mm
+
+        def initialize(dialog_manager_module, picker_mode = :save_profile)
+            @na_dialog_manager = dialog_manager_module
+            @na_picker_mode = picker_mode
+            @na_input_point = Sketchup::InputPoint.new
+            @na_cursor_point = nil
+        end
+
+        def activate
+            prompt_text = if @na_picker_mode == :create_profile
+                'Click to place 00__OriginPoint for create-profile preview + save. ESC cancels.'
+            else
+                'Click to place 00__OriginPoint helper for export UCS. ESC cancels.'
+            end
+            Sketchup::set_status_text(prompt_text, NA_STATUS_PROMPT_KEY)
+            Sketchup.active_model.active_view.invalidate
+        end
+
+        def onMouseMove(_flags, x, y, view)
+            @na_input_point.pick(view, x, y)
+            return unless @na_input_point.valid?
+            @na_cursor_point = @na_input_point.position
+            view.invalidate
+        end
+
+        def onLButtonDown(_flags, x, y, view)
+            @na_input_point.pick(view, x, y)
+            return unless @na_input_point.valid?
+
+            selected_point = @na_input_point.position
+            if @na_picker_mode == :create_profile
+                @na_dialog_manager.Na__Dialog__FinalizePendingCreateProfileOrigin(selected_point)
+            else
+                @na_dialog_manager.Na__Dialog__FinalizePendingSave(selected_point)
+            end
+            Sketchup.active_model.select_tool(nil)
+            view.invalidate
+        end
+
+        def onCancel(_reason, view)
+            if @na_picker_mode == :create_profile
+                @na_dialog_manager.Na__Dialog__CancelPendingCreateProfileOrigin
+            else
+                @na_dialog_manager.Na__Dialog__CancelPendingSave
+            end
+            Sketchup.active_model.select_tool(nil)
+            view.invalidate
+        end
+
+        def draw(view)
+            return unless @na_cursor_point
+            @na_input_point.draw(view)
+            Na__PreviewGraphics.Na__Preview__DrawCrosshair(view, @na_cursor_point, NA_CROSSHAIR_SIZE)
+        end
+    end
+
+end
+
+# =============================================================================
+# END OF FILE
+# =============================================================================

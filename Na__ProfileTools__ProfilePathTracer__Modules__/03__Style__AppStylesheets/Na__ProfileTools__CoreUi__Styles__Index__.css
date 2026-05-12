@@ -1,0 +1,340 @@
+/* =============================================================================
+   NA PROFILE TOOLS - CORE UI STYLES - INDEX
+   =============================================================================
+   FILE       : Na__ProfileTools__CoreUi__Styles__Index__.css
+   PURPOSE    : Master stylesheet — imports all feature style modules and defines
+                shared CSS variables and base layout rules.
+   NOTE       : @import rules MUST appear before all other rules per CSS spec.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Feature Stylesheet Imports (MUST be first) */
+/* ----------------------------------------------------------------- */
+
+@import url("Na__ProfileTools__UiFeature__Styles__BrandHeader__.css");
+@import url("Na__ProfileTools__UiFeature__Styles__TabStrip__.css");
+@import url("Na__ProfileTools__UiFeature__Styles__AdvancedConfig__.css");
+@import url("Na__ProfileTools__UiFeature__Styles__Settings__.css");
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | CSS Variables */
+/* ----------------------------------------------------------------- */
+
+:root {
+    --na-bg             : #f4f5f7;
+    --na-panel          : #ffffff;
+    --na-border         : #d6d9de;
+    --na-text           : #20242b;
+    --na-subtle         : #5f6773;
+    --na-accent         : #1a73e8;
+    --na-accent-hover   : #155fc0;
+    --na-brand-bg       : #1a1a2e;
+    --na-brand-text     : #ffffff;
+    --na-tab-strip-bg   : #f0f2f5;
+    --na-status-bg      : #eef3fb;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Base Reset */
+/* ----------------------------------------------------------------- */
+
+* {
+    box-sizing          : border-box;
+}
+
+body {
+    margin              : 0;
+    font-family         : "Segoe UI", Tahoma, sans-serif;
+    font-size           : 13px;
+    background          : var(--na-bg);
+    color               : var(--na-text);
+    display             : flex;
+    flex-direction      : column;
+    height              : 100vh;
+    overflow            : hidden;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Layout Shell */
+/* ----------------------------------------------------------------- */
+
+.na-app-shell {
+    display             : flex;
+    flex-direction      : column;
+    height              : 100vh;
+    overflow            : hidden;
+}
+
+.na-tab-panels-container {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    overflow            : hidden;
+}
+
+.na-hidden {
+    display             : none !important;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Form Controls */
+/* ----------------------------------------------------------------- */
+
+.naFormRow {
+    display             : grid;
+    grid-template-columns : 140px 1fr;
+    gap                 : 10px;
+    align-items         : center;
+    margin-bottom       : 10px;
+}
+
+.naFormRow label {
+    font-weight         : 600;
+    font-size           : 12px;
+}
+
+.naInput,
+.naSelect {
+    width               : 100%;
+    padding             : 7px 8px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : #fff;
+    font-size           : 13px;
+    font-family         : inherit;
+}
+
+.naTextarea {
+    width               : 100%;
+    padding             : 7px 8px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : #fff;
+    font-family         : inherit;
+    resize              : vertical;
+    min-height          : 48px;
+}
+
+.naInputReadonly {
+    width               : 100%;
+    padding             : 7px 8px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : #f0f1f3;
+    color               : var(--na-subtle);
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Buttons */
+/* ----------------------------------------------------------------- */
+
+.naButton {
+    border              : 1px solid var(--na-accent);
+    background          : var(--na-accent);
+    color               : #fff;
+    border-radius       : 4px;
+    padding             : 8px 14px;
+    cursor              : pointer;
+    font-size           : 13px;
+    font-family         : inherit;
+    font-weight         : 500;
+    transition          : background 0.12s, border-color 0.12s;
+}
+
+.naButton:hover {
+    background          : var(--na-accent-hover);
+    border-color        : var(--na-accent-hover);
+}
+
+.naButtonPrimary {
+    background          : #008f5a;
+    border-color        : #008f5a;
+}
+
+.naButtonPrimary:hover {
+    background          : #00734a;
+    border-color        : #00734a;
+}
+
+.naButtonCreate {
+    border              : 1px solid #6c47b8;
+    background          : #6c47b8;
+    color               : #fff;
+    border-radius       : 4px;
+    padding             : 8px 14px;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+    font-weight         : 500;
+}
+
+.naButtonCreate:hover {
+    background          : #583a99;
+    border-color        : #583a99;
+}
+
+.naButtonSuccess {
+    border              : 1px solid #008f5a;
+    background          : #008f5a;
+    color               : #fff;
+    border-radius       : 4px;
+    padding             : 8px 16px;
+    cursor              : pointer;
+    font-weight         : 600;
+    font-family         : inherit;
+    font-size           : 13px;
+}
+
+.naButtonSuccess:hover {
+    background          : #00734a;
+    border-color        : #00734a;
+}
+
+.naButtonSecondary {
+    border              : 1px solid var(--na-border);
+    background          : var(--na-panel);
+    color               : var(--na-text);
+    border-radius       : 4px;
+    padding             : 8px 14px;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+}
+
+.naButtonSecondary:hover {
+    background          : var(--na-bg);
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Viewport + Preview */
+/* ----------------------------------------------------------------- */
+
+.na-viewport-section {
+    padding             : 10px 16px;
+}
+
+.naViewportWrap {
+    width               : 100%;
+    min-height          : 220px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    background          : #fcfcfd;
+    overflow            : hidden;
+}
+
+.naViewportSvg {
+    display             : block;
+    width               : 100%;
+    height              : 280px;
+}
+
+.naProfileLine {
+    fill                : none;
+    stroke              : #1f6fd6;
+    stroke-width        : 1.5;
+}
+
+.naAxisLine {
+    stroke              : #bec6d1;
+    stroke-width        : 0.8;
+    stroke-dasharray    : 4 3;
+}
+
+.naProfileStartPoint {
+    fill                : #d32f2f;
+}
+
+.naProfileOriginLine {
+    stroke              : #c98b00;
+    stroke-width        : 0.9;
+    stroke-dasharray    : 2 2;
+}
+
+.naProfileOriginPoint {
+    fill                : #f9b233;
+    stroke              : #8a5a00;
+    stroke-width        : 0.9;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Scene Source + Create Profile Panel */
+/* ----------------------------------------------------------------- */
+
+.naSceneSourceWrap {
+    margin-bottom       : 10px;
+    padding             : 10px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    background          : #fafbfc;
+}
+
+.naSceneSourceWrap--hidden {
+    display             : none;
+}
+
+.naSceneStatus {
+    margin-bottom       : 8px;
+    padding             : 8px;
+    border-radius       : 4px;
+    font-size           : 12px;
+    font-weight         : 600;
+}
+
+.naSceneStatus--ready {
+    background          : #e7f7ee;
+    color               : #1a5e3a;
+}
+
+.naSceneStatus--pending {
+    background          : #fff4e5;
+    color               : #7a4a00;
+}
+
+.naSceneActions {
+    display             : flex;
+    gap                 : 8px;
+    flex-wrap           : wrap;
+}
+
+.naCreateProfilePanel {
+    margin-top          : 8px;
+    border-color        : #008f5a !important;
+}
+
+.naPanel {
+    background          : var(--na-panel);
+    border              : 1px solid var(--na-border);
+    border-radius       : 8px;
+    padding             : 14px 16px;
+}
+
+.naValidationSummary {
+    padding             : 8px;
+    margin-bottom       : 10px;
+    border-radius       : 4px;
+    background          : #eef8f3;
+    color               : #1a5e3a;
+    font-size           : 13px;
+}
+
+.naCreateProfileActions {
+    display             : flex;
+    gap                 : 8px;
+    margin-top          : 12px;
+}
+
+/* endregion ----------------------------------------------------------------- */
