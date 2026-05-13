@@ -20,9 +20,10 @@
 #   2. Geometry primitives  (no deps)
 #   3. GroupSelection       (depends on Sketchup API only)
 #   4. Decimation modules   (depend on Geometry)
-#   5. Orchestrator         (depends on Decimation + GroupSelection)
-#   6. AppCore UiBridge     (depends on nothing domain-specific)
-#   7. AppCore DialogManager (depends on UiBridge + Orchestrator + GroupSelection)
+#   5. NativeEngine         (optional C++ bridge + SketchUp writer)
+#   6. Orchestrator         (depends on Decimation + GroupSelection)
+#   7. AppCore UiBridge     (depends on nothing domain-specific)
+#   8. AppCore DialogManager (depends on UiBridge + Orchestrator + GroupSelection)
 #
 # =============================================================================
 
@@ -60,10 +61,20 @@ require_relative '../03__Decimation/Na__MeshDecimator__Decimation__MeshSimplifie
 require_relative '../03__Decimation/Na__MeshDecimator__Decimation__MeshWriter__'
 
 # -----------------------------------------------------------------------------
+# REGION | Native Engine (optional C++ acceleration)
+# -----------------------------------------------------------------------------
+
+# @delegate: ../08__NativeEngine/Na__MeshDecimator__NativeEngine__Bridge__.rb
+# @delegate: ../08__NativeEngine/Na__MeshDecimator__NativeEngine__EntitiesBuilderWriter__.rb
+require_relative '../08__NativeEngine/Na__MeshDecimator__NativeEngine__Bridge__'
+require_relative '../08__NativeEngine/Na__MeshDecimator__NativeEngine__EntitiesBuilderWriter__'
+
+# -----------------------------------------------------------------------------
 # REGION | Orchestrator
 # -----------------------------------------------------------------------------
 
 require_relative '../05__Orchestrator/Na__MeshDecimator__Orchestrator__RunDecimation__'
+require_relative '../05__Orchestrator/Na__MeshDecimator__Orchestrator__RunNativeDecimation__'
 
 # -----------------------------------------------------------------------------
 # REGION | AppCore UI (UiBridge must precede DialogManager)

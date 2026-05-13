@@ -1,0 +1,18 @@
+﻿{
+    "name":  "Na__MeshDecimator__NativeEngine",
+    "target":  "Windows SketchUp 2026 Ruby 3.2",
+    "status":  "built",
+    "message":  "Native extension built successfully.",
+    "generatedAt":  "2026-05-13T13:31:23",
+    "dependencyRoot":  "C:\\Users\\adamw\\AppData\\Roaming\\SketchUp\\SketchUp 2026\\SketchUp\\Plugins\\Na__MeshTools__BatchedQuadricDecimator__Modules__\\01__ExternalDependencies__VersionLocked",
+    "sketchUpRubyCExtensionExamples":  {
+                                           "path":  "C:\\Users\\adamw\\AppData\\Roaming\\SketchUp\\SketchUp 2026\\SketchUp\\Plugins\\Na__MeshTools__BatchedQuadricDecimator__Modules__\\01__ExternalDependencies__VersionLocked\\01__SketchUpRubyCExtensionExamples__Pinned",
+                                           "commit":  "e75c6bf81c96ee25df46b33b65d8e705825af3f0"
+                                       },
+    "tools":  {
+                  "cmake":  "C:\\Users\\adamw\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\cmake.exe",
+                  "ninja":  "C:\\Users\\adamw\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\ninja.exe",
+                  "git":  "C:\\Users\\adamw\\AppData\\Local\\Programs\\Git\\cmd\\git.exe",
+                  "visualStudio":  "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools"
+              }
+}

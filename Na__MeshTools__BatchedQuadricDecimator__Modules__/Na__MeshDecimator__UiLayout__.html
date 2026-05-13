@@ -264,12 +264,18 @@
              REGION | 4d. Action Bar
              ==================================================================== -->
         <div class="na-action-bar">
-            <button id="na-btn-run"
+            <button id="na-btn-run-native"
                     class="na-btn na-btn--primary"
                     type="button"
-                    onclick="Na__MeshDecimator__Ui__Run()">
+                    onclick="Na__MeshDecimator__Ui__RunNative()">
                 <span id="na-run-spinner" class="na-spinner"></span>
                 Run Decimation
+            </button>
+            <button id="na-btn-run-legacy"
+                    class="na-btn na-btn--secondary"
+                    type="button"
+                    onclick="Na__MeshDecimator__Ui__Run()">
+                Run Legacy Ruby
             </button>
             <button class="na-btn na-btn--secondary"
                     type="button"

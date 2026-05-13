@@ -28,8 +28,8 @@
 
     var NA_BODY_ID       = 'na-statistics-body';
     var na_run_counter   = 0;
-    var na_rows          = [];  // { run, group_name, source_triangles, input_faces,
-                                //   input_edges, result_triangles, output_faces,
+    var na_rows          = [];  // { run, engine, elapsed_seconds, group_name,
+                                //   source_triangles, input_faces, input_edges, result_triangles, output_faces,
                                 //   output_edges, actual_pct, status }
 
     // -------------------------------------------------------------------------
@@ -44,6 +44,17 @@
             .replace(/"/g, '&quot;');
     }
 
+    function na_format_elapsed_time(seconds) {
+        var totalSeconds = Number(seconds) || 0;
+        if (totalSeconds > 0 && totalSeconds < 1) return '&lt;00:01';
+
+        var rounded = Math.round(totalSeconds);
+        var minutes = Math.floor(rounded / 60);
+        var secondsPart = rounded % 60;
+
+        return String(minutes).padStart(2, '0') + ':' + String(secondsPart).padStart(2, '0');
+    }
+
     // -------------------------------------------------------------------------
     // REGION | Table Rendering
     // -------------------------------------------------------------------------
@@ -56,6 +67,8 @@
         var html = '<table class="na-results-table">';
         html += '<thead><tr>';
         html += '<th>Run</th>';
+        html += '<th>Engine</th>';
+        html += '<th>Time</th>';
         html += '<th>Group Name</th>';
         html += '<th>Input Tri</th>';
         html += '<th>Input Faces</th>';
@@ -72,6 +85,8 @@
             var statusClass = row.status === 'complete' ? 'na-cell--status-ok' : 'na-cell--status-warn';
             html += '<tr>';
             html += '<td class="na-cell--run">#' + row.run + '</td>';
+            html += '<td>' + na_esc(row.engine || 'Ruby') + '</td>';
+            html += '<td class="na-cell--number" title="' + (row.elapsed_seconds || 0) + ' seconds">' + na_format_elapsed_time(row.elapsed_seconds) + '</td>';
             html += '<td class="na-cell--name">' + na_esc(row.group_name || '') + '</td>';
             html += '<td class="na-cell--number">' + (row.source_triangles  || 0) + '</td>';
             html += '<td class="na-cell--number">' + (row.input_faces       || 0) + '</td>';
@@ -152,6 +167,8 @@
         report_array.forEach(function (row) {
             na_rows.push({
                 run:              run,
+                engine:           row.engine           || 'Ruby',
+                elapsed_seconds:  row.elapsed_seconds  || 0,
                 group_name:       row.group_name       || '',
                 source_triangles: row.source_triangles || 0,
                 input_faces:      row.input_faces      || 0,

@@ -10,13 +10,15 @@
 #              na_run_decimation and na_reload_scripts callbacks.
 #
 # JS CALLBACKS REGISTERED
-#   na_run_decimation(options_json)  — parse options, run orchestrator, push result
+#   na_run_decimation(options_json)  — parse options, run Ruby orchestrator, push result
+#   na_run_native_decimation(options_json) — parse options, run C++ orchestrator, push result
 #   na_request_group_count           — push current selection group count to JS
 #   na_reload_scripts                — hot-reload all plugin Ruby files
 #   na_jsLog(message)                — forward JS console messages to Ruby console
 #
 # @delegate: 01__AppCore/Na__MeshDecimator__AppCore__UiBridge__.rb
 # @delegate: 05__Orchestrator/Na__MeshDecimator__Orchestrator__RunDecimation__.rb
+# @delegate: 05__Orchestrator/Na__MeshDecimator__Orchestrator__RunNativeDecimation__.rb
 #
 # =============================================================================
 
@@ -28,9 +30,10 @@ module Na__MeshDecimator
     module Na__AppCore
         module Na__DialogManager
 
-            UiBridge     = Na__MeshDecimator::Na__AppCore::Na__UiBridge
-            Orchestrator = Na__MeshDecimator::Na__Orchestrator::Na__RunDecimation
-            Collector    = Na__MeshDecimator::Na__GroupSelection::Na__Collector
+            UiBridge          = Na__MeshDecimator::Na__AppCore::Na__UiBridge
+            Orchestrator      = Na__MeshDecimator::Na__Orchestrator::Na__RunDecimation
+            NativeOrchestrator = Na__MeshDecimator::Na__Orchestrator::Na__RunNativeDecimation
+            Collector         = Na__MeshDecimator::Na__GroupSelection::Na__Collector
 
             # -----------------------------------------------------------------
             # REGION | State
@@ -114,10 +117,11 @@ module Na__MeshDecimator
 
             def self.na_setup_callbacks
                 registry = {
-                    'na_run_decimation'      => method(:na_handle_run_decimation),
-                    'na_request_group_count' => method(:na_handle_request_group_count),
-                    'na_reload_scripts'      => method(:na_handle_reload_scripts),
-                    'na_jsLog'               => proc { |msg| puts "[JS] #{msg}" }
+                    'na_run_decimation'        => method(:na_handle_run_decimation),
+                    'na_run_native_decimation' => method(:na_handle_run_native_decimation),
+                    'na_request_group_count'   => method(:na_handle_request_group_count),
+                    'na_reload_scripts'        => method(:na_handle_reload_scripts),
+                    'na_jsLog'                 => proc { |msg| puts "[JS] #{msg}" }
                 }
                 UiBridge.na_register_callbacks(@na_dialog, registry)
             end
@@ -141,6 +145,21 @@ module Na__MeshDecimator
                 end
             end
             private_class_method :na_handle_run_decimation
+
+            def self.na_handle_run_native_decimation(options_json)
+                options = na_parse_and_validate_options(options_json)
+
+                UiBridge.na_send_status(@na_dialog, 'info', 'Running advanced native decimation...')
+
+                result = NativeOrchestrator.na_run(options)
+
+                if result[:success]
+                    UiBridge.na_execute_json_function(@na_dialog, 'Na__MeshDecimator__Ui__OnComplete', result)
+                else
+                    UiBridge.na_execute_json_function(@na_dialog, 'Na__MeshDecimator__Ui__OnError', result)
+                end
+            end
+            private_class_method :na_handle_run_native_decimation
 
             # -----------------------------------------------------------------
             # REGION | Group Count Callback

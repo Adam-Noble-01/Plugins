@@ -10,8 +10,9 @@
 //              and handles result/error callbacks from Ruby.
 //
 // PUBLIC FUNCTIONS (called by HTML onclick / Ruby execute_script)
-//   Na__MeshDecimator__Ui__Run()                   — read form, call Ruby
-//   Na__MeshDecimator__Ui__OnComplete(resultJson)  — render 9-column results table
+//   Na__MeshDecimator__Ui__Run()                   — read form, call legacy Ruby engine
+//   Na__MeshDecimator__Ui__RunNative()             — read form, call primary C++ native engine
+//   Na__MeshDecimator__Ui__OnComplete(resultJson)  — route report rows to Statistics tab
 //   Na__MeshDecimator__Ui__OnError(errorJson)       — render error state
 //   Na__MeshDecimator__Ui__OnGroupCount(countJson) — update group count bar
 //   Na__MeshDecimator__Ui__ShowStatus(type, msg)   — update status bar message
@@ -25,6 +26,8 @@
 
 (function () {
     'use strict';
+
+    var na_current_group_count = 0;
 
     // -------------------------------------------------------------------------
     // REGION | SketchUp Bridge Guard
@@ -84,17 +87,33 @@
         var options = Na__MeshDecimator__Ui__ReadFormOptions();
 
         Na__MeshDecimator__Ui__SetLoading(true);
-        Na__MeshDecimator__Ui__ShowStatus('info', 'Running decimation...');
+        Na__MeshDecimator__Ui__ShowStatus('info', 'Running legacy Ruby decimation...');
 
         var sent = Na__MeshDecimator__Bridge__CallRuby('na_run_decimation', options);
 
         if (!sent) {
             Na__MeshDecimator__Ui__SetLoading(false);
-            Na__MeshDecimator__Ui__ShowStatus('error', 'SketchUp bridge not available.');
+            Na__MeshDecimator__Ui__ShowStatus('error', 'SketchUp legacy bridge callback not available.');
         }
     }
 
     window.Na__MeshDecimator__Ui__Run = Na__MeshDecimator__Ui__Run;
+
+    function Na__MeshDecimator__Ui__RunNative() {
+        var options = Na__MeshDecimator__Ui__ReadFormOptions();
+
+        Na__MeshDecimator__Ui__SetLoading(true);
+        Na__MeshDecimator__Ui__ShowStatus('info', 'Running native C++ decimation...');
+
+        var sent = Na__MeshDecimator__Bridge__CallRuby('na_run_native_decimation', options);
+
+        if (!sent) {
+            Na__MeshDecimator__Ui__SetLoading(false);
+            Na__MeshDecimator__Ui__ShowStatus('error', 'SketchUp native bridge callback not available.');
+        }
+    }
+
+    window.Na__MeshDecimator__Ui__RunNative = Na__MeshDecimator__Ui__RunNative;
 
     // -------------------------------------------------------------------------
     // REGION | Result Callbacks (called by Ruby via execute_script)
@@ -144,11 +163,14 @@
         } catch (e) { return; }
 
         var count  = data.count || 0;
+        na_current_group_count = count;
         var el     = document.getElementById('na-group-count-value');
         if (el) el.textContent = count + (count === 1 ? ' group' : ' groups');
 
-        var runBtn = document.getElementById('na-btn-run');
-        if (runBtn) runBtn.disabled = count === 0;
+        var legacyRunBtn = document.getElementById('na-btn-run-legacy');
+        var nativeRunBtn = document.getElementById('na-btn-run-native');
+        if (legacyRunBtn) legacyRunBtn.disabled = count === 0;
+        if (nativeRunBtn) nativeRunBtn.disabled = count === 0;
     }
 
     window.Na__MeshDecimator__Ui__OnGroupCount = Na__MeshDecimator__Ui__OnGroupCount;
@@ -176,17 +198,20 @@
     // -------------------------------------------------------------------------
 
     function Na__MeshDecimator__Ui__SetLoading(isLoading) {
-        var spinner = document.getElementById('na-run-spinner');
-        var runBtn  = document.getElementById('na-btn-run');
+        var spinner      = document.getElementById('na-run-spinner');
+        var legacyRunBtn = document.getElementById('na-btn-run-legacy');
+        var nativeRunBtn = document.getElementById('na-btn-run-native');
 
         if (isLoading) {
             document.body.classList.add('na-is-loading');
-            if (spinner) spinner.classList.add('na-spinner--visible');
-            if (runBtn)  runBtn.disabled = true;
+            if (spinner)      spinner.classList.add('na-spinner--visible');
+            if (legacyRunBtn) legacyRunBtn.disabled = true;
+            if (nativeRunBtn) nativeRunBtn.disabled = true;
         } else {
             document.body.classList.remove('na-is-loading');
-            if (spinner) spinner.classList.remove('na-spinner--visible');
-            if (runBtn)  runBtn.disabled = false;
+            if (spinner)      spinner.classList.remove('na-spinner--visible');
+            if (legacyRunBtn) legacyRunBtn.disabled = na_current_group_count === 0;
+            if (nativeRunBtn) nativeRunBtn.disabled = na_current_group_count === 0;
         }
     }
 

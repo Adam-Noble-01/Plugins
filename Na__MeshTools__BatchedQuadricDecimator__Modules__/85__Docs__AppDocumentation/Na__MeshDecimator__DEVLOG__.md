@@ -3,6 +3,80 @@
 
 
 # =============================================================================
+## Batched Quadric Decimator | V0.0.7 - 13-May-2026 - Native engine promoted and timing stats
+
+### Context
+Native C++ decimation tested dramatically faster than the Ruby prototype. Promoted
+the native engine to the primary action while keeping the Ruby path available for
+comparison and regression checks.
+
+### Changes
+- `Na__MeshDecimator__UiLayout__.html`: blue primary button now runs native C++
+  decimation; grey secondary button now runs `Run Legacy Ruby`.
+- `Na__MeshDecimator__AppCore__UiShell__.js`: updated status/error text and
+  loading-state button references for the native-primary button layout.
+- Ruby and native orchestrators now add `:elapsed_seconds` to each report row.
+- `Na__MeshDecimator__Statistics__UiLogic__.js`: added `Time` column immediately
+  after `Engine`, formatted as `mm:ss` with sub-second runs shown as `<00:01`.
+- New documentation:
+  `85__Docs__AppDocumentation/Na__MeshDecimator__NativeEngine__Explanation__.md`.
+
+---
+
+# =============================================================================
+## Batched Quadric Decimator | V0.0.6 - 13-May-2026 - Native C++ engine path
+
+### Context
+Added a separated Windows SketchUp 2026 native-engine path so the current Ruby
+prototype can remain intact while the heavier QEM simplification work is tested
+through a Ruby C++ extension.
+
+### Changes
+
+#### Native source and build scaffold
+- New `02__Src__NativeEngine/` folder with C++ QEM core, Ruby extension entry
+  point, CMake build file, Windows build script, output bin folder, and build
+  output folder.
+- New `01__ExternalDependencies__VersionLocked/` folder containing the pinned
+  SketchUp Ruby C extension examples repo at commit
+  `e75c6bf81c96ee25df46b33b65d8e705825af3f0`.
+- `90__BuildTools__Manifest/` stores the native dependency manifest and the
+  Visual Studio Build Tools bootstrapper used for the MSVC install attempt.
+
+#### Ruby integration
+- New `08__NativeEngine/Na__MeshDecimator__NativeEngine__Bridge__.rb` loads the
+  optional compiled `.so` and fails closed with a clear load error.
+- New `08__NativeEngine/Na__MeshDecimator__NativeEngine__EntitiesBuilderWriter__.rb`
+  writes native results back through SketchUp's Ruby API using
+  `Sketchup::Entities#build` where available.
+- New `05__Orchestrator/Na__MeshDecimator__Orchestrator__RunNativeDecimation__.rb`
+  mirrors the Ruby pipeline but calls the native simplifier and labels report
+  rows as `Native C++`.
+- Existing Ruby orchestrator now labels normal report rows as `Ruby`.
+
+#### UI and statistics
+- Added `Run Advanced Native` beside the existing `Run Decimation` button.
+- Added `na_run_native_decimation` Ruby callback and matching JS bridge call.
+- Statistics table now includes an `Engine` column so Ruby and Native C++ runs
+  can be compared side by side.
+
+#### Build status
+- CMake, Ninja, Git, MSVC `cl.exe`, and the pinned Ruby C extension headers/libs
+  are available.
+- Build script now uses a temporary `X:` drive alias to avoid Windows/MSVC path
+  length failures when compiling nested Ruby headers from the SketchUp Plugins
+  folder.
+- Added local Ruby header shim `02__Src__NativeEngine/01__CppSource/ruby/internal/config.h`
+  because the pinned SketchUp Ruby 3.2 Windows headers expose `ruby/config.h`
+  while `ruby/ruby.h` asks for `ruby/internal/config.h`.
+- Native binary built successfully at
+  `02__Src__NativeEngine/04__Bin__WindowsSketchUp2026/Na__MeshDecimator__NativeQemEngine.so`.
+- Verified exported Ruby init symbol:
+  `Init_Na__MeshDecimator__NativeQemEngine`.
+
+---
+
+# =============================================================================
 ## Batched Quadric Decimator | V0.0.5 - 13-May-2026 - White cards on all tabs, new plugin icon
 
 ### Context

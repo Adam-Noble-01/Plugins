@@ -1,34 +1,17 @@
 # =============================================================================
-# NA MESH TOOLS - BATCHED QUADRIC DECIMATOR - ORCHESTRATOR
+# NA MESH TOOLS - BATCHED QUADRIC DECIMATOR - NATIVE ORCHESTRATOR
 # =============================================================================
 #
-# FILE       : Na__MeshDecimator__Orchestrator__RunDecimation__.rb
-# NAMESPACE  : Na__MeshDecimator::Na__Orchestrator::Na__RunDecimation
+# FILE       : Na__MeshDecimator__Orchestrator__RunNativeDecimation__.rb
+# NAMESPACE  : Na__MeshDecimator::Na__Orchestrator::Na__RunNativeDecimation
 # AUTHOR     : Adam Noble / Noble Architecture
-# PURPOSE    : Top-level pipeline entry point called by DialogManager when the
-#              user submits the form.  Orchestrates the full collect → extract
-#              → simplify → write → report sequence inside a single SketchUp
-#              operation, then returns a result Hash back to the caller.
-#
-# PIPELINE
-#   na_run(options)
-#     1. Collect groups via GroupSelection::Collector
-#     2. Validate options (clamp numeric values to safe bounds)
-#     3. For each group: capture input stats → extract mesh → simplify → write
-#        → capture output stats
-#     4. Wrap all writes in model.start_operation / commit_operation
-#     5. Return { :success => true, :report => [...] } or { :success => false, :error => "..." }
-#
-# REPORT ROW SCHEMA
-#   :engine, :elapsed_seconds, :group_number, :group_name,
-#   :source_triangles, :input_faces, :input_edges,
-#   :result_triangles, :output_faces, :output_edges,
-#   :actual_pct, :status
+# PURPOSE    : Side-by-side advanced pipeline that keeps SketchUp API work in
+#              Ruby while offloading QEM mesh simplification to the C++ engine.
 #
 # @delegate: 04__GroupSelection/Na__MeshDecimator__GroupSelection__Collector__.rb
 # @delegate: 03__Decimation/Na__MeshDecimator__Decimation__MeshExtractor__.rb
-# @delegate: 03__Decimation/Na__MeshDecimator__Decimation__MeshSimplifier__.rb
-# @delegate: 03__Decimation/Na__MeshDecimator__Decimation__MeshWriter__.rb
+# @delegate: 08__NativeEngine/Na__MeshDecimator__NativeEngine__Bridge__.rb
+# @delegate: 08__NativeEngine/Na__MeshDecimator__NativeEngine__EntitiesBuilderWriter__.rb
 #
 # =============================================================================
 
@@ -36,20 +19,24 @@ require 'sketchup.rb'
 
 module Na__MeshDecimator
     module Na__Orchestrator
-        module Na__RunDecimation
+        module Na__RunNativeDecimation
 
             Collector      = Na__MeshDecimator::Na__GroupSelection::Na__Collector
             MeshExtractor  = Na__MeshDecimator::Na__Decimation::Na__MeshExtractor
             MeshSimplifier = Na__MeshDecimator::Na__Decimation::Na__MeshSimplifier
-            MeshWriter     = Na__MeshDecimator::Na__Decimation::Na__MeshWriter
+            NativeBridge   = Na__MeshDecimator::Na__NativeEngine::Na__Bridge
+            NativeWriter   = Na__MeshDecimator::Na__NativeEngine::Na__EntitiesBuilderWriter
 
             # -----------------------------------------------------------------
             # REGION | Public Entry Point
             # -----------------------------------------------------------------
 
-            # @param options [Hash] validated options hash from DialogManager
-            # @return [Hash] { :success, :report } or { :success, :error }
             def self.na_run(options)
+                return {
+                    :success => false,
+                    :error   => NativeBridge.na_load_error || 'Native decimator binary is not available.'
+                } unless NativeBridge.na_available?
+
                 model = Sketchup.active_model
 
                 groups = na_resolve_groups(model, options)
@@ -77,7 +64,7 @@ module Na__MeshDecimator
             private_class_method :na_resolve_groups
 
             # -----------------------------------------------------------------
-            # REGION | Mesh Extraction Pass (captures input stats before extraction)
+            # REGION | Mesh Extraction Pass
             # -----------------------------------------------------------------
 
             def self.na_extract_meshes(groups, options)
@@ -87,7 +74,8 @@ module Na__MeshDecimator
                     input_stats = na_capture_input_stats(group, index + 1)
 
                     mesh_data = MeshExtractor.na_extract_triangulated_mesh(
-                        group, options[:weld_tolerance_inches]
+                        group,
+                        options[:weld_tolerance_inches]
                     )
                     next if mesh_data[:triangles].length < 4
 
@@ -109,13 +97,13 @@ module Na__MeshDecimator
             private_class_method :na_capture_input_stats
 
             # -----------------------------------------------------------------
-            # REGION | Operation (commit or abort)
+            # REGION | Operation
             # -----------------------------------------------------------------
 
             def self.na_run_operation(model, group_meshes, options)
                 report_lines = []
 
-                model.start_operation('Na Batched Quadric Decimator', true)
+                model.start_operation('Na Batched Native Quadric Decimator', true)
 
                 begin
                     group_meshes.each_with_index do |trio, index|
@@ -147,12 +135,13 @@ module Na__MeshDecimator
                 source_count = mesh_data[:triangles].length
 
                 target_count = MeshSimplifier.na_calculate_target_triangle_count(
-                    source_count, options[:percentage_decimation]
+                    source_count,
+                    options[:percentage_decimation]
                 )
 
-                simplified = MeshSimplifier.na_simplify_mesh(mesh_data, target_count, options)
+                simplified = NativeBridge.na_simplify_mesh(mesh_data, target_count, options)
 
-                written = MeshWriter.na_replace_group_geometry(group, simplified, options)
+                written = NativeWriter.na_replace_group_geometry(group, simplified, options)
 
                 output_faces = group.entities.grep(Sketchup::Face).length
                 output_edges = group.entities.grep(Sketchup::Edge).length
@@ -167,18 +156,18 @@ module Na__MeshDecimator
                 elapsed_seconds = Time.now - started_at
 
                 {
-                    :engine           => 'Ruby',
+                    :engine           => 'Native C++',
                     :elapsed_seconds  => elapsed_seconds.round(3),
                     :group_number     => group_number,
-                    :group_name      => input_stats[:name],
+                    :group_name       => input_stats[:name],
                     :source_triangles => source_count,
-                    :input_faces     => input_stats[:faces],
-                    :input_edges     => input_stats[:edges],
+                    :input_faces      => input_stats[:faces],
+                    :input_edges      => input_stats[:edges],
                     :result_triangles => written,
-                    :output_faces    => output_faces,
-                    :output_edges    => output_edges,
-                    :actual_pct      => actual_pct,
-                    :status          => status
+                    :output_faces     => output_faces,
+                    :output_edges     => output_edges,
+                    :actual_pct       => actual_pct,
+                    :status           => status
                 }
             end
             private_class_method :na_process_one_group

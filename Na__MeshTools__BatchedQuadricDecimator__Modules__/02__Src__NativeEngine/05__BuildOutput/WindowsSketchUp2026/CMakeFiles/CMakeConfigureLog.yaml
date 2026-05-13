@@ -1,0 +1,116 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Users/adamw/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/share/cmake-4.0/Modules/CMakeDetermineSystem.cmake:205 (message)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      The system is: Windows - 10.0.26200 - AMD64
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Users/adamw/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/share/cmake-4.0/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "C:/Users/adamw/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/share/cmake-4.0/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Users/adamw/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/share/cmake-4.0/Modules/CMakeDetermineCXXCompiler.cmake:126 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+      Compiler: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe 
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      Microsoft (R) C/C++ Optimizing Compiler Version 19.44.35227 for x64
+      Copyright (C) Microsoft Corporation.  All rights reserved.
+      
+      CMakeCXXCompilerId.cpp
+      Microsoft (R) Incremental Linker Version 14.44.35227.0
+      Copyright (C) Microsoft Corporation.  All rights reserved.
+      
+      /out:CMakeCXXCompilerId.exe 
+      CMakeCXXCompilerId.obj 
+      
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CMakeCXXCompilerId.exe"
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CMakeCXXCompilerId.obj"
+      
+      The CXX compiler identification is MSVC, found in:
+        C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__MeshTools__BatchedQuadricDecimator__Modules__/02__Src__NativeEngine/05__BuildOutput/WindowsSketchUp2026/CMakeFiles/4.0.3/CompilerIdCXX/CMakeCXXCompilerId.exe
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Users/adamw/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/share/cmake-4.0/Modules/CMakeDetermineCompilerId.cmake:1322 (message)"
+      - "C:/Users/adamw/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/share/cmake-4.0/Modules/CMakeDetermineCompilerId.cmake:250 (CMAKE_DETERMINE_MSVC_SHOWINCLUDES_PREFIX)"
+      - "C:/Users/adamw/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/share/cmake-4.0/Modules/CMakeDetermineCXXCompiler.cmake:126 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Detecting CXX compiler /showIncludes prefix:
+        main.c
+        Note: including file: C:\\Users\\adamw\\AppData\\Roaming\\SketchUp\\SketchUp 2026\\SketchUp\\Plugins\\Na__MeshTools__BatchedQuadricDecimator__Modules__\\02__Src__NativeEngine\\05__BuildOutput\\WindowsSketchUp2026\\CMakeFiles\\ShowIncludes\\foo.h
+        
+      Found prefix "Note: including file: "
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Users/adamw/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/share/cmake-4.0/Modules/CMakeDetermineCompilerABI.cmake:83 (try_compile)"
+      - "C:/Users/adamw/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/share/cmake-4.0/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:3 (project)"
+    checks:
+      - "Detecting CXX compiler ABI info"
+    directories:
+      source: "C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__MeshTools__BatchedQuadricDecimator__Modules__/02__Src__NativeEngine/05__BuildOutput/WindowsSketchUp2026/CMakeFiles/CMakeScratch/TryCompile-uaq4tl"
+      binary: "C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__MeshTools__BatchedQuadricDecimator__Modules__/02__Src__NativeEngine/05__BuildOutput/WindowsSketchUp2026/CMakeFiles/CMakeScratch/TryCompile-uaq4tl"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /EHsc"
+      CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
+      CMAKE_CXX_SCAN_FOR_MODULES: "OFF"
+      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
+    buildResult:
+      variable: "CMAKE_CXX_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: 'C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__MeshTools__BatchedQuadricDecimator__Modules__/02__Src__NativeEngine/05__BuildOutput/WindowsSketchUp2026/CMakeFiles/CMakeScratch/TryCompile-uaq4tl'
+        
+        Run Build Command(s): C:/Users/adamw/AppData/Local/Programs/Python/Python312/Scripts/ninja.exe -v cmTC_602ac
+        [1/2] C:\\PROGRA~2\\MICROS~2\\2022\\BUILDT~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP   /DWIN32 /D_WINDOWS /EHsc  /Zi /Ob0 /Od /RTC1 -MDd /showIncludes /FoCMakeFiles\\cmTC_602ac.dir\\CMakeCXXCompilerABI.cpp.obj /FdCMakeFiles\\cmTC_602ac.dir\\ /FS -c C:\\Users\\adamw\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\share\\cmake-4.0\\Modules\\CMakeCXXCompilerABI.cpp
+        FAILED: CMakeFiles/cmTC_602ac.dir/CMakeCXXCompilerABI.cpp.obj 
+        C:\\PROGRA~2\\MICROS~2\\2022\\BUILDT~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP   /DWIN32 /D_WINDOWS /EHsc  /Zi /Ob0 /Od /RTC1 -MDd /showIncludes /FoCMakeFiles\\cmTC_602ac.dir\\CMakeCXXCompilerABI.cpp.obj /FdCMakeFiles\\cmTC_602ac.dir\\ /FS -c C:\\Users\\adamw\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\share\\cmake-4.0\\Modules\\CMakeCXXCompilerABI.cpp
+        C:\\Users\\adamw\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\cmake\\data\\share\\cmake-4.0\\Modules\\CMakeCXXCompilerABI.cpp : fatal error C1083: Cannot open compiler generated file: '': Invalid argument
+        ninja: build stopped: subcommand failed.
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Users/adamw/AppData/Local/Programs/Python/Python312/Lib/site-packages/cmake/data/share/cmake-4.0/Modules/CMakeTestCXXCompiler.cmake:56 (try_compile)"
+      - "CMakeLists.txt:3 (project)"
+    checks:
+      - "Check for working CXX compiler: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe"
+    directories:
+      source: "C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__MeshTools__BatchedQuadricDecimator__Modules__/02__Src__NativeEngine/05__BuildOutput/WindowsSketchUp2026/CMakeFiles/CMakeScratch/TryCompile-jb6288"
+      binary: "C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__MeshTools__BatchedQuadricDecimator__Modules__/02__Src__NativeEngine/05__BuildOutput/WindowsSketchUp2026/CMakeFiles/CMakeScratch/TryCompile-jb6288"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /EHsc"
+      CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
+      CMAKE_CXX_SCAN_FOR_MODULES: "OFF"
+      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
+    buildResult:
+      variable: "CMAKE_CXX_COMPILER_WORKS"
+      cached: true
+      stdout: |
+        Change Dir: 'C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__MeshTools__BatchedQuadricDecimator__Modules__/02__Src__NativeEngine/05__BuildOutput/WindowsSketchUp2026/CMakeFiles/CMakeScratch/TryCompile-jb6288'
+        
+        Run Build Command(s): C:/Users/adamw/AppData/Local/Programs/Python/Python312/Scripts/ninja.exe -v cmTC_cdfb9
+        [1/2] C:\\PROGRA~2\\MICROS~2\\2022\\BUILDT~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP   /DWIN32 /D_WINDOWS /EHsc  /Zi /Ob0 /Od /RTC1 -MDd /showIncludes /FoCMakeFiles\\cmTC_cdfb9.dir\\testCXXCompiler.cxx.obj /FdCMakeFiles\\cmTC_cdfb9.dir\\ /FS -c "C:\\Users\\adamw\\AppData\\Roaming\\SketchUp\\SketchUp 2026\\SketchUp\\Plugins\\Na__MeshTools__BatchedQuadricDecimator__Modules__\\02__Src__NativeEngine\\05__BuildOutput\\WindowsSketchUp2026\\CMakeFiles\\CMakeScratch\\TryCompile-jb6288\\testCXXCompiler.cxx"
+        FAILED: CMakeFiles/cmTC_cdfb9.dir/testCXXCompiler.cxx.obj 
+        C:\\PROGRA~2\\MICROS~2\\2022\\BUILDT~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP   /DWIN32 /D_WINDOWS /EHsc  /Zi /Ob0 /Od /RTC1 -MDd /showIncludes /FoCMakeFiles\\cmTC_cdfb9.dir\\testCXXCompiler.cxx.obj /FdCMakeFiles\\cmTC_cdfb9.dir\\ /FS -c "C:\\Users\\adamw\\AppData\\Roaming\\SketchUp\\SketchUp 2026\\SketchUp\\Plugins\\Na__MeshTools__BatchedQuadricDecimator__Modules__\\02__Src__NativeEngine\\05__BuildOutput\\WindowsSketchUp2026\\CMakeFiles\\CMakeScratch\\TryCompile-jb6288\\testCXXCompiler.cxx"
+        C:\\Users\\adamw\\AppData\\Roaming\\SketchUp\\SketchUp 2026\\SketchUp\\Plugins\\Na__MeshTools__BatchedQuadricDecimator__Modules__\\02__Src__NativeEngine\\05__BuildOutput\\WindowsSketchUp2026\\CMakeFiles\\CMakeScratch\\TryCompile-jb6288\\testCXXCompiler.cxx : fatal error C1083: Cannot open compiler generated file: '': Invalid argument
+        ninja: build stopped: subcommand failed.
+        
+      exitCode: 1
+...
