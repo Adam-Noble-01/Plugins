@@ -6,8 +6,8 @@
      =============================================================================
      FILE       : Na__MeshDecimator__UiLayout__.html
      AUTHOR     : Adam Noble / Noble Architecture
-     PURPOSE    : 3-tab HtmlDialog layout for Na Batched Quadric Decimator.
-                  Tabs: Decimation | About | Settings
+     PURPOSE    : 4-tab HtmlDialog layout for Batched Quadric Decimator.
+                  Tabs: Decimation | Statistics | About | Settings
 
      REGIONS
        1.  Brand Header
@@ -18,16 +18,16 @@
          4b. Options — Behaviour
          4c. Options — Performance
          4d. Action Bar
-         4e. Results Panel
-       5.  Tab Panel — About
-       6.  Tab Panel — Settings
-       7.  JavaScript Includes
+       5.  Tab Panel — Statistics
+       6.  Tab Panel — About
+       7.  Tab Panel — Settings
+       8.  JavaScript Includes
      ============================================================================= -->
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Na Batched Quadric Decimator</title>
+    <title>Batched Quadric Decimator</title>
 
     <link rel="stylesheet" href="03__Style__AppStylesheets/Na__MeshDecimator__CoreUi__Styles__Index__.css">
 </head>
@@ -45,7 +45,7 @@
                  onerror="this.style.display='none'">
         </div>
         <div class="na-brand-header__right">
-            <span class="na-brand-header__title">Na Batched Quadric Decimator</span>
+            <span class="na-brand-header__title">Batched Quadric Decimator</span>
             <span class="na-brand-header__subtitle">by Noble Architecture</span>
         </div>
     </header>
@@ -65,6 +65,16 @@
                     type="button"
                     onclick="Na_TabRouter.na_activateTab('decimation')">
                 Decimation
+            </button>
+            <button id="na-tab-button-statistics"
+                    class="na-tab"
+                    role="tab"
+                    aria-controls="na-tab-statistics"
+                    aria-selected="false"
+                    data-na-tab-id="statistics"
+                    type="button"
+                    onclick="Na_TabRouter.na_activateTab('statistics')">
+                Statistics
             </button>
             <button id="na-tab-button-about"
                     class="na-tab"
@@ -114,131 +124,137 @@
             <!-- ================================================================
                  REGION | 4a. Options — Decimation
                  ================================================================ -->
-            <p class="na-options-panel__section-title">Decimation</p>
+            <div class="na-card">
+                <p class="na-options-panel__section-title">Decimation</p>
 
-            <div class="na-option-row">
-                <label class="na-option-row__label" for="na-opt-pct-decimation">
-                    Percentage decimation
-                    <span class="na-option-row__hint">10 = light &nbsp;|&nbsp; 25 = default &nbsp;|&nbsp; 90 = extreme</span>
-                </label>
-                <div class="na-option-row__control">
-                    <input id="na-opt-pct-decimation"
-                           class="na-input na-input--number"
-                           type="number"
-                           min="0" max="99" step="1"
-                           value="25">
-                    <span class="na-input--unit">%</span>
+                <div class="na-option-row">
+                    <label class="na-option-row__label" for="na-opt-pct-decimation">
+                        Percentage decimation
+                        <span class="na-option-row__hint">10 = light &nbsp;|&nbsp; 25 = default &nbsp;|&nbsp; 90 = extreme</span>
+                    </label>
+                    <div class="na-option-row__control">
+                        <input id="na-opt-pct-decimation"
+                               class="na-input na-input--number"
+                               type="number"
+                               min="0" max="99" step="1"
+                               value="25">
+                        <span class="na-input--unit">%</span>
+                    </div>
                 </div>
             </div>
 
             <!-- ================================================================
                  REGION | 4b. Options — Behaviour
                  ================================================================ -->
-            <p class="na-options-panel__section-title" style="margin-top:12px;">Behaviour</p>
+            <div class="na-card">
+                <p class="na-options-panel__section-title">Behaviour</p>
 
-            <div class="na-option-row">
-                <label class="na-option-row__label" for="na-opt-border-edges">
-                    Maintain open border edges
-                    <span class="na-option-row__hint">Skips edges shared by fewer than 2 triangles</span>
-                </label>
-                <div class="na-option-row__control">
-                    <label class="na-checkbox-wrapper">
-                        <input id="na-opt-border-edges" class="na-checkbox" type="checkbox" checked>
+                <div class="na-option-row">
+                    <label class="na-option-row__label" for="na-opt-border-edges">
+                        Maintain open border edges
+                        <span class="na-option-row__hint">Skips edges shared by fewer than 2 triangles</span>
                     </label>
+                    <div class="na-option-row__control">
+                        <label class="na-checkbox-wrapper">
+                            <input id="na-opt-border-edges" class="na-checkbox" type="checkbox" checked>
+                        </label>
+                    </div>
                 </div>
-            </div>
 
-            <div class="na-option-row">
-                <label class="na-option-row__label" for="na-opt-material-boundary">
-                    Preserve material boundary edges
-                    <span class="na-option-row__hint">Skips edges where adjacent triangles have different materials</span>
-                </label>
-                <div class="na-option-row__control">
-                    <label class="na-checkbox-wrapper">
-                        <input id="na-opt-material-boundary" class="na-checkbox" type="checkbox" checked>
+                <div class="na-option-row">
+                    <label class="na-option-row__label" for="na-opt-material-boundary">
+                        Preserve material boundary edges
+                        <span class="na-option-row__hint">Skips edges where adjacent triangles have different materials</span>
                     </label>
+                    <div class="na-option-row__control">
+                        <label class="na-checkbox-wrapper">
+                            <input id="na-opt-material-boundary" class="na-checkbox" type="checkbox" checked>
+                        </label>
+                    </div>
                 </div>
-            </div>
 
-            <div class="na-option-row">
-                <label class="na-option-row__label" for="na-opt-weld-tolerance">
-                    Weld tolerance
-                    <span class="na-option-row__hint">Points closer than this are merged before decimation</span>
-                </label>
-                <div class="na-option-row__control">
-                    <input id="na-opt-weld-tolerance"
-                           class="na-input na-input--number"
-                           type="number"
-                           min="0.001" step="0.01"
-                           value="0.10">
-                    <span class="na-input--unit">mm</span>
-                </div>
-            </div>
-
-            <div class="na-option-row">
-                <label class="na-option-row__label" for="na-opt-nested-groups">
-                    Process nested groups
-                    <span class="na-option-row__hint">Recursively includes all child groups</span>
-                </label>
-                <div class="na-option-row__control">
-                    <label class="na-checkbox-wrapper">
-                        <input id="na-opt-nested-groups" class="na-checkbox" type="checkbox" checked>
+                <div class="na-option-row">
+                    <label class="na-option-row__label" for="na-opt-weld-tolerance">
+                        Weld tolerance
+                        <span class="na-option-row__hint">Points closer than this are merged before decimation</span>
                     </label>
+                    <div class="na-option-row__control">
+                        <input id="na-opt-weld-tolerance"
+                               class="na-input na-input--number"
+                               type="number"
+                               min="0.001" step="0.01"
+                               value="0.10">
+                        <span class="na-input--unit">mm</span>
+                    </div>
                 </div>
-            </div>
 
-            <div class="na-option-row">
-                <label class="na-option-row__label" for="na-opt-smooth-edges">
-                    Smooth rebuilt edges
-                    <span class="na-option-row__hint">Sets soft + smooth on all edges after writing</span>
-                </label>
-                <div class="na-option-row__control">
-                    <label class="na-checkbox-wrapper">
-                        <input id="na-opt-smooth-edges" class="na-checkbox" type="checkbox" checked>
+                <div class="na-option-row">
+                    <label class="na-option-row__label" for="na-opt-nested-groups">
+                        Process nested groups
+                        <span class="na-option-row__hint">Recursively includes all child groups</span>
                     </label>
+                    <div class="na-option-row__control">
+                        <label class="na-checkbox-wrapper">
+                            <input id="na-opt-nested-groups" class="na-checkbox" type="checkbox" checked>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="na-option-row">
+                    <label class="na-option-row__label" for="na-opt-smooth-edges">
+                        Smooth rebuilt edges
+                        <span class="na-option-row__hint">Sets soft + smooth on all edges after writing</span>
+                    </label>
+                    <div class="na-option-row__control">
+                        <label class="na-checkbox-wrapper">
+                            <input id="na-opt-smooth-edges" class="na-checkbox" type="checkbox" checked>
+                        </label>
+                    </div>
                 </div>
             </div>
 
             <!-- ================================================================
                  REGION | 4c. Options — Performance
                  ================================================================ -->
-            <p class="na-options-panel__section-title" style="margin-top:12px;">Performance Limits</p>
+            <div class="na-card">
+                <p class="na-options-panel__section-title">Performance Limits</p>
 
-            <div class="na-option-row">
-                <label class="na-option-row__label" for="na-opt-max-seconds">
-                    Max seconds per group
-                    <span class="na-option-row__hint">Stops the pass early if this budget is exceeded</span>
-                </label>
-                <div class="na-option-row__control">
-                    <input id="na-opt-max-seconds"
-                           class="na-input na-input--number"
-                           type="number" min="1" step="1" value="10">
-                    <span class="na-input--unit">s</span>
+                <div class="na-option-row">
+                    <label class="na-option-row__label" for="na-opt-max-seconds">
+                        Max seconds per group
+                        <span class="na-option-row__hint">Stops the pass early if this budget is exceeded</span>
+                    </label>
+                    <div class="na-option-row__control">
+                        <input id="na-opt-max-seconds"
+                               class="na-input na-input--number"
+                               type="number" min="1" step="1" value="10">
+                        <span class="na-input--unit">s</span>
+                    </div>
                 </div>
-            </div>
 
-            <div class="na-option-row">
-                <label class="na-option-row__label" for="na-opt-max-passes">
-                    Max passes per group
-                    <span class="na-option-row__hint">Maximum simplification iterations</span>
-                </label>
-                <div class="na-option-row__control">
-                    <input id="na-opt-max-passes"
-                           class="na-input na-input--number"
-                           type="number" min="1" step="1" value="4">
+                <div class="na-option-row">
+                    <label class="na-option-row__label" for="na-opt-max-passes">
+                        Max passes per group
+                        <span class="na-option-row__hint">Maximum simplification iterations</span>
+                    </label>
+                    <div class="na-option-row__control">
+                        <input id="na-opt-max-passes"
+                               class="na-input na-input--number"
+                               type="number" min="1" step="1" value="4">
+                    </div>
                 </div>
-            </div>
 
-            <div class="na-option-row">
-                <label class="na-option-row__label" for="na-opt-max-candidates">
-                    Max candidate edges per pass
-                    <span class="na-option-row__hint">Higher = better quality; lower = faster</span>
-                </label>
-                <div class="na-option-row__control">
-                    <input id="na-opt-max-candidates"
-                           class="na-input na-input--number"
-                           style="width:82px;"
-                           type="number" min="1000" step="1000" value="10000">
+                <div class="na-option-row">
+                    <label class="na-option-row__label" for="na-opt-max-candidates">
+                        Max candidate edges per pass
+                        <span class="na-option-row__hint">Higher = better quality; lower = faster</span>
+                    </label>
+                    <div class="na-option-row__control">
+                        <input id="na-opt-max-candidates"
+                               class="na-input na-input--number"
+                               style="width:82px;"
+                               type="number" min="1000" step="1000" value="10000">
+                    </div>
                 </div>
             </div>
 
@@ -262,34 +278,25 @@
             </button>
         </div>
 
-        <!-- ====================================================================
-             REGION | 4e. Results Panel (hidden until decimation completes)
-             ==================================================================== -->
-        <div id="na-results-panel" class="na-results-panel">
-            <p class="na-results-panel__title">Results</p>
-            <table class="na-results-table">
-                <thead>
-                    <tr>
-                        <th>Group Name</th>
-                        <th>Input Tri</th>
-                        <th>Input Faces</th>
-                        <th>Input Edges</th>
-                        <th>Output Tri</th>
-                        <th>Output Faces</th>
-                        <th>Output Edges</th>
-                        <th>Reduced</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="na-results-tbody"></tbody>
-            </table>
-        </div>
+    </div>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
+         REGION | 5. Tab Panel — Statistics
+         ========================================================================== -->
+    <div id="na-tab-statistics"
+         class="na-tab-panel na-hidden"
+         role="tabpanel"
+         aria-labelledby="na-tab-button-statistics"
+         data-na-tab-id="statistics">
+
+        <div id="na-statistics-body" class="na-statistics-body"></div>
 
     </div>
     <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================
-         REGION | 5. Tab Panel — About
+         REGION | 6. Tab Panel — About
          ========================================================================== -->
     <div id="na-tab-about"
          class="na-tab-panel na-hidden"
@@ -299,8 +306,8 @@
 
         <div class="na-about-panel">
 
-            <h2 class="na-about-panel__heading">Na Batched Quadric Decimator</h2>
-            <p class="na-about-panel__version">v0.0.2 &nbsp;·&nbsp; Adam Noble / Noble Architecture</p>
+            <h2 class="na-about-panel__heading">Batched Quadric Decimator</h2>
+            <p class="na-about-panel__version">v0.0.4 &nbsp;·&nbsp; Adam Noble / Noble Architecture</p>
 
             <div class="na-about-section">
                 <h3 class="na-about-section__title">What it does</h3>
@@ -316,7 +323,7 @@
                     <li><span class="na-step-num">1</span>Select one or more SketchUp groups in the viewport (or run inside a group context).</li>
                     <li><span class="na-step-num">2</span>Switch to the <strong>Decimation</strong> tab and set your target percentage and options.</li>
                     <li><span class="na-step-num">3</span>Click <strong>Run Decimation</strong>. Progress is shown in the status bar.</li>
-                    <li><span class="na-step-num">4</span>Review the results table — it shows before/after counts for every group processed.</li>
+                    <li><span class="na-step-num">4</span>Switch to the <strong>Statistics</strong> tab to review before/after counts. Results accumulate across runs so you can compare settings.</li>
                     <li><span class="na-step-num">5</span>Use <strong>Edit → Undo</strong> if the result is not satisfactory.</li>
                 </ol>
             </div>
@@ -338,7 +345,7 @@
     <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================
-         REGION | 6. Tab Panel — Settings
+         REGION | 7. Tab Panel — Settings
          ========================================================================== -->
     <div id="na-tab-settings"
          class="na-tab-panel na-hidden"
@@ -352,18 +359,21 @@
     <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================
-         REGION | 7. JavaScript Includes (load order matters)
+         REGION | 8. JavaScript Includes (load order matters)
          TabRouter must load AFTER all tab-module JS files.
          ========================================================================== -->
 
     <!-- Decimation tab shell (exposes Na_DecimationUI + global callbacks) -->
     <script src="02__Src__AppModules/01__AppCore/Na__MeshDecimator__AppCore__UiShell__.js"></script>
 
+    <!-- Statistics tab (exposes Na_StatisticsUI + Na__MeshDecimator__Statistics__Purge) -->
+    <script src="02__Src__AppModules/07__System__Statistics/Na__MeshDecimator__Statistics__UiLogic__.js"></script>
+
     <!-- Settings tab (UiLogic must load before Bridge so na_settingsReloadScripts exists) -->
     <script src="02__Src__AppModules/06__Settings/Na__MeshDecimator__Settings__UiLogic__.js"></script>
     <script src="02__Src__AppModules/06__Settings/Na__MeshDecimator__Settings__Bridge__.js"></script>
 
-    <!-- Tab router (loads last — resolves Na_DecimationUI, Na_SettingsUI after they exist) -->
+    <!-- Tab router (loads last — resolves Na_DecimationUI, Na_StatisticsUI, Na_SettingsUI after they exist) -->
     <script src="02__Src__AppModules/01__AppCore/Na__MeshDecimator__AppCore__TabRouter__.js"></script>
 
     <!-- endregion ============================================================== -->

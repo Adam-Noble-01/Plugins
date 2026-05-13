@@ -84,7 +84,6 @@
         var options = Na__MeshDecimator__Ui__ReadFormOptions();
 
         Na__MeshDecimator__Ui__SetLoading(true);
-        Na__MeshDecimator__Ui__HideResults();
         Na__MeshDecimator__Ui__ShowStatus('info', 'Running decimation...');
 
         var sent = Na__MeshDecimator__Bridge__CallRuby('na_run_decimation', options);
@@ -113,8 +112,12 @@
         }
 
         var report = result.report || [];
-        Na__MeshDecimator__Ui__RenderResultsTable(report);
-        Na__MeshDecimator__Ui__ShowStatus('success', 'Decimation complete — ' + report.length + ' group(s) processed.');
+
+        if (typeof Na_StatisticsUI !== 'undefined' && typeof Na_StatisticsUI.na_add_run_result === 'function') {
+            Na_StatisticsUI.na_add_run_result(report);
+        }
+
+        Na__MeshDecimator__Ui__ShowStatus('success', 'Decimation complete — ' + report.length + ' group(s) processed. See Statistics tab.');
     }
 
     window.Na__MeshDecimator__Ui__OnComplete = Na__MeshDecimator__Ui__OnComplete;
@@ -129,7 +132,6 @@
             err = { error: String(errorJson) };
         }
 
-        Na__MeshDecimator__Ui__RenderError(err.error || 'An unknown error occurred.');
         Na__MeshDecimator__Ui__ShowStatus('error', err.error || 'Decimation failed.');
     }
 
@@ -189,66 +191,6 @@
     }
 
     window.Na__MeshDecimator__Ui__SetLoading = Na__MeshDecimator__Ui__SetLoading;
-
-    // -------------------------------------------------------------------------
-    // REGION | Results Rendering
-    // -------------------------------------------------------------------------
-
-    function Na__MeshDecimator__Ui__HideResults() {
-        var panel = document.getElementById('na-results-panel');
-        if (panel) panel.classList.remove('na-results-panel--visible');
-    }
-
-    // Renders the 9-column results table:
-    // Group Name | Input Tri | Input Faces | Input Edges |
-    // Output Tri | Output Faces | Output Edges | Reduced % | Status
-    function Na__MeshDecimator__Ui__RenderResultsTable(report) {
-        var panel = document.getElementById('na-results-panel');
-        var tbody = document.getElementById('na-results-tbody');
-        if (!panel || !tbody) return;
-
-        tbody.innerHTML = '';
-
-        report.forEach(function (row) {
-            var tr = document.createElement('tr');
-
-            var statusClass = row.status === 'complete'
-                ? 'na-cell--status-ok'
-                : 'na-cell--status-warn';
-
-            tr.innerHTML =
-                '<td class="na-cell--name">'   + na_escape_html(row.group_name    || '') + '</td>' +
-                '<td class="na-cell--number">' + (row.source_triangles   || 0) + '</td>' +
-                '<td class="na-cell--number">' + (row.input_faces        || 0) + '</td>' +
-                '<td class="na-cell--number">' + (row.input_edges        || 0) + '</td>' +
-                '<td class="na-cell--number">' + (row.result_triangles   || 0) + '</td>' +
-                '<td class="na-cell--number">' + (row.output_faces       || 0) + '</td>' +
-                '<td class="na-cell--number">' + (row.output_edges       || 0) + '</td>' +
-                '<td class="na-cell--number">' + (row.actual_pct         || 0) + '%</td>' +
-                '<td class="' + statusClass + '">' + na_escape_html(row.status || '') + '</td>';
-
-            tbody.appendChild(tr);
-        });
-
-        panel.classList.add('na-results-panel--visible');
-    }
-
-    function Na__MeshDecimator__Ui__RenderError(message) {
-        var panel = document.getElementById('na-results-panel');
-        var tbody = document.getElementById('na-results-tbody');
-        if (!panel || !tbody) return;
-
-        tbody.innerHTML = '<tr><td colspan="9"><div class="na-results-error">' + na_escape_html(message) + '</div></td></tr>';
-        panel.classList.add('na-results-panel--visible');
-    }
-
-    function na_escape_html(str) {
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     // -------------------------------------------------------------------------
     // REGION | Tab Module — Na_DecimationUI

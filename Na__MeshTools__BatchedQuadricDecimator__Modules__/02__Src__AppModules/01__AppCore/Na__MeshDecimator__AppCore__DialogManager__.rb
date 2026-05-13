@@ -95,16 +95,16 @@ module Na__MeshDecimator
                     parsed = JSON.parse(raw)
                     ui     = parsed['ui'] || {}
                     {
-                        'title'  => ui['title']  || 'Na Batched Quadric Decimator',
-                        'width'  => ui['width']  || 520,
-                        'height' => ui['height'] || 640
-                    }
+                    'title'  => ui['title']  || 'Batched Quadric Decimator',
+                    'width'  => ui['width']  || 520,
+                    'height' => ui['height'] || 640
+                }
                 else
-                    { 'title' => 'Na Batched Quadric Decimator', 'width' => 520, 'height' => 640 }
+                    { 'title' => 'Batched Quadric Decimator', 'width' => 520, 'height' => 640 }
                 end
             rescue StandardError => e
                 puts "[!] Na__MeshDecimator DialogManager — config load failed: #{e.message}"
-                { 'title' => 'Na Batched Quadric Decimator', 'width' => 520, 'height' => 640 }
+                { 'title' => 'Batched Quadric Decimator', 'width' => 520, 'height' => 640 }
             end
             private_class_method :na_load_ui_config
 
@@ -161,10 +161,16 @@ module Na__MeshDecimator
             def self.na_handle_reload_scripts
                 return unless @na_modules_root
 
+                # Save references before reload — load re-executes the module body
+                # which resets @na_dialog / @na_html_path / @na_modules_root to nil.
+                saved_dialog       = @na_dialog
+                saved_html_path    = @na_html_path
+                saved_modules_root = @na_modules_root
+
                 rb_count    = 0
                 error_count = 0
 
-                glob_pattern = File.join(@na_modules_root, '02__Src__AppModules', '**', '*.rb')
+                glob_pattern = File.join(saved_modules_root, '02__Src__AppModules', '**', '*.rb')
                 files        = Dir.glob(glob_pattern).select { |f| File.file?(f) }.sort
 
                 files.each do |file|
@@ -184,14 +190,16 @@ module Na__MeshDecimator
                 summary = if error_count > 0
                     "#{rb_count} scripts reloaded (#{error_count} errors — see Ruby Console)"
                 else
-                    "#{rb_count} scripts reloaded"
+                    "#{rb_count} scripts reloaded successfully"
                 end
 
                 puts "[+] Na__MeshDecimator reload: #{summary}"
 
-                if @na_dialog && @na_dialog.visible?
-                    @na_dialog.close
-                    na_show_dialog(@na_html_path, @na_modules_root)
+                UI.refresh_inspectors if UI.respond_to?(:refresh_inspectors)
+
+                if saved_dialog && saved_dialog.visible?
+                    saved_dialog.close
+                    na_show_dialog(saved_html_path, saved_modules_root)
                 end
             end
             private_class_method :na_handle_reload_scripts
@@ -231,14 +239,14 @@ module Na__MeshDecimator
                 <html lang="en">
                 <head>
                     <meta charset="UTF-8">
-                    <title>Na Batched Quadric Decimator</title>
+                    <title>Batched Quadric Decimator</title>
                     <style>
                         body { font-family: Arial, sans-serif; padding: 20px; background: #2a2a2a; color: #e0e0e0; }
                         .na-error { color: #ff7070; background: #3a2a2a; padding: 15px; border-radius: 4px; }
                     </style>
                 </head>
                 <body>
-                    <h2>Na Batched Quadric Decimator</h2>
+                    <h2>Batched Quadric Decimator</h2>
                     <div class="na-error">
                         <strong>Error:</strong> HTML layout file not found.<br>
                         Expected: Na__MeshDecimator__UiLayout__.html in the modules folder.

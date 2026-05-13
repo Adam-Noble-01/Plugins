@@ -5,7 +5,7 @@
         "author" : "Adam Noble / Noble Architecture"
     },
     "ui": {
-        "title" : "Na Batched Quadric Decimator",
+        "title" : "Batched Quadric Decimator",
         "width" : 520,
         "height": 610
     },

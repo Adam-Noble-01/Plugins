@@ -3,28 +3,56 @@
    =============================================================================
    FILE       : Na__MeshDecimator__Styles__Combined__.css
    AUTHOR     : Adam Noble / Noble Architecture
-   PURPOSE    : Single combined stylesheet for the Na Batched Quadric Decimator
-                HtmlDialog.  Dark SketchUp-compatible UI theme.
+   PURPOSE    : Single combined stylesheet for the Batched Quadric Decimator
+                HtmlDialog. Vale Design Suite light theme — matches EASP.
 
    REGIONS
-     1.  Reset & Base
-     2.  Utility
-     3.  Brand Header
-     4.  Tab Strip
-     5.  Tab Panels
-     6.  Status Bar
-     7.  Options Panel
-     8.  Form Controls
-     9.  Action Bar
-     10. Results Panel
-     11. About Tab
-     12. Settings Tab
-     13. Loading State
+     1.  CSS Variables (Vale Design Suite Light Theme)
+     2.  Reset & Base
+     3.  Utility
+     4.  Brand Header
+     5.  Tab Strip
+     6.  Tab Panels
+     7.  Status Bar
+     8.  Options Panel
+     9.  Form Controls
+     10. Action Bar
+     11. Results Table (shared by Statistics tab)
+     12. About Tab
+     13. Settings Tab
+     14. Statistics Tab
+     15. Loading State
    ============================================================================= */
 
 
 /* =============================================================================
-   REGION | 1. Reset & Base
+   REGION | 1. CSS Variables (Vale Design Suite Light Theme)
+   ============================================================================= */
+
+:root {
+    --na-bg-primary:          #f0f0f0;
+    --na-bg-secondary:        #ffffff;
+    --na-bg-tertiary:         #e8e8e8;
+    --na-bg-hover:            #d8d8d8;
+    --na-text-primary:        #1e1e1e;
+    --na-text-secondary:      #333333;
+    --na-text-muted:          #666666;
+    --na-accent-blue:         #4a90d9;
+    --na-accent-blue-hover:   #5a9fe9;
+    --na-accent-green:        #4CAF50;
+    --na-accent-green-hover:  #43A047;
+    --na-accent-orange:       #ff9800;
+    --na-accent-red:          #f44336;
+    --na-border-color:        #dddddd;
+    --na-border-light:        #cccccc;
+    --na-font-family:         -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 2. Reset & Base
    ============================================================================= */
 
 *, *::before, *::after {
@@ -43,18 +71,18 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-family: var(--na-font-family);
     font-size: 12px;
     line-height: 1.5;
-    background-color: #2a2a2a;
-    color: #d8d8d8;
+    background-color: var(--na-bg-primary);
+    color: var(--na-text-primary);
 }
 
 /* endregion ================================================================= */
 
 
 /* =============================================================================
-   REGION | 2. Utility
+   REGION | 3. Utility
    ============================================================================= */
 
 .na-hidden {
@@ -65,56 +93,65 @@ body {
 
 
 /* =============================================================================
-   REGION | 3. Brand Header
+   REGION | 4. Brand Header
    ============================================================================= */
 
 .na-brand-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 9px 14px;
-    background-color: #1e1e1e;
-    border-bottom: 1px solid #444;
-    flex-shrink: 0;
+    display              : flex;
+    align-items          : center;
+    justify-content      : space-between;
+    padding              : 12px 16px;
+    border-bottom        : 1px solid var(--na-border-color);
+    background           : var(--na-bg-secondary);
+    flex-shrink          : 0;
 }
 
 .na-brand-header__left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display              : flex;
+    align-items          : center;
+    gap                  : 12px;
 }
 
 .na-brand-header__logo {
-    width: 22px;
-    height: 22px;
-    object-fit: contain;
+    height               : 36px;
+    width                : auto;
+    display              : block;
+}
+
+.na-brand-header__right {
+    display              : flex;
+    flex-direction       : column;
+    align-items          : flex-end;
+    gap                  : 2px;
 }
 
 .na-brand-header__title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #f0f0f0;
-    letter-spacing: 0.02em;
+    font-size            : 18px;
+    font-weight          : 600;
+    color                : var(--na-text-primary);
+    line-height          : 1;
+    letter-spacing       : 0.2px;
 }
 
 .na-brand-header__subtitle {
-    font-size: 10px;
-    color: #777;
-    margin-left: 6px;
+    font-size            : 11px;
+    color                : var(--na-text-muted);
+    line-height          : 1;
+    letter-spacing       : 0.3px;
 }
 
 /* endregion ================================================================= */
 
 
 /* =============================================================================
-   REGION | 4. Tab Strip
+   REGION | 5. Tab Strip
    ============================================================================= */
 
 .na-tab-strip {
     display: flex;
     align-items: stretch;
-    background-color: #242424;
-    border-bottom: 1px solid #3a3a3a;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid var(--na-border-color);
     flex-shrink: 0;
 }
 
@@ -132,7 +169,7 @@ body {
     font-size: 12px;
     font-family: inherit;
     font-weight: 500;
-    color: #999;
+    color: #555555;
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
@@ -143,13 +180,13 @@ body {
 }
 
 .na-tab:hover {
-    color: #d0d0d0;
-    background-color: #2e2e2e;
+    color: var(--na-text-primary);
+    background-color: var(--na-bg-hover);
 }
 
 .na-tab.na-tab-active {
-    color: #7cb8f0;
-    border-bottom-color: #5a9fe9;
+    color: var(--na-accent-blue);
+    border-bottom-color: var(--na-accent-blue);
     font-weight: 600;
 }
 
@@ -157,7 +194,7 @@ body {
 
 
 /* =============================================================================
-   REGION | 5. Tab Panels
+   REGION | 6. Tab Panels
    ============================================================================= */
 
 .na-tab-panel {
@@ -171,7 +208,7 @@ body {
 
 
 /* =============================================================================
-   REGION | 6. Status Bar
+   REGION | 7. Status Bar
    ============================================================================= */
 
 .na-status-bar {
@@ -179,60 +216,83 @@ body {
     align-items: center;
     gap: 8px;
     padding: 6px 14px;
-    background-color: #252525;
-    border-bottom: 1px solid #333;
+    background-color: var(--na-bg-secondary);
+    border-bottom: 1px solid var(--na-border-color);
     font-size: 11px;
-    color: #aaa;
+    color: var(--na-text-muted);
     min-height: 30px;
     flex-shrink: 0;
 }
 
 .na-status-bar__label {
     font-weight: 600;
-    color: #bbb;
+    color: var(--na-text-secondary);
     white-space: nowrap;
 }
 
 .na-status-bar__value {
-    color: #7cb8f0;
+    color: var(--na-accent-blue);
     font-weight: 600;
     white-space: nowrap;
 }
 
 .na-status-bar__message {
     flex: 1;
-    color: #aaa;
+    color: var(--na-text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.na-status-bar__message--error   { color: #ff7070; }
-.na-status-bar__message--success { color: #7ecb7e; }
-.na-status-bar__message--info    { color: #7cb8f0; }
+.na-status-bar__message--error   { color: var(--na-accent-red); }
+.na-status-bar__message--success { color: var(--na-accent-green); }
+.na-status-bar__message--info    { color: var(--na-accent-blue); }
 
 /* endregion ================================================================= */
 
 
 /* =============================================================================
-   REGION | 7. Options Panel
+   REGION | 8. Options Panel
    ============================================================================= */
 
 .na-options-panel {
     padding: 10px 14px;
     overflow-y: auto;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
+
+/* ----------------------------------------------------------------- */
+/* REGION | Card — white surface that groups a section               */
+/* ----------------------------------------------------------------- */
+
+.na-card {
+    background    : var(--na-bg-secondary);
+    border        : 1px solid var(--na-border-color);
+    border-radius : 6px;
+    padding       : 10px 14px;
+    flex-shrink   : 0;
+}
+
+/* endregion ----------------------------------------------------------------- */
 
 .na-options-panel__section-title {
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #666;
+    color: var(--na-text-muted);
     margin-bottom: 8px;
     padding-bottom: 4px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--na-border-color);
+}
+
+.na-card .na-options-panel__section-title {
+    border-bottom: none;
+    padding-bottom: 2px;
+    margin-bottom: 4px;
 }
 
 .na-option-row {
@@ -241,24 +301,29 @@ body {
     justify-content: space-between;
     gap: 10px;
     padding: 5px 0;
-    border-bottom: 1px solid #2e2e2e;
+    border-bottom: 1px solid var(--na-border-color);
 }
 
 .na-option-row:last-child {
     border-bottom: none;
 }
 
+.na-card .na-option-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
 .na-option-row__label {
     flex: 1;
     font-size: 11px;
-    color: #c0c0c0;
+    color: var(--na-text-secondary);
     line-height: 1.3;
 }
 
 .na-option-row__hint {
     display: block;
     font-size: 10px;
-    color: #606060;
+    color: var(--na-text-muted);
     margin-top: 1px;
 }
 
@@ -273,14 +338,14 @@ body {
 
 
 /* =============================================================================
-   REGION | 8. Form Controls
+   REGION | 9. Form Controls
    ============================================================================= */
 
 .na-input {
-    background: #333;
-    border: 1px solid #505050;
+    background: var(--na-bg-secondary);
+    border: 1px solid var(--na-border-light);
     border-radius: 3px;
-    color: #e0e0e0;
+    color: var(--na-text-primary);
     font-size: 12px;
     font-family: inherit;
     padding: 3px 6px;
@@ -289,7 +354,7 @@ body {
 }
 
 .na-input:focus {
-    border-color: #5a9fe9;
+    border-color: var(--na-accent-blue);
 }
 
 .na-input--number {
@@ -299,7 +364,7 @@ body {
 
 .na-input--unit {
     font-size: 10px;
-    color: #666;
+    color: var(--na-text-muted);
 }
 
 .na-checkbox-wrapper {
@@ -312,14 +377,14 @@ body {
     width: 14px;
     height: 14px;
     cursor: pointer;
-    accent-color: #5a9fe9;
+    accent-color: var(--na-accent-blue);
 }
 
 /* endregion ================================================================= */
 
 
 /* =============================================================================
-   REGION | 9. Action Bar
+   REGION | 10. Action Bar
    ============================================================================= */
 
 .na-action-bar {
@@ -327,8 +392,8 @@ body {
     align-items: center;
     gap: 8px;
     padding: 8px 14px;
-    background-color: #222;
-    border-top: 1px solid #333;
+    background-color: var(--na-bg-tertiary);
+    border-top: 1px solid var(--na-border-color);
     flex-shrink: 0;
 }
 
@@ -349,31 +414,39 @@ body {
 }
 
 .na-btn--primary {
-    background-color: #3d7bbf;
-    color: #fff;
+    background-color: var(--na-accent-blue);
+    color: #ffffff;
 }
 
-.na-btn--primary:hover   { background-color: #4a8fd4; }
-.na-btn--primary:active  { background-color: #2d6baf; }
+.na-btn--primary:hover   { background-color: var(--na-accent-blue-hover); }
+.na-btn--primary:active  { background-color: #3a80cf; }
 .na-btn--primary:disabled {
     opacity: 0.4;
     cursor: not-allowed;
 }
 
 .na-btn--secondary {
-    background-color: #3a3a3a;
-    color: #c8c8c8;
-    border: 1px solid #505050;
+    background-color: var(--na-bg-secondary);
+    color: var(--na-text-secondary);
+    border: 1px solid var(--na-border-light);
 }
 
-.na-btn--secondary:hover { background-color: #454545; }
+.na-btn--secondary:hover { background-color: var(--na-bg-hover); }
+
+.na-btn--danger {
+    background-color: #f5f5f5;
+    color: var(--na-accent-red);
+    border: 1px solid #e0c0c0;
+}
+
+.na-btn--danger:hover { background-color: #fce8e8; }
 
 .na-spinner {
     display: none;
     width: 13px;
     height: 13px;
-    border: 2px solid #555;
-    border-top-color: #7cb8f0;
+    border: 2px solid var(--na-border-color);
+    border-top-color: var(--na-accent-blue);
     border-radius: 50%;
     animation: na-spin 0.8s linear infinite;
 }
@@ -386,35 +459,14 @@ body {
 
 
 /* =============================================================================
-   REGION | 10. Results Panel
+   REGION | 11. Results Table (shared — used by Statistics tab)
    ============================================================================= */
-
-.na-results-panel {
-    display: none;
-    flex-shrink: 0;
-    border-top: 1px solid #333;
-    background-color: #222;
-    overflow-x: auto;
-}
-
-.na-results-panel--visible {
-    display: block;
-}
-
-.na-results-panel__title {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #666;
-    padding: 8px 14px 4px;
-}
 
 .na-results-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 11px;
-    min-width: 580px;
+    min-width: 620px;
 }
 
 .na-results-table th {
@@ -422,43 +474,49 @@ body {
     padding: 4px 8px;
     font-size: 10px;
     font-weight: 700;
-    color: #777;
+    color: var(--na-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--na-border-color);
+    background-color: var(--na-bg-tertiary);
     white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 
 .na-results-table th:first-child { padding-left: 14px; }
 
 .na-results-table td {
     padding: 4px 8px;
-    border-bottom: 1px solid #2a2a2a;
-    color: #c0c0c0;
+    border-bottom: 1px solid var(--na-border-color);
+    color: var(--na-text-secondary);
 }
 
 .na-results-table td:first-child { padding-left: 14px; }
 .na-results-table tr:last-child td { border-bottom: none; }
+.na-results-table tr:hover td { background-color: var(--na-bg-tertiary); }
 
-.na-cell--name   { color: #e0e0e0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.na-cell--number { text-align: right; font-variant-numeric: tabular-nums; color: #8ab8d8; }
+.na-cell--run    { font-size: 10px; color: var(--na-text-muted); font-variant-numeric: tabular-nums; }
+.na-cell--name   { color: var(--na-text-primary); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.na-cell--number { text-align: right; font-variant-numeric: tabular-nums; color: var(--na-accent-blue); }
 
-.na-cell--status-ok   { color: #7ecb7e; }
-.na-cell--status-warn { color: #d4a84b; }
+.na-cell--status-ok   { color: var(--na-accent-green); }
+.na-cell--status-warn { color: var(--na-accent-orange); }
 
 .na-results-error {
-    color: #ff7070;
+    color: var(--na-accent-red);
     font-size: 11px;
     padding: 8px 14px;
-    background: #3a2a2a;
-    border-left: 3px solid #ff7070;
+    background: #fce8e8;
+    border-left: 3px solid var(--na-accent-red);
 }
 
 /* endregion ================================================================= */
 
 
 /* =============================================================================
-   REGION | 11. About Tab
+   REGION | 12. About Tab
    ============================================================================= */
 
 .na-about-panel {
@@ -470,13 +528,13 @@ body {
 .na-about-panel__heading {
     font-size: 14px;
     font-weight: 700;
-    color: #e8e8e8;
+    color: var(--na-text-primary);
     margin-bottom: 8px;
 }
 
 .na-about-panel__version {
     font-size: 11px;
-    color: #7cb8f0;
+    color: var(--na-accent-blue);
     margin-bottom: 16px;
 }
 
@@ -489,15 +547,15 @@ body {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #666;
+    color: var(--na-text-muted);
     margin-bottom: 6px;
     padding-bottom: 4px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--na-border-color);
 }
 
 .na-about-section__body {
     font-size: 11px;
-    color: #b0b0b0;
+    color: var(--na-text-secondary);
     line-height: 1.6;
 }
 
@@ -513,7 +571,7 @@ body {
     display: flex;
     gap: 8px;
     font-size: 11px;
-    color: #b0b0b0;
+    color: var(--na-text-secondary);
     padding: 3px 0;
     line-height: 1.5;
 }
@@ -522,11 +580,11 @@ body {
     flex-shrink: 0;
     width: 18px;
     height: 18px;
-    background: #3d7bbf;
+    background: var(--na-accent-blue);
     border-radius: 50%;
     font-size: 10px;
     font-weight: 700;
-    color: #fff;
+    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -537,7 +595,7 @@ body {
 
 
 /* =============================================================================
-   REGION | 12. Settings Tab
+   REGION | 13. Settings Tab
    ============================================================================= */
 
 .na-settings-body {
@@ -549,7 +607,7 @@ body {
 .na-settings-section {
     margin-bottom: 18px;
     padding-bottom: 14px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--na-border-color);
 }
 
 .na-settings-section:last-child {
@@ -557,20 +615,20 @@ body {
 }
 
 .na-settings-section--about {
-    border-top: 1px solid #333;
+    border-top: 1px solid var(--na-border-color);
     padding-top: 14px;
 }
 
 .na-settings-heading {
     font-size: 11px;
     font-weight: 700;
-    color: #c8c8c8;
+    color: var(--na-text-primary);
     margin-bottom: 6px;
 }
 
 .na-settings-description {
     font-size: 11px;
-    color: #777;
+    color: var(--na-text-muted);
     margin-bottom: 10px;
     line-height: 1.5;
 }
@@ -586,19 +644,19 @@ body {
 
 .na-settings-helper {
     font-size: 10px;
-    color: #666;
+    color: var(--na-text-muted);
     line-height: 1.4;
 }
 
 .na-settings-info-line {
     font-size: 11px;
-    color: #888;
+    color: var(--na-text-muted);
     line-height: 1.5;
     margin-bottom: 4px;
 }
 
 .na-settings-info-line--meta {
-    color: #7cb8f0;
+    color: var(--na-accent-blue);
     font-weight: 600;
     margin-bottom: 8px;
 }
@@ -607,12 +665,60 @@ body {
 
 
 /* =============================================================================
-   REGION | 13. Loading State
+   REGION | 14. Statistics Tab
+   ============================================================================= */
+
+.na-statistics-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.na-statistics-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px;
+    background-color: var(--na-bg-secondary);
+    border-bottom: 1px solid var(--na-border-color);
+    flex-shrink: 0;
+    min-height: 36px;
+}
+
+.na-statistics-run-count {
+    font-size: 11px;
+    color: var(--na-text-muted);
+}
+
+.na-statistics-run-count strong {
+    color: var(--na-accent-blue);
+    font-weight: 600;
+}
+
+.na-statistics-table-wrapper {
+    flex: 1;
+    overflow: auto;
+}
+
+.na-statistics-empty {
+    padding: 24px 14px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--na-text-muted);
+    font-style: italic;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 15. Loading State
    ============================================================================= */
 
 body.na-is-loading .na-btn--primary {
     opacity: 0.45;
-    pointer-events: none;
+    cursor: wait;
 }
 
 /* endregion ================================================================= */

@@ -3,6 +3,62 @@
 
 
 # =============================================================================
+## Batched Quadric Decimator | V0.0.4 - 13-May-2026 - Light theme, Statistics tab, reload fix, title rebrand
+
+### Context
+Rebrand to "Batched Quadric Decimator" (dropped "Na " prefix). Migrated the dark
+UI to the Vale Design Suite light theme matching ElementAssemblyStudioPro. Fixed
+the hot-reload bug where module-level instance variables were reset by `load`.
+Moved decimation results out of the inline panel into a persistent Statistics
+accumulator tab that collates all runs so settings can be compared as you work.
+
+### Changes
+
+#### Title — all files
+- `Na__MeshDecimator__AppConfig__Main.json`: `"title": "Batched Quadric Decimator"`
+- `Na__MeshDecimator__UiLayout__.html`: `<title>`, brand header span, About `<h2>`, version v0.0.4
+- `Na__MeshDecimator__AppCore__DialogManager__.rb`: fallback HTML + config default strings updated
+- `Na__MeshDecimator__Settings__UiLogic__.js`: meta info line, NA_ABOUT.lines[0], version v0.0.4
+
+#### Light theme — `Na__MeshDecimator__Styles__Combined__.css`
+- Complete rewrite to Vale Design Suite light theme.
+- Introduced `:root` CSS variables (`--na-bg-*`, `--na-text-*`, `--na-accent-*`,
+  `--na-border-*`) matching `Na__AssemblyStudio__Styles__Combined__.css`.
+- Body: `#f0f0f0` bg / `#1e1e1e` text. Tab strip `#f5f5f5`. All panels light.
+- Removed legacy inline `.na-results-panel` region; shared table styles in Region 11.
+- Added `.na-btn--danger` for Purge Stats. Added Region 14 Statistics Tab layout.
+
+#### New — `Na__MeshDecimator__UiFeature__Styles__TabStrip__.css`
+- Light tab strip override CSS, imported last in `Na__MeshDecimator__CoreUi__Styles__Index__.css`.
+
+#### Reload bug fix — `Na__MeshDecimator__AppCore__DialogManager__.rb`
+- Root cause: `load file` re-executes the module body, resetting `@na_dialog` etc. to nil.
+- Fix: save `saved_dialog`, `saved_html_path`, `saved_modules_root` to locals
+  before the reload loop; use saved locals for close/reopen.
+- Added `UI.refresh_inspectors` call after reload.
+
+#### New — `02__Src__AppModules/07__System__Statistics/Na__MeshDecimator__Statistics__UiLogic__.js`
+- Exports `window.Na_StatisticsUI` (TabRouter `Na_<TabId>UI` convention).
+- `na_rows` accumulator + `na_run_counter` persist across mounts/unmounts.
+- `na_add_run_result(report_array)` — appends rows from one run, re-renders.
+- `na_purge()` — clears accumulator; exposed as `Na__MeshDecimator__Statistics__Purge()`.
+- Table: Run | Group Name | Input Tri | Input Faces | Input Edges |
+  Output Tri | Output Faces | Output Edges | Reduced % | Status (10 columns).
+
+#### `Na__MeshDecimator__AppCore__UiShell__.js`
+- `OnComplete` routes results to `Na_StatisticsUI.na_add_run_result(report)`.
+- Removed: `HideResults`, `RenderResultsTable`, `RenderError`, `na_escape_html`.
+- Removed `HideResults()` call from Run function.
+
+#### `Na__MeshDecimator__UiLayout__.html`
+- Tab order: Decimation | Statistics | About | Settings (4 tabs).
+- Removed inline `na-results-panel` from Decimation tab.
+- Added `#na-tab-statistics` panel with `#na-statistics-body`.
+- Added Statistics script include before TabRouter.
+
+---
+
+# =============================================================================
 ## Na Batched Quadric Decimator | V0.0.3 - 13-May-2026 - Loader icon resolution hardening
 
 ### Context

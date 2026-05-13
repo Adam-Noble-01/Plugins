@@ -39,10 +39,10 @@
     ];
 
     var NA_ABOUT = {
-        version: 'v0.0.2',
+        version: 'v0.0.4',
         author:  'Adam Noble / Noble Architecture',
         lines: [
-            'Na Batched Quadric Decimator reduces the polygon count of selected SketchUp groups using the Quadric Error Metric (QEM) algorithm.',
+            'Batched Quadric Decimator reduces the polygon count of selected SketchUp groups using the Quadric Error Metric (QEM) algorithm.',
             'Select one or more groups in SketchUp, set your options in the Decimation tab, and click Run Decimation.',
             'Results are written directly into the original groups as a new simplified mesh inside a single undoable operation.',
             'Source: 02__Src__AppModules/ — 9 Ruby modules + 4 JS modules + 1 CSS + 1 HTML.'
@@ -120,7 +120,7 @@
 
         var meta = document.createElement('p');
         meta.className   = 'na-settings-info-line na-settings-info-line--meta';
-        meta.textContent = 'Na Batched Quadric Decimator  ' + NA_ABOUT.version + '  |  ' + NA_ABOUT.author;
+        meta.textContent = 'Batched Quadric Decimator  ' + NA_ABOUT.version + '  |  ' + NA_ABOUT.author;
         section.appendChild(meta);
 
         NA_ABOUT.lines.forEach(function (line) {

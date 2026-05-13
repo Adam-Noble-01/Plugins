@@ -1,0 +1,56 @@
+/* =============================================================================
+   NA MESH TOOLS - BATCHED QUADRIC DECIMATOR - TAB STRIP STYLES
+   =============================================================================
+   FILE       : Na__MeshDecimator__UiFeature__Styles__TabStrip__.css
+   PURPOSE    : Light tab strip — overrides Combined tab strip region to match
+                the EASP #f5f5f5 light strip pixel-for-pixel.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Strip Override */
+/* ----------------------------------------------------------------- */
+
+.na-tab-strip {
+    display              : flex;
+    align-items          : stretch;
+    justify-content      : space-between;
+    border-bottom        : 1px solid #d8d8d8;
+    background           : #f5f5f5;
+    flex-shrink          : 0;
+}
+
+.na-tab-bar {
+    display              : flex;
+    align-items          : stretch;
+}
+
+.na-tab {
+    display              : inline-flex;
+    align-items          : center;
+    padding              : 0 16px;
+    height               : 34px;
+    font-size            : 12px;
+    font-family          : inherit;
+    font-weight          : 500;
+    color                : #555555;
+    background           : none;
+    border               : none;
+    border-bottom        : 2px solid transparent;
+    cursor               : pointer;
+    transition           : color 0.15s, border-color 0.15s, background-color 0.15s;
+    outline              : none;
+    white-space          : nowrap;
+}
+
+.na-tab:hover {
+    color                : #1e1e1e;
+    background-color     : #d8d8d8;
+}
+
+.na-tab.na-tab-active {
+    color                : #4a90d9;
+    border-bottom-color  : #4a90d9;
+    font-weight          : 600;
+}
+
+/* endregion ----------------------------------------------------------------- */
