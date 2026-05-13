@@ -1,0 +1,16 @@
+/* =============================================================================
+   NA MESH TOOLS - BATCHED QUADRIC DECIMATOR - MASTER STYLESHEET INDEX
+   =============================================================================
+   FILE       : Na__MeshDecimator__CoreUi__Styles__Index__.css
+   PURPOSE    : Single stylesheet linked from Na__MeshDecimator__UiLayout__.html.
+                Imports Na__MeshDecimator__Styles__Combined__.css (base dark theme),
+                then Na__MeshDecimator__UiFeature__Styles__BrandHeader__.css which
+                overrides the header region with the Noble Architecture light brand.
+
+   IMPORT ORDER (later imports win on equal specificity):
+     1. Combined  — dark theme base, tab strip, panels, controls
+     2. BrandHeader — overrides header region with white Noble Architecture brand
+   ============================================================================= */
+
+@import url('Na__MeshDecimator__Styles__Combined__.css');
+@import url('Na__MeshDecimator__UiFeature__Styles__BrandHeader__.css');

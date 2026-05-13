@@ -1,0 +1,618 @@
+/* =============================================================================
+   NA MESH TOOLS - BATCHED QUADRIC DECIMATOR - COMBINED STYLESHEET
+   =============================================================================
+   FILE       : Na__MeshDecimator__Styles__Combined__.css
+   AUTHOR     : Adam Noble / Noble Architecture
+   PURPOSE    : Single combined stylesheet for the Na Batched Quadric Decimator
+                HtmlDialog.  Dark SketchUp-compatible UI theme.
+
+   REGIONS
+     1.  Reset & Base
+     2.  Utility
+     3.  Brand Header
+     4.  Tab Strip
+     5.  Tab Panels
+     6.  Status Bar
+     7.  Options Panel
+     8.  Form Controls
+     9.  Action Bar
+     10. Results Panel
+     11. About Tab
+     12. Settings Tab
+     13. Loading State
+   ============================================================================= */
+
+
+/* =============================================================================
+   REGION | 1. Reset & Base
+   ============================================================================= */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-size: 12px;
+    line-height: 1.5;
+    background-color: #2a2a2a;
+    color: #d8d8d8;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 2. Utility
+   ============================================================================= */
+
+.na-hidden {
+    display: none !important;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 3. Brand Header
+   ============================================================================= */
+
+.na-brand-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 14px;
+    background-color: #1e1e1e;
+    border-bottom: 1px solid #444;
+    flex-shrink: 0;
+}
+
+.na-brand-header__left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.na-brand-header__logo {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+}
+
+.na-brand-header__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f0f0f0;
+    letter-spacing: 0.02em;
+}
+
+.na-brand-header__subtitle {
+    font-size: 10px;
+    color: #777;
+    margin-left: 6px;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 4. Tab Strip
+   ============================================================================= */
+
+.na-tab-strip {
+    display: flex;
+    align-items: stretch;
+    background-color: #242424;
+    border-bottom: 1px solid #3a3a3a;
+    flex-shrink: 0;
+}
+
+.na-tab-bar {
+    display: flex;
+    align-items: stretch;
+    list-style: none;
+}
+
+.na-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 16px;
+    height: 34px;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 500;
+    color: #999;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    outline: none;
+    white-space: nowrap;
+}
+
+.na-tab:hover {
+    color: #d0d0d0;
+    background-color: #2e2e2e;
+}
+
+.na-tab.na-tab-active {
+    color: #7cb8f0;
+    border-bottom-color: #5a9fe9;
+    font-weight: 600;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 5. Tab Panels
+   ============================================================================= */
+
+.na-tab-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 6. Status Bar
+   ============================================================================= */
+
+.na-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background-color: #252525;
+    border-bottom: 1px solid #333;
+    font-size: 11px;
+    color: #aaa;
+    min-height: 30px;
+    flex-shrink: 0;
+}
+
+.na-status-bar__label {
+    font-weight: 600;
+    color: #bbb;
+    white-space: nowrap;
+}
+
+.na-status-bar__value {
+    color: #7cb8f0;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.na-status-bar__message {
+    flex: 1;
+    color: #aaa;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.na-status-bar__message--error   { color: #ff7070; }
+.na-status-bar__message--success { color: #7ecb7e; }
+.na-status-bar__message--info    { color: #7cb8f0; }
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 7. Options Panel
+   ============================================================================= */
+
+.na-options-panel {
+    padding: 10px 14px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.na-options-panel__section-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #666;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #333;
+}
+
+.na-option-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid #2e2e2e;
+}
+
+.na-option-row:last-child {
+    border-bottom: none;
+}
+
+.na-option-row__label {
+    flex: 1;
+    font-size: 11px;
+    color: #c0c0c0;
+    line-height: 1.3;
+}
+
+.na-option-row__hint {
+    display: block;
+    font-size: 10px;
+    color: #606060;
+    margin-top: 1px;
+}
+
+.na-option-row__control {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 8. Form Controls
+   ============================================================================= */
+
+.na-input {
+    background: #333;
+    border: 1px solid #505050;
+    border-radius: 3px;
+    color: #e0e0e0;
+    font-size: 12px;
+    font-family: inherit;
+    padding: 3px 6px;
+    outline: none;
+    transition: border-color 0.12s;
+}
+
+.na-input:focus {
+    border-color: #5a9fe9;
+}
+
+.na-input--number {
+    width: 72px;
+    text-align: right;
+}
+
+.na-input--unit {
+    font-size: 10px;
+    color: #666;
+}
+
+.na-checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.na-checkbox {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: #5a9fe9;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 9. Action Bar
+   ============================================================================= */
+
+.na-action-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background-color: #222;
+    border-top: 1px solid #333;
+    flex-shrink: 0;
+}
+
+.na-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 5px 14px;
+    border: none;
+    border-radius: 3px;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.12s, opacity 0.12s;
+    outline: none;
+}
+
+.na-btn--primary {
+    background-color: #3d7bbf;
+    color: #fff;
+}
+
+.na-btn--primary:hover   { background-color: #4a8fd4; }
+.na-btn--primary:active  { background-color: #2d6baf; }
+.na-btn--primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.na-btn--secondary {
+    background-color: #3a3a3a;
+    color: #c8c8c8;
+    border: 1px solid #505050;
+}
+
+.na-btn--secondary:hover { background-color: #454545; }
+
+.na-spinner {
+    display: none;
+    width: 13px;
+    height: 13px;
+    border: 2px solid #555;
+    border-top-color: #7cb8f0;
+    border-radius: 50%;
+    animation: na-spin 0.8s linear infinite;
+}
+
+.na-spinner--visible { display: inline-block; }
+
+@keyframes na-spin { to { transform: rotate(360deg); } }
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 10. Results Panel
+   ============================================================================= */
+
+.na-results-panel {
+    display: none;
+    flex-shrink: 0;
+    border-top: 1px solid #333;
+    background-color: #222;
+    overflow-x: auto;
+}
+
+.na-results-panel--visible {
+    display: block;
+}
+
+.na-results-panel__title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #666;
+    padding: 8px 14px 4px;
+}
+
+.na-results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    min-width: 580px;
+}
+
+.na-results-table th {
+    text-align: left;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #777;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #333;
+    white-space: nowrap;
+}
+
+.na-results-table th:first-child { padding-left: 14px; }
+
+.na-results-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid #2a2a2a;
+    color: #c0c0c0;
+}
+
+.na-results-table td:first-child { padding-left: 14px; }
+.na-results-table tr:last-child td { border-bottom: none; }
+
+.na-cell--name   { color: #e0e0e0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.na-cell--number { text-align: right; font-variant-numeric: tabular-nums; color: #8ab8d8; }
+
+.na-cell--status-ok   { color: #7ecb7e; }
+.na-cell--status-warn { color: #d4a84b; }
+
+.na-results-error {
+    color: #ff7070;
+    font-size: 11px;
+    padding: 8px 14px;
+    background: #3a2a2a;
+    border-left: 3px solid #ff7070;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 11. About Tab
+   ============================================================================= */
+
+.na-about-panel {
+    padding: 16px 14px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.na-about-panel__heading {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e8e8e8;
+    margin-bottom: 8px;
+}
+
+.na-about-panel__version {
+    font-size: 11px;
+    color: #7cb8f0;
+    margin-bottom: 16px;
+}
+
+.na-about-section {
+    margin-bottom: 18px;
+}
+
+.na-about-section__title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #666;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #333;
+}
+
+.na-about-section__body {
+    font-size: 11px;
+    color: #b0b0b0;
+    line-height: 1.6;
+}
+
+.na-about-section__body p { margin-bottom: 5px; }
+
+.na-about-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.na-about-steps li {
+    display: flex;
+    gap: 8px;
+    font-size: 11px;
+    color: #b0b0b0;
+    padding: 3px 0;
+    line-height: 1.5;
+}
+
+.na-about-steps li .na-step-num {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    background: #3d7bbf;
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 12. Settings Tab
+   ============================================================================= */
+
+.na-settings-body {
+    padding: 12px 14px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.na-settings-section {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #333;
+}
+
+.na-settings-section:last-child {
+    border-bottom: none;
+}
+
+.na-settings-section--about {
+    border-top: 1px solid #333;
+    padding-top: 14px;
+}
+
+.na-settings-heading {
+    font-size: 11px;
+    font-weight: 700;
+    color: #c8c8c8;
+    margin-bottom: 6px;
+}
+
+.na-settings-description {
+    font-size: 11px;
+    color: #777;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.na-settings-button-row {
+    margin-bottom: 10px;
+}
+
+.na-settings-btn {
+    min-width: 140px;
+    margin-bottom: 5px;
+}
+
+.na-settings-helper {
+    font-size: 10px;
+    color: #666;
+    line-height: 1.4;
+}
+
+.na-settings-info-line {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.5;
+    margin-bottom: 4px;
+}
+
+.na-settings-info-line--meta {
+    color: #7cb8f0;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+/* endregion ================================================================= */
+
+
+/* =============================================================================
+   REGION | 13. Loading State
+   ============================================================================= */
+
+body.na-is-loading .na-btn--primary {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+/* endregion ================================================================= */

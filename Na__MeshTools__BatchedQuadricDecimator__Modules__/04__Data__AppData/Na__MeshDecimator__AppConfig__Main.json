@@ -1,0 +1,31 @@
+{
+    "metadata": {
+        "name"   : "Na Batched Quadric Decimator",
+        "version": "1.0.0",
+        "author" : "Adam Noble / Noble Architecture"
+    },
+    "ui": {
+        "title" : "Na Batched Quadric Decimator",
+        "width" : 520,
+        "height": 610
+    },
+    "decimation_defaults": {
+        "percentage_decimation"            : 25.0,
+        "maintain_border_edges"            : true,
+        "preserve_material_boundary_edges" : true,
+        "weld_tolerance_mm"                : 0.10,
+        "process_nested_groups"            : true,
+        "smooth_rebuilt_edges"             : true,
+        "max_seconds_per_group"            : 10.0,
+        "max_passes_per_group"             : 4,
+        "max_candidate_edges_per_pass"     : 10000
+    },
+    "decimation_constraints": {
+        "percentage_decimation_min"        : 0.0,
+        "percentage_decimation_max"        : 99.0,
+        "weld_tolerance_mm_min"            : 0.001,
+        "max_seconds_per_group_min"        : 1.0,
+        "max_passes_per_group_min"         : 1,
+        "max_candidate_edges_per_pass_min" : 1000
+    }
+}
