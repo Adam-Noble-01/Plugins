@@ -17,7 +17,7 @@
      8.  Options Panel
      9.  Form Controls
      10. Action Bar
-     11. Results Table (Statistics)
+     11. Results Table (shared by Statistics tab)
      12. About Tab
      13. Settings Tab
      14. Statistics Tab
@@ -25,9 +25,9 @@
    ============================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | CSS Variables (Vale Design Suite Light Theme) */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   REGION | 1. CSS Variables (Vale Design Suite Light Theme)
+   ============================================================================= */
 
 :root {
     --na-bg-primary         : #f0f0f0;
@@ -48,12 +48,12 @@
     --na-font-family        : -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Reset & Base */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   REGION | 2. Reset & Base
+   ============================================================================= */
 
 *, *::before, *::after {
     box-sizing : border-box;
@@ -78,23 +78,23 @@ body {
     color            : var(--na-text-primary);
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Utility */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   REGION | 3. Utility
+   ============================================================================= */
 
 .na-hidden {
     display : none !important;
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Brand Header */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   REGION | 4. Brand Header
+   ============================================================================= */
 
 .na-brand-header {
     display         : flex;
@@ -140,12 +140,12 @@ body {
     letter-spacing : 0.3px;
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Tab Strip */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   REGION | 5. Tab Strip
+   ============================================================================= */
 
 .na-tab-strip {
     display          : flex;
@@ -190,12 +190,12 @@ body {
     font-weight         : 600;
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Tab Panels */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   REGION | 6. Tab Panels
+   ============================================================================= */
 
 .na-tab-panel {
     display        : flex;
@@ -204,12 +204,12 @@ body {
     overflow       : hidden;
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Status Bar */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   REGION | 7. Status Bar
+   ============================================================================= */
 
 .na-status-bar {
     display          : flex;
@@ -244,24 +244,16 @@ body {
     white-space   : nowrap;
 }
 
-.na-status-bar__message--error {
-    color : var(--na-accent-red);
-}
+.na-status-bar__message--error   { color: var(--na-accent-red); }
+.na-status-bar__message--success { color: var(--na-accent-green); }
+.na-status-bar__message--info    { color: var(--na-accent-blue); }
 
-.na-status-bar__message--success {
-    color : var(--na-accent-green);
-}
-
-.na-status-bar__message--info {
-    color : var(--na-accent-blue);
-}
-
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Options Panel */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   #REGION | 8. Options Panel
+   ============================================================================= */
 
 .na-options-panel {
     padding        : 10px 14px;
@@ -272,8 +264,10 @@ body {
     gap            : 8px;
 }
 
+/* endregion ----------------------------------------------------------------- */
+
 /* ----------------------------------------------------------------- */
-/* REGION | Options Panel — Card */
+/* REGION | Card — white surface that groups a section               */
 /* ----------------------------------------------------------------- */
 
 .na-card {
@@ -286,6 +280,10 @@ body {
 
 /* endregion ----------------------------------------------------------------- */
 
+
+/* ----------------------------------------------------------------- */
+/* REGION | Options Panel Section Title                                */
+/* ----------------------------------------------------------------- */
 .na-options-panel__section-title {
     font-size      : 10px;
     font-weight    : 700;
@@ -342,12 +340,12 @@ body {
     gap         : 4px;
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Form Controls */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   #REGION | 9. Form Controls
+   ============================================================================= */
 
 .na-input {
     background    : var(--na-bg-secondary);
@@ -388,12 +386,12 @@ body {
     accent-color : var(--na-accent-blue);
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Action Bar */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   REGION | 10. Action Bar
+   ============================================================================= */
 
 .na-action-bar {
     display          : flex;
@@ -426,13 +424,8 @@ body {
     color            : #ffffff;
 }
 
-.na-btn--primary:hover {
-    background-color : var(--na-accent-blue-hover);
-}
-
-.na-btn--primary:active {
-    background-color : #3a80cf;
-}
+.na-btn--primary:hover   { background-color: var(--na-accent-blue-hover); }
+.na-btn--primary:active  { background-color: #3a80cf; }
 .na-btn--primary:disabled {
     opacity : 0.4;
     cursor  : not-allowed;
@@ -444,9 +437,7 @@ body {
     border           : 1px solid var(--na-border-light);
 }
 
-.na-btn--secondary:hover {
-    background-color : var(--na-bg-hover);
-}
+.na-btn--secondary:hover { background-color: var(--na-bg-hover); }
 
 .na-btn--danger {
     background-color : #f5f5f5;
@@ -454,9 +445,7 @@ body {
     border           : 1px solid #e0c0c0;
 }
 
-.na-btn--danger:hover {
-    background-color : #fce8e8;
-}
+.na-btn--danger:hover { background-color: #fce8e8; }
 
 .na-spinner {
     display          : none;
@@ -468,131 +457,94 @@ body {
     animation        : na-spin 0.8s linear infinite;
 }
 
-.na-spinner--visible {
-    display : inline-block;
-}
+.na-spinner--visible { display: inline-block; }
 
-@keyframes na-spin {
-    to {
-        transform : rotate(360deg);
-    }
-}
+@keyframes na-spin { to { transform: rotate(360deg); } }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Results Table (Statistics) */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   #REGION | 11. Results Table (shared — used by Statistics tab)
+   ============================================================================= */
 
 .na-results-table {
-    width           : 100%;
-    border-collapse : collapse;
-    font-size       : 11px;
-    min-width       : 620px;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    min-width: 620px;
 }
 
 .na-results-table th {
-    text-align       : left;
-    padding          : 4px 8px;
-    font-size        : 10px;
-    font-weight      : 700;
-    color            : var(--na-text-muted);
-    text-transform   : uppercase;
-    letter-spacing   : 0.05em;
-    border-bottom    : 1px solid var(--na-border-color);
-    background-color : var(--na-bg-tertiary);
-    white-space      : nowrap;
-    position         : sticky;
-    top              : 0;
-    z-index          : 1;
+    text-align: left;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--na-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--na-border-color);
+    background-color: var(--na-bg-tertiary);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 
-.na-results-table th:first-child {
-    padding-left : 14px;
-}
+.na-results-table th:first-child { padding-left: 14px; }
 
 .na-results-table td {
-    padding       : 4px 8px;
-    border-bottom : 1px solid var(--na-border-color);
-    color         : var(--na-text-secondary);
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--na-border-color);
+    color: var(--na-text-secondary);
 }
 
-.na-results-table td:first-child {
-    padding-left : 14px;
-}
+.na-results-table td:first-child { padding-left: 14px; }
+.na-results-table tr:last-child td { border-bottom: none; }
+.na-results-table tr:hover td { background-color: var(--na-bg-tertiary); }
 
-.na-results-table tr:last-child td {
-    border-bottom : none;
-}
+.na-cell--run    { font-size: 10px; color: var(--na-text-muted); font-variant-numeric: tabular-nums; }
+.na-cell--name   { color: var(--na-text-primary); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.na-cell--number { text-align: right; font-variant-numeric: tabular-nums; color: var(--na-accent-blue); }
 
-.na-results-table tr:hover td {
-    background-color : var(--na-bg-tertiary);
-}
-
-.na-cell--run {
-    font-size            : 10px;
-    color                : var(--na-text-muted);
-    font-variant-numeric : tabular-nums;
-}
-
-.na-cell--name {
-    color         : var(--na-text-primary);
-    max-width     : 120px;
-    overflow      : hidden;
-    text-overflow : ellipsis;
-    white-space   : nowrap;
-}
-
-.na-cell--number {
-    text-align           : right;
-    font-variant-numeric : tabular-nums;
-    color                : var(--na-accent-blue);
-}
-
-.na-cell--status-ok {
-    color : var(--na-accent-green);
-}
-
-.na-cell--status-warn {
-    color : var(--na-accent-orange);
-}
+.na-cell--status-ok   { color: var(--na-accent-green); }
+.na-cell--status-warn { color: var(--na-accent-orange); }
 
 .na-results-error {
-    color       : var(--na-accent-red);
-    font-size   : 11px;
-    padding     : 8px 14px;
-    background  : #fce8e8;
-    border-left : 3px solid var(--na-accent-red);
+    color: var(--na-accent-red);
+    font-size: 11px;
+    padding: 8px 14px;
+    background: #fce8e8;
+    border-left: 3px solid var(--na-accent-red);
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | About Tab */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   #REGION | 12. About Tab
+   ============================================================================= */
 
 .na-about-panel {
-    padding        : 10px 14px;
-    overflow-y     : auto;
-    flex           : 1;
-    display        : flex;
-    flex-direction : column;
-    gap            : 8px;
+    padding          : 10px 14px;
+    overflow-y       : auto;
+    flex             : 1;
+    display          : flex;
+    flex-direction   : column;
+    gap              : 8px;
 }
 
 .na-about-panel__heading {
-    font-size     : 14px;
-    font-weight   : 700;
-    color         : var(--na-text-primary);
-    margin-bottom : 4px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--na-text-primary);
+    margin-bottom: 4px;
 }
 
 .na-about-panel__version {
-    font-size     : 11px;
-    color         : var(--na-accent-blue);
-    margin-bottom : 0;
+    font-size: 11px;
+    color: var(--na-accent-blue);
+    margin-bottom: 0;
 }
 
 .na-about-section {
@@ -615,59 +567,57 @@ body {
 }
 
 .na-about-section__body {
-    font-size   : 11px;
-    color       : var(--na-text-secondary);
-    line-height : 1.6;
+    font-size: 11px;
+    color: var(--na-text-secondary);
+    line-height: 1.6;
 }
 
-.na-about-section__body p {
-    margin-bottom : 5px;
-}
+.na-about-section__body p { margin-bottom: 5px; }
 
 .na-about-steps {
-    list-style : none;
-    padding    : 0;
-    margin     : 0;
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
 .na-about-steps li {
-    display     : flex;
-    gap         : 8px;
-    font-size   : 11px;
-    color       : var(--na-text-secondary);
-    padding     : 3px 0;
-    line-height : 1.5;
+    display: flex;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--na-text-secondary);
+    padding: 3px 0;
+    line-height: 1.5;
 }
 
 .na-about-steps li .na-step-num {
-    flex-shrink     : 0;
-    width           : 18px;
-    height          : 18px;
-    background      : var(--na-accent-blue);
-    border-radius   : 50%;
-    font-size       : 10px;
-    font-weight     : 700;
-    color           : #ffffff;
-    display         : flex;
-    align-items     : center;
-    justify-content : center;
-    margin-top      : 1px;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    background: var(--na-accent-blue);
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: 700;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Settings Tab */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   #REGION | 13. Settings Tab
+   ============================================================================= */
 
 .na-settings-body {
-    padding        : 10px 14px;
-    overflow-y     : auto;
-    flex           : 1;
-    display        : flex;
-    flex-direction : column;
-    gap            : 8px;
+    padding          : 10px 14px;
+    overflow-y       : auto;
+    flex             : 1;
+    display          : flex;
+    flex-direction   : column;
+    gap              : 8px;
 }
 
 .na-settings-section {
@@ -683,80 +633,80 @@ body {
 }
 
 .na-settings-heading {
-    font-size     : 11px;
-    font-weight   : 700;
-    color         : var(--na-text-primary);
-    margin-bottom : 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--na-text-primary);
+    margin-bottom: 6px;
 }
 
 .na-settings-description {
-    font-size     : 11px;
-    color         : var(--na-text-muted);
-    margin-bottom : 10px;
-    line-height   : 1.5;
+    font-size: 11px;
+    color: var(--na-text-muted);
+    margin-bottom: 10px;
+    line-height: 1.5;
 }
 
 .na-settings-button-row {
-    margin-bottom : 10px;
+    margin-bottom: 10px;
 }
 
 .na-settings-btn {
-    min-width     : 140px;
-    margin-bottom : 5px;
+    min-width: 140px;
+    margin-bottom: 5px;
 }
 
 .na-settings-helper {
-    font-size   : 10px;
-    color       : var(--na-text-muted);
-    line-height : 1.4;
+    font-size: 10px;
+    color: var(--na-text-muted);
+    line-height: 1.4;
 }
 
 .na-settings-info-line {
-    font-size     : 11px;
-    color         : var(--na-text-muted);
-    line-height   : 1.5;
-    margin-bottom : 4px;
+    font-size: 11px;
+    color: var(--na-text-muted);
+    line-height: 1.5;
+    margin-bottom: 4px;
 }
 
 .na-settings-info-line--meta {
-    color         : var(--na-accent-blue);
-    font-weight   : 600;
-    margin-bottom : 8px;
+    color: var(--na-accent-blue);
+    font-weight: 600;
+    margin-bottom: 8px;
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Statistics Tab */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   #REGION | 14. Statistics Tab
+   ============================================================================= */
 
 .na-statistics-body {
-    display        : flex;
-    flex-direction : column;
-    flex           : 1;
-    overflow       : hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
 }
 
 .na-statistics-header {
-    display          : flex;
-    align-items      : center;
-    justify-content  : space-between;
-    padding          : 6px 14px;
-    background-color : var(--na-bg-secondary);
-    border-bottom    : 1px solid var(--na-border-color);
-    flex-shrink      : 0;
-    min-height       : 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px;
+    background-color: var(--na-bg-secondary);
+    border-bottom: 1px solid var(--na-border-color);
+    flex-shrink: 0;
+    min-height: 36px;
 }
 
 .na-statistics-run-count {
-    font-size : 11px;
-    color     : var(--na-text-muted);
+    font-size: 11px;
+    color: var(--na-text-muted);
 }
 
 .na-statistics-run-count strong {
-    color       : var(--na-accent-blue);
-    font-weight : 600;
+    color: var(--na-accent-blue);
+    font-weight: 600;
 }
 
 .na-statistics-card {
@@ -767,23 +717,23 @@ body {
 }
 
 .na-statistics-empty {
-    padding    : 24px 14px;
-    text-align : center;
-    font-size  : 11px;
-    color      : var(--na-text-muted);
-    font-style : italic;
+    padding: 24px 14px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--na-text-muted);
+    font-style: italic;
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */
 
 
-/* ----------------------------------------------------------------- */
-/* REGION | Loading State */
-/* ----------------------------------------------------------------- */
+/* =============================================================================
+   #REGION | 15. Loading State
+   ============================================================================= */
 
 body.na-is-loading .na-btn--primary {
-    opacity : 0.45;
-    cursor  : wait;
+    opacity: 0.45;
+    cursor: wait;
 }
 
-/* endregion ----------------------------------------------------------------- */
+/* endregion ================================================================= */

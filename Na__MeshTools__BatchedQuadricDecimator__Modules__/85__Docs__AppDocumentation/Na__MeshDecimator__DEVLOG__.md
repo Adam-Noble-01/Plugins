@@ -3,6 +3,48 @@
 
 
 # =============================================================================
+## Batched Quadric Decimator | V0.0.5 - 13-May-2026 - White cards on all tabs, new plugin icon
+
+### Context
+Applied consistent white card treatment to all four tabs so every content
+section sits on a white surface against the light grey body background —
+matching the Decimation tab pattern introduced in V0.0.4. Replaced the
+placeholder toolbar icon with the new branded geometric-Q icon.
+
+### Changes
+
+#### White cards — `Na__MeshDecimator__Styles__Combined__.css`
+- `.na-options-panel` gained `display: flex; flex-direction: column; gap: 8px`
+  and each section in the Decimation tab was wrapped in `<div class="na-card">`.
+- `.na-card` component added: `background: #fff; border: 1px solid var(--na-border-color);
+  border-radius: 6px; padding: 10px 14px; flex-shrink: 0`.
+- `.na-card .na-options-panel__section-title` — removes redundant inner border-bottom.
+
+#### About tab — CSS + HTML
+- `.na-about-panel` converted to flex column with `gap: 8px`.
+- `.na-about-section` styled as a card directly in CSS — all three content
+  sections card automatically with no per-section HTML changes.
+- `.na-about-section__title` border-bottom removed (card edge is boundary).
+- Intro heading + version line wrapped in `<div class="na-card na-about-intro-card">`
+  in `Na__MeshDecimator__UiLayout__.html`.
+
+#### Settings tab — CSS only
+- `.na-settings-body` converted to flex column with `gap: 8px; padding: 10px 14px`.
+- `.na-settings-section` styled as a card; removed `margin-bottom`, `border-bottom`,
+  and the `.na-settings-section--about` `border-top` override.
+
+#### Statistics tab — JS + CSS
+- `Na__MeshDecimator__Statistics__UiLogic__.js`: table wrapper changed from
+  `na-statistics-table-wrapper` to `na-card na-statistics-card`.
+- `.na-statistics-card` added: `margin: 8px 10px; overflow: auto; flex: 1; padding: 0`.
+
+#### Toolbar icon — `Na__MeshDecimator__AppUtils__AssetResolver__.rb`
+- `NA_MAIN_ICON_FILENAME` updated to `'PluginIcon__QuadraticDecimator__248px__.png'`
+  — the new branded geometric-Q icon in `01__AppAssets__MeshDecimator\`.
+
+---
+
+# =============================================================================
 ## Batched Quadric Decimator | V0.0.4 - 13-May-2026 - Light theme, Statistics tab, reload fix, title rebrand
 
 ### Context

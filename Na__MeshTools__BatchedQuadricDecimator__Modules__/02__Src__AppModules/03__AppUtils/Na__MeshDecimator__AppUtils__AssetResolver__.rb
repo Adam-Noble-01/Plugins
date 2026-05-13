@@ -22,7 +22,7 @@ module Na__MeshDecimator
             NA_LOCAL_ASSETS_FOLDER        = '01__AppAssets__MeshDecimator'.freeze
             NA_SHARED_DEPENDENCIES_FOLDER = 'Na__Common__PluginDependencies'.freeze
 
-            NA_MAIN_ICON_FILENAME         = 'Na__MeshDecimator__Brand__ToolbarIcon__.png'.freeze
+            NA_MAIN_ICON_FILENAME         = 'PluginIcon__QuadraticDecimator__248px__.png'.freeze
             NA_SHARED_MAIN_ICON_FILENAME  = 'IMG02__ICN__NaCompanyIcon.png'.freeze
             NA_SHARED_LOGO_FILENAME       = 'IMG01__PNG__NaCompanyLogo.png'.freeze
 

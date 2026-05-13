@@ -111,7 +111,7 @@
             '</div>';
 
         var tableHtml =
-            '<div class="na-statistics-table-wrapper">' +
+            '<div class="na-card na-statistics-card">' +
             na_build_table_html() +
             '</div>';
 
