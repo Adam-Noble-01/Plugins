@@ -72,6 +72,9 @@ module Na__Noble3dModellingTools
             when 'auto_group_face_islands'
                 proc { Na__AutoGroupFaceIslands.Na__AutoGroupFaceIslands__Run }
 
+            when 'create_bounding_box'
+                proc { Na__CreateBoundingBox.Na__CreateBoundingBox__Run }
+
             when 'convert_components_to_groups'
                 proc { Na__ConvertComponentsToGroups.Na__ConvertComponentsToGroups__Run }
 

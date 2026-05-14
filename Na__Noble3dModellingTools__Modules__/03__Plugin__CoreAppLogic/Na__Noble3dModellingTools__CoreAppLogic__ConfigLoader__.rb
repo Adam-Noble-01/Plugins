@@ -130,6 +130,15 @@ module Na__Noble3dModellingTools
                     'expose_to_hotkeys' => true
                 },
                 {
+                    'command_id' => 'create_bounding_box',
+                    'command_name' => 'Na Noble3d - Create Bounding Box',
+                    'tooltip' => 'Create a grouped wire bounding box around the selected objects',
+                    'status_bar_text' => 'Create a bounding box around selected objects',
+                    'menu_text' => 'Create Bounding Box',
+                    'handler_key' => 'create_bounding_box',
+                    'expose_to_hotkeys' => true
+                },
+                {
                     'command_id' => 'convert_components_to_groups',
                     'command_name' => 'Na Noble3d - Convert Components To Groups',
                     'tooltip' => 'Convert selected component instances and their nested components into groups',
@@ -196,7 +205,7 @@ module Na__Noble3dModellingTools
                     'tab_name' => 'Geometry Tools',
                     'tool_group_name' => 'Lattice Generation',
                     'tool_group_description' => 'Tools for generating lattice bars from selected model edges.',
-                    'tool_group_order' => 20,
+                    'tool_group_order' => 30,
                     'button_order' => 10,
                     'button_label' => 'Lattice Maker (Prompt)',
                     'command_id' => 'lattice_maker_prompt',
@@ -207,7 +216,7 @@ module Na__Noble3dModellingTools
                     'tab_name' => 'Geometry Tools',
                     'tool_group_name' => 'Lattice Generation',
                     'tool_group_description' => 'Tools for generating lattice bars from selected model edges.',
-                    'tool_group_order' => 20,
+                    'tool_group_order' => 30,
                     'button_order' => 20,
                     'button_label' => 'Lattice Maker (Use Last Values)',
                     'command_id' => 'lattice_maker_last',
@@ -234,6 +243,17 @@ module Na__Noble3dModellingTools
                     'button_label' => 'Auto Group Face Islands',
                     'command_id' => 'auto_group_face_islands',
                     'description' => 'Groups each individual face in the selection into a sequentially named SketchUp group.'
+                },
+                {
+                    'button_id' => 'btn_create_bounding_box',
+                    'tab_name' => 'Geometry Tools',
+                    'tool_group_name' => 'Bounding Boxes',
+                    'tool_group_description' => 'Tools for creating visual bounding geometry around selected objects.',
+                    'tool_group_order' => 20,
+                    'button_order' => 10,
+                    'button_label' => 'Create Bounding Box',
+                    'command_id' => 'create_bounding_box',
+                    'description' => 'Creates a grouped wire bounding box around the full extents of the current selection.'
                 },
                 {
                     'button_id' => 'btn_convert_components_to_groups',
@@ -282,6 +302,7 @@ module Na__Noble3dModellingTools
                 { 'command_id' => 'lattice_maker_last', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'auto_group_utility', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'auto_group_face_islands', 'expose_to_hotkeys' => true },
+                { 'command_id' => 'create_bounding_box', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'convert_components_to_groups', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'insert_component_in_place', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'reload_plugin_data', 'expose_to_hotkeys' => true }

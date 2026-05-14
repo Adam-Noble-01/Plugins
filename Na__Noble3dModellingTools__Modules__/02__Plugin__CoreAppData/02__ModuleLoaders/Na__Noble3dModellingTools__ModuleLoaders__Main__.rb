@@ -30,6 +30,7 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/04__SourceCode__AutoGroupFaceIslands/Na__Noble3dModellingTools__AutoGroupFaceIslands__Loader__'
             require_relative '../../10__PluginModules/05__SourceCode__ConvertComponentsToGroups/Na__Noble3dModellingTools__ConvertComponentsToGroups__Loader__'
             require_relative '../../10__PluginModules/06__SourceCode__InsertComponentInPlace/Na__Noble3dModellingTools__InsertComponentInPlace__Loader__'
+            require_relative '../../10__PluginModules/07__SourceCode__CreateBoundingBox/Na__Noble3dModellingTools__CreateBoundingBox__Loader__'
 
             @na_feature_modules_loaded = true
             true
