@@ -6,6 +6,10 @@
     //
     // FILE       : Na__Noble3dModellingTools__UiBridge__.js
     // PURPOSE    : Tab switching, SketchUp sketchup.run_command, footer status-line
+    //
+    // CONFIG-FIRST DESIGN NOTE:
+    // This bridge should stay generic. Tool tabs, groups, labels, command IDs,
+    // ordering, and hotkey visibility come from the JSON registry rendered by Ruby.
     // =============================================================================
 
     // -----------------------------------------------------------------------------

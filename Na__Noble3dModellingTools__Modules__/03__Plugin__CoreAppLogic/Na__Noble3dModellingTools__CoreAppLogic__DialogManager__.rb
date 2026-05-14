@@ -7,6 +7,11 @@
 # PURPOSE    : Render and manage JSON-driven HtmlDialog UI
 # CREATED    : 2026
 #
+# CONFIG-FIRST DESIGN NOTE:
+# Render tabs, tool groups, and buttons from normalized registry data. Do not
+# hardcode per-tool UI sections here; add or reorganize tools through the JSON
+# command registry and let this renderer build the generic layout.
+#
 # =============================================================================
 
 require 'json'
@@ -108,12 +113,22 @@ module Na__Noble3dModellingTools
                         <h2 class="naNoble3d__TabTitle">#{na_escape_html(tab_name)}</h2>
                         <p class="naNoble3d__TabDescription">#{na_escape_html(tab_description)}</p>
                     </header>
-                    <div class="naNoble3d__ToolGrid">
-                        #{na_build_button_cards_html(buttons)}
-                    </div>
+                    #{na_build_tab_tools_html(buttons)}
                 </section>
                 HTML_TAB
             end.join("\n")
+        end
+
+        def self.na_build_tab_tools_html(buttons)
+            return '<p class="naNoble3d__EmptyState">No commands configured for this tab.</p>' if buttons.empty?
+
+            return na_build_ungrouped_tool_grid_html(buttons) unless na_buttons_include_tool_groups?(buttons)
+
+            <<~HTML_GROUPS
+            <div class="naNoble3d__ToolGroups">
+                #{na_build_tool_group_sections_html(buttons)}
+            </div>
+            HTML_GROUPS
         end
 
         def self.na_build_button_cards_html(buttons)
@@ -125,12 +140,74 @@ module Na__Noble3dModellingTools
                 command_id = button.fetch('command_id', '')
 
                 <<~HTML_CARD
-                <article class="naNoble3d__ToolCard">
-                    <p class="naNoble3d__ToolDescription">#{na_escape_html(button_description)}</p>
-                    <button class="naNoble3d__ActionButton" onclick='Na__Noble3d__RunCommand(#{command_id.to_json})'><strong>#{na_escape_html(button_label)}</strong></button>
-                </article>
+                <button type="button" class="naNoble3d__ToolCard" onclick='Na__Noble3d__RunCommand(#{command_id.to_json})'>
+                    <span class="naNoble3d__ToolTitle">#{na_escape_html(button_label)}</span>
+                    <span class="naNoble3d__ToolDescription">#{na_escape_html(button_description)}</span>
+                </button>
                 HTML_CARD
             end.join("\n")
+        end
+
+        def self.na_build_ungrouped_tool_grid_html(buttons)
+            <<~HTML_GRID
+            <div class="naNoble3d__ToolGrid">
+                #{na_build_button_cards_html(buttons)}
+            </div>
+            HTML_GRID
+        end
+
+        def self.na_buttons_include_tool_groups?(buttons)
+            buttons.any? { |button| !button.fetch('tool_group_name', '').to_s.empty? }
+        end
+
+        def self.na_build_tool_group_sections_html(buttons)
+            na_group_buttons_by_tool_group(buttons).map do |group|
+                group_description_html = na_tool_group_description_html(group[:description])
+
+                <<~HTML_GROUP
+                <section class="naNoble3d__ToolGroup">
+                    <header class="naNoble3d__ToolGroupHeader">
+                        <h3 class="naNoble3d__ToolGroupTitle">#{na_escape_html(group[:name])}</h3>
+                        #{group_description_html}
+                    </header>
+                    <div class="naNoble3d__ToolGrid">
+                        #{na_build_button_cards_html(group[:buttons])}
+                    </div>
+                </section>
+                HTML_GROUP
+            end.join("\n")
+        end
+
+        def self.na_group_buttons_by_tool_group(buttons)
+            grouped_buttons = {}
+
+            buttons.each do |button|
+                group_name = button.fetch('tool_group_name', '').to_s
+                group_key = group_name.empty? ? button.fetch('button_id', '').to_s : group_name
+                grouped_buttons[group_key] ||= na_new_tool_group_hash(button, group_name)
+                grouped_buttons[group_key][:buttons] << button
+            end
+
+            grouped_buttons.values.sort_by { |group| [group[:order], group[:name]] }
+        end
+
+        def self.na_new_tool_group_hash(button, group_name)
+            resolved_group_name = group_name.empty? ? button.fetch('button_label', 'Tools').to_s : group_name
+
+            {
+                name: resolved_group_name,
+                description: button.fetch('tool_group_description', '').to_s,
+                order: button.fetch('tool_group_order', 0).to_i,
+                buttons: []
+            }
+        end
+
+        def self.na_tool_group_description_html(group_description)
+            return '' if group_description.to_s.empty?
+
+            <<~HTML_DESCRIPTION.strip
+            <p class="naNoble3d__ToolGroupDescription">#{na_escape_html(group_description)}</p>
+            HTML_DESCRIPTION
         end
 
         def self.na_escape_html(raw_text)

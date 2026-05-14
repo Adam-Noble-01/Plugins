@@ -7,6 +7,11 @@
 # PURPOSE    : Centralize all plugin path resolution
 # CREATED    : 2026
 #
+# CONFIG-FIRST DESIGN NOTE:
+# Path helpers expose the JSON registry and UI asset locations to the rest of the
+# plugin. Keep tool-specific layout and command metadata in the registry rather
+# than scattering paths or hardcoded tool data through core scripts.
+#
 # =============================================================================
 
 module Na__Noble3dModellingTools

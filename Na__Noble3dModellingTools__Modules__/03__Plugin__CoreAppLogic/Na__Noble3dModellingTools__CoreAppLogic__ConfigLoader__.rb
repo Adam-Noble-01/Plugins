@@ -7,6 +7,11 @@
 # PURPOSE    : Load and normalize JSON-driven UI and command registry
 # CREATED    : 2026
 #
+# CONFIG-FIRST DESIGN NOTE:
+# The registry is the source of truth for tabs, tool groups, button labels,
+# command IDs, ordering, and hotkey exposure. Keep defaults in this file as a
+# safety fallback only; prefer updating the JSON registry for live tool changes.
+#
 # =============================================================================
 
 require 'json'
@@ -37,6 +42,12 @@ module Na__Noble3dModellingTools
                     'tab_name' => 'Geometry Tools',
                     'tab_order' => 20,
                     'tab_description' => 'Geometry generation tools for rapid concept modelling.'
+                },
+                {
+                    'tab_id' => 'entity_utils',
+                    'tab_name' => 'Entity Utils',
+                    'tab_order' => 30,
+                    'tab_description' => 'Entity and container utilities for groups, components, and model organization.'
                 },
                 {
                     'tab_id' => 'settings',
@@ -119,6 +130,24 @@ module Na__Noble3dModellingTools
                     'expose_to_hotkeys' => true
                 },
                 {
+                    'command_id' => 'convert_components_to_groups',
+                    'command_name' => 'Na Noble3d - Convert Components To Groups',
+                    'tooltip' => 'Convert selected component instances and their nested components into groups',
+                    'status_bar_text' => 'Convert selected components to groups',
+                    'menu_text' => 'Convert Components To Groups',
+                    'handler_key' => 'convert_components_to_groups',
+                    'expose_to_hotkeys' => true
+                },
+                {
+                    'command_id' => 'insert_component_in_place',
+                    'command_name' => 'Na Noble3d - Insert Component In Place',
+                    'tooltip' => 'Load a SketchUp component file and insert it at its original global coordinates',
+                    'status_bar_text' => 'Insert a component file in place',
+                    'menu_text' => 'Insert Component In Place',
+                    'handler_key' => 'insert_component_in_place',
+                    'expose_to_hotkeys' => true
+                },
+                {
                     'command_id' => 'reload_plugin_data',
                     'command_name' => 'Na Noble3d - Reload Plugin Data',
                     'tooltip' => 'Reload Noble3d Ruby files and rebuild the dialog',
@@ -132,6 +161,10 @@ module Na__Noble3dModellingTools
                 {
                     'button_id' => 'btn_select_quad_shortest',
                     'tab_name' => 'Selection Tools',
+                    'tool_group_name' => 'Quad Face Ring Selection',
+                    'tool_group_description' => 'Selection tools for traversing related quad face loops.',
+                    'tool_group_order' => 10,
+                    'button_order' => 10,
                     'button_label' => 'Select Quad Face Rings (Shortest)',
                     'command_id' => 'select_quad_face_rings_shortest',
                     'description' => 'Traverses quad-face rings using the shortest opposite-edge pair.'
@@ -139,6 +172,10 @@ module Na__Noble3dModellingTools
                 {
                     'button_id' => 'btn_select_quad_longest',
                     'tab_name' => 'Selection Tools',
+                    'tool_group_name' => 'Quad Face Ring Selection',
+                    'tool_group_description' => 'Selection tools for traversing related quad face loops.',
+                    'tool_group_order' => 10,
+                    'button_order' => 20,
                     'button_label' => 'Select Quad Face Rings (Longest)',
                     'command_id' => 'select_quad_face_rings_longest',
                     'description' => 'Traverses quad-face rings using the longest opposite-edge pair.'
@@ -146,6 +183,10 @@ module Na__Noble3dModellingTools
                 {
                     'button_id' => 'btn_select_quad_largest',
                     'tab_name' => 'Selection Tools',
+                    'tool_group_name' => 'Quad Face Ring Selection',
+                    'tool_group_description' => 'Selection tools for traversing related quad face loops.',
+                    'tool_group_order' => 10,
+                    'button_order' => 30,
                     'button_label' => 'Select Quad Face Rings (Largest Count)',
                     'command_id' => 'select_quad_face_rings_largest',
                     'description' => 'Chooses the candidate ring with the largest resulting face count.'
@@ -153,6 +194,10 @@ module Na__Noble3dModellingTools
                 {
                     'button_id' => 'btn_lattice_prompt',
                     'tab_name' => 'Geometry Tools',
+                    'tool_group_name' => 'Lattice Generation',
+                    'tool_group_description' => 'Tools for generating lattice bars from selected model edges.',
+                    'tool_group_order' => 20,
+                    'button_order' => 10,
                     'button_label' => 'Lattice Maker (Prompt)',
                     'command_id' => 'lattice_maker_prompt',
                     'description' => 'Creates a lattice with a width/depth prompt before running.'
@@ -160,6 +205,10 @@ module Na__Noble3dModellingTools
                 {
                     'button_id' => 'btn_lattice_last',
                     'tab_name' => 'Geometry Tools',
+                    'tool_group_name' => 'Lattice Generation',
+                    'tool_group_description' => 'Tools for generating lattice bars from selected model edges.',
+                    'tool_group_order' => 20,
+                    'button_order' => 20,
                     'button_label' => 'Lattice Maker (Use Last Values)',
                     'command_id' => 'lattice_maker_last',
                     'description' => 'Creates a lattice immediately using stored values.'
@@ -167,6 +216,10 @@ module Na__Noble3dModellingTools
                 {
                     'button_id' => 'btn_auto_group_utility',
                     'tab_name' => 'Geometry Tools',
+                    'tool_group_name' => 'Geometry Grouping',
+                    'tool_group_description' => 'Tools for grouping selected raw geometry into clean modelling units.',
+                    'tool_group_order' => 10,
+                    'button_order' => 10,
                     'button_label' => 'Auto Group Utility',
                     'command_id' => 'auto_group_utility',
                     'description' => 'Groups each disconnected geometry island in the selection into its own SketchUp group.'
@@ -174,13 +227,43 @@ module Na__Noble3dModellingTools
                 {
                     'button_id' => 'btn_auto_group_face_islands',
                     'tab_name' => 'Geometry Tools',
+                    'tool_group_name' => 'Geometry Grouping',
+                    'tool_group_description' => 'Tools for grouping selected raw geometry into clean modelling units.',
+                    'tool_group_order' => 10,
+                    'button_order' => 20,
                     'button_label' => 'Auto Group Face Islands',
                     'command_id' => 'auto_group_face_islands',
                     'description' => 'Groups each individual face in the selection into a sequentially named SketchUp group.'
                 },
                 {
+                    'button_id' => 'btn_convert_components_to_groups',
+                    'tab_name' => 'Entity Utils',
+                    'tool_group_name' => 'Component Containers',
+                    'tool_group_description' => 'Utilities for changing SketchUp entity containers without editing their raw geometry.',
+                    'tool_group_order' => 10,
+                    'button_order' => 10,
+                    'button_label' => 'Convert Components To Groups',
+                    'command_id' => 'convert_components_to_groups',
+                    'description' => 'Converts selected component instances and nested component instances into independent SketchUp groups.'
+                },
+                {
+                    'button_id' => 'btn_insert_component_in_place',
+                    'tab_name' => 'Entity Utils',
+                    'tool_group_name' => 'Component Containers',
+                    'tool_group_description' => 'Utilities for changing SketchUp entity containers without editing their raw geometry.',
+                    'tool_group_order' => 10,
+                    'button_order' => 20,
+                    'button_label' => 'Insert Component In Place',
+                    'command_id' => 'insert_component_in_place',
+                    'description' => 'Loads a selected .skp file as a component and inserts it at world identity for Xref-style placement.'
+                },
+                {
                     'button_id' => 'btn_reload',
                     'tab_name' => 'Settings',
+                    'tool_group_name' => 'Plugin Maintenance',
+                    'tool_group_description' => 'Development helpers for refreshing the plugin during active SketchUp sessions.',
+                    'tool_group_order' => 10,
+                    'button_order' => 10,
                     'button_label' => 'Reload Plugin Data',
                     'command_id' => 'reload_plugin_data',
                     'description' => 'Reloads Ruby files and refreshes the UI without restarting SketchUp.'
@@ -199,6 +282,8 @@ module Na__Noble3dModellingTools
                 { 'command_id' => 'lattice_maker_last', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'auto_group_utility', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'auto_group_face_islands', 'expose_to_hotkeys' => true },
+                { 'command_id' => 'convert_components_to_groups', 'expose_to_hotkeys' => true },
+                { 'command_id' => 'insert_component_in_place', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'reload_plugin_data', 'expose_to_hotkeys' => true }
             ]
         }.freeze
@@ -281,7 +366,9 @@ module Na__Noble3dModellingTools
         end
 
         def self.Na__Noble3dModellingTools__ButtonsForTabName(tab_name)
-            self.Na__Noble3dModellingTools__Buttons.select { |button| button['tab_name'] == tab_name.to_s }
+            self.Na__Noble3dModellingTools__Buttons
+                .select { |button| button['tab_name'] == tab_name.to_s }
+                .sort_by { |button| [button['tool_group_order'], button['button_order'], button['button_label']] }
         end
 
         def self.Na__Noble3dModellingTools__HotkeyVisibleCommands
@@ -368,10 +455,14 @@ module Na__Noble3dModellingTools
         end
 
         def self.na_normalized_buttons(raw_buttons)
-            buttons = na_array_of_hashes(raw_buttons).map do |button|
+            buttons = na_array_of_hashes(raw_buttons).each_with_index.map do |button, index|
                 {
                     'button_id' => button.fetch('button_id', '').to_s,
                     'tab_name' => button.fetch('tab_name', '').to_s,
+                    'tool_group_name' => button.fetch('tool_group_name', '').to_s,
+                    'tool_group_description' => button.fetch('tool_group_description', '').to_s,
+                    'tool_group_order' => button.fetch('tool_group_order', 0).to_i,
+                    'button_order' => button.fetch('button_order', index * 10).to_i,
                     'button_label' => button.fetch('button_label', '').to_s,
                     'command_id' => button.fetch('command_id', '').to_s,
                     'description' => button.fetch('description', '').to_s

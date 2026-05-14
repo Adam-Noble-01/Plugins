@@ -8,6 +8,11 @@
 #              from Na__Common__PluginDependencies. Respects the user-saved
 #              toolbar visibility state via UI::Toolbar#restore.
 #
+# CONFIG-FIRST DESIGN NOTE:
+# The toolbar only opens the config-driven dialog. Individual tools, tabs, groups,
+# labels, and command metadata belong in the JSON registry and should not be
+# hardcoded into toolbar setup.
+#
 # =============================================================================
 
 module Na__Noble3dModellingTools

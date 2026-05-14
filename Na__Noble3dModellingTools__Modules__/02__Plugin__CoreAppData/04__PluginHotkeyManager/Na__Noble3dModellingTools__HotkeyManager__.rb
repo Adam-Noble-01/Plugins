@@ -7,6 +7,11 @@
 # PURPOSE    : Register UI::Command items for menu and native hotkey binding
 # CREATED    : 2026
 #
+# CONFIG-FIRST DESIGN NOTE:
+# Menu text, tooltips, status text, and hotkey exposure come from the JSON command
+# registry. This file should register generic UI::Command wrappers, not hardcode
+# individual tools or duplicate button layout.
+#
 # =============================================================================
 
 module Na__Noble3dModellingTools

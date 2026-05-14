@@ -2,6 +2,92 @@
 # =============================================================================
 
 # =============================================================================
+## Version 0.3.2 - 14-May-2026 - Entity Utils + Data-Driven Tool Cards
+
+### Update 01 - Convert Components To Groups Module
+- Added new Entity Utility module for converting selected SketchUp component instances into groups:
+  - `10__PluginModules/05__SourceCode__ConvertComponentsToGroups/Na__Noble3dModellingTools__ConvertComponentsToGroups__Loader__.rb`
+  - `10__PluginModules/05__SourceCode__ConvertComponentsToGroups/Na__Noble3dModellingTools__ConvertComponentsToGroups__EntityUtils__.rb`
+  - `10__PluginModules/05__SourceCode__ConvertComponentsToGroups/Na__Noble3dModellingTools__ConvertComponentsToGroups__ComponentProps__.rb`
+  - `10__PluginModules/05__SourceCode__ConvertComponentsToGroups/Na__Noble3dModellingTools__ConvertComponentsToGroups__Converter__.rb`
+  - `10__PluginModules/05__SourceCode__ConvertComponentsToGroups/Na__Noble3dModellingTools__ConvertComponentsToGroups__Run__.rb`
+- Refactored the original AI draft into project naming, region blocks, result-hash UI reporting, and small single-purpose helper modules.
+- Preserves component instance transform, name, definition fallback name, layer/tag, material, hidden state, shadow settings, and attribute dictionaries where SketchUp allows.
+- Recursively converts nested component instances inside selected components while skipping locked entities and existing groups.
+- Restores SketchUp selection to the newly converted groups and reports success/failure through the dialog status footer.
+
+### Update 02 - Insert Component In Place Module
+- Added new Entity Utility module for Xref-style insertion of external `.skp` component files:
+  - `10__PluginModules/06__SourceCode__InsertComponentInPlace/Na__Noble3dModellingTools__InsertComponentInPlace__Loader__.rb`
+  - `10__PluginModules/06__SourceCode__InsertComponentInPlace/Na__Noble3dModellingTools__InsertComponentInPlace__Run__.rb`
+- Opens a SketchUp file picker, loads the chosen `.skp` into `model.definitions`, and inserts the component at identity transform in root model entities.
+- Selects the inserted instance after placement and reports cancel/load/error states through the shared result/status path.
+
+### Update 03 - Entity Utils Tab + Command Registry Wiring
+- Added a new `Entity Utils` tab for container/entity tools that are not raw geometry generation tools:
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+  - `03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__ConfigLoader__.rb`
+- Registered new commands, buttons, and hotkey bindings:
+  - `convert_components_to_groups`
+  - `insert_component_in_place`
+- Wired both tools through:
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+- Mirrored live JSON registry additions into `NA_DEFAULT_CONFIG` so fallback config remains complete.
+
+### Update 04 - Data-Driven Tool Group Sections
+- Added data-driven tool grouping metadata to button registry entries:
+  - `tool_group_name`
+  - `tool_group_description`
+  - `tool_group_order`
+  - `button_order`
+- Updated `Na__ConfigLoader` normalization and tab button sorting to preserve group/order fields from config.
+- Updated `Na__DialogManager` to render generic tool group sections from registry data instead of hardcoded UI layout.
+- Added visual group separation in `Na__Noble3dModellingTools__Styles__.css`.
+- Reordered Geometry Tools groups through config so `Geometry Grouping` appears before `Lattice Generation`.
+
+### Update 05 - Full-Card Interaction UI
+- Removed the inner blue action buttons from tool cards.
+- Refactored each tool card into the actual interactive button:
+  - Tool title at the top.
+  - Description text underneath.
+  - Whole-card click target for clearer interaction.
+- Added generic hover/active/focus feedback:
+  - Hover lift.
+  - Border highlight.
+  - Subtle shadow.
+  - Pressed scale animation.
+  - Keyboard focus outline.
+- Removed stale `naNoble3d__ActionButton` styling and references.
+
+### Update 06 - Config-First Documentation Notes
+- Added config-first design notes to the main plugin scripts so future tool tabs, groups, ordering, labels, command IDs, and hotkey exposure remain registry-driven:
+  - `Na__Noble3dModellingTools__Loader__.rb`
+  - `02__Plugin__CoreAppData/01__CoreAppLoaders/Na__Noble3dModellingTools__CoreAppLoaders__Main__.rb`
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+  - `02__Plugin__CoreAppData/04__PluginHotkeyManager/Na__Noble3dModellingTools__HotkeyManager__.rb`
+  - `03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__ConfigLoader__.rb`
+  - `03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__DialogManager__.rb`
+  - `03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__PathResolver__.rb`
+  - `03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__ReloadManager__.rb`
+  - `03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__ToolbarIconLoader__.rb`
+  - `05__Plugin__UserInterface/Na__Noble3dModellingTools__UiLayout__.html`
+  - `05__Plugin__UserInterface/Na__Noble3dModellingTools__Styles__.css`
+  - `05__Plugin__UserInterface/Na__Noble3dModellingTools__UiBridge__.js`
+
+### Validation Checklist
+- [x] `Entity Utils` tab appears in the HtmlDialog.
+- [x] `Convert Components To Groups` appears under `Entity Utils > Component Containers`.
+- [x] `Insert Component In Place` appears under `Entity Utils > Component Containers`.
+- [x] Geometry Tools group order is `Geometry Grouping` then `Lattice Generation`.
+- [x] Tool group sections render from config metadata, not hardcoded per-command UI.
+- [x] Tool cards are full-card buttons with title, description, hover, active, and focus feedback.
+- [x] JSON registry parses successfully after all command, tab, group, and button additions.
+- [x] IDE lints report no errors for edited Ruby, JSON, HTML, CSS, and JS files.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
 ## Version 0.3.1 - 08-May-2026 - Brand Header + Toolbar Icon
 
 ### Update 01 - Brand Header (NA Logo Left, Plugin Title Right)

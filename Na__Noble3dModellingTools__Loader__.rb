@@ -7,6 +7,11 @@
 # PURPOSE    : Bootstrap Na__Noble3dModellingTools from Plugins root
 # CREATED    : 2026
 #
+# CONFIG-FIRST DESIGN NOTE:
+# Tool tabs, grouping, labels, command IDs, ordering, and hotkey visibility belong
+# in Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json. Keep this
+# bootstrap thin; do not hardcode feature UI or command layout here.
+#
 # =============================================================================
 
 require 'sketchup.rb'

@@ -7,6 +7,11 @@
 # PURPOSE    : Route JSON command IDs to module entrypoints
 # CREATED    : 2026
 #
+# CONFIG-FIRST DESIGN NOTE:
+# This router maps registry handler keys to module entrypoints only. Tool tabs,
+# grouping, labels, command IDs, ordering, and hotkey visibility belong in the
+# JSON registry so the UI can evolve without hardcoded Ruby layout.
+#
 # =============================================================================
 
 module Na__Noble3dModellingTools
@@ -66,6 +71,12 @@ module Na__Noble3dModellingTools
 
             when 'auto_group_face_islands'
                 proc { Na__AutoGroupFaceIslands.Na__AutoGroupFaceIslands__Run }
+
+            when 'convert_components_to_groups'
+                proc { Na__ConvertComponentsToGroups.Na__ConvertComponentsToGroups__Run }
+
+            when 'insert_component_in_place'
+                proc { Na__InsertComponentInPlace.Na__InsertComponentInPlace__Run }
 
             when 'reload_plugin_data'
                 proc { Na__ReloadManager.Na__Noble3dModellingTools__ReloadPluginData }

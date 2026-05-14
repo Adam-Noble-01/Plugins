@@ -7,6 +7,11 @@
 # PURPOSE    : Hot reload Ruby files and refresh dialog/config state
 # CREATED    : 2026
 #
+# CONFIG-FIRST DESIGN NOTE:
+# Reloading invalidates and refreshes config-driven UI state. Tool placement,
+# grouping, labels, and command metadata should be changed in the JSON registry,
+# then reloaded here, rather than hardcoded into Ruby UI scripts.
+#
 # =============================================================================
 
 module Na__Noble3dModellingTools

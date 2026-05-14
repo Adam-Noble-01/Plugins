@@ -7,6 +7,11 @@
 # PURPOSE    : Load all core modules and expose public bootstrap methods
 # CREATED    : 2026
 #
+# CONFIG-FIRST DESIGN NOTE:
+# Tool tabs, grouping, labels, command IDs, ordering, and hotkey visibility belong
+# in Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json. Core entry
+# points should delegate to config-driven loaders, renderers, and routers.
+#
 # =============================================================================
 
 require 'sketchup.rb'

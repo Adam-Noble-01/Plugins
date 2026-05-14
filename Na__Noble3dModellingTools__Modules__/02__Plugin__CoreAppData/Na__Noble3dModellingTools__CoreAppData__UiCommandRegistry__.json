@@ -19,6 +19,12 @@
             "tab_description" : "Geometry generation tools for rapid concept modelling."
         },
         {
+            "tab_id"          : "entity_utils",
+            "tab_name"        : "Entity Utils",
+            "tab_order"       : 30,
+            "tab_description" : "Entity and container utilities for groups, components, and model organization."
+        },
+        {
             "tab_id"          : "settings",
             "tab_name"        : "Settings",
             "tab_order"       : 90,
@@ -99,6 +105,24 @@
             "expose_to_hotkeys" : true
         },
         {
+            "command_id"        : "convert_components_to_groups",
+            "command_name"      : "Na Noble3d - Convert Components To Groups",
+            "tooltip"           : "Convert selected component instances and their nested components into groups",
+            "status_bar_text"   : "Convert selected components to groups",
+            "menu_text"         : "Convert Components To Groups",
+            "handler_key"       : "convert_components_to_groups",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "insert_component_in_place",
+            "command_name"      : "Na Noble3d - Insert Component In Place",
+            "tooltip"           : "Load a SketchUp component file and insert it at its original global coordinates",
+            "status_bar_text"   : "Insert a component file in place",
+            "menu_text"         : "Insert Component In Place",
+            "handler_key"       : "insert_component_in_place",
+            "expose_to_hotkeys" : true
+        },
+        {
             "command_id"        : "reload_plugin_data",
             "command_name"      : "Na Noble3d - Reload Plugin Data",
             "tooltip"           : "Reload Noble3d Ruby files and refresh the active dialog",
@@ -110,60 +134,114 @@
     ],
     "buttons"                : [
         {
-            "button_id"    : "btn_select_quad_shortest",
-            "tab_name"     : "Selection Tools",
-            "button_label" : "Select Quad Face Rings (Shortest)",
-            "command_id"   : "select_quad_face_rings_shortest",
-            "description"  : "Traverses connected quad rings using shortest opposite edges."
+            "button_id"              : "btn_select_quad_shortest",
+            "tab_name"               : "Selection Tools",
+            "tool_group_name"        : "Quad Face Ring Selection",
+            "tool_group_description" : "Selection tools for traversing related quad face loops.",
+            "tool_group_order"       : 10,
+            "button_order"           : 10,
+            "button_label"           : "Select Quad Face Rings (Shortest)",
+            "command_id"             : "select_quad_face_rings_shortest",
+            "description"            : "Traverses connected quad rings using shortest opposite edges."
         },
         {
-            "button_id"    : "btn_select_quad_longest",
-            "tab_name"     : "Selection Tools",
-            "button_label" : "Select Quad Face Rings (Longest)",
-            "command_id"   : "select_quad_face_rings_longest",
-            "description"  : "Traverses connected quad rings using longest opposite edges."
+            "button_id"              : "btn_select_quad_longest",
+            "tab_name"               : "Selection Tools",
+            "tool_group_name"        : "Quad Face Ring Selection",
+            "tool_group_description" : "Selection tools for traversing related quad face loops.",
+            "tool_group_order"       : 10,
+            "button_order"           : 20,
+            "button_label"           : "Select Quad Face Rings (Longest)",
+            "command_id"             : "select_quad_face_rings_longest",
+            "description"            : "Traverses connected quad rings using longest opposite edges."
         },
         {
-            "button_id"    : "btn_select_quad_largest",
-            "tab_name"     : "Selection Tools",
-            "button_label" : "Select Quad Face Rings (Largest Count)",
-            "command_id"   : "select_quad_face_rings_largest",
-            "description"  : "Picks the candidate ring direction with the highest face count."
+            "button_id"              : "btn_select_quad_largest",
+            "tab_name"               : "Selection Tools",
+            "tool_group_name"        : "Quad Face Ring Selection",
+            "tool_group_description" : "Selection tools for traversing related quad face loops.",
+            "tool_group_order"       : 10,
+            "button_order"           : 30,
+            "button_label"           : "Select Quad Face Rings (Largest Count)",
+            "command_id"             : "select_quad_face_rings_largest",
+            "description"            : "Picks the candidate ring direction with the highest face count."
         },
         {
-            "button_id"    : "btn_lattice_prompt",
-            "tab_name"     : "Geometry Tools",
-            "button_label" : "Lattice Maker (Prompt)",
-            "command_id"   : "lattice_maker_prompt",
-            "description"  : "Creates lattice bars with explicit width/depth/mode prompt."
+            "button_id"              : "btn_lattice_prompt",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Lattice Generation",
+            "tool_group_description" : "Tools for generating lattice bars from selected model edges.",
+            "tool_group_order"       : 20,
+            "button_order"           : 10,
+            "button_label"           : "Lattice Maker (Prompt)",
+            "command_id"             : "lattice_maker_prompt",
+            "description"            : "Creates lattice bars with explicit width/depth/mode prompt."
         },
         {
-            "button_id"    : "btn_lattice_last",
-            "tab_name"     : "Geometry Tools",
-            "button_label" : "Lattice Maker (Use Last Values)",
-            "command_id"   : "lattice_maker_last",
-            "description"  : "Creates lattice bars immediately using saved width/depth/mode."
+            "button_id"              : "btn_lattice_last",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Lattice Generation",
+            "tool_group_description" : "Tools for generating lattice bars from selected model edges.",
+            "tool_group_order"       : 20,
+            "button_order"           : 20,
+            "button_label"           : "Lattice Maker (Use Last Values)",
+            "command_id"             : "lattice_maker_last",
+            "description"            : "Creates lattice bars immediately using saved width/depth/mode."
         },
         {
-            "button_id"    : "btn_auto_group_utility",
-            "tab_name"     : "Geometry Tools",
-            "button_label" : "Auto Group Utility",
-            "command_id"   : "auto_group_utility",
-            "description"  : "Groups each disconnected geometry island in the selection into its own SketchUp group."
+            "button_id"              : "btn_auto_group_utility",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Geometry Grouping",
+            "tool_group_description" : "Tools for grouping selected raw geometry into clean modelling units.",
+            "tool_group_order"       : 10,
+            "button_order"           : 10,
+            "button_label"           : "Auto Group Utility",
+            "command_id"             : "auto_group_utility",
+            "description"            : "Groups each disconnected geometry island in the selection into its own SketchUp group."
         },
         {
-            "button_id"    : "btn_auto_group_face_islands",
-            "tab_name"     : "Geometry Tools",
-            "button_label" : "Auto Group Face Islands",
-            "command_id"   : "auto_group_face_islands",
-            "description"  : "Groups each individual face in the selection into a sequentially named SketchUp group."
+            "button_id"              : "btn_auto_group_face_islands",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Geometry Grouping",
+            "tool_group_description" : "Tools for grouping selected raw geometry into clean modelling units.",
+            "tool_group_order"       : 10,
+            "button_order"           : 20,
+            "button_label"           : "Auto Group Face Islands",
+            "command_id"             : "auto_group_face_islands",
+            "description"            : "Groups each individual face in the selection into a sequentially named SketchUp group."
         },
         {
-            "button_id"    : "btn_reload_plugin",
-            "tab_name"     : "Settings",
-            "button_label" : "Reload Plugin Data",
-            "command_id"   : "reload_plugin_data",
-            "description"  : "Reloads Ruby source and refreshes the dialog without restart."
+            "button_id"              : "btn_convert_components_to_groups",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Component Containers",
+            "tool_group_description" : "Utilities for changing SketchUp entity containers without editing their raw geometry.",
+            "tool_group_order"       : 10,
+            "button_order"           : 10,
+            "button_label"           : "Convert Components To Groups",
+            "command_id"             : "convert_components_to_groups",
+            "description"            : "Converts selected component instances and nested component instances into independent SketchUp groups."
+        },
+        {
+            "button_id"              : "btn_insert_component_in_place",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Component Containers",
+            "tool_group_description" : "Utilities for changing SketchUp entity containers without editing their raw geometry.",
+            "tool_group_order"       : 10,
+            "button_order"           : 20,
+            "button_label"           : "Insert Component In Place",
+            "command_id"             : "insert_component_in_place",
+            "description"            : "Loads a selected .skp file as a component and inserts it at world identity for Xref-style placement."
+        },
+        {
+            "button_id"              : "btn_reload_plugin",
+            "tab_name"               : "Settings",
+            "tool_group_name"        : "Plugin Maintenance",
+            "tool_group_description" : "Development helpers for refreshing the plugin during active SketchUp sessions.",
+            "tool_group_order"       : 10,
+            "button_order"           : 10,
+            "button_label"           : "Reload Plugin Data",
+            "command_id"             : "reload_plugin_data",
+            "description"            : "Reloads Ruby source and refreshes the dialog without restart."
         }
     ],
     "settings"               : {
@@ -201,6 +279,14 @@
         },
         {
             "command_id"        : "auto_group_face_islands",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "convert_components_to_groups",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "insert_component_in_place",
             "expose_to_hotkeys" : true
         },
         {

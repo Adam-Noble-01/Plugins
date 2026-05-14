@@ -7,6 +7,11 @@
 # PURPOSE    : Load all feature script modules under 10__PluginModules
 # CREATED    : 2026
 #
+# CONFIG-FIRST DESIGN NOTE:
+# Feature modules may be required here, but tool tabs, grouping, labels, command
+# IDs, ordering, and hotkey visibility belong in the JSON command registry. Avoid
+# adding UI layout rules or button placement logic to this loader.
+#
 # =============================================================================
 
 module Na__Noble3dModellingTools
@@ -23,6 +28,8 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/02__SourceCode__LatticeMaker/Na__Noble3dModellingTools__LatticeMaker__Loader__'
             require_relative '../../10__PluginModules/03__SourceCode__AutoGroupUtility/Na__Noble3dModellingTools__AutoGroupUtility__Loader__'
             require_relative '../../10__PluginModules/04__SourceCode__AutoGroupFaceIslands/Na__Noble3dModellingTools__AutoGroupFaceIslands__Loader__'
+            require_relative '../../10__PluginModules/05__SourceCode__ConvertComponentsToGroups/Na__Noble3dModellingTools__ConvertComponentsToGroups__Loader__'
+            require_relative '../../10__PluginModules/06__SourceCode__InsertComponentInPlace/Na__Noble3dModellingTools__InsertComponentInPlace__Loader__'
 
             @na_feature_modules_loaded = true
             true

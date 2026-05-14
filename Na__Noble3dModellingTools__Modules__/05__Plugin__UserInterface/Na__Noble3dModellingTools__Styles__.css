@@ -3,6 +3,11 @@
 /*                                                                               */
 /* FILE       : Na__Noble3dModellingTools__Styles__.css                          */
 /* PURPOSE    : Stylesheet content inlined into HtmlDialog layout template       */
+/*                                                                               */
+/* CONFIG-FIRST DESIGN NOTE:                                                     */
+/* Style generic tab, tool group, card, and status components only. Which tools   */
+/* appear in which groups comes from the JSON registry, not CSS selectors tied    */
+/* to specific tool commands.                                                     */
 /* ============================================================================= */
 
 
@@ -169,8 +174,40 @@ body {
 
 
 /* -----------------------------------------------------------------------------
- * REGION | Tool Grid — Cards, Actions, Empty State
+ * REGION | Tool Groups — Section Dividers, Cards, Actions, Empty State
  * ----------------------------------------------------------------------------- */
+
+.naNoble3d__ToolGroups {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 14px;
+}
+
+.naNoble3d__ToolGroup {
+    background              : rgba(255, 255, 255, 0.55);
+    border                  : 1px solid var(--naNoble3d_Border);
+    border-radius           : 8px;
+    padding                 : 12px;
+}
+
+.naNoble3d__ToolGroupHeader {
+    padding-bottom          : 8px;
+    margin-bottom           : 10px;
+    border-bottom           : 1px solid var(--naNoble3d_Border);
+}
+
+.naNoble3d__ToolGroupTitle {
+    margin                  : 0;
+    font-size               : 13px;
+    font-weight             : 600;
+    color                   : var(--naNoble3d_Text);
+}
+
+.naNoble3d__ToolGroupDescription {
+    margin                  : 4px 0 0;
+    font-size               : 11px;
+    color                   : var(--naNoble3d_MutedText);
+}
 
 .naNoble3d__ToolGrid {
     display                 : grid;
@@ -182,33 +219,51 @@ body {
     background              : var(--naNoble3d_PanelBg);
     border                  : 1px solid var(--naNoble3d_Border);
     border-radius           : 6px;
-    padding                 : 10px;
+    padding                 : 12px;
     display                 : flex;
     flex-direction          : column;
-    gap                     : 10px;
+    align-items             : stretch;
+    gap                     : 8px;
+    width                   : 100%;
+    min-height              : 96px;
+    color                   : inherit;
+    text-align              : left;
+    cursor                  : pointer;
+    font                    : inherit;
+    appearance              : none;
+    transition              : transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.naNoble3d__ToolCard:hover {
+    border-color            : var(--naNoble3d_Accent);
+    background              : #fbfdff;
+    box-shadow              : 0 4px 12px rgba(47, 119, 213, 0.16);
+    transform               : translateY(-2px);
+}
+
+.naNoble3d__ToolCard:active {
+    box-shadow              : 0 2px 6px rgba(47, 119, 213, 0.18);
+    transform               : translateY(0) scale(0.985);
+}
+
+.naNoble3d__ToolCard:focus-visible {
+    outline                 : 2px solid var(--naNoble3d_Accent);
+    outline-offset          : 2px;
+}
+
+.naNoble3d__ToolTitle {
+    display                 : block;
+    font-size               : 13px;
+    font-weight             : 600;
+    color                   : var(--naNoble3d_Text);
+    line-height             : 1.25;
 }
 
 .naNoble3d__ToolDescription {
     margin                  : 0;
     font-size               : 12px;
     color                   : var(--naNoble3d_MutedText);
-    min-height              : 34px;
-}
-
-.naNoble3d__ActionButton {
-    border                  : 1px solid var(--naNoble3d_Accent);
-    border-radius           : 4px;
-    background              : var(--naNoble3d_Accent);
-    color                   : #ffffff;
-    padding                 : 8px 10px;
-    text-align              : left;
-    cursor                  : pointer;
-    font-size               : 12px;
-}
-
-.naNoble3d__ActionButton:hover {
-    background              : var(--naNoble3d_AccentHover);
-    border-color            : var(--naNoble3d_AccentHover);
+    line-height             : 1.35;
 }
 
 .naNoble3d__EmptyState {
