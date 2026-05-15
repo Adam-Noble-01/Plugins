@@ -96,8 +96,7 @@ module Na__ComponentEditorTools
 
         def self.Na__ComponentEditorTools__UiData(active_tab_id)
             {
-                active_tab: active_tab_id.to_s.empty? ? Na__ComponentEditorTools::NA_DEFAULT_ACTIVE_TAB : active_tab_id.to_s,
-                logo_file_uri: Na__PathResolver.Na__ComponentEditorTools__LogoFileUri
+                active_tab: active_tab_id.to_s.empty? ? Na__ComponentEditorTools::NA_DEFAULT_ACTIVE_TAB : active_tab_id.to_s
             }
         end
 

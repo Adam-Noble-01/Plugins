@@ -1,23 +1,42 @@
 <!DOCTYPE html>
+<!-- =============================================================================
+     NA COMPONENT EDITOR TOOLS - UI LAYOUT
+     =============================================================================
+     FILE       : Na__ComponentEditorTools__UiLayout__.html
+     PURPOSE    : Main HtmlDialog shell with tab navigation and content panels
+     CREATED    : 2026
+     ============================================================================= -->
 <html lang="en">
+
+<!-- REGION | Head ----------------------------------------------------------- -->
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Na Component Editor Tools</title>
     <link rel="stylesheet" href="Na__ComponentEditorTools__Styles__.css">
 </head>
+<!-- endregion --------------------------------------------------------------- -->
+
 <body>
     <div class="naComponentEditor__Shell">
+
+        <!-- REGION | Brand Header ------------------------------------------- -->
         <header class="naComponentEditor__BrandHeader">
             <div class="naComponentEditor__BrandLeft">
-                <img id="na-component-logo" class="naComponentEditor__Logo" alt="Noble Architecture logo" onerror="this.style.display='none'">
+                <img id="na-component-logo"
+                     class="naComponentEditor__Logo"
+                     src="../01__AppAssets__ComponentEditorTools/Na__ComponentEditorTools__Brand__NobleLogo__.png"
+                     alt="Noble Architecture logo"
+                     onerror="this.style.display='none'">
             </div>
             <div class="naComponentEditor__Title">
                 <span class="naComponentEditor__TitleMain">Na Component Editor Tools</span>
                 <span class="naComponentEditor__TitleSub">by Noble Architecture</span>
             </div>
         </header>
+        <!-- endregion ------------------------------------------------------- -->
 
+        <!-- REGION | Tab Action Bar ----------------------------------------- -->
         <div class="naComponentEditor__TabActionBar">
             <nav class="naComponentEditor__TabBar">
                 <button class="naComponentEditor__TabButton naComponentEditor__TabButton--active" data-tab-id="overview" type="button">Overview</button>
@@ -30,8 +49,11 @@
                 <button id="na-component-btn-header-refresh" class="naComponentEditor__Button" type="button">Reload Selection</button>
             </div>
         </div>
+        <!-- endregion ------------------------------------------------------- -->
 
         <main class="naComponentEditor__Main">
+
+            <!-- REGION | Tab: Overview -------------------------------------- -->
             <section id="na-component-tab-overview" class="naComponentEditor__TabPanel naComponentEditor__TabPanel--active" data-tab-id="overview">
                 <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">Editable Fields</h2>
@@ -73,7 +95,9 @@
                     <div id="na-component-overview-behavior-data" class="naComponentEditor__MetaRows"></div>
                 </section>
             </section>
+            <!-- endregion --------------------------------------------------- -->
 
+            <!-- REGION | Tab: Attributes ------------------------------------ -->
             <section id="na-component-tab-attributes" class="naComponentEditor__TabPanel" data-tab-id="attributes">
                 <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">Add / Update Attribute</h2>
@@ -128,7 +152,9 @@
                     </div>
                 </section>
             </section>
+            <!-- endregion --------------------------------------------------- -->
 
+            <!-- REGION | Tab: Thumbnail ------------------------------------- -->
             <section id="na-component-tab-thumbnail" class="naComponentEditor__TabPanel" data-tab-id="thumbnail">
                 <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">Visible View Render And Thumbnail</h2>
@@ -157,7 +183,9 @@
                     </div>
                 </section>
             </section>
+            <!-- endregion --------------------------------------------------- -->
 
+            <!-- REGION | Tab: Settings -------------------------------------- -->
             <section id="na-component-tab-settings" class="naComponentEditor__TabPanel" data-tab-id="settings">
                 <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">Plugin Maintenance</h2>
@@ -174,18 +202,30 @@
                     <p class="naComponentEditor__MutedText">Shared assets are resolved from <span class="naComponentEditor__Mono">Na__Common__PluginDependencies</span>.</p>
                 </section>
             </section>
+            <!-- endregion --------------------------------------------------- -->
+
         </main>
 
+        <!-- REGION | Status Bar --------------------------------------------- -->
         <footer class="naComponentEditor__StatusBar">
             <p id="na-component-status" class="naComponentEditor__StatusText">Ready.</p>
         </footer>
+        <!-- endregion ------------------------------------------------------- -->
+
     </div>
 
+    <!-- REGION | Scripts ---------------------------------------------------- -->
     <script src="Na__ComponentEditorTools__UiBridge__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Overview__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Attributes__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Thumbnail__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Settings__.js"></script>
     <script src="Na__ComponentEditorTools__TabRouter__.js"></script>
+    <!-- endregion --------------------------------------------------------------- -->
+
 </body>
 </html>
+
+<!-- =============================================================================
+     END OF FILE
+     ============================================================================= -->

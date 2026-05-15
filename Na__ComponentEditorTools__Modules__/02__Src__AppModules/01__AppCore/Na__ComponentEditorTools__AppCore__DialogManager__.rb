@@ -124,7 +124,7 @@ module Na__ComponentEditorTools
         def self.Na__ComponentEditorTools__BindCallbacks(dialog)
             callback_registry = {
                 'na_componenteditortools_request_selection' => proc {
-                    self.Na__ComponentEditorTools__HandleSelectionChanged
+                    self.Na__ComponentEditorTools__BuildAndPushPayload
                 },
                 'na_componenteditortools_set_active_tab' => proc { |tab_id|
                     self.Na__ComponentEditorTools__SetActiveTab(tab_id)

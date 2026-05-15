@@ -44,34 +44,12 @@ module Na__ComponentEditorTools
 # REGION | Plugin And Shared Asset Paths
 # -----------------------------------------------------------------------------
 
-        def self.Na__ComponentEditorTools__LocalAssetsDirectory
-            File.join(self.Na__ComponentEditorTools__ModulesRoot, '01__AppAssets__ComponentEditorTools')
-        end
-
         def self.Na__ComponentEditorTools__SharedAssetsDirectory
             File.join(self.Na__ComponentEditorTools__PluginRoot, 'Na__Common__PluginDependencies')
         end
 
-        def self.Na__ComponentEditorTools__LogoPath
-            local_logo_path = File.join(
-                self.Na__ComponentEditorTools__LocalAssetsDirectory,
-                'Na__ComponentEditorTools__Brand__NobleLogo__.png'
-            )
-            return local_logo_path if File.exist?(local_logo_path)
-
-            File.join(self.Na__ComponentEditorTools__SharedAssetsDirectory, 'IMG01__PNG__NaCompanyLogo.png')
-        end
-
         def self.Na__ComponentEditorTools__ToolbarIconPath
             File.join(self.Na__ComponentEditorTools__SharedAssetsDirectory, 'IMG02__ICN__NaCompanyIcon.png')
-        end
-
-        def self.Na__ComponentEditorTools__LogoFileUri
-            logo_path = self.Na__ComponentEditorTools__LogoPath
-            return '' unless File.exist?(logo_path)
-
-            normalized = logo_path.tr('\\', '/').sub(%r{^/+}, '')
-            'file:///' + normalized.gsub(' ', '%20')
         end
 
 # endregion -------------------------------------------------------------------

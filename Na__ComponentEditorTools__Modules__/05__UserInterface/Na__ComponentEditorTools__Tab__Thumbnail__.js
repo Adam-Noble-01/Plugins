@@ -1,8 +1,29 @@
+// =============================================================================
+// NA COMPONENT EDITOR TOOLS - TAB | THUMBNAIL
+// =============================================================================
+//
+// FILE       : Na__ComponentEditorTools__Tab__Thumbnail__.js
+// PURPOSE    : Render and manage the Thumbnail tab content and event binding
+// CREATED    : 2026
+//
+// =============================================================================
+
 (function () {
     'use strict';
 
+// -----------------------------------------------------------------------------
+// REGION | Module State
+// -----------------------------------------------------------------------------
+
     var Na__ComponentEditorTools__ThumbnailTab = {};
     var na_events_bound = false;
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Private Helpers
+// -----------------------------------------------------------------------------
 
     function na_escape_html(value) {
         return String(value === null || value === undefined ? '' : value)
@@ -41,6 +62,30 @@
         }).join('');
     }
 
+    function na_export_paths_data(temp_payload) {
+        var export_data = Object.assign({}, temp_payload || {});
+        var preview_source = export_data.current_thumbnail_preview_source || '';
+
+        export_data.current_render_preview_path = export_data.current_thumbnail_preview_path || '';
+        export_data.current_render_preview_source = preview_source === 'visible_viewport'
+            ? 'saved visible viewport framebuffer render'
+            : 'SketchUp component thumbnail export';
+
+        delete export_data.current_thumbnail_preview_path;
+        delete export_data.current_thumbnail_preview_uri;
+        delete export_data.current_thumbnail_preview_source;
+        delete export_data.current_thumbnail_preview_error;
+
+        return export_data;
+    }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Thumbnail Preview
+// -----------------------------------------------------------------------------
+
     function na_set_thumbnail_preview(temp_payload) {
         var image_element = document.getElementById('na-component-thumbnail-preview-image');
         if (!image_element) return;
@@ -55,6 +100,13 @@
             image_element.style.display = 'none';
         }
     }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Event Binding
+// -----------------------------------------------------------------------------
 
     function na_bind_events_once() {
         if (na_events_bound) return;
@@ -74,6 +126,13 @@
             });
         }
     }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Public API
+// -----------------------------------------------------------------------------
 
     Na__ComponentEditorTools__ThumbnailTab.Na__ComponentEditorTools__Render = function (payload) {
         na_bind_events_once();
@@ -116,22 +175,12 @@
         }
     };
 
-    function na_export_paths_data(temp_payload) {
-        var export_data = Object.assign({}, temp_payload || {});
-        var preview_source = export_data.current_thumbnail_preview_source || '';
-
-        export_data.current_render_preview_path = export_data.current_thumbnail_preview_path || '';
-        export_data.current_render_preview_source = preview_source === 'visible_viewport'
-            ? 'saved visible viewport framebuffer render'
-            : 'SketchUp component thumbnail export';
-
-        delete export_data.current_thumbnail_preview_path;
-        delete export_data.current_thumbnail_preview_uri;
-        delete export_data.current_thumbnail_preview_source;
-        delete export_data.current_thumbnail_preview_error;
-
-        return export_data;
-    }
-
     window.Na__ComponentEditorTools__ThumbnailTab = Na__ComponentEditorTools__ThumbnailTab;
+
+// endregion -------------------------------------------------------------------
+
 })();
+
+// =============================================================================
+// END OF FILE
+// =============================================================================

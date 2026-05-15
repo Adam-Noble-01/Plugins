@@ -1,8 +1,29 @@
+// =============================================================================
+// NA COMPONENT EDITOR TOOLS - TAB ROUTER
+// =============================================================================
+//
+// FILE       : Na__ComponentEditorTools__TabRouter__.js
+// PURPOSE    : Manage tab navigation - activate panels and sync button states
+// CREATED    : 2026
+//
+// =============================================================================
+
 (function () {
     'use strict';
 
+// -----------------------------------------------------------------------------
+// REGION | Module State
+// -----------------------------------------------------------------------------
+
     var Na__ComponentEditorTools__TabRouter = {};
     var na_active_tab = 'overview';
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | DOM Helpers
+// -----------------------------------------------------------------------------
 
     function na_tab_buttons() {
         return Array.prototype.slice.call(document.querySelectorAll('.naComponentEditor__TabButton'));
@@ -11,6 +32,13 @@
     function na_tab_panels() {
         return Array.prototype.slice.call(document.querySelectorAll('.naComponentEditor__TabPanel'));
     }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Tab Activation
+// -----------------------------------------------------------------------------
 
     function na_apply_tab_classes(active_tab_id) {
         na_tab_buttons().forEach(function (button_element) {
@@ -35,6 +63,13 @@
         });
     }
 
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Public API
+// -----------------------------------------------------------------------------
+
     Na__ComponentEditorTools__TabRouter.Na__ComponentEditorTools__ActivateTab = function (tab_id, notify_ruby) {
         var normalized_tab_id = String(tab_id || '').trim();
         if (!normalized_tab_id) return;
@@ -58,9 +93,23 @@
 
     window.Na__ComponentEditorTools__TabRouter = Na__ComponentEditorTools__TabRouter;
 
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Init
+// -----------------------------------------------------------------------------
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', Na__ComponentEditorTools__TabRouter.Na__ComponentEditorTools__Init);
     } else {
         Na__ComponentEditorTools__TabRouter.Na__ComponentEditorTools__Init();
     }
+
+// endregion -------------------------------------------------------------------
+
 })();
+
+// =============================================================================
+// END OF FILE
+// =============================================================================

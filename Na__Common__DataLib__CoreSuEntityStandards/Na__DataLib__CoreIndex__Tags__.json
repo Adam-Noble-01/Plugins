@@ -69,6 +69,12 @@
                 "Glb__ExportRangeNumbers"    : null,
                 "Glb__FullyExcluded"         : true
             },
+            "05__3dModelingUtil__BoundingBoxes": {
+                "Tag__SketchUpName"          : "05__3dModelingUtil__AssetDimensions",
+                "Tag__Description"           : "Temporary asset dimensions used for thumbnail images for Components, Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"    : null,
+                "Glb__FullyExcluded"         : true
+            },
             "06__Reference__CadData__General": {
                 "Tag__SketchUpName"          : "06__Reference__CadData__General",
                 "Tag__Description"           : "Imported 2D or 3D CAD reference data. Leave this tag off for final exports. Always excluded from GLB export.",

@@ -1,10 +1,32 @@
+// =============================================================================
+// NA COMPONENT EDITOR TOOLS - UI BRIDGE
+// =============================================================================
+//
+// FILE       : Na__ComponentEditorTools__UiBridge__.js
+// PURPOSE    : JS-to-Ruby bridge, global state, incoming payload handlers,
+//              and outgoing SketchUp callback dispatch
+// CREATED    : 2026
+//
+// =============================================================================
+
 (function () {
     'use strict';
+
+// -----------------------------------------------------------------------------
+// REGION | Module State
+// -----------------------------------------------------------------------------
 
     var Na__ComponentEditorTools__State = {
         payload: null,
         activeTab: 'overview'
     };
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Status Bar
+// -----------------------------------------------------------------------------
 
     function na_status_element() {
         return document.getElementById('na-component-status');
@@ -23,11 +45,12 @@
         if (variant_name === 'warning') status_element.classList.add('naComponentEditor__StatusText--warning');
     }
 
-    function na_set_logo_uri(file_uri) {
-        var logo_element = document.getElementById('na-component-logo');
-        if (!logo_element || !file_uri) return;
-        logo_element.src = String(file_uri);
-    }
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | SketchUp Bridge
+// -----------------------------------------------------------------------------
 
     function na_has_callback(callback_name) {
         return typeof window.sketchup !== 'undefined' && typeof window.sketchup[callback_name] === 'function';
@@ -55,6 +78,13 @@
         }
     }
 
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Tab Renderers
+// -----------------------------------------------------------------------------
+
     function na_render_tabs(payload) {
         if (window.Na__ComponentEditorTools__OverviewTab &&
             typeof window.Na__ComponentEditorTools__OverviewTab.Na__ComponentEditorTools__Render === 'function') {
@@ -77,6 +107,13 @@
         }
     }
 
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Incoming Handlers
+// -----------------------------------------------------------------------------
+
     function Na__ComponentEditorTools__ReceiveStatus(status_payload) {
         if (!status_payload || typeof status_payload !== 'object') return;
         na_set_status(status_payload.message || '', status_payload.variant || 'info');
@@ -86,10 +123,6 @@
         if (!payload || typeof payload !== 'object') return;
 
         Na__ComponentEditorTools__State.payload = payload;
-
-        if (payload.ui && payload.ui.logo_file_uri) {
-            na_set_logo_uri(payload.ui.logo_file_uri);
-        }
 
         if (payload.status) {
             Na__ComponentEditorTools__ReceiveStatus(payload.status);
@@ -119,6 +152,13 @@
             window.Na__ComponentEditorTools__TabRouter.Na__ComponentEditorTools__ActivateTab(active_tab, false);
         }
     }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Outgoing Ruby Calls
+// -----------------------------------------------------------------------------
 
     function Na__ComponentEditorTools__NotifyActiveTab(active_tab_id) {
         Na__ComponentEditorTools__State.activeTab = String(active_tab_id || 'overview');
@@ -158,23 +198,44 @@
         na_call_ruby('na_componenteditortools_reload_plugin');
     }
 
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | State Accessors
+// -----------------------------------------------------------------------------
+
     function Na__ComponentEditorTools__CurrentPayload() {
         return Na__ComponentEditorTools__State.payload;
     }
 
-    window.Na__ComponentEditorTools__ReceiveStatus = Na__ComponentEditorTools__ReceiveStatus;
-    window.Na__ComponentEditorTools__ReceivePayload = Na__ComponentEditorTools__ReceivePayload;
-    window.Na__ComponentEditorTools__SetActiveTab = Na__ComponentEditorTools__SetActiveTab;
-    window.Na__ComponentEditorTools__NotifyActiveTab = Na__ComponentEditorTools__NotifyActiveTab;
-    window.Na__ComponentEditorTools__RequestSelection = Na__ComponentEditorTools__RequestSelection;
-    window.Na__ComponentEditorTools__ApplyBasicFields = Na__ComponentEditorTools__ApplyBasicFields;
-    window.Na__ComponentEditorTools__UpdateComponent = Na__ComponentEditorTools__UpdateComponent;
-    window.Na__ComponentEditorTools__SetAttribute = Na__ComponentEditorTools__SetAttribute;
-    window.Na__ComponentEditorTools__DeleteAttribute = Na__ComponentEditorTools__DeleteAttribute;
-    window.Na__ComponentEditorTools__RefreshThumbnail = Na__ComponentEditorTools__RefreshThumbnail;
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Window Exports
+// -----------------------------------------------------------------------------
+
+    window.Na__ComponentEditorTools__ReceiveStatus      = Na__ComponentEditorTools__ReceiveStatus;
+    window.Na__ComponentEditorTools__ReceivePayload     = Na__ComponentEditorTools__ReceivePayload;
+    window.Na__ComponentEditorTools__SetActiveTab       = Na__ComponentEditorTools__SetActiveTab;
+    window.Na__ComponentEditorTools__NotifyActiveTab    = Na__ComponentEditorTools__NotifyActiveTab;
+    window.Na__ComponentEditorTools__RequestSelection   = Na__ComponentEditorTools__RequestSelection;
+    window.Na__ComponentEditorTools__ApplyBasicFields   = Na__ComponentEditorTools__ApplyBasicFields;
+    window.Na__ComponentEditorTools__UpdateComponent    = Na__ComponentEditorTools__UpdateComponent;
+    window.Na__ComponentEditorTools__SetAttribute       = Na__ComponentEditorTools__SetAttribute;
+    window.Na__ComponentEditorTools__DeleteAttribute    = Na__ComponentEditorTools__DeleteAttribute;
+    window.Na__ComponentEditorTools__RefreshThumbnail   = Na__ComponentEditorTools__RefreshThumbnail;
     window.Na__ComponentEditorTools__CaptureViewportPng = Na__ComponentEditorTools__CaptureViewportPng;
-    window.Na__ComponentEditorTools__ReloadPlugin = Na__ComponentEditorTools__ReloadPlugin;
-    window.Na__ComponentEditorTools__CurrentPayload = Na__ComponentEditorTools__CurrentPayload;
+    window.Na__ComponentEditorTools__ReloadPlugin       = Na__ComponentEditorTools__ReloadPlugin;
+    window.Na__ComponentEditorTools__CurrentPayload     = Na__ComponentEditorTools__CurrentPayload;
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Init
+// -----------------------------------------------------------------------------
 
     document.addEventListener('DOMContentLoaded', function () {
         var refresh_button = document.getElementById('na-component-btn-header-refresh');
@@ -197,4 +258,11 @@
 
         Na__ComponentEditorTools__RequestSelection();
     });
+
+// endregion -------------------------------------------------------------------
+
 })();
+
+// =============================================================================
+// END OF FILE
+// =============================================================================
