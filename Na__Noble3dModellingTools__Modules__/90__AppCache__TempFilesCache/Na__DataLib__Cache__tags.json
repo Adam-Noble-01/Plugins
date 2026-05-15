@@ -1,5 +1,5 @@
 {
-  "cached_at": 1778845254,
+  "cached_at": 1778864197,
   "data": {
     "meta": {
       "fileName": "Na__DataLib__CoreIndex__Tags__.json",
@@ -77,8 +77,8 @@
           "Glb__FullyExcluded": true
         },
         "05__3dModelingUtil__BoundingBoxes": {
-          "Tag__SketchUpName": "05__3dModelingUtil__BoundingBoxes",
-          "Tag__Description": "Temporary bounding box helpers to visualize object extents or aid boolean operations. Always excluded from GLB export.",
+          "Tag__SketchUpName": "05__3dModelingUtil__AssetDimensions",
+          "Tag__Description": "Temporary asset dimensions used for thumbnail images for Components, Always excluded from GLB export.",
           "Glb__ExportRangeNumbers": null,
           "Glb__FullyExcluded": true
         },

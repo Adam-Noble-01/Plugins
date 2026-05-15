@@ -1,5 +1,5 @@
 {
-  "cached_at": 1778663127,
+  "cached_at": 1778858760,
   "data": {
     "meta": {
       "fileName": "Na__DataLib__CoreIndex__Tags__.json",
@@ -69,6 +69,30 @@
             0,
             0
           ]
+        },
+        "05__3dModelingUtil__MirrorPlanes": {
+          "Tag__SketchUpName": "05__3dModelingUtil__MirrorPlanes",
+          "Tag__Description": "Temporary mirror plane faces used as construction aids for symmetrical modeling. Always excluded from GLB export.",
+          "Glb__ExportRangeNumbers": null,
+          "Glb__FullyExcluded": true
+        },
+        "05__3dModelingUtil__BoundingBoxes": {
+          "Tag__SketchUpName": "05__3dModelingUtil__AssetDimensions",
+          "Tag__Description": "Temporary asset dimensions used for thumbnail images for Components, Always excluded from GLB export.",
+          "Glb__ExportRangeNumbers": null,
+          "Glb__FullyExcluded": true
+        },
+        "06__Reference__CadData__General": {
+          "Tag__SketchUpName": "06__Reference__CadData__General",
+          "Tag__Description": "Imported 2D or 3D CAD reference data. Leave this tag off for final exports. Always excluded from GLB export.",
+          "Glb__ExportRangeNumbers": null,
+          "Glb__FullyExcluded": true
+        },
+        "06__Reference__Drawings__General": {
+          "Tag__SketchUpName": "06__Reference__Drawings__General",
+          "Tag__Description": "Reference geometry and drawing data (images, PDFs, etc.) imported for modeling guidance only. Always excluded from GLB export.",
+          "Glb__ExportRangeNumbers": null,
+          "Glb__FullyExcluded": true
         }
       },
       "03__LayoutDrawingLineworkTags__": {
