@@ -81,6 +81,33 @@ module Na__Noble3dModellingTools
             when 'insert_component_in_place'
                 proc { Na__InsertComponentInPlace.Na__InsertComponentInPlace__Run }
 
+            when 'load_modelling_utility_materials'
+                proc { Na__MaterialUtils.Na__MaterialUtils__LoadModelingUtilityMaterials }
+
+            when 'load_truevision_materials_palette'
+                proc { Na__MaterialUtils.Na__MaterialUtils__LoadTrueVisionMaterialsPalette }
+
+            when 'load_all_noble_architecture_materials'
+                proc { Na__MaterialUtils.Na__MaterialUtils__LoadAllNobleArchitectureMaterials }
+
+            when 'load_all_tags'
+                proc { Na__TagUtils.Na__TagUtils__LoadAllTags }
+
+            when 'load_modeling_helper_tags'
+                proc { Na__TagUtils.Na__TagUtils__LoadModelingHelperTags }
+
+            when 'load_line_thickness_tags'
+                proc { Na__TagUtils.Na__TagUtils__LoadLineThicknessTags }
+
+            when 'load_truevision_minimal_tags'
+                proc { Na__TagUtils.Na__TagUtils__LoadTrueVisionMinimalTags }
+
+            when 'load_truevision_all_tags'
+                proc { Na__TagUtils.Na__TagUtils__LoadTrueVisionAllTags }
+
+            when 'check_web_status'
+                proc { Na__WebStatus.Na__WebStatus__CheckDataLibWebStatus }
+
             when 'reload_plugin_data'
                 proc { Na__ReloadManager.Na__Noble3dModellingTools__ReloadPluginData }
 

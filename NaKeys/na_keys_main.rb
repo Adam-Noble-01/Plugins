@@ -8,7 +8,7 @@ require 'set'
 module NaKeys
   MENU_NAME     = 'NaKeys'
   STATES_DICT   = 'NaKeys__ToggleStates'   # Stores simple boolean per toggle id
-  REQUIRED_TAGS = ['06__Drawings', '05__Mirror'].freeze
+  # Legacy REQUIRED_TAGS (06__Drawings, 05__Mirror) auto-creation removed — tag schema is owned elsewhere.
 
   Toggle = Struct.new(:id, :tag_names, :tag_prefixes, :entity_prefixes)
 
@@ -242,11 +242,6 @@ module NaKeys
   # --------------------------------------------------------------------------
   # Startup wiring
   # --------------------------------------------------------------------------
-  def self.ensure_required_tags(model)
-    layers = model.layers
-    REQUIRED_TAGS.each { |name| layers.add(name) unless layers[name] }
-  end
-
   def self.install_menu_and_commands
     return if @menu_installed
     menu = UI.menu('Plugins').add_submenu(MENU_NAME)
@@ -262,7 +257,6 @@ module NaKeys
   end
 
   def self.activate_for_model(model)
-    ensure_required_tags(model)
     install_menu_and_commands
   end
 

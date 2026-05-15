@@ -1,0 +1,370 @@
+/* =============================================================================
+   NA COMPONENT EDITOR TOOLS - UI STYLES
+   =============================================================================
+   FILE       : Na__ComponentEditorTools__Styles__.css
+   PURPOSE    : Shared HtmlDialog styling for tab shell, forms, cards, and status
+   CREATED    : 2026
+   ============================================================================= */
+
+:root {
+    --naComponentEditor_Bg          : #f4f6f8;
+    --naComponentEditor_Panel       : #ffffff;
+    --naComponentEditor_Text        : #1b1f24;
+    --naComponentEditor_MutedText   : #5b636d;
+    --naComponentEditor_Border      : #d6dbe1;
+    --naComponentEditor_Accent      : #2f77d5;
+    --naComponentEditor_AccentHover : #2464b8;
+    --naComponentEditor_Success     : #1f7a42;
+    --naComponentEditor_Error       : #b32d2d;
+    --naComponentEditor_Warn        : #8a6314;
+}
+
+* {
+    box-sizing                      : border-box;
+}
+
+html,
+body {
+    margin                          : 0;
+    padding                         : 0;
+    width                           : 100%;
+    height                          : 100%;
+    font-family                     : "Segoe UI", Arial, sans-serif;
+    font-size                       : 13px;
+    color                           : var(--naComponentEditor_Text);
+    background                      : var(--naComponentEditor_Bg);
+}
+
+.naComponentEditor__Shell {
+    display                         : flex;
+    flex-direction                  : column;
+    width                           : 100%;
+    height                          : 100%;
+}
+
+.naComponentEditor__BrandHeader {
+    display                         : flex;
+    align-items                     : center;
+    justify-content                 : space-between;
+    gap                             : 12px;
+    padding                         : 12px 16px;
+    border-bottom                   : 1px solid var(--naComponentEditor_Border);
+    background                      : var(--naComponentEditor_Panel);
+}
+
+.naComponentEditor__BrandLeft {
+    display                         : flex;
+    align-items                     : center;
+    gap                             : 10px;
+    min-width                       : 180px;
+}
+
+.naComponentEditor__Logo {
+    height                          : 32px;
+    width                           : auto;
+    display                         : block;
+}
+
+.naComponentEditor__Title {
+    display                         : flex;
+    flex-direction                  : column;
+    align-items                     : flex-end;
+    gap                             : 2px;
+    text-align                      : right;
+}
+
+.naComponentEditor__TitleMain {
+    font-size                       : 17px;
+    font-weight                     : 600;
+}
+
+.naComponentEditor__TitleSub {
+    font-size                       : 12px;
+    color                           : var(--naComponentEditor_MutedText);
+}
+
+.naComponentEditor__HeaderActions {
+    display                         : flex;
+    align-items                     : center;
+    justify-content                 : flex-end;
+    flex-wrap                       : wrap;
+    gap                             : 8px;
+    padding-right                   : 12px;
+}
+
+.naComponentEditor__TabActionBar {
+    display                         : flex;
+    align-items                     : center;
+    justify-content                 : space-between;
+    gap                             : 10px;
+    border-bottom                   : 1px solid var(--naComponentEditor_Border);
+    background                      : var(--naComponentEditor_Panel);
+}
+
+.naComponentEditor__TabBar {
+    display                         : flex;
+    flex-wrap                       : wrap;
+    gap                             : 6px;
+    padding                         : 10px 12px;
+    flex                            : 1;
+}
+
+.naComponentEditor__TabButton {
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 4px;
+    background                      : #fdfdfd;
+    padding                         : 7px 10px;
+    cursor                          : pointer;
+    font-size                       : 12px;
+}
+
+.naComponentEditor__TabButton:hover {
+    border-color                    : var(--naComponentEditor_Accent);
+}
+
+.naComponentEditor__TabButton--active {
+    color                           : #ffffff;
+    border-color                    : var(--naComponentEditor_Accent);
+    background                      : var(--naComponentEditor_Accent);
+}
+
+.naComponentEditor__Main {
+    flex                            : 1;
+    overflow                        : auto;
+    padding                         : 12px;
+}
+
+.naComponentEditor__TabPanel {
+    display                         : none;
+}
+
+.naComponentEditor__TabPanel--active {
+    display                         : block;
+}
+
+.naComponentEditor__Panel {
+    background                      : var(--naComponentEditor_Panel);
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 8px;
+    padding                         : 12px;
+    margin-bottom                   : 12px;
+}
+
+.naComponentEditor__PanelHeading {
+    margin                          : 0 0 8px;
+    font-size                       : 13px;
+    font-weight                     : 600;
+}
+
+.naComponentEditor__PanelSubheading {
+    margin                          : 0 0 10px;
+    font-size                       : 12px;
+    color                           : var(--naComponentEditor_MutedText);
+}
+
+.naComponentEditor__Grid2 {
+    display                         : grid;
+    grid-template-columns           : 1fr 1fr;
+    gap                             : 10px;
+}
+
+.naComponentEditor__Grid3 {
+    display                         : grid;
+    grid-template-columns           : 1fr 1fr 1fr;
+    gap                             : 10px;
+}
+
+.naComponentEditor__Label {
+    display                         : flex;
+    flex-direction                  : column;
+    gap                             : 6px;
+    font-size                       : 12px;
+    color                           : var(--naComponentEditor_MutedText);
+}
+
+.naComponentEditor__Input,
+.naComponentEditor__Select,
+.naComponentEditor__Textarea {
+    width                           : 100%;
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 4px;
+    padding                         : 8px;
+    font-family                     : inherit;
+    font-size                       : 13px;
+    color                           : var(--naComponentEditor_Text);
+    background                      : #ffffff;
+}
+
+.naComponentEditor__Textarea {
+    min-height                      : 72px;
+    resize                          : vertical;
+}
+
+.naComponentEditor__ButtonRow {
+    display                         : flex;
+    flex-wrap                       : wrap;
+    gap                             : 8px;
+}
+
+.naComponentEditor__Button {
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 4px;
+    background                      : #f9fafc;
+    color                           : var(--naComponentEditor_Text);
+    padding                         : 8px 11px;
+    cursor                          : pointer;
+    font-family                     : inherit;
+    font-size                       : 12px;
+}
+
+.naComponentEditor__Button:hover {
+    border-color                    : var(--naComponentEditor_Accent);
+}
+
+.naComponentEditor__Button--primary {
+    border-color                    : var(--naComponentEditor_Accent);
+    background                      : var(--naComponentEditor_Accent);
+    color                           : #ffffff;
+}
+
+.naComponentEditor__Button--primary:hover {
+    border-color                    : var(--naComponentEditor_AccentHover);
+    background                      : var(--naComponentEditor_AccentHover);
+}
+
+.naComponentEditor__Button--danger {
+    border-color                    : #d7a3a3;
+    color                           : #8d2a2a;
+    background                      : #fff5f5;
+}
+
+.naComponentEditor__MetaRows {
+    display                         : flex;
+    flex-direction                  : column;
+}
+
+.naComponentEditor__MetaRow {
+    display                         : grid;
+    grid-template-columns           : 180px minmax(0, 1fr);
+    gap                             : 8px;
+    padding                         : 5px 0;
+    border-bottom                   : 1px solid #edf0f3;
+}
+
+.naComponentEditor__MetaRow:last-child {
+    border-bottom                   : none;
+}
+
+.naComponentEditor__MetaKey {
+    color                           : var(--naComponentEditor_MutedText);
+}
+
+.naComponentEditor__MetaValue {
+    overflow-wrap                   : anywhere;
+}
+
+.naComponentEditor__Dictionary {
+    margin-bottom                   : 12px;
+}
+
+.naComponentEditor__DictionaryTitle {
+    margin                          : 0 0 8px;
+    font-size                       : 12px;
+    font-weight                     : 600;
+    color                           : var(--naComponentEditor_MutedText);
+}
+
+.naComponentEditor__AttributeTable {
+    width                           : 100%;
+    border-collapse                 : collapse;
+}
+
+.naComponentEditor__AttributeTable th,
+.naComponentEditor__AttributeTable td {
+    border-bottom                   : 1px solid #edf0f3;
+    text-align                      : left;
+    vertical-align                  : top;
+    padding                         : 6px 4px;
+}
+
+.naComponentEditor__AttributeTable th {
+    color                           : var(--naComponentEditor_MutedText);
+    font-size                       : 12px;
+}
+
+.naComponentEditor__AttributeControls {
+    display                         : flex;
+    gap                             : 6px;
+}
+
+.naComponentEditor__MutedText {
+    color                           : var(--naComponentEditor_MutedText);
+}
+
+.naComponentEditor__Mono {
+    font-family                     : Consolas, Menlo, monospace;
+    font-size                       : 12px;
+}
+
+.naComponentEditor__StatusBar {
+    border-top                      : 1px solid var(--naComponentEditor_Border);
+    background                      : var(--naComponentEditor_Panel);
+    padding                         : 10px 12px;
+}
+
+.naComponentEditor__StatusText {
+    margin                          : 0;
+    font-size                       : 12px;
+    color                           : var(--naComponentEditor_MutedText);
+}
+
+.naComponentEditor__StatusText--success {
+    color                           : var(--naComponentEditor_Success);
+}
+
+.naComponentEditor__StatusText--error {
+    color                           : var(--naComponentEditor_Error);
+}
+
+.naComponentEditor__StatusText--warning {
+    color                           : var(--naComponentEditor_Warn);
+}
+
+.naComponentEditor__ThumbnailPreviewWrap {
+    display                         : flex;
+    align-items                     : center;
+    justify-content                 : center;
+    min-height                      : 220px;
+    border                          : 1px solid #e5e9ee;
+    border-radius                   : 6px;
+    background                      : #fafbfd;
+    overflow                        : hidden;
+}
+
+.naComponentEditor__ThumbnailPreviewImage {
+    display                         : none;
+    max-width                       : 100%;
+    max-height                      : 320px;
+    object-fit                      : contain;
+}
+
+@media (max-width: 880px) {
+    .naComponentEditor__Grid2,
+    .naComponentEditor__Grid3 {
+        grid-template-columns       : 1fr;
+    }
+
+    .naComponentEditor__MetaRow {
+        grid-template-columns       : 1fr;
+    }
+
+    .naComponentEditor__TabActionBar {
+        align-items                 : stretch;
+        flex-direction              : column;
+    }
+
+    .naComponentEditor__HeaderActions {
+        justify-content             : flex-start;
+        padding                     : 0 12px 10px;
+    }
+}

@@ -18,6 +18,7 @@ require 'sketchup.rb'
 require 'json'
 
 require_relative '../../03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__PathResolver__'
+require_relative '../../03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__StandardDataCache__'
 require_relative '../../03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__ConfigLoader__'
 require_relative '../02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__'
 require_relative '../03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__'
@@ -33,6 +34,7 @@ module Na__Noble3dModellingTools
 # -----------------------------------------------------------------------------
 
     def self.Na__Noble3dModellingTools__RegisterHotkeysAndMenu
+        Na__StandardDataCache.Na__Noble3dModellingTools__PrimeStandardCache
         Na__HotkeyManager.Na__Noble3dModellingTools__RegisterHotkeysAndMenu
         Na__ToolbarIconLoader.Na__Noble3dModellingTools__CreateToolbar
         feature_modules_loaded = Na__ModuleLoaders.Na__Noble3dModellingTools__LoadFeatureModules
@@ -45,12 +47,14 @@ module Na__Noble3dModellingTools
     end
 
     def self.Na__Noble3dModellingTools__ShowMainDialog
+        Na__StandardDataCache.Na__Noble3dModellingTools__PrimeStandardCache
         feature_modules_loaded = Na__ModuleLoaders.Na__Noble3dModellingTools__LoadFeatureModules
         na_warn_feature_module_load_failure('show_main_dialog') unless feature_modules_loaded
         Na__DialogManager.Na__Noble3dModellingTools__ShowDialog
     end
 
     def self.Na__Noble3dModellingTools__RunCommandById(command_id)
+        Na__StandardDataCache.Na__Noble3dModellingTools__PrimeStandardCache
         feature_modules_loaded = Na__ModuleLoaders.Na__Noble3dModellingTools__LoadFeatureModules
         na_warn_feature_module_load_failure("run_command:#{command_id}") unless feature_modules_loaded
         Na__CommandRouter.Na__Noble3dModellingTools__RunCommand(command_id)

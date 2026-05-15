@@ -25,6 +25,18 @@
             "tab_description" : "Entity and container utilities for groups, components, and model organization."
         },
         {
+            "tab_id"          : "material_utils",
+            "tab_name"        : "Material Utils",
+            "tab_order"       : 40,
+            "tab_description" : "Material-library utilities for loading Noble Architecture standard materials into the active model."
+        },
+        {
+            "tab_id"          : "tag_utils",
+            "tab_name"        : "Tag Utils",
+            "tab_order"       : 50,
+            "tab_description" : "Tag-library utilities for loading Noble Architecture standard tags and line styles into the active model."
+        },
+        {
             "tab_id"          : "settings",
             "tab_name"        : "Settings",
             "tab_order"       : 90,
@@ -129,6 +141,87 @@
             "status_bar_text"   : "Insert a component file in place",
             "menu_text"         : "Insert Component In Place",
             "handler_key"       : "insert_component_in_place",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_modelling_utility_materials",
+            "command_name"      : "Na Noble3d - Load Modelling Utility Materials",
+            "tooltip"           : "Build modelling utility materials from the SSOT materials library",
+            "status_bar_text"   : "Load modelling utility materials from standard library",
+            "menu_text"         : "Load Modelling Utility Materials",
+            "handler_key"       : "load_modelling_utility_materials",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_truevision_materials_palette",
+            "command_name"      : "Na Noble3d - Load TrueVision Materials Palette",
+            "tooltip"           : "Build the standard TrueVision basic materials palette from SSOT",
+            "status_bar_text"   : "Load TrueVision materials palette from standard library",
+            "menu_text"         : "Load TrueVision Materials Palette",
+            "handler_key"       : "load_truevision_materials_palette",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_all_noble_architecture_materials",
+            "command_name"      : "Na Noble3d - Load All Noble Architecture Materials",
+            "tooltip"           : "Build all Noble Architecture SSOT materials in the active model",
+            "status_bar_text"   : "Load all Noble Architecture standard materials",
+            "menu_text"         : "Load All Noble Architecture Materials",
+            "handler_key"       : "load_all_noble_architecture_materials",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_all_tags",
+            "command_name"      : "Na Noble3d - Load All Tags",
+            "tooltip"           : "Build all Noble Architecture standard SketchUp tags from SSOT",
+            "status_bar_text"   : "Load all standard tags and line styles from DataLib",
+            "menu_text"         : "Load All Tags",
+            "handler_key"       : "load_all_tags",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_modeling_helper_tags",
+            "command_name"      : "Na Noble3d - Load Modeling Helper Tags",
+            "tooltip"           : "Build modelling helper tags from SSOT",
+            "status_bar_text"   : "Load modelling helper tags from DataLib",
+            "menu_text"         : "Load Modeling Helper Tags",
+            "handler_key"       : "load_modeling_helper_tags",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_line_thickness_tags",
+            "command_name"      : "Na Noble3d - Load Line Thickness Tags",
+            "tooltip"           : "Build Layout line thickness tags from SSOT",
+            "status_bar_text"   : "Load line thickness tags from DataLib",
+            "menu_text"         : "Load Line Thickness Tags",
+            "handler_key"       : "load_line_thickness_tags",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_truevision_minimal_tags",
+            "command_name"      : "Na Noble3d - Load TrueVision Minimal Tags",
+            "tooltip"           : "Build the minimal TrueVision tag set from SSOT",
+            "status_bar_text"   : "Load minimal TrueVision tags from DataLib",
+            "menu_text"         : "Load TrueVision Minimal Tags",
+            "handler_key"       : "load_truevision_minimal_tags",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_truevision_all_tags",
+            "command_name"      : "Na Noble3d - Load TrueVision All Tags",
+            "tooltip"           : "Build the full TrueVision tag set from SSOT",
+            "status_bar_text"   : "Load all TrueVision tags from DataLib",
+            "menu_text"         : "Load TrueVision All Tags",
+            "handler_key"       : "load_truevision_all_tags",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "check_web_status",
+            "command_name"      : "Na Noble3d - Check Web Data Status",
+            "tooltip"           : "Check live web status for registered Noble Architecture DataLib files",
+            "status_bar_text"   : "Check DataLib raw URL status",
+            "menu_text"         : "Check Web Data Status",
+            "handler_key"       : "check_web_status",
             "expose_to_hotkeys" : true
         },
         {
@@ -253,6 +346,94 @@
             "description"            : "Loads a selected .skp file as a component and inserts it at world identity for Xref-style placement."
         },
         {
+            "button_id"              : "btn_load_modelling_utility_materials",
+            "tab_name"               : "Material Utils",
+            "tool_group_name"        : "Material Library Loading",
+            "tool_group_description" : "Build standard material sets from Noble Architecture SSOT data.",
+            "tool_group_order"       : 10,
+            "button_order"           : 10,
+            "button_label"           : "Load Modelling Utility Materials",
+            "command_id"             : "load_modelling_utility_materials",
+            "description"            : "Loads only the modelling utility material series (MAT010)."
+        },
+        {
+            "button_id"              : "btn_load_truevision_materials_palette",
+            "tab_name"               : "Material Utils",
+            "tool_group_name"        : "Material Library Loading",
+            "tool_group_description" : "Build standard material sets from Noble Architecture SSOT data.",
+            "tool_group_order"       : 10,
+            "button_order"           : 20,
+            "button_label"           : "Load TrueVision Materials Palette",
+            "command_id"             : "load_truevision_materials_palette",
+            "description"            : "Loads the TrueVision basic materials palette (MAT100)."
+        },
+        {
+            "button_id"              : "btn_load_all_noble_architecture_materials",
+            "tab_name"               : "Material Utils",
+            "tool_group_name"        : "Material Library Loading",
+            "tool_group_description" : "Build standard material sets from Noble Architecture SSOT data.",
+            "tool_group_order"       : 10,
+            "button_order"           : 30,
+            "button_label"           : "Load All Noble Architecture Materials",
+            "command_id"             : "load_all_noble_architecture_materials",
+            "description"            : "Loads all indexed Noble Architecture materials from MAT010 onward."
+        },
+        {
+            "button_id"              : "btn_load_all_tags",
+            "tab_name"               : "Tag Utils",
+            "tool_group_name"        : "Tag Library Loading",
+            "tool_group_description" : "Build standard SketchUp tags, line styles, and tag colours from Noble Architecture SSOT data.",
+            "tool_group_order"       : 10,
+            "button_order"           : 10,
+            "button_label"           : "Load All Tags",
+            "command_id"             : "load_all_tags",
+            "description"            : "Loads all standard Noble Architecture tags and applies configured line styles such as Dash and Short dash."
+        },
+        {
+            "button_id"              : "btn_load_modeling_helper_tags",
+            "tab_name"               : "Tag Utils",
+            "tool_group_name"        : "Tag Library Loading",
+            "tool_group_description" : "Build standard SketchUp tags, line styles, and tag colours from Noble Architecture SSOT data.",
+            "tool_group_order"       : 10,
+            "button_order"           : 20,
+            "button_label"           : "Load Modeling Helper Tags",
+            "command_id"             : "load_modeling_helper_tags",
+            "description"            : "Loads helper and modelling utility tags such as orbit helper, clearance, linetype, door helper, and Profile Path Tracer tags."
+        },
+        {
+            "button_id"              : "btn_load_line_thickness_tags",
+            "tab_name"               : "Tag Utils",
+            "tool_group_name"        : "Tag Library Loading",
+            "tool_group_description" : "Build standard SketchUp tags, line styles, and tag colours from Noble Architecture SSOT data.",
+            "tool_group_order"       : 10,
+            "button_order"           : 30,
+            "button_label"           : "Load Line Thickness Tags",
+            "command_id"             : "load_line_thickness_tags",
+            "description"            : "Loads the Layout drawing linework thickness tags and applies their configured MTE greyscale colours."
+        },
+        {
+            "button_id"              : "btn_load_truevision_minimal_tags",
+            "tab_name"               : "Tag Utils",
+            "tool_group_name"        : "Tag Library Loading",
+            "tool_group_description" : "Build standard SketchUp tags, line styles, and tag colours from Noble Architecture SSOT data.",
+            "tool_group_order"       : 10,
+            "button_order"           : 40,
+            "button_label"           : "Load TrueVision Minimal Tags",
+            "command_id"             : "load_truevision_minimal_tags",
+            "description"            : "Loads the compact TrueVision starter set: orbit helper, landscape, existing/proposed model roots, and storey containers."
+        },
+        {
+            "button_id"              : "btn_load_truevision_all_tags",
+            "tab_name"               : "Tag Utils",
+            "tool_group_name"        : "Tag Library Loading",
+            "tool_group_description" : "Build standard SketchUp tags, line styles, and tag colours from Noble Architecture SSOT data.",
+            "tool_group_order"       : 10,
+            "button_order"           : 50,
+            "button_label"           : "Load TrueVision All Tags",
+            "command_id"             : "load_truevision_all_tags",
+            "description"            : "Loads all TrueVision export and storey tags while leaving modelling helper and line thickness tags separate."
+        },
+        {
             "button_id"              : "btn_reload_plugin",
             "tab_name"               : "Settings",
             "tool_group_name"        : "Plugin Maintenance",
@@ -262,6 +443,17 @@
             "button_label"           : "Reload Plugin Data",
             "command_id"             : "reload_plugin_data",
             "description"            : "Reloads Ruby source and refreshes the dialog without restart."
+        },
+        {
+            "button_id"              : "btn_check_web_status",
+            "tab_name"               : "Settings",
+            "tool_group_name"        : "Plugin Maintenance",
+            "tool_group_description" : "Development helpers for refreshing the plugin during active SketchUp sessions.",
+            "tool_group_order"       : 10,
+            "button_order"           : 20,
+            "button_label"           : "Check Web Data Status",
+            "command_id"             : "check_web_status",
+            "description"            : "Checks the live GitHub raw JSON status for materials, tags, edge materials, and components without mutating the cache."
         }
     ],
     "settings"               : {
@@ -311,6 +503,42 @@
         },
         {
             "command_id"        : "insert_component_in_place",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_modelling_utility_materials",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_truevision_materials_palette",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_all_noble_architecture_materials",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_all_tags",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_modeling_helper_tags",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_line_thickness_tags",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_truevision_minimal_tags",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "load_truevision_all_tags",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "check_web_status",
             "expose_to_hotkeys" : true
         },
         {

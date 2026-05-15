@@ -22,6 +22,7 @@ module Na__Noble3dModellingTools
 # -----------------------------------------------------------------------------
 
         def self.Na__Noble3dModellingTools__ReloadPluginData
+            standard_cache_sources = na_refresh_standard_cache_before_reload
             ruby_reload_result = self.Na__Noble3dModellingTools__ReloadRubyFiles
             Na__ConfigLoader.Na__Noble3dModellingTools__InvalidateConfigCache
 
@@ -33,14 +34,17 @@ module Na__Noble3dModellingTools
 
             Na__DialogManager.Na__Noble3dModellingTools__RefreshDialogIfVisible
 
-            has_error = ruby_reload_result[:error_count] > 0
-            summary_text = "Ruby reload: #{ruby_reload_result[:reload_count]} loaded, #{ruby_reload_result[:error_count]} errors."
+            cache_has_failures = standard_cache_sources.values.any? { |source| source == :failed }
+            has_error = ruby_reload_result[:error_count] > 0 || cache_has_failures
+            summary_text = "Ruby reload: #{ruby_reload_result[:reload_count]} loaded, #{ruby_reload_result[:error_count]} errors. " \
+                "SSOT cache: #{na_standard_cache_summary_text(standard_cache_sources)}."
 
             {
                 success: !has_error,
                 message: summary_text,
                 reload_count: ruby_reload_result[:reload_count],
-                error_count: ruby_reload_result[:error_count]
+                error_count: ruby_reload_result[:error_count],
+                standard_cache_sources: standard_cache_sources
             }
         rescue => error
             {
@@ -88,6 +92,32 @@ module Na__Noble3dModellingTools
             load root_loader_path
         rescue => error
             puts "[Na__Noble3dModellingTools] Root loader reload warning: #{error.class}: #{error.message}"
+        end
+
+        def self.na_refresh_standard_cache_before_reload
+            return {} unless defined?(Na__StandardDataCache) &&
+                Na__StandardDataCache.respond_to?(:Na__Noble3dModellingTools__PurgeAndForceReloadStandardCache)
+
+            Na__StandardDataCache.Na__Noble3dModellingTools__PurgeAndForceReloadStandardCache
+        rescue => error
+            puts "[Na__Noble3dModellingTools] Standard cache refresh warning: #{error.class}: #{error.message}"
+            {}
+        end
+
+        def self.na_standard_cache_summary_text(source_map)
+            return 'not-loaded' if source_map.nil? || source_map.empty?
+
+            ordered_keys = if defined?(Na__StandardDataCache) &&
+                Na__StandardDataCache.respond_to?(:Na__Noble3dModellingTools__StandardDataKeys)
+                Na__StandardDataCache.Na__Noble3dModellingTools__StandardDataKeys
+            else
+                source_map.keys
+            end
+
+            ordered_keys.map do |file_key|
+                source = source_map[file_key] || :failed
+                "#{file_key}=#{source}"
+            end.join(', ')
         end
 
 # endregion -------------------------------------------------------------------

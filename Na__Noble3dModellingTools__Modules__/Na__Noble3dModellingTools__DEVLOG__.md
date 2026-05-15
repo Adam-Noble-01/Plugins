@@ -1,6 +1,102 @@
 # Na Noble3d Modelling Tools - Development Log
 # =============================================================================
 
+## Version History
+
+## Na Noble3d Modelling Tools | Version 0.4.0 - 15-May-2026 - SSOT Materials/Tags Pipeline + Web Status + Reload Diagnostics
+
+### Update 01 - Standard Data Cache Wrapper + Reload Purge/Prime
+- Added shared standard data cache wrapper:
+  - `03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__StandardDataCache__.rb`
+- Cache wrapper primes and exposes common SSOT keys used by the plugin:
+  - `:materials`, `:edge_materials`, `:tags`, `:components`
+- Core app entry points now prime cache before UI/menu/command execution:
+  - `02__Plugin__CoreAppData/01__CoreAppLoaders/Na__Noble3dModellingTools__CoreAppLoaders__Main__.rb`
+- Reload flow now purges and force-reloads SSOT cache before Ruby reload and reports per-key cache source summary:
+  - `03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__ReloadManager__.rb`
+
+### Update 02 - Material Utils Tab + Command Surface + Module Wiring
+- Added full Material Utils module:
+  - `10__PluginModules/08__SourceCode__MaterialUtils/Na__Noble3dModellingTools__MaterialUtils__Loader__.rb`
+  - `10__PluginModules/08__SourceCode__MaterialUtils/Na__Noble3dModellingTools__MaterialUtils__Run__.rb`
+- Added Material Utils tab and command/button wiring in the JSON-driven UI registry:
+  - `Load Modelling Utility Materials`
+  - `Load TrueVision Materials Palette`
+  - `Load All Noble Architecture Materials`
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+- Routed new handler keys through command router and module loader:
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+
+### Update 03 - Material Builder Reliability Pass (Root Cause Fix + Fallback Paths)
+- Fixed default-template inheritance issue that incorrectly propagated `IsDefault=true` and reserved `SketchUpName` into real material entries.
+- Changed skip logic to evaluate raw material entries only, preventing false skips.
+- Hardened series resolution with:
+  - exact-key match,
+  - numeric-prefix fallback,
+  - force-reload retry,
+  - local SSOT fallback when web payload is stale.
+- Added detailed diagnostics in command result text (requested/matched series, source, strategy, reload attempt, skip/failure reasons).
+
+### Update 04 - SketchUp Material Translation Expansion (PBR + Texture + Metadata)
+- Expanded material application from basic colour/alpha into broader SketchUp 2026 PBR setter coverage:
+  - `roughness_factor=`, `metallic_factor=`, `normal_scale=`, `ao_strength=`
+  - enable flags where supported (`roughness_enabled=`, `metalness_enabled=`, `normal_enabled=`, `ao_enabled=`)
+- Added texture-map setter translation and safe texture path handling (local resolve + remote download cache).
+- Added attribute-dictionary metadata persistence per material for SSOT traceability (material ID, series ID, source/version, raw/resolved payload, renderer-only payload, warning summary).
+
+### Update 05 - SSOT Materials JSON Developer Mapping
+- Added explicit developer/agent mapping block in materials SSOT meta section:
+  - `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json`
+  - `meta.Na__DataLib__SketchUpApiMapping`
+- Mapping documents:
+  - identity/control fields,
+  - core material fields,
+  - PBR factor fields,
+  - texture-map fields,
+  - metadata-only renderer fields.
+
+### Update 06 - Tag Utils Tab + Multi-Set Tag Loaders (with Line Style/Colour Translation)
+- Added full Tag Utils module:
+  - `10__PluginModules/09__SourceCode__TagUtils/Na__Noble3dModellingTools__TagUtils__Loader__.rb`
+  - `10__PluginModules/09__SourceCode__TagUtils/Na__Noble3dModellingTools__TagUtils__Run__.rb`
+- Expanded tag loading into five command entry points:
+  - `Load All Tags`
+  - `Load Modeling Helper Tags`
+  - `Load Line Thickness Tags`
+  - `Load TrueVision Minimal Tags`
+  - `Load TrueVision All Tags`
+- Implemented robust tag filtering strategies (`:all`, group-key subsets, explicit tag-name subsets).
+- Added line-style and colour translation pipeline:
+  - line style assignment from SSOT (`dash`, `short dash`, etc.) with case-insensitive lookup,
+  - direct RGB application where supplied,
+  - edge-material-driven fallback colour mapping via `Na__DataLib__CoreIndex__EdgeMaterials__.json`.
+
+### Update 07 - Settings Web Status Tool (Live SSOT Reachability Check)
+- Added Web Status module:
+  - `10__PluginModules/10__SourceCode__WebStatus/Na__Noble3dModellingTools__WebStatus__Loader__.rb`
+  - `10__PluginModules/10__SourceCode__WebStatus/Na__Noble3dModellingTools__WebStatus__Run__.rb`
+- Added `Check Web Data Status` command/button in Settings tab.
+- Tool now iterates registered DataLib file keys from `Na__DataLib__UrlGenerator`, performs HTTP fetch, validates JSON parse, and returns per-file status summaries for live-data diagnostics.
+
+### Update 08 - Loader/Path Error Fixes During Integration
+- Fixed StandardDataCache `require_relative` depth so DataLib cache loader resolves correctly from Plugins root.
+- Fixed ComponentEditorTools path resolution/require path issue that was breaking thumbnail tools load:
+  - `Na__ComponentEditorTools__AppCore__PathResolver__.rb`
+  - `Na__ComponentEditorTools__AppCore__Main__.rb`
+- Added safer absolute-path resolution and existence checks for the failing module require path.
+
+### Validation Checklist
+- [x] Material Utils tab, commands, buttons, and hotkey entries appear and execute.
+- [x] `Load Modelling Utility Materials` no longer fails due to false default inheritance skips.
+- [x] Material loader reports source/series diagnostics and handles stale-web fallback paths.
+- [x] Tag Utils tab, five tag-loader buttons, and routing paths are fully wired and executable.
+- [x] Tag loader applies line style and colour metadata from SSOT/edge-material mappings.
+- [x] Settings `Check Web Data Status` reports per-file live availability/JSON validity.
+- [x] Reload flow purges/reloads standard cache and reports SSOT source map in summary.
+- [x] Edited Ruby/JSON files validated with no introduced lint issues.
+
+## -----------------------------------------------------------------------------
 # =============================================================================
 ## Version 0.3.2 - 14-May-2026 - Entity Utils + Data-Driven Tool Cards
 

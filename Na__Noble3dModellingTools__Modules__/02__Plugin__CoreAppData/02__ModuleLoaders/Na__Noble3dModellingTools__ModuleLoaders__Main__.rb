@@ -31,6 +31,9 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/05__SourceCode__ConvertComponentsToGroups/Na__Noble3dModellingTools__ConvertComponentsToGroups__Loader__'
             require_relative '../../10__PluginModules/06__SourceCode__InsertComponentInPlace/Na__Noble3dModellingTools__InsertComponentInPlace__Loader__'
             require_relative '../../10__PluginModules/07__SourceCode__CreateBoundingBox/Na__Noble3dModellingTools__CreateBoundingBox__Loader__'
+            require_relative '../../10__PluginModules/08__SourceCode__MaterialUtils/Na__Noble3dModellingTools__MaterialUtils__Loader__'
+            require_relative '../../10__PluginModules/09__SourceCode__TagUtils/Na__Noble3dModellingTools__TagUtils__Loader__'
+            require_relative '../../10__PluginModules/10__SourceCode__WebStatus/Na__Noble3dModellingTools__WebStatus__Loader__'
 
             @na_feature_modules_loaded = true
             true

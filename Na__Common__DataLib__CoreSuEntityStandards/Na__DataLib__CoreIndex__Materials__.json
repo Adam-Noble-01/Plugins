@@ -16,6 +16,42 @@
         "divergenceNote"    : "Window Configurator (Na__ArchTools__3dWindowConfigTool) maintains a local copy of this library at Na__AppConfig__MaterialsLibrary.json (v1.0.0). That local copy is superseded by this centralised file. The ValeDesignSuite WindowPanelConfigurator uses non-indexed strings 'natural-wood' and 'glass' as ComponentMaterial values - these are not part of the indexed MAT system and require alignment in a future update.",
         "GitHub__RepoUrl"   : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
         "Data__URL"         : "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json",
+        "Na__DataLib__SketchUpApiMapping": {
+            "Na__DataLib__SketchUpApiMapping__Purpose": "Developer and agent reference mapping for translating SSOT material keys into SketchUp Ruby API material properties for SketchUp 2026.",
+            "Na__DataLib__SketchUpApiMapping__IdentityAndControl": {
+                "SketchUpName"   : "Sketchup::Materials#[] lookup key and Sketchup::Materials#add(name) create name. Also stored in Sketchup::Material#name.",
+                "Description"    : "No direct Sketchup::Material description field. Store in material attribute dictionary metadata.",
+                "IsDefault"      : "Loader control flag only. If true, skip material build entry."
+            },
+            "Na__DataLib__SketchUpApiMapping__CoreMaterialFields": {
+                "BaseColor"      : "Sketchup::Material#color= using Sketchup::Color.new(r, g, b).",
+                "Opacity"        : "Sketchup::Material#alpha= with float range 0.0..1.0."
+            },
+            "Na__DataLib__SketchUpApiMapping__PbrFactorFields": {
+                "PbrRoughness"      : "Sketchup::Material#roughness_factor= plus roughness_enabled= true when supported.",
+                "PbrMetallic"       : "Sketchup::Material#metallic_factor= plus metalness_enabled= true when supported.",
+                "NormalScale"       : "Sketchup::Material#normal_scale= and normal_enabled= true when a normal texture is assigned.",
+                "OcclusionStrength" : "Sketchup::Material#ao_strength= and ao_enabled= true when an AO texture is assigned."
+            },
+            "Na__DataLib__SketchUpApiMapping__TextureMapFields": {
+                "TextureMaps.BaseColorUrl" : "Sketchup::Material#texture= (base color texture).",
+                "TextureMaps.NormalUrl"    : "Sketchup::Material#normal_texture=.",
+                "TextureMaps.RoughnessUrl" : "Sketchup::Material#roughness_texture=.",
+                "TextureMaps.MetallicUrl"  : "Sketchup::Material#metallic_texture=.",
+                "TextureMaps.OcclusionUrl" : "Sketchup::Material#ao_texture=.",
+                "TextureMaps.EmissiveUrl"  : "No direct Sketchup::Material emissive texture setter in Ruby API. Store as metadata for downstream renderer translation.",
+                "TextureMaps.AlphaUrl"     : "No direct alpha-map setter in Sketchup::Material Ruby API. Store as metadata for downstream renderer translation."
+            },
+            "Na__DataLib__SketchUpApiMapping__MetadataOnlyRendererFields": {
+                "Transparent"       : "Metadata only. SketchUp transparency behaviour is driven by alpha value and texture alpha.",
+                "IsDoubleSided"     : "Metadata only. Face side rendering is geometry/material assignment dependent, not a direct Sketchup::Material property.",
+                "DepthWrite"        : "Metadata only for downstream renderer translation.",
+                "AlphaTest"         : "Metadata only for downstream renderer translation.",
+                "EnvMapIntensity"   : "Metadata only for downstream renderer translation.",
+                "EmissiveFactor"    : "Metadata only for downstream renderer translation.",
+                "EmissiveIntensity" : "Metadata only for downstream renderer translation."
+            }
+        },
 
         "Na__DataLib__UiDefaults": {
             "Na__DataLib__UiDefaults__FrameFinish": {
@@ -88,6 +124,25 @@
                     "OcclusionUrl"  : null,
                     "AlphaUrl"      : null
                 }
+            }
+        },
+
+        "MAT010__ModelingUtilitySeries__": {
+            "MAT010__ModelingUtility__MatCap": {
+                "SketchUpName"      : "MAT010__ModelingUtility__MatCap",
+                "Description"       : "Modeling utility matcap-style fill -- neutral grey with moderate metalness and gloss",
+                "BaseColor"         : "rgb(190, 190, 190)",
+                "PbrRoughness"      : 0.30,
+                "PbrMetallic"       : 0.30
+            },
+            "MAT011__ModelingUtility__Transparent": {
+                "SketchUpName"      : "MAT011__ModelingUtility__Transparent",
+                "Description"       : "Modeling utility highly transparent red tint for overlays and guides",
+                "BaseColor"         : "rgb(200, 50, 50)",
+                "Opacity"           : 0.05,
+                "Transparent"       : true,
+                "IsDoubleSided"     : true,
+                "DepthWrite"        : false
             }
         },
 
