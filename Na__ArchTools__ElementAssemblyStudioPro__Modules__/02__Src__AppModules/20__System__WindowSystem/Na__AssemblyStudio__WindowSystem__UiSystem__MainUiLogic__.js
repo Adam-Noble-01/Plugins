@@ -912,6 +912,23 @@ const Na_DynamicUI = (function() {
             expandableContent.classList.toggle('na-expanded', value);
             return;
         }
+
+        // Try select dropdown
+        const selectEl = document.getElementById(`${id}-select`);
+        if (selectEl) {
+            selectEl.value = value;                                          // <-- Reflects stored layout on selection
+            return;
+        }
+
+        // Try binary toggle (Left | Right two-option switch)
+        const btoggle = document.getElementById(`${id}-btoggle`);
+        if (btoggle) {
+            btoggle.dataset.value = value;
+            const isRight = (value === btoggle.dataset.rightValue);          // <-- Match against rendered right-option value
+            btoggle.classList.toggle('na-binary-toggle--right', isRight);
+            btoggle.classList.toggle('na-binary-toggle--left',  !isRight);
+            return;
+        }
     }
     // ---------------------------------------------------------------
     

@@ -3,6 +3,32 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.7.3 - 17-May-2026 - Fix: Bifold door dropdown and binary toggles not reflecting selected door state in HTML UI
+
+### Bug
+When selecting an existing bifold door in SketchUp, all sliders and boolean toggles in the Multi-Folding Door section updated correctly, but the **Folding Pattern** `<select>` dropdown and the **Open Side** / **Master Side** binary toggles remained frozen at their previous values. This meant there was no way to know which layout pattern an existing bifold door was configured with — the UI always showed the last-used or default values regardless of which door was selected.
+
+### Root Cause
+`na_updateControlValue` in `Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` only handled five DOM element types: `slider`, `toggle`, `color`, `material-cards`, and `expandable`. It had no case for `select` (`${id}-select`) or `binary_toggle` (`${id}-btoggle`). The function fell through silently for both types, leaving the DOM untouched even though `_config` was correctly updated internally.
+
+The three affected controls and their types:
+- `bifold_door_layout` → `type: 'select'` → DOM id `bifold_door_layout-select`
+- `bifold_door_open_side` → `type: 'binary_toggle'` → DOM id `bifold_door_open_side-btoggle`
+- `bifold_door_master_side` → `type: 'binary_toggle'` → DOM id `bifold_door_master_side-btoggle`
+
+### Fix
+Added two new handler blocks to `na_updateControlValue` (after the expandable-header block):
+1. **`select` block** — finds `${id}-select` and sets `.value = value`.
+2. **`binary_toggle` block** — finds `${id}-btoggle`, updates `dataset.value`, and swaps `na-binary-toggle--left` / `na-binary-toggle--right` CSS classes by comparing the incoming value against the element's `data-right-value` attribute.
+
+No Ruby changes were required; the correct values were already being sent from the selection coordinator. Only one file was changed.
+
+### File Changed
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`
+
+---
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.7.2 - 17-May-2026 - Bifold accordion phasing fix (correct outward rotation, panel-thickness offsets, alternating termination tilt) + TrueVision 3× bifold animation slowdown
 
 ### Context
