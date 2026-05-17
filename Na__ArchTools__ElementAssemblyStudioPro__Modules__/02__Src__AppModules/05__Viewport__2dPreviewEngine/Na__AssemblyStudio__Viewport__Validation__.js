@@ -70,6 +70,13 @@
     function na_validateConfig(config) {
         var errors = [];
 
+        if (config && config.multifold_mode === true) {                  // <-- Bifold mode: schema lives in NA_BIFOLD_DOOR_CONFIG
+            return na_validateBifoldConfig(config);
+        }
+        if (config && config.sliding_mode === true) {                    // <-- Sliding mode: schema lives in NA_SLIDING_DOOR_CONFIG
+            return na_validateSlidingConfig(config);
+        }
+
         var width             = config.width_mm  || 0;
         var height            = config.height_mm || 0;
         var frameThicknesses  = na_getEffectiveFrameThicknesses(config);
@@ -125,6 +132,45 @@
         if (transomCount > 0 && innerHeight < requiredHeightForTransoms) {
             errors.push('Window too short for the requested transom layout');
         }
+
+        return { valid: errors.length === 0, errors: errors };
+    }
+    // ---------------------------------------------------------------
+
+
+    // FUNCTION | Validate bifold-door configuration before rendering
+    // ------------------------------------------------------------
+    // Validates the minimum geometric viability of a bifold door config
+    // (opening big enough, panel count sane). Schema-level required-key
+    // checks are not performed here because the controls have defaults.
+    function na_validateBifoldConfig(config) {
+        var errors = [];
+
+        var width  = Number(config.bifold_door_opening_width_mm)  || 0;
+        var height = Number(config.bifold_door_opening_height_mm) || 0;
+        var panels = Math.round(Number(config.bifold_door_panel_count) || 0);
+
+        if (width  < 800)  errors.push('Bifold opening width must be at least 800mm');
+        if (height < 1500) errors.push('Bifold opening height must be at least 1500mm');
+        if (panels < 2 || panels > 8) errors.push('Bifold panel count must be between 2 and 8');
+
+        return { valid: errors.length === 0, errors: errors };
+    }
+    // ---------------------------------------------------------------
+
+
+    // FUNCTION | Validate sliding-door configuration before rendering
+    // ------------------------------------------------------------
+    function na_validateSlidingConfig(config) {
+        var errors = [];
+
+        var width   = Number(config.sliding_door_opening_width_mm)  || 0;
+        var height  = Number(config.sliding_door_opening_height_mm) || 0;
+        var setback = Number(config.sliding_door_rear_setback_mm)   || 0;
+
+        if (width  < 800)  errors.push('Sliding opening width must be at least 800mm');
+        if (height < 1500) errors.push('Sliding opening height must be at least 1500mm');
+        if (setback < 20)  errors.push('Sliding rear setback must be at least 20mm');
 
         return { valid: errors.length === 0, errors: errors };
     }

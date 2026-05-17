@@ -3,6 +3,445 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.6.0 - 17-May-2026 - Multi-folding & sliding doors: Phase 4 + 5 + 6 + 7 + 8 - Naming contract lock-in, 2D SVG previews, TrueVision multi-panel animation pipeline, AppConfig + coordinate audit, smoke-check matrix
+
+### Context
+Sixth and largest iteration of the multi-folding + sliding door build-out (plan `multi-folding_&_sliding_doors_5c7ccf30`). V1.5.0 finished the round-trip persistence + SelectionCoordinator wiring; V1.6.0 closes the rest of the original plan in one pass: it locks the cross-system naming contract, lights up the 2D SVG previews on the Windows tab, ships the TrueVision3D click-to-open + walk-mode proximity animation pipeline for every door type, and pushes everything through AppConfig + the shared `Na__Math__Units` mm-to-units funnel. The last two pieces of the plan (smoke-check matrix + DEVLOGs/READMEs) are also rolled into this release so the next session can ship the missing opening frame / cill / materials work as a clean follow-up.
+
+### Phase 4 - Naming contract lock-in
+A new central module `02__Src__AppModules/04__GeometryHelpers/Na__AssemblyStudio__DoorNamingContract__.rb` is now the single source of truth for the four MOD / ROT / MVE / FIXED name patterns shared across the SketchUp emitters and the TrueVision3D parser:
+- `MOD###__ROT__<deg>-Deg__<tag>`                                            -> ROT_ONLY (interior door + bifold master)
+- `MOD###__ROT__<deg>-Deg__MVE__<axis><signed-mm>-mm__<tag>`                 -> ROT_MVE  (bifold slave panels)
+- `MOD###__MVE__<axis><signed-mm>-mm__<tag>`                                 -> MVE_ONLY (sliding moving leaves)
+- `MOD###__FIXED__<tag>`                                                     -> FIXED   (sliding fixed leaves)
+The format strings now use `%s%+d-mm` so the magnitude carries an explicit sign (e.g. `X+600-mm`, `X-600-mm`); this fixes the V1.5.0 bug where bifold slave panels with negative distances rendered as `X--600-mm` and would have broken regex-based parsing in TrueVision3D. Sliding fixed leaves switched from the V1.5.0 `MOD###__MVE__X-0-mm__SlidingPanel` redundancy to the cleaner `MOD###__FIXED__SlidingPanel` token.
+
+The bifold + sliding `AssemblyComposer` modules were updated to:
+- Format MOD names via the new contract and `na_normalise_axis_letter` helper (the helper extracts only the X/Y/Z letter because the sign is now in the magnitude).
+- Update `na_collect_used_adr_numbers` (bifold) to scan the sliding attribute dictionary in addition to bifold + legacy interior, closing the global ADR id collision risk that existed when both new systems produced doors in the same model.
+- Drop the now-unused `regex` argument from `na_extract_adr_number` (the helper carries its own regex internally).
+
+### Phase 5 - 2D SVG plan + elevation previews wired into the Windows tab
+The Phase-1 scaffolds for the bifold + sliding viewport generators were promoted to live SVG renderers and wired into the existing Windows-tab single-SVG viewport so the user gets immediate parametric feedback when they edit a multi-panel or sliding door:
+- `Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js` - bifold elevation. Resolves layout from the bifold config keys, renders the outer frame, every panel (with optional glazing), per-panel hinge dots, swing/fold arrows, the leading-panel handle, and dimension annotations. Reuses the shared `Na__Viewport__SvgGenerator` helpers (panel rectangles, dimensioning) so the visual style matches the WindowSystem preview.
+- `Na__AssemblyStudio__ExtSlide__Viewport__ElevationGenerator__.js` - sliding elevation. Renders the outer frame, two overlapping leaves, the slide-direction arrow, the rear-panel setback indicator, the handle dot, and dimensions. Layout resolver reads the sliding config keys (`sliding_door_*`).
+- `Na__AssemblyStudio__Viewport__Validation__.js` - now branches on the active mode: `na_validateBifoldConfig` checks bifold-specific minimum dimensions / panel-count limits, `na_validateSlidingConfig` checks setback minimums; the legacy window validator runs as before for every other configuration.
+- `Na__AssemblyStudio__Viewport__Controls__.js::na_windowResetFitter` resolves the viewBox dimensions from the active mode's opening width/height keys so the auto-fit zoom frames bifold (e.g. 3600x2100mm) and sliding (e.g. 2400x2100mm) doors correctly without the user having to manually pan.
+- `Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js::na_paint_window_svg` is now a dispatcher: when `multifold_mode === true` it forwards to `Na__ExtFold__ElevationGenerator.na_generate_bifold_svg`, when `sliding_mode === true` it forwards to `Na__ExtSlide__ElevationGenerator.na_generate_sliding_svg`, otherwise the original `Na__Viewport__SvgGenerator.na_generateWindowSvg` runs. Plan-view generators are scaffolded but stubbed; the Windows tab today uses a single elevation viewport (the dual plan/elevation pair lives only on the interior door tab).
+
+### Phase 6 - TrueVision3D multi-panel animation pipeline
+`02__Src__AppModules/25__System__3dObject__InteractionSystem/3dObjectIInteraction__Animation__ClickToOpenDoors__.js` was substantially refactored on the TrueVision3D side to drive every door type from a single animation pipeline:
+- New module constants for the four MOD types (ROT_ONLY / ROT_MVE / MVE_ONLY / FIXED), the MVE regex `__MVE__([XYZ])([+\-]\d+)-mm/i`, and the local-axis vectors (X/Y/Z) used by the translation applier.
+- `Na__DoorAnim__ClassifyMod` reads any MOD name and returns its animation type, in priority order so a `ROT__...__MVE__` name is correctly classified as ROT_MVE rather than the simpler ROT_ONLY.
+- `Na__DoorAnim__ParseMveFromName` extracts axis + signed mm magnitude; the magnitude funnels through `Na__Math__ConvertMmToUnits` so every MVE distance is consistent with the rest of the engine's mm-to-units pipeline.
+- `Na__DoorAnim__FindAllAnimatableMods` replaces the legacy single-MOD `FindModRotChild`. Every animatable child of an ADR is collected so multi-panel doors get one panel descriptor per MOD; FIXED leaves are intentionally collected (so users can still click them to toggle the door) but never animated.
+- `Na__DoorAnim__FindMatchingRotSibling` pairs each rotating MOD with the next ROT### sibling marker by index, which is exactly how the SketchUp emitter authors them, so a five-panel bifold cascade ends up with five distinct hinge pivots rather than re-using the same pivot for every panel.
+- The animation state machine now tracks normalised progress 0..1 (`currentProgress` / `animStartProgress` / `animEndProgress`) instead of the legacy `currentAngleRad`. The progress drives every panel's transformation in lockstep so a bifold cascade with mixed ROT-only + ROT+MVE panels stays synchronised.
+- `Na__DoorAnim__ApplyPanelTransform` is the panel-aware applier: it resets the MOD to its initial transform, applies a Y-axis rotation around the per-panel hinge pivot for ROT_* panels, and adds a local-axis translation for MVE_* panels. FIXED panels are intentionally untouched.
+- `Na__DoorAnim__ApplyAllPanels` walks every panel in a door record and runs the applier; the doorRecord exposes the same `rotObjectMesh` / `adrObjectMesh` / `state` fields the Walk Mode proximity module relies on, so V1.1.0 of `3dObjectInteraction__Animation__WalkMode__ProximityToOpenDoors__.js` activates correctly for bifold + sliding ADRs without any proximity-side changes (the toggle cascades into the new applier automatically).
+- A backward-compat wrapper `Na__DoorAnim__ApplyPivotRotation(angleRad)` is preserved in case any private tooling imports it; it converts the radian into the equivalent progress fraction and re-emits through the panel-aware applier.
+
+### Phase 7 - AppConfig + coordinate audit
+The TrueVision3D AppConfig (`Na__AppConfig__Main.json`) gains a `MultiPanelEnabled: true` kill-switch under `3dObject__Interaction__DoorAnimation`, with a description rewritten to advertise multi-panel support. The flag is wired through `Na__DoorAnimation__Initialize` and `Na__DoorAnim__FindAllAnimatableMods`: setting it false reverts the scanner to legacy single-MOD behaviour (only the first ROT_ONLY MOD per ADR registers), giving a deterministic emergency rollback if a deployment ever needs it. `CategoryNameTokens` already covered exterior doors via the existing `ProposedDoors` / `ExistingDoors` GLB filename tokens (the SketchUp GLB Builder maps tags 15 + 25 to those names regardless of door type), so no new tokens were required.
+
+The local-axis convention used by the SketchUp emitter (X+ = wall direction, Y+ = wall depth, Z+ = vertical) maps cleanly onto Three.js after the GLB Z-up -> Y-up conjugation: SketchUp local X stays Three.js X, SketchUp local Z becomes Three.js Y, SketchUp local Y becomes Three.js -Z. Because the MVE magnitude is applied in the MOD's *parent* (ADR) local frame, an MVE name that says `X+1200-mm` produces a +1200mm slide along the door head regardless of how the building wall is oriented in world space. This audit is recorded in the head comment of `Na__DoorAnim__ResolveAxisVector` so future maintainers do not have to re-derive it.
+
+### Phase 8 - Smoke-check matrix + DEVLOGs/READMEs
+The four canonical MOD-name patterns the system can produce were verified by inspection of both AssemblyComposer modules:
+- Interior door: `MOD001__ROT__-90-Deg__DoorPanel`                          -> ROT_ONLY
+- Bifold master / first hinged panel: `MOD001__ROT__-90-Deg__BifoldPanel`   -> ROT_ONLY
+- Bifold slave / cascading panel:     `MOD003__ROT__180-Deg__MVE__X+600-mm__BifoldPanel` -> ROT_MVE
+- Sliding moving leaf:                `MOD002__MVE__X+1200-mm__SlidingPanel`            -> MVE_ONLY
+- Sliding fixed leaf:                 `MOD003__FIXED__SlidingPanel`                     -> FIXED
+The TrueVision3D regex set classifies each pattern correctly and the panel-applier dispatch table covers every type. The plugin DEVLOG (this file), the TrueVision3D `3dObjectIInteraction__Animation__ClickToOpenDoors__README__.md`, and the in-file file headers on both `ClickToOpenDoors.js` and `WalkMode__ProximityToOpenDoors.js` were updated in this release to reflect the new contract.
+
+### Files touched (Phases 4-8)
+SketchUp plugin:
+- `02__Src__AppModules/04__GeometryHelpers/Na__AssemblyStudio__DoorNamingContract__.rb` - new central naming contract module.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Init__.rb` - signed-magnitude format string.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__AssemblyComposer__.rb` - axis normaliser, ADR id sliding-aware allocator.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js` - live SVG generator.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Init__.rb` - signed-magnitude format + `__FIXED__` token.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__AssemblyComposer__.rb` - axis normaliser; FIXED dispatch.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Viewport__ElevationGenerator__.js` - live SVG generator.
+- `02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Validation__.js` - bifold + sliding mode-aware validators.
+- `02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Controls__.js` - mode-aware viewBox fitter.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` - SVG-generator dispatcher.
+- `Na__AssemblyStudio__UiLayout__.html` - generator script-load comments updated.
+
+TrueVision3D core app:
+- `02__Src__AppModules/25__System__3dObject__InteractionSystem/3dObjectIInteraction__Animation__ClickToOpenDoors__.js` - multi-panel scanner + applier; AppConfig kill-switch.
+- `02__Src__AppModules/25__System__3dObject__InteractionSystem/3dObjectInteraction__Animation__WalkMode__ProximityToOpenDoors__.js` - DEVLOG entry only (no behaviour change required).
+- `02__Src__AppModules/02__AppData/Na__AppConfig__Main.json` - `MultiPanelEnabled` flag + description rewrite.
+
+### Risks / known limitations after this release
+- The bifold + sliding doors still emit only their head + base track members. The opening frame's left/right jambs, the cill, and the per-component materials are not yet generated. The user explicitly flagged this in the V1.5.0 review ("missing the frame around them and materials and cill etc, but the panels are appearing"). This is the natural next slice and will be tackled by reusing the InteriorDoorSystem `na_build_lining` blueprint and adding an exterior-only `na_build_cill` helper.
+- Plan-view (top-down) SVG generators for bifold + sliding remain scaffolded only; the Windows tab uses a single elevation viewport so this does not block any current workflow, but it would be nice to surface a top-down preview if the panel editor is ever extended.
+- Mode-switching an existing ADR (selecting a bifold ADR then turning OFF `multifold_mode` and clicking Update) still trips the V1.5.0 limitation - Phase-3.6 (a follow-up patch) will add a definition-name guard so a mode mismatch falls back to "delete + recreate".
+
+### Next: Phase 9 - opening frame + cill + materials
+Add an opening-frame builder (head jamb + left/right jambs + cill) to both bifold + sliding `AssemblyComposer` modules, mirroring the InteriorDoorSystem `na_build_lining` flow but with parameters from the existing config blocks (`bifold_door_*` / `sliding_door_*`). Wire the existing material lookups (TBD - either reuse the WindowSystem material map or carry a new exterior-door material set) so the head/base tracks, jambs, cill, panel rails, stiles, and glazing all render with their intended visual styles in SketchUp and survive the GLB export.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.5.0 - 17-May-2026 - Multi-folding & sliding door round-trip: Phase 3.5 - DataSerializer + SelectionCoordinator + Live Mode wiring
+
+### Context
+Fifth step of the multi-folding + sliding door build-out (see plan `multi-folding_&_sliding_doors_5c7ccf30`, Phase 3.5). V1.4.9 completed the geometry pipelines for bifold + sliding doors; clicks on **Create new window** with either toggle on now produce real ADR components. This release plugs in the persistence + selection round-trip so configurations survive across sessions, existing ADRs reload their parameters when the user clicks them in the model viewport, and Live Mode parameter tweaks rebuild the same instance instead of orphaning it.
+
+### Phase 3.5 - DataSerializer for both systems
+`Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer` and `Na__ExteriorSlidingDoorSystem::Na__DataSerializer` were promoted from Phase-1 stubs (a single `na_get_door_id_from_instance` shim) to full implementations mirroring `Na__InteriorDoorSystem::Na__DataSerializer`:
+- `na_save_door_data(door_id, data_hash)` - JSON-encodes the metadata / components / configuration blocks onto the door's ComponentDefinition attribute dictionary (`Na__BifoldDoorConfigurator_<ADR>` or `Na__SlidingDoorConfigurator_<ADR>`).
+- `na_load_door_data(door_id)` and `na_load_door_data_from_instance(instance, door_id)` - retrieve and JSON-parse the same dictionary, returning a Hash keyed by the system-specific metadata / components / configuration constants.
+- `na_set_door_id_on_instance(instance, door_id, description)` - canonical naming + pointer-dictionary writer (`<ADR>__BifoldDoor__<desc>` or `<ADR>__SlidingDoor__<desc>`).
+- `na_get_door_id_from_instance(instance)` - reads and validates the pointer dict's `DoorID`.
+- `na_generate_next_door_id` - delegates to `Na__AssemblyComposer.na_allocate_adr_id` so all door types (bifold, sliding, legacy interior) share a single, globally unique ADR id pool.
+- `na_list_all_doors`, `na_delete_door_data`, `na_has_door_data?` - standard housekeeping helpers.
+
+The bifold and sliding `GeometryEngine` modules now invoke `DataSerializer.na_set_door_id_on_instance` immediately after the new `ComponentInstance` is added to the model, replacing the earlier `instance.name = definition_name` shortcut. This guarantees the pointer dict is written before the instance is returned to the caller, so subsequent `DataSerializer.na_get_door_id_from_instance` calls (in DialogCallbacks + SelectionCoordinator) succeed deterministically.
+
+### Phase 3.5 - WindowSystem::DialogCallbacks selection + persistence wiring
+`Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb` was extended with the matching round-trip surface:
+- **Selection load**: `na_load_bifold_into_dialog(instance, door_id)` and `na_load_sliding_into_dialog(instance, door_id)` cache the instance in `@na_bifold_component` / `@na_sliding_component` (and mirror to `@na_window_component` so the existing `na_handle_update_window` short-circuit works), pull the saved configuration block via the system-specific DataSerializer, wrap it in the standard `windowConfiguration` envelope, force the appropriate mode flag (`multifold_mode: true` / `sliding_mode: true`) plus zero out the other two modes, and push to JS via `window.na_setInitialConfig`. The JS `Na_DynamicUI.na_setConfig` then iterates every key, updates each control's DOM, and `na_onConfigChange` fires the visibility helpers (`na_updateMultifoldDoorVisibility` / `na_updateSlidingDoorVisibility`) so the correct sub-section becomes visible.
+- **Selection clear**: `na_clear_bifold_from_dialog` / `na_clear_sliding_from_dialog` mirror the existing window clear path - drop the cached component reference, restore the default config, invoke `window.na_clearCurrentWindow` on the JS side.
+- **Persistence on create**: `na_handle_create_bifold_door` / `na_handle_create_sliding_door` now call `DataSerializer.na_save_door_data` once the engine has produced a valid instance, using the new private helpers `na_build_bifold_save_payload` / `na_build_sliding_save_payload` to filter the live `windowConfiguration` down to just the `bifold_door_*` / `sliding_door_*` keys before saving. The metadata block records `DoorID`, `DoorType`, layout / mode summary, plus a `CreatedDate` timestamp on first save (only).
+- **Persistence on update + live**: `na_handle_update_bifold_door`, `na_handle_live_update_bifold_door`, and the sliding equivalents extract the door id from the cached instance via the same DataSerializer, then call `na_save_door_data` after rebuilding the geometry. The metadata `LastModified` timestamp is bumped each time.
+- **Initial selection check**: `na_check_initial_selection` was extended with two new fallback branches (`na_resolve_bifold_id` and `na_resolve_sliding_id`) so opening the dialog while a bifold or sliding ADR is already selected restores the parameters into the relevant Windows-tab sub-section automatically. Both helpers are private and silently swallow `StandardError` (e.g. when the system has not been lazy-loaded yet) so a missing module never blocks the dialog.
+
+### Phase 3.5 - SelectionCoordinator handler wiring
+`Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__Init.na_handler_descriptor` and the sliding equivalent were re-pointed:
+- `:tab_id` was changed from `'bifold_doors'` / `'sliding_doors'` (legacy placeholders that would have requested non-existent tab switches) to `'windows'` so the SelectionCoordinator brings the user back to the Windows tab when an existing ADR is clicked. This matches the integration model adopted in Phase 2 where the bifold + sliding controls share the Windows-tab schema.
+- `:on_selected` and `:on_cleared` procs now call `Na__WindowSystem::Na__DialogCallbacks.na_load_bifold_into_dialog` / `.na_load_sliding_into_dialog` (and the matching clear methods) directly, rather than the placeholder `Na__ExteriorMultiFoldingDoorSystem.na_load_bifold_into_dialog` stubs.
+- The two stub methods on `Na__ExteriorMultiFoldingDoorSystem` and `Na__ExteriorSlidingDoorSystem` modules remain for legacy-caller compatibility but are now thin redirects: they lazy-load the sub-modules then forward to the WindowSystem implementation.
+
+### Files touched (Phase 3.5)
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__DataSerializer__.rb` - full save / load / list / delete / id surface populated.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__GeometryEngine__.rb` - DataSerializer wired into create path; pointer dict now written by `na_set_door_id_on_instance`.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Init__.rb` - handler descriptor `:tab_id` re-pointed to `'windows'`; `:on_selected` / `:on_cleared` re-routed to `Na__WindowSystem::Na__DialogCallbacks`; legacy stub methods converted to thin redirects.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__DataSerializer__.rb` - full save / load / list / delete / id surface populated.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__GeometryEngine__.rb` - DataSerializer wired into create path; pointer dict now written by `na_set_door_id_on_instance`.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Init__.rb` - handler descriptor + legacy stub redirects (parallel to bifold).
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb` - `na_check_initial_selection` extended for bifold + sliding fallback; `na_load_bifold_into_dialog`, `na_clear_bifold_from_dialog`, `na_load_sliding_into_dialog`, `na_clear_sliding_from_dialog` added; `na_handle_create_bifold_door`, `na_handle_update_bifold_door`, `na_handle_live_update_bifold_door` (and sliding equivalents) wired to `DataSerializer.na_save_door_data`; private payload-builder helpers `na_resolve_bifold_id`, `na_resolve_sliding_id`, `na_resolve_bifold_payload`, `na_resolve_sliding_payload`, `na_wrap_bifold_config_as_window_payload`, `na_wrap_sliding_config_as_window_payload`, `na_build_bifold_save_payload`, `na_build_sliding_save_payload` added.
+
+### End-to-end flows now working
+- **Create**: Toggle multifold/sliding mode in the Windows tab → adjust parameters → click Create → ADR component placed by `WindowPlacementTool` → pointer dict and config blob persisted via the system-specific DataSerializer.
+- **Select**: Click an existing bifold or sliding ADR in the model viewport → SelectionCoordinator dispatches → DialogCallbacks loads stored config + sets edit mode in the JS UI → bifold or sliding sub-section becomes visible with the saved parameters populated.
+- **Update**: Adjust parameters in the dialog → click Update → engine rebuilds the existing definition in place → DataSerializer overwrites the saved config blob (the instance position in the model is preserved).
+- **Live Mode**: Drag any slider in the dialog → debounced `na_liveUpdate` rebuilds the geometry in place + persists the config blob continuously, mirroring the WindowSystem live behaviour.
+
+### Risks / known limitations
+- Handles still not rendered. Phase-3a's TODO breadcrumb in `Na__AssemblyComposer::na_build_panel_mod_group` remains; handle wiring will reuse `Na__InteriorDoorSystem::Na__HandleBuilder3D` once Phase-4 has refactored the shared marker builders into `04__GeometryHelpers`.
+- TrueVision3D's `ClickToOpenDoors` scanner does not yet recognise the new `__MVE__X-{n}-mm__` MOD-name encoding or the multi-MOD bifold cascade. Phase 6a does this; today the GLB will export with all the right node names but the live-app animation falls back to the legacy single-MOD path for any ADR whose first MOD does not match `__ROT__{n}-Deg__DoorPanel`.
+- Mode-switching an existing ADR (e.g. selecting a bifold ADR then turning OFF `multifold_mode` and clicking Update) is not supported. The dispatch logic in `na_handle_update_window` keys off the new mode flag, so the incoming mode dictates the pipeline; if the user does this they will get a "no window selected to update" warning. Phase-3.6 hardens this with a definition-name guard so a mismatch falls back to "delete + recreate".
+- The stored bifold metadata block is intentionally minimal (DoorID, DoorType, Layout, PanelCount, CreatedDate, LastModified). Phase-5's SVG previews + Phase-7's audit trail will extend this once the schema requirements are clearer.
+
+### Next: Phase 4 (naming contract lock-in + shared marker builders)
+Lock the MOD / ROT / MVE / ADR naming contract in both AssemblyComposers behind a shared constants module, refactor the duplicated `MovementPivotBuilder` (bifold + sliding) into `04__GeometryHelpers/Na__GeometryHelpers__MarkerBuilders__`, and extract the `:door_helpers` tag + MTE201 marker constants. Once that lands the TrueVision3D animation parser (Phase 6a) has a single Ruby authority to read against.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.4.9 - 17-May-2026 - Multi-folding & sliding door geometry: Phase 3a + 3b - bifold layout algorithms, sliding two-leaf engine, WindowSystem dispatch
+
+### Context
+Fourth step of the multi-folding + sliding door build-out (see plan `multi-folding_&_sliding_doors_5c7ccf30`, Phase 3a + 3b). V1.4.7 scaffolded the folders. V1.4.8 wired the Windows-tab UI (modes, mutual exclusivity, dynamic sub-controls). This release plugs the geometry pipelines behind the existing `multifold_mode` / `sliding_mode` toggles so clicking **Create new window** with either toggle on now produces real ADR components instead of falling through to the standard window pipeline.
+
+### Phase 3a - Bifold geometry + 3 layout algorithms
+`Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem` now ships a complete create + update pipeline driven by three Layout modules:
+- `Na__Layout__EqualEqual` - panels split equally to both sides; even counts cascade two halves toward each jamb, odd counts pin a fixed centre panel and split the remainder.
+- `Na__Layout__AllOneWay` - master panel hinges on a jamb, all slaves cascade toward the chosen `bifold_door_open_side`.
+- `Na__Layout__MasterSlaves` - master swings 90deg on the chosen `bifold_door_master_side`, the rest cascade in the opposite direction.
+
+Each Layout module emits an array of panel descriptors (`{:index, :width_mm, :height_mm, :origin_x_mm, :hinge_x_mm, :hinge_y_mm, :rot_degrees, :mve_axis, :mve_distance_mm, :role, :has_handle, :handle_side}`) consumed uniformly by `Na__AssemblyComposer.na_compose_adr`, which builds:
+- Static head + base track (no MOD wrapper) at the ADR root.
+- Per-panel `MOD###__ROT__{deg}-Deg__BifoldPanel` (master, ROT-only) or `MOD###__ROT__{deg}-Deg__MVE__X-{dist}-mm__BifoldPanel` (slave, ROT + MVE) sibling group containing rails + stiles + glazing.
+- Per-pivoting-panel `ROT###__RotationPoint__BifoldHingeCentre` sibling marker with red helper geometry (vertical axis, crosshairs, swing arrow for ±90 deg).
+- Per-translating-panel `MVE###__MovementPoint__BifoldPanelTrack` sibling marker with red helper geometry (track line, crosshairs, arrowhead).
+
+The ADR id allocator scans both `Na__BifoldDoorConfiguratorInfo` and the legacy `Na__DoorConfiguratorInfo` dictionaries on every `ComponentInstance` so IDs stay globally unique across door systems. Geometry pipeline files: `ExtFold__GeometryHelpers__.rb`, `ExtFold__Layout__EqualEqual__.rb`, `ExtFold__Layout__AllOneWay__.rb`, `ExtFold__Layout__MasterSlaves__.rb`, `ExtFold__RotationPivotBuilder__.rb`, `ExtFold__MovementPivotBuilder__.rb`, `ExtFold__AssemblyComposer__.rb`, `ExtFold__GeometryEngine__.rb`. The `ExtFold__Init__.rb` lazy-loader was switched on (V1.4.8 left it commented for the scaffold-only release).
+
+### Phase 3b - Sliding two-leaf engine
+`Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem` ships a parallel create + update pipeline. Each ADR contains:
+- Static head + base track that visually wraps both leaves (track depth = `panel_thickness * 1.6 + rear_setback`).
+- `MOD001__MVE__X-{signed_distance}-mm__SlidingPanel` for the moving front leaf.
+- `MOD002__MVE__X-0-mm__SlidingPanel` for the fixed rear leaf (the rear leaf is set back by `sliding_door_rear_setback_mm` in Y so the leaves slide on parallel tracks rather than colliding).
+- One `ROT001__RotationPoint__SlidingPanelTrack` placeholder marker per ADR. Sliding doors do not pivot, but TrueVision3D's animation scanner expects every ADR to expose at least one ROT sibling - the placeholder satisfies the contract without carrying rotation data.
+- One `MVE001__MovementPoint__SlidingPanelTrack` marker per moving leaf with the standard red track helper geometry.
+
+`sliding_door_mode` controls which leaf moves where: `FrontSlidesRight` puts the front leaf on the left half and translates it +X by `(leaf_width - 20mm overlap)`; `FrontSlidesLeft` mirrors that. Phase-4 will widen the mode list (`BothSlide` etc.) once the parser contract is locked in.
+
+Geometry pipeline files: `ExtSlide__GeometryHelpers__.rb`, `ExtSlide__RotationPivotBuilder__.rb`, `ExtSlide__MovementPivotBuilder__.rb`, `ExtSlide__AssemblyComposer__.rb`, `ExtSlide__GeometryEngine__.rb`. The lazy-loader in `ExtSlide__Init__.rb` is now switched on. The Init.rb default config was migrated from the long-form `Na__SlidingDoor__*` keys (V1.4.7 scaffold) to snake_case `sliding_door_*` keys to match the WindowSystem JS schema.
+
+### WindowSystem dispatch (Phase 3a + 3b)
+`Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb` early-returns from `na_create_window_geometry` and `na_update_window_geometry` when `multifold_mode == true` or `sliding_mode == true`, forwarding to the corresponding sub-system engine via `na_dispatch_bifold_create / _update` and `na_dispatch_sliding_create / _update`. The dispatch helpers lazy-load the relevant sub-system modules so the Window pipeline never pays the load cost when neither toggle is set.
+
+`Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb` was extended with a parallel set of mode-detection guards on `na_handle_create_window` / `na_handle_update_window` / `na_handle_live_update`. When the bifold or sliding mode is set on the inbound payload, the callback dispatches to a system-specific handler (`na_handle_create_bifold_door`, `na_handle_create_sliding_door`, etc.) that:
+1. Skips `DataSerializer.na_set_window_id_on_instance` and `na_save_window_data` so the bifold / sliding instance keeps its `ADR###__BifoldDoor__` / `ADR###__SlidingDoor__` name and avoids a polluted `Na__WindowConfigurator__` dictionary.
+2. Tracks the created instance in `@na_bifold_component` / `@na_sliding_component` so subsequent Update / Live calls route to the same instance.
+3. Engages the standard `WindowPlacementTool` when no measured Point A exists, so the user can place the new ADR by clicking in the model identical to the regular window flow.
+
+DataSerializer round-trip wiring (selection -> dialog state -> live update on parameter change) is intentionally deferred to Phase 3.5; the V1.4.9 sliders fire `na_liveUpdate` on every move and the dispatch helpers will rebuild the geometry in place via the sub-system engines.
+
+### Coordinate system contract
+Every new ADR ComponentDefinition lives in a door-local frame:
+- Origin = bottom-front-left corner of the structural opening.
+- X+ along the wall (left -> right across opening).
+- Y+ through the wall depth (front face at Y=0).
+- Z+ upwards.
+
+This matches the bifold + sliding GLB exporter contract documented in `85__Docs__AppDocumentation/Na__AssemblyStudio__Architecture__.md` and is identical to the InteriorDoorSystem's frame. The TrueVision3D Y-up conjugation will handle the Z-up to Y-up flip at GLB load time.
+
+### Files touched (Phase 3a + 3b)
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Init__.rb` - lazy-load gate switched on, default config migrated to snake_case keys.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__GeometryHelpers__.rb` - mm/inch + per-panel + glazing + track helpers populated.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Layout__EqualEqual__.rb` - even/odd panel-split descriptor builder populated.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Layout__AllOneWay__.rb` - cascade descriptor builder populated.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Layout__MasterSlaves__.rb` - master + cascade descriptor builder populated.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__RotationPivotBuilder__.rb` - per-panel ROT marker with red helper geometry populated.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__MovementPivotBuilder__.rb` - per-panel MVE marker populated.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__AssemblyComposer__.rb` - ADR id allocator + composition orchestrator populated (including handle-wiring TODO breadcrumb deferred to Phase 3.5).
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__GeometryEngine__.rb` - public create / update / layout-resolve surface populated.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Init__.rb` - lazy-load gate switched on, default config migrated to snake_case keys, MOD-name format constants extended.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__GeometryHelpers__.rb` - leaf width, slide travel, setback, glazing helpers populated.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__RotationPivotBuilder__.rb` - placeholder ROT001 marker populated.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__MovementPivotBuilder__.rb` - per-leaf MVE marker populated (near-clone of bifold version; Phase 4 extracts shared marker builder).
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__AssemblyComposer__.rb` - ADR id allocator + composition orchestrator populated.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__GeometryEngine__.rb` - public create / update surface populated.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb` - bifold + sliding dispatch helpers wired into create + update entry points.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb` - bifold + sliding mode-detection guards on create / update / live-update; system-specific handler methods added.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__.rb` - missing `wall_depth_mm`, `floor_clearance_mm`, `handle_asset_key`, `handle_height_mm` defaults filled in for both new schemas.
+
+### Risks / known limitations
+- Handles are not yet rendered - the bifold AssemblyComposer carries a TODO breadcrumb explaining the pseudo-config mapping back to the existing `Na__InteriorDoorSystem::Na__HandleBuilder3D` (`bifold_door_handle_asset_key` -> `Na__DoorConfig__HandleAssetKey`, `panel_w_mm` -> `Na__DoorConfig__OpeningWidth_mm` with `lining_t_mm = 0`, `descriptor[:handle_side]` -> `Na__DoorConfig__SwingSide`). Phase 3.5 wires this alongside the bifold DataSerializer.
+- DataSerializer round-trip / SelectionCoordinator hookup is deferred to Phase 3.5. Today selecting an existing ADR will not load its parameters into the dialog; Live Mode only updates the LAST CREATED ADR via the in-memory `@na_bifold_component` / `@na_sliding_component` references.
+- TrueVision3D's animation scanner has not yet been extended to recognise the new MOD-name encodings (`__MVE__X-{n}-mm__SlidingPanel`, multi-MOD bifold cascades, ROT-only placeholder markers). Phase 6a does this; today the GLB will export with all the right node names but TrueVision will fall back to its single-door click-to-open behaviour for any ADR whose first MOD does not match the legacy `__ROT__{n}-Deg__DoorPanel` pattern.
+- The sliding MovementPivotBuilder is a near-clone of the bifold one. Phase 4 extracts the shared marker drawing logic into `04__GeometryHelpers/Na__GeometryHelpers__MarkerBuilders__` so each system supplies only its name format. Today the duplication is intentional so each system can iterate independently of the other.
+- Switching mode in-place (e.g. toggling `multifold_mode` off then on with an existing ADR selected) is not supported. The Update / Live path expects the instance type to match the requested mode. Phase 3.5 hardens this with a definition-name guard so a mismatch falls back to "delete + recreate".
+
+### Next: Phase 3.5 (DataSerializer + SelectionCoordinator + Live Mode round-trip)
+Wire `Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer` and `Na__ExteriorSlidingDoorSystem::Na__DataSerializer` so saved ADR configurations survive across sessions, populate the dialog state when a user selects an existing bifold / sliding ADR, and route the existing `na_liveUpdate` callback path through the relevant Update engine via the ADR-aware DialogCallbacks dispatcher.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.4.8 - 17-May-2026 - Multi-folding & sliding door scaffolding: Phase 2 - Windows-tab UI integration (modes, mutual exclusivity, dynamic sub-controls)
+
+### Context
+Third step of the multi-folding + sliding door build-out (see plan `multi-folding_&_sliding_doors_5c7ccf30`, Phase 2). Phase 1 (V1.4.7) scaffolded both new system folders, skeleton files, AppCore wiring and shared `binary_toggle` + `select` control types. Phase 2 makes the new systems **user-visible inside the existing Windows tab** without yet building geometry: it wires the new schemas into the Window-system UI, adds two new top-level mode toggles, enforces three-way mutual exclusivity, and renders dynamic per-layout sub-controls for bifold. Phase-3a/3b will then plug the geometry pipelines behind the toggles.
+
+### Why integrate inside the Windows tab (not a new tab)
+The user's brief explicitly states the new systems must follow the established pattern of `door_mode` (which already lives under Windows -> Options): a top-level toggle that spawns a nested set of controls inside the same tab. That keeps the Windows tab the single home for "rectangular opening through a wall" assemblies (window | single-door | sliding-door | multi-folding-door) and avoids tab-bar bloat. A future refactor may split these into dedicated tabs once the schemas grow large; for now nesting is the pragmatic match.
+
+### Three-way mutual exclusivity (`door_mode` / `sliding_mode` / `multifold_mode`)
+`Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js -> na_onControlChange` now treats the three mode flags as mutually exclusive. When a user activates one, the other two are forced `false` in `_config` AND their DOM toggles are visually flipped via `na_setDOMToggleValue` so the UI never gets out-of-sync with state. This prevents nonsense states like "door + sliding both on" that would compete for geometry-engine dispatch in Phase-3.
+
+### Dynamic per-layout sub-controls (bifold)
+The bifold schema declares an always-visible `bifold_door_layout` `select` (`EqualEqual` / `AllOneWay` / `MasterSlaves`) plus two layout-specific `binary_toggle`s. `na_updateMultifoldDoorVisibility` shows `bifold_door_open_side` only when `AllOneWay` is selected (the cascade direction is meaningless for the other two layouts) and shows `bifold_door_master_side` only when `MasterSlaves` is selected (the master/slave split is layout-specific). This mirrors the existing pattern used for `sliding_sash_window` showing/hiding casement-related controls.
+
+### Shared schemas now drive Window MainUiLogic
+`Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` now treats `window.NA_SLIDING_DOOR_CONFIG` and `window.NA_BIFOLD_DOOR_CONFIG` as additional schemas alongside the four existing arrays. Three places had to be updated:
+1. `na_init` calls `na_buildControls('na-controls-sliding-door', window.NA_SLIDING_DOOR_CONFIG)` and same for bifold so the controls render into the new sections defined in HTML.
+2. `na_setDefaults` iterates the union of all six config arrays so first-run defaults populate `_config` for all controls (including the new mode flags and per-control values).
+3. `na_updateControlValue` (used by SelectionCoordinator round-trip) walks the same union so loaded ADR / sliding / bifold parameters are reflected in the UI.
+
+### `Na__AssemblyStudio__WindowSystem__Defaults__.rb`
+Mode flags `sliding_mode` and `multifold_mode` are added (default `false`) plus the full per-control default set for both new schemas (10 sliding-door defaults + 12 bifold defaults). `DialogCallbacks.rb -> na_default_config` already pulls from `Na__Defaults.na_default_config`, so the JS state and the Ruby state stay in sync from session start. The geometry engine still only branches on `door_mode == true`; `sliding_mode == true` or `multifold_mode == true` currently fall through to the standard window pipeline (intentional - Phase-3 wires the dispatch).
+
+### Schema population - `NA_SLIDING_DOOR_CONFIG` (10 controls)
+File: `Na__AssemblyStudio__ExtSlide__UiSystem__Config__.js`. Schema:
+- `sliding_door_mode` - `select` - `FrontSlidesRight` | `FrontSlidesLeft` | `RearSlidesRight` | `RearSlidesLeft` (3 sliding directions covered; brief asked for "two-panel sliding sash window" pattern - only the rear panel slides while the front stays fixed, OR vice-versa).
+- `sliding_door_opening_width_mm` / `sliding_door_opening_height_mm` - opening size sliders.
+- `sliding_door_panel_thickness_mm` - panel depth slider.
+- `sliding_door_rear_setback_mm` - how far the rear panel sits behind the front, in the wall-perpendicular axis (drives the `MVE` track depth).
+- `sliding_door_head_rail_mm` / `sliding_door_base_rail_mm` / `sliding_door_stile_width_mm` - frame proportions matching the existing `door_panel_*` defaults from `door_mode`.
+- `sliding_door_glazed` - `toggle` - default `true` (fully-glazed default per brief).
+- `sliding_door_panel_design_open` - `toggle` - default `false`. When toggled on Phase-3b will reveal the existing `door_panel_*` controls so a sliding panel can be designed as a panelled door instead of a glazed pane (reuses the existing PanelInterface from `door_mode`).
+
+### Schema population - `NA_BIFOLD_DOOR_CONFIG` (12 controls)
+File: `Na__AssemblyStudio__ExtFold__UiSystem__Config__.js`. Schema:
+- `bifold_door_layout` - `select` - `EqualEqual` (panels split equally to both sides) | `AllOneWay` (every panel cascades one way) | `MasterSlaves` (master swings 90deg, slaves cascade opposite).
+- `bifold_door_open_side` - `binary_toggle` - `Left` | `Right`. Visible only for `AllOneWay`.
+- `bifold_door_master_side` - `binary_toggle` - `Left` | `Right`. Visible only for `MasterSlaves`.
+- `bifold_door_panel_count` - 2..8 panel-count slider.
+- `bifold_door_opening_width_mm` / `bifold_door_opening_height_mm` - opening size sliders (panel widths derived per Layout module in Phase-3a).
+- `bifold_door_panel_thickness_mm`, `bifold_door_head_rail_mm`, `bifold_door_base_rail_mm`, `bifold_door_stile_width_mm` - panel construction sliders.
+- `bifold_door_glazed` - `toggle` - default `true`.
+- `bifold_door_panel_design_open` - `toggle` - default `false` (same panelled-door reveal pattern as sliding).
+
+### `Na__AssemblyStudio__UiLayout__.html`
+Two new sections (`<section id="na-section-sliding-door">` + `<section id="na-section-multifold-door">`) sit immediately after the existing `na-section-door` block inside the Windows tab. Each holds an empty `<div id="na-controls-sliding-door">` / `<div id="na-controls-multifold-door">` that the MainUiLogic populates from the schemas. Both sections start with `style="display: none"` so they only appear when their mode is on.
+
+### `Na__AssemblyStudio__AppCore__UiSystem__Controls__.js` + `Events__.js`
+`binary_toggle` and `select` were lifted from the InteriorDoorSystem (where they previously lived as imperative DOM-builder helpers) into the shared AppCore factories so the Window-system schema can use them directly. Both new functions match the existing `na_createControl` / `na_attachEventListeners` switch shape, are exported on the module return surface, and are now also picked up by SelectionCoordinator's value-update path.
+
+### Files touched
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js` - +`sliding_mode` + `multifold_mode` toggle entries in `NA_OPTIONS_CONFIG`.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` - mutual-exclusivity logic, two visibility helpers, builder calls, default-set extension, value-update lookup extension.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__.rb` - 2 new mode flags + 22 per-control defaults.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__UiSystem__Config__.js` - 10-control schema populated.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__UiSystem__Config__.js` - 12-control schema populated.
+- `Na__AssemblyStudio__UiLayout__.html` - 2 new `<section>` elements (already wired by Phase 1).
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__Controls__.js` - `binary_toggle` + `select` factories (already added in Phase 1; surfaced for completeness).
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__Events__.js` - `binary_toggle` + `select` listeners (Phase 1).
+
+### Behaviour after Phase 2
+- Windows tab Options group now shows three top-level toggles: `Door mode`, `Sliding door`, `Multi-folding door`. Activating any one forces the other two off in both `_config` and DOM.
+- Activating `Sliding door` reveals 10 controls; activating `Multi-folding door` reveals 12 (with the open/master-side toggles appearing only for the relevant layout).
+- "Create new window" button still hits the existing Window geometry pipeline; sliding/multifold geometry routing is **deliberately deferred** to Phase 3 to avoid half-built geometry leaking into the canvas.
+
+### Risks / known limitations
+- No geometry yet for sliding / multifold - if a user toggles `sliding_mode` or `multifold_mode` on and clicks Create, they get a regular window. This is intentional for Phase 2; Phase-3a / Phase-3b add the geometry dispatch.
+- The Live-mode round-trip path will not load existing sliding/multifold doors yet (no DataSerializer dictionary keys defined yet) - Phase 3.5 wires that.
+- The bifold `panel_count` slider is currently a simple range; per Phase-3a's Layout modules, the actual panel count may need to be coerced (e.g. `EqualEqual` typically requires even counts, `MasterSlaves` requires >=2). Coercion happens in the Layout modules, not the UI.
+
+### Next: Phase 3a (Bifold geometry + 3 LayoutAlgorithms)
+Wire `na_build_bifold_door` to dispatch to one of the three `Na__ExteriorMultiFoldingDoorSystem::Na__Layout__<Algorithm>` modules, generate panel descriptors (geometry + ROT pivot points + MVE travel vectors per panel), reuse `Na__InteriorDoorSystem::Na__PanelInterface` and `Na__HandleBuilder3D` from the existing systems, and build a flat-sibling component tree under each `ADR###` matching the naming contract `MOD###__ROT__-90-Deg__MVE__X-600-mm__BifoldPanel`.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.4.7 - 17-May-2026 - Multi-folding & sliding door scaffolding: Phase 1 - new system folders, file skeletons, AppCore wiring, shared `binary_toggle` control
+
+### Context
+Second step of the multi-folding + sliding door build-out (see plan `multi-folding_&_sliding_doors_5c7ccf30`, Phase 1). Phase 0 (V1.4.6) renamed the existing exterior door folder so the namespace was free for sibling systems. Phase 1 is **scaffold only** - the new folders, file skeletons, AppCore wiring and the shared `binary_toggle` control are added so Phases 2-6 can fill in geometry / UI / animation without restructuring. No new features are user-visible yet.
+
+### New folders (2)
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/` - 2-panel exterior sliding door (Phase-3b implements geometry; Phase-6b implements TrueVision animation).
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/` - multi-panel bifold (Phase-3a implements geometry + 3 layout algorithms; Phase-6b implements cascade animation).
+
+### File-segment shortening for the new systems: ExtSlide__ and ExtFold__
+Mirrors the Phase-0 precedent for `ExtSingleDoor__`. With the longer folder names (`32__System__ExteriorSlidingDoorSystem` = 38 chars, `33__System__ExteriorMultiFoldingDoorSystem` = 42 chars), even the moderately-long `ExtSlidingDoor__` / `ExtMultiFoldDoor__` segments push the deepest filenames (e.g. `Layout__MasterSlaves__.rb`) past the 260-char Windows `MAX_PATH` limit that SketchUp's Ruby `require_relative` enforces. The very short segments **`ExtSlide__`** (8 chars) and **`ExtFold__`** (7 chars) keep absolute paths comfortably below the limit while remaining unambiguous in context (the folder name + Ruby module name fully disambiguate). Bifold layout sub-files use `Layout__<Algorithm>__` (e.g. `Layout__EqualEqual__`) instead of `LayoutAlgorithm__<Algorithm>__` for the same reason. The folder names and Ruby module names stay full and self-documenting (`Na__ExteriorSlidingDoorSystem`, `Na__ExteriorMultiFoldingDoorSystem`). The full table is in `Na__AssemblyStudio__Architecture__.md`.
+
+### Skeleton files written - ExteriorSlidingDoorSystem (13 files)
+
+Ruby (8):
+- `Na__AssemblyStudio__ExtSlide__Init__.rb` - module entry, ADR id format, MOD/ROT/MVE naming format constants, default config Hash, lazy-load gate, `Na__Init.na_init` registers a SelectionCoordinator handler descriptor (`tab_id => 'sliding_doors'`) and a DialogManager system-init hook.
+- `Na__AssemblyStudio__ExtSlide__DialogRouter__.rb` - `na_init`, `na_load_door_into_dialog`, `na_clear_door_from_dialog` placeholders.
+- `Na__AssemblyStudio__ExtSlide__GeometryEngine__.rb` - `na_build_sliding_door`, `na_update_sliding_door` placeholders.
+- `Na__AssemblyStudio__ExtSlide__GeometryHelpers__.rb` - `na_compute_leaf_width_mm`, `na_compute_slide_travel_mm` placeholders.
+- `Na__AssemblyStudio__ExtSlide__AssemblyComposer__.rb` - `na_allocate_adr_id`, `na_compose_adr`, `na_resolve_mod_names` placeholders.
+- `Na__AssemblyStudio__ExtSlide__RotationPivotBuilder__.rb` - `na_build_rotation_pivot` placeholder (placeholder ROT001 marker per Phase-3b).
+- `Na__AssemblyStudio__ExtSlide__MovementPivotBuilder__.rb` - `na_build_movement_pivot` placeholder.
+- `Na__AssemblyStudio__ExtSlide__DataSerializer__.rb` - `na_get_door_id_from_instance` (working - reads ADR id from instance dict), `na_save_door_config` and `na_load_door_config` placeholders.
+
+JS (5):
+- `Na__AssemblyStudio__ExtSlide__UiSystem__Config__.js` - empty `NA_SLIDING_DOOR_CONFIG = []` with Phase-2 schema sketch in a comment block.
+- `Na__AssemblyStudio__ExtSlide__UiSystem__MainUiLogic__.js` - placeholder renderer that draws "Sliding-Door controls (Phase-1 scaffold)".
+- `Na__AssemblyStudio__ExtSlide__UiSystem__Bridge__.js` - `na_create_sliding_door`, `na_live_update_sliding_door` placeholders that gracefully no-op when `sketchup.createSlidingDoor` is unregistered.
+- `Na__AssemblyStudio__ExtSlide__Viewport__ElevationGenerator__.js` - returns a labelled placeholder SVG.
+- `Na__AssemblyStudio__ExtSlide__Viewport__PlanGenerator__.js` - returns a labelled placeholder SVG.
+
+### Skeleton files written - ExteriorMultiFoldingDoorSystem (16 files)
+
+Ruby (11):
+- `Na__AssemblyStudio__ExtFold__Init__.rb` - module entry, ADR id format, MOD/ROT/MVE naming format constants, layout algorithm identifiers (`NA_LAYOUT_EQUAL_EQUAL`, `NA_LAYOUT_ALL_ONE_WAY`, `NA_LAYOUT_MASTER_SLAVES`), default config Hash, lazy-load gate, `Na__Init.na_init` registers a SelectionCoordinator handler descriptor (`tab_id => 'bifold_doors'`) and a DialogManager system-init hook.
+- `Na__AssemblyStudio__ExtFold__DialogRouter__.rb` - placeholders matching ExtSlide.
+- `Na__AssemblyStudio__ExtFold__GeometryEngine__.rb` - `na_build_bifold_door`, `na_update_bifold_door`, `na_resolve_layout_module` placeholders (Phase-3a dispatches to one of the 3 Layout modules).
+- `Na__AssemblyStudio__ExtFold__GeometryHelpers__.rb` - `na_compute_panel_width_mm` placeholder.
+- `Na__AssemblyStudio__ExtFold__AssemblyComposer__.rb` - `na_allocate_adr_id`, `na_compose_adr` (consumes a panel descriptor list from the chosen Layout module).
+- `Na__AssemblyStudio__ExtFold__RotationPivotBuilder__.rb` - `na_build_rotation_pivot` placeholder (one ROT marker per pivoting panel).
+- `Na__AssemblyStudio__ExtFold__MovementPivotBuilder__.rb` - `na_build_movement_pivot` placeholder (one MVE marker per translating panel).
+- `Na__AssemblyStudio__ExtFold__DataSerializer__.rb` - `na_get_door_id_from_instance` working, save/load placeholders.
+- `Na__AssemblyStudio__ExtFold__Layout__EqualEqual__.rb` - `na_generate_panel_descriptors` placeholder (panels split open to both sides).
+- `Na__AssemblyStudio__ExtFold__Layout__AllOneWay__.rb` - `na_generate_panel_descriptors` placeholder (every panel cascades one way; `OpenSide` toggles Left/Right).
+- `Na__AssemblyStudio__ExtFold__Layout__MasterSlaves__.rb` - `na_generate_panel_descriptors` placeholder (master swings 90deg, slaves cascade opposite; handle on master).
+
+JS (5): equivalent set to ExtSlide (Config / MainUiLogic / Bridge / Viewport Elevation / Viewport Plan).
+
+### Wiring updates
+
+#### `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__Main__.rb`
+- `require_relative` block now loads both new system Init files alongside the existing four.
+- Per-system init-hook block now invokes `Na__ExteriorSlidingDoorSystem::Na__Init.na_init` and `Na__ExteriorMultiFoldingDoorSystem::Na__Init.na_init` (each guarded by `if defined?(...)`), so the dialog-open lifecycle wires the new systems into SelectionCoordinator + DialogManager exactly the same way as Window / Interior / ExtSingleDoor.
+
+#### `Na__AssemblyStudio__UiLayout__.html`
+- New `<script>` tags load the new systems' `UiSystem__Config__.js` (next to `ExtSingleDoor__UiSystem__Config__.js`), `Viewport__ElevationGenerator__.js` + `Viewport__PlanGenerator__.js` (next to the WindowSystem viewport SVG generator), and `UiSystem__MainUiLogic__.js` + `UiSystem__Bridge__.js` (next to WindowSystem MainUiLogic / Bridge).
+- Load order respects existing dependency ordering: AppCore Controls/Events first; per-system schema before tab-router; viewport generators before MainUiLogic; MainUiLogic before AppContext.
+
+#### `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__Controls__.js`
+- Added `na_createBinaryToggleHtml(config)` factory that emits the same DOM the InteriorDoorSystem MainUiLogic builds imperatively (`.na-binary-toggle`, `.na-binary-toggle__option--left/right`, `.na-binary-toggle__track > .na-binary-toggle__thumb`). Stamps `data-left-value` and `data-right-value` on the root so the listener can flip without descriptor mutation.
+- `na_createControl` switch now dispatches `'binary_toggle'` to the new factory.
+- Public surface gains `na_createBinaryToggleHtml`.
+
+#### `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__Events__.js`
+- Added `na_attachBinaryToggleListener(config, onChangeCallback)` that reads `data-left-value` / `data-right-value` and toggles between them on click, mirroring the existing inline listener inside `Na__InteriorDoorSystem::na_build_binary_toggle_control`.
+- `na_attachEventListeners` switch now dispatches `'binary_toggle'`.
+- Public surface gains `na_attachBinaryToggleListener`.
+
+### Why a shared binary_toggle?
+The InteriorDoorSystem MainUiLogic still uses its imperative `na_build_binary_toggle_control` because the InteriorDoor tab does not go through the AppCore `Na__Ui__Controls`/`Na__Ui__Events` pipeline. The Windows tab (where the new sliding/multi-fold sub-sections will live in Phase-2) **does** go through that pipeline. Lifting the same DOM contract into the shared factory means the new schemas can declare `type: 'binary_toggle'` for L/R selectors (master side, open side, slide direction) without any per-system DOM code. The InteriorDoor imperative version is left unchanged for now; it can be migrated to the shared factory later without behavioural impact.
+
+### Documentation updates
+- `Na__AssemblyStudio__Architecture__.md` - file-segment shortening rule expanded to a full table (folder -> Ruby module -> file segment), now including `ExtSlide__`, `ExtFold__`, and the bifold `Layout__<Algorithm>__` rule.
+- `Na__AssemblyStudio__RewireMap__.md` - require-graph diagram now marks the new systems as "Phase-1 scaffold" rather than "[planned]"; JS load order shows the new Config / MainUiLogic / Bridge / Viewport entries; AppCore Controls/Events line annotated with the new `binary_toggle` capability; folder list footer updated to call out the file-segment choices.
+
+### Verification before Phase-2
+- `Sketchup.active_model` cycle: opening a fresh SketchUp session and clicking Element Assembly Studio Pro should:
+  - load every Init.rb without error (previously verified for v1.4.6 ExtSingleDoor; the two new Init files mirror that structure exactly with empty lazy-load arrays);
+  - show the Settings, Windows and Interior-Doors tabs as before with no new visible UI changes;
+  - log `[NA_EXT_SLIDE]` and `[NA_EXT_FOLD]` entries from the JS scaffold modules to the dialog console;
+  - register two new SelectionCoordinator handlers (`sliding_doors`, `bifold_doors`) that resolve to nil for any current selection because the DataSerializer modules are not yet loaded.
+- The `binary_toggle` factory is dormant until Phase-2 declares the first descriptor of that type.
+
+### Next phase
+Phase 2: Windows-tab UI integration (`multifold_mode` + `sliding_mode` toggles, sections, mutual exclusivity), wiring the new `binary_toggle` factory into the new schemas.
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.4.6 - 17-May-2026 - Multi-folding & sliding door scaffolding: Phase 0 rename of `30__System__ExteriorDoorSystem` to `31__System__ExteriorSingleDoorSystem`
+
+### Context
+First step of the multi-folding + sliding door build-out (see plan `multi-folding_&_sliding_doors_5c7ccf30`). Existing exterior door panel code (the casement-mode "door_mode" pipeline driven from the Windows tab) was reorganised so the existing system has a name that distinguishes it from the upcoming sibling systems: a 2-panel sliding door (`32__System__ExteriorSlidingDoorSystem`) and a multi-panel bifold door (`33__System__ExteriorMultiFoldingDoorSystem`). Phase 0 is rename-only - no behavioural change. The existing door panel still builds via WindowSystem casement `door_mode`.
+
+### File renames (5 files, full depth)
+
+| Old (under `02__Src__AppModules/30__System__ExteriorDoorSystem/`) | New (under `02__Src__AppModules/31__System__ExteriorSingleDoorSystem/`) |
+|----|----|
+| `Na__AssemblyStudio__ExteriorDoorSystem__Init__.rb`                          | `Na__AssemblyStudio__ExtSingleDoor__Init__.rb`                          |
+| `Na__AssemblyStudio__ExteriorDoorSystem__PanelInterface__.rb`                | `Na__AssemblyStudio__ExtSingleDoor__PanelInterface__.rb`                |
+| `Na__AssemblyStudio__ExteriorDoorSystem__GeometryBuilder__DoorPanel__.rb`    | `Na__AssemblyStudio__ExtSingleDoor__GeometryBuilder__DoorPanel__.rb`    |
+| `Na__AssemblyStudio__ExteriorDoorSystem__FuseParts__DoorPanel__.rb`          | `Na__AssemblyStudio__ExtSingleDoor__FuseParts__DoorPanel__.rb`          |
+| `Na__AssemblyStudio__ExteriorDoorSystem__UiSystem__Config__.js`              | `Na__AssemblyStudio__ExtSingleDoor__UiSystem__Config__.js`              |
+
+The old `30__System__ExteriorDoorSystem` folder has been removed.
+
+### Filename abbreviation: ExtSingleDoor__ (NOT ExteriorSingleDoorSystem__)
+The folder is `31__System__ExteriorSingleDoorSystem` and the Ruby module is `Na__ExteriorSingleDoorSystem`, but the **filenames** use the abbreviated segment `ExtSingleDoor__`. With the full segment, a path like `...\31__System__ExteriorSingleDoorSystem\Na__AssemblyStudio__ExteriorSingleDoorSystem__GeometryBuilder__DoorPanel__.rb` is 264 characters, which is over the 260-char Windows `MAX_PATH` limit that SketchUp's Ruby `require_relative` enforces. The abbreviation reduces the longest path to 254 characters with safe headroom for future viewport / serializer / dialog-router files. This mirrors the pre-existing precedent for `Na__PanelDesignStyles__*` modules being named `Na__AssemblyStudio__InteriorDoorSystem__PanelStyle__*.rb` (see Architecture.md note in `40__System__InteriorDoorSystem`).
+
+### Module rename
+`module Na__ExteriorDoorSystem` -> `module Na__ExteriorSingleDoorSystem` in all five renamed files. The DoorPanelContext struct, PanelInterface module, Na__DoorPanelGeometryBuilder, and Na__FuseParts__DoorPanel constants all live under the new namespace.
+
+### Cross-system reference updates
+
+#### `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__Main__.rb`
+- `require_relative '../30__System__ExteriorDoorSystem/Na__AssemblyStudio__ExteriorDoorSystem__Init__'` -> `require_relative '../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__Init__'`
+- `Na__AssemblyStudio::Na__ExteriorDoorSystem::Na__Init.na_init` -> `Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__Init.na_init`
+
+#### `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb`
+- `require_relative '../30__System__ExteriorDoorSystem/Na__AssemblyStudio__ExteriorDoorSystem__PanelInterface__'` -> `require_relative '../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__PanelInterface__'`
+- `DoorPanelInterface` lambda now resolves `Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::PanelInterface`.
+- `na_render_door_casement_geometry` constructs `Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::DoorPanelContext.new(...)`.
+
+#### `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__FuseParts__.rb`
+- Step 5/6 delegation now checks `defined?(::Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::PanelInterface)` and calls into the renamed namespace.
+- `na_fuse_door_panels_DEPRECATED` and `na_fuse_door_trim_DEPRECATED` comments updated to point at `ExteriorSingleDoorSystem::FuseParts__DoorPanel`.
+
+#### `Na__AssemblyStudio__UiLayout__.html`
+- `<script src="02__Src__AppModules/30__System__ExteriorDoorSystem/Na__AssemblyStudio__ExteriorDoorSystem__UiSystem__Config__.js">` -> `<script src="02__Src__AppModules/31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__UiSystem__Config__.js">`
+
+#### `03__Style__AppStylesheets/Na__AssemblyStudio__CoreUi__Styles__Index__.css`
+- "FUTURE WORK" comment updated to list the planned per-system CSS split (`31__/32__/33__` instead of just `30__`).
+
+#### Docs
+- `85__Docs__AppDocumentation/Na__AssemblyStudio__Architecture__.md` - top-level layout, per-system namespaces list, inter-system contract section, and a new note about the file-segment shortening convention.
+- `85__Docs__AppDocumentation/Na__AssemblyStudio__RewireMap__.md` - require graph, Ruby require graph diagram, inter-system contract section, JS load order table, and fast-navigation map all updated.
+
+### Smoke-check expectation
+A SketchUp restart should still build a window in casement `door_mode` exactly as before; the pipeline now resolves through the renamed namespace but the geometry, fuse, and UI surface are byte-equivalent to V1.4.5.
+
+### Known follow-on (planned in subsequent phases)
+- Phase 0.5 - Verify GLB door-handler in `Na__TrueVision__GlbBuilderUtility__Modules__\\Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__.rb` preserves named pivot/movement-marker nodes despite the helpers tag being on a `02__`-prefixed export-excluded layer.
+- Phase 1 - Scaffold `32__System__ExteriorSlidingDoorSystem` and `33__System__ExteriorMultiFoldingDoorSystem` skeleton modules and extend the shared `AppCore__UiSystem__Controls__.js` / `_Events__.js` factories with a `binary_toggle` case.
+
+---
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.4.5 - 11-May-2026 - Plan view: fix outward/inward swing direction (SVG Y-axis inversion)
 
 ### Context

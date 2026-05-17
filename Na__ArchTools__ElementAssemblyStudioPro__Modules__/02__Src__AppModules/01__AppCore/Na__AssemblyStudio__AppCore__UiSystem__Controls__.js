@@ -21,6 +21,8 @@ const Na__Ui__Controls = (function () {
         switch (config.type) {
             case 'slider':         return na_createSliderHtml(config);
             case 'toggle':         return na_createToggleHtml(config);
+            case 'binary_toggle':  return na_createBinaryToggleHtml(config);
+            case 'select':         return na_createSelectHtml(config);
             case 'color':          return na_createColorHtml(config);
             case 'material_cards': return na_createMaterialCardsHtml(config);
             case 'expandable':     return na_createExpandableHtml(config);
@@ -71,6 +73,64 @@ const Na__Ui__Controls = (function () {
                     <span class="na-control-label">${config.label}</span>
                     <div class="na-toggle ${activeClass}" id="${config.id}-toggle" data-value="${config.default}">
                         <div class="na-toggle-knob"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Select: native <select> dropdown rendered by an HTML string.
+    // descriptor shape:
+    //   {
+    //     id      : string,
+    //     label   : string,
+    //     type    : 'select',
+    //     default : <one of options[].value>,
+    //     options : [ { value, label }, ... ]
+    //   }
+    // DOM matches the imperative builder used by the Interior Door tab so
+    // the existing CSS (.na-select) works unchanged.
+    function na_createSelectHtml(config) {
+        const options = Array.isArray(config.options) ? config.options : [];
+        const opts = options.map(function (opt) {
+            const isSelected = (opt.value === config.default) ? ' selected' : '';
+            return '<option value="' + opt.value + '"' + isSelected + '>' + opt.label + '</option>';
+        }).join('');
+        return `
+            <div class="na-control-item" data-control-id="${config.id}">
+                <div class="na-control-label"><span>${config.label}</span></div>
+                <select class="na-select" id="${config.id}-select">${opts}</select>
+            </div>
+        `;
+    }
+
+    // Binary toggle: two-option inline switch (e.g. Left | Right, Inward | Outward).
+    // descriptor shape:
+    //   {
+    //     id      : string,
+    //     label   : string,
+    //     type    : 'binary_toggle',
+    //     default : <one of options[].value>,
+    //     options : [ { value, label }, { value, label } ]   // exactly 2 entries
+    //   }
+    // DOM matches the imperative builder used by the Interior Door tab so the
+    // existing CSS (.na-binary-toggle, .na-binary-toggle__track, etc.) works
+    // unchanged.
+    function na_createBinaryToggleHtml(config) {
+        const options       = Array.isArray(config.options) ? config.options : [];
+        const leftOpt       = options[0] || { value: '', label: '' };
+        const rightOpt      = options[1] || { value: '', label: '' };
+        const isRight       = (config.default === rightOpt.value);
+        const sideClass     = isRight ? 'na-binary-toggle--right' : 'na-binary-toggle--left';
+        return `
+            <div class="na-control-item" data-control-id="${config.id}">
+                <div class="na-toggle-container">
+                    <span class="na-control-label">${config.label}</span>
+                    <div class="na-binary-toggle ${sideClass}" id="${config.id}-btoggle" data-value="${config.default}"
+                         data-left-value="${leftOpt.value}" data-right-value="${rightOpt.value}">
+                        <span class="na-binary-toggle__option na-binary-toggle__option--left">${leftOpt.label}</span>
+                        <div class="na-binary-toggle__track"><div class="na-binary-toggle__thumb"></div></div>
+                        <span class="na-binary-toggle__option na-binary-toggle__option--right">${rightOpt.label}</span>
                     </div>
                 </div>
             </div>
@@ -150,6 +210,8 @@ const Na__Ui__Controls = (function () {
         na_createControl:           na_createControl,
         na_createSliderHtml:        na_createSliderHtml,
         na_createToggleHtml:        na_createToggleHtml,
+        na_createBinaryToggleHtml:  na_createBinaryToggleHtml,
+        na_createSelectHtml:        na_createSelectHtml,
         na_createColorHtml:         na_createColorHtml,
         na_createMaterialCardsHtml: na_createMaterialCardsHtml,
         na_createExpandableHtml:    na_createExpandableHtml

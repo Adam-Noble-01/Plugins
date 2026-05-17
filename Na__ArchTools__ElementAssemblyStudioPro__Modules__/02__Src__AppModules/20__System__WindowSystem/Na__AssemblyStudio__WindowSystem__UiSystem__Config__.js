@@ -447,6 +447,18 @@ const NA_OPTIONS_CONFIG = [
         default :  false
     },
     {
+        id      :  'sliding_mode',
+        label   :  'Sliding Door',
+        type    :  'toggle',
+        default :  false
+    },
+    {
+        id      :  'multifold_mode',
+        label   :  'Multi-Folding Door',
+        type    :  'toggle',
+        default :  false
+    },
+    {
         id              : 'frame_material_id',
         label           : 'Frame Finish',
         type            : 'material_cards',

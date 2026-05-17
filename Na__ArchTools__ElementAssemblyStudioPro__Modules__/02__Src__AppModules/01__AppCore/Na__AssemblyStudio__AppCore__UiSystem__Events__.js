@@ -15,6 +15,8 @@ const Na__Ui__Events = (function () {
         switch (config.type) {
             case 'slider':         na_attachSliderListeners(config, onChangeCallback); break;
             case 'toggle':         na_attachToggleListener(config, onChangeCallback); break;
+            case 'binary_toggle':  na_attachBinaryToggleListener(config, onChangeCallback); break;
+            case 'select':         na_attachSelectListener(config, onChangeCallback); break;
             case 'color':          na_attachColorListener(config, onChangeCallback); break;
             case 'material_cards': na_attachMaterialCardsListener(config, onChangeCallback); break;
             case 'expandable':     na_attachExpandableListener(config, onChangeCallback); break;
@@ -76,6 +78,35 @@ const Na__Ui__Events = (function () {
         }
     }
 
+    // Select: emits the chosen option value on change.
+    function na_attachSelectListener(config, onChangeCallback) {
+        const select = document.getElementById(`${config.id}-select`);
+        if (!select) return;
+        select.addEventListener('change', () => {
+            if (onChangeCallback) onChangeCallback(config.id, select.value);
+        });
+    }
+
+    // Binary toggle: flips between the two `options` values declared on the
+    // descriptor. Reads the left/right values out of data-attributes that
+    // na_createBinaryToggleHtml stamped on the root element so the listener
+    // does not need to know about descriptor mutation order.
+    function na_attachBinaryToggleListener(config, onChangeCallback) {
+        const toggle = document.getElementById(`${config.id}-btoggle`);
+        if (!toggle) return;
+        const leftValue  = toggle.getAttribute('data-left-value');
+        const rightValue = toggle.getAttribute('data-right-value');
+        toggle.addEventListener('click', () => {
+            const currentVal = toggle.getAttribute('data-value');
+            const newVal     = (currentVal === rightValue) ? leftValue : rightValue;
+            const goingRight = (newVal === rightValue);
+            toggle.setAttribute('data-value', newVal);
+            toggle.classList.toggle('na-binary-toggle--left',  !goingRight);
+            toggle.classList.toggle('na-binary-toggle--right', goingRight);
+            if (onChangeCallback) onChangeCallback(config.id, newVal);
+        });
+    }
+
     function na_attachColorListener(config, onChangeCallback) {
         const colorPicker = document.getElementById(`${config.id}-color`);
         const display     = document.getElementById(`${config.id}-display`);
@@ -107,6 +138,8 @@ const Na__Ui__Events = (function () {
         na_attachEventListeners:        na_attachEventListeners,
         na_attachSliderListeners:       na_attachSliderListeners,
         na_attachToggleListener:        na_attachToggleListener,
+        na_attachBinaryToggleListener:  na_attachBinaryToggleListener,
+        na_attachSelectListener:        na_attachSelectListener,
         na_attachColorListener:         na_attachColorListener,
         na_attachMaterialCardsListener: na_attachMaterialCardsListener,
         na_attachExpandableListener:    na_attachExpandableListener

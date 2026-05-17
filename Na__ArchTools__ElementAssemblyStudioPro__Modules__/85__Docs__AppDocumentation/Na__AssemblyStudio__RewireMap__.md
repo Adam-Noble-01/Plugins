@@ -18,9 +18,11 @@ SketchUp loads Plugins/Na__ElementAssemblyStudioPro__Loader.rb
         ├─ require AppCore/SelectionCoordinator
         ├─ require Tools/MeasurementTools/{TwoPoint, ThreePoint}
         ├─ require Tools/PlacementTools/WindowPlacementTool
-        ├─ require WindowSystem/Init       (registers callbacks + selection handler)
-        ├─ require ExteriorDoorSystem/Init (registers PanelInterface)
-        └─ require InteriorDoorSystem/Init (registers callbacks + selection handler)
+        ├─ require WindowSystem/Init                   (registers callbacks + selection handler)
+        ├─ require ExteriorSingleDoorSystem/Init       (registers PanelInterface)
+        ├─ require ExteriorSlidingDoorSystem/Init      (Phase-1 scaffold: selection handler stub registered)
+        ├─ require ExteriorMultiFoldingDoorSystem/Init (Phase-1 scaffold: selection handler stub registered)
+        └─ require InteriorDoorSystem/Init             (registers callbacks + selection handler)
 
 User clicks toolbar button -> Na__AssemblyStudio.na_init
   ├─ load AppConfig
@@ -52,15 +54,15 @@ User clicks toolbar button -> Na__AssemblyStudio.na_init
       |                |          |              |
       +-------+--------+----------+              |
               |                                  |
-        +-----v-----+   +------------+   +-------v-----+
-        | WindowSys |-->|ExteriorDoor|<--| InteriorDoor|
-        | (20s)     |   |   (30s)    |   |    (40s)    |
-        +-----+-----+   +------------+   +-----+-------+
-              |              ^                 |
-              | calls        | called by       |
-              v              | Window's        v
-         WindowSystem::      | FuseParts +     InteriorDoorSystem::
-         DialogCallbacks    Geom (PanelInterface)  DialogRouter
+        +-----v-----+   +-----------------+   +-------v-----+
+        | WindowSys |-->| ExtSingleDoor   |<--| InteriorDoor|
+        | (20s)     |   | (31s) [+32 +33] |   |    (40s)    |
+        +-----+-----+   +-----------------+   +-----+-------+
+              |              ^                       |
+              | calls        | called by             |
+              v              | Window's              v
+         WindowSystem::      | FuseParts +           InteriorDoorSystem::
+         DialogCallbacks    Geom (PanelInterface)    DialogRouter
               |                                    |
               +----- shared --------+--------------+
                                     v
@@ -68,9 +70,9 @@ User clicks toolbar button -> Na__AssemblyStudio.na_init
                        (one Ruby<->JS helper set)
 ```
 
-## Inter-system contract: WindowSystem <-> ExteriorDoorSystem
+## Inter-system contract: WindowSystem <-> ExteriorSingleDoorSystem
 
-`Na__AssemblyStudio::Na__ExteriorDoorSystem::PanelInterface` is the only door-panel touchpoint that WindowSystem references. It exposes:
+`Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::PanelInterface` is the only door-panel touchpoint that WindowSystem references. It exposes:
 
 ```
 DoorPanelContext = Struct.new(
@@ -84,7 +86,9 @@ PanelInterface.na_build_panel(context) -> Sketchup::Group | nil
 PanelInterface.na_fuse_panel_steps(entities) -> { fused, failed, skipped }
 ```
 
-WindowSystem `GeometryEngine.na_render_door_casement_geometry` builds a `DoorPanelContext` and calls `PanelInterface.na_build_panel`. WindowSystem `FuseParts.na_fuse_window_parts` step 5/6 calls `PanelInterface.na_fuse_panel_steps`. ExteriorDoorSystem owns the actual builder and fuse implementations behind the interface.
+WindowSystem `GeometryEngine.na_render_door_casement_geometry` builds a `DoorPanelContext` and calls `PanelInterface.na_build_panel`. WindowSystem `FuseParts.na_fuse_window_parts` step 5/6 calls `PanelInterface.na_fuse_panel_steps`. ExteriorSingleDoorSystem owns the actual builder and fuse implementations behind the interface.
+
+Note on file naming: the folder is `31__System__ExteriorSingleDoorSystem` and the Ruby module name is `Na__ExteriorSingleDoorSystem`, but the filenames inside use the abbreviated segment `ExtSingleDoor__` (e.g. `Na__AssemblyStudio__ExtSingleDoor__PanelInterface__.rb`) so the absolute Windows path stays under the 260-char `MAX_PATH` limit that SketchUp's Ruby `require_relative` enforces. This mirrors the pre-existing `PanelStyle__` precedent for the `Na__PanelDesignStyles__*` modules in `40__System__InteriorDoorSystem`.
 
 ## SelectionCoordinator handler registry
 
@@ -112,14 +116,22 @@ This pattern means:
 ## JS load order (UiLayout.html)
 
 ```
-01__AppCore JS          - BridgeBase, MainShell, UiSystem Controls/Events
-20__WindowSystem JS     - UiSystem Config (window schema)
-30__ExteriorDoorSystem  - UiSystem Config (door panel schema)
-05__Viewport JS         - SvgHelpers, Validation, Controls, Instance
-20__WindowSystem JS     - SvgGenerator, Export Dxf, MainUiLogic, Bridge
-01__AppCore JS          - TabRouter, AppContext (must load AFTER tab modules)
-03__AppUtils JS         - SettingsTab UiLogic, SettingsTab Bridge
-40__InteriorDoorSystem  - UiSystem Config, Plan/Elev generators, MainUiLogic, Bridge
+01__AppCore JS              - BridgeBase, MainShell, UiSystem Controls/Events
+                              (Controls/Events now expose binary_toggle case)
+20__WindowSystem JS         - UiSystem Config (window schema)
+31__ExtSingleDoor JS        - UiSystem Config (door-panel schema for door_mode)
+32__ExtSlide JS             - UiSystem Config (sliding-door schema)            [Phase-1 scaffold]
+33__ExtFold JS              - UiSystem Config (multi-fold schema)              [Phase-1 scaffold]
+05__Viewport JS             - SvgHelpers, Validation, Controls, Instance
+20__WindowSystem JS         - SvgGenerator, Export Dxf
+32__ExtSlide JS             - Viewport Elevation+Plan generators              [Phase-1 scaffold]
+33__ExtFold JS              - Viewport Elevation+Plan generators              [Phase-1 scaffold]
+20__WindowSystem JS         - MainUiLogic, Bridge
+32__ExtSlide JS             - MainUiLogic, Bridge                              [Phase-1 scaffold]
+33__ExtFold JS              - MainUiLogic, Bridge                              [Phase-1 scaffold]
+01__AppCore JS              - TabRouter, AppContext (must load AFTER tab modules)
+03__AppUtils JS             - SettingsTab UiLogic, SettingsTab Bridge
+40__InteriorDoorSystem      - UiSystem Config, Plan/Elev generators, MainUiLogic, Bridge
 ```
 
 The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, `Na_SettingsUI`) and via the `data-na-tab-id` attribute on tab buttons. Adding a new tab = add a button with `data-na-tab-id="newTab"` plus a JS module that exposes `Na_NewtabUI` (or `Na_<TabId>UI`).
@@ -176,7 +188,9 @@ All `Ruby -> JS` calls go through `AppCore::UiBridge.na_execute_json_function` /
 - `02__Src__AppModules/06__Tools__MeasurementTools` - 2-point / 3-point opening tools.
 - `02__Src__AppModules/07__Tools__PlacementTools` - placement tools.
 - `02__Src__AppModules/20__System__WindowSystem` - window subsystem.
-- `02__Src__AppModules/30__System__ExteriorDoorSystem` - exterior door subsystem.
+- `02__Src__AppModules/31__System__ExteriorSingleDoorSystem` - single exterior door subsystem (filenames use `ExtSingleDoor__` for MAX_PATH).
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem` - two-panel sliding exterior door subsystem (Phase-1 scaffold; filenames use the very short `ExtSlide__` segment because the longer folder name pushes deeper filenames past the 260-char `MAX_PATH` limit).
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem` - multi-panel bifolding exterior door subsystem (Phase-1 scaffold; filenames use the very short `ExtFold__` segment for MAX_PATH; per-layout sub-files use `Layout__<Algorithm>__`, e.g. `Layout__EqualEqual__`, `Layout__AllOneWay__`, `Layout__MasterSlaves__`).
 - `02__Src__AppModules/40__System__InteriorDoorSystem` - interior door subsystem.
 - `03__Style__AppStylesheets` - app stylesheets.
 - `04__Data__AssetLibrary` - handle/architrave/hinge asset JSON.

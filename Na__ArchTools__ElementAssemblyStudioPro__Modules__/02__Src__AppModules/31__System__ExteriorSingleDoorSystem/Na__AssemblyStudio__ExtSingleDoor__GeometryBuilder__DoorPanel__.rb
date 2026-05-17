@@ -1,9 +1,9 @@
 # =============================================================================
-# ELEMENT ASSEMBLY STUDIO PRO - EXTERIOR DOOR SYSTEM - DOOR PANEL GEOMETRY BUILDER
+# ELEMENT ASSEMBLY STUDIO PRO - EXTERIOR SINGLE DOOR SYSTEM - DOOR PANEL GEOMETRY BUILDER
 # =============================================================================
 #
-# FILE       : Na__AssemblyStudio__ExteriorDoorSystem__GeometryBuilder__DoorPanel__.rb
-# NAMESPACE  : Na__AssemblyStudio::Na__ExteriorDoorSystem
+# FILE       : Na__AssemblyStudio__ExtSingleDoor__GeometryBuilder__DoorPanel__.rb
+# NAMESPACE  : Na__AssemblyStudio::Na__ExteriorSingleDoorSystem
 # MODULE     : Na__DoorPanelGeometryBuilder
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Creates solid door panel geometry inside a casement frame
@@ -31,7 +31,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryHelpers__'
 
 module Na__AssemblyStudio
-module Na__ExteriorDoorSystem
+module Na__ExteriorSingleDoorSystem
     module Na__DoorPanelGeometryBuilder
 
 # -----------------------------------------------------------------------------
@@ -276,7 +276,7 @@ module Na__ExteriorDoorSystem
 # endregion -------------------------------------------------------------------
 
     end # module Na__DoorPanelGeometryBuilder
-end # module Na__ExteriorDoorSystem
+end # module Na__ExteriorSingleDoorSystem
 end # module Na__AssemblyStudio
 
 # =============================================================================

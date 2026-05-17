@@ -28,7 +28,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
 require_relative 'Na__AssemblyStudio__WindowSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
-require_relative '../30__System__ExteriorDoorSystem/Na__AssemblyStudio__ExteriorDoorSystem__PanelInterface__'
+require_relative '../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__PanelInterface__'
 
 module Na__AssemblyStudio
 module Na__WindowSystem
@@ -43,11 +43,11 @@ module Na__WindowSystem
         DataSerializer = Na__AssemblyStudio::Na__WindowSystem::Na__DataSerializer
         GeometryHelpers = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryHelpers
         GeometryBuilders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
-        # Door panel construction crosses the WindowSystem<->ExteriorDoorSystem
+        # Door panel construction crosses the WindowSystem<->ExteriorSingleDoorSystem
         # contract via the PanelInterface module rather than touching the
         # builder directly.
         DoorPanelInterface = lambda do
-            Na__AssemblyStudio::Na__ExteriorDoorSystem::PanelInterface
+            Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::PanelInterface
         end
 
 # endregion -------------------------------------------------------------------
@@ -103,6 +103,12 @@ module Na__WindowSystem
         # Creates a new window component with all specified geometry.
         # Each window gets a unique definition and instance name: AWN001__Window__
         # 
+        # When `multifold_mode == true` the call is delegated to the
+        # Bifold Door system's GeometryEngine; when `sliding_mode == true`
+        # the call is delegated to the Sliding Door system (Phase-3b).
+        # Both modes are mutually exclusive at the JS layer; if both
+        # somehow arrive true together the bifold path wins.
+        #
         # @param config [Hash] Window configuration
         # @param window_id [String] Pre-generated window ID (e.g., "AWN001")
         # @param insertion_origin_in [Geom::Point3d, nil] Optional insertion origin (inches),
@@ -111,7 +117,13 @@ module Na__WindowSystem
         # @return [Sketchup::ComponentInstance, nil] The created component instance
         def self.na_create_window_geometry(config, window_id = nil, insertion_origin_in = nil)
             DebugTools.na_debug_method("GeometryEngine.na_create_window_geometry")
-            
+
+            bifold_instance = na_dispatch_bifold_create(config, insertion_origin_in)
+            return bifold_instance if bifold_instance
+
+            sliding_instance = na_dispatch_sliding_create(config, insertion_origin_in)
+            return sliding_instance if sliding_instance
+
             model = Sketchup.active_model
             entities = model.active_entities
             constants = constants_from_parent
@@ -182,14 +194,21 @@ module Na__WindowSystem
         # FUNCTION | Update Window Geometry
         # ------------------------------------------------------------
         # Updates existing window component by clearing and rebuilding geometry.
-        # 
+        # When `multifold_mode == true` the update is delegated to the
+        # Bifold Door system's GeometryEngine (Phase-3a). The instance
+        # must already be a bifold ADR component; switching modes
+        # in-place is not supported (delete + recreate instead).
+        #
         # @param instance [Sketchup::ComponentInstance] Existing window instance
         # @param config [Hash] Window configuration
         def self.na_update_window_geometry(instance, config)
             DebugTools.na_debug_method("GeometryEngine.na_update_window_geometry")
-            
+
             return unless instance && instance.valid?
-            
+
+            return if na_dispatch_bifold_update(instance, config)
+            return if na_dispatch_sliding_update(instance, config)
+
             constants = constants_from_parent
             
             begin
@@ -268,6 +287,100 @@ module Na__WindowSystem
             end
             
             nil
+        end
+        # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Bifold + Sliding Mode Dispatch (Phase 3a / 3b)
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | Delegate Create to Bifold Engine When multifold_mode Is True
+        # ------------------------------------------------------------
+        # Lazy-loads the ExtFold modules and forwards to
+        # `Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine`.
+        # Returns the created instance when dispatch applied, nil
+        # otherwise (caller falls through to the standard window path).
+        def self.na_dispatch_bifold_create(config, insertion_origin_in)
+            return nil unless config.is_a?(Hash)
+            return nil unless config["multifold_mode"] == true
+            return nil unless defined?(Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem)
+
+            Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
+            engine = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
+
+            DebugTools.na_debug_geometry("Window->Bifold dispatch: na_create_window_geometry forwarded to Bifold engine")
+            engine.na_build_bifold_door(config, nil, insertion_origin_in)
+        rescue StandardError => e
+            DebugTools.na_debug_error("WindowSystem -> Bifold dispatch (create) failed", e)
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Delegate Update to Bifold Engine When multifold_mode Is True
+        # ------------------------------------------------------------
+        # Returns true when dispatch applied (caller short-circuits the
+        # standard window path), false otherwise.
+        def self.na_dispatch_bifold_update(instance, config)
+            return false unless instance && instance.valid?
+            return false unless config.is_a?(Hash)
+            return false unless config["multifold_mode"] == true
+            return false unless defined?(Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem)
+
+            Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
+            engine = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
+
+            DebugTools.na_debug_geometry("Window->Bifold dispatch: na_update_window_geometry forwarded to Bifold engine")
+            engine.na_update_bifold_door(instance, config)
+            true
+        rescue StandardError => e
+            DebugTools.na_debug_error("WindowSystem -> Bifold dispatch (update) failed", e)
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Delegate Create to Sliding Engine When sliding_mode Is True
+        # ------------------------------------------------------------
+        # Lazy-loads the ExtSlide modules and forwards to
+        # `Na__ExteriorSlidingDoorSystem::Na__GeometryEngine`. Returns
+        # the created instance when dispatch applied, nil otherwise
+        # (caller falls through to the standard window path).
+        def self.na_dispatch_sliding_create(config, insertion_origin_in)
+            return nil unless config.is_a?(Hash)
+            return nil unless config["sliding_mode"] == true
+            return nil unless defined?(Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem)
+
+            Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
+            engine = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
+
+            DebugTools.na_debug_geometry("Window->Sliding dispatch: na_create_window_geometry forwarded to Sliding engine")
+            engine.na_build_sliding_door(config, nil, insertion_origin_in)
+        rescue StandardError => e
+            DebugTools.na_debug_error("WindowSystem -> Sliding dispatch (create) failed", e)
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Delegate Update to Sliding Engine When sliding_mode Is True
+        # ------------------------------------------------------------
+        # Returns true when dispatch applied (caller short-circuits the
+        # standard window path), false otherwise.
+        def self.na_dispatch_sliding_update(instance, config)
+            return false unless instance && instance.valid?
+            return false unless config.is_a?(Hash)
+            return false unless config["sliding_mode"] == true
+            return false unless defined?(Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem)
+
+            Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
+            engine = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
+
+            DebugTools.na_debug_geometry("Window->Sliding dispatch: na_update_window_geometry forwarded to Sliding engine")
+            engine.na_update_sliding_door(instance, config)
+            true
+        rescue StandardError => e
+            DebugTools.na_debug_error("WindowSystem -> Sliding dispatch (update) failed", e)
+            false
         end
         # ---------------------------------------------------------------
 
@@ -880,7 +993,7 @@ module Na__WindowSystem
             inner_panel_h = door_panel_h
 
             if inner_panel_h > 0 && inner_panel_w > 0
-                context = Na__AssemblyStudio::Na__ExteriorDoorSystem::DoorPanelContext.new(
+                context = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::DoorPanelContext.new(
                     entities, panel_id,
                     inner_panel_x, inner_panel_z, inner_panel_w, inner_panel_h,
                     params[:casement_depth], params[:frame_wall_inset], params[:casement_inset],

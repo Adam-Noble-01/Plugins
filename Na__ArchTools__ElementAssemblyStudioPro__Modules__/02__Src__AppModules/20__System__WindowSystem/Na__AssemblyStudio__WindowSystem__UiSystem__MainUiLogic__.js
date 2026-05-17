@@ -61,7 +61,13 @@ const Na_DynamicUI = (function() {
         
         // Build door panel controls
         na_buildControls('na-controls-door-panel', window.NA_DOOR_PANEL_CONFIG);
-        
+
+        // Build sliding-door controls (Phase-2: scaffolded under WindowSystem)
+        na_buildControls('na-controls-sliding-door', window.NA_SLIDING_DOOR_CONFIG);
+
+        // Build multi-folding-door controls (Phase-2: scaffolded under WindowSystem)
+        na_buildControls('na-controls-multifold-door', window.NA_BIFOLD_DOOR_CONFIG);
+
         // Set default values
         na_setDefaults();
         
@@ -98,7 +104,7 @@ const Na_DynamicUI = (function() {
     // FUNCTION | Set Default Values
     // ------------------------------------------------------------
     function na_setDefaults() {
-        [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_OPTIONS_CONFIG, window.NA_DOOR_PANEL_CONFIG].forEach(config => {
+        [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_OPTIONS_CONFIG, window.NA_DOOR_PANEL_CONFIG, window.NA_SLIDING_DOOR_CONFIG, window.NA_BIFOLD_DOOR_CONFIG].forEach(config => {
             config.forEach(item => {
                 _config[item.id] = item.default;
                 
@@ -129,6 +135,25 @@ const Na_DynamicUI = (function() {
 
         if (id === 'transoms') {
             na_applyTransomDefaultsForCountChange(previousValue, value);
+        }
+
+        // Mutual exclusivity between the three door-mode flags. When one
+        // mode toggles ON, the other two toggle OFF so the user cannot
+        // emit a hybrid window+sliding+bifold artefact. Touching the
+        // _config Hash AND the live DOM toggle classes keeps the visual
+        // state in sync without re-running na_buildControls.
+        if (value === true && (id === 'door_mode' || id === 'sliding_mode' || id === 'multifold_mode')) {
+            ['door_mode', 'sliding_mode', 'multifold_mode'].forEach(otherId => {
+                if (otherId === id) return;
+                if (_config[otherId] === true) {
+                    _config[otherId] = false;
+                    const otherToggle = document.getElementById(`${otherId}-toggle`);
+                    if (otherToggle) {
+                        otherToggle.dataset.value = 'false';
+                        otherToggle.classList.remove('na-active');
+                    }
+                }
+            });
         }
 
         na_onConfigChange();
@@ -179,6 +204,8 @@ const Na_DynamicUI = (function() {
     function na_onConfigChange() {
         na_updateSlidingSashOverlapVisibility();
         na_updateDoorPanelVisibility();
+        na_updateSlidingDoorVisibility();
+        na_updateMultifoldDoorVisibility();
         na_updateTransomControlVisibility();
         na_normalizeTransomConfig();
         ['transom_1_y_mm', 'transom_2_y_mm', 'transom_3_y_mm'].forEach(controlId => {
@@ -292,6 +319,36 @@ const Na_DynamicUI = (function() {
             const showTrim = _config.door_panel_show_trim === true;
             trimExpandable.style.display = showTrim ? '' : 'none';
         }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Sliding-Door Section Visibility (Phase-2)
+    // ------------------------------------------------------------
+    function na_updateSlidingDoorVisibility() {
+        const slidingSection = document.getElementById('na-section-sliding-door');
+        if (!slidingSection) return;
+        slidingSection.style.display = (_config.sliding_mode === true) ? '' : 'none';
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Multi-Folding-Door Section Visibility (Phase-2)
+    // ------------------------------------------------------------
+    // Also drives the per-layout sub-control visibility:
+    //   * `bifold_door_open_side`   visible only when layout = AllOneWay
+    //   * `bifold_door_master_side` visible only when layout = MasterSlaves
+    //   * EqualEqual layout shows neither
+    function na_updateMultifoldDoorVisibility() {
+        const multifoldSection = document.getElementById('na-section-multifold-door');
+        if (!multifoldSection) return;
+        const isMultifoldMode = _config.multifold_mode === true;
+        multifoldSection.style.display = isMultifoldMode ? '' : 'none';
+        if (!isMultifoldMode) return;
+
+        const layout = _config.bifold_door_layout || 'EqualEqual';
+        const openSideControl   = document.querySelector('[data-control-id="bifold_door_open_side"]');
+        const masterSideControl = document.querySelector('[data-control-id="bifold_door_master_side"]');
+        if (openSideControl)   openSideControl.style.display   = (layout === 'AllOneWay')    ? '' : 'none';
+        if (masterSideControl) masterSideControl.style.display = (layout === 'MasterSlaves') ? '' : 'none';
     }
     // ---------------------------------------------------------------
 
@@ -747,7 +804,7 @@ const Na_DynamicUI = (function() {
             if (input) input.value = uiValue;
             
             // Find config in main arrays or in expandable children
-            const allConfigArrays = [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_DOOR_PANEL_CONFIG];
+            const allConfigArrays = [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_DOOR_PANEL_CONFIG, window.NA_SLIDING_DOOR_CONFIG, window.NA_BIFOLD_DOOR_CONFIG];
             let config = allConfigArrays.flat().find(c => c.id === id);
             if (!config) {
                 // Search in expandable children across all config arrays
@@ -945,14 +1002,32 @@ const Na_Viewport = (function() {
 
     // SUB FUNCTION | Paint the Window SVG Markup into the Bound Element
     // ---------------------------------------------------------------
+    // Mode-aware painter:
+    //   - multifold_mode === true → bifold elevation generator
+    //   - sliding_mode    === true → sliding elevation generator
+    //   - otherwise              → legacy window SVG generator
     // Called by Na__Viewport__Instance after the validation hook has
     // already gated the render, so this can assume `config` is valid.
     function na_paint_window_svg(svgEl, config) {
-        const svgContent = window.Na__Viewport__SvgGenerator.na_generateWindowSvg(config);
+        const svgContent = na_resolve_active_svg_markup(config);
         if (!svgContent) {
-            throw new Error('Failed to generate window SVG');
+            throw new Error('Failed to generate viewport SVG');
         }
-        svgEl.innerHTML = svgContent;                                 // <-- HTML string injection (legacy behaviour)
+        svgEl.innerHTML = svgContent;                                 // <-- HTML string injection (shared across modes)
+    }
+    // ---------------------------------------------------------------
+
+
+    // HELPER FUNCTION | Pick the Right SVG Generator for the Active Mode
+    // ---------------------------------------------------------------
+    function na_resolve_active_svg_markup(config) {
+        if (config && config.multifold_mode === true && window.Na__ExtFold__ElevationGenerator) {
+            return window.Na__ExtFold__ElevationGenerator.na_generate_bifold_svg(config);
+        }
+        if (config && config.sliding_mode === true && window.Na__ExtSlide__ElevationGenerator) {
+            return window.Na__ExtSlide__ElevationGenerator.na_generate_sliding_svg(config);
+        }
+        return window.Na__Viewport__SvgGenerator.na_generateWindowSvg(config);
     }
     // ---------------------------------------------------------------
 

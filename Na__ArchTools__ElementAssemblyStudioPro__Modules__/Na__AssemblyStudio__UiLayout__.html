@@ -152,6 +152,16 @@
             <div id="na-controls-door-panel" class="na-controls-grid"></div>
         </section>
 
+        <section id="na-section-sliding-door" class="na-section" style="display:none;">
+            <div class="na-section-header"><h2>Sliding Door</h2></div>
+            <div id="na-controls-sliding-door" class="na-controls-grid"></div>
+        </section>
+
+        <section id="na-section-multifold-door" class="na-section" style="display:none;">
+            <div class="na-section-header"><h2>Multi-Folding Door</h2></div>
+            <div id="na-controls-multifold-door" class="na-controls-grid"></div>
+        </section>
+
         <section class="na-section na-actions-section">
             <button id="na-btn-create" class="na-btn na-btn-primary na-btn-large" onclick="na_createWindow()">Create New Window</button>
             <button id="na-btn-update" class="na-btn na-btn-success na-btn-large" onclick="na_updateWindow()" disabled>Update Window</button>
@@ -295,8 +305,14 @@
     <!-- WindowSystem schema (needs to load before WindowSystem MainUiLogic) -->
     <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js"></script>
 
-    <!-- ExteriorDoorSystem schema -->
-    <script src="02__Src__AppModules/30__System__ExteriorDoorSystem/Na__AssemblyStudio__ExteriorDoorSystem__UiSystem__Config__.js"></script>
+    <!-- ExteriorSingleDoorSystem schema (door panel sub-controls used when WindowSystem door_mode is enabled) -->
+    <script src="02__Src__AppModules/31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__UiSystem__Config__.js"></script>
+
+    <!-- ExteriorSlidingDoorSystem schema (Phase-1 scaffold; activated by WindowSystem sliding_mode toggle in Phase-2) -->
+    <script src="02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__UiSystem__Config__.js"></script>
+
+    <!-- ExteriorMultiFoldingDoorSystem schema (Phase-1 scaffold; activated by WindowSystem multifold_mode toggle in Phase-2) -->
+    <script src="02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__UiSystem__Config__.js"></script>
 
     <!-- Generic Viewport engine (must load before any tab-specific viewport) -->
     <script src="02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__SvgHelpers__.js"></script>
@@ -308,9 +324,25 @@
     <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js"></script>
     <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Export__Dxf__.js"></script>
 
+    <!-- ExteriorSlidingDoorSystem viewport adapters (live SVG generator + plan stub) -->
+    <script src="02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Viewport__ElevationGenerator__.js"></script>
+    <script src="02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Viewport__PlanGenerator__.js"></script>
+
+    <!-- ExteriorMultiFoldingDoorSystem viewport adapters (live SVG generator + plan stub) -->
+    <script src="02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js"></script>
+    <script src="02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__PlanGenerator__.js"></script>
+
     <!-- WindowSystem main UI logic (Na_DynamicUI + Na_Viewport) -->
     <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js"></script>
     <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Bridge__.js"></script>
+
+    <!-- ExteriorSlidingDoorSystem MainUiLogic + Bridge (Phase-1 scaffold; populated in Phase-2) -->
+    <script src="02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__UiSystem__MainUiLogic__.js"></script>
+    <script src="02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__UiSystem__Bridge__.js"></script>
+
+    <!-- ExteriorMultiFoldingDoorSystem MainUiLogic + Bridge (Phase-1 scaffold; populated in Phase-2) -->
+    <script src="02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__UiSystem__MainUiLogic__.js"></script>
+    <script src="02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__UiSystem__Bridge__.js"></script>
 
     <!-- AppCore TabRouter and AppContext (must load AFTER tab modules so TabRouter can resolve them) -->
     <script src="02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__TabRouter__.js"></script>

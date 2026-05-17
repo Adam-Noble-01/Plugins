@@ -1,8 +1,8 @@
 /* =============================================================================
-   ELEMENT ASSEMBLY STUDIO PRO - EXTERIOR DOOR SYSTEM - DOOR PANEL UI CONFIGURATION
+   ELEMENT ASSEMBLY STUDIO PRO - EXTERIOR SINGLE DOOR SYSTEM - DOOR PANEL UI CONFIGURATION
    =============================================================================
    
-   FILE       : Na__AssemblyStudio__ExteriorDoorSystem__UiSystem__Config__.js
+   FILE       : Na__AssemblyStudio__ExtSingleDoor__UiSystem__Config__.js
    AUTHOR     : Noble Architecture
    PURPOSE    : UI control configuration for Door Mode panel controls
    CREATED    : 2026
@@ -13,10 +13,15 @@
    - Covers typical British door panel styles (single, 2-panel, 4-panel,
      6-panel Georgian, horizontal rail panels, etc.)
    - Only visible when door_mode toggle is enabled
+   - Consumed by WindowSystem MainUiLogic via window.NA_DOOR_PANEL_CONFIG
    
    NAMING CONVENTION:
    - All constants use NA_ prefix (uppercase)
    - Exported to window object for global access
+   - Folder is 31__System__ExteriorSingleDoorSystem; filename uses the
+     abbreviated ExtSingleDoor__ segment to keep absolute Windows paths
+     under the 260-char MAX_PATH limit (precedent: PanelStyle__ in
+     InteriorDoorSystem)
    
    ============================================================================= */
 

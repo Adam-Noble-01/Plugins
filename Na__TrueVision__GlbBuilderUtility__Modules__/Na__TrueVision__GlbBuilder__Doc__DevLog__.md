@@ -8,6 +8,24 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.1.2 - 17-May-2026
+#### Read-Only Audit: Door Helper Marker Preservation Confirmed (No Code Change)
+
+- **Audit context**: Phase 0.5 of the Element Assembly Studio Pro multi-folding & sliding door build-out (plan `multi-folding_&_sliding_doors_5c7ccf30`) needed to confirm that helper-layer marker groups (`ROT001__RotationPoint__DoorHingeCentre` today, planned `MVE###__MovementPoint__SlidingPanelTrack` and additional `ROT###` markers in upcoming phases) survive GLB export as named glTF nodes despite their visible edges living on the export-excluded `02__DoorHelpers__RotationPivots` tag.
+- **Finding**: The existing GLB Builder door handler **already preserves these named marker nodes correctly** under the established Group-on-Layer0 / Edges-on-helper-tag pattern. **No code change required.**
+- **Mechanism (read-only verification)**:
+  - `Na__Helpers__EntityExcluded?(entity)` (`Na__TrueVision__GlbBuilder__CoreExport__.rb` lines 138-141) checks only `entity.layer.name` against `@excluded_layers`.
+  - For a `Sketchup::Group`, `entity.layer.name` is the group instance's tag — NOT the layer of any edges nested inside it.
+  - In `Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb` line 152-153, the rotation marker is created via `entities.add_group` and named, but no `.layer = ...` is ever assigned to the group itself, so it inherits `Layer0`.
+  - In `Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__.rb` line 326-336 (`na_apply_helper_tag`), only the individual EDGES inside the group are tagged on `:door_helpers` (which resolves to `02__DoorHelpers__RotationPivots`).
+  - The door-handler child loop in `Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__.rb` lines 247-251 applies three filters: `Na__Helpers__EntityExcluded?`, `child_entity.hidden?`, and `child_entity.layer.visible?`. All three pass for a group on `Layer0`, so the group is created as a glTF named node with its name and matrix preserved.
+  - The recursive child traversal (`Na__GlbEngine__TraverseEntities` for mesh, `Na__LineworkEngine__TraverseEdges` for linework) DOES filter the helper edges (their layer is in `@excluded_layers`), so no helper geometry leaks into the GLB.
+  - **Net result**: a named glTF pivot node with its origin/transform preserved but no mesh data inside, which is exactly what TrueVision3D's `Na__DoorAnim__` consumer reads via `rotObject.position`.
+- **Implication for upcoming MVE markers (Phase 3a/3b)**: the new `MVE###__MovementPoint__SlidingPanelTrack` markers (and any additional `ROT###` markers per panel) will work without further GLB exporter changes provided the SketchUp builders follow the same pattern: create the marker via `entities.add_group` (do NOT assign a tag to the group), and tag only the visible inner edges on `:door_helpers`.
+- **No files modified**. This is a read-only audit recorded for traceability.
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.1.1 - 19-Mar-2026
 #### Mirrored Component Instancing Robustness Fix
 

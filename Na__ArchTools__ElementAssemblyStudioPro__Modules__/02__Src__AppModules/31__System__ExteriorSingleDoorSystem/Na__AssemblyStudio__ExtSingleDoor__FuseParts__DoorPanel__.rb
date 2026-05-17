@@ -1,9 +1,9 @@
 # =============================================================================
-# ELEMENT ASSEMBLY STUDIO PRO - EXTERIOR DOOR SYSTEM FUSE PARTS
+# ELEMENT ASSEMBLY STUDIO PRO - EXTERIOR SINGLE DOOR SYSTEM FUSE PARTS
 # =============================================================================
 #
-# FILE       : Na__AssemblyStudio__ExteriorDoorSystem__FuseParts__DoorPanel__.rb
-# NAMESPACE  : Na__AssemblyStudio::Na__ExteriorDoorSystem::Na__FuseParts__DoorPanel
+# FILE       : Na__AssemblyStudio__ExtSingleDoor__FuseParts__DoorPanel__.rb
+# NAMESPACE  : Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__FuseParts__DoorPanel
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Door-panel and door-trim fusion. Extracted from the original
 #              window FuseParts steps 5-6 so WindowSystem stays free of
@@ -16,7 +16,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Fuse__Shared__'
 
 module Na__AssemblyStudio
-    module Na__ExteriorDoorSystem
+    module Na__ExteriorSingleDoorSystem
         module Na__FuseParts__DoorPanel
 
             DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools

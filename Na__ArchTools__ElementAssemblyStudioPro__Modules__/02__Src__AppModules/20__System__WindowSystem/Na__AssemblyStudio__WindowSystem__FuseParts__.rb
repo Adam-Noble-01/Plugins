@@ -77,10 +77,10 @@ module Na__WindowSystem
                 trim_result = na_trim_glass_panels(entities)
                 na_update_summary(summary, trim_result)
 
-                # Steps 5-6: ExteriorDoorSystem owns the door panel + trim fuse logic.
+                # Steps 5-6: ExteriorSingleDoorSystem owns the door panel + trim fuse logic.
                 # WindowSystem delegates via the inter-system PanelInterface contract.
-                if defined?(::Na__AssemblyStudio::Na__ExteriorDoorSystem::PanelInterface)
-                    door_result = ::Na__AssemblyStudio::Na__ExteriorDoorSystem::PanelInterface.na_fuse_panel_steps(entities)
+                if defined?(::Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::PanelInterface)
+                    door_result = ::Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::PanelInterface.na_fuse_panel_steps(entities)
                     na_update_summary(summary, door_result) if door_result.is_a?(Hash)
                 end
 
@@ -341,7 +341,7 @@ module Na__WindowSystem
 # REGION | Door Panel Fusion
 # -----------------------------------------------------------------------------
 
-        # MOVED to ExteriorDoorSystem::FuseParts__DoorPanel - retained as private
+        # MOVED to ExteriorSingleDoorSystem::FuseParts__DoorPanel - retained as private
         # back-compat shim returning empty result. New callers use PanelInterface.
         def self.na_fuse_door_panels_DEPRECATED(entities)
             DebugTools.na_debug_geometry("Fusing door panel parts...")
@@ -385,7 +385,7 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
-        # MOVED to ExteriorDoorSystem::FuseParts__DoorPanel - retained as private
+        # MOVED to ExteriorSingleDoorSystem::FuseParts__DoorPanel - retained as private
         # back-compat shim returning empty result. New callers use PanelInterface.
         def self.na_fuse_door_trim_DEPRECATED(entities)
             DebugTools.na_debug_geometry("Fusing door trim parts...")

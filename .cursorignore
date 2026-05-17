@@ -1,6 +1,11 @@
 # Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
 /01_-_Archived-Versions
 /02_-_Code-Checkpoints-Archive
+*/90__AppCache__TempFilesCache
+*/90__AppCache__TempFilesCache
+*Na__DataLib__Cache__materials.json
+*Na__DataLib__Cache__edge_materials.json
+*Na__DataLib__Cache__components.json
 *.lnk
 *.--BAK
 *.rbe

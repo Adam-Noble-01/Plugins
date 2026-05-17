@@ -43,7 +43,9 @@ require_relative '../07__Tools__PlacementTools/Na__AssemblyStudio__PlacementTool
 
 # Per-system Init partials (each system self-registers callbacks/handlers/hooks)
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Init__'
-require_relative '../30__System__ExteriorDoorSystem/Na__AssemblyStudio__ExteriorDoorSystem__Init__'
+require_relative '../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__Init__'
+require_relative '../32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Init__'
+require_relative '../33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Init__'
 require_relative '../40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Init__'
 
 # Optional dev tools (silently skipped if folder removed for shipping)
@@ -93,9 +95,11 @@ module Na__AssemblyStudio
         MaterialManager.na_ensure_safety_materials
 
         # Per-system init hooks
-        Na__AssemblyStudio::Na__WindowSystem::Na__Init.na_init       if defined?(Na__AssemblyStudio::Na__WindowSystem::Na__Init)
-        Na__AssemblyStudio::Na__ExteriorDoorSystem::Na__Init.na_init if defined?(Na__AssemblyStudio::Na__ExteriorDoorSystem::Na__Init)
-        Na__AssemblyStudio::Na__InteriorDoorSystem::Na__Init.na_init if defined?(Na__AssemblyStudio::Na__InteriorDoorSystem::Na__Init)
+        Na__AssemblyStudio::Na__WindowSystem::Na__Init.na_init                       if defined?(Na__AssemblyStudio::Na__WindowSystem::Na__Init)
+        Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__Init.na_init           if defined?(Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__Init)
+        Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__Init.na_init          if defined?(Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__Init)
+        Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__Init.na_init     if defined?(Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__Init)
+        Na__AssemblyStudio::Na__InteriorDoorSystem::Na__Init.na_init                 if defined?(Na__AssemblyStudio::Na__InteriorDoorSystem::Na__Init)
 
         # Selection observer
         SelectionCoordinator.na_attach

@@ -19,7 +19,9 @@ Plugins/
       06__Tools__MeasurementTools/                     TwoPoint + ThreePoint
       07__Tools__PlacementTools/                       WindowPlacementTool
       20__System__WindowSystem/                        window-specific code
-      30__System__ExteriorDoorSystem/                  door panel + PanelInterface contract
+      31__System__ExteriorSingleDoorSystem/            single exterior door panel + PanelInterface contract (filenames use ExtSingleDoor__ for MAX_PATH)
+      32__System__ExteriorSlidingDoorSystem/           two-panel exterior sliding door (MVE-based translation)
+      33__System__ExteriorMultiFoldingDoorSystem/      multi-panel exterior bifold door (ROT + MVE)
       40__System__InteriorDoorSystem/                  interior door tab
     03__Style__AppStylesheets/                         master CSS hub + brand/tab-strip stylesheets
     04__Data__AssetLibrary/                            interior-door asset JSON (architraves, handles, hinges)
@@ -30,7 +32,19 @@ Plugins/
 
 ## Module conventions
 - Ruby outer namespace: `module Na__AssemblyStudio`.
-- Ruby per-system namespaces: `Na__AppCore`, `Na__AppData`, `Na__AppUtils`, `Na__GeometryHelpers`, `Na__MeasurementTools`, `Na__PlacementTools`, `Na__WindowSystem`, `Na__ExteriorDoorSystem`, `Na__InteriorDoorSystem`, `Na__DevTools`.
+- Ruby per-system namespaces: `Na__AppCore`, `Na__AppData`, `Na__AppUtils`, `Na__GeometryHelpers`, `Na__MeasurementTools`, `Na__PlacementTools`, `Na__WindowSystem`, `Na__ExteriorSingleDoorSystem`, `Na__ExteriorSlidingDoorSystem`, `Na__ExteriorMultiFoldingDoorSystem`, `Na__InteriorDoorSystem`, `Na__DevTools`.
+- File-segment shortening: where the full Ruby module name would push the absolute Windows path over the 260-char `MAX_PATH` limit, filenames use a shortened segment instead. The Ruby module name itself stays full for clarity. The shortening table is:
+
+| Folder                                               | Ruby module                              | File segment used in filenames |
+|------------------------------------------------------|------------------------------------------|--------------------------------|
+| `40__System__InteriorDoorSystem`                     | `Na__InteriorDoorSystem`                 | `InteriorDoorSystem__` (full) — fits MAX_PATH |
+| `40__System__InteriorDoorSystem` panel-style files   | `Na__PanelDesignStyles__*`               | `PanelStyle__*`                                |
+| `31__System__ExteriorSingleDoorSystem`               | `Na__ExteriorSingleDoorSystem`           | `ExtSingleDoor__`                              |
+| `32__System__ExteriorSlidingDoorSystem`              | `Na__ExteriorSlidingDoorSystem`          | `ExtSlide__`                                   |
+| `33__System__ExteriorMultiFoldingDoorSystem`         | `Na__ExteriorMultiFoldingDoorSystem`     | `ExtFold__`                                    |
+| `33__System__ExteriorMultiFoldingDoorSystem` layout files | n/a — sub-files                     | `Layout__<Algorithm>__` (e.g. `Layout__EqualEqual__`) |
+
+  - Rationale: the longer folder names of the new sliding/multi-folding systems pushed `Na__AssemblyStudio__<full>__<deep-purpose>__.rb` over MAX_PATH. The very short `ExtSlide__` and `ExtFold__` segments (and `Layout__` instead of `LayoutAlgorithm__`) keep absolute paths comfortably below 260 chars. The folder names and Ruby module names stay full and self-documenting.
 - File names follow `Na__AssemblyStudio__<Domain>__<Purpose>__.{rb,js,css,json,html}`.
 - Method names use the `na_` prefix consistently.
 
@@ -50,8 +64,8 @@ Sections:
 - `theme.previewColors` - SVG preview hex colours
 
 ## Inter-system contracts
-- `Na__ExteriorDoorSystem::PanelInterface.na_build_panel(context)` - WindowSystem builds a `DoorPanelContext` struct and hands it over to construct door-panel-in-casement geometry.
-- `Na__ExteriorDoorSystem::PanelInterface.na_fuse_panel_steps(entities)` - WindowSystem's FuseParts step 5/6 delegates here.
+- `Na__ExteriorSingleDoorSystem::PanelInterface.na_build_panel(context)` - WindowSystem builds a `DoorPanelContext` struct and hands it over to construct door-panel-in-casement geometry.
+- `Na__ExteriorSingleDoorSystem::PanelInterface.na_fuse_panel_steps(entities)` - WindowSystem's FuseParts step 5/6 delegates here.
 - `Na__AppCore::SelectionCoordinator.na_register_handler(descriptor)` - each system registers a `{tab_id, resolve_id, on_selected, on_cleared}` descriptor; the coordinator dispatches a single observer to all systems.
 - `Na__AppCore::DialogManager.na_register_system_init_hook(&block)` - each system Init registers a block that is invoked with the live dialog when the dialog opens; inside the block the system registers its callbacks via `UiBridge.na_register_callbacks(dialog, registry)`.
 

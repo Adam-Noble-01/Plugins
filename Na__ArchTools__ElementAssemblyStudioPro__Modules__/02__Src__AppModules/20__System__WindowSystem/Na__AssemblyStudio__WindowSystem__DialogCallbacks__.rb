@@ -36,6 +36,8 @@ module Na__AssemblyStudio
 
             @na_dialog               = nil
             @na_window_component     = nil
+            @na_bifold_component     = nil
+            @na_sliding_component    = nil
             @na_config               = nil
             @na_last_measure_origin  = nil
             @na_current_placement_tool = nil
@@ -64,15 +66,54 @@ module Na__AssemblyStudio
                 selection = Sketchup.active_model.selection
                 if selection.length == 1 && selection.first.is_a?(Sketchup::ComponentInstance)
                     instance  = selection.first
+
                     window_id = DataSerializer.na_get_window_id_from_instance(instance)
                     if window_id
                         DebugTools.na_debug_window("Existing window in selection: #{window_id}")
                         na_load_window_into_dialog(instance, window_id)
                         return
                     end
+
+                    bifold_id = na_resolve_bifold_id(instance)
+                    if bifold_id
+                        DebugTools.na_debug_window("Existing bifold door in selection: #{bifold_id}")
+                        na_load_bifold_into_dialog(instance, bifold_id)
+                        return
+                    end
+
+                    sliding_id = na_resolve_sliding_id(instance)
+                    if sliding_id
+                        DebugTools.na_debug_window("Existing sliding door in selection: #{sliding_id}")
+                        na_load_sliding_into_dialog(instance, sliding_id)
+                        return
+                    end
                 end
                 @na_config = UiBridge.na_deep_clone(na_default_config)
             end
+
+            # HELPER FUNCTION | Safely Resolve a Bifold Door ID From an Instance
+            # ------------------------------------------------------------
+            def self.na_resolve_bifold_id(instance)
+                return nil unless defined?(Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer)
+                Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
+                    .na_get_door_id_from_instance(instance)
+            rescue StandardError
+                nil
+            end
+            private_class_method :na_resolve_bifold_id
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Safely Resolve a Sliding Door ID From an Instance
+            # ------------------------------------------------------------
+            def self.na_resolve_sliding_id(instance)
+                return nil unless defined?(Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer)
+                Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
+                    .na_get_door_id_from_instance(instance)
+            rescue StandardError
+                nil
+            end
+            private_class_method :na_resolve_sliding_id
+            # ---------------------------------------------------------------
 
             # -----------------------------------------------------------------
             # REGION | Selection coordinator hooks
@@ -99,12 +140,164 @@ module Na__AssemblyStudio
             end
 
             # -----------------------------------------------------------------
+            # REGION | Bifold + Sliding selection coordinator hooks (Phase 3.5)
+            # -----------------------------------------------------------------
+            # These run when the SelectionCoordinator's bifold / sliding handler
+            # fires (handlers are registered by ExtFold__Init / ExtSlide__Init
+            # using `tab_id => 'windows'` so the user is brought back to the
+            # Windows tab whenever an existing ADR is clicked). The payload
+            # we push to JS reuses the standard `windowConfiguration` envelope
+            # plus the relevant mode flag so the WindowSystem MainUiLogic can
+            # toggle the correct sub-section visible.
+            # -----------------------------------------------------------------
+
+            def self.na_load_bifold_into_dialog(instance, door_id)
+                return unless defined?(Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer)
+                bifold_serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
+
+                @na_bifold_component = instance
+                @na_window_component = instance
+
+                stored = bifold_serializer.na_load_door_data_from_instance(instance, door_id)
+                bifold_config = na_resolve_bifold_payload(stored)
+
+                @na_config = na_wrap_bifold_config_as_window_payload(door_id, bifold_config)
+                na_send_config_to_dialog
+                UiBridge.na_send_status(@na_dialog, 'info', "Loaded bifold door: #{door_id}")
+            rescue StandardError => e
+                DebugTools.na_debug_error("[ExtFold] Error loading bifold #{door_id}", e)
+                UiBridge.na_send_status(@na_dialog, 'warning', "Bifold #{door_id} selected but config could not be read")
+            end
+
+            def self.na_clear_bifold_from_dialog
+                @na_bifold_component = nil
+                @na_window_component = nil
+                @na_config           = UiBridge.na_deep_clone(na_default_config)
+                UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
+            end
+
+            def self.na_load_sliding_into_dialog(instance, door_id)
+                return unless defined?(Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer)
+                sliding_serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
+
+                @na_sliding_component = instance
+                @na_window_component  = instance
+
+                stored = sliding_serializer.na_load_door_data_from_instance(instance, door_id)
+                sliding_config = na_resolve_sliding_payload(stored)
+
+                @na_config = na_wrap_sliding_config_as_window_payload(door_id, sliding_config)
+                na_send_config_to_dialog
+                UiBridge.na_send_status(@na_dialog, 'info', "Loaded sliding door: #{door_id}")
+            rescue StandardError => e
+                DebugTools.na_debug_error("[ExtSlide] Error loading sliding #{door_id}", e)
+                UiBridge.na_send_status(@na_dialog, 'warning', "Sliding #{door_id} selected but config could not be read")
+            end
+
+            def self.na_clear_sliding_from_dialog
+                @na_sliding_component = nil
+                @na_window_component  = nil
+                @na_config            = UiBridge.na_deep_clone(na_default_config)
+                UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
+            end
+
+            # HELPER FUNCTION | Pull the Stored Bifold Configuration Block (or Defaults)
+            # ------------------------------------------------------------
+            def self.na_resolve_bifold_payload(stored_hash)
+                if stored_hash.is_a?(Hash)
+                    cfg_key = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_KEY_DOOR_CONFIGURATION
+                    if stored_hash[cfg_key].is_a?(Hash)
+                        return UiBridge.na_deep_clone(stored_hash[cfg_key])
+                    end
+                end
+                UiBridge.na_deep_clone(Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_DEFAULT_DOOR_CONFIG)
+            end
+            private_class_method :na_resolve_bifold_payload
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Pull the Stored Sliding Configuration Block (or Defaults)
+            # ------------------------------------------------------------
+            def self.na_resolve_sliding_payload(stored_hash)
+                if stored_hash.is_a?(Hash)
+                    cfg_key = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_KEY_DOOR_CONFIGURATION
+                    if stored_hash[cfg_key].is_a?(Hash)
+                        return UiBridge.na_deep_clone(stored_hash[cfg_key])
+                    end
+                end
+                UiBridge.na_deep_clone(Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_DEFAULT_DOOR_CONFIG)
+            end
+            private_class_method :na_resolve_sliding_payload
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Wrap a Bifold Config in the Standard windowConfiguration Envelope
+            # ------------------------------------------------------------
+            # Force `multifold_mode` true so the JS MainUiLogic toggles the
+            # bifold section visible and the dispatch path stays on the
+            # bifold engine for any downstream Update / Live calls.
+            def self.na_wrap_bifold_config_as_window_payload(door_id, bifold_config)
+                merged = UiBridge.na_deep_clone(na_default_config["windowConfiguration"] || {})
+                merged.merge!(bifold_config) if bifold_config.is_a?(Hash)
+                merged["multifold_mode"] = true
+                merged["sliding_mode"]   = false
+                merged["door_mode"]      = false
+
+                {
+                    "windowMetadata" => [
+                        {
+                            "WindowUniqueId"    => door_id,
+                            "WindowDescription" => "Bifold Door",
+                            "CreatedDate"       => "",
+                            "LastModified"      => Time.now.strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                    ],
+                    "windowComponents"    => [],
+                    "windowConfiguration" => merged
+                }
+            end
+            private_class_method :na_wrap_bifold_config_as_window_payload
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Wrap a Sliding Config in the Standard windowConfiguration Envelope
+            # ------------------------------------------------------------
+            def self.na_wrap_sliding_config_as_window_payload(door_id, sliding_config)
+                merged = UiBridge.na_deep_clone(na_default_config["windowConfiguration"] || {})
+                merged.merge!(sliding_config) if sliding_config.is_a?(Hash)
+                merged["multifold_mode"] = false
+                merged["sliding_mode"]   = true
+                merged["door_mode"]      = false
+
+                {
+                    "windowMetadata" => [
+                        {
+                            "WindowUniqueId"    => door_id,
+                            "WindowDescription" => "Sliding Door",
+                            "CreatedDate"       => "",
+                            "LastModified"      => Time.now.strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                    ],
+                    "windowComponents"    => [],
+                    "windowConfiguration" => merged
+                }
+            end
+            private_class_method :na_wrap_sliding_config_as_window_payload
+            # ---------------------------------------------------------------
+
+            # -----------------------------------------------------------------
             # REGION | Create / Update / Live / DXF / Measure handlers
             # -----------------------------------------------------------------
 
             def self.na_handle_create_window(config_json)
                 config    = JSON.parse(config_json)
                 @na_config = config
+
+                if na_is_bifold_mode?(config["windowConfiguration"])
+                    return na_handle_create_bifold_door(config)
+                end
+
+                if na_is_sliding_mode?(config["windowConfiguration"])
+                    return na_handle_create_sliding_door(config)
+                end
+
                 model     = Sketchup.active_model
                 model.start_operation("Create Window", true)
 
@@ -154,9 +347,338 @@ module Na__AssemblyStudio
                 UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
             end
 
+            # -----------------------------------------------------------------
+            # REGION | Bifold dispatch (Phase 3a)
+            # -----------------------------------------------------------------
+            # Detects multifold_mode == true on the inbound windowConfiguration
+            # and routes Create / Update / Live calls to the
+            # ExteriorMultiFoldingDoorSystem geometry engine. This avoids the
+            # WindowSystem DataSerializer overwriting the bifold instance name
+            # and definition. Phase 3.5 will replace this with full
+            # DataSerializer + SelectionCoordinator wiring.
+            # -----------------------------------------------------------------
+
+            def self.na_is_bifold_mode?(window_config)
+                return false unless window_config.is_a?(Hash)
+
+                window_config["multifold_mode"] == true
+            end
+
+            def self.na_handle_create_bifold_door(config)
+                model = Sketchup.active_model
+                return unless model
+
+                window_config = config["windowConfiguration"] || {}
+                pending_origin = na_consume_pending_measurement_origin
+
+                model.start_operation("Create Bifold Door", true)
+
+                Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
+                bifold_engine     = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
+                bifold_serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
+
+                instance = bifold_engine.na_build_bifold_door(window_config, nil, pending_origin)
+
+                if instance && instance.valid?
+                    @na_bifold_component = instance
+                    @na_window_component = instance
+
+                    door_id = bifold_serializer.na_get_door_id_from_instance(instance)
+                    if door_id
+                        bifold_serializer.na_save_door_data(
+                            door_id,
+                            na_build_bifold_save_payload(door_id, window_config, true)
+                        )
+                    end
+
+                    model.commit_operation
+
+                    if pending_origin
+                        UiBridge.na_send_status(@na_dialog, 'success', "Bifold placed at measured Point A: #{instance.name}")
+                    else
+                        @na_current_placement_tool = PlacementTool.new(instance)
+                        Sketchup.active_model.select_tool(@na_current_placement_tool)
+                        UiBridge.na_invoke(@na_dialog, 'window.na_setPlacementActive', 'true')
+                        UiBridge.na_send_status(@na_dialog, 'success', "Bifold door created: #{instance.name}")
+                    end
+                else
+                    model.abort_operation
+                    UiBridge.na_send_status(@na_dialog, 'error', 'Failed to create bifold door geometry')
+                end
+            rescue StandardError => e
+                begin; model.abort_operation if model; rescue StandardError; end
+                DebugTools.na_debug_error("Error creating bifold door", e)
+                UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
+            end
+
+            def self.na_handle_update_bifold_door(config)
+                instance = @na_bifold_component
+                unless instance && instance.valid?
+                    UiBridge.na_send_status(@na_dialog, 'warning', 'No bifold door selected to update')
+                    return
+                end
+
+                window_config = config["windowConfiguration"] || {}
+                model = Sketchup.active_model
+                model.start_operation("Update Bifold Door", true)
+
+                Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
+                bifold_engine     = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
+                bifold_serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
+
+                bifold_engine.na_update_bifold_door(instance, window_config)
+
+                door_id = bifold_serializer.na_get_door_id_from_instance(instance)
+                if door_id
+                    bifold_serializer.na_save_door_data(
+                        door_id,
+                        na_build_bifold_save_payload(door_id, window_config, false)
+                    )
+                end
+
+                model.commit_operation
+                UiBridge.na_send_status(@na_dialog, 'success', "Bifold door updated: #{instance.name}")
+            rescue StandardError => e
+                begin; model.abort_operation if model; rescue StandardError; end
+                DebugTools.na_debug_error("Error updating bifold door", e)
+                UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
+            end
+
+            def self.na_handle_live_update_bifold_door(config)
+                instance = @na_bifold_component
+                return unless instance && instance.valid?
+
+                window_config = config["windowConfiguration"] || {}
+                model = Sketchup.active_model
+                model.start_operation("Live Update Bifold", true, false, true)
+
+                Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
+                bifold_engine     = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
+                bifold_serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
+
+                bifold_engine.na_update_bifold_door(instance, window_config)
+
+                door_id = bifold_serializer.na_get_door_id_from_instance(instance)
+                if door_id
+                    bifold_serializer.na_save_door_data(
+                        door_id,
+                        na_build_bifold_save_payload(door_id, window_config, false)
+                    )
+                end
+
+                model.commit_operation
+                model.active_view.invalidate
+                DebugTools.na_debug_success("Live update applied to bifold #{instance.name}")
+            rescue StandardError => e
+                begin; model.abort_operation if model; rescue StandardError; end
+                DebugTools.na_debug_error("Live update bifold (non-fatal)", e)
+            end
+
+            # HELPER FUNCTION | Build the Save Hash for the Bifold DataSerializer
+            # ------------------------------------------------------------
+            # Filters the live windowConfiguration down to just the
+            # bifold_door_* keys so the saved blob is independent of any
+            # window-side state. Wraps it in the bifold metadata + config
+            # envelope expected by `Na__DataSerializer.na_save_door_data`.
+            def self.na_build_bifold_save_payload(door_id, window_config, is_create)
+                bifold_keys = window_config.keys.select { |k| k.is_a?(String) && k.start_with?("bifold_door_") }
+                bifold_only = {}
+                bifold_keys.each { |k| bifold_only[k] = window_config[k] }
+
+                meta_key = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_KEY_DOOR_METADATA
+                comp_key = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_KEY_DOOR_COMPONENTS
+                cfg_key  = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_KEY_DOOR_CONFIGURATION
+
+                now = Time.now.strftime("%Y-%m-%d %H:%M:%S")
+
+                {
+                    meta_key => [
+                        {
+                            "DoorID"        => door_id,
+                            "DoorType"      => "BifoldDoor",
+                            "Layout"        => window_config["bifold_door_layout"],
+                            "PanelCount"    => window_config["bifold_door_panel_count"],
+                            "CreatedDate"   => is_create ? now : nil,
+                            "LastModified"  => now
+                        }.compact
+                    ],
+                    comp_key => [],
+                    cfg_key  => bifold_only
+                }
+            end
+            private_class_method :na_build_bifold_save_payload
+            # ---------------------------------------------------------------
+
+            # -----------------------------------------------------------------
+            # REGION | Sliding dispatch (Phase 3b)
+            # -----------------------------------------------------------------
+            # Detects sliding_mode == true on the inbound windowConfiguration
+            # and routes Create / Update / Live calls to the
+            # ExteriorSlidingDoorSystem geometry engine. Mirrors the bifold
+            # dispatch above. Phase-3.5 replaces this with full DataSerializer
+            # + SelectionCoordinator wiring.
+            # -----------------------------------------------------------------
+
+            def self.na_is_sliding_mode?(window_config)
+                return false unless window_config.is_a?(Hash)
+
+                window_config["sliding_mode"] == true
+            end
+
+            def self.na_handle_create_sliding_door(config)
+                model = Sketchup.active_model
+                return unless model
+
+                window_config = config["windowConfiguration"] || {}
+                pending_origin = na_consume_pending_measurement_origin
+
+                model.start_operation("Create Sliding Door", true)
+
+                Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
+                sliding_engine     = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
+                sliding_serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
+
+                instance = sliding_engine.na_build_sliding_door(window_config, nil, pending_origin)
+
+                if instance && instance.valid?
+                    @na_sliding_component = instance
+                    @na_window_component  = instance
+
+                    door_id = sliding_serializer.na_get_door_id_from_instance(instance)
+                    if door_id
+                        sliding_serializer.na_save_door_data(
+                            door_id,
+                            na_build_sliding_save_payload(door_id, window_config, true)
+                        )
+                    end
+
+                    model.commit_operation
+
+                    if pending_origin
+                        UiBridge.na_send_status(@na_dialog, 'success', "Sliding placed at measured Point A: #{instance.name}")
+                    else
+                        @na_current_placement_tool = PlacementTool.new(instance)
+                        Sketchup.active_model.select_tool(@na_current_placement_tool)
+                        UiBridge.na_invoke(@na_dialog, 'window.na_setPlacementActive', 'true')
+                        UiBridge.na_send_status(@na_dialog, 'success', "Sliding door created: #{instance.name}")
+                    end
+                else
+                    model.abort_operation
+                    UiBridge.na_send_status(@na_dialog, 'error', 'Failed to create sliding door geometry')
+                end
+            rescue StandardError => e
+                begin; model.abort_operation if model; rescue StandardError; end
+                DebugTools.na_debug_error("Error creating sliding door", e)
+                UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
+            end
+
+            def self.na_handle_update_sliding_door(config)
+                instance = @na_sliding_component
+                unless instance && instance.valid?
+                    UiBridge.na_send_status(@na_dialog, 'warning', 'No sliding door selected to update')
+                    return
+                end
+
+                window_config = config["windowConfiguration"] || {}
+                model = Sketchup.active_model
+                model.start_operation("Update Sliding Door", true)
+
+                Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
+                sliding_engine     = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
+                sliding_serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
+
+                sliding_engine.na_update_sliding_door(instance, window_config)
+
+                door_id = sliding_serializer.na_get_door_id_from_instance(instance)
+                if door_id
+                    sliding_serializer.na_save_door_data(
+                        door_id,
+                        na_build_sliding_save_payload(door_id, window_config, false)
+                    )
+                end
+
+                model.commit_operation
+                UiBridge.na_send_status(@na_dialog, 'success', "Sliding door updated: #{instance.name}")
+            rescue StandardError => e
+                begin; model.abort_operation if model; rescue StandardError; end
+                DebugTools.na_debug_error("Error updating sliding door", e)
+                UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
+            end
+
+            def self.na_handle_live_update_sliding_door(config)
+                instance = @na_sliding_component
+                return unless instance && instance.valid?
+
+                window_config = config["windowConfiguration"] || {}
+                model = Sketchup.active_model
+                model.start_operation("Live Update Sliding", true, false, true)
+
+                Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
+                sliding_engine     = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
+                sliding_serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
+
+                sliding_engine.na_update_sliding_door(instance, window_config)
+
+                door_id = sliding_serializer.na_get_door_id_from_instance(instance)
+                if door_id
+                    sliding_serializer.na_save_door_data(
+                        door_id,
+                        na_build_sliding_save_payload(door_id, window_config, false)
+                    )
+                end
+
+                model.commit_operation
+                model.active_view.invalidate
+                DebugTools.na_debug_success("Live update applied to sliding #{instance.name}")
+            rescue StandardError => e
+                begin; model.abort_operation if model; rescue StandardError; end
+                DebugTools.na_debug_error("Live update sliding (non-fatal)", e)
+            end
+
+            # HELPER FUNCTION | Build the Save Hash for the Sliding DataSerializer
+            # ------------------------------------------------------------
+            # Filters the live windowConfiguration down to just the
+            # sliding_door_* keys so the saved blob is independent of any
+            # window-side state.
+            def self.na_build_sliding_save_payload(door_id, window_config, is_create)
+                sliding_keys = window_config.keys.select { |k| k.is_a?(String) && k.start_with?("sliding_door_") }
+                sliding_only = {}
+                sliding_keys.each { |k| sliding_only[k] = window_config[k] }
+
+                meta_key = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_KEY_DOOR_METADATA
+                comp_key = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_KEY_DOOR_COMPONENTS
+                cfg_key  = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_KEY_DOOR_CONFIGURATION
+
+                now = Time.now.strftime("%Y-%m-%d %H:%M:%S")
+
+                {
+                    meta_key => [
+                        {
+                            "DoorID"        => door_id,
+                            "DoorType"      => "SlidingDoor",
+                            "Mode"          => window_config["sliding_door_mode"],
+                            "CreatedDate"   => is_create ? now : nil,
+                            "LastModified"  => now
+                        }.compact
+                    ],
+                    comp_key => [],
+                    cfg_key  => sliding_only
+                }
+            end
+            private_class_method :na_build_sliding_save_payload
+            # ---------------------------------------------------------------
+
             def self.na_handle_update_window(config_json)
                 config = JSON.parse(config_json)
                 @na_config = config
+
+                if na_is_bifold_mode?(config["windowConfiguration"])
+                    return na_handle_update_bifold_door(config)
+                end
+
+                if na_is_sliding_mode?(config["windowConfiguration"])
+                    return na_handle_update_sliding_door(config)
+                end
 
                 unless @na_window_component && @na_window_component.valid?
                     UiBridge.na_send_status(@na_dialog, 'warning', 'No window selected to update')
@@ -221,6 +743,14 @@ module Na__AssemblyStudio
 
             def self.na_handle_live_update(config_json)
                 config = JSON.parse(config_json)
+
+                if na_is_bifold_mode?(config["windowConfiguration"])
+                    return na_handle_live_update_bifold_door(config)
+                end
+
+                if na_is_sliding_mode?(config["windowConfiguration"])
+                    return na_handle_live_update_sliding_door(config)
+                end
 
                 incoming_id = nil
                 if config["windowMetadata"] && config["windowMetadata"][0]
