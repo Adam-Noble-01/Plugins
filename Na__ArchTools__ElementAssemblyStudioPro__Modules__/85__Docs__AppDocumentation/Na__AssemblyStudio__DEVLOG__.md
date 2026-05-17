@@ -3,6 +3,66 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.7.2 - 17-May-2026 - Bifold accordion phasing fix (correct outward rotation, panel-thickness offsets, alternating termination tilt) + TrueVision 3× bifold animation slowdown
+
+### Context
+After V1.7.1 the user reviewed the bifold doors animating in TrueVision and flagged that the open state was wrong on three counts:
+1. **Wrong rotation direction.** A 2x2 EqualEqual set had one half opening **inward** (into the room) instead of outward, and on the AllOneWay long set one panel was rotating inward while every other panel pointed outward - i.e. some right-side cascade panels were emitting the wrong sign on `rot_degrees`.
+2. **No bunching.** Every slave panel ended up at exactly the same world position - the panels were all rotating to ±90° but the `mve_distance_mm` magnitude was sized as `slave_position * panel_w_mm` rather than `slave_position * (panel_w - panel_thickness - gap)`, so the open state was a flat deck-of-cards rather than a true accordion fold with each panel sitting one panel-thickness off the previous one.
+3. **Snap-shut animation speed.** The bifold sets animated at the same 600ms duration as a single hinged door, which made the accordion fold read as a snap. The user explicitly asked for ~3× slower bifold animation while keeping single + sliding doors at their existing speed.
+The user confirmed sliding doors are perfect and must not be touched.
+
+### Phase 1 - Shared accordion-math helpers (`ExtFold__GeometryHelpers__.rb`)
+A new pair of helpers centralises the accordion phasing maths so all three layout modules (`Layout__EqualEqual__`, `Layout__AllOneWay__`, `Layout__MasterSlaves__`) emit the same MOD-name contract regardless of which side a cascade is on:
+- `na_compute_panel_rot_degrees(slave_position, side_sign, master:)` - returns the signed degree value the MOD name should encode. The base angle is `90.0` (matches `NA_ACCORDION_BASE_ROT_DEG`); `side_sign = -1` for left cascades / left-jamb masters and `+1` for right cascades / right-jamb masters; the alternating ±2° termination tilt (`NA_ACCORDION_TERMINATION_ANGLE_DEG`) flips on every panel index from the cascade master so adjacent open panels point at very slightly different angles - the zig-zag concertina silhouette the user described as "an accordion".
+- `na_compute_slave_mve_distance_mm(slave_position, panel_w_mm, panel_t_mm, side_sign)` - returns the signed millimetre value the MOD's MVE token should encode. Travel magnitude is `slave_position * (panel_w_mm - panel_t_mm - NA_ACCORDION_PANEL_GAP_MM)` (default 10mm gap). Sign matches `side_sign` so left cascades carry a negative axis token and right cascades carry a positive one. This is what gives the open state a real accordion fold - panel N+1 sits exactly one panel thickness + 10mm in front of panel N along the hinge-axis direction, so an 8-panel set physically stacks rather than overlapping in space.
+
+A third helper `na_resolve_panel_thickness_mm(config_hash)` was added so the layout modules thread the live panel thickness from the unified config into the offset calculation - the V1.7.0 contract was sizing `mve_distance_mm` against the un-thickened panel width, which is what put every slave at the same world position.
+
+### Phase 2 - Layout modules: outward-swinging masters + accordion slaves
+All three bifold layout modules were updated to consume the new helpers:
+
+**`Layout__EqualEqual__.rb`** - The right-half master previously emitted a fixed `-90-Deg` value, which is correct for a left-jamb master but **wrong** for a right-jamb master (it makes the right half swing inward). Now `na_build_master_descriptor` takes a `side_sign` argument and routes through `GeometryHelpers.na_compute_panel_rot_degrees(0, side_sign, master: true)`, which yields ~`-88-Deg` for the left half and ~`+88-Deg` for the right half - both swinging **outward** in the TrueVision anticlockwise convention. Slave descriptors in both halves drop their hard-coded `180-Deg` and instead call the helper with the right side sign and a slave-position counter.
+
+**`Layout__AllOneWay__.rb`** - Same fix shape: the right-cascade master was previously `-90-Deg` (inward), now uses `na_compute_panel_rot_degrees(0, +1, master: true)` to swing outward. Both left and right cascades now call the slave helpers with the matching side sign so the alternating ±2° tilt zig-zags away from the master in both directions.
+
+**`Layout__MasterSlaves__.rb`** - The trickiest of the three because it has two flavours: a "lone master" (single panel that swings free of any cascade) and a cascade master that happens to live at the start of a 3+ panel chain. The lone-master path is preserved untouched because the single-panel case has no accordion concern - it's always called with `slave_position = 0` and the helper returns the base ±88° / ±92° tilt. The cascade-master path was rewritten so every slave from 1..N pulls its `rot_degrees` and `mve_distance_mm` from the same accordion helpers, with the side sign flowing from whichever jamb the master sits against (left jamb → `-1`, right jamb → `+1`).
+
+### Phase 3 - Visual helper threshold (`ExtFold__RotationPivotBuilder__.rb`)
+The `NA_SWING_DRAW_DEG_THRESHOLD` constant was raised from `90` to `95` so the swing-direction arrows the rotation marker emits in SketchUp keep being drawn for every panel rotating around 90°. Without this bump the new ±88° / ±92° accordion tilts would have failed the `>= 90` test for half the panels and silently dropped their swing arrows.
+
+### Phase 4 - TrueVision: bifold-only 3× animation slowdown
+A new config key `3dObject__Interaction__DoorAnimation__BifoldDurationMultiplier` was added to `Na__AppConfig__Main.json` with a default of `3.0`. The `3dObjectIInteraction__Animation__ClickToOpenDoors__.js` module now resolves a per-door `effectiveDurationMs` at scan time:
+- New helper `Na__DoorAnim__IsBifoldDoor(panels)` returns `true` if any panel in the door is classified as `ROT_MVE`. Sliding doors emit only `MVE_ONLY` + `FIXED` panels and single hinged doors emit only `ROT_ONLY`, so the `ROT_MVE` sighting is a unique fingerprint of a bifold cascade.
+- New helper `Na__DoorAnim__ResolveEffectiveDurationMs(panels)` returns either the base `AnimationDurationMs` (single + sliding) or `AnimationDurationMs * BifoldDurationMultiplier` (bifold).
+- `Na__DoorAnimation__ScanForDoors` caches `isBifold` + `effectiveDurationMs` on every `doorRecord`, and `Na__DoorAnim__ToggleDoor` + the animation completion handler both read from `doorRecord.effectiveDurationMs` rather than the global config so partial reversals scale correctly against the door's own native speed. Walk-Mode proximity reuses the same `ToggleDoor` entry point so it inherits the slowdown automatically.
+
+### Sliding-door regression check
+`ExtSlide__AssemblyComposer.na_resolve_mod_name` only emits `MOD###__FIXED__SlidingPanel` or `MOD###__MVE__<axis><signed>mm__SlidingPanel` - it never emits a `ROT__...__MVE__` combined token, so the TrueVision bifold detector cannot misclassify a sliding door. Sliding doors continue to use the base 600ms animation duration with the existing per-panel translation logic; the V1.7.2 changes are scoped exclusively to the bifold path.
+
+### Files touched (V1.7.2)
+SketchUp plugin:
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__GeometryHelpers__.rb` - new constants `NA_ACCORDION_BASE_ROT_DEG`, `NA_ACCORDION_TERMINATION_ANGLE_DEG`, `NA_ACCORDION_PANEL_GAP_MM`; new helpers `na_compute_panel_rot_degrees`, `na_compute_slave_mve_distance_mm`, `na_resolve_panel_thickness_mm`.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Layout__EqualEqual__.rb` - threads `panel_t_mm` through descriptor builders; masters + slaves call the accordion helpers; right-half master rotation sign fixed.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Layout__AllOneWay__.rb` - same shape; right-cascade master rotation sign fixed.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Layout__MasterSlaves__.rb` - same shape; lone-master path preserved while cascade master + slaves now drive through the helpers; right-jamb master rotation sign fixed.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__RotationPivotBuilder__.rb` - `NA_SWING_DRAW_DEG_THRESHOLD` raised from 90 to 95 so the swing arrows survive the new ±88° / ±92° accordion tilts.
+
+TrueVision3D web app:
+- `02__Src__AppModules/02__AppData/Na__AppConfig__Main.json` - new `3dObject__Interaction__DoorAnimation__BifoldDurationMultiplier` key (default 3.0).
+- `02__Src__AppModules/25__System__3dObject__InteractionSystem/3dObjectIInteraction__Animation__ClickToOpenDoors__.js` - new helpers `Na__DoorAnim__IsBifoldDoor` + `Na__DoorAnim__ResolveEffectiveDurationMs`; `doorRecord` now carries `isBifold` + `effectiveDurationMs`; `ToggleDoor` + animation completion read from the per-door cached duration; `Initialize` reads the new config key.
+- `02__Src__AppModules/25__System__3dObject__InteractionSystem/3dObjectIInteraction__Animation__ClickToOpenDoors__README__.md` - documents the V1.3.0 accordion phasing contract + the bifold duration multiplier.
+
+### Risks / known limitations after this release
+- The accordion offset assumes every slave in a cascade has the same panel width. Mixed-width cascades (e.g. a wider master next to narrower slaves) would still bunch correctly but the gap between adjacent open panels would no longer be exactly `panel_thickness + 10mm` for the wider transitions. Bifold doors in practice ship with uniform panel widths so this is a theoretical concern only.
+- The ±2° termination tilt is hard-coded via `NA_ACCORDION_TERMINATION_ANGLE_DEG` - making this user-configurable would require surfacing it in the bifold tab UI. Held back to V1.7.x to avoid polluting the unified slider stack the user just consolidated in V1.7.0.
+- The 3× bifold slowdown applies to **every** bifold door regardless of panel count. A two-panel bifold could arguably animate faster than an eight-panel bifold but the current scaler is a flat multiplier; if this becomes important a future revision could scale by `panel_count` directly.
+
+### Next: V1.7.3 - bifold + sliding plan-view companion preview, mode-switch guard
+The two outstanding items from V1.7.0's "Next" section remain: plan-view (top-down) SVG companion to the elevation preview, and the V1.5.0 mode-switch guard (definition-name verification on Update so users cannot accidentally overwrite a bifold ADR with sliding config and vice versa).
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.7.1 - 17-May-2026 - Bifold + sliding door materials parity, per-lite glass trim, full-frame fuse, and global cill Z-axis fix
 
 ### Context

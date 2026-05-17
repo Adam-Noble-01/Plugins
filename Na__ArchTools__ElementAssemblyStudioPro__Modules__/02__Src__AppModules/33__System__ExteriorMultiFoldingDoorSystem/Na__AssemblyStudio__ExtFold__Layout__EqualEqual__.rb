@@ -15,13 +15,17 @@
 # CREATED    : 17-May-2026
 #
 # DESCRIPTION:
-# - The leftmost and rightmost panels are jamb-hinged "masters" that
-#   swing -90 deg outward; their MOD name uses NA_MOD_NAME_FORMAT_ROT_ONLY.
-# - All other panels are slaves: they fold 180 deg about their joint
-#   hinge with the adjacent panel AND translate along the head track
-#   toward the corresponding jamb (left half: -X track displacement;
-#   right half: +X track displacement). Their MOD name uses
-#   NA_MOD_NAME_FORMAT_ROT_MVE.
+# - The leftmost panel is the LEFT-jamb master and the rightmost is
+#   the RIGHT-jamb master. Both swing OUTWARD to perpendicular (-90 +/-
+#   tilt deg / +90 +/- tilt deg) about their jamb hinge; their MOD
+#   names use NA_MOD_NAME_FORMAT_ROT_ONLY.
+# - All other panels are slaves. They rotate to perpendicular (matching
+#   their cascade master's sign) AND translate along the head track
+#   toward their jamb so they accordion-stack at panel_thickness + gap
+#   from the previous panel. Their MOD name uses NA_MOD_NAME_FORMAT_ROT_MVE.
+# - Adjacent panels alternate the small termination tilt (NA_ACCORDION_
+#   TERMINATION_ANGLE_DEG) so the open state reads as a true zigzag
+#   accordion rather than a flat deck of cards.
 # - Handles are placed on the two "leading" slaves closest to the centre
 #   of the opening (the ones whose handles meet when the door is closed).
 #
@@ -32,6 +36,16 @@
 # - Z+           = upwards.
 #
 # DEVELOPMENT LOG:
+# 17-May-2026 - Version 1.7.2
+# - Routed every master + slave through `na_compute_panel_rot_degrees`
+#   and `na_compute_slave_mve_distance_mm` so the right-half master
+#   now swings OUTWARD (+90 deg) instead of inward (-90 deg), the
+#   slaves rotate to perpendicular instead of 180 deg, and they end
+#   up offset by panel_thickness + small gap from the master to form
+#   a proper accordion stack at the open jamb. Pre-V1.7.2 the slaves
+#   all collapsed onto the master's hinge, and the right-jamb master
+#   swung into the room.
+#
 # 17-May-2026 - Version 0.2.0
 # - Phase-3a implementation: emits panel descriptors for AssemblyComposer.
 #
@@ -74,10 +88,12 @@ module Na__Layout__EqualEqual
         panel_h_mm = dims[:inner_h_mm]
         return [] if panel_w_mm <= 0.0 || panel_h_mm <= 0.0
 
+        panel_t_mm = GeometryHelpers.na_resolve_panel_thickness_mm(config_hash)            # <-- Accordion-stack offset depends on panel thickness
+
         if panel_count.even?
-            na_build_descriptors_even_split(panel_count, panel_w_mm, panel_h_mm)
+            na_build_descriptors_even_split(panel_count, panel_w_mm, panel_h_mm, panel_t_mm)
         else
-            na_build_descriptors_odd_split(panel_count, panel_w_mm, panel_h_mm)
+            na_build_descriptors_odd_split(panel_count, panel_w_mm, panel_h_mm, panel_t_mm)
         end
     end
     # ---------------------------------------------------------------
@@ -91,18 +107,18 @@ module Na__Layout__EqualEqual
     # HELPER FUNCTION | Build Descriptors for Even-Count Equal-Equal
     # ------------------------------------------------------------
     # Half the panels cascade to the left jamb, half to the right.
-    # Panel 1 hinges on the LEFT JAMB (master, ROT -90, no MVE).
-    # Panel N hinges on the RIGHT JAMB (master, ROT -90, no MVE).
-    # Panels in between are slaves that fold 180 + slide toward their
-    # corresponding jamb.
-    def self.na_build_descriptors_even_split(panel_count, panel_w_mm, panel_h_mm)
+    # Panel 1 hinges on the LEFT JAMB (master, swings outward).
+    # Panel N hinges on the RIGHT JAMB (master, swings outward).
+    # Panels in between are slaves that rotate to perpendicular and
+    # translate toward their jamb to form an accordion stack.
+    def self.na_build_descriptors_even_split(panel_count, panel_w_mm, panel_h_mm, panel_t_mm)
         descriptors = []
         half_count  = panel_count / 2
 
-        descriptors.concat(na_build_left_half_descriptors(half_count, panel_w_mm, panel_h_mm, 1))
+        descriptors.concat(na_build_left_half_descriptors(half_count, panel_w_mm, panel_h_mm, panel_t_mm, 1))
 
         right_start_index = half_count + 1
-        descriptors.concat(na_build_right_half_descriptors(half_count, panel_w_mm, panel_h_mm, right_start_index, panel_count))
+        descriptors.concat(na_build_right_half_descriptors(half_count, panel_w_mm, panel_h_mm, panel_t_mm, right_start_index, panel_count))
 
         descriptors
     end
@@ -111,19 +127,19 @@ module Na__Layout__EqualEqual
 
     # HELPER FUNCTION | Build Descriptors for Odd-Count Equal-Equal
     # ------------------------------------------------------------
-    # Centre panel is fixed (master, no rotation, no translation).
+    # Centre panel is fixed (no rotation, no translation).
     # Surrounding pairs split equally to both sides.
-    def self.na_build_descriptors_odd_split(panel_count, panel_w_mm, panel_h_mm)
+    def self.na_build_descriptors_odd_split(panel_count, panel_w_mm, panel_h_mm, panel_t_mm)
         descriptors  = []
         side_count   = (panel_count - 1) / 2
 
-        descriptors.concat(na_build_left_half_descriptors(side_count, panel_w_mm, panel_h_mm, 1))
+        descriptors.concat(na_build_left_half_descriptors(side_count, panel_w_mm, panel_h_mm, panel_t_mm, 1))
 
         centre_index = side_count + 1
         descriptors << na_build_centre_fixed_descriptor(centre_index, panel_w_mm, panel_h_mm)
 
         right_start_index = side_count + 2
-        descriptors.concat(na_build_right_half_descriptors(side_count, panel_w_mm, panel_h_mm, right_start_index, panel_count))
+        descriptors.concat(na_build_right_half_descriptors(side_count, panel_w_mm, panel_h_mm, panel_t_mm, right_start_index, panel_count))
 
         descriptors
     end
@@ -140,7 +156,7 @@ module Na__Layout__EqualEqual
     # ------------------------------------------------------------
     # Indices run 1..half_count (1-based, left-most is the master).
     # Each successive panel folds back toward the LEFT jamb.
-    def self.na_build_left_half_descriptors(half_count, panel_w_mm, panel_h_mm, start_index)
+    def self.na_build_left_half_descriptors(half_count, panel_w_mm, panel_h_mm, panel_t_mm, start_index)
         list = []
         (0...half_count).each do |i|
             panel_index   = start_index + i
@@ -150,6 +166,8 @@ module Na__Layout__EqualEqual
             list << if i == 0
                 na_build_master_descriptor(panel_index, origin_x_mm, panel_w_mm, panel_h_mm, 0.0, :left)
             else
+                rot_deg = GeometryHelpers.na_compute_panel_rot_degrees(slave_position, :left)                            # <-- ~ -90 deg with alternating tilt
+                mve_mm  = GeometryHelpers.na_compute_slave_mve_distance_mm(slave_position, :left, panel_w_mm, panel_t_mm) # <-- Negative offset toward left jamb
                 na_build_slave_descriptor(
                     panel_index,
                     origin_x_mm,
@@ -157,8 +175,9 @@ module Na__Layout__EqualEqual
                     panel_h_mm,
                     origin_x_mm,                                         # <-- Hinge on LEFT edge (joint with previous)
                     'X',
-                    -1 * slave_position * panel_w_mm,                    # <-- Negative track displacement toward left jamb
-                    (slave_position == half_count - 1)                   # <-- Handle on the leading slave
+                    mve_mm,
+                    (slave_position == half_count - 1),                  # <-- Handle on the leading slave
+                    rot_deg
                 )
             end
         end
@@ -171,7 +190,7 @@ module Na__Layout__EqualEqual
     # ------------------------------------------------------------
     # Indices run start_index..panel_count_total (right-most is master).
     # Each successive panel folds toward the RIGHT jamb.
-    def self.na_build_right_half_descriptors(half_count, panel_w_mm, panel_h_mm, start_index, panel_count_total)
+    def self.na_build_right_half_descriptors(half_count, panel_w_mm, panel_h_mm, panel_t_mm, start_index, panel_count_total)
         list = []
         (0...half_count).each do |i|
             panel_index    = start_index + i
@@ -183,6 +202,8 @@ module Na__Layout__EqualEqual
                 na_build_master_descriptor(panel_index, origin_x_mm, panel_w_mm, panel_h_mm, jamb_hinge_x, :right)
             else
                 hinge_x_mm = origin_x_mm + panel_w_mm
+                rot_deg = GeometryHelpers.na_compute_panel_rot_degrees(slave_position, :right)                              # <-- ~ +90 deg with alternating tilt
+                mve_mm  = GeometryHelpers.na_compute_slave_mve_distance_mm(slave_position, :right, panel_w_mm, panel_t_mm)  # <-- Positive offset toward right jamb
                 na_build_slave_descriptor(
                     panel_index,
                     origin_x_mm,
@@ -190,8 +211,9 @@ module Na__Layout__EqualEqual
                     panel_h_mm,
                     hinge_x_mm,                                          # <-- Hinge on RIGHT edge (joint with next)
                     'X',
-                    +1 * slave_position * panel_w_mm,                    # <-- Positive track displacement toward right jamb
-                    (i == 0)                                             # <-- Handle on the leading slave (closest to centre)
+                    mve_mm,
+                    (i == 0),                                            # <-- Handle on the leading slave (closest to centre)
+                    rot_deg
                 )
             end
         end
@@ -208,7 +230,12 @@ module Na__Layout__EqualEqual
 
     # HELPER FUNCTION | Build a Master-Panel Descriptor (Jamb-Hinged, ROT Only)
     # ------------------------------------------------------------
+    # Routes the rotation through the accordion helper so the right-jamb
+    # master swings OUTWARD (+90 deg) and the left-jamb master swings
+    # OUTWARD (-90 deg), each with the small termination tilt.
     def self.na_build_master_descriptor(panel_index, origin_x_mm, panel_w_mm, panel_h_mm, hinge_x_mm, jamb_side)
+        cascade_direction = (jamb_side == :left) ? :left : :right
+        rot_deg           = GeometryHelpers.na_compute_panel_rot_degrees(0, cascade_direction)
         {
             :index           => panel_index,
             :width_mm        => panel_w_mm,
@@ -216,7 +243,7 @@ module Na__Layout__EqualEqual
             :origin_x_mm     => origin_x_mm,
             :hinge_x_mm      => hinge_x_mm,
             :hinge_y_mm      => 0.0,
-            :rot_degrees     => -90,
+            :rot_degrees     => rot_deg,
             :mve_axis        => nil,
             :mve_distance_mm => 0,
             :role            => :master,
@@ -229,7 +256,9 @@ module Na__Layout__EqualEqual
 
     # HELPER FUNCTION | Build a Slave-Panel Descriptor (ROT + MVE)
     # ------------------------------------------------------------
-    def self.na_build_slave_descriptor(panel_index, origin_x_mm, panel_w_mm, panel_h_mm, hinge_x_mm, mve_axis, mve_distance_mm, has_handle)
+    # Caller computes rot_degrees + mve_distance_mm via the shared
+    # accordion helpers so V1.7.2 panels stack neatly at perpendicular.
+    def self.na_build_slave_descriptor(panel_index, origin_x_mm, panel_w_mm, panel_h_mm, hinge_x_mm, mve_axis, mve_distance_mm, has_handle, rot_degrees)
         {
             :index           => panel_index,
             :width_mm        => panel_w_mm,
@@ -237,7 +266,7 @@ module Na__Layout__EqualEqual
             :origin_x_mm     => origin_x_mm,
             :hinge_x_mm      => hinge_x_mm,
             :hinge_y_mm      => 0.0,
-            :rot_degrees     => 180,
+            :rot_degrees     => rot_degrees.to_i,
             :mve_axis        => mve_axis,
             :mve_distance_mm => mve_distance_mm.to_i,
             :role            => :slave,

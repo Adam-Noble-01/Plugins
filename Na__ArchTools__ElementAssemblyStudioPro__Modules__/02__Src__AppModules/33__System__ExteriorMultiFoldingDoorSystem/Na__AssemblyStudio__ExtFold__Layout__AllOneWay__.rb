@@ -19,9 +19,13 @@
 # - `bifold_door_open_side` chooses the cascade jamb:
 #     * "Left"  -> master is panel 1 (left jamb).
 #     * "Right" -> master is panel N (right jamb).
-# - Slave MVE distance scales linearly: the k-th slave from the master
-#   travels k * panel_w_mm toward the jamb (track-side approximation;
-#   the TrueVision animation refines the actual cascade arc in Phase 6).
+# - The master swings outward to perpendicular about its jamb hinge.
+# - Slaves rotate to perpendicular (matching the master's outward sign)
+#   AND translate along the head track by k * (panel_w - panel_t - gap)
+#   toward the cascade jamb so successive slaves stack at panel_t + gap
+#   from the previous panel - a true accordion stack, not a flat deck.
+# - Adjacent panels alternate the small termination tilt so the open
+#   state reads as a zigzag concertina.
 # - Handle goes on the LEADING slave (the one farthest from the master),
 #   matching real-world bifold installations where the leading edge
 #   carries the operator handle.
@@ -33,6 +37,13 @@
 # - Z+           = upwards.
 #
 # DEVELOPMENT LOG:
+# 17-May-2026 - Version 1.7.2
+# - Right-cascade master now swings OUTWARD (+90 deg) instead of into
+#   the room (-90 deg). Slaves now rotate to perpendicular instead of
+#   180 deg and translate by k * (panel_w - panel_t - gap) so they
+#   accordion-stack at the cascade jamb. Pre-V1.7.2 they all collapsed
+#   onto the master's hinge in the same world position.
+#
 # 17-May-2026 - Version 0.2.0
 # - Phase-3a implementation: emits panel descriptors for AssemblyComposer.
 #
@@ -77,9 +88,11 @@ module Na__Layout__AllOneWay
         panel_h_mm = dims[:inner_h_mm]
         return [] if panel_w_mm <= 0.0 || panel_h_mm <= 0.0
 
+        panel_t_mm = GeometryHelpers.na_resolve_panel_thickness_mm(config_hash)            # <-- Accordion-stack offset depends on panel thickness
+
         cascade_left = (open_side_raw.downcase == "left")
-        cascade_left ? na_build_left_cascade(panel_count, panel_w_mm, panel_h_mm) :
-                       na_build_right_cascade(panel_count, panel_w_mm, panel_h_mm)
+        cascade_left ? na_build_left_cascade(panel_count, panel_w_mm, panel_h_mm, panel_t_mm) :
+                       na_build_right_cascade(panel_count, panel_w_mm, panel_h_mm, panel_t_mm)
     end
     # ---------------------------------------------------------------
 
@@ -94,7 +107,7 @@ module Na__Layout__AllOneWay
     # Master is panel 1 (left jamb-hinged). Slaves 2..N fold and slide
     # back toward the master. The leading slave (rightmost panel)
     # carries the handle.
-    def self.na_build_left_cascade(panel_count, panel_w_mm, panel_h_mm)
+    def self.na_build_left_cascade(panel_count, panel_w_mm, panel_h_mm, panel_t_mm)
         list = []
         (0...panel_count).each do |i|
             panel_index = i + 1
@@ -106,6 +119,8 @@ module Na__Layout__AllOneWay
             else
                 hinge_x_mm = origin_x_mm                                          # <-- Hinge on left edge (joint with previous)
                 is_leading = (i == panel_count - 1)
+                rot_deg = GeometryHelpers.na_compute_panel_rot_degrees(slave_pos, :left)                              # <-- ~ -90 deg with alternating tilt
+                mve_mm  = GeometryHelpers.na_compute_slave_mve_distance_mm(slave_pos, :left, panel_w_mm, panel_t_mm)  # <-- Negative offset toward LEFT jamb
                 na_build_slave_descriptor(
                     panel_index,
                     origin_x_mm,
@@ -113,9 +128,10 @@ module Na__Layout__AllOneWay
                     panel_h_mm,
                     hinge_x_mm,
                     'X',
-                    -1 * slave_pos * panel_w_mm,                                  # <-- Negative track displacement toward LEFT jamb
+                    mve_mm,
                     is_leading,
-                    :right                                                        # <-- Handle on right edge of leading slave
+                    :right,                                                       # <-- Handle on right edge of leading slave
+                    rot_deg
                 )
             end
         end
@@ -129,7 +145,7 @@ module Na__Layout__AllOneWay
     # Master is panel N (right jamb-hinged). Slaves 1..N-1 fold and
     # slide toward the master. The leading slave (leftmost panel)
     # carries the handle.
-    def self.na_build_right_cascade(panel_count, panel_w_mm, panel_h_mm)
+    def self.na_build_right_cascade(panel_count, panel_w_mm, panel_h_mm, panel_t_mm)
         list = []
         (0...panel_count).each do |i|
             panel_index = i + 1
@@ -142,6 +158,8 @@ module Na__Layout__AllOneWay
             else
                 hinge_x_mm = origin_x_mm + panel_w_mm                             # <-- Hinge on right edge (joint with next)
                 is_leading = (i == 0)
+                rot_deg = GeometryHelpers.na_compute_panel_rot_degrees(slave_pos, :right)                              # <-- ~ +90 deg with alternating tilt
+                mve_mm  = GeometryHelpers.na_compute_slave_mve_distance_mm(slave_pos, :right, panel_w_mm, panel_t_mm)  # <-- Positive offset toward RIGHT jamb
                 na_build_slave_descriptor(
                     panel_index,
                     origin_x_mm,
@@ -149,9 +167,10 @@ module Na__Layout__AllOneWay
                     panel_h_mm,
                     hinge_x_mm,
                     'X',
-                    +1 * slave_pos * panel_w_mm,                                  # <-- Positive track displacement toward RIGHT jamb
+                    mve_mm,
                     is_leading,
-                    :left                                                         # <-- Handle on left edge of leading slave
+                    :left,                                                        # <-- Handle on left edge of leading slave
+                    rot_deg
                 )
             end
         end
@@ -168,7 +187,12 @@ module Na__Layout__AllOneWay
 
     # HELPER FUNCTION | Build a Master-Panel Descriptor (Jamb-Hinged, ROT Only)
     # ------------------------------------------------------------
+    # Routes the rotation through the accordion helper so the right-jamb
+    # master swings OUTWARD (+90 deg) and the left-jamb master swings
+    # OUTWARD (-90 deg), each with the small termination tilt.
     def self.na_build_master_descriptor(panel_index, origin_x_mm, panel_w_mm, panel_h_mm, hinge_x_mm, jamb_side)
+        cascade_direction = (jamb_side == :left) ? :left : :right
+        rot_deg           = GeometryHelpers.na_compute_panel_rot_degrees(0, cascade_direction)
         {
             :index           => panel_index,
             :width_mm        => panel_w_mm,
@@ -176,7 +200,7 @@ module Na__Layout__AllOneWay
             :origin_x_mm     => origin_x_mm,
             :hinge_x_mm      => hinge_x_mm,
             :hinge_y_mm      => 0.0,
-            :rot_degrees     => -90,
+            :rot_degrees     => rot_deg,
             :mve_axis        => nil,
             :mve_distance_mm => 0,
             :role            => :master,
@@ -189,7 +213,9 @@ module Na__Layout__AllOneWay
 
     # HELPER FUNCTION | Build a Slave-Panel Descriptor (ROT + MVE)
     # ------------------------------------------------------------
-    def self.na_build_slave_descriptor(panel_index, origin_x_mm, panel_w_mm, panel_h_mm, hinge_x_mm, mve_axis, mve_distance_mm, has_handle, handle_side)
+    # Caller computes rot_degrees + mve_distance_mm via the shared
+    # accordion helpers so V1.7.2 panels stack neatly at perpendicular.
+    def self.na_build_slave_descriptor(panel_index, origin_x_mm, panel_w_mm, panel_h_mm, hinge_x_mm, mve_axis, mve_distance_mm, has_handle, handle_side, rot_degrees)
         {
             :index           => panel_index,
             :width_mm        => panel_w_mm,
@@ -197,7 +223,7 @@ module Na__Layout__AllOneWay
             :origin_x_mm     => origin_x_mm,
             :hinge_x_mm      => hinge_x_mm,
             :hinge_y_mm      => 0.0,
-            :rot_degrees     => 180,
+            :rot_degrees     => rot_degrees.to_i,
             :mve_axis        => mve_axis,
             :mve_distance_mm => mve_distance_mm.to_i,
             :role            => :slave,

@@ -77,7 +77,7 @@ module Na__RotationPivotBuilder
     NA_SWING_ARROW_SEGMENT_COUNT    = 8                                         # <-- Polyline segments for the arc
     NA_SWING_ARROW_HEAD_LENGTH_MM   = 25                                        # <-- Length of each arrowhead 'V' edge
     NA_HELPER_EDGE_COLOUR_ID        = "MTE201__LineColour__Red".freeze
-    NA_SWING_DRAW_DEG_THRESHOLD     = 90                                        # <-- Only draw arc for |angle| <= this many deg
+    NA_SWING_DRAW_DEG_THRESHOLD     = 95                                        # <-- Only draw arc for |angle| <= this many deg (covers +/- 2 deg accordion tilt on top of the 90 deg base swing)
 
 # endregion -------------------------------------------------------------------
 
@@ -168,9 +168,10 @@ module Na__RotationPivotBuilder
 
     # HELPER FUNCTION | Draw the Swing-Direction Arrow When Applicable
     # ------------------------------------------------------------
-    # Only emits a visible arc for panels rotating ±90 deg (masters).
-    # Slave panels (typically ±180 deg) skip the arrow because a half
-    # circle visually clutters the model without aiding intent.
+    # Emits a visible quarter-circle arc for panels rotating around 90 deg
+    # (every master and V1.7.2-onwards every accordion slave). Anything
+    # past the threshold (e.g. legacy 180 deg slaves) is skipped because
+    # a half circle visually clutters the model without aiding intent.
     def self.na_draw_swing_arrow_if_applicable(entities, z_mm, rotation_deg)
         return if rotation_deg.to_i.abs > NA_SWING_DRAW_DEG_THRESHOLD
         return if rotation_deg.to_i == 0

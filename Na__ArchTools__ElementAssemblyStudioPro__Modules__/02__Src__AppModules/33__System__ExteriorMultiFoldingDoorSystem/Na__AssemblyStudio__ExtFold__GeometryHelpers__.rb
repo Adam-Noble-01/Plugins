@@ -29,6 +29,14 @@
 # - Z+           = upwards.
 #
 # DEVELOPMENT LOG:
+# 17-May-2026 - Version 1.7.2
+# - Added accordion-fold helpers `na_compute_panel_rot_degrees` and
+#   `na_compute_slave_mve_distance_mm`. Layout modules now route every
+#   master + slave through these helpers so the TrueVision animation
+#   stops at perpendicular (with a small termination tilt) and the
+#   slaves end up offset by panel_thickness + small gap from the
+#   master, instead of all collapsing onto the master's hinge.
+#
 # 17-May-2026 - Version 0.2.0
 # - Phase-3a implementation: full per-panel maths surface.
 #
@@ -50,6 +58,15 @@ module Na__GeometryHelpers
     NA_MM_TO_INCH                       = 1.0 / 25.4                            # <-- Single mm -> inch factor
     NA_INNER_GLAZING_DEPTH_RATIO        = 0.4                                   # <-- Glazing depth as fraction of panel thickness
     NA_TRACK_DEPTH_PADDING_MM           = 30                                    # <-- Track casing wider than panel thickness
+
+    # Accordion-fold tuning (V1.7.2). The bifold open-state is a
+    # compressed-accordion stack where every panel ends up perpendicular
+    # to the wall, offset from its neighbour by the panel thickness + a
+    # small visible gap, and tilted by a small termination angle so the
+    # stack reads as an accordion rather than a flat deck of cards.
+    NA_ACCORDION_BASE_ROT_DEG           = 90.0                                  # <-- Magnitude of the perpendicular swing
+    NA_ACCORDION_TERMINATION_ANGLE_DEG  = 2.0                                   # <-- Small zigzag tilt either side of perpendicular
+    NA_ACCORDION_PANEL_GAP_MM           = 10.0                                  # <-- Visible gap between adjacent stacked panels
 
 # endregion -------------------------------------------------------------------
 
@@ -256,6 +273,81 @@ module Na__GeometryHelpers
     # a setback is required (e.g. recessed master leaf).
     def self.na_compute_panel_y_origin_mm(_panel_thickness_mm)
         0.0
+    end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Accordion-Fold Math (V1.7.2)
+# -----------------------------------------------------------------------------
+#
+# The bifold OPEN state is a compressed-accordion stack: every panel
+# rotates to (almost) perpendicular to the wall and is X-offset from
+# its master by `slave_pos * (panel_thickness + gap)` so the panels
+# end up sitting next to each other rather than all collapsing onto
+# the master's hinge. Adjacent panels alternate the rotation sign by
+# a small `termination_angle` so the stack reads as a true zigzag
+# concertina rather than a flat deck of cards.
+#
+# All three layouts (EqualEqual, AllOneWay, MasterSlaves) call into
+# the helpers below so the contract stays in lockstep across modes.
+# Pre-V1.7.2 the slaves rotated 180 deg + slid a full panel-width,
+# which made every slave land in the same world position and (for
+# right-jamb masters) sometimes swung INTO the wall plane.
+
+    # FUNCTION | Resolve the Open-State Rotation (Degrees) for a Cascade Panel
+    # ------------------------------------------------------------
+    # `slave_pos` is 0 for the cascade master (or a "lone" master that
+    # opens like a single hinged door) and 1, 2, ... for each successive
+    # slave away from the master.
+    #
+    # `cascade_direction` is :left when the cascade ends at the LEFT
+    # jamb and :right when it ends at the RIGHT jamb. The base swing
+    # magnitude is fixed at +/- 90 deg; only the termination tilt is
+    # alternated.
+    #
+    # @return [Integer] open-state rotation in degrees, signed.
+    def self.na_compute_panel_rot_degrees(slave_pos, cascade_direction, accordion_angle_deg = NA_ACCORDION_TERMINATION_ANGLE_DEG)
+        base_deg       = (cascade_direction == :left) ? -NA_ACCORDION_BASE_ROT_DEG : +NA_ACCORDION_BASE_ROT_DEG
+        direction_sign = (cascade_direction == :left) ? +1.0 : -1.0
+        parity_sign    = slave_pos.to_i.even? ? +1.0 : -1.0
+        tilt           = parity_sign * direction_sign * accordion_angle_deg.to_f
+        (base_deg + tilt).round.to_i
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Resolve the Slave's X-Track Translation Distance (Signed mm)
+    # ------------------------------------------------------------
+    # The cascade master stays anchored at its jamb (no MVE). Slave k
+    # translates along the wall axis by `k * (panel_w - panel_t - gap)`
+    # so that, after rotating to perpendicular, its hinge lands
+    # `k * (panel_t + gap)` from the master's hinge - leaving exactly
+    # `gap` mm of clear air between adjacent stacked panels.
+    #
+    # The sign is negative for :left cascades (panels travel back to
+    # the LEFT jamb) and positive for :right cascades.
+    #
+    # @return [Integer] signed mm-magnitude (0 for the master).
+    def self.na_compute_slave_mve_distance_mm(slave_pos, cascade_direction, panel_w_mm, panel_thickness_mm, gap_mm = NA_ACCORDION_PANEL_GAP_MM)
+        k = slave_pos.to_i
+        return 0 if k == 0
+        direction_sign = (cascade_direction == :left) ? -1.0 : +1.0
+        magnitude      = k * (panel_w_mm.to_f - panel_thickness_mm.to_f - gap_mm.to_f)
+        (direction_sign * magnitude).round.to_i
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Resolve the Effective Panel Thickness in mm From Config
+    # ------------------------------------------------------------
+    # Layouts read panel_thickness from the bifold config so the slave
+    # MVE distance matches the geometry the AssemblyComposer will draw.
+    # Defaults match the bifold default-config thickness.
+    def self.na_resolve_panel_thickness_mm(config_hash, default_mm = 50.0)
+        raw = config_hash["bifold_door_panel_thickness_mm"] if config_hash.is_a?(Hash)
+        v   = raw.nil? ? default_mm : raw.to_f
+        v   = default_mm if v <= 0.0
+        v
     end
     # ---------------------------------------------------------------
 
