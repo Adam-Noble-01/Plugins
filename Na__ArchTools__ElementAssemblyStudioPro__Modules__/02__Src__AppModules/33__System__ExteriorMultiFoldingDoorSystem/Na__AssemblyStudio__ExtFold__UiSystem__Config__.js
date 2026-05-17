@@ -69,24 +69,11 @@ const NA_BIFOLD_DOOR_CONFIG = [
         max         : 8,
         default     : 4
     },
-    {
-        id          : 'bifold_door_opening_width_mm',
-        label       : 'Opening Width',
-        type        : 'slider',
-        unit        : 'mm',
-        min         : 1800,
-        max         : 8000,
-        default     : 3600
-    },
-    {
-        id          : 'bifold_door_opening_height_mm',
-        label       : 'Opening Height',
-        type        : 'slider',
-        unit        : 'mm',
-        min         : 1800,
-        max         : 3000,
-        default     : 2100
-    },
+    // Phase-9: Opening Width / Height controls REMOVED — bifold doors now
+    // read `width_mm` / `height_mm` from the shared window-level Dimensions
+    // section so the same sliders drive every opening type. Legacy keys
+    // (bifold_door_opening_width_mm / _height_mm) are migrated on load by
+    // `Na__BifoldDataSerializer.na_load_door_data`.
     {
         id          : 'bifold_door_panel_thickness_mm',
         label       : 'Panel Thickness',

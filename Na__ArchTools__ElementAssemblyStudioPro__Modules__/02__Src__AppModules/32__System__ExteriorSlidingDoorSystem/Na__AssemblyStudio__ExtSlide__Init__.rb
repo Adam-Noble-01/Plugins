@@ -115,13 +115,16 @@ module Na__ExteriorSlidingDoorSystem
     # a long-form name conversion layer. Mode flags `multifold_mode` /
     # `sliding_mode` live on the parent WindowSystem config; this hash is
     # the sliding-specific block consumed when `sliding_mode == true`.
+    #
+    # Phase-9: Opening dimensions / floor clearance now read from the
+    # shared window-level keys (`width_mm`, `height_mm`,
+    # `frame_*_thickness_mm`) so the same Dimensions sliders drive every
+    # opening type. Legacy keys `sliding_door_opening_width_mm`,
+    # `sliding_door_opening_height_mm`, `sliding_door_floor_clearance_mm`,
+    # `sliding_door_wall_depth_mm` are migrated on load.
     NA_DEFAULT_DOOR_CONFIG = {
         "sliding_door_mode"               => "FrontSlidesRight",                         # <-- FrontSlidesLeft | FrontSlidesRight
-        "sliding_door_opening_width_mm"   => 2400,                                       # <-- Total clear opening width
-        "sliding_door_opening_height_mm"  => 2100,                                       # <-- Clear opening height
-        "sliding_door_wall_depth_mm"      => 105,                                        # <-- Surrounding wall depth
         "sliding_door_panel_thickness_mm" => 50,                                         # <-- Single leaf thickness
-        "sliding_door_floor_clearance_mm" => 10,                                         # <-- Bottom gap to slab
         "sliding_door_rear_setback_mm"    => 60,                                         # <-- Y-offset of rear panel from front panel face
         "sliding_door_head_rail_mm"       => 95,                                         # <-- Default head rail height
         "sliding_door_base_rail_mm"       => 200,                                        # <-- Default base rail height
@@ -153,6 +156,7 @@ module Na__ExteriorSlidingDoorSystem
         require_relative 'Na__AssemblyStudio__ExtSlide__GeometryEngine__'
         require_relative 'Na__AssemblyStudio__ExtSlide__DataSerializer__'
         require_relative 'Na__AssemblyStudio__ExtSlide__DialogRouter__'
+        require_relative 'Na__AssemblyStudio__ExtSlide__FuseParts__Panel__'
 
         @na_sliding_modules_loaded = true
         DebugTools.na_debug_info("[ExtSlide] Sub-modules lazy-loaded (Phase-3b)")

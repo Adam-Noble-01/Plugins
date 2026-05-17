@@ -640,6 +640,40 @@ module Na__WindowSystem
                     params[:frame_depth], cill_material, params[:frame_wall_inset]
                 )
             end
+
+            na_apply_cill_lift(entities, params)                                # <-- V1.7.1: shift everything up so the cill sits ON the floor (fixes pre-existing Z bug)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Lift the Window So the Cill Sits ON Top of the Floor (V1.7.1)
+        # ------------------------------------------------------------
+        # Pre-V1.7.1 the cill geometry occupied the negative-Z slab below
+        # the frame (z = -cill_height to 0). When the user dropped the
+        # component at floor level the cill ended up below the floor and
+        # the entire window was effectively cill_height too low - they
+        # had to manually nudge it up to close the gap at the head.
+        #
+        # V1.7.1: Post-process the definition by translating every entity
+        # up by cill_height when the cill is enabled. The cill ends up
+        # at z = 0..H (sitting on the floor), the frame moves up to
+        # z = H..H+frame_h (sitting on the cill), and every casement /
+        # mullion / glaze bar rises with it so the relative geometry
+        # stays consistent.
+        def self.na_apply_cill_lift(entities, params)
+            return unless entities
+            return unless params[:has_cill]
+            return unless params[:frame_bottom_thickness] > 0
+
+            cill_height_in = params[:cill_height].to_f
+            return if cill_height_in <= 0.0
+
+            translation = Geom::Transformation.translation(Geom::Vector3d.new(0.0, 0.0, cill_height_in))
+            targets     = entities.to_a
+            return if targets.empty?
+
+            entities.transform_entities(translation, targets)
+        rescue StandardError => e
+            DebugTools.na_debug_error("WindowSystem na_apply_cill_lift failed", e)
         end
         # ---------------------------------------------------------------
 

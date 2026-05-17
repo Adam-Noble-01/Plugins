@@ -87,6 +87,84 @@ module Na__GeometryHelpers
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Resolve Door Opening Frame Dimensions From Window-Level Keys (Phase 9)
+    # ------------------------------------------------------------
+    # Mirrors the bifold helper so sliding doors share the WindowSystem's
+    # Dimensions / Cill & Frame controls. Returns the same hash shape
+    # the bifold composer uses, so the layout/composer code can be kept
+    # in sync between the two systems.
+    def self.na_resolve_door_opening_dimensions(config_hash)
+        width_mm     = (config_hash["width_mm"]  || 2400).to_f
+        width_mm     = 0.0 if width_mm < 0.0
+        height_mm    = (config_hash["height_mm"] || 2100).to_f
+        height_mm    = 0.0 if height_mm < 0.0
+
+        advanced     = (config_hash["advanced_frame_controls"] == true)
+        uniform_mm   = (config_hash["frame_thickness_mm"] || 50).to_f
+        uniform_mm   = 0.0 if uniform_mm < 0.0
+
+        resolve_edge = lambda do |edge_key|
+            raw = advanced ? config_hash[edge_key] : uniform_mm
+            v   = (raw.nil? ? uniform_mm : raw.to_f)
+            v < 0.0 ? 0.0 : v
+        end
+
+        frame_top    = resolve_edge.call("frame_top_thickness_mm")
+        frame_bottom = resolve_edge.call("frame_bottom_thickness_mm")
+        frame_left   = resolve_edge.call("frame_left_thickness_mm")
+        frame_right  = resolve_edge.call("frame_right_thickness_mm")
+
+        frame_depth      = (config_hash["frame_depth_mm"]      || 70).to_f
+        frame_depth      = 1.0 if frame_depth <= 0.0
+        frame_wall_inset = (config_hash["frame_wall_inset_mm"] || 0).to_f
+
+        inner_w = width_mm  - frame_left - frame_right
+        inner_h = height_mm - frame_top  - frame_bottom
+        inner_w = 0.0 if inner_w < 0.0
+        inner_h = 0.0 if inner_h < 0.0
+
+        {
+            :width_mm            => width_mm,
+            :height_mm           => height_mm,
+            :frame_top_mm        => frame_top,
+            :frame_bottom_mm     => frame_bottom,
+            :frame_left_mm       => frame_left,
+            :frame_right_mm      => frame_right,
+            :frame_depth_mm      => frame_depth,
+            :frame_wall_inset_mm => frame_wall_inset,
+            :inner_w_mm          => inner_w,
+            :inner_h_mm          => inner_h
+        }
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Resolve Front-Leaf Y-Origin Inside the Frame Depth (Phase 9)
+    # ------------------------------------------------------------
+    # The front leaf sits flush against the back face of the front jamb
+    # plane, leaving the rear leaf to occupy the back half of the frame
+    # depth. We centre the front leaf on the inner third of the frame
+    # depth so a typical 50 mm panel inside a 70 mm frame still leaves
+    # ~20 mm of air on each face for visual clearance.
+    def self.na_compute_front_panel_y_origin_in_frame_mm(panel_thickness_mm, frame_depth_mm, frame_wall_inset_mm)
+        panel_t = panel_thickness_mm.to_f
+        depth   = frame_depth_mm.to_f
+        depth   = panel_t if depth < panel_t
+        margin  = ((depth - panel_t) / 4.0).round(1)
+        margin  = 0.0 if margin < 0.0
+        frame_wall_inset_mm.to_f + margin
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Resolve Rear-Leaf Y-Origin Inside the Frame Depth (Phase 9)
+    # ------------------------------------------------------------
+    # Rear leaf sits behind the front by the configured setback so the
+    # two leaves run on parallel tracks rather than colliding.
+    def self.na_compute_rear_panel_y_origin_in_frame_mm(panel_thickness_mm, frame_depth_mm, frame_wall_inset_mm, rear_setback_mm)
+        front_y = na_compute_front_panel_y_origin_in_frame_mm(panel_thickness_mm, frame_depth_mm, frame_wall_inset_mm)
+        front_y + rear_setback_mm.to_f
+    end
+    # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

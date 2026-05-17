@@ -207,6 +207,7 @@ const Na_DynamicUI = (function() {
         na_updateSlidingDoorVisibility();
         na_updateMultifoldDoorVisibility();
         na_updateTransomControlVisibility();
+        na_updateWindowOnlyControlsVisibility();                                // <-- Phase 9: Hide casement/mullion/transom/sliding-sash controls in bifold/sliding mode
         na_normalizeTransomConfig();
         ['transom_1_y_mm', 'transom_2_y_mm', 'transom_3_y_mm'].forEach(controlId => {
             if (_config[controlId] != null) {
@@ -367,6 +368,54 @@ const Na_DynamicUI = (function() {
             if (!control) return;
             control.style.display = index < transomCount ? '' : 'none';
         });
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Hide Window-Only Controls in Bifold / Sliding Mode (Phase 9)
+    // ------------------------------------------------------------
+    // Bifold + sliding doors share the window's Dimensions, Cill & Frame,
+    // Glaze Bars and Options sections wholesale — but a number of
+    // window-only controls (casements, mullions, transoms, sliding sash
+    // overlap) make no sense for a multi-panel door. This helper runs
+    // last after the specialised visibility helpers and force-hides
+    // those controls when `multifold_mode === true || sliding_mode === true`.
+    // In window-mode it restores the always-visible window controls
+    // (the dynamic ones — transom_*, sliding_sash_overlap_mm — are
+    // managed by their own specialised helpers above).
+    function na_updateWindowOnlyControlsVisibility() {
+        const inDoorMode = (_config.multifold_mode === true) || (_config.sliding_mode === true);
+
+        const alwaysWindowOnlyIds = [
+            'casement_width_mm',                                                // <-- Casement controls (single + advanced)
+            'casement_sizes_individual',                                        // <-- Casement individual rail/stile expandable
+            'advanced_casement_controls',                                       // <-- Casement depth/inset/glazing thickness expandable
+            'mullions',                                                         // <-- Window-only (split openings)
+            'mullion_width_mm',                                                 // <-- Window-only mullion thickness
+            'transoms',                                                         // <-- Window-only (split openings vertically)
+            'show_casements',                                                   // <-- Casement-specific toggle
+            'sliding_sash_window'                                               // <-- Sliding sash window mode toggle (distinct from sliding_mode door)
+        ];
+
+        const dynamicWindowOnlyIds = [
+            'transom_width_mm',                                                 // <-- Managed by transom count in window mode
+            'transom_1_y_mm',
+            'transom_2_y_mm',
+            'transom_3_y_mm',
+            'sliding_sash_overlap_mm'                                           // <-- Managed by sliding_sash_window toggle in window mode
+        ];
+
+        alwaysWindowOnlyIds.forEach(id => {
+            const control = document.querySelector(`[data-control-id="${id}"]`);
+            if (!control) return;
+            control.style.display = inDoorMode ? 'none' : '';
+        });
+
+        if (inDoorMode) {
+            dynamicWindowOnlyIds.forEach(id => {
+                const control = document.querySelector(`[data-control-id="${id}"]`);
+                if (control) control.style.display = 'none';
+            });
+        }
     }
     // ---------------------------------------------------------------
 

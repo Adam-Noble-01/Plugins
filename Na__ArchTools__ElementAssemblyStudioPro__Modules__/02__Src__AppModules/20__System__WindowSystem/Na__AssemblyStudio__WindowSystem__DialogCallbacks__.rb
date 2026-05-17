@@ -201,13 +201,82 @@ module Na__AssemblyStudio
                 UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
             end
 
+            # CONSTANT | Shared Window-Level Keys Stored Alongside Bifold / Sliding Doors
+            # ------------------------------------------------------------
+            # Phase-9 unified the bifold + sliding door dimensions, frame,
+            # cill, glaze bars and fuse_parts toggle with the parent
+            # WindowSystem's controls. These keys live on the shared
+            # `windowConfiguration` and need to round-trip through the
+            # door's saved attribute dictionary so a single ADR can be
+            # reloaded with all of its visual state intact.
+            NA_DOOR_SHARED_WINDOW_KEYS = [
+                "width_mm",
+                "height_mm",
+                "frame_thickness_mm",
+                "advanced_frame_controls",
+                "frame_top_thickness_mm",
+                "frame_bottom_thickness_mm",
+                "frame_left_thickness_mm",
+                "frame_right_thickness_mm",
+                "frame_depth_mm",
+                "frame_wall_inset_mm",
+                "has_cill",
+                "paint_cill",
+                "cill_height_mm",
+                "cill_depth_mm",
+                "frame_material_id",
+                "horizontal_glaze_bars",
+                "vertical_glaze_bars",
+                "glaze_bar_width_mm",
+                "glazebar_inset_mm",
+                "glass_thickness_mm",
+                "removed_glazebars",
+                "fuse_parts"
+            ].freeze
+
+            # HELPER FUNCTION | Migrate Legacy Door-Local Dimension Keys (Phase-9)
+            # ------------------------------------------------------------
+            # Pre-Phase-9 saved blobs carry their own opening dimensions
+            # (bifold_door_opening_width_mm, sliding_door_opening_height_mm,
+            # bifold_door_floor_clearance_mm, etc). Copy those into the
+            # shared window keys when the new keys are missing, then drop
+            # the legacy keys so the in-memory config matches the new
+            # schema. Mutates the supplied hash in place.
+            def self.na_migrate_legacy_door_dimension_keys(door_config, prefix)
+                return door_config unless door_config.is_a?(Hash)
+
+                legacy_width      = "#{prefix}_opening_width_mm"
+                legacy_height     = "#{prefix}_opening_height_mm"
+                legacy_clearance  = "#{prefix}_floor_clearance_mm"
+                legacy_walldepth  = "#{prefix}_wall_depth_mm"
+
+                if door_config.key?(legacy_width)
+                    door_config["width_mm"] ||= door_config[legacy_width]
+                    door_config.delete(legacy_width)
+                end
+                if door_config.key?(legacy_height)
+                    door_config["height_mm"] ||= door_config[legacy_height]
+                    door_config.delete(legacy_height)
+                end
+                if door_config.key?(legacy_clearance)
+                    door_config["frame_bottom_thickness_mm"] ||= door_config[legacy_clearance]
+                    door_config.delete(legacy_clearance)
+                end
+                door_config.delete(legacy_walldepth) if door_config.key?(legacy_walldepth)
+
+                door_config
+            end
+            private_class_method :na_migrate_legacy_door_dimension_keys
+            # ---------------------------------------------------------------
+
             # HELPER FUNCTION | Pull the Stored Bifold Configuration Block (or Defaults)
             # ------------------------------------------------------------
             def self.na_resolve_bifold_payload(stored_hash)
                 if stored_hash.is_a?(Hash)
                     cfg_key = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_KEY_DOOR_CONFIGURATION
                     if stored_hash[cfg_key].is_a?(Hash)
-                        return UiBridge.na_deep_clone(stored_hash[cfg_key])
+                        cloned = UiBridge.na_deep_clone(stored_hash[cfg_key])
+                        return na_migrate_legacy_door_dimension_keys(cloned, "bifold_door")
                     end
                 end
                 UiBridge.na_deep_clone(Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_DEFAULT_DOOR_CONFIG)
@@ -221,7 +290,8 @@ module Na__AssemblyStudio
                 if stored_hash.is_a?(Hash)
                     cfg_key = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_KEY_DOOR_CONFIGURATION
                     if stored_hash[cfg_key].is_a?(Hash)
-                        return UiBridge.na_deep_clone(stored_hash[cfg_key])
+                        cloned = UiBridge.na_deep_clone(stored_hash[cfg_key])
+                        return na_migrate_legacy_door_dimension_keys(cloned, "sliding_door")
                     end
                 end
                 UiBridge.na_deep_clone(Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_DEFAULT_DOOR_CONFIG)
@@ -383,6 +453,8 @@ module Na__AssemblyStudio
                     @na_bifold_component = instance
                     @na_window_component = instance
 
+                    na_apply_bifold_fuse_parts(instance, window_config)
+
                     door_id = bifold_serializer.na_get_door_id_from_instance(instance)
                     if door_id
                         bifold_serializer.na_save_door_data(
@@ -428,6 +500,8 @@ module Na__AssemblyStudio
 
                 bifold_engine.na_update_bifold_door(instance, window_config)
 
+                na_apply_bifold_fuse_parts(instance, window_config)
+
                 door_id = bifold_serializer.na_get_door_id_from_instance(instance)
                 if door_id
                     bifold_serializer.na_save_door_data(
@@ -458,6 +532,8 @@ module Na__AssemblyStudio
 
                 bifold_engine.na_update_bifold_door(instance, window_config)
 
+                na_apply_bifold_fuse_parts(instance, window_config)
+
                 door_id = bifold_serializer.na_get_door_id_from_instance(instance)
                 if door_id
                     bifold_serializer.na_save_door_data(
@@ -476,14 +552,20 @@ module Na__AssemblyStudio
 
             # HELPER FUNCTION | Build the Save Hash for the Bifold DataSerializer
             # ------------------------------------------------------------
-            # Filters the live windowConfiguration down to just the
-            # bifold_door_* keys so the saved blob is independent of any
-            # window-side state. Wraps it in the bifold metadata + config
+            # Filters the live windowConfiguration down to the bifold_door_*
+            # keys plus the shared window-level keys (Phase-9: dimensions,
+            # frame, cill, glaze bars, fuse_parts) so the saved blob is
+            # self-contained. Wraps it in the bifold metadata + config
             # envelope expected by `Na__DataSerializer.na_save_door_data`.
             def self.na_build_bifold_save_payload(door_id, window_config, is_create)
-                bifold_keys = window_config.keys.select { |k| k.is_a?(String) && k.start_with?("bifold_door_") }
                 bifold_only = {}
-                bifold_keys.each { |k| bifold_only[k] = window_config[k] }
+                window_config.each do |k, v|
+                    next unless k.is_a?(String)
+                    bifold_only[k] = v if k.start_with?("bifold_door_")
+                end
+                NA_DOOR_SHARED_WINDOW_KEYS.each do |k|
+                    bifold_only[k] = window_config[k] if window_config.key?(k)
+                end
 
                 meta_key = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_KEY_DOOR_METADATA
                 comp_key = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_KEY_DOOR_COMPONENTS
@@ -544,6 +626,8 @@ module Na__AssemblyStudio
                     @na_sliding_component = instance
                     @na_window_component  = instance
 
+                    na_apply_sliding_fuse_parts(instance, window_config)
+
                     door_id = sliding_serializer.na_get_door_id_from_instance(instance)
                     if door_id
                         sliding_serializer.na_save_door_data(
@@ -589,6 +673,8 @@ module Na__AssemblyStudio
 
                 sliding_engine.na_update_sliding_door(instance, window_config)
 
+                na_apply_sliding_fuse_parts(instance, window_config)
+
                 door_id = sliding_serializer.na_get_door_id_from_instance(instance)
                 if door_id
                     sliding_serializer.na_save_door_data(
@@ -619,6 +705,8 @@ module Na__AssemblyStudio
 
                 sliding_engine.na_update_sliding_door(instance, window_config)
 
+                na_apply_sliding_fuse_parts(instance, window_config)
+
                 door_id = sliding_serializer.na_get_door_id_from_instance(instance)
                 if door_id
                     sliding_serializer.na_save_door_data(
@@ -637,13 +725,19 @@ module Na__AssemblyStudio
 
             # HELPER FUNCTION | Build the Save Hash for the Sliding DataSerializer
             # ------------------------------------------------------------
-            # Filters the live windowConfiguration down to just the
-            # sliding_door_* keys so the saved blob is independent of any
-            # window-side state.
+            # Filters the live windowConfiguration down to the sliding_door_*
+            # keys plus the shared window-level keys (Phase-9: dimensions,
+            # frame, cill, glaze bars, fuse_parts) so the saved blob is
+            # self-contained.
             def self.na_build_sliding_save_payload(door_id, window_config, is_create)
-                sliding_keys = window_config.keys.select { |k| k.is_a?(String) && k.start_with?("sliding_door_") }
                 sliding_only = {}
-                sliding_keys.each { |k| sliding_only[k] = window_config[k] }
+                window_config.each do |k, v|
+                    next unless k.is_a?(String)
+                    sliding_only[k] = v if k.start_with?("sliding_door_")
+                end
+                NA_DOOR_SHARED_WINDOW_KEYS.each do |k|
+                    sliding_only[k] = window_config[k] if window_config.key?(k)
+                end
 
                 meta_key = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_KEY_DOOR_METADATA
                 comp_key = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_KEY_DOOR_COMPONENTS
@@ -666,6 +760,49 @@ module Na__AssemblyStudio
                 }
             end
             private_class_method :na_build_sliding_save_payload
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Run the Bifold-Panel FuseParts Pipeline (Phase-9)
+            # ------------------------------------------------------------
+            # Mirrors the WindowSystem fuse step: only fires when
+            # `fuse_parts === true` on the live windowConfiguration. Walks the
+            # ADR ComponentDefinition entities and fuses every per-leaf
+            # timber assembly into a single solid, leaving glass + glaze
+            # bars + animation MOD groups intact.
+            def self.na_apply_bifold_fuse_parts(instance, window_config)
+                return unless instance && instance.valid?
+                return unless window_config.is_a?(Hash)
+                return unless window_config["fuse_parts"] == true
+
+                Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
+                fuser = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__FuseParts__Panel
+                return unless fuser
+
+                UiBridge.na_send_status(@na_dialog, 'info', 'Fusing bifold panels...')
+                fuser.na_fuse_bifold_panels(instance.definition.entities)
+            rescue StandardError => e
+                DebugTools.na_debug_error("Bifold fuse-parts failed (non-fatal)", e)
+            end
+            private_class_method :na_apply_bifold_fuse_parts
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Run the Sliding-Panel FuseParts Pipeline (Phase-9)
+            # ------------------------------------------------------------
+            def self.na_apply_sliding_fuse_parts(instance, window_config)
+                return unless instance && instance.valid?
+                return unless window_config.is_a?(Hash)
+                return unless window_config["fuse_parts"] == true
+
+                Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
+                fuser = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__FuseParts__Panel
+                return unless fuser
+
+                UiBridge.na_send_status(@na_dialog, 'info', 'Fusing sliding panels...')
+                fuser.na_fuse_sliding_panels(instance.definition.entities)
+            rescue StandardError => e
+                DebugTools.na_debug_error("Sliding fuse-parts failed (non-fatal)", e)
+            end
+            private_class_method :na_apply_sliding_fuse_parts
             # ---------------------------------------------------------------
 
             def self.na_handle_update_window(config_json)

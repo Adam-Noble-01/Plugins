@@ -126,23 +126,25 @@
     }
     // ---------------------------------------------------------------
 
-    // HELPER FUNCTION | Stock millimetre viewBox for legacy window configs
+    // HELPER FUNCTION | Stock millimetre viewBox for window/bifold/sliding configs
     // ------------------------------------------------------------
-    // Mode-aware: when multifold_mode or sliding_mode is on we read the
-    // dedicated bifold_door_* / sliding_door_* opening keys instead of the
-    // legacy width_mm / height_mm pair so the bifold + sliding viewports
-    // auto-fit at the correct scale.
+    // Phase-9: All three modes (window, multifold, sliding) now share the
+    // `width_mm` / `height_mm` keys driven by the WindowSystem dimension
+    // sliders. Legacy `bifold_door_opening_*_mm` /
+    // `sliding_door_opening_*_mm` keys are still read as a fallback so any
+    // pre-Phase-9 saved blob that has not yet been migrated by the load
+    // helper still auto-fits at the correct scale.
     function na_windowResetFitter(config) {
         var padding = 200;
         var widthMm;
         var heightMm;
 
         if (config && config.multifold_mode === true) {
-            widthMm  = Number(config.bifold_door_opening_width_mm)  || 3600;
-            heightMm = Number(config.bifold_door_opening_height_mm) || 2100;
+            widthMm  = Number(config.width_mm  || config.bifold_door_opening_width_mm  || 3600);
+            heightMm = Number(config.height_mm || config.bifold_door_opening_height_mm || 2100);
         } else if (config && config.sliding_mode === true) {
-            widthMm  = Number(config.sliding_door_opening_width_mm)  || 2400;
-            heightMm = Number(config.sliding_door_opening_height_mm) || 2100;
+            widthMm  = Number(config.width_mm  || config.sliding_door_opening_width_mm  || 2400);
+            heightMm = Number(config.height_mm || config.sliding_door_opening_height_mm || 2100);
         } else {
             widthMm  = (config && config.width_mm)  || 900;
             heightMm = (config && config.height_mm) || 1200;

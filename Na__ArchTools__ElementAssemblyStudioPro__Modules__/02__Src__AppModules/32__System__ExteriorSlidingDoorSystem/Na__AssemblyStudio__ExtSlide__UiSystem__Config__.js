@@ -38,24 +38,11 @@ const NA_SLIDING_DOOR_CONFIG = [
             { value: 'FrontSlidesRight', label: 'Slide Right' }
         ]
     },
-    {
-        id          : 'sliding_door_opening_width_mm',
-        label       : 'Opening Width',
-        type        : 'slider',
-        unit        : 'mm',
-        min         : 1200,
-        max         : 6000,
-        default     : 2400
-    },
-    {
-        id          : 'sliding_door_opening_height_mm',
-        label       : 'Opening Height',
-        type        : 'slider',
-        unit        : 'mm',
-        min         : 1800,
-        max         : 3000,
-        default     : 2100
-    },
+    // Phase-9: Opening Width / Height controls REMOVED — sliding doors now
+    // read `width_mm` / `height_mm` from the shared window-level Dimensions
+    // section so the same sliders drive every opening type. Legacy keys
+    // (sliding_door_opening_width_mm / _height_mm) are migrated on load by
+    // `Na__SlidingDataSerializer.na_load_door_data`.
     {
         id          : 'sliding_door_panel_thickness_mm',
         label       : 'Panel Thickness',

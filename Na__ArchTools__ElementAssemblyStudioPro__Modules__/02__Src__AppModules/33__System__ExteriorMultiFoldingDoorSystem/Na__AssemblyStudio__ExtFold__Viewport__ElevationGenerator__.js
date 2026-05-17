@@ -6,19 +6,27 @@
    AUTHOR     : Noble Architecture
    PURPOSE    : Renders a 2D elevation SVG of the bifold-door for the
                 live preview viewport in the Windows tab. Shows N panels,
-                outer frame, glazing, hinge dots, fold-pattern indicator
-                arrows, dimensions, and handle placement on the leading
-                slave panel(s). Drawn in millimetre coordinate space using
-                bottom-left origin convention so the existing
-                Na__Viewport__Controls.na_windowResetFitter padding works
-                directly.
+                a window-style opening frame (per-edge jambs + head + bottom),
+                an optional cill beneath the frame, glazing, hinge dots,
+                fold-pattern indicator arrows, dimensions, and handle
+                placement on the leading slave panel(s). Drawn in millimetre
+                coordinate space using bottom-left origin convention so the
+                existing Na__Viewport__Controls.na_windowResetFitter padding
+                works directly.
    CREATED    : 17-May-2026
 
    DESCRIPTION:
-   - Reads bifold_door_* keys from the unified WindowSystem config.
-   - Returns inner-SVG markup string suitable for assignment to
-     svgEl.innerHTML, matching Na__Viewport__SvgGenerator.na_generateWindowSvg
-     conventions exactly.
+   - Phase-9: Bifold doors share the WindowSystem's Dimensions / Cill &
+     Frame / Glaze Bars sliders, so the layout reads `width_mm`,
+     `height_mm`, per-edge `frame_*_thickness_mm`, `has_cill`,
+     `cill_height_mm` etc. directly. Legacy `bifold_door_opening_*_mm`
+     keys are migrated to the shared keys at load time so they no longer
+     appear in the live config.
+   - Bulky head/base "track" rectangles are gone. The outer frame is now
+     a per-edge jamb + head + bottom rail combo identical to the
+     window-mode preview, with an optional cill below.
+   - Each panel can carry a glaze-bar grille when bifold_door_glazed +
+     horizontal_glaze_bars / vertical_glaze_bars are configured.
    - Coordinate convention: x in mm from left jamb, y in mm from base; the
      na_svgRect helper flips Y for SVG screen-space (origin top-left becomes
      (0, -y - h)). This matches the WindowSystem generator so the shared
@@ -32,7 +40,8 @@
 
    DEPENDENCIES:
    - window.Na__Viewport__SvgGenerator.na_svgRect, na_svgDimensions,
-     na_getMaterialColor (reused for visual consistency).
+     na_getMaterialColor, na_getEffectiveFrameThicknesses (reused for
+     visual consistency).
    - window.Na_Viewport.na_render() in WindowSystem MainUiLogic dispatches
      here when config.multifold_mode === true.
 
@@ -64,6 +73,9 @@ const Na__ExtFold__ElevationGenerator = (function () {
     const FILL_HANDLE                    = '#B8392A';      // <-- Handle dot fill (red, easy to spot)
     const FILL_GLAZING                   = '#D8E8F2';      // <-- Glazing pane fill (pale blue)
     const FILL_FOLD_ARROW                = '#5A6470';      // <-- Fold-direction arrow stroke
+    const FILL_CILL_DEFAULT              = '#A0908A';      // <-- Default cill (Sapele) tint
+    const DEFAULT_FRAME_MATERIAL_ID      = 'MAT120__GenericWood';
+    const DEFAULT_CILL_MATERIAL_ID       = 'MAT541__Timber__Sapele';
 
     // endregion -------------------------------------------------------------------
 
@@ -74,43 +86,106 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
     // FUNCTION | Resolve a Sanitised Layout Hash from Raw Config
     // ------------------------------------------------------------
-    // Reads bifold_door_* keys, applies defaults, validates ranges and
-    // returns a pure-data layout descriptor consumed by every drawer.
+    // Phase-9: Reads the shared window-level keys for opening dimensions,
+    // per-edge frame thickness, cill and glaze bars; bifold-only keys
+    // continue to drive panel layout, joinery and fold direction.
     function na_resolve_layout(config) {
-        const openingWidth   = Math.max(800,  Number(config.bifold_door_opening_width_mm)  || 3600);
-        const openingHeight  = Math.max(1500, Number(config.bifold_door_opening_height_mm) || 2100);
-        const panelCount     = Math.max(2,    Math.min(8, Math.round(Number(config.bifold_door_panel_count) || 4)));
-        const headRail       = Math.max(40,   Number(config.bifold_door_head_rail_mm)  || 95);
-        const baseRail       = Math.max(80,   Number(config.bifold_door_base_rail_mm)  || 200);
-        const stileWidth     = Math.max(40,   Number(config.bifold_door_stile_width_mm) || 95);
-        const layout         = String(config.bifold_door_layout      || 'EqualEqual');
-        const openSide       = String(config.bifold_door_open_side   || 'Right');
-        const masterSide     = String(config.bifold_door_master_side || 'Right');
-        const isGlazed       = config.bifold_door_glazed !== false;
-        const showDimensions = config.show_dimensions    !== false;
+        const safeNum    = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+        const openingW   = Math.max(800,  safeNum(config.width_mm,  3600));
+        const openingH   = Math.max(1500, safeNum(config.height_mm, 2100));
+        const panelCount = Math.max(2, Math.min(8, Math.round(safeNum(config.bifold_door_panel_count, 4))));
+        const headRail   = Math.max(40, safeNum(config.bifold_door_head_rail_mm,  95));
+        const baseRail   = Math.max(80, safeNum(config.bifold_door_base_rail_mm, 200));
+        const stileWidth = Math.max(40, safeNum(config.bifold_door_stile_width_mm, 95));
+        const layout     = String(config.bifold_door_layout      || 'EqualEqual');
+        const openSide   = String(config.bifold_door_open_side   || 'Right');
+        const masterSide = String(config.bifold_door_master_side || 'Right');
+        const isGlazed   = config.bifold_door_glazed !== false;
+        const showDims   = config.show_dimensions    !== false;
 
-        const frameMaterialId = config.frame_material_id || 'MAT120__GenericWood';
-        const frameColour     = na_safe_material_colour(frameMaterialId);
+        const frameEdges = na_resolve_frame_edges(config);
+        const cill       = na_resolve_cill(config, frameEdges.bottom);
+        const glazeBars  = na_resolve_glazebars(config, isGlazed);
 
-        const panelClearWidth = (openingWidth - 2 * stileWidth) / panelCount;       // <-- Width of each panel including its own stiles
-        const panelClearHeight = openingHeight;                                     // <-- Full height (head + base rail are inside panels for bifold)
+        const frameMatId = config.frame_material_id || DEFAULT_FRAME_MATERIAL_ID;
+        const frameCol   = na_safe_material_colour(frameMatId);
+
+        const innerLeft   = frameEdges.left;
+        const innerBottom = frameEdges.bottom;
+        const innerWidth  = Math.max(0, openingW - frameEdges.left - frameEdges.right);
+        const innerHeight = Math.max(0, openingH - frameEdges.top  - frameEdges.bottom);
+        const panelWidth  = panelCount > 0 ? innerWidth / panelCount : 0;
 
         return {
-            openingWidth         : openingWidth,
-            openingHeight        : openingHeight,
-            panelCount           : panelCount,
-            headRail             : headRail,
-            baseRail             : baseRail,
-            stileWidth           : stileWidth,
-            layout               : layout,
-            openSide             : openSide,
-            masterSide           : masterSide,
-            isGlazed             : isGlazed,
-            showDimensions       : showDimensions,
-            frameColour          : frameColour,
-            panelClearWidth      : panelClearWidth,
-            panelClearHeight     : panelClearHeight
+            openingWidth     : openingW,
+            openingHeight    : openingH,
+            panelCount       : panelCount,
+            headRail         : headRail,
+            baseRail         : baseRail,
+            stileWidth       : stileWidth,
+            layout           : layout,
+            openSide         : openSide,
+            masterSide       : masterSide,
+            isGlazed         : isGlazed,
+            showDimensions   : showDims,
+            frameEdges       : frameEdges,
+            cill             : cill,
+            glazeBars        : glazeBars,
+            frameColour      : frameCol,
+            innerLeft        : innerLeft,
+            innerBottom      : innerBottom,
+            innerWidth       : innerWidth,
+            innerHeight      : innerHeight,
+            panelWidth       : panelWidth
         };
+    }
+    // ---------------------------------------------------------------
+
+
+    // SUB FUNCTION | Resolve Per-Edge Frame Thicknesses (Shared With Window Generator)
+    // ------------------------------------------------------------
+    function na_resolve_frame_edges(config) {
+        const sg = window.Na__Viewport__SvgGenerator;
+        if (sg && typeof sg.na_getEffectiveFrameThicknesses === 'function') {
+            return sg.na_getEffectiveFrameThicknesses(config);
+        }
+        const uniform = (config.frame_thickness_mm != null) ? Number(config.frame_thickness_mm) : 50;
+        const useAdv  = config.advanced_frame_controls === true;
+        const pick    = (sideKey) => {
+            const raw = useAdv ? config[sideKey] : uniform;
+            return Math.max(0, Number(raw != null ? raw : uniform));
+        };
+        return {
+            top:    pick('frame_top_thickness_mm'),
+            bottom: pick('frame_bottom_thickness_mm'),
+            left:   pick('frame_left_thickness_mm'),
+            right:  pick('frame_right_thickness_mm')
+        };
+    }
+    // ---------------------------------------------------------------
+
+
+    // SUB FUNCTION | Resolve Cill Configuration With Material-Aware Tint
+    // ------------------------------------------------------------
+    function na_resolve_cill(config, bottomFrameThickness) {
+        const enabled  = config.has_cill === true && bottomFrameThickness > 0;
+        const heightMm = Math.max(20, Number(config.cill_height_mm != null ? config.cill_height_mm : 50));
+        const paint    = config.paint_cill === true;
+        const matId    = paint ? (config.frame_material_id || DEFAULT_FRAME_MATERIAL_ID) : DEFAULT_CILL_MATERIAL_ID;
+        const colour   = paint ? na_safe_material_colour(matId) : FILL_CILL_DEFAULT;
+        return { enabled: enabled, heightMm: heightMm, colour: colour };
+    }
+    // ---------------------------------------------------------------
+
+
+    // SUB FUNCTION | Resolve Glaze-Bar Grille Settings (Phase-9)
+    // ------------------------------------------------------------
+    function na_resolve_glazebars(config, isGlazed) {
+        const hBars   = Math.max(0, Math.round(Number(config.horizontal_glaze_bars || 0)));
+        const vBars   = Math.max(0, Math.round(Number(config.vertical_glaze_bars   || 0)));
+        const barW    = Math.max(8, Number(config.glaze_bar_width_mm || 25));
+        const enabled = isGlazed && (hBars > 0 || vBars > 0);
+        return { enabled: enabled, hBars: hBars, vBars: vBars, barW: barW };
     }
     // ---------------------------------------------------------------
 
@@ -177,36 +252,56 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
 
     // -----------------------------------------------------------------------------
-    // REGION | Outer Frame Drawing
+    // REGION | Outer Frame + Optional Cill Drawing (Phase-9)
     // -----------------------------------------------------------------------------
 
-    // FUNCTION | Build SVG for the Outer Bifold Frame (Head + Base + Stiles)
+    // FUNCTION | Build SVG for the Window-Style Opening Frame
     // ------------------------------------------------------------
+    // Replaces the previous bulky head/base track casings with a window
+    // identical per-edge frame: left jamb (full height), right jamb (full
+    // height), head rail (between jambs), bottom rail (between jambs).
+    // Skips edges with zero thickness.
     function na_build_outer_frame(layout) {
         const sg = window.Na__Viewport__SvgGenerator;
         if (!sg || typeof sg.na_svgRect !== 'function') return '';
 
-        const { openingWidth, openingHeight, frameColour } = layout;
-        let svg = '';
+        const w   = layout.openingWidth;
+        const h   = layout.openingHeight;
+        const fE  = layout.frameEdges;
+        const col = layout.frameColour;
+        let svg   = '';
 
-        svg += sg.na_svgRect(0, 0,
-            openingWidth, layout.baseRail,
-            frameColour, STROKE_BLACK, 1
-        );
-        svg += sg.na_svgRect(0, openingHeight - layout.headRail,
-            openingWidth, layout.headRail,
-            frameColour, STROKE_BLACK, 1
-        );
-        svg += sg.na_svgRect(0, layout.baseRail,
-            layout.stileWidth, openingHeight - layout.headRail - layout.baseRail,
-            frameColour, STROKE_BLACK, 1
-        );
-        svg += sg.na_svgRect(openingWidth - layout.stileWidth, layout.baseRail,
-            layout.stileWidth, openingHeight - layout.headRail - layout.baseRail,
-            frameColour, STROKE_BLACK, 1
-        );
-
+        if (fE.left > 0) {
+            svg += sg.na_svgRect(0, 0, fE.left, h, col, STROKE_BLACK, 1);
+        }
+        if (fE.right > 0) {
+            svg += sg.na_svgRect(w - fE.right, 0, fE.right, h, col, STROKE_BLACK, 1);
+        }
+        if (fE.top > 0) {
+            const innerW = Math.max(0, w - fE.left - fE.right);
+            svg += sg.na_svgRect(fE.left, h - fE.top, innerW, fE.top, col, STROKE_BLACK, 1);
+        }
+        if (fE.bottom > 0) {
+            const innerW = Math.max(0, w - fE.left - fE.right);
+            svg += sg.na_svgRect(fE.left, 0, innerW, fE.bottom, col, STROKE_BLACK, 1);
+        }
         return svg;
+    }
+    // ---------------------------------------------------------------
+
+
+    // FUNCTION | Build SVG for the Optional Cill Below the Frame
+    // ------------------------------------------------------------
+    function na_build_cill(layout) {
+        if (!layout.cill.enabled) return '';
+        const sg = window.Na__Viewport__SvgGenerator;
+        if (!sg || typeof sg.na_svgRect !== 'function') return '';
+
+        return sg.na_svgRect(
+            0, -layout.cill.heightMm,
+            layout.openingWidth, layout.cill.heightMm,
+            layout.cill.colour, STROKE_BLACK, 1
+        );
     }
     // ---------------------------------------------------------------
 
@@ -214,24 +309,20 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
 
     // -----------------------------------------------------------------------------
-    // REGION | Per-Panel Drawing (Stiles, Rails, Glazing)
+    // REGION | Per-Panel Drawing (Stiles, Rails, Glazing, Glaze Bars)
     // -----------------------------------------------------------------------------
 
-    // FUNCTION | Build SVG for All Bifold Panels Inside the Frame
+    // FUNCTION | Build SVG for All Bifold Panels Inside the Inner Clear Opening
     // ------------------------------------------------------------
     function na_build_all_panels(layout) {
-        const innerLeft   = layout.stileWidth;
-        const innerBottom = layout.baseRail;
-        const innerWidth  = layout.openingWidth - 2 * layout.stileWidth;
-        const innerHeight = layout.openingHeight - layout.headRail - layout.baseRail;
-        const panelStep   = innerWidth / layout.panelCount;
-
         let svg = '';
+        if (layout.innerWidth <= 0 || layout.innerHeight <= 0) return svg;
+
         for (let i = 0; i < layout.panelCount; i++) {
-            const px = innerLeft + i * panelStep + (PANEL_GAP_MM / 2);
-            const py = innerBottom;
-            const pw = panelStep - PANEL_GAP_MM;
-            const ph = innerHeight;
+            const px = layout.innerLeft + i * layout.panelWidth + (PANEL_GAP_MM / 2);
+            const py = layout.innerBottom;
+            const pw = Math.max(0, layout.panelWidth - PANEL_GAP_MM);
+            const ph = layout.innerHeight;
             svg += na_build_one_panel(px, py, pw, ph, layout, i);
         }
         return svg;
@@ -239,37 +330,81 @@ const Na__ExtFold__ElevationGenerator = (function () {
     // ---------------------------------------------------------------
 
 
-    // SUB FUNCTION | Build SVG for a Single Bifold Panel
+    // SUB FUNCTION | Build SVG for a Single Bifold Panel (Window-Style Joinery)
     // ------------------------------------------------------------
-    // Each panel = 4 sub-rails (top + bottom + left stile + right stile) +
-    // optional glazing rectangle in the centre. We use the bifold-level
-    // headRail/baseRail/stileWidth so panels share the parent frame style.
+    // Phase-9 joinery: stiles span the FULL panel height, rails fit
+    // between stiles. Glazing and glaze bars share the same clear inner
+    // rectangle so a glaze-bar grille lines up with the glass pane.
     function na_build_one_panel(panelX, panelY, panelWidth, panelHeight, layout, panelIndex) {
         const sg = window.Na__Viewport__SvgGenerator;
         if (!sg) return '';
 
         const colour    = layout.frameColour;
-        const headRail  = Math.min(layout.headRail, panelHeight * 0.25);
-        const baseRail  = Math.min(layout.baseRail, panelHeight * 0.35);
         const stile     = Math.min(layout.stileWidth, panelWidth * 0.30);
-
-        let svg = '';
+        const headRail  = Math.min(layout.headRail,   panelHeight * 0.25);
+        const baseRail  = Math.min(layout.baseRail,   panelHeight * 0.35);
 
         const glazedX  = panelX + stile;
         const glazedY  = panelY + baseRail;
         const glazedW  = Math.max(0, panelWidth  - 2 * stile);
         const glazedH  = Math.max(0, panelHeight - baseRail - headRail);
-        if (layout.isGlazed && glazedW > 0 && glazedH > 0) {
-            svg += sg.na_svgRect(glazedX, glazedY, glazedW, glazedH, FILL_GLAZING, STROKE_BLACK, 1);
-        } else if (glazedW > 0 && glazedH > 0) {
-            svg += sg.na_svgRect(glazedX, glazedY, glazedW, glazedH, colour, STROKE_BLACK, 1);
+
+        let svg = '';
+
+        if (glazedW > 0 && glazedH > 0) {
+            const fillCol = layout.isGlazed ? FILL_GLAZING : colour;
+            svg += sg.na_svgRect(glazedX, glazedY, glazedW, glazedH, fillCol, STROKE_BLACK, 1);
         }
 
-        svg += sg.na_svgRect(panelX, panelY, stile, panelHeight, colour, STROKE_BLACK, 1);
-        svg += sg.na_svgRect(panelX + panelWidth - stile, panelY, stile, panelHeight, colour, STROKE_BLACK, 1);
-        svg += sg.na_svgRect(panelX, panelY, panelWidth, baseRail, colour, STROKE_BLACK, 1);
-        svg += sg.na_svgRect(panelX, panelY + panelHeight - headRail, panelWidth, headRail, colour, STROKE_BLACK, 1);
+        if (panelHeight > 0) {
+            svg += sg.na_svgRect(panelX, panelY, stile, panelHeight, colour, STROKE_BLACK, 1);
+            svg += sg.na_svgRect(panelX + panelWidth - stile, panelY, stile, panelHeight, colour, STROKE_BLACK, 1);
+        }
 
+        const railX = panelX + stile;
+        const railW = Math.max(0, panelWidth - 2 * stile);
+        if (railW > 0 && baseRail > 0) {
+            svg += sg.na_svgRect(railX, panelY, railW, baseRail, colour, STROKE_BLACK, 1);
+        }
+        if (railW > 0 && headRail > 0) {
+            svg += sg.na_svgRect(railX, panelY + panelHeight - headRail, railW, headRail, colour, STROKE_BLACK, 1);
+        }
+
+        if (layout.glazeBars.enabled && glazedW > 0 && glazedH > 0) {
+            svg += na_build_panel_glazebars(glazedX, glazedY, glazedW, glazedH, layout);
+        }
+
+        return svg;
+    }
+    // ---------------------------------------------------------------
+
+
+    // SUB FUNCTION | Draw Horizontal + Vertical Glaze Bars Inside a Panel
+    // ------------------------------------------------------------
+    // Mirrors the WindowSystem grille builder: bars are evenly spaced
+    // inside the clear glass rectangle, centred on the section dividers.
+    function na_build_panel_glazebars(glassX, glassY, glassW, glassH, layout) {
+        const sg = window.Na__Viewport__SvgGenerator;
+        if (!sg) return '';
+
+        const { hBars, vBars, barW } = layout.glazeBars;
+        const colour = layout.frameColour;
+        let svg = '';
+
+        if (hBars > 0) {
+            const sectionH = glassH / (hBars + 1);
+            for (let i = 1; i <= hBars; i++) {
+                const cy = glassY + sectionH * i;
+                svg += sg.na_svgRect(glassX, cy - barW / 2, glassW, barW, colour, STROKE_BLACK, 1);
+            }
+        }
+        if (vBars > 0) {
+            const sectionW = glassW / (vBars + 1);
+            for (let i = 1; i <= vBars; i++) {
+                const cx = glassX + sectionW * i;
+                svg += sg.na_svgRect(cx - barW / 2, glassY, barW, glassH, colour, STROKE_BLACK, 1);
+            }
+        }
         return svg;
     }
     // ---------------------------------------------------------------
@@ -283,19 +418,17 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
     // FUNCTION | Build SVG for All Hinge Dots
     // ------------------------------------------------------------
-    // For each panel-to-panel boundary we draw two hinge dots (top + bottom).
-    // For panels hinged to the wall jamb we draw additional dots at the
-    // outer edges of the first/last panel based on fold direction.
     function na_build_hinge_dots(layout, foldDirections) {
-        const innerLeft   = layout.stileWidth;
-        const innerBottom = layout.baseRail;
-        const innerWidth  = layout.openingWidth - 2 * layout.stileWidth;
-        const innerHeight = layout.openingHeight - layout.headRail - layout.baseRail;
-        const panelStep   = innerWidth / layout.panelCount;
+        const innerLeft   = layout.innerLeft;
+        const innerBottom = layout.innerBottom;
+        const innerWidth  = layout.innerWidth;
+        const innerHeight = layout.innerHeight;
         const topY        = innerBottom + innerHeight - 100;
         const botY        = innerBottom + 100;
+        const panelStep   = layout.panelWidth;
 
         let svg = '';
+        if (innerWidth <= 0 || innerHeight <= 0) return svg;
 
         for (let i = 1; i < layout.panelCount; i++) {
             const x = innerLeft + i * panelStep;
@@ -331,17 +464,17 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
     // FUNCTION | Build SVG for Per-Panel Fold Direction Arrows
     // ------------------------------------------------------------
-    // A small horizontal arrow at the top of each panel showing its fold
-    // direction. Master panels show a dot+circle "swing" glyph instead.
     function na_build_fold_arrows(layout, foldDirections) {
-        const innerLeft   = layout.stileWidth;
-        const innerBottom = layout.baseRail;
-        const innerWidth  = layout.openingWidth - 2 * layout.stileWidth;
-        const innerHeight = layout.openingHeight - layout.headRail - layout.baseRail;
-        const panelStep   = innerWidth / layout.panelCount;
+        const innerLeft   = layout.innerLeft;
+        const innerBottom = layout.innerBottom;
+        const innerWidth  = layout.innerWidth;
+        const innerHeight = layout.innerHeight;
         const arrowY      = innerBottom + innerHeight - FOLD_ARROW_OFFSET_FROM_TOP_MM;
+        const panelStep   = layout.panelWidth;
 
         let svg = '';
+        if (innerWidth <= 0 || innerHeight <= 0) return svg;
+
         for (let i = 0; i < layout.panelCount; i++) {
             const cx = innerLeft + (i + 0.5) * panelStep;
             const dir = foldDirections[i];
@@ -398,13 +531,11 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
     // FUNCTION | Build SVG for the Handle Dot on the Lead Slave Panel
     // ------------------------------------------------------------
-    // Handle goes on the panel that the user grabs to start opening - this is
-    // the panel adjacent to the master (or adjacent to the wall on the open
-    // side for All-One-Way / Equal-Equal).
     function na_build_handle_dot(layout, foldDirections) {
-        const innerLeft   = layout.stileWidth;
-        const innerWidth  = layout.openingWidth - 2 * layout.stileWidth;
-        const panelStep   = innerWidth / layout.panelCount;
+        const innerLeft   = layout.innerLeft;
+        const innerWidth  = layout.innerWidth;
+        const panelStep   = layout.panelWidth;
+        if (innerWidth <= 0) return '';
 
         const handleIndex = na_resolve_handle_panel_index(layout, foldDirections);
         if (handleIndex < 0) return '';
@@ -444,8 +575,6 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
     // FUNCTION | Generate Full SVG Markup for the Bifold Elevation
     // ------------------------------------------------------------
-    // @param  {Object} config - WindowSystem unified config (incl. bifold_door_*)
-    // @return {string}        - Inner-SVG markup ready for assignment to innerHTML
     function na_generate_bifold_svg(config) {
         const sg = window.Na__Viewport__SvgGenerator;
         if (!sg) {
@@ -458,6 +587,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
         let svg = '';
         svg += na_build_outer_frame(layout);
+        svg += na_build_cill(layout);
         svg += na_build_all_panels(layout);
         svg += na_build_hinge_dots(layout, foldDirections);
         svg += na_build_fold_arrows(layout, foldDirections);
@@ -474,8 +604,6 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
     // FUNCTION | Legacy Phase-1 API - Returns Wrapped SVG Document
     // ------------------------------------------------------------
-    // Kept for any caller still expecting the standalone SVG string. Prefer
-    // na_generate_bifold_svg(config) inside the WindowSystem viewport.
     function na_render_elevation_svg(config_hash, viewport_box) {
         const innerSvg = na_generate_bifold_svg(config_hash || {});
         const w = (viewport_box && viewport_box.width)  || 800;

@@ -101,7 +101,7 @@ module Na__GeometryEngine
 
         begin
             door_def         = model.definitions.add(definition_name)
-            AssemblyComposer.na_compose_adr(config_hash, door_def.entities)
+            AssemblyComposer.na_compose_adr(config_hash, door_def.entities, door_id)
 
             instance_xform   = na_resolve_insertion_transform(insertion_origin_in)
             instance         = model.active_entities.add_instance(door_def, instance_xform)
@@ -141,8 +141,9 @@ module Na__GeometryEngine
         return false unless definition
 
         begin
+            existing_door_id = na_resolve_existing_door_id(instance, definition)
             definition.entities.clear!
-            AssemblyComposer.na_compose_adr(config_hash, definition.entities)
+            AssemblyComposer.na_compose_adr(config_hash, definition.entities, existing_door_id)
 
             DebugTools.na_debug_geometry("ExtSlide: updated sliding door #{definition.name}")
             true
@@ -166,6 +167,30 @@ module Na__GeometryEngine
         Geom::Transformation.new(insertion_origin_in)
     end
     private_class_method :na_resolve_insertion_transform
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Resolve the Existing Door ID for an Update Pass (Phase-9)
+    # ------------------------------------------------------------
+    # Looks up the persisted DoorID on the instance / definition first
+    # (so the existing FuseParts naming stays stable across updates) and
+    # falls back to extracting the leading "ADR###" token from the
+    # definition name when no attribute is present.
+    def self.na_resolve_existing_door_id(instance, definition)
+        return nil unless instance && definition
+
+        dict_key = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_DOOR_INFO_DICT
+        id_key   = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::NA_KEY_DOOR_ID
+
+        attr_id = nil
+        attr_id = instance.get_attribute(dict_key, id_key) if instance.respond_to?(:get_attribute)
+        return attr_id if attr_id.is_a?(String) && !attr_id.empty?
+
+        match = definition.name.to_s.match(/^(ADR\d{3})/)
+        match ? match[1] : nil
+    rescue StandardError
+        nil
+    end
+    private_class_method :na_resolve_existing_door_id
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

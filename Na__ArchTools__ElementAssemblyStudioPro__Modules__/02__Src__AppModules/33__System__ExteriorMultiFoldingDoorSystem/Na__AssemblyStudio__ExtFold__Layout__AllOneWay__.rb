@@ -65,17 +65,16 @@ module Na__Layout__AllOneWay
     # @param config_hash [Hash] Bifold configuration (snake_case keys)
     # @return [Array<Hash>] Panel descriptors consumed by AssemblyComposer
     def self.na_generate_panel_descriptors(config_hash)
-        panel_count       = config_hash["bifold_door_panel_count"].to_i
-        opening_w_mm      = config_hash["bifold_door_opening_width_mm"].to_f
-        opening_h_mm      = config_hash["bifold_door_opening_height_mm"].to_f
-        floor_clearance   = config_hash["bifold_door_floor_clearance_mm"].to_f
-        open_side_raw     = (config_hash["bifold_door_open_side"] || "Right").to_s
+        panel_count   = config_hash["bifold_door_panel_count"].to_i
+        open_side_raw = (config_hash["bifold_door_open_side"] || "Right").to_s
 
-        return [] if panel_count < 2 || opening_w_mm <= 0.0 || opening_h_mm <= 0.0
+        return [] if panel_count < 2
 
-        panel_w_mm        = GeometryHelpers.na_compute_panel_width_mm(opening_w_mm, panel_count)
-        panel_h_mm        = GeometryHelpers.na_compute_panel_height_mm(opening_h_mm, floor_clearance)
+        dims = GeometryHelpers.na_resolve_door_opening_dimensions(config_hash)
+        return [] if dims[:inner_w_mm] <= 0.0 || dims[:inner_h_mm] <= 0.0
 
+        panel_w_mm = GeometryHelpers.na_compute_panel_width_mm(dims[:inner_w_mm], panel_count)
+        panel_h_mm = dims[:inner_h_mm]
         return [] if panel_w_mm <= 0.0 || panel_h_mm <= 0.0
 
         cascade_left = (open_side_raw.downcase == "left")

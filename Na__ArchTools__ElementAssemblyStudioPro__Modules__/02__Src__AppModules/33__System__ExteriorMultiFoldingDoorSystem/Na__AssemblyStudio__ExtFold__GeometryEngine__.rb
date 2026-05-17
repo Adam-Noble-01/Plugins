@@ -112,7 +112,7 @@ module Na__GeometryEngine
 
         begin
             door_def         = model.definitions.add(definition_name)
-            AssemblyComposer.na_compose_adr(config_hash, descriptors, door_def.entities)
+            AssemblyComposer.na_compose_adr(config_hash, descriptors, door_def.entities, door_id)
 
             instance_xform   = na_resolve_insertion_transform(insertion_origin_in)
             instance         = model.active_entities.add_instance(door_def, instance_xform)
@@ -159,7 +159,8 @@ module Na__GeometryEngine
 
         begin
             definition.entities.clear!
-            AssemblyComposer.na_compose_adr(config_hash, descriptors, definition.entities)
+            existing_door_id = DataSerializer.na_get_door_id_from_instance(instance) rescue nil
+            AssemblyComposer.na_compose_adr(config_hash, descriptors, definition.entities, existing_door_id)
 
             DebugTools.na_debug_geometry("ExtFold: updated bifold door #{definition.name} (#{descriptors.length} panels)")
             true

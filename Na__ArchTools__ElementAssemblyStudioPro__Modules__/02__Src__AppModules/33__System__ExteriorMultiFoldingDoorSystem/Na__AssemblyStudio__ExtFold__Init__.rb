@@ -137,21 +137,24 @@ module Na__ExteriorMultiFoldingDoorSystem
     # a long-form name conversion layer. Mode flags `multifold_mode` /
     # `sliding_mode` live on the parent WindowSystem config; this hash is
     # the bifold-specific block consumed when `multifold_mode == true`.
+    #
+    # Phase-9: Opening dimensions / floor clearance now read from the
+    # shared window-level keys (`width_mm`, `height_mm`,
+    # `frame_*_thickness_mm`) so the same Dimensions sliders drive every
+    # opening type. Legacy keys `bifold_door_opening_width_mm`,
+    # `bifold_door_opening_height_mm`, `bifold_door_floor_clearance_mm`,
+    # `bifold_door_wall_depth_mm` are migrated on load.
     NA_DEFAULT_DOOR_CONFIG = {
         "bifold_door_layout"             => NA_LAYOUT_EQUAL_EQUAL,           # <-- EqualEqual | AllOneWay | MasterSlaves
         "bifold_door_open_side"          => "Right",                         # <-- AllOneWay only (Left | Right)
         "bifold_door_master_side"        => "Right",                         # <-- MasterSlaves only (Left | Right)
         "bifold_door_panel_count"        => 4,                               # <-- 2..8 leaves (default 4)
-        "bifold_door_opening_width_mm"   => 3600,                            # <-- Total clear opening width
-        "bifold_door_opening_height_mm"  => 2100,                            # <-- Clear opening height
         "bifold_door_panel_thickness_mm" => 50,                              # <-- Per-leaf thickness
         "bifold_door_head_rail_mm"       => 95,                              # <-- Per-leaf head rail height
         "bifold_door_base_rail_mm"       => 200,                             # <-- Per-leaf base rail height
         "bifold_door_stile_width_mm"     => 95,                              # <-- Per-leaf stile width
         "bifold_door_glazed"             => true,                            # <-- Fully glazed default
         "bifold_door_panel_design_open"  => false,                           # <-- Reveals PanelDesign sub-panel (Phase-3.6)
-        "bifold_door_wall_depth_mm"      => 105,                             # <-- Surrounding wall depth (head/base track)
-        "bifold_door_floor_clearance_mm" => 10,                              # <-- Bottom gap to slab
         "bifold_door_handle_asset_key"   => "Na__ExteriorDoor__Handle__BifoldDefault",
         "bifold_door_handle_height_mm"   => 1000
     }.freeze
@@ -177,6 +180,7 @@ module Na__ExteriorMultiFoldingDoorSystem
         require_relative 'Na__AssemblyStudio__ExtFold__GeometryEngine__'
         require_relative 'Na__AssemblyStudio__ExtFold__DataSerializer__'
         require_relative 'Na__AssemblyStudio__ExtFold__DialogRouter__'
+        require_relative 'Na__AssemblyStudio__ExtFold__FuseParts__Panel__'
 
         @na_bifold_modules_loaded = true
         DebugTools.na_debug_info("[ExtFold] Sub-modules lazy-loaded (Phase-3a)")

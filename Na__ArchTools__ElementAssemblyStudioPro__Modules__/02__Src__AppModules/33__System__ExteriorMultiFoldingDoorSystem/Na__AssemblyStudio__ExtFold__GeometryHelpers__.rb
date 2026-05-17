@@ -102,6 +102,83 @@ module Na__GeometryHelpers
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Resolve Door Opening Frame Dimensions From Window-Level Keys (Phase 9)
+    # ------------------------------------------------------------
+    # Bifold + sliding doors now share the WindowSystem's Dimensions /
+    # Cill & Frame controls. This helper centralises the lookup so
+    # Layout modules and the AssemblyComposer agree on a single set of
+    # numbers. Reads `width_mm`, `height_mm`, `frame_thickness_mm`,
+    # the four advanced per-edge thicknesses (when
+    # `advanced_frame_controls == true`), `frame_depth_mm`,
+    # `frame_wall_inset_mm`. Returns mm values + the inner clear box.
+    #
+    # @param config_hash [Hash] Live windowConfiguration
+    # @return [Hash] {
+    #   :width_mm, :height_mm,
+    #   :frame_top_mm, :frame_bottom_mm, :frame_left_mm, :frame_right_mm,
+    #   :frame_depth_mm, :frame_wall_inset_mm,
+    #   :inner_w_mm, :inner_h_mm
+    # }
+    def self.na_resolve_door_opening_dimensions(config_hash)
+        width_mm     = (config_hash["width_mm"]  || 3600).to_f
+        width_mm     = 0.0 if width_mm < 0.0
+        height_mm    = (config_hash["height_mm"] || 2100).to_f
+        height_mm    = 0.0 if height_mm < 0.0
+
+        advanced     = (config_hash["advanced_frame_controls"] == true)
+        uniform_mm   = (config_hash["frame_thickness_mm"] || 50).to_f
+        uniform_mm   = 0.0 if uniform_mm < 0.0
+
+        resolve_edge = lambda do |edge_key|
+            raw = advanced ? config_hash[edge_key] : uniform_mm
+            v   = (raw.nil? ? uniform_mm : raw.to_f)
+            v < 0.0 ? 0.0 : v
+        end
+
+        frame_top    = resolve_edge.call("frame_top_thickness_mm")
+        frame_bottom = resolve_edge.call("frame_bottom_thickness_mm")
+        frame_left   = resolve_edge.call("frame_left_thickness_mm")
+        frame_right  = resolve_edge.call("frame_right_thickness_mm")
+
+        frame_depth      = (config_hash["frame_depth_mm"]      || 70).to_f
+        frame_depth      = 1.0 if frame_depth <= 0.0
+        frame_wall_inset = (config_hash["frame_wall_inset_mm"] || 0).to_f
+
+        inner_w = width_mm  - frame_left - frame_right
+        inner_h = height_mm - frame_top  - frame_bottom
+        inner_w = 0.0 if inner_w < 0.0
+        inner_h = 0.0 if inner_h < 0.0
+
+        {
+            :width_mm            => width_mm,
+            :height_mm           => height_mm,
+            :frame_top_mm        => frame_top,
+            :frame_bottom_mm     => frame_bottom,
+            :frame_left_mm       => frame_left,
+            :frame_right_mm      => frame_right,
+            :frame_depth_mm      => frame_depth,
+            :frame_wall_inset_mm => frame_wall_inset,
+            :inner_w_mm          => inner_w,
+            :inner_h_mm          => inner_h
+        }
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Resolve Panel Y-Origin Centred Inside the Frame Depth (Phase 9)
+    # ------------------------------------------------------------
+    # The Phase-9 frame change replaces the head/base tracks with the
+    # WindowSystem's per-edge frame. Panels now sit centred along Y
+    # inside the frame depth so they read as proper bifold leaves
+    # hanging in the door reveal rather than projecting forward of the
+    # wall plane.
+    def self.na_compute_panel_y_origin_in_frame_mm(panel_thickness_mm, frame_depth_mm, frame_wall_inset_mm)
+        panel_t = panel_thickness_mm.to_f
+        depth   = frame_depth_mm.to_f
+        depth   = panel_t if depth < panel_t
+        frame_wall_inset_mm.to_f + ((depth - panel_t) / 2.0)
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Resolve Glazing Pane Inner Box (mm) Inside a Panel Frame
     # ------------------------------------------------------------
     # Returns the inner glazing rectangle bounded by the panel rails

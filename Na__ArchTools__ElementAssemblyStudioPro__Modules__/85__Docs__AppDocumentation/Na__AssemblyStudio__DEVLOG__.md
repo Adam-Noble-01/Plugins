@@ -3,6 +3,147 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.7.1 - 17-May-2026 - Bifold + sliding door materials parity, per-lite glass trim, full-frame fuse, and global cill Z-axis fix
+
+### Context
+After V1.7.0 the user reviewed the bifold + sliding door output in SketchUp and flagged four follow-ups that V1.7.0 had missed:
+1. The bifold + sliding door panel timber (stiles + rails) was rendering as plain white instead of taking the configured `frame_material_id` paint - the casement timber on the WindowSystem already obeyed this so the new doors looked inconsistent.
+2. The glazing pane on bifold + sliding panels was showing as solid grey/white instead of the proper `MAT101__GenericGlass` material the WindowSystem casements use.
+3. With glaze bars enabled the bifold + sliding glass pane was a single un-trimmed slab; the WindowSystem behaviour is to trim the glass against the fused glaze bars so each lite ends up as its own pane (matching what real casements look like).
+4. With `fuse_parts === true` the visible joint lines along the outer frame jambs / head / bottom rail remained on bifold + sliding doors, while the WindowSystem fuses those same parts into a single solid.
+5. Across **all** door types (window, bifold, sliding) when the cill was enabled the door was inserted cill_height too low on the Z-axis - users had to manually nudge the component up by the cill thickness to close the gap at the head. The user confirmed this was a pre-existing WindowSystem bug rather than something introduced by V1.7.0.
+
+### Phase 1 - Material flow parity for bifold + sliding panels
+The bifold + sliding `AssemblyComposer` modules now share a single `na_resolve_materials(config_hash)` helper that mirrors the WindowSystem GeometryEngine's flow: it pulls `frame_material_id` (defaulting to `NA_DEFAULT_FRAME_MATERIAL_ID`) and the glass material id (defaulting to `NA_DEFAULT_GLASS_MATERIAL_ID = "MAT101__GenericGlass"`) and resolves both via `Na__AssemblyStudio::Na__AppData::Na__MaterialManager.na_get_material_by_id`. The resolved hash is computed once at the top of `na_compose_adr` and then threaded through every per-panel builder. The previous behaviour was that the bifold + sliding `na_create_box_mm` wrapper hard-coded `nil` for the material parameter when calling `Box.na_create_grouped_box`, which is why the timber + glass appeared in plain SketchUp default white. Now:
+- `na_create_box_mm(entities, name, x, y, z, w, d, h, material = nil)` accepts and forwards the material to the shared `Box.na_create_grouped_box` primitive.
+- `na_build_panel_stiles` + `na_build_panel_rails` receive `frame_material` and pass it through, so each leaf's stiles + head + base rails carry the same material the user picks in the Windows tab Frame Finish chooser.
+- `na_build_panel_glazing` receives `glass_material` and applies it to the centred glazing pane.
+- `na_build_panel_glaze_bars` accepts an optional pre-resolved `frame_material` argument so it does not have to re-fetch it from MaterialManager when the parent has already resolved it (matches the WindowSystem grille behaviour of using the frame material on bars so they blend into the surrounding timber).
+
+### Phase 2 - Per-lite glass via FuseParts trim (mirrors casement behaviour)
+The bifold + sliding `Na__FuseParts__Panel` modules grew from a single timber-fuse step into a three-step per-leaf pipeline that exactly mirrors the WindowSystem casement pipeline:
+1. **Timber fuse** - collect every `Na_DoorPanel_{panel_id}_(Stile_*|Rail_*)` group inside the MOD and fuse them via `Fuse__Shared.na_sequential_outer_shell` into `Na_DoorPanel_{panel_id}_Fused`.
+2. **Glaze-bar fuse** - collect every `Na_GlazeBar_{panel_id}_[HV]\d+` group inside the same MOD and fuse them into `Na_GlazeBar_{panel_id}_Fused`.
+3. **Glass trim** - if both a fused glaze-bar solid and the original `Na_Glass_{panel_id}` group exist and are manifold, run `bars.trim(glass)` to subdivide the single glass pane into individual lites. The trimmed result is renamed to `Na_Glass_{panel_id}_Trimmed`. The bars stay intact (`trim` is non-destructive on the cutter), and the glass is replaced with a clean per-lite solid that sits between every horizontal + vertical bar.
+The trim step matches the WindowSystem `Na__FuseParts.na_trim_glass_panels` behaviour exactly so a fully-fused bifold or sliding door now reads visually as N lites separated by the grille - exactly what the user described casement glass as.
+
+### Phase 3 - ADR-level outer frame fusion
+A new `na_fuse_outer_frame(parent_entities)` step was added to both bifold + sliding `FuseParts__Panel` modules. It walks the ADR ComponentDefinition entities (NOT the MOD groups) and fuses every `Na_Frame_*` group it finds via `Fuse__Shared.na_sequential_outer_shell` into a single `Na_Frame_Fused` solid. Because the bifold + sliding frames are produced by `Na__WindowSystem::Na__GeometryBuilders.na_create_frame_geometry` they already use the same `Na_Frame_Left_Stile` / `Na_Frame_Right_Stile` / `Na_Frame_Top_Rail` / `Na_Frame_Bottom_Rail` group names that the WindowSystem fuser consumes, so the same regex-free prefix collector picks them up cleanly. The cill is intentionally left as its own group so the user can still swap its material independently (matches how the WindowSystem fuser treats the cill).
+
+### Phase 4 - Global cill Z-axis fix (the "door drops by sill thickness" bug)
+The user identified this as a pre-existing WindowSystem bug. Pre-V1.7.1 the cill geometry occupied the negative-Z slab below the frame (z = -cill_height to 0) so when the user dropped the component at floor level the cill ended up below the floor and the entire door / window was effectively cill_height too low - they had to manually nudge it up to close the gap at the head.
+
+The fix is a uniform Z-axis lift applied at the **end** of the geometry build, before any FuseParts run, gated on `has_cill === true && frame_bottom_thickness > 0`:
+- `Na__WindowSystem::GeometryEngine.na_apply_cill_lift(entities, params)` - new helper called at the end of `na_build_window_elements`. It builds a `Geom::Transformation.translation([0, 0, cill_height_inches])` and applies it via `entities.transform_entities(translation, entities.to_a)`, which lifts every freshly-built group (frame, mullions, transoms, casements, glass, glaze bars, cill) by exactly the cill height.
+- `Na__ExtFold::AssemblyComposer.na_apply_cill_lift(config_hash, dims, parent_entities)` - mirror helper called at the end of `na_compose_adr`. Uses the bifold's `GeometryHelpers.na_mm_to_inch` converter so the lift uses the same unit basis as the rest of the bifold composer.
+- `Na__ExtSlide::AssemblyComposer.na_apply_cill_lift(config_hash, dims, parent_entities)` - mirror helper called at the end of `na_compose_adr` for sliding doors.
+
+After the lift the geometry layout becomes:
+- Cill: z = 0 to z = cill_height (sitting on the floor exactly as a real cill does).
+- Frame: z = cill_height to z = cill_height + frame_height (sitting on top of the cill).
+- All casements / panels / glass / mullions / glaze bars / ROT + MVE markers shift up uniformly so their relative positions to the frame are preserved.
+
+The TrueVision animation pipeline is unaffected because both the ROT marker and the geometry it rotates shift up together - the relative offset between hinge and panel stays identical, so the rotation pivot still hits the panel's hinge edge. Same for sliding MVE markers - the X-axis travel is unchanged by the Z lift.
+
+### Files touched (V1.7.1)
+SketchUp plugin:
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb` - new `na_apply_cill_lift` helper called at the end of `na_build_window_elements` to fix the pre-existing cill Z-axis bug for the WindowSystem itself.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__AssemblyComposer__.rb` - new `na_resolve_materials` helper centralising frame + glass material resolution; `na_create_box_mm` accepts and forwards the material; `na_build_panel_stiles` / `na_build_panel_rails` / `na_build_panel_glazing` / `na_build_panel_glaze_bars` thread the resolved material through; new `na_apply_cill_lift` post-pass.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__FuseParts__Panel__.rb` - pipeline expanded from one step (timber fuse) to four (timber fuse, glaze-bar fuse, glass trim, outer frame fuse). New helpers: `na_fuse_panel_pipeline_inside_mod`, `na_fuse_timber_for_panel`, `na_fuse_glaze_bars_for_panel`, `na_trim_glass_for_panel`, `na_fuse_outer_frame`, `na_collect_glazebar_groups`, `na_find_group_by_name`, `na_accumulate_result`. Idempotent: every collector excludes already-fused result groups so re-running the pipeline against the same definition is safe.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__AssemblyComposer__.rb` - same material flow + `na_apply_cill_lift` parity changes as the bifold composer.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__FuseParts__Panel__.rb` - same per-leaf pipeline expansion + outer frame fuse as the bifold fuser.
+
+### Risks / known limitations after this release
+- The cill Z-axis lift relies on `Sketchup::Entities#transform_entities` being safe to call after every group has been freshly created in the same operation. The bifold + sliding update paths already `clear!` the definition entities before calling `na_compose_adr` so the targets list contains only the new build. The WindowSystem update path does the same (`definition.entities.clear!` at line 217 of `GeometryEngine`). Re-running `na_apply_cill_lift` on an already-lifted definition is a non-issue because each rebuild starts from a freshly-cleared entities collection.
+- Glass `trim` on the bifold + sliding panels can fail if the user has dialled the glass thickness so thin that the boolean engine collapses the lite into a degenerate solid. The pipeline already logs a manifold warning + skips the trim in that case, leaving the un-trimmed glass intact - no fatal error.
+- The WindowSystem cill geometry retains its pre-V1.7.1 origin (`cill_z = -cill_height`) intentionally; the lift is applied as a post-pass instead of changing the cill builder so any tooling that calls `na_create_cill_geometry` directly (for example a future Standalone tool) is unaffected.
+
+### Next: V1.7.2 - bifold + sliding plan-view companion preview, mode-switch guard
+The natural next slice is the V1.5.0 mode-switch guard (definition-name verification on Update so users cannot accidentally overwrite a bifold ADR with sliding config and vice versa) plus a plan-view (top-down) SVG companion to the elevation preview that exists today. Both items were already lined up in V1.7.0's "Next" section and remain the two outstanding non-cosmetic gaps before the bifold + sliding doors are fully feature-complete.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.7.0 - 17-May-2026 - Multi-folding & sliding doors: Phase 9 - Window-style opening frame + cill, joinery flip, glaze bars, FuseParts, shared dimension sliders
+
+### Context
+Ninth and feature-completing iteration of the multi-folding + sliding door build-out (plan `door_framework_cill_joinery_fuse_1c48682c`). V1.6.0 had the panels building, the previews drawing and the TrueVision animation pipeline working end-to-end, but the user flagged in their review that the bifold + sliding doors still produced the bulky head/base "track" casings instead of a proper window-style opening frame, that the panel joinery was inverted (rails ran full-width, stiles fit between them), that the bifold + sliding tabs carried duplicate Width/Height/Floor-clearance sliders forcing the user to scroll past the WindowSystem's existing ones, and that they wanted glaze bars + FuseParts parity with the WindowSystem and InteriorDoorSystem. V1.7.0 closes every one of those points in a single pass and brings bifold + sliding fully under the WindowSystem's Dimensions, Cill & Frame, Glaze Bars and Options sliders.
+
+### Phase 9.1 - UI consolidation + visibility
+Bifold + sliding doors now share the WindowSystem's Dimensions / Cill & Frame / Glaze Bars / Options sections instead of carrying their own duplicate Width/Height/Floor-Clearance controls. The bifold + sliding tab schemas (`Na__AssemblyStudio__ExtFold__UiSystem__Config__.js` and `Na__AssemblyStudio__ExtSlide__UiSystem__Config__.js`) had their `*_opening_width_mm`, `*_opening_height_mm` and `*_floor_clearance_mm` controls removed; the matching `*_opening_*_mm` and `*_floor_clearance_mm` defaults were dropped from `Na__AssemblyStudio__ExtFold__Init__.rb` and `Na__AssemblyStudio__ExtSlide__Init__.rb` so the live config envelope no longer carries those keys for new doors.
+`Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js::na_updateMultifoldDoorVisibility` and `na_updateSlidingDoorVisibility` were extended to hide the window-only Casements + Transoms + Sliding Sash sections when bifold or sliding mode is on, while keeping Dimensions, Cill & Frame, Glaze Bars and Options visible. The result is a single coherent slider stack: the user adjusts the WindowSystem's Width / Height / Frame / Cill / Glaze Bars sliders and the bifold or sliding tab adds only the door-specific extras (panel count, panel thickness, fold layout, slide direction, etc.).
+
+### Phase 9.2 - Save/load payload + legacy migration
+`Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb::na_build_bifold_save_payload` and `na_build_sliding_save_payload` were extended to also include the shared window-level keys: `width_mm`, `height_mm`, every `frame_*_thickness_mm`, `frame_depth_mm`, `frame_wall_inset_mm`, `has_cill`, `paint_cill`, `cill_height_mm`, `cill_depth_mm`, `frame_material_id`, `horizontal_glaze_bars`, `vertical_glaze_bars`, `glaze_bar_width_mm`, `glazebar_inset_mm`, `removed_glazebars`, and `fuse_parts`. The bifold + sliding load helpers (`na_load_bifold_data` and `na_load_sliding_data`) now spread those saved keys back into the live `windowConfiguration` envelope and migrate any pre-Phase-9 saved blob that still carries `*_opening_width_mm` / `*_opening_height_mm` / `*_floor_clearance_mm` keys: the legacy values are copied across to `width_mm` / `height_mm` (and the floor-clearance is dropped) before the config is handed to `Na_DynamicUI.na_setConfig`, so a project saved on V1.6.x reopens cleanly on V1.7.0.
+
+### Phase 9.3 - Window-style opening frame + cill (3D geometry)
+The bifold + sliding `AssemblyComposer` modules dropped their `na_build_assembly_frame` track helpers in favour of two new builders that delegate directly to the WindowSystem so all three door types share a single frame + cill emitter:
+- `na_build_opening_frame` - delegates to `Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders.na_create_frame_geometry`. Reads per-edge thickness from `frame_*_thickness_mm`, depth from `frame_depth_mm`, the wall inset from `frame_wall_inset_mm`, and the material id from `frame_material_id`. Produces left/right jambs and a head rail (and a frame bottom if any thickness is configured) with the same naming + grouping the WindowSystem uses, so any downstream tooling (FuseParts, GLB exporter, ApplyMaterials) sees a single homogeneous frame regardless of the door type.
+- `na_build_opening_cill` - delegates to `Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders.na_create_cill_geometry`, gated on `has_cill === true && frame_bottom_thickness_mm > 0`. The bifold + sliding cill obeys the same `cill_height_mm`, `cill_depth_mm` and `paint_cill` toggles as the window cill, and falls back to the default Sapele timber material when `paint_cill === false`.
+A new shared helper `Na__GeometryHelpers.na_resolve_door_opening_dimensions` (added to both the bifold and sliding `GeometryHelpers__.rb` modules) parses the unified config and returns a hash carrying overall opening dimensions, per-edge frame thicknesses, frame depth, wall inset and the precomputed inner clear width / height. Every downstream geometry builder reads from that single hash rather than re-parsing config keys ad hoc.
+
+### Phase 9.4 - Window-style joinery (stiles full-height, rails between)
+The bifold + sliding panel builders had their stile + rail roles flipped to match real-world door joinery (and the WindowSystem casement convention):
+- `na_build_panel_stiles` - left + right stiles now span the FULL panel height (z = origin_z, h = panel_h). Width is `stile_width_mm`. Joinery: stiles butt against the head rail above and the base rail below.
+- `na_build_panel_rails` - head + base rails now sit BETWEEN the two stiles. X origin is `origin_x_mm + stile_width_mm` and width is `panel_w_mm - 2 * stile_width_mm`. Heights remain `head_rail_mm` (top) and `base_rail_mm` (bottom).
+- `na_build_panel_glazing` - the glazing pane is recomputed via the new `na_compute_clear_glazing_box` helper (shared between the glazing pane + glaze-bar grille so they always line up). The clear pane fits inside the joinery, never bleeds across the stiles, and is offset in Y by half the panel thickness so it sits centred on the panel.
+This brings the visual + structural parity with the WindowSystem casement that the user explicitly asked for in their review.
+
+### Phase 9.5 - FuseParts-compatible inner panel naming
+Inner panel parts are now named `Na_DoorPanel_{panel_id}_{Stile_Left|Stile_Right|Rail_Top|Rail_Bottom}` and the glazing pane is `Na_Glass_{panel_id}`, where `panel_id = "Bifold_{adr_id}_P{idx}"` for bifold doors and `Sliding_{adr_id}_P{idx}` for sliding doors. The bifold + sliding `AssemblyComposer` modules now thread an explicit `door_id` through every per-panel builder (allocated up-front in `GeometryEngine` for new doors, or recovered from the existing `Na__BifoldDoorConfigurator_*` / `Na__SlidingDoorConfigurator_*` attribute dictionary on update). This stable naming means the FuseParts modules (Phase 9.7) can deterministically locate every part of a panel without scanning the full ADR.
+
+### Phase 9.6 - Glaze bars per panel
+After rails / stiles / glazing are placed, every bifold + sliding panel now calls `Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders.na_create_glazebar_geometry` with the panel's clear glass rectangle, gated on `bifold_door_glazed === true` / `sliding_door_glazed === true` and at least one bar in `horizontal_glaze_bars` or `vertical_glaze_bars`. Bar width comes from `glaze_bar_width_mm`, the inset from `glazebar_inset_mm`, and the material from `frame_material_id` so the grille blends with the surrounding frame. The grille rectangle is computed via the shared `na_compute_clear_glazing_box` helper so the bars line up exactly with the glass pane edges. The 2D SVG generators (Phase 9.8) draw the same grille on the elevation preview so the user sees a faithful WYSIWYG result in the Windows tab viewport.
+
+### Phase 9.7 - FuseParts modules for bifold + sliding panels
+Two new modules mirror `Na__AssemblyStudio__ExtSingleDoor__FuseParts__DoorPanel__.rb`:
+- `Na__AssemblyStudio__ExtFold__FuseParts__Panel__.rb` - public entry `na_fuse_bifold_panels(entities)`. Walks each MOD group inside the ADR, gathers the `Na_DoorPanel_Bifold_*_(Stile_*|Rail_*)` parts under that MOD, and calls `Na__AssemblyStudio::Na__GeometryHelpers::Fuse__Shared.na_sequential_outer_shell(groups, "Na_DoorPanel_#{panel_id}_Fused")` to merge them into a single solid timber group. Glass + glaze bars are deliberately excluded from the fuse so the GLB export and ApplyMaterials still see them as discrete components.
+- `Na__AssemblyStudio__ExtSlide__FuseParts__Panel__.rb` - same structure but matches the `Sliding_*` panel-id prefix.
+Both modules are auto-loaded by the bifold + sliding `Init__.rb` files. `Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb` now calls `na_apply_bifold_fuse_parts` / `na_apply_sliding_fuse_parts` after every Create / Update / Live-Update operation, gated on `windowConfiguration["fuse_parts"] === true`. The fuse runs only on the inner panel parts so the outer ADR / MOD / ROT / MVE wrapping groups stay intact for the TrueVision animation pipeline.
+
+### Phase 9.8 - Window-style 2D SVG previews
+`Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js` and `Na__AssemblyStudio__ExtSlide__Viewport__ElevationGenerator__.js` were rewritten to match the new geometry contract:
+- The bulky head + base track rectangles are gone. The outer frame is now drawn as a per-edge jamb + head + bottom rail combination identical to the WindowSystem preview, using `na_resolve_frame_edges` (which delegates to `Na__Viewport__SvgGenerator.na_getEffectiveFrameThicknesses` when available) so the bifold / sliding / window previews share a single thickness resolver.
+- An optional cill outline is drawn below the frame when `has_cill === true`, with a material-aware tint (default Sapele timber, switching to the frame colour when `paint_cill === true`).
+- Each panel / leaf is drawn with the new joinery: stiles span the full panel height, rails sit between stiles, and the glazing pane fills the inner clear rectangle.
+- A glaze-bar grille is drawn inside each panel's glazing area when bifold/sliding-glazed and `horizontal_glaze_bars`/`vertical_glaze_bars > 0`, using the same width + inset settings the 3D builder consumes.
+- Hinge dots, fold arrows and handle markers were re-anchored to the new `innerLeft` / `innerBottom` / `innerWidth` / `innerHeight` so they stay correctly positioned regardless of the frame thickness the user picks.
+- Both generators consume `width_mm` / `height_mm` directly from the unified config; the legacy `bifold_door_opening_*_mm` / `sliding_door_opening_*_mm` keys are no longer read by the SVG side because the load migration in Phase 9.2 maps them to the shared keys before the live config is built.
+
+### Phase 9.9 - Validation + viewport reset fitter
+- `Na__AssemblyStudio__Viewport__Validation__.js::na_validateBifoldConfig` and `na_validateSlidingConfig` now read `width_mm` / `height_mm` (with a legacy fallback to the pre-Phase-9 `*_opening_*_mm` keys for any saved blob that has not yet been migrated). They also subtract the per-edge frame thicknesses from the opening to verify there is room for at least the configured number of panels at the configured stile + rail sizes, surfacing a friendly error message if the user has dialled the frame too thick for the opening.
+- `Na__AssemblyStudio__Viewport__Controls__.js::na_windowResetFitter` reads `width_mm` / `height_mm` first and falls back to the legacy keys, so the auto-fit zoom keeps working for both fresh V1.7.0 doors and any pre-V1.7.0 saved blob the user reopens.
+
+### Files touched (V1.7.0)
+SketchUp plugin:
+- `02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Validation__.js` - Phase-9 validators read shared dimension + frame keys with legacy fallback.
+- `02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Controls__.js` - `na_windowResetFitter` reads `width_mm` / `height_mm` first across all three modes.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` - bifold + sliding visibility hides Casements / Transoms / Sliding Sash sections.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb` - bifold + sliding save payload + load helpers carry shared window-level keys; legacy migration of `*_opening_*_mm` -> `width_mm` / `height_mm`; FuseParts dispatch on Create / Update / Live.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__UiSystem__Config__.js` - duplicate Width/Height/Floor-Clearance controls dropped.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Init__.rb` - dropped defaults; auto-load FuseParts panel module.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__GeometryHelpers__.rb` - new `na_resolve_door_opening_dimensions` + `na_compute_panel_y_origin_in_frame_mm` helpers.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__AssemblyComposer__.rb` - tracks dropped; window-style frame + cill builders; joinery flip; FuseParts-compatible naming; per-panel glaze bars.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__GeometryEngine__.rb` - allocates / threads `door_id` through composition for stable FuseParts naming.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js` - tracks replaced with window-style frame + cill; glaze-bar grille; window joinery.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__FuseParts__Panel__.rb` - new module: fuses inner bifold panel parts into a single solid via `Na__GeometryHelpers::Fuse__Shared.na_sequential_outer_shell`.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__UiSystem__Config__.js` - duplicate Width/Height/Floor-Clearance controls dropped.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Init__.rb` - dropped defaults; auto-load FuseParts panel module.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__GeometryHelpers__.rb` - new shared `na_resolve_door_opening_dimensions` + front/rear panel Y-origin helpers.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__AssemblyComposer__.rb` - tracks dropped; window-style frame + cill builders; joinery flip; FuseParts-compatible naming; per-panel glaze bars.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__GeometryEngine__.rb` - allocates / threads `door_id` through composition for stable FuseParts naming.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Viewport__ElevationGenerator__.js` - tracks replaced with window-style frame + cill; glaze-bar grille; window joinery.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__FuseParts__Panel__.rb` - new module: fuses inner sliding panel parts into a single solid via `Na__GeometryHelpers::Fuse__Shared.na_sequential_outer_shell`.
+
+### Risks / known limitations after this release
+- The 2D SVG generators reuse the WindowSystem's frame thickness resolver directly via `Na__Viewport__SvgGenerator.na_getEffectiveFrameThicknesses` when available; if a future refactor moves that helper, the bifold + sliding generators carry a local fallback that mirrors today's behaviour exactly. Both paths are covered by the existing window preview test cases.
+- FuseParts on bifold + sliding panels still operates per-MOD (one fuse per panel) rather than per-ADR. This was a deliberate choice so the per-panel fused timber group can be moved + rotated by the TrueVision animation pipeline without dragging the rest of the door along. If a future workflow ever needs a single-solid per ADR, the existing `Fuse__Shared` module can fold the per-panel solids into one but that operation is not wired today.
+- Mode-switching an existing ADR from bifold to sliding (or vice versa) still triggers the V1.5.0 limitation - a definition-name guard / "delete + recreate" fallback is the natural follow-up for V1.7.1.
+
+### Next: V1.7.1 - mode-switch guard + plan-view previews
+With Phase 9 complete the doors are functionally and visually at parity with the WindowSystem casements. The natural next slice is the V1.5.0 mode-switch guard (definition-name verification on Update) and a plan-view (top-down) SVG companion to the elevation preview, mirroring the InteriorDoorSystem dual-viewport layout.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.6.0 - 17-May-2026 - Multi-folding & sliding doors: Phase 4 + 5 + 6 + 7 + 8 - Naming contract lock-in, 2D SVG previews, TrueVision multi-panel animation pipeline, AppConfig + coordinate audit, smoke-check matrix
 
 ### Context

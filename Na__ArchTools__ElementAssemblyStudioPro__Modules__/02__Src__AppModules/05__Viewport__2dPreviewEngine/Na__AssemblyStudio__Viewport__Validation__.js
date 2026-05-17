@@ -140,19 +140,38 @@
 
     // FUNCTION | Validate bifold-door configuration before rendering
     // ------------------------------------------------------------
-    // Validates the minimum geometric viability of a bifold door config
-    // (opening big enough, panel count sane). Schema-level required-key
-    // checks are not performed here because the controls have defaults.
+    // Phase-9: Bifold doors share the WindowSystem's Dimensions / Cill &
+    // Frame sliders. Validation reads `width_mm`, `height_mm` and the
+    // per-edge frame thickness keys (with a legacy fallback to the
+    // pre-Phase-9 `bifold_door_opening_*_mm` keys for any config that
+    // has not yet been migrated by the load helper).
     function na_validateBifoldConfig(config) {
         var errors = [];
 
-        var width  = Number(config.bifold_door_opening_width_mm)  || 0;
-        var height = Number(config.bifold_door_opening_height_mm) || 0;
-        var panels = Math.round(Number(config.bifold_door_panel_count) || 0);
+        var width   = Number(config.width_mm  || config.bifold_door_opening_width_mm  || 0);
+        var height  = Number(config.height_mm || config.bifold_door_opening_height_mm || 0);
+        var panels  = Math.round(Number(config.bifold_door_panel_count) || 0);
+        var stileW  = Math.max(40, Number(config.bifold_door_stile_width_mm || 95));
+        var headRl  = Math.max(40, Number(config.bifold_door_head_rail_mm  || 95));
+        var baseRl  = Math.max(40, Number(config.bifold_door_base_rail_mm  || 200));
+        var frameTh = na_getEffectiveFrameThicknesses(config);
 
         if (width  < 800)  errors.push('Bifold opening width must be at least 800mm');
         if (height < 1500) errors.push('Bifold opening height must be at least 1500mm');
         if (panels < 2 || panels > 8) errors.push('Bifold panel count must be between 2 and 8');
+
+        var innerW = width  - frameTh.left - frameTh.right;
+        var innerH = height - frameTh.top  - frameTh.bottom;
+
+        if (innerW <= 0 || innerH <= 0) {
+            errors.push('Bifold frame thickness leaves no room for panels - reduce frame edges');
+        } else if (panels >= 2) {
+            var perPanelW = innerW / panels;
+            var minPanelW = (2 * stileW) + 50;
+            var minPanelH = headRl + baseRl + 50;
+            if (perPanelW < minPanelW) errors.push('Bifold panels too narrow - reduce panel count, stile width or frame edges');
+            if (innerH    < minPanelH) errors.push('Bifold opening too short for head + base rails - reduce rail size or frame edges');
+        }
 
         return { valid: errors.length === 0, errors: errors };
     }
@@ -161,16 +180,38 @@
 
     // FUNCTION | Validate sliding-door configuration before rendering
     // ------------------------------------------------------------
+    // Phase-9: Sliding doors share the WindowSystem's Dimensions / Cill &
+    // Frame sliders. Validation reads `width_mm`, `height_mm` and the
+    // per-edge frame thickness keys (with a legacy fallback to the
+    // pre-Phase-9 `sliding_door_opening_*_mm` keys for any config that
+    // has not yet been migrated by the load helper).
     function na_validateSlidingConfig(config) {
         var errors = [];
 
-        var width   = Number(config.sliding_door_opening_width_mm)  || 0;
-        var height  = Number(config.sliding_door_opening_height_mm) || 0;
+        var width   = Number(config.width_mm  || config.sliding_door_opening_width_mm  || 0);
+        var height  = Number(config.height_mm || config.sliding_door_opening_height_mm || 0);
         var setback = Number(config.sliding_door_rear_setback_mm)   || 0;
+        var stileW  = Math.max(40, Number(config.sliding_door_stile_width_mm || 95));
+        var headRl  = Math.max(40, Number(config.sliding_door_head_rail_mm   || 95));
+        var baseRl  = Math.max(40, Number(config.sliding_door_base_rail_mm   || 200));
+        var frameTh = na_getEffectiveFrameThicknesses(config);
 
         if (width  < 800)  errors.push('Sliding opening width must be at least 800mm');
         if (height < 1500) errors.push('Sliding opening height must be at least 1500mm');
         if (setback < 20)  errors.push('Sliding rear setback must be at least 20mm');
+
+        var innerW = width  - frameTh.left - frameTh.right;
+        var innerH = height - frameTh.top  - frameTh.bottom;
+
+        if (innerW <= 0 || innerH <= 0) {
+            errors.push('Sliding frame thickness leaves no room for leaves - reduce frame edges');
+        } else {
+            var perLeafW = innerW / 2;
+            var minLeafW = (2 * stileW) + 50;
+            var minLeafH = headRl + baseRl + 50;
+            if (perLeafW < minLeafW) errors.push('Sliding leaves too narrow - reduce stile width or frame edges');
+            if (innerH   < minLeafH) errors.push('Sliding opening too short for head + base rails - reduce rail size or frame edges');
+        }
 
         return { valid: errors.length === 0, errors: errors };
     }
