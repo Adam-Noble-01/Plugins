@@ -29,7 +29,22 @@
 # - Z+           = upwards.
 #
 # DEVELOPMENT LOG:
-# 18-May-2026 - Version 1.7.5
+# 18-May-2026 - Version 1.7.7
+# - Reduced NA_ACCORDION_GAP_SAFETY_MM from 30 to 10mm so the V
+#   vertex AT THE FAR EDGES of each V pair matches the 10mm
+#   between-pairs hinge gap introduced in V1.7.6. The user
+#   confirmed the inner Λ-at-the-head-track now reads correctly
+#   at 10mm and asked for the outer V-at-the-far-edges to match.
+#   With this change the bifold open silhouette now shows uniform
+#   10mm air gaps at every hinge knuckle - both the inner Λ
+#   between adjacent V pairs (at the head-track) and the outer V
+#   inside each pair (at the far edges) - which is exactly the
+#   real-bifold concertina look.
+#   For a typical 800mm panel at +/- 5 deg tilt the within-pair
+#   gap drops from 170mm (V1.7.6) to 150mm and the V vertex air
+#   gap drops from 30mm to 10mm.
+#
+# 18-May-2026 - Version 1.7.6
 # - Replaced the V1.7.4 uniform hinge spacing with pair-aware
 #   alternating spacing. Adjacent panels now form true V pairs:
 #   within a pair the gap is the adaptive `na_compute_panel_gap_mm`
@@ -102,19 +117,22 @@ module Na__GeometryHelpers
     NA_INNER_GLAZING_DEPTH_RATIO        = 0.4                                   # <-- Glazing depth as fraction of panel thickness
     NA_TRACK_DEPTH_PADDING_MM           = 30                                    # <-- Track casing wider than panel thickness
 
-    # Accordion-fold tuning (V1.7.4). The bifold open-state is a
-    # compressed-accordion stack where every panel ends up perpendicular
-    # to the wall, offset from its neighbour by the panel thickness + a
-    # visible gap. Adjacent panels tilt away from one another by a small
-    # termination angle so the stack reads as a real accordion zigzag
-    # (panels diverging), not a flat deck of cards or an X-pattern of
-    # crossing far edges. The gap is sized large enough for the chosen
-    # tilt + a typical panel width to clear without bunching.
+    # Accordion-fold tuning (V1.7.7). The bifold open-state is a series
+    # of V pairs: each pair has two panels with alternating tilts that
+    # lean towards each other at their far edges forming a V vertex.
+    # Adjacent V pairs are separated by `NA_ACCORDION_GAP_BETWEEN_PAIRS_MM`
+    # at the head-track level (the inner Λ knuckle gap, 10mm).
+    # Within a V pair the hinge spacing uses the adaptive
+    # `na_compute_panel_gap_mm` value sized so the V vertex at the far
+    # edges shows `NA_ACCORDION_GAP_SAFETY_MM` of clear air (the outer
+    # V knuckle gap, also 10mm in V1.7.7). Both inner and outer
+    # knuckle gaps are therefore the same width, matching the
+    # uniform knuckle width of a real bifold door.
     NA_ACCORDION_BASE_ROT_DEG           = 90.0                                  # <-- Magnitude of the perpendicular swing
     NA_ACCORDION_TERMINATION_ANGLE_DEG  = 5.0                                   # <-- Visible zigzag tilt either side of perpendicular; ~10 deg between adjacent panels in a V pair
     NA_ACCORDION_PANEL_GAP_MM           = 50.0                                  # <-- Within-pair floor gap; geometric requirement (2*sweep + safety) dominates so the V vertex at the far edges stays open by NA_ACCORDION_GAP_SAFETY_MM
-    NA_ACCORDION_GAP_SAFETY_MM          = 30.0                                  # <-- Headroom on top of the geometric body sweep so the V vertex shows a small but visible air gap
-    NA_ACCORDION_GAP_BETWEEN_PAIRS_MM   = 10.0                                  # <-- Fixed air gap between adjacent V pairs at hinge level (V1.7.5; matches a real bifold knuckle hinge spacing)
+    NA_ACCORDION_GAP_SAFETY_MM          = 10.0                                  # <-- V vertex air gap at the far edges of each V pair (V1.7.7: 30->10mm to match the user-confirmed 10mm between-pairs gap, so both the inner Λ-at-hinge and outer V-at-far-edges read as the same real-bifold knuckle width)
+    NA_ACCORDION_GAP_BETWEEN_PAIRS_MM   = 10.0                                  # <-- Fixed air gap between adjacent V pairs at hinge level (V1.7.6; matches a real bifold knuckle hinge spacing)
 
 # endregion -------------------------------------------------------------------
 
@@ -327,7 +345,7 @@ module Na__GeometryHelpers
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Accordion-Fold Math (V1.7.2 - V1.7.5)
+# REGION | Accordion-Fold Math (V1.7.2 - V1.7.6)
 # -----------------------------------------------------------------------------
 #
 # The bifold OPEN state is a series of V pairs: adjacent panels
@@ -336,7 +354,7 @@ module Na__GeometryHelpers
 # each other at their far edges, forming a V vertex. Multiple V
 # pairs stack along the cascade.
 #
-# V1.7.5 pair-aware spacing:
+# V1.7.6 pair-aware spacing:
 # - Within a V pair (odd slave_pos paired with previous panel):
 #   the hinge spacing uses the ADAPTIVE within-pair gap so the
 #   V vertex at the far edges stays open by the safety margin.
@@ -398,7 +416,7 @@ module Na__GeometryHelpers
     # adjacent panels stack as a series of V pairs separated by a thin
     # air gap - the real-world bifold concertina silhouette.
     #
-    # V1.7.5 pair-aware spacing:
+    # V1.7.6 pair-aware spacing:
     # - Odd slave_pos (1, 3, 5, ...) is the second panel of a V pair
     #   (paired with the previous panel). The gap from the previous
     #   panel uses the adaptive WITHIN-pair gap (`na_compute_panel_gap_mm`)
@@ -437,7 +455,7 @@ module Na__GeometryHelpers
     # HELPER FUNCTION | Resolve Cumulative Hinge Offset From Master to Slave k
     # ------------------------------------------------------------
     # Sums `panel_thickness + gap(i)` for i = 1..k where gap(i) is the
-    # pair-aware alternating gap from V1.7.5 (within-pair adaptive,
+    # pair-aware alternating gap from V1.7.6 (within-pair adaptive,
     # between-pairs constant). When the caller forces a uniform `gap_mm`
     # the helper short-circuits to the legacy V1.7.2 linear formula so
     # the override stays predictable for any debug/tuning workflow.
