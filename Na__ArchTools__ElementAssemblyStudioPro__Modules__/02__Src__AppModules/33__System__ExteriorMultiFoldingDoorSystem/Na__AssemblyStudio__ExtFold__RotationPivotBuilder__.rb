@@ -37,6 +37,13 @@
 # - Z+           = upwards (panel height direction).
 #
 # DEVELOPMENT LOG:
+# 17-May-2026 - Version 1.7.4
+# - Bumped NA_SWING_DRAW_DEG_THRESHOLD from 95 to 110 so the swing arrow
+#   keeps drawing when the V1.7.4 accordion tilt pushes the panel rot
+#   to +/-95 deg. Below 110 keeps the threshold strict enough to skip
+#   legacy 180 deg slaves but loose enough for the tuned +/- 5 deg
+#   alternation tilts.
+#
 # 17-May-2026 - Version 0.2.0
 # - Phase-3a implementation: emits per-panel ROT marker with red helper
 #   geometry. Adapts the InteriorDoor pivot builder pattern.
@@ -77,7 +84,7 @@ module Na__RotationPivotBuilder
     NA_SWING_ARROW_SEGMENT_COUNT    = 8                                         # <-- Polyline segments for the arc
     NA_SWING_ARROW_HEAD_LENGTH_MM   = 25                                        # <-- Length of each arrowhead 'V' edge
     NA_HELPER_EDGE_COLOUR_ID        = "MTE201__LineColour__Red".freeze
-    NA_SWING_DRAW_DEG_THRESHOLD     = 95                                        # <-- Only draw arc for |angle| <= this many deg (covers +/- 2 deg accordion tilt on top of the 90 deg base swing)
+    NA_SWING_DRAW_DEG_THRESHOLD     = 110                                       # <-- Only draw arc for |angle| <= this many deg (covers V1.7.4 +/- 5 deg accordion tilt on top of the 90 deg base swing, with headroom for future tuning)
 
 # endregion -------------------------------------------------------------------
 

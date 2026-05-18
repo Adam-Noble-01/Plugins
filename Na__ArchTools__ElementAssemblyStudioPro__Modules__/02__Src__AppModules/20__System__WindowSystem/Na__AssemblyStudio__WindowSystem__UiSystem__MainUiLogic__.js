@@ -154,6 +154,11 @@ const Na_DynamicUI = (function() {
                     }
                 }
             });
+
+            // Seed door-appropriate default dimensions so the user starts
+            // with a valid door opening rather than the window defaults
+            // (900 x 1200mm), which would trigger validation errors.
+            na_applyDoorModeDefaultDimensions(id);
         }
 
         na_onConfigChange();
@@ -208,6 +213,7 @@ const Na_DynamicUI = (function() {
         na_updateMultifoldDoorVisibility();
         na_updateTransomControlVisibility();
         na_updateWindowOnlyControlsVisibility();                                // <-- Phase 9: Hide casement/mullion/transom/sliding-sash controls in bifold/sliding mode
+        na_updateWidthSliderRange();                                            // <-- Phase 10: Expand width to 8000mm in multi-leaf door modes
         na_normalizeTransomConfig();
         ['transom_1_y_mm', 'transom_2_y_mm', 'transom_3_y_mm'].forEach(controlId => {
             if (_config[controlId] != null) {
@@ -416,6 +422,69 @@ const Na_DynamicUI = (function() {
                 if (control) control.style.display = 'none';
             });
         }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Expand Width Slider Range in Multi-Leaf Door Modes (Phase-10)
+    // ------------------------------------------------------------
+    // Windows and single exterior doors: max 4000mm (sensible structural span).
+    // Multi-folding / sliding door sets: max 8000mm (wide opening systems).
+    // Called from na_onConfigChange for interactive mode-flag changes and from
+    // na_updateControlValue before setting the slider value on load so the
+    // browser cannot silently clamp a saved bifold/sliding width above 4000mm.
+    function na_updateWidthSliderRange() {
+        const slider = document.getElementById('width_mm-slider');
+        const input  = document.getElementById('width_mm-input');
+        if (!slider) return;
+
+        const prevMax = Number(slider.max);
+        na_applyWidthSliderRange(slider, input);
+        const newMax  = Number(slider.max);
+
+        // If the range just shrank (door mode → window mode) clamp the stored
+        // value and refresh the control so it stays consistent.
+        if (newMax < prevMax && _config.width_mm > newMax) {
+            _config.width_mm = newMax;
+            na_updateControlValue('width_mm', newMax);
+        }
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Apply the Correct Max to a Width Slider + Input Pair
+    // ------------------------------------------------------------
+    function na_applyWidthSliderRange(slider, input) {
+        const inDoorMode = (_config.multifold_mode === true) || (_config.sliding_mode === true);
+        const newMax     = inDoorMode ? 8000 : 4000;                        // <-- 8 m for door sets, 4 m for windows
+        slider.max       = newMax;
+        if (input) input.max = newMax;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Seed Default Dimensions When a Door Mode Is Activated (Phase-10)
+    // ------------------------------------------------------------
+    // Called only from the manual toggle path in na_onControlChange — NOT from
+    // na_setConfig — so a saved door loaded from SketchUp keeps its stored
+    // dimensions while a freshly toggled mode always starts at a sensible door
+    // opening rather than the window defaults (900 x 1200mm).
+    //
+    // Default heights per mode:
+    //   door_mode      : 2100 mm  (standard single exterior door leaf height)
+    //   sliding_mode   : 2100 mm  (standard sliding patio/bi-pass height)
+    //   multifold_mode : 2100 mm  (standard bifold/multi-fold height)
+    //
+    // Default widths per mode:
+    //   door_mode      : 1000 mm  (standard single door leaf)
+    //   sliding_mode   : 3000 mm  (typical two-panel sliding set)
+    //   multifold_mode : 3000 mm  (typical four-panel bifold set)
+    function na_applyDoorModeDefaultDimensions(modeId) {
+        const defaultWidth  = (modeId === 'door_mode') ? 1000 : 3000;      // <-- Single door vs multi-panel set
+        const defaultHeight = 2100;                                          // <-- Standard door height for all door modes
+
+        _config.height_mm = defaultHeight;
+        _config.width_mm  = defaultWidth;
+
+        na_updateControlValue('height_mm', defaultHeight);
+        na_updateControlValue('width_mm',  defaultWidth);
     }
     // ---------------------------------------------------------------
 
@@ -846,6 +915,10 @@ const Na_DynamicUI = (function() {
         const display = document.getElementById(`${id}-display`);
         
         if (slider) {
+            // Expand/contract width_mm range before assigning .value so the
+            // browser doesn't silently clamp a bifold/sliding width > 4000mm.
+            if (id === 'width_mm') na_applyWidthSliderRange(slider, input);
+
             const uiValue = na_isTransomHeightControl(id)
                 ? na_convertInternalTransomHeightToUi(value)
                 : value;

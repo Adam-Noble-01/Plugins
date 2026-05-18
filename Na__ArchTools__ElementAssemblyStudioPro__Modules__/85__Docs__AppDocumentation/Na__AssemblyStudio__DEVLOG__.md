@@ -3,6 +3,123 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.7.4 - 17-May-2026 - Bifold accordion phasing v2: visible alternation + adaptive gap so panels actually stack like a real concertina
+
+### Context
+After V1.7.2 the user reloaded SketchUp, confirmed the right-jamb master fix had taken effect, but flagged that the bifold open state still looked wrong on two counts:
+1. **Adjacent panels still bunched up on top of each other in 3D space.** Closing the door visibly showed one panel randomly rotated ~90° relative to its neighbours, and the open state read as a fan of overlapping bodies rather than a stack of distinct planks.
+2. **The rotation was "all the same way around" when it should alternate** — the user wants a real accordion zigzag like the climadoor reference image, not a flat deck of cards.
+
+### Root Cause
+With V1.7.2 every cascade panel rotated to ±90° with a tiny ±2° termination tilt, and the slave MVE distance was sized for a 10mm air gap. The geometric body-sweep of a tilted panel in the open state is `panel_w × sin(termination_angle)`. For a typical 862mm panel at ±2° that's a ~30mm body-sweep on each side. Because adjacent slaves alternated the tilt sign, their far edges crossed at the midpoint of the hinge spacing — and the hinge spacing was only `panel_thickness + 10mm gap = 60mm`. The result was every other adjacent pair physically overlapping by ~50mm in 3D space, and the ±2° tilt being too subtle to read as alternation across the room.
+
+That's exactly the visual the user reported: panels stacked tightly with some bunching on top of each other, and rotation reading as uniform because the alternation magnitude was below the perception threshold.
+
+### Phase 1 — Clearly visible alternation (`ExtFold__GeometryHelpers__.rb`)
+`NA_ACCORDION_TERMINATION_ANGLE_DEG` raised from `2.0` to `5.0` so adjacent panels sit ±5° from perpendicular (~10° between adjacent panels). At 862mm panel width this projects a ~75mm body sweep on each side, which reads as a clear concertina zigzag from across the room rather than the subtle ±2° / ±3° alternation that read as uniform when viewed from typical interior distances.
+
+### Phase 2 — Adaptive gap that scales with panel width
+The geometric "minimum non-overlap" gap is `2 × panel_w × sin(angle) + safety`. New constants:
+- `NA_ACCORDION_PANEL_GAP_MM = 50.0` — low floor, only kicks in for very narrow panels (< ~200mm).
+- `NA_ACCORDION_GAP_SAFETY_MM = 30.0` — visible air gap between adjacent stacked panels on top of the geometric requirement.
+
+New helper `na_compute_panel_gap_mm(panel_w_mm, accordion_angle_deg)` returns `max(NA_ACCORDION_PANEL_GAP_MM, 2 × panel_w × sin(angle) + NA_ACCORDION_GAP_SAFETY_MM)`. For all normal bifold panel widths (400–1500mm) the geometric requirement wins, so the gap automatically scales up with panel width and tilt magnitude. This guarantees adjacent alternating tilts never crash into each other regardless of panel size.
+
+### Phase 3 — Slave MVE distance now consumes the adaptive gap
+`na_compute_slave_mve_distance_mm` signature changed from `(slave_pos, dir, panel_w, panel_t, gap_mm = NA_ACCORDION_PANEL_GAP_MM)` to `(slave_pos, dir, panel_w, panel_t, gap_mm = nil)`. When the caller passes nil (which all three layouts do — `Layout__EqualEqual__`, `Layout__AllOneWay__`, `Layout__MasterSlaves__`) the helper resolves the adaptive gap internally. Layouts didn't need any code changes because they already called the helper without an explicit gap.
+
+### Phase 4 — Visual helper threshold (`ExtFold__RotationPivotBuilder__.rb`)
+`NA_SWING_DRAW_DEG_THRESHOLD` raised from `95` to `110` so the swing-direction arrow keeps drawing for the new ±5° accordion tilt (panels now hit ±95° peak). Below 110 still keeps the threshold strict enough to skip any legacy 180° slaves while comfortably covering the tuned ±5° tilts plus future headroom.
+
+### Worked example: 4-panel left-cascade at 800mm panels
+With ±5° tilt and 50mm panel thickness:
+- Sweep per panel: `800 × sin(5°)` ≈ 70mm.
+- Adaptive gap: `max(50, 2×70+30)` = 170mm.
+- Hinge spacing: `panel_t + gap` = 50 + 170 = 220mm.
+
+| Panel | slave_pos | rot_deg | mve_X (mm) | hinge_X after MVE (mm) |
+|-------|-----------|---------|------------|------------------------|
+| Master (left jamb) | 0 | -85 | 0 | 0 |
+| Slave 1 | 1 | -95 | -580 | 220 |
+| Slave 2 | 2 | -85 | -1160 | 440 |
+| Slave 3 (leading) | 3 | -95 | -1740 | 660 |
+
+Adjacent panels alternate -85° / -95° (tilting towards each other) and sit 220mm apart at the hinge, with ~30mm visible air between far edges and ~80mm between hinge bodies. Total stack width ~660mm for a 4-panel × 800mm = 3200mm opening — the panels visibly bunch at the master jamb in a clear concertina zigzag.
+
+### Sliding-door regression check
+No sliding-door files touched. `ExtSlide__AssemblyComposer.na_resolve_mod_name` still emits only `MOD###__FIXED__SlidingPanel` or `MOD###__MVE__<axis><signed>mm__SlidingPanel` so the TrueVision bifold detector cannot misclassify a slider; sliding doors continue to use the base 600ms animation duration with the existing per-panel translation logic and have not been affected by V1.7.4.
+
+### Files changed (V1.7.4)
+SketchUp plugin:
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__GeometryHelpers__.rb` — bumped `NA_ACCORDION_TERMINATION_ANGLE_DEG` 2.0→5.0 and lowered `NA_ACCORDION_PANEL_GAP_MM` 10.0→50.0; added `NA_ACCORDION_GAP_SAFETY_MM = 30.0`; added new `na_compute_panel_gap_mm(panel_w_mm, accordion_angle_deg)` helper; changed `na_compute_slave_mve_distance_mm` default `gap_mm` from constant to `nil` so the helper auto-resolves the adaptive gap.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__RotationPivotBuilder__.rb` — bumped `NA_SWING_DRAW_DEG_THRESHOLD` 95→110.
+- All three layouts (`Layout__EqualEqual__`, `Layout__AllOneWay__`, `Layout__MasterSlaves__`) inherit the new contract automatically because they call `na_compute_slave_mve_distance_mm` without an explicit gap.
+
+TrueVision3D web app: no changes; the contract on the wire is unchanged from V1.7.2 (still `ROT__<deg>-Deg__MVE__X<signed>-mm` for slaves, still ROT-only for masters), only the numeric values have shifted.
+
+### How to test
+Because the bifold panel descriptors (with their MOD names) are baked into the SketchUp component instance at creation time, **the existing bifold doors in the SketchUp model will keep their pre-V1.7.4 MOD names until they are rebuilt**. To pick up the V1.7.4 tuning:
+1. Reload SketchUp (so the new Ruby constants are active).
+2. Re-create the bifold door (or open the configurator and apply changes so the rebuild path runs).
+3. Re-export the GLB.
+4. Reload the GLB in TrueVision3D.
+
+### Risks / known limitations after this release
+- ±5° tilt + adaptive gap makes the open stack wider than a tight real-world bifold fold. For 8-panel × 800mm cascade the stack spans ~1.54m. If the user wants a narrower stack we can drop the angle (back towards ±3°) at the cost of less obvious alternation, or accept some panel overlap by lowering the safety margin. All controlled by the three constants at the top of `ExtFold__GeometryHelpers__.rb`.
+- TrueVision's static-pivot animation cannot replicate true bifold hierarchical hinging (where each slave's hinge follows the previous slave's far edge through the swing). This V1.7.4 result is the closest visually-coherent approximation: per-panel rotation around its own static hinge plus a per-panel X translation to bunch the cascade at the master end, with alternating ±5° tilts giving the zigzag silhouette.
+
+---
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.7.5 - 18-May-2026 - Door modes seed sensible default dimensions on activation
+
+### Change
+Toggling any door mode on from a window state previously left the Width and Height sliders at their window defaults (900 × 1200mm). This caused an immediate validation error banner because 1200mm is far too short for any exterior door, and the user had to manually adjust both sliders before the Create button became usable.
+
+Now, the moment a door mode toggle is activated manually, the dimensions snap to a sensible door opening:
+
+| Mode | Default Width | Default Height |
+|---|---|---|
+| `door_mode` (single exterior door) | 1000mm | 2100mm |
+| `sliding_mode` (sliding door set) | 3000mm | 2100mm |
+| `multifold_mode` (bifold / multi-fold set) | 3000mm | 2100mm |
+
+### Behaviour Notes
+- Defaults apply **only on manual toggle**, not when loading a saved door from SketchUp. `na_setConfig` (used by the selection coordinator) bypasses this logic entirely, so existing doors retain their stored dimensions.
+- Switching between door modes (e.g. sliding → multifold) also re-seeds the defaults, which is intentional — the two modes have different typical span expectations.
+- Toggling a door mode OFF does not reset to window defaults; the user is left to adjust as needed.
+
+### Implementation
+- `na_applyDoorModeDefaultDimensions(modeId)` — new helper; sets `_config.height_mm` and `_config.width_mm`, then calls `na_updateControlValue` for both so the sliders and display labels update immediately. Width default is mode-aware (`door_mode` → 1000mm, multi-panel modes → 3000mm).
+- Called from the mutual-exclusivity block in `na_onControlChange`, inside the `value === true` guard, after the other modes are turned off.
+
+### File Changed
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`
+
+---
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.7.4 - 18-May-2026 - Width slider expands to 8000mm in bifold / sliding door modes
+
+### Change
+The Width slider on the Windows tab previously capped at 4000mm regardless of mode. Multi-folding (bifold) and sliding door systems are routinely specified up to 8m wide, so the hard cap was preventing those configurations from being expressed.
+
+### Implementation
+A new helper pair was added to `Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`:
+
+- **`na_applyWidthSliderRange(slider, input)`** — low-level; sets `max` on both the `<input type="range">` and `<input type="number">` to `8000` when `multifold_mode === true || sliding_mode === true`, or `4000` otherwise.
+- **`na_updateWidthSliderRange()`** — called from `na_onConfigChange` so the range updates the moment the user flips a mode toggle; includes a clamp so if a wide value is set and the user switches back to window mode the stored value is trimmed to 4000mm rather than being silently out-of-range.
+
+`na_applyWidthSliderRange` is also called inside the slider branch of `na_updateControlValue` when `id === 'width_mm'`, specifically *before* the slider `.value` is assigned. This prevents the browser from silently clamping a saved bifold/sliding opening width above 4000mm at load time.
+
+Window and single-door max (4000mm) is unchanged.
+
+### File Changed
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`
+
+---
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.7.3 - 17-May-2026 - Fix: Bifold door dropdown and binary toggles not reflecting selected door state in HTML UI
 
 ### Bug

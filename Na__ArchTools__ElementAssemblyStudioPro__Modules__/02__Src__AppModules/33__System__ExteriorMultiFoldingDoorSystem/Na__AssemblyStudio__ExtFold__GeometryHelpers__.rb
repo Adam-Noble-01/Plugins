@@ -29,6 +29,49 @@
 # - Z+           = upwards.
 #
 # DEVELOPMENT LOG:
+# 18-May-2026 - Version 1.7.5
+# - Replaced the V1.7.4 uniform hinge spacing with pair-aware
+#   alternating spacing. Adjacent panels now form true V pairs:
+#   within a pair the gap is the adaptive `na_compute_panel_gap_mm`
+#   value (so the V vertex at the far edges stays open by the safety
+#   margin), but BETWEEN adjacent V pairs the gap is a fixed
+#   `NA_ACCORDION_GAP_BETWEEN_PAIRS_MM = 10mm`. This produces the
+#   real-world bifold silhouette where adjacent V pairs are
+#   separated by a thin knuckle-style hinge gap rather than the
+#   wide "ghost panel thickness" the user reported in V1.7.4.
+#   New helper `na_compute_cumulative_hinge_offset_mm` sums the
+#   alternating gaps and is called from
+#   `na_compute_slave_mve_distance_mm`. Layouts didn't need any
+#   change because they already call the helper without an
+#   explicit gap_mm override.
+#
+# 17-May-2026 - Version 1.7.4
+# - Reworked the accordion-fold tuning so the alternating zigzag is
+#   clearly visible across the room without panels intersecting one
+#   another in the open state.
+#   Constants raised:
+#     NA_ACCORDION_TERMINATION_ANGLE_DEG 2.0 -> 5.0 (clearly visible
+#     ~10 deg between adjacent panels - the user reported the V1.7.2
+#     +/- 2 deg alternation read as "all rotated the same way").
+#     NA_ACCORDION_PANEL_GAP_MM stays at 50.0 as a low floor so the
+#     geometric requirement (2*panel_w*sin(angle) + safety) is what
+#     drives the gap for normal panel widths.
+#   Added:
+#     NA_ACCORDION_GAP_SAFETY_MM = 30.0 (visible air gap between
+#     adjacent stacked panels).
+#     na_compute_panel_gap_mm(panel_w_mm, accordion_angle_deg) - new
+#     helper that returns the larger of the floor and the geometric
+#     non-overlap requirement so the alternating tilt never crashes
+#     adjacent far edges into each other regardless of panel width.
+#   na_compute_slave_mve_distance_mm now routes through the adaptive
+#   gap by default. Pre-V1.7.4 the alternating +/- 2 deg tilt with
+#   only 10mm air-gap caused every other adjacent pair to physically
+#   overlap by ~50mm in 3D space - that's the "bunching on top of
+#   each other" the user reported even after the V1.7.2 reload.
+#   For typical 800mm panels at +/- 5 deg the helper yields a
+#   ~170mm gap (220mm hinge spacing) which gives a clean accordion
+#   stack with clearly readable zigzag silhouette.
+#
 # 17-May-2026 - Version 1.7.2
 # - Added accordion-fold helpers `na_compute_panel_rot_degrees` and
 #   `na_compute_slave_mve_distance_mm`. Layout modules now route every
@@ -59,14 +102,19 @@ module Na__GeometryHelpers
     NA_INNER_GLAZING_DEPTH_RATIO        = 0.4                                   # <-- Glazing depth as fraction of panel thickness
     NA_TRACK_DEPTH_PADDING_MM           = 30                                    # <-- Track casing wider than panel thickness
 
-    # Accordion-fold tuning (V1.7.2). The bifold open-state is a
+    # Accordion-fold tuning (V1.7.4). The bifold open-state is a
     # compressed-accordion stack where every panel ends up perpendicular
     # to the wall, offset from its neighbour by the panel thickness + a
-    # small visible gap, and tilted by a small termination angle so the
-    # stack reads as an accordion rather than a flat deck of cards.
+    # visible gap. Adjacent panels tilt away from one another by a small
+    # termination angle so the stack reads as a real accordion zigzag
+    # (panels diverging), not a flat deck of cards or an X-pattern of
+    # crossing far edges. The gap is sized large enough for the chosen
+    # tilt + a typical panel width to clear without bunching.
     NA_ACCORDION_BASE_ROT_DEG           = 90.0                                  # <-- Magnitude of the perpendicular swing
-    NA_ACCORDION_TERMINATION_ANGLE_DEG  = 2.0                                   # <-- Small zigzag tilt either side of perpendicular
-    NA_ACCORDION_PANEL_GAP_MM           = 10.0                                  # <-- Visible gap between adjacent stacked panels
+    NA_ACCORDION_TERMINATION_ANGLE_DEG  = 5.0                                   # <-- Visible zigzag tilt either side of perpendicular; ~10 deg between adjacent panels in a V pair
+    NA_ACCORDION_PANEL_GAP_MM           = 50.0                                  # <-- Within-pair floor gap; geometric requirement (2*sweep + safety) dominates so the V vertex at the far edges stays open by NA_ACCORDION_GAP_SAFETY_MM
+    NA_ACCORDION_GAP_SAFETY_MM          = 30.0                                  # <-- Headroom on top of the geometric body sweep so the V vertex shows a small but visible air gap
+    NA_ACCORDION_GAP_BETWEEN_PAIRS_MM   = 10.0                                  # <-- Fixed air gap between adjacent V pairs at hinge level (V1.7.5; matches a real bifold knuckle hinge spacing)
 
 # endregion -------------------------------------------------------------------
 
@@ -279,16 +327,23 @@ module Na__GeometryHelpers
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Accordion-Fold Math (V1.7.2)
+# REGION | Accordion-Fold Math (V1.7.2 - V1.7.5)
 # -----------------------------------------------------------------------------
 #
-# The bifold OPEN state is a compressed-accordion stack: every panel
-# rotates to (almost) perpendicular to the wall and is X-offset from
-# its master by `slave_pos * (panel_thickness + gap)` so the panels
-# end up sitting next to each other rather than all collapsing onto
-# the master's hinge. Adjacent panels alternate the rotation sign by
-# a small `termination_angle` so the stack reads as a true zigzag
-# concertina rather than a flat deck of cards.
+# The bifold OPEN state is a series of V pairs: adjacent panels
+# rotate to (almost) perpendicular to the wall with an alternating
+# +/- 5 deg termination tilt so two adjacent panels lean towards
+# each other at their far edges, forming a V vertex. Multiple V
+# pairs stack along the cascade.
+#
+# V1.7.5 pair-aware spacing:
+# - Within a V pair (odd slave_pos paired with previous panel):
+#   the hinge spacing uses the ADAPTIVE within-pair gap so the
+#   V vertex at the far edges stays open by the safety margin.
+# - Between adjacent V pairs (even slave_pos starting a new pair):
+#   the hinge spacing uses the FIXED `NA_ACCORDION_GAP_BETWEEN_PAIRS_MM`
+#   (10mm), giving a thin knuckle-style visible gap at the head-track
+#   level that mimics a real bifold knuckle hinge.
 #
 # All three layouts (EqualEqual, AllOneWay, MasterSlaves) call into
 # the helpers below so the contract stays in lockstep across modes.
@@ -317,24 +372,91 @@ module Na__GeometryHelpers
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Resolve the Adaptive Panel Gap (mm)
+    # ------------------------------------------------------------
+    # The geometric "body sweep" of a tilted panel in the open state is
+    # `panel_w * sin(termination_angle)`. With static-pivot animation
+    # adjacent panels alternate the tilt direction, so the worst-case
+    # X-distance between two adjacent far edges is `2 * sweep`. To keep
+    # them visually clear we require the gap to be at least that wide
+    # plus a safety margin. For typical 600-1000mm panels this floors at
+    # NA_ACCORDION_PANEL_GAP_MM; wider panels (1500mm+) auto-scale up.
+    #
+    # @return [Float] effective gap in mm.
+    def self.na_compute_panel_gap_mm(panel_w_mm, accordion_angle_deg = NA_ACCORDION_TERMINATION_ANGLE_DEG)
+        sweep_mm = panel_w_mm.to_f.abs * Math.sin(accordion_angle_deg.to_f * Math::PI / 180.0)
+        required = (2.0 * sweep_mm) + NA_ACCORDION_GAP_SAFETY_MM
+        floor    = NA_ACCORDION_PANEL_GAP_MM.to_f
+        [floor, required].max
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Resolve the Slave's X-Track Translation Distance (Signed mm)
     # ------------------------------------------------------------
-    # The cascade master stays anchored at its jamb (no MVE). Slave k
-    # translates along the wall axis by `k * (panel_w - panel_t - gap)`
-    # so that, after rotating to perpendicular, its hinge lands
-    # `k * (panel_t + gap)` from the master's hinge - leaving exactly
-    # `gap` mm of clear air between adjacent stacked panels.
+    # The cascade master stays anchored at its jamb (no MVE). Slaves move
+    # toward the master along the head-track so that, after rotation,
+    # adjacent panels stack as a series of V pairs separated by a thin
+    # air gap - the real-world bifold concertina silhouette.
+    #
+    # V1.7.5 pair-aware spacing:
+    # - Odd slave_pos (1, 3, 5, ...) is the second panel of a V pair
+    #   (paired with the previous panel). The gap from the previous
+    #   panel uses the adaptive WITHIN-pair gap (`na_compute_panel_gap_mm`)
+    #   sized so the V vertex at the far edges stays open by the safety
+    #   margin (~30mm at +/- 5 deg tilt).
+    # - Even slave_pos (2, 4, 6, ...) starts a new V pair. The gap from
+    #   the previous panel is the BETWEEN-pairs constant
+    #   (`NA_ACCORDION_GAP_BETWEEN_PAIRS_MM` = 10mm), giving a tight
+    #   visible separation at the head-track between adjacent V pairs
+    #   that mimics a real bifold knuckle hinge.
+    #
+    # Hinge-position math: each slave's desired hinge X relative to the
+    # master is the cumulative sum of `panel_thickness + gap(i)` for
+    # i = 1..k, where gap(i) alternates as above. The MVE magnitude is
+    # (initial position) - (desired final position) so the slave is
+    # translated toward the master jamb.
     #
     # The sign is negative for :left cascades (panels travel back to
-    # the LEFT jamb) and positive for :right cascades.
+    # the LEFT jamb) and positive for :right cascades. Callers can
+    # still pass an explicit gap_mm override which forces a uniform
+    # gap (legacy V1.7.2 behaviour).
     #
     # @return [Integer] signed mm-magnitude (0 for the master).
-    def self.na_compute_slave_mve_distance_mm(slave_pos, cascade_direction, panel_w_mm, panel_thickness_mm, gap_mm = NA_ACCORDION_PANEL_GAP_MM)
+    def self.na_compute_slave_mve_distance_mm(slave_pos, cascade_direction, panel_w_mm, panel_thickness_mm, gap_mm = nil)
         k = slave_pos.to_i
         return 0 if k == 0
-        direction_sign = (cascade_direction == :left) ? -1.0 : +1.0
-        magnitude      = k * (panel_w_mm.to_f - panel_thickness_mm.to_f - gap_mm.to_f)
+
+        cumulative_hinge_offset = na_compute_cumulative_hinge_offset_mm(k, panel_w_mm, panel_thickness_mm, gap_mm)
+        magnitude               = (k.to_f * panel_w_mm.to_f) - cumulative_hinge_offset
+        direction_sign          = (cascade_direction == :left) ? -1.0 : +1.0
+
         (direction_sign * magnitude).round.to_i
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Resolve Cumulative Hinge Offset From Master to Slave k
+    # ------------------------------------------------------------
+    # Sums `panel_thickness + gap(i)` for i = 1..k where gap(i) is the
+    # pair-aware alternating gap from V1.7.5 (within-pair adaptive,
+    # between-pairs constant). When the caller forces a uniform `gap_mm`
+    # the helper short-circuits to the legacy V1.7.2 linear formula so
+    # the override stays predictable for any debug/tuning workflow.
+    #
+    # @return [Float] cumulative offset in mm (>= 0).
+    def self.na_compute_cumulative_hinge_offset_mm(k, panel_w_mm, panel_thickness_mm, gap_mm = nil)
+        return 0.0 if k.to_i <= 0
+
+        unless gap_mm.nil?
+            return k.to_i * (panel_thickness_mm.to_f + gap_mm.to_f)
+        end
+
+        within_pair_gap = na_compute_panel_gap_mm(panel_w_mm)
+        cumulative      = 0.0
+        (1..k.to_i).each do |i|
+            gap_i      = i.odd? ? within_pair_gap : NA_ACCORDION_GAP_BETWEEN_PAIRS_MM
+            cumulative += panel_thickness_mm.to_f + gap_i
+        end
+        cumulative
     end
     # ---------------------------------------------------------------
 
