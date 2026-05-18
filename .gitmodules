@@ -1,0 +1,3 @@
+[submodule "Na__MeshTools__BatchedQuadricDecimator__Modules__/01__ExternalDependencies__VersionLocked/01__SketchUpRubyCExtensionExamples__Pinned"]
+	path = Na__MeshTools__BatchedQuadricDecimator__Modules__/01__ExternalDependencies__VersionLocked/01__SketchUpRubyCExtensionExamples__Pinned
+	url  = https://github.com/SketchUp/ruby-c-extension-examples.git

@@ -3,6 +3,26 @@
 
 
 # =============================================================================
+## Batched Quadric Decimator | V0.0.8 - 18-May-2026 - Fix: Add .gitmodules to resolve orphan submodule gitlink
+
+### Context
+The V0.0.6 commit introduced a `160000` gitlink entry for the pinned SketchUp Ruby
+C extension examples directory but no corresponding `.gitmodules` file was ever
+committed. Git 2.41+ (used on GitHub Actions Ubuntu runners) refuses to check out a
+tree containing an orphan gitlink, causing the CI checkout step to fail with exit
+code 128: "No url found for submodule path … in .gitmodules".
+
+### Changes
+- Added `.gitmodules` at the repo root registering the orphan submodule path against
+  `https://github.com/SketchUp/ruby-c-extension-examples.git`.
+- No files are added, removed, or moved — only the missing URL mapping is supplied.
+- CI checkout will now pass. The submodule directory remains empty on the runner
+  because `actions/checkout@v4` defaults to `submodules: false`; the headers are
+  not needed at deploy time.
+
+---
+
+# =============================================================================
 ## Batched Quadric Decimator | V0.0.7 - 13-May-2026 - Native engine promoted and timing stats
 
 ### Context
