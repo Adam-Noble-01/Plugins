@@ -2,6 +2,10 @@
 **/90__AppCache__TempFilesCache/
 **/Na__DataLib__Cache__*.json
 
+# Third-party plugin runtime files
+curic_stretch/config/license.dat
+s4u_slice/s4u_slice.txt
+
 # Custom Archive Directories
 00__Archive/
 01__Archive/
