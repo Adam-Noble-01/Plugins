@@ -1,3 +1,7 @@
+# App Cache - Runtime-generated data, never committed
+**/90__AppCache__TempFilesCache/
+**/Na__DataLib__Cache__*.json
+
 # Custom Archive Directories
 00__Archive/
 01__Archive/
