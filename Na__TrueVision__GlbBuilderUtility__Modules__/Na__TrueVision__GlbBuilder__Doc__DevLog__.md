@@ -8,6 +8,36 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.2.0 - 21-May-2026
+#### Site Boundaries Tag — New Export Category + TagsManager DataLib Integration
+
+**New Export Category: `08__Site__Boundaries`**
+- Added `08__Site__Boundaries` tag to `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json` as a new entry under `07__EnvironmentTags__`.
+- `Glb__ExportRangeNumbers: [8]`, `Glb__ExportFileNameStem: "TrueVision__SiteBoundaries"`, `Storey__ElementExportName: "SiteBoundaries"`.
+- Exports site boundary elements (fences, walls, party walls, boundary markers) as their own pair of `TrueVision__SiteBoundaries__MeshModel__.glb` / `TrueVision__SiteBoundaries__LineworkModel__.glb` files, enabling on/off toggling in the viewer independently of the landscape layer.
+
+**Range Conflict Fix**
+- `07__Landscape` previously claimed `Glb__ExportRangeNumbers: [7, 8, 9]`. Range 8 has been reassigned exclusively to `08__Site__Boundaries` — `07__Landscape` now uses `[7, 9]`.
+- Description of `07__Landscape` updated to remove stale reference to "site boundaries".
+- Hardcoded fallback `TAG_RANGES` in `Na__TrueVision__GlbBuilder__Main__.rb` updated to match: `TrueVision__LandscapeEnvironment => [7, 9]`, `TrueVision__SiteBoundaries => [8]` added.
+- `STOREY_ELEMENT_TAG_MAP` fallback constant updated: `8 => "SiteBoundaries"` (was `"LandscapeEnvironment"`).
+
+**TagsManager — DataLib SSOT Integration**
+- `Na__TrueVision__GlbBuilder__TagsManager__.rb` rewritten to load tag names from the local DataLib SSOT file first (`Na__DataLib__CoreIndex__Tags__.json`) rather than from the separate `Na__TrueVision__GlbBuilder__TagsIndex__.json`.
+- New `Na__TagsManager__LoadLocalDataLibFile` reads the plugins-folder copy directly so tag-creation reflects local edits immediately, without waiting for GitHub fetch or cache expiry.
+- New `Na__TagsManager__BuildTagsFromDataLib` filters entries from the full Tags JSON down to the curated create-eligible subset (prefix ranges 01, 07-09, 10-29, 90-93); excludes `Glb__FullyExcluded: true` non-storey tags.
+- Falls back to DataLib cache / GitHub fetch, then to local `TagsIndex__.json` if all else fails.
+- `Na__TrueVision__GlbBuilder__TagsIndex__.json` updated with `08__Site__Boundaries` entry as a fallback record.
+- `require_relative` for `Na__DataLib__CacheData__` added to TagsManager.
+
+**Files Modified:**
+- `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json`
+- `Na__TrueVision__GlbBuilder__Main__.rb` (TAG_RANGES, STOREY_ELEMENT_TAG_MAP fallbacks)
+- `Na__TrueVision__GlbBuilder__TagsManager__.rb` (DataLib SSOT integration, new helper functions)
+- `Na__TrueVision__GlbBuilder__TagsIndex__.json` (added 08__Site__Boundaries fallback entry)
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.1.2 - 17-May-2026
 #### Read-Only Audit: Door Helper Marker Preservation Confirmed (No Code Change)
 

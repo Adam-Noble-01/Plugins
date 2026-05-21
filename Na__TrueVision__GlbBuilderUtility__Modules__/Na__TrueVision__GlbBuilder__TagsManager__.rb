@@ -10,14 +10,16 @@
 # CREATED    : 2026
 #
 # DESCRIPTION:
-# - Loads the standardised tags index from Na__TrueVision__GlbBuilder__TagsIndex__.json
-# - Parses the JSON and constructs SketchUp tags (layers) in the active model
+# - Loads standardised tag definitions from Na__DataLib__CoreIndex__Tags__.json (SSOT)
+# - Falls back to Na__TrueVision__GlbBuilder__TagsIndex__.json if DataLib is unavailable
+# - Parses tag entries and constructs SketchUp tags (layers) in the active model
 # - Checks for tag existence before attempting creation to avoid duplicates
 # - Wraps creation in a single SketchUp operation for clean undo support
 #
 # =============================================================================
 
 require 'json'                                                                    # <-- JSON parsing for tags index file
+require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module TrueVision3D
     module GlbBuilderUtility
@@ -26,10 +28,131 @@ module TrueVision3D
     # REGION | Tags Manager - Standardised Tag Creation
     # -----------------------------------------------------------------------------
 
+        # MODULE CONSTANTS | Tag Prefix Ranges Eligible for Standardised Creation
+        # ------------------------------------------------------------
+        # Matches the curated TagsIndex subset: orbit, environment, building, storey.
+        # Excludes utility (02-06), linework thickness (03), furniture/context (30-70).
+        # ------------------------------------------------------------
+        NA__TAGS_MANAGER__CREATE_PREFIX_RANGES = [
+            (1..1),
+            (7..9),
+            (10..29),
+            (90..93)
+        ].freeze
+        # ------------------------------------------------------------
+
+
         # HELPER FUNCTION | Resolve Path to Tags Index JSON File
         # ------------------------------------------------------------
         def self.Na__TagsManager__TagsIndexPath
-            File.join(NA_PLUGIN_ROOT, 'Na__TrueVision__GlbBuilder__TagsIndex__.json')  # <-- Path relative to plugin root constant
+            File.join(NA_PLUGIN_ROOT, 'Na__TrueVision__GlbBuilder__TagsIndex__.json')  # <-- Local fallback index
+        end
+        # ---------------------------------------------------------------
+
+
+        # HELPER FUNCTION | Check Tag Prefix Against Standardised Create Ranges
+        # ---------------------------------------------------------------
+        def self.Na__TagsManager__TagEligibleForCreation?(tag_name)
+            tag_match = tag_name.match(/^(\d{2})__/)
+            return false unless tag_match
+
+            tag_number = tag_match[1].to_i
+            NA__TAGS_MANAGER__CREATE_PREFIX_RANGES.any? { |range| range.include?(tag_number) }
+        end
+        # ---------------------------------------------------------------
+
+
+        # HELPER FUNCTION | Build Tag List From DataLib Tags JSON
+        # ---------------------------------------------------------------
+        def self.Na__TagsManager__BuildTagsFromDataLib(tags_data)
+            return nil unless tags_data.is_a?(Hash)
+
+            library         = tags_data['Na__DataLib__CoreIndex__Tags']
+            exclusions      = tags_data['ExportExclusions']
+            fully_excluded  = Array(exclusions && exclusions['FullyExcludedTagNames'])
+            tag_entries     = []
+
+            return nil unless library.is_a?(Hash)
+
+            library.each do |_section_key, section|
+                next unless section.is_a?(Hash)
+
+                section.each do |entry_key, entry|
+                    next unless entry.is_a?(Hash)
+                    next if entry_key == 'Tag__Description'
+
+                    tag_name = entry['Tag__SketchUpName']
+                    next if tag_name.nil? || tag_name.empty?
+                    next unless self.Na__TagsManager__TagEligibleForCreation?(tag_name)
+                    next if fully_excluded.include?(tag_name)
+                    next if entry['Glb__FullyExcluded'] == true && entry['Storey__IsContainer'] != true
+
+                    tag_entries << {
+                        'name'        => tag_name,
+                        'description' => entry['Tag__Description']
+                    }
+                end
+            end
+
+            tag_entries.sort_by! { |entry| entry['name'] }
+            tag_entries
+        end
+        # ---------------------------------------------------------------
+
+
+        # HELPER FUNCTION | Load and Parse Local Tags Index JSON Fallback
+        # ---------------------------------------------------------------
+        def self.Na__TagsManager__LoadLocalTagsIndex
+            index_path = self.Na__TagsManager__TagsIndexPath
+
+            unless File.exist?(index_path)
+                puts "✗ Tags index file not found at: #{index_path}"
+                return nil
+            end
+
+            raw_json = File.read(index_path, encoding: 'UTF-8')
+            parsed   = JSON.parse(raw_json)
+            tags     = parsed['tags']
+            puts "✓ Local tags index loaded: #{tags.length} tags found"
+            tags
+        rescue JSON::ParserError => e
+            puts "✗ Failed to parse local tags index JSON: #{e.message}"
+            nil
+        rescue => e
+            puts "✗ Error loading local tags index: #{e.message}"
+            nil
+        end
+        # ---------------------------------------------------------------
+
+
+        # HELPER FUNCTION | Load Tags From Local DataLib SSOT File
+        # ---------------------------------------------------------------
+        # Reads the plugins-folder copy directly so tag-creation picks up local
+        # edits immediately, without waiting for GitHub fetch or cache expiry.
+        # ---------------------------------------------------------------
+        def self.Na__TagsManager__LoadLocalDataLibFile
+            datalib_path = File.expand_path(
+                '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json',
+                __dir__
+            )
+
+            return nil unless File.exist?(datalib_path)
+
+            parsed = JSON.parse(File.read(datalib_path, encoding: 'UTF-8'))
+            tags   = self.Na__TagsManager__BuildTagsFromDataLib(parsed)
+
+            if tags && !tags.empty?
+                puts "✓ Local DataLib tags index loaded: #{tags.length} tags found"
+                return tags
+            end
+
+            nil
+        rescue JSON::ParserError => e
+            puts "✗ Failed to parse local DataLib tags JSON: #{e.message}"
+            nil
+        rescue => e
+            puts "✗ Error loading local DataLib tags file: #{e.message}"
+            nil
         end
         # ---------------------------------------------------------------
 
@@ -37,26 +160,24 @@ module TrueVision3D
         # HELPER FUNCTION | Load and Parse Tags Index JSON
         # ------------------------------------------------------------
         def self.Na__TagsManager__LoadTagsIndex
-            index_path = self.Na__TagsManager__TagsIndexPath                          # Resolve path to tags index
-
-            unless File.exist?(index_path)
-                puts "✗ Tags index file not found at: #{index_path}"
-                return nil
-            end
+            local_datalib_tags = self.Na__TagsManager__LoadLocalDataLibFile
+            return local_datalib_tags if local_datalib_tags
 
             begin
-                raw_json = File.read(index_path, encoding: 'UTF-8')                   # <-- Read raw JSON text
-                parsed   = JSON.parse(raw_json)                                       # <-- Parse into Ruby hash
-                tags     = parsed['tags']                                              # <-- Extract tags array
-                puts "✓ Tags index loaded: #{tags.length} tags found"
-                tags
-            rescue JSON::ParserError => e
-                puts "✗ Failed to parse tags index JSON: #{e.message}"
-                nil
+                tags_data = Na__DataLib__CacheData.Na__Cache__LoadData(:tags)
+                tags      = self.Na__TagsManager__BuildTagsFromDataLib(tags_data)
+
+                if tags && !tags.empty?
+                    puts "✓ DataLib tags index loaded: #{tags.length} tags found"
+                    return tags
+                end
+
+                puts "  [TagsManager] DataLib tags index empty or unavailable, using local fallback"
             rescue => e
-                puts "✗ Error loading tags index: #{e.message}"
-                nil
+                puts "  [TagsManager] DataLib load failed, using local fallback: #{e.message}"
             end
+
+            self.Na__TagsManager__LoadLocalTagsIndex
         end
         # ---------------------------------------------------------------
 
