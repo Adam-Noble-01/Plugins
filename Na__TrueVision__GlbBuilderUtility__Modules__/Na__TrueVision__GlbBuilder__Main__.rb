@@ -302,7 +302,8 @@ module TrueVision3D
         # ------------------------------------------------------------
         TAG_RANGES = {
             "01__OrbitHelperCube"                           => [1],                   # <-- Camera orbit pivot for Web 3D Viewer App
-            "TrueVision__LandscapeEnvironment"              => (7..9),                # <-- Landscape & Environment
+            "TrueVision__LandscapeEnvironment"              => [7, 9],                # <-- Landscape & Environment (range 8 is now SiteBoundaries)
+            "TrueVision__SiteBoundaries"                    => [8],                   # <-- Site boundaries (fences, walls, site lines)
             "TrueVision__MainBuildingModel__Existing"       => [10],                  # <-- Existing Main Building Flag (whole building in simplified Massing Models)
             "TrueVision__MainBuildingModel__ExistingWalls"  => [11],                  # <-- Existing Building Walls
             "TrueVision__MainBuildingModel__ExistingFloors" => [12],                  # <-- Existing Building Floors
@@ -352,7 +353,7 @@ module TrueVision3D
         }
         STOREY_ELEMENT_TAG_MAP = {
             7  => "LandscapeEnvironment",                                          # <-- Landscape & Environment
-            8  => "LandscapeEnvironment",                                          # <-- Landscape & Environment
+            8  => "SiteBoundaries",                                                # <-- Site boundaries (fences, walls, site lines)
             9  => "LandscapeEnvironment",                                          # <-- Landscape & Environment
             11 => "ExistingWalls",                                                 # <-- Existing Building Walls
             12 => "ExistingFloors",                                                # <-- Existing Building Floors
