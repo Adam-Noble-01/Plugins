@@ -299,7 +299,7 @@ const NA_UI_CONFIG = [
         min     :  0,
         max     :  60,
         step    :  1,
-        default :  20
+        default :  40
     },
     {
         id      :  'top_sash_bottom_rail_mm',
@@ -309,7 +309,7 @@ const NA_UI_CONFIG = [
         min     :  20,
         max     :  500,
         step    :  5,
-        default :  70
+        default :  60
     }
 ];
 

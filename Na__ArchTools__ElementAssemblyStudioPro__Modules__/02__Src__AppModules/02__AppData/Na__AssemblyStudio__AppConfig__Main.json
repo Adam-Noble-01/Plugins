@@ -88,11 +88,11 @@
 
         "windowSystem": {
             "defaults": {
-                "slidingSashOverlapMm"     : 20,
+                "slidingSashOverlapMm"     : 40,
                 "sashHornsEnabled"         : true,
                 "sashHornType"             : 1,
                 "topSashTopRailMm"         : 60,
-                "topSashBottomRailMm"      : 70,
+                "topSashBottomRailMm"      : 60,
                 "slidingSashBottomRailMm"  : 70,
                 "slidingSashLeftStileMm"   : 40,
                 "slidingSashRightStileMm"  : 40,

@@ -22,6 +22,7 @@ module Na__WindowSystem
 
         NA_ASSET_FILE_PREFIX = 'Na__Window__SlidingSash__SashHorn__Type'.freeze
         NA_MM_TO_INCH        = 1.0 / 25.4
+        NA_SOFTEN_ANGLE_RAD  = 22.0 * Math::PI / 180.0
 
         # FUNCTION | Load All Sash Horn Assets for JS Preview Cache
         # ------------------------------------------------------------
@@ -168,9 +169,41 @@ module Na__WindowSystem
             face.reverse! if (face.normal % Y_AXIS) < 0
             face.pushpull(depth, false)
             na_apply_material(group, material)
+            softened_count = na_soften_smooth_edges_below_angle(group, NA_SOFTEN_ANGLE_RAD)
 
-            DebugTools.na_debug_geometry("Created sash horn: #{group_name}")
+            DebugTools.na_debug_geometry("Created sash horn: #{group_name}, softened #{softened_count} edges")
             group
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Soften and Smooth Shallow Profile Edges
+        # ------------------------------------------------------------
+        def self.na_soften_smooth_edges_below_angle(group, angle_threshold_rad)
+            softened_count = 0
+
+            group.entities.grep(Sketchup::Edge).each do |edge|
+                next unless edge && edge.valid?
+                next unless na_edge_angle_below_threshold?(edge, angle_threshold_rad)
+
+                edge.soft = true
+                edge.smooth = true
+                softened_count += 1
+            end
+
+            softened_count
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Check Edge Face Angle Against Threshold
+        # ------------------------------------------------------------
+        def self.na_edge_angle_below_threshold?(edge, angle_threshold_rad)
+            faces = edge.faces
+            return false unless faces.length == 2
+
+            angle = faces[0].normal.angle_between(faces[1].normal)
+            angle <= angle_threshold_rad
+        rescue StandardError
+            false
         end
         # ---------------------------------------------------------------
 

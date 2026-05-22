@@ -176,7 +176,8 @@ const Na_DynamicUI = (function() {
             casement_sizes_individual: true,
             casement_top_rail_mm: 60,
             casement_bottom_rail_mm: 70,
-            top_sash_bottom_rail_mm: 70,
+            sliding_sash_overlap_mm: 40,
+            top_sash_bottom_rail_mm: 60,
             casement_left_stile_mm: 40,
             casement_right_stile_mm: 40
         };

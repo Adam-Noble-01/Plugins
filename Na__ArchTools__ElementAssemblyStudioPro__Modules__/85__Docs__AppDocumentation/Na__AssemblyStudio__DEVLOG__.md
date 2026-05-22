@@ -3,6 +3,55 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.7.8 - 22-May-2026 - Sliding sash horns from JSON assets with softened 3D profiles
+
+### Context
+Sliding sash windows looked too plain because the top sash had no decorative sash horns below its bottom rail. Four front-elevation sash horn JSON profiles already existed in `04__Data__AssetLibrary/Windows__SashHorns__`, but the Window System did not load, preview, persist, build, DXF export, or fuse them.
+
+### Fix
+- Added Window System controls for sash horns:
+  - `sash_horns_enabled`
+  - `sash_horn_type`
+  - `top_sash_bottom_rail_mm`
+- Added a Ruby-fed `NA_SASH_HORN_ASSET_CACHE` so the 2D SVG preview renders the same `Na__Asset__Elevation2D` polygon data used for 3D.
+- Added mirrored left/right sash horn placement under the top sash bottom rail, with the straight outer edge aligned to the outside sash/stile edge where it meets the frame.
+- Added `Na__AssemblyStudio__WindowSystem__SashHornBuilder__.rb` to load the JSON profile, create a face, push/pull it to casement depth, apply frame material, and name groups as `Na_Casement_{panel_id}_SashHorn_Left/Right` so the existing casement fuse pass collects them.
+- Added a final 22-degree soft/smooth edge pass on sash horn groups after extrusion and before fuse, matching the handle-builder approach of removing unwanted internal facet lines while preserving hard silhouette edges.
+- Updated JS and Ruby DXF exporters so exported front elevations include sash horn outlines.
+
+### Sliding Sash Defaults
+Sliding sash mode now seeds realistic casement defaults:
+- Sliding sash overlap: `40mm`
+- Top sash top rail: `60mm`
+- Top sash bottom rail: `60mm`
+- Sliding sash bottom rail: `70mm`
+- Left stile: `40mm`
+- Right stile: `40mm`
+
+### Files Changed (V1.7.8)
+- `02__Src__AppModules/02__AppData/Na__AssemblyStudio__AppConfig__Main.json`
+- `02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Validation__.js`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DxfExporter__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Init__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__SashHornBuilder__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Bridge__.js`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Export__Dxf__.js`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js`
+
+### How to Test
+1. Reload SketchUp so Ruby loads the new sash horn builder.
+2. Open the Window tab and enable `Sliding Sash Window`.
+3. Confirm the controls seed `Sliding Sash Overlap = 40mm` and `Top Sash Bottom Rail = 60mm`.
+4. Cycle sash horn Types 01-04 and confirm the 2D preview updates both mirrored horns.
+5. Create a window and confirm the top sash horns are 3D solids, frame-coloured, softened/smoothed, and fused into the top sash when `Fuse Parts` is enabled.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.7.7 - 18-May-2026 - Bifold accordion phasing v4: outer V vertex gap matched to inner Λ gap (uniform 10mm knuckles)
 
 ### Context
