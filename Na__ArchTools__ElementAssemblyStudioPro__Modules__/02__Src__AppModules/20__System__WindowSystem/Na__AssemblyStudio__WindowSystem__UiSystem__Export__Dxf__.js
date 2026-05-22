@@ -145,6 +145,11 @@ const Na__Export__Dxf = (function() {
         const casBottomRail = useIndividualSizes ? (config.casement_bottom_rail_mm || casementWidth) : casementWidth;
         const casLeftStile = useIndividualSizes ? (config.casement_left_stile_mm || casementWidth) : casementWidth;
         const casRightStile = useIndividualSizes ? (config.casement_right_stile_mm || casementWidth) : casementWidth;
+        const topSashBottomRail = Math.max(0, Number(config.top_sash_bottom_rail_mm || casBottomRail));
+        const sashHornOptions = {
+            enabled: config.sash_horns_enabled !== false,
+            type: config.sash_horn_type || '1'
+        };
 
         const numOpenings = numMullions + 1;
         const innerWidth = width - leftFrameThickness - rightFrameThickness;
@@ -208,10 +213,11 @@ const Na__Export__Dxf = (function() {
                         if (slidingSashWindow) {
                             dxf += na_generateSlidingSashPanelDxf(
                                 panelX, cell.y, panelWidth, cell.height,
-                                casTopRail, casBottomRail, casLeftStile, casRightStile,
+                                casTopRail, casBottomRail, topSashBottomRail, casLeftStile, casRightStile,
                                 hBars, vBars, barWidth, slidingSashOverlap,
                                 { openingIndex: i, cellIndex: cellIndex, panelIndex: p },
-                                removedGlazebars
+                                removedGlazebars,
+                                sashHornOptions
                             );
                         } else {
                             dxf += na_generateCasementDxf(
@@ -323,7 +329,7 @@ const Na__Export__Dxf = (function() {
 
     // FUNCTION | Generate Sliding Sash Panel DXF
     // ------------------------------------------------------------
-    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars) {
+    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, topSashBottomRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions) {
         const sashHeight = height / 2;
         const sashOverlap = Math.max(0, Math.min(overlapMm || 0, sashHeight - 1));
 
@@ -342,7 +348,7 @@ const Na__Export__Dxf = (function() {
         );
         dxf += na_generateCasementDxf(
             x, y + sashHeight, width, sashHeight,
-            topRail, bottomRail, leftStile, rightStile,
+            topRail, topSashBottomRail, leftStile, rightStile,
             hBars, vBars, barWidth,
             {
                 openingIndex: panelContext.openingIndex,
@@ -353,7 +359,36 @@ const Na__Export__Dxf = (function() {
             removedGlazebars
         );
 
+        dxf += na_generateSlidingSashHornDxf(
+            x,
+            y + sashHeight,
+            width,
+            leftStile,
+            rightStile,
+            sashHornOptions
+        );
+
         return dxf;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Sliding Sash Horn DXF Lines
+    // ------------------------------------------------------------
+    function na_generateSlidingSashHornDxf(panelX, topSashBottomY, panelWidth, leftStile, rightStile, sashHornOptions) {
+        if (!sashHornOptions || sashHornOptions.enabled === false) return '';
+        const generator = window.Na__Viewport__SvgGenerator;
+        if (!generator ||
+            typeof generator.na_getSashHornElevationData !== 'function' ||
+            typeof generator.na_buildSashHornLogicalPoints !== 'function') {
+            return '';
+        }
+
+        const data = generator.na_getSashHornElevationData(sashHornOptions.type);
+        if (!data) return '';
+
+        const leftPoints = generator.na_buildSashHornLogicalPoints(data, 'left', panelX, topSashBottomY, panelWidth, leftStile, rightStile);
+        const rightPoints = generator.na_buildSashHornLogicalPoints(data, 'right', panelX, topSashBottomY, panelWidth, leftStile, rightStile);
+        return na_dxfPolygon(leftPoints) + na_dxfPolygon(rightPoints);
     }
     // ---------------------------------------------------------------
 
@@ -440,6 +475,21 @@ const Na__Export__Dxf = (function() {
                `0\nLINE\n8\n0\n10\n${x2}\n20\n${y1}\n11\n${x2}\n21\n${y2}\n` +
                `0\nLINE\n8\n0\n10\n${x2}\n20\n${y2}\n11\n${x1}\n21\n${y2}\n` +
                `0\nLINE\n8\n0\n10\n${x1}\n20\n${y2}\n11\n${x1}\n21\n${y1}\n`;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate DXF Polygon From Logical Points
+    // ------------------------------------------------------------
+    function na_dxfPolygon(points) {
+        if (!Array.isArray(points) || points.length < 3) return '';
+
+        let dxf = '';
+        for (let i = 0; i < points.length; i++) {
+            const start = points[i];
+            const end = points[(i + 1) % points.length];
+            dxf += `0\nLINE\n8\n0\n10\n${start.x}\n20\n${start.y}\n11\n${end.x}\n21\n${end.y}\n`;
+        }
+        return dxf;
     }
     // ---------------------------------------------------------------
     

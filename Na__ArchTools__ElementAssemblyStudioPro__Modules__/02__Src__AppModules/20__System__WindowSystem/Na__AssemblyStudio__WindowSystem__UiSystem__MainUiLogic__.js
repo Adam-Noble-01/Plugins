@@ -137,6 +137,10 @@ const Na_DynamicUI = (function() {
             na_applyTransomDefaultsForCountChange(previousValue, value);
         }
 
+        if (id === 'sliding_sash_window' && normalizedValue === true) {
+            na_applySlidingSashCasementDefaults();
+        }
+
         // Mutual exclusivity between the three door-mode flags. When one
         // mode toggles ON, the other two toggle OFF so the user cannot
         // emit a hybrid window+sliding+bifold artefact. Touching the
@@ -162,6 +166,25 @@ const Na_DynamicUI = (function() {
         }
 
         na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Apply Sliding Sash Casement Defaults
+    // ------------------------------------------------------------
+    function na_applySlidingSashCasementDefaults() {
+        const defaults = {
+            casement_sizes_individual: true,
+            casement_top_rail_mm: 60,
+            casement_bottom_rail_mm: 70,
+            top_sash_bottom_rail_mm: 70,
+            casement_left_stile_mm: 40,
+            casement_right_stile_mm: 40
+        };
+
+        Object.keys(defaults).forEach(controlId => {
+            _config[controlId] = defaults[controlId];
+            na_updateControlValue(controlId, defaults[controlId]);
+        });
     }
     // ---------------------------------------------------------------
 
@@ -208,6 +231,7 @@ const Na_DynamicUI = (function() {
     // ------------------------------------------------------------
     function na_onConfigChange() {
         na_updateSlidingSashOverlapVisibility();
+        na_updateSashHornControlsVisibility();
         na_updateDoorPanelVisibility();
         na_updateSlidingDoorVisibility();
         na_updateMultifoldDoorVisibility();
@@ -312,6 +336,22 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Toggle Sliding Sash Horn Control Visibility
+    // ------------------------------------------------------------
+    function na_updateSashHornControlsVisibility() {
+        const showSashControls =
+            _config.sliding_sash_window === true &&
+            _config.show_casements !== false &&
+            _config.multifold_mode !== true &&
+            _config.sliding_mode !== true;
+
+        ['top_sash_bottom_rail_mm', 'sash_horns_enabled', 'sash_horn_type'].forEach(controlId => {
+            const control = document.querySelector(`[data-control-id="${controlId}"]`);
+            if (control) control.style.display = showSashControls ? '' : 'none';
+        });
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Toggle Door Panel Section Visibility
     // ------------------------------------------------------------
     function na_updateDoorPanelVisibility() {
@@ -407,7 +447,10 @@ const Na_DynamicUI = (function() {
             'transom_1_y_mm',
             'transom_2_y_mm',
             'transom_3_y_mm',
-            'sliding_sash_overlap_mm'                                           // <-- Managed by sliding_sash_window toggle in window mode
+            'sliding_sash_overlap_mm',                                          // <-- Managed by sliding_sash_window toggle in window mode
+            'top_sash_bottom_rail_mm',
+            'sash_horns_enabled',
+            'sash_horn_type'
         ];
 
         alwaysWindowOnlyIds.forEach(id => {
@@ -536,7 +579,9 @@ const Na_DynamicUI = (function() {
         const useIndividualSizes = _config.casement_sizes_individual === true;
         const casTopRail = useIndividualSizes ? (_config.casement_top_rail_mm || casementWidth) : casementWidth;
         const casBottomRail = useIndividualSizes ? (_config.casement_bottom_rail_mm || casementWidth) : casementWidth;
-        const minSingleSashHeight = (_config.show_casements !== false) ? (casTopRail + casBottomRail + 50) : 50;
+        const topSashBottomRail = Number(_config.top_sash_bottom_rail_mm || casBottomRail);
+        const largestBottomRail = Math.max(casBottomRail, topSashBottomRail);
+        const minSingleSashHeight = (_config.show_casements !== false) ? (casTopRail + largestBottomRail + 50) : 50;
 
         if (_config.show_casements !== false && _config.sliding_sash_window === true) {
             return minSingleSashHeight * 2;

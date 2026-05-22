@@ -20,6 +20,7 @@ require_relative 'Na__AssemblyStudio__WindowSystem__GeometryEngine__'
 require_relative 'Na__AssemblyStudio__WindowSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__WindowSystem__DxfExporter__'
 require_relative 'Na__AssemblyStudio__WindowSystem__FuseParts__'
+require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
 
 module Na__AssemblyStudio
     module Na__WindowSystem
@@ -31,6 +32,7 @@ module Na__AssemblyStudio
             GeometryEngine = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryEngine
             DxfExporter    = Na__AssemblyStudio::Na__WindowSystem::Na__DxfExporter
             FuseParts      = Na__AssemblyStudio::Na__WindowSystem::Na__FuseParts
+            SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
             TwoPoint       = Na__AssemblyStudio::Na__MeasurementTools::Na__TwoPointOpeningTool
             PlacementTool  = Na__AssemblyStudio::Na__PlacementTools::Na__WindowPlacementTool
 
@@ -53,6 +55,7 @@ module Na__AssemblyStudio
                     "na_exportDxf"       => proc { |json| na_handle_export_dxf(json) },
                     "na_liveUpdate"      => proc { |json| na_handle_live_update(json) },
                     "na_requestConfig"   => proc { na_send_config_to_dialog },
+                    "na_requestSashHornAssets" => proc { na_send_sash_horn_assets_to_dialog },
                     "na_measureOpening"  => proc { na_handle_measure_opening },
                     "na_keyboard_tab"    => proc { @na_current_placement_tool.na_rotate if @na_current_placement_tool }
                 }
@@ -982,6 +985,14 @@ module Na__AssemblyStudio
             def self.na_send_config_to_dialog
                 payload = @na_config || na_default_config
                 UiBridge.na_execute_json_function(@na_dialog, 'window.na_setInitialConfig', payload)
+            end
+
+            def self.na_send_sash_horn_assets_to_dialog
+                UiBridge.na_execute_json_function(
+                    @na_dialog,
+                    'window.na_receiveSashHornAssets',
+                    SashHornBuilder.na_load_all_assets
+                )
             end
 
         end

@@ -1,0 +1,15 @@
+---
+description: SketchUp Ruby API brittleness — always verify against ruby.sketchup.com before writing any API call.
+globs: "**/*.rb"
+alwaysApply: false
+---
+
+## SketchUp Ruby API — Verify Everything
+The SketchUp Ruby API is nightmarishly brittle. It is **Not Standard Ruby**. Do not assume regular Ruby language principles apply — the SketchUp flavour regularly breaks expectations.
+
+**When in doubt, always check:** https://ruby.sketchup.com/
+This is the **definitive and only trusted source**. Not Stack Overflow. Not memory. Not assumptions.
+
+**Before writing or calling any method:**
+- Confirm it actually exists in the docs.
+- Never invent or assume an API method exists — if you cannot find it at ruby.sketchup.com, it does not exist.

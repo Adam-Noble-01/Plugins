@@ -1,0 +1,50 @@
+---
+description: "This Project: shared DataLib consumption, local asset/cache paths, and portable path rules."
+globs:
+  - "**/Na__ArchTools__ElementAssemblyStudioPro__Modules__/**"
+alwaysApply: false
+---
+
+# This Project | Data, assets, and paths
+
+Applies only to **this project** (`Na__ArchTools__ElementAssemblyStudioPro__Modules__/`).
+
+## Agent instructions
+
+1. **Paths** — In code, comments, and docs, reference locations relative to the SketchUp `Plugins/` folder or to `NA_MODULES_ROOT` / `NA_SRC_DIR` at runtime. Do not hardcode `C:\...` or `/Users/...`.
+2. **Shared standards** — Materials, tags, and edge colours come from the sibling DataLib folder (see below). Never copy or fork those index JSON files into this project.
+3. **This Project-owned data** — Plugin-specific JSON (interior-door assets, AppConfig, UI configs) stays inside this modules tree only.
+4. **Workspace** — `.code-workspace` may use machine-specific absolutes; source must not.
+
+---
+
+### This Project modules root
+`Na__ArchTools__ElementAssemblyStudioPro__Modules__/` — all feature code, HtmlDialog, styles, docs, and plugin-local cache.
+
+### App config & subsystem configs
+See `04-AppConfig-Global-Critical-.mdc`. App-wide JSON: `02__Src__AppModules/02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (includes `assetLibrary` paths and remote URLs).
+
+### This Project brand assets (local)
+`01__AppAssets__ElementAssemblyStudio/` — toolbar icon, Noble logo, project-only PNGs. Do not relocate this project's branding into `Na__Common__PluginDependencies/`.
+
+### This Project asset library (local JSON)
+`04__Data__AssetLibrary/` — interior-door architraves, handles, hinges templates and index. Bucket folder names must match `assetLibrary.interiorDoor.*` in AppConfig.
+
+### This Project DataLib cache (local)
+`90__AppCache__TempFilesCache/` — URL-fetched copies of DataLib indices. Set in `Na__AssemblyStudio.na_init` via `Na__DataLib__CacheData.Na__Cache__SetCacheDirOverride(NA_CACHE_DIR_PATH)`. Cache files are never deleted on fetch failure.
+
+### Shared DataLib (sibling under Plugins)
+`../Na__Common__DataLib__CoreSuEntityStandards/` (relative to this project's modules root: three levels up from `02__Src__AppModules/01__AppCore/`).
+
+Consumed via `require_relative` on `Na__DataLib__CacheData__.rb` and `Na__Cache__LoadData(:materials | :tags | :edge_materials | :components)`.
+
+**This Project consumers:**
+- `MaterialManager` / `EdgeColourManager` — frame and handle finish swatches
+- `TagManager` — tag names, line styles, swing/proposal roles
+- `InteriorDoorSystem` — rotation-pivot tag (`02__DoorHelpers__RotationPivots`)
+
+**Do not** duplicate `Na__DataLib__CoreIndex__*.json` inside this project. Extend the SSOT folder or read through `ConfigLoader` / cache loaders.
+
+### Path resolution pattern
+Resolve `Plugins/` at runtime from `File.dirname(__FILE__)` on the loader or `NA_MODULES_ROOT`, then join sibling folder names — same pattern as `Na__ElementAssemblyStudioPro__Loader.rb` and AppCore `require_relative` paths.
+

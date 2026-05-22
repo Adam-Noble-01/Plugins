@@ -129,7 +129,7 @@ const NA_UI_CONFIG = [
                 min     :  20,
                 max     :  250,
                 step    :  5,
-                default :  65
+                default :  60
             },
             {
                 id      :  'casement_bottom_rail_mm',
@@ -139,7 +139,7 @@ const NA_UI_CONFIG = [
                 min     :  20,
                 max     :  500,
                 step    :  5,
-                default :  65
+                default :  70
             },
             {
                 id      :  'casement_left_stile_mm',
@@ -149,7 +149,7 @@ const NA_UI_CONFIG = [
                 min     :  20,
                 max     :  250,
                 step    :  5,
-                default :  65
+                default :  40
             },
             {
                 id      :  'casement_right_stile_mm',
@@ -159,7 +159,7 @@ const NA_UI_CONFIG = [
                 min     :  20,
                 max     :  250,
                 step    :  5,
-                default :  65
+                default :  40
             }
         ]
     },
@@ -300,6 +300,16 @@ const NA_UI_CONFIG = [
         max     :  60,
         step    :  1,
         default :  20
+    },
+    {
+        id      :  'top_sash_bottom_rail_mm',
+        label   :  'Top Sash Bottom Rail',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  20,
+        max     :  500,
+        step    :  5,
+        default :  70
     }
 ];
 
@@ -439,6 +449,24 @@ const NA_OPTIONS_CONFIG = [
         label   :  'Sliding Sash Window',
         type    :  'toggle',
         default :  false
+    },
+    {
+        id      :  'sash_horns_enabled',
+        label   :  'Show Sash Horns',
+        type    :  'toggle',
+        default :  true
+    },
+    {
+        id      :  'sash_horn_type',
+        label   :  'Sash Horn Type',
+        type    :  'select',
+        default :  '1',
+        options :  [
+            { value: '1', label: 'Type 01' },
+            { value: '2', label: 'Type 02' },
+            { value: '3', label: 'Type 03' },
+            { value: '4', label: 'Type 04' }
+        ]
     },
     {
         id      :  'door_mode',

@@ -31,6 +31,7 @@
 
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
+require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
 
 module Na__AssemblyStudio
 module Na__WindowSystem
@@ -41,6 +42,7 @@ module Na__WindowSystem
 # -----------------------------------------------------------------------------
 
         DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
 
 # endregion -------------------------------------------------------------------
 
@@ -330,6 +332,9 @@ module Na__WindowSystem
             cas_bottom_rail = use_individual_sizes ? (config["casement_bottom_rail_mm"] || casement_width) : casement_width
             cas_left_stile = use_individual_sizes ? (config["casement_left_stile_mm"] || casement_width) : casement_width
             cas_right_stile = use_individual_sizes ? (config["casement_right_stile_mm"] || casement_width) : casement_width
+            top_sash_bottom_rail = (config["top_sash_bottom_rail_mm"] || cas_bottom_rail).to_f
+            sash_horns_enabled = config["sash_horns_enabled"] != false
+            sash_horn_type = config["sash_horn_type"] || "1"
             
             # Calculate openings
             num_openings = num_mullions + 1
@@ -394,10 +399,12 @@ module Na__WindowSystem
                             if sliding_sash_window
                                 entities += na_generate_sliding_sash_panel_dxf(
                                     panel_x, cell[:y], panel_width, cell[:height],
-                                    cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
+                                    cas_top_rail, cas_bottom_rail, top_sash_bottom_rail, cas_left_stile, cas_right_stile,
                                     h_bars, v_bars, bar_width, sliding_sash_overlap,
                                     opening_index: i, cell_index: cell_index, panel_index: p,
-                                    removed_glazebars: removed_glazebars
+                                    removed_glazebars: removed_glazebars,
+                                    sash_horns_enabled: sash_horns_enabled,
+                                    sash_horn_type: sash_horn_type
                                 )
                             else
                                 entities += na_generate_casement_dxf(
@@ -516,7 +523,7 @@ module Na__WindowSystem
         # ------------------------------------------------------------
         # Draws two stacked casements in one panel.
         # Bottom sash is extended by overlap amount to represent weathering tuck-under.
-        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm, opening_index:, cell_index:, panel_index:, removed_glazebars:)
+        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, top_sash_bottom_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm, opening_index:, cell_index:, panel_index:, removed_glazebars:, sash_horns_enabled:, sash_horn_type:)
             dxf = ""
 
             sash_height = height.to_f / 2.0
@@ -534,13 +541,33 @@ module Na__WindowSystem
             # Top sash (drawn second): standard half-height sash.
             dxf += na_generate_casement_dxf(
                 x, y + sash_height, width, sash_height,
-                top_rail, bottom_rail, left_stile, right_stile,
+                top_rail, top_sash_bottom_rail, left_stile, right_stile,
                 h_bars, v_bars, bar_width,
                 opening_index: opening_index, cell_index: cell_index, panel_index: panel_index, sash_index: 0,
                 removed_glazebars: removed_glazebars
             )
 
+            if sash_horns_enabled
+                dxf += na_generate_sash_horn_dxf(
+                    sash_horn_type,
+                    x,
+                    y + sash_height,
+                    width,
+                    left_stile,
+                    right_stile
+                )
+            end
+
             dxf
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Generate Sash Horn DXF Polygons
+        # ------------------------------------------------------------
+        def self.na_generate_sash_horn_dxf(type, panel_x, top_sash_bottom_y, panel_width, left_stile, right_stile)
+            SashHornBuilder.na_build_profiles_mm(type, panel_x, top_sash_bottom_y, panel_width, left_stile, right_stile).map do |profile|
+                na_dxf_polygon(profile[:points], NA_LAYER_CASEMENT)
+            end.join
         end
         # ---------------------------------------------------------------
 
@@ -655,6 +682,20 @@ module Na__WindowSystem
             dxf += na_dxf_line(x2, y1, x2, y2, layer)  # Right
             dxf += na_dxf_line(x2, y2, x1, y2, layer)  # Top
             dxf += na_dxf_line(x1, y2, x1, y1, layer)  # Left
+            dxf
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Generate DXF Polygon
+        # ------------------------------------------------------------
+        def self.na_dxf_polygon(points, layer)
+            return "" unless points.is_a?(Array) && points.length >= 3
+
+            dxf = ""
+            points.each_with_index do |point, index|
+                next_point = points[(index + 1) % points.length]
+                dxf += na_dxf_line(point[:x], point[:z], next_point[:x], next_point[:z], layer)
+            end
             dxf
         end
         # ---------------------------------------------------------------

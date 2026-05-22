@@ -92,6 +92,7 @@
         var useIndividualSizes = config.casement_sizes_individual === true;
         var casTopRail     = useIndividualSizes ? (config.casement_top_rail_mm    || casementWidth) : casementWidth;
         var casBottomRail  = useIndividualSizes ? (config.casement_bottom_rail_mm || casementWidth) : casementWidth;
+        var topSashBottomRail = Number(config.top_sash_bottom_rail_mm || casBottomRail);
         var casLeftStile   = useIndividualSizes ? (config.casement_left_stile_mm  || casementWidth) : casementWidth;
         var casRightStile  = useIndividualSizes ? (config.casement_right_stile_mm || casementWidth) : casementWidth;
 
@@ -114,7 +115,7 @@
             errors.push('Opening too narrow - reduce mullions or increase width');
         }
 
-        var minSingleSashHeight = (casTopRail + casBottomRail) + 50;
+        var minSingleSashHeight = (casTopRail + Math.max(casBottomRail, topSashBottomRail)) + 50;
         var minInnerHeight      = showCasements
             ? (slidingSashWindow ? (minSingleSashHeight * 2) : minSingleSashHeight)
             : 50;

@@ -93,6 +93,22 @@ window.na_setInitialConfig = function(configJson) {
 };
 // ---------------------------------------------------------------
 
+// FUNCTION | Receive Sash Horn Asset Cache From Ruby
+// ------------------------------------------------------------
+window.na_receiveSashHornAssets = function(assetsJson) {
+    try {
+        const assets = JSON.parse(assetsJson);
+        window.NA_SASH_HORN_ASSET_CACHE = assets || {};
+
+        if (typeof Na_DynamicUI !== 'undefined' && typeof Na_Viewport !== 'undefined') {
+            Na_Viewport.na_render(Na_DynamicUI.na_getConfig());
+        }
+    } catch (e) {
+        console.error('[NA_BRIDGE] Error parsing sash horn asset JSON:', e);
+    }
+};
+// ---------------------------------------------------------------
+
 // FUNCTION | Clear Current Window (When Selection is Cleared)
 // ------------------------------------------------------------
 // Called by Ruby when no window is selected. v0.11.6 - Now also
@@ -588,7 +604,25 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Log to Ruby that JS is ready
     na_logToRuby('JavaScript bridge initialized and ready');
+
+    na_requestSashHornAssets();
 });
+// ---------------------------------------------------------------
+
+// FUNCTION | Request Sash Horn Preview Assets From Ruby
+// ------------------------------------------------------------
+function na_requestSashHornAssets(attempt) {
+    const attemptNumber = attempt || 1;
+    if (typeof sketchup !== 'undefined' && typeof sketchup.na_requestSashHornAssets === 'function') {
+        try { sketchup.na_requestSashHornAssets(); }
+        catch (err) { console.warn('[NA_BRIDGE] na_requestSashHornAssets threw:', err); }
+        return;
+    }
+
+    if (attemptNumber < 8) {
+        setTimeout(() => na_requestSashHornAssets(attemptNumber + 1), 100);
+    }
+}
 // ---------------------------------------------------------------
 
 // FUNCTION | Tab Key Interceptor for Placement Mode

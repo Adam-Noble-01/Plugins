@@ -28,6 +28,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
 require_relative 'Na__AssemblyStudio__WindowSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
+require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
 require_relative '../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__PanelInterface__'
 
 module Na__AssemblyStudio
@@ -43,6 +44,7 @@ module Na__WindowSystem
         DataSerializer = Na__AssemblyStudio::Na__WindowSystem::Na__DataSerializer
         GeometryHelpers = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryHelpers
         GeometryBuilders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
+        SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
         # Door panel construction crosses the WindowSystem<->ExteriorSingleDoorSystem
         # contract via the PanelInterface module rather than touching the
         # builder directly.
@@ -444,6 +446,8 @@ module Na__WindowSystem
             casement_depth = (config["casement_depth_mm"] || constants[:default_casement_depth]).to_f * mm_to_inch
             casement_inset = (config["casement_inset_mm"] || constants[:default_casement_inset]).to_f * mm_to_inch
             sliding_sash_overlap = (config["sliding_sash_overlap_mm"] || 20).to_f * mm_to_inch
+            sash_horns_enabled = config["sash_horns_enabled"] != false
+            sash_horn_type = (config["sash_horn_type"] || "1").to_s
             
             # Flags
             show_casements = config["show_casements"] != false
@@ -520,6 +524,7 @@ module Na__WindowSystem
             else
                 cas_top_rail = cas_bottom_rail = cas_left_stile = cas_right_stile = casement_width
             end
+            top_sash_bottom_rail = (config["top_sash_bottom_rail_mm"] || cas_bottom_rail.to_mm).to_f * mm_to_inch
             
             # Calculate opening layout
             num_openings = num_mullions + 1
@@ -547,8 +552,11 @@ module Na__WindowSystem
                 casement_depth: casement_depth,
                 casement_inset: casement_inset,
                 sliding_sash_overlap: sliding_sash_overlap,
+                sash_horns_enabled: sash_horns_enabled,
+                sash_horn_type: sash_horn_type,
                 cas_top_rail: cas_top_rail,
                 cas_bottom_rail: cas_bottom_rail,
+                top_sash_bottom_rail: top_sash_bottom_rail,
                 cas_left_stile: cas_left_stile,
                 cas_right_stile: cas_right_stile,
                 show_casements: show_casements,
@@ -885,6 +893,18 @@ module Na__WindowSystem
                     glass_material
                 )
 
+                if panel_has_casement && params[:sash_horns_enabled]
+                    SashHornBuilder.na_build_sash_horns(
+                        entities,
+                        top_panel_id,
+                        panel_x,
+                        opening_z + sash_height,
+                        panel_width,
+                        params,
+                        frame_material
+                    )
+                end
+
                 na_render_opening_panel_geometry(
                     entities,
                     bottom_panel_id,
@@ -919,16 +939,18 @@ module Na__WindowSystem
                     panel_wall_inset, params, frame_material, glass_material
                 )
             elsif panel_has_casement
+                bottom_rail = na_effective_panel_bottom_rail(sash_index, params)
+
                 GeometryBuilders.na_create_casement_geometry_individual(
                     entities, panel_id, panel_width, panel_height,
-                    params[:cas_top_rail], params[:cas_bottom_rail], params[:cas_left_stile], params[:cas_right_stile],
+                    params[:cas_top_rail], bottom_rail, params[:cas_left_stile], params[:cas_right_stile],
                     params[:casement_depth], panel_x, panel_z, frame_material, panel_wall_inset, params[:casement_inset]
                 )
 
                 glass_offset_x = panel_x + params[:cas_left_stile]
-                glass_offset_z = panel_z + params[:cas_bottom_rail]
+                glass_offset_z = panel_z + bottom_rail
                 glass_w = panel_width - params[:cas_left_stile] - params[:cas_right_stile]
-                glass_h = panel_height - params[:cas_top_rail] - params[:cas_bottom_rail]
+                glass_h = panel_height - params[:cas_top_rail] - bottom_rail
 
                 GeometryBuilders.na_create_glass_geometry(
                     entities, panel_id, glass_w, glass_h, params[:glass_thickness],
@@ -961,6 +983,17 @@ module Na__WindowSystem
                     )
                 end
             end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Resolve Panel Bottom Rail
+        # ------------------------------------------------------------
+        def self.na_effective_panel_bottom_rail(sash_index, params)
+            if params[:sliding_sash_window] && sash_index == 0
+                return params[:top_sash_bottom_rail]
+            end
+
+            params[:cas_bottom_rail]
         end
         # ---------------------------------------------------------------
 

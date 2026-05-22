@@ -1,0 +1,35 @@
+---
+alwaysApply: true
+---
+**Global Naming Convention**
+Noble Architecture code only — use `__` as the segment delimiter.
+
+### Na__
+Modules, filenames, JSON keys, DataLib identifiers.
+
+### Na__AssemblyStudio__
+All plugin source files and nested Ruby modules.
+
+### na_
+Ruby/JS methods, HtmlDialog callbacks, CSS classes, `@na_` ivars.
+
+### NA_
+Ruby constants (paths, tuning, naming contracts).
+
+### Folders
+`NN__Category__Subcategory__/`
+
+### Files
+`Na__AssemblyStudio__<Domain>__<Purpose>__.<ext>` — trailing `__` before extension.
+
+### Ruby
+`Na__AssemblyStudio.na_init`; config via `Na__AssemblyStudio__AppConfig__Main.json` + `Na__ConfigLoader.na_get`.
+
+### JavaScript
+`<script src>` in `Na__AssemblyStudio__UiLayout__.html`; IIFE → `window.Na__<System>__<Role>`; helpers `na_*`.
+
+### Callbacks
+Register `"na_*"`; newer door bridges may use camelCase on `window.sketchup`.
+
+### Element IDs
+`AWN###` / `ADR###` / `MOD###` per `DoorNamingContract` — not client project codes.

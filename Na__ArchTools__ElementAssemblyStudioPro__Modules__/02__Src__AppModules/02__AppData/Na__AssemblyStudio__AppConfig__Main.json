@@ -80,12 +80,22 @@
                 "architraves"   : "InteriorDoor__Architraves__",
                 "handles"       : "InteriorDoor__Handles__",
                 "hinges"        : "InteriorDoor__Hinges__"
+            },
+            "window": {
+                "sashHorns"     : "Windows__SashHorns__"
             }
         },
 
         "windowSystem": {
             "defaults": {
                 "slidingSashOverlapMm"     : 20,
+                "sashHornsEnabled"         : true,
+                "sashHornType"             : 1,
+                "topSashTopRailMm"         : 60,
+                "topSashBottomRailMm"      : 70,
+                "slidingSashBottomRailMm"  : 70,
+                "slidingSashLeftStileMm"   : 40,
+                "slidingSashRightStileMm"  : 40,
                 "doorPanelHeightMm"        : 1850,
                 "doorPanelColumns"         : 1,
                 "doorPanelRows"            : 4,

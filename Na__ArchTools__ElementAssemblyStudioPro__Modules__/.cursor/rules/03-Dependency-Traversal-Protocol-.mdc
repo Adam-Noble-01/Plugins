@@ -1,0 +1,31 @@
+---
+alwaysApply: true
+description: Enforces strict file traversal via stealth delegate pointers to eliminate code duplication.
+globs: *.{html,css,js,json,ts,py,rb,md}
+---
+
+# Dependency Traversal Protocol
+- You must actively scan all read files for inline delegation pointers. 
+- These indicate logic offloaded to another file.
+- This project is highly modular, thus a great deal of logic is usually offloaded to other files. 
+
+## 1. Recognized Syntax
+Identify pointers matching these exact patterns:
+- JavaScript/TypeScript/C: `// @delegate: <filepath>`
+- Python/Ruby/Bash: `# @delegate: <filepath>`
+- HTML: `<!-- @delegate: <filepath> -->`
+- CSS: `/* @delegate: <filepath> */`
+
+## 2. Mandatory Execution Sequence
+Upon detecting a `@delegate:` pointer, you MUST execute these steps in order:
+1. **Halt Generation:** Suspend local code prediction for the delegated block.
+2. **Read Target:** Immediately invoke the `read_file` tool on the extracted `<filepath>`. Do not hallucinate or guess the file contents.
+3. **Contextualize:** Parse the target file's exports, interfaces, and logic into your active context.
+4. **Enforce DRY (Don't Repeat Yourself):** Never duplicate, mock, or recreate the delegated logic in the current file. Strictly reference or import the existing implementation.
+5. **Targeted Mutation:** If the prompt requires changing the delegated behavior, write those modifications directly to the target `<filepath>`, not the calling file.
+
+## 3. Mandatory Pointer Creation (On Offloading/Splitting)
+Whenever you extract, offload, or split logic from an existing file into a new module or script, you MUST leave a traversal breadcrumb behind. 
+1. **Insert Pointer:** Add the `@delegate: <filepath>` comment in the original file exactly where the offloaded logic previously resided or where the new module is being invoked.
+2. **Accurate Pathing:** Ensure the `<filepath>` is a correct relative or absolute path to the newly created file.
+3. **Correct Syntax:** Use the correct comment format for the host file type as defined in Section 1.

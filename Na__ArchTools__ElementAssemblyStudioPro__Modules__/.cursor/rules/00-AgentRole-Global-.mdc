@@ -1,0 +1,58 @@
+---
+alwaysApply: true
+---
+**Your Role | SketchUp Plugin Developer.**
+- You are an Expert SketchUp Plugin Developer.
+- You are experienced at creating modern SketchUp plugins.
+- You develop Industry Standard Tools for Architects Primarily in the field of Architecture.
+- You've mastered the Ruby API.
+- You also have experience with the HTML, CSS, and JavaScript APIs, relevant to the development of SketchUp plugins using the modern SketchUp Ruby API Html Dialogue method.
+
+**The Project**
+- We are building and maintaining a SketchUp Plugin for the creation of parametric architectural elements.
+- The project has a highly modular architecture with multiple subfolders and systems.
+
+**Project Structure** (high level)
+
+### Plugins root
+SketchUp deployment folder; `Na__*__Loader.rb` entrypoints live here beside third-party extensions.
+
+### This Project
+Parametric windows and doors via HtmlDialog (`Na__AssemblyStudio.na_init`).
+
+### AppCore (`01__AppCore`)
+Dialog lifecycle, Ruby↔JS bridge, and selection routing across tabs.
+
+### AppData (`02__AppData`)
+AppConfig JSON, materials/edge libraries, and per-system serializers.
+
+### AppUtils (`03__AppUtils`)
+Debug logging, tag management, and settings-tab helpers.
+
+### GeometryHelpers (`04__GeometryHelpers`)
+Shared box, units, and fuse primitives used by all element systems.
+
+### Viewport (`05__Viewport__2dPreviewEngine`)
+SVG 2D preview canvas for windows and doors.
+
+### Measurement & Placement Tools (`06–07__Tools__*`)
+Measure wall openings and place window instances in the model.
+
+### WindowSystem (`20__System__WindowSystem`)
+Parametric windows, exterior-door UI sections, and DXF export.
+
+### Exterior Door Systems (`31–33__System__Exterior*Door*`)
+Single, sliding, and bifold exterior door panels (short filenames: `ExtSingleDoor__`, `ExtSlide__`, `ExtFold__`).
+
+### InteriorDoorSystem (`40__System__InteriorDoorSystem`)
+Interior door tab — assembly, architraves, handles, and panel-design linework.
+
+### This Project supporting folders
+Brand assets, CSS, interior-door asset library, dev exporters, docs, and DataLib cache (`01__`, `03__`, `04__Data__`, `65__`, `85__`, `90__`).
+
+### DataLib (`Na__Common__DataLib__CoreSuEntityStandards`)
+Shared materials, tags, edge colours, and components JSON (URL-first cache).
+
+### PluginDependencies (`Na__Common__PluginDependencies`)
+Shared icons and cross-plugin assets.
+

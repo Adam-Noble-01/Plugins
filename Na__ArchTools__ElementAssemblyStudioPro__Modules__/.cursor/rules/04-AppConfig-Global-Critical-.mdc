@@ -1,0 +1,36 @@
+---
+alwaysApply: true
+---
+**App Config | Layered Configuration (Critical)**
+
+Do not scatter magic numbers, feature flags, or UI limits across unrelated modules. Use the correct config layer for the scope of the setting.
+
+### App-wide config (JSON)
+`02__Src__AppModules/02__AppData/Na__AssemblyStudio__AppConfig__Main.json`
+
+Cross-cutting settings only: tabs, debug/dev mode, attribute-dictionary rules, measurement callbacks, asset-library paths, DXF layers, theme/preview colours, and per-system *shared* defaults keyed under `windowSystem`, `interiorDoorSystem`, etc.
+
+Ruby access: `Na__ConfigLoader.na_get(...)` / `na_get_or(default, ...)` in `Na__AssemblyStudio__AppData__ConfigLoader__.rb`.
+
+### Subsystem UI config (JS)
+One file per element system, co-located in that system's folder:
+
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js`
+- `31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__UiSystem__Config__.js`
+- `32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__UiSystem__Config__.js`
+- `33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__UiSystem__Config__.js`
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Config__.js`
+
+Control descriptors (labels, min/max, steps, defaults, visibility) belong here—not inlined in MainUiLogic or Ruby.
+
+### Subsystem behaviour defaults (Ruby)
+System-specific geometry and build defaults live in that system's `*__Defaults__.rb` (or `NA_DEFAULT_*` in `*__Init__.rb`), and should align with matching AppConfig keys where they exist.
+
+### Shared standards (external JSON)
+Materials, tags, edge colours, and components: `Na__Common__DataLib__CoreSuEntityStandards/` via `Na__DataLib__CacheData`—never duplicate palettes locally.
+
+### Rules when adding or changing settings
+- App-wide or multi-system → extend `AppConfig__Main.json` + read through `ConfigLoader`.
+- Single-tab UI only → extend that system's `*__UiSystem__Config__.js`.
+- Single-system Ruby geometry/IDs → extend that system's `*__Defaults__.rb` / serializer config; mirror into AppConfig if other layers need the same value.
+- New element system → add all three touchpoints (AppConfig section if shared, `UiSystem__Config__.js`, Ruby defaults) in its `*__System__*` folder.

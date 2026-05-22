@@ -222,6 +222,11 @@ const Na__Viewport__SvgGenerator = (function() {
         const casBottomRail = useIndividualSizes ? (config.casement_bottom_rail_mm || casementWidth) : casementWidth;
         const casLeftStile = useIndividualSizes ? (config.casement_left_stile_mm || casementWidth) : casementWidth;
         const casRightStile = useIndividualSizes ? (config.casement_right_stile_mm || casementWidth) : casementWidth;
+        const topSashBottomRail = Math.max(0, Number(config.top_sash_bottom_rail_mm || casBottomRail));
+        const sashHornOptions = {
+            enabled: config.sash_horns_enabled !== false,
+            type: config.sash_horn_type || '1'
+        };
 
         let svg = '';
         let openingClickTargetsSvg = '';
@@ -288,8 +293,10 @@ const Na__Viewport__SvgGenerator = (function() {
                         casementsPerOpening: casementsPerOpening,
                         casTopRail: casTopRail,
                         casBottomRail: casBottomRail,
+                        topSashBottomRail: topSashBottomRail,
                         casLeftStile: casLeftStile,
                         casRightStile: casRightStile,
+                        sashHornOptions: sashHornOptions,
                         frameColor: frameColor,
                         hBars: hBars,
                         vBars: vBars,
@@ -450,9 +457,9 @@ const Na__Viewport__SvgGenerator = (function() {
                         renderBucket,
                         na_generateSlidingSashPanelSvg(
                             panelX, cell.y, panelWidth, cell.height,
-                            options.casTopRail, options.casBottomRail, options.casLeftStile, options.casRightStile,
+                            options.casTopRail, options.casBottomRail, options.topSashBottomRail, options.casLeftStile, options.casRightStile,
                             options.frameColor, options.hBars, options.vBars, options.barWidth, options.slidingSashOverlap,
-                            panelContext, options.removedGlazebars
+                            panelContext, options.removedGlazebars, options.sashHornOptions
                         )
                     );
                 } else {
@@ -617,11 +624,92 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Resolve Sash Horn Asset From Ruby-Fed Cache
+    // ------------------------------------------------------------
+    function na_getSashHornAsset(type) {
+        const cache = window.NA_SASH_HORN_ASSET_CACHE || {};
+        const typeKey = String(type || '1').replace(/^Type-?0?/i, '');
+        return cache[typeKey] || cache[String(Number(typeKey) || 1)] || null;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Extract Sash Horn Elevation Data
+    // ------------------------------------------------------------
+    function na_getSashHornElevationData(type) {
+        const asset = na_getSashHornAsset(type);
+        const elevation = asset && asset.Na__Asset__Elevation2D;
+        if (!elevation || !Array.isArray(elevation.Na__Geometry__Paths)) return null;
+
+        const polygon = elevation.Na__Geometry__Paths.find(path => {
+            return path && path.PathType === 'Polygon' && Array.isArray(path.Vertices_mm);
+        });
+        const bbox = elevation.Na__Geometry__BoundingBox || {};
+        if (!polygon || polygon.Vertices_mm.length < 3) return null;
+
+        return {
+            vertices: polygon.Vertices_mm,
+            bbox: {
+                minX: Number(bbox.Na__Geometry__MinX_mm || 0),
+                maxX: Number(bbox.Na__Geometry__MaxX_mm || 40),
+                minY: Number(bbox.Na__Geometry__MinY_mm || 0),
+                maxY: Number(bbox.Na__Geometry__MaxY_mm || 70),
+                width: Number(bbox.Na__Geometry__Width_mm || 40)
+            }
+        };
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Logical Sash Horn Polygon Points
+    // ------------------------------------------------------------
+    function na_buildSashHornLogicalPoints(data, side, panelX, topSashBottomY, panelWidth, leftStile, rightStile) {
+        const bbox = data.bbox;
+        const leftOuterX = panelX;
+        const rightOuterX = panelX + panelWidth;
+
+        return data.vertices.map(vertex => {
+            const localX = Number(vertex.X || 0);
+            const localY = Number(vertex.Y || 0);
+            const x = side === 'left'
+                ? leftOuterX + (bbox.maxX - localX)
+                : rightOuterX - bbox.width + (localX - bbox.minX);
+
+            return {
+                x: x,
+                y: topSashBottomY - bbox.maxY + localY
+            };
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Sash Horn SVG Polygon
+    // ------------------------------------------------------------
+    function na_generateSashHornPolygonSvg(points, fill, stroke, strokeWidth) {
+        if (!Array.isArray(points) || points.length < 3) return '';
+        const pointList = points.map(point => `${point.x},${-point.y}`).join(' ');
+        return `<polygon points="${pointList}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Sliding Sash Horns SVG
+    // ------------------------------------------------------------
+    function na_generateSlidingSashHornsSvg(panelX, topSashBottomY, panelWidth, leftStile, rightStile, frameColor, sashHornOptions) {
+        if (!sashHornOptions || sashHornOptions.enabled === false) return '';
+
+        const data = na_getSashHornElevationData(sashHornOptions.type);
+        if (!data) return '';
+
+        const leftPoints = na_buildSashHornLogicalPoints(data, 'left', panelX, topSashBottomY, panelWidth, leftStile, rightStile);
+        const rightPoints = na_buildSashHornLogicalPoints(data, 'right', panelX, topSashBottomY, panelWidth, leftStile, rightStile);
+        return na_generateSashHornPolygonSvg(leftPoints, frameColor, '#000', 0.5) +
+               na_generateSashHornPolygonSvg(rightPoints, frameColor, '#000', 0.5);
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Generate Sliding Sash SVG for One Panel
     // ------------------------------------------------------------
     // Draws top and bottom casements stacked vertically.
     // Bottom sash gets a subtle shading overlay to indicate setback depth.
-    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars) {
+    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions) {
         const renderBucket = na_createSvgRenderBucket();
 
         const sashHeight = height / 2;
@@ -654,7 +742,7 @@ const Na__Viewport__SvgGenerator = (function() {
             renderBucket,
             na_generateSingleCasementSvg(
             x, topSashY, width, sashHeight,
-            topRail, bottomRail, leftStile, rightStile,
+            topRail, topSashBottomRail, leftStile, rightStile,
                 frameColor, hBars, vBars, barWidth,
                 {
                     openingIndex: panelContext.openingIndex,
@@ -664,6 +752,16 @@ const Na__Viewport__SvgGenerator = (function() {
                 },
                 removedGlazebars
             )
+        );
+
+        renderBucket.svg += na_generateSlidingSashHornsSvg(
+            x,
+            topSashY,
+            width,
+            leftStile,
+            rightStile,
+            frameColor,
+            sashHornOptions
         );
 
         return renderBucket;
@@ -1078,6 +1176,8 @@ const Na__Viewport__SvgGenerator = (function() {
         na_generateWindowSvg: na_generateWindowSvg,
         na_generateSingleCasementSvg: na_generateSingleCasementSvg,
         na_generateSlidingSashPanelSvg: na_generateSlidingSashPanelSvg,
+        na_getSashHornElevationData: na_getSashHornElevationData,
+        na_buildSashHornLogicalPoints: na_buildSashHornLogicalPoints,
         na_generateGlazeBarsSvg: na_generateGlazeBarsSvg,
         na_collectValidGlazebarKeys: na_collectValidGlazebarKeys,
         na_getCasementKey: na_getCasementKey,                            // <-- Exposed for cross-module reuse
