@@ -1,0 +1,252 @@
+{
+  "cached_at": 1779344763,
+  "data": {
+    "meta": {
+      "fileName": "Na__DataLib__CoreIndex__Materials__.json",
+      "description": "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
+      "version": "1.0.0",
+      "lastUpdated": "15-Mar-2026",
+      "sourceFiles": [
+        "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
+        "Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json (v1.0.0)"
+      ],
+      "namingConvention": "SketchUpName must match the SketchUp material display_name exactly. Format: MAT{NNN}__{Category}__{Variant}. The prefix MAT + 3 digits + __ is required for the lookup system to recognise a material as indexed.",
+      "indexPattern": "^MAT\\d{3}__",
+      "exemptPrefix": "MAT000E__",
+      "exemptNote": "MAT000E__ materials are included in indexed_only export mode but do NOT receive PBR enrichment from the library.",
+      "defaultMaterial": "MAT001__Default is the reference template showing ALL possible keys with their default values. Other materials only need to specify keys that differ. Omitted keys inherit the default at render time.",
+      "divergenceNote": "Window Configurator (Na__ArchTools__3dWindowConfigTool) maintains a local copy of this library at Na__AppConfig__MaterialsLibrary.json (v1.0.0). That local copy is superseded by this centralised file. The ValeDesignSuite WindowPanelConfigurator uses non-indexed strings 'natural-wood' and 'glass' as ComponentMaterial values - these are not part of the indexed MAT system and require alignment in a future update.",
+      "GitHub__RepoUrl": "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
+      "Data__URL": "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json",
+      "Na__DataLib__SketchUpApiMapping": {
+        "Na__DataLib__SketchUpApiMapping__Purpose": "Developer and agent reference mapping for translating SSOT material keys into SketchUp Ruby API material properties for SketchUp 2026.",
+        "Na__DataLib__SketchUpApiMapping__IdentityAndControl": {
+          "SketchUpName": "Sketchup::Materials#[] lookup key and Sketchup::Materials#add(name) create name. Also stored in Sketchup::Material#name.",
+          "Description": "No direct Sketchup::Material description field. Store in material attribute dictionary metadata.",
+          "IsDefault": "Loader control flag only. If true, skip material build entry."
+        },
+        "Na__DataLib__SketchUpApiMapping__CoreMaterialFields": {
+          "BaseColor": "Sketchup::Material#color= using Sketchup::Color.new(r, g, b).",
+          "Opacity": "Sketchup::Material#alpha= with float range 0.0..1.0."
+        },
+        "Na__DataLib__SketchUpApiMapping__PbrFactorFields": {
+          "PbrRoughness": "Sketchup::Material#roughness_factor= plus roughness_enabled= true when supported.",
+          "PbrMetallic": "Sketchup::Material#metallic_factor= plus metalness_enabled= true when supported.",
+          "NormalScale": "Sketchup::Material#normal_scale= and normal_enabled= true when a normal texture is assigned.",
+          "OcclusionStrength": "Sketchup::Material#ao_strength= and ao_enabled= true when an AO texture is assigned."
+        },
+        "Na__DataLib__SketchUpApiMapping__TextureMapFields": {
+          "TextureMaps.BaseColorUrl": "Sketchup::Material#texture= (base color texture).",
+          "TextureMaps.NormalUrl": "Sketchup::Material#normal_texture=.",
+          "TextureMaps.RoughnessUrl": "Sketchup::Material#roughness_texture=.",
+          "TextureMaps.MetallicUrl": "Sketchup::Material#metallic_texture=.",
+          "TextureMaps.OcclusionUrl": "Sketchup::Material#ao_texture=.",
+          "TextureMaps.EmissiveUrl": "No direct Sketchup::Material emissive texture setter in Ruby API. Store as metadata for downstream renderer translation.",
+          "TextureMaps.AlphaUrl": "No direct alpha-map setter in Sketchup::Material Ruby API. Store as metadata for downstream renderer translation."
+        },
+        "Na__DataLib__SketchUpApiMapping__MetadataOnlyRendererFields": {
+          "Transparent": "Metadata only. SketchUp transparency behaviour is driven by alpha value and texture alpha.",
+          "IsDoubleSided": "Metadata only. Face side rendering is geometry/material assignment dependent, not a direct Sketchup::Material property.",
+          "DepthWrite": "Metadata only for downstream renderer translation.",
+          "AlphaTest": "Metadata only for downstream renderer translation.",
+          "EnvMapIntensity": "Metadata only for downstream renderer translation.",
+          "EmissiveFactor": "Metadata only for downstream renderer translation.",
+          "EmissiveIntensity": "Metadata only for downstream renderer translation."
+        }
+      },
+      "Na__DataLib__UiDefaults": {
+        "Na__DataLib__UiDefaults__FrameFinish": {
+          "Na__DataLib__UiDefaults__FrameFinish__SwatchKeys": [
+            "MAT001__Default",
+            "MAT120__GenericWood",
+            "MAT302__Paint__FarrowAndBall__Wevet",
+            "MAT303__Paint__FarrowAndBall__Mizzle",
+            "MAT301__Paint__FarrowAndBall__Ammonite",
+            "MAT304__Paint__FarrowAndBall__DownPipe"
+          ],
+          "Na__DataLib__UiDefaults__FrameFinish__DefaultSwatchKey": "MAT001__Default",
+          "Na__DataLib__UiDefaults__FrameFinish__SwatchLabels": {
+            "MAT001__Default": "Default",
+            "MAT120__GenericWood": "Generic Wood",
+            "MAT302__Paint__FarrowAndBall__Wevet": "Wevet (F&B 273)",
+            "MAT303__Paint__FarrowAndBall__Mizzle": "Mizzle (F&B 266)",
+            "MAT301__Paint__FarrowAndBall__Ammonite": "Ammonite (F&B 274)",
+            "MAT304__Paint__FarrowAndBall__DownPipe": "Down Pipe (F&B 026)"
+          }
+        },
+        "Na__DataLib__UiDefaults__HandleFinish": {
+          "Na__DataLib__UiDefaults__HandleFinish__SwatchKeys": [
+            "MAT001__Default",
+            "MAT615__Metal__Ironmongery__Chrome",
+            "MAT616__Metal__Ironmongery__BrushedSteel",
+            "MAT614__Metal__Ironmongery__SatinNickel",
+            "MAT612__Metal__Ironmongery__Brass",
+            "MAT613__Metal__Ironmongery__Bronze"
+          ],
+          "Na__DataLib__UiDefaults__HandleFinish__DefaultSwatchKey": "MAT615__Metal__Ironmongery__Chrome",
+          "Na__DataLib__UiDefaults__HandleFinish__SwatchLabels": {
+            "MAT001__Default": "Default",
+            "MAT615__Metal__Ironmongery__Chrome": "Chrome",
+            "MAT616__Metal__Ironmongery__BrushedSteel": "Brushed Steel",
+            "MAT614__Metal__Ironmongery__SatinNickel": "Satin Nickel",
+            "MAT612__Metal__Ironmongery__Brass": "Unlacquered Brass",
+            "MAT613__Metal__Ironmongery__Bronze": "Bronze"
+          }
+        }
+      }
+    },
+    "Na__DataLib__CoreIndex__Materials": {
+      "MAT000__DefaultSeries__": {
+        "MAT001__Default": {
+          "SketchUpName": "__SKETCHUP_DEFAULT__",
+          "Description": "Reference template -- shows ALL possible keys with default values. Other materials only need keys that differ from these.",
+          "IsDefault": true,
+          "BaseColor": "rgb(255, 255, 255)",
+          "Opacity": 1.0,
+          "Transparent": false,
+          "IsDoubleSided": false,
+          "PbrRoughness": 1.0,
+          "PbrMetallic": 0.0,
+          "EmissiveFactor": "rgb(0, 0, 0)",
+          "EmissiveIntensity": 0.0,
+          "NormalScale": 1.0,
+          "OcclusionStrength": 1.0,
+          "AlphaTest": 0.0,
+          "DepthWrite": true,
+          "EnvMapIntensity": 0.0,
+          "TextureMaps": {
+            "BaseColorUrl": null,
+            "NormalUrl": null,
+            "RoughnessUrl": null,
+            "MetallicUrl": null,
+            "EmissiveUrl": null,
+            "OcclusionUrl": null,
+            "AlphaUrl": null
+          }
+        }
+      },
+      "MAT010__ModelingUtilitySeries__": {
+        "MAT010__ModelingUtility__MatCap": {
+          "SketchUpName": "MAT010__ModelingUtility__MatCap",
+          "Description": "Modeling utility matcap-style fill -- neutral grey with moderate metalness and gloss",
+          "BaseColor": "rgb(190, 190, 190)",
+          "PbrRoughness": 0.3,
+          "PbrMetallic": 0.3
+        },
+        "MAT011__ModelingUtility__Transparent": {
+          "SketchUpName": "MAT011__ModelingUtility__Transparent",
+          "Description": "Modeling utility highly transparent red tint for overlays and guides",
+          "BaseColor": "rgb(200, 50, 50)",
+          "Opacity": 0.05,
+          "Transparent": true,
+          "IsDoubleSided": true,
+          "DepthWrite": false
+        }
+      },
+      "MAT100__BasicSeries__": {
+        "MAT101__GenericGlass": {
+          "SketchUpName": "MAT101__Glass__ClearDefault",
+          "Description": "Clear glass pane with slight blue tint",
+          "BaseColor": "rgb(230, 240, 255)",
+          "Opacity": 0.2,
+          "Transparent": true,
+          "IsDoubleSided": true,
+          "PbrRoughness": 0.05,
+          "DepthWrite": false,
+          "EnvMapIntensity": 0.8
+        },
+        "MAT120__GenericWood": {
+          "SketchUpName": "MAT120__Wood__TimberDefault",
+          "Description": "Generic light timber with natural grain",
+          "BaseColor": "rgb(210, 180, 140)",
+          "PbrRoughness": 0.8
+        },
+        "MAT140__GenericMirror": {
+          "SketchUpName": "MAT140__Mirror__ClearDefault",
+          "Description": "Highly reflective mirror surface",
+          "BaseColor": "rgb(240, 240, 240)",
+          "IsDoubleSided": true,
+          "PbrRoughness": 0.0,
+          "PbrMetallic": 1.0,
+          "EnvMapIntensity": 1.0
+        }
+      },
+      "MAT300__PaintSeries__": {
+        "MAT301__Paint__FarrowAndBall__Ammonite": {
+          "SketchUpName": "MAT301__Paint__Farrow&Ball__Ammonite",
+          "Description": "Farrow & Ball Ammonite - warm neutral stone",
+          "BaseColor": "rgb(221, 216, 207)",
+          "PbrRoughness": 0.9
+        },
+        "MAT302__Paint__FarrowAndBall__Wevet": {
+          "SketchUpName": "MAT302__Paint__Farrow&Ball__Wevet",
+          "Description": "Farrow & Ball Wevet - soft warm white",
+          "BaseColor": "rgb(238, 233, 231)",
+          "PbrRoughness": 0.9
+        },
+        "MAT303__Paint__FarrowAndBall__Mizzle": {
+          "SketchUpName": "MAT303__Paint__Farrow&Ball__Mizzle",
+          "Description": "Farrow & Ball Mizzle - muted sage green",
+          "BaseColor": "rgb(192, 194, 179)",
+          "PbrRoughness": 0.9
+        },
+        "MAT304__Paint__FarrowAndBall__DownPipe": {
+          "SketchUpName": "MAT304__Paint__Farrow&Ball__Down Pipe",
+          "Description": "Farrow & Ball Down Pipe - dark charcoal grey",
+          "BaseColor": "rgb(98, 102, 100)",
+          "PbrRoughness": 0.9
+        }
+      },
+      "MAT500__TimberSeries__": {
+        "MAT541__Timber__Sapele": {
+          "SketchUpName": "MAT541__Timber__Sapele",
+          "Description": "Sapele hardwood - warm reddish-brown grain",
+          "BaseColor": "rgb(180, 160, 140)",
+          "PbrRoughness": 0.75
+        }
+      },
+      "MAT600__MetalSeries__": {
+        "MAT612__Metal__Ironmongery__Brass": {
+          "SketchUpName": "MAT612__Metal__Ironmongery__Brass",
+          "Description": "Unlacquered brass ironmongery - warm yellow-gold",
+          "BaseColor": "rgb(192, 174, 138)",
+          "PbrRoughness": 0.35,
+          "PbrMetallic": 0.85,
+          "EnvMapIntensity": 0.7
+        },
+        "MAT613__Metal__Ironmongery__Bronze": {
+          "SketchUpName": "MAT613__Metal__Ironmongery__Bronze",
+          "Description": "Bronze ironmongery - dark warm patina",
+          "BaseColor": "rgb(67, 61, 55)",
+          "PbrRoughness": 0.5,
+          "PbrMetallic": 0.7,
+          "EnvMapIntensity": 0.5
+        },
+        "MAT614__Metal__Ironmongery__SatinNickel": {
+          "SketchUpName": "MAT614__Metal__Ironmongery__SatinNickel",
+          "Description": "Satin nickel ironmongery - cool brushed grey",
+          "BaseColor": "rgb(170, 172, 176)",
+          "PbrRoughness": 0.45,
+          "PbrMetallic": 0.85,
+          "EnvMapIntensity": 0.6
+        },
+        "MAT615__Metal__Ironmongery__Chrome": {
+          "SketchUpName": "MAT615__Metal__Ironmongery__Chrome",
+          "Description": "Polished chrome ironmongery - high gloss reflective silver",
+          "BaseColor": "rgb(205, 210, 214)",
+          "PbrRoughness": 0.1,
+          "PbrMetallic": 1.0,
+          "EnvMapIntensity": 1.0
+        },
+        "MAT616__Metal__Ironmongery__BrushedSteel": {
+          "SketchUpName": "MAT616__Metal__Ironmongery__BrushedSteel",
+          "Description": "Brushed stainless steel ironmongery - matte cool grey",
+          "BaseColor": "rgb(176, 181, 186)",
+          "PbrRoughness": 0.6,
+          "PbrMetallic": 0.85,
+          "EnvMapIntensity": 0.5
+        }
+      }
+    }
+  }
+}
