@@ -116,6 +116,7 @@ Buildings are often logically organized by storey (Ground Floor, First Floor, Se
 
 **If your model has storey containers:**
 - Top-level groups/components tagged with **90__**, **91__**, **92__**, or **93__** are detected as storey containers
+- Multiple root containers using the same storey tag are merged into one logical storey export
 - The exporter looks **inside** each storey container for child entities tagged with element tags (11-15, 21-25, etc.)
 - Each combination of storey + element type is exported as a separate GLB file
 
@@ -149,11 +150,13 @@ When children are nested inside a storey container (90-93), the following child 
 - **Downstream layer control**: 3D web viewer can toggle visibility per storey (dolls house view)
 - **Organized exports**: Each storey's elements exported separately for granular loading
 - **World-space correctness**: Storey container transforms are baked into child geometry for proper positioning
+- **Split-storey support**: Multiple containers for the same storey can be used when a model is organised into separate existing/proposed or work-package groups
 - **Backward compatible**: Non-storey models export identically to previous versions
 - **Nesting support**: MAX_NESTING_DEPTH increased to 4 to support storey container nesting level
 
 ### Technical Details
 - Storey container's `transformation` (position, rotation, scale) is passed to export engine as `parent_transform`
+- Duplicate storey containers are merged by storey name. They should share the same transform; the exporter warns if transforms differ and uses the first container transform for the merged output.
 - Transform chain: `Z_UP_TO_Y_UP * storey.transformation * child.transformation * ...`
 - Children extracted from `storey_entity.definition.entities` (local space) and baked to world space
 - Non-storey root items (OrbitHelperCube, Landscape, Vegetation, etc.) continue to export with standard flat naming

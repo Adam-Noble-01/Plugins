@@ -149,6 +149,57 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Return a Readable Entity Label
+        # ---------------------------------------------------------------
+        def self.Na__Helpers__EntityLabel(entity)
+            if entity.respond_to?(:name) && entity.name && !entity.name.empty?
+                entity.name
+            elsif entity.respond_to?(:definition) && entity.definition
+                entity.definition.name
+            else
+                entity.class.to_s
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Warn if Orbit Helper Export Looks Contaminated
+        # ---------------------------------------------------------------
+        def self.Na__ExportCore__WarnIfOrbitHelperLooksContaminated(entity)
+            suspicious_names = []
+            self.Na__ExportCore__CollectSuspiciousOrbitDescendants(entity, suspicious_names)
+            return if suspicious_names.empty?
+
+            label = self.Na__Helpers__EntityLabel(entity)
+            puts "  WARNING: OrbitHelperCube export candidate '#{label}' contains model-like descendants: #{suspicious_names.first(8).join(', ')}"
+            puts "  WARNING: Check the SketchUp tag assignment. Only the small orbit helper cube should be on '01__OrbitHelperCube'."
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Collect Suspicious Orbit Helper Descendants
+        # ---------------------------------------------------------------
+        def self.Na__ExportCore__CollectSuspiciousOrbitDescendants(entity, suspicious_names, depth = 0)
+            return if depth > MAX_NESTING_DEPTH
+            return unless entity.respond_to?(:definition) && entity.definition
+
+            entity.definition.entities.each do |child|
+                next unless child.respond_to?(:layer)
+
+                child_label = self.Na__Helpers__EntityLabel(child)
+                child_layer = child.layer.name
+                tag_match   = child_layer.match(/^(\d{2})__/)
+                tag_number  = tag_match ? tag_match[1].to_i : nil
+
+                if child_label.start_with?('ADR') || child_label.start_with?('AWN') || (tag_number && tag_number != 1)
+                    suspicious_names << "#{child_label} [#{child_layer}]"
+                end
+
+                if child.is_a?(Sketchup::Group) || child.is_a?(Sketchup::ComponentInstance)
+                    self.Na__ExportCore__CollectSuspiciousOrbitDescendants(child, suspicious_names, depth + 1)
+                end
+            end
+        end
+        # ---------------------------------------------------------------
+
         # HELPER FUNCTION | Extract Project Prefix from SketchUp Filename
         # ---------------------------------------------------------------
         def self.Na__Helpers__ExtractProjectPrefix(model)
@@ -437,6 +488,7 @@ module TrueVision3D
                         tag_groups[group_name] ||= []
                         tag_groups[group_name] << entity
                         puts "  Found entity on layer '#{layer_name}' -> #{group_name}.glb"
+                        self.Na__ExportCore__WarnIfOrbitHelperLooksContaminated(entity) if group_name == "01__OrbitHelperCube"
                         break
                     end
                 end
@@ -468,13 +520,14 @@ module TrueVision3D
         # ---------------------------------------------------------------
         # Scans root-level entities for groups/components tagged with
         # storey tags (90-93). Returns a hash mapping storey names to
-        # their container entities. Returns empty hash if no storeys found.
+        # arrays of container entities, because projects may split a
+        # single storey across multiple root groups.
         #
         # @param model [Sketchup::Model] Active SketchUp model
-        # @return [Hash] { "Storey__GroundFloor" => entity, ... } or {}
+        # @return [Hash] { "Storey__GroundFloor" => [entity, ...], ... } or {}
         # ---------------------------------------------------------------
         def self.Na__ExportCore__DetectStoreyContainers(model)
-            storey_containers = {}                                                 # <-- Storey name => entity mapping
+            storey_containers = {}                                                 # <-- Storey name => [entities] mapping
 
             puts "\n=== Scanning for Storey Containers ==="
 
@@ -494,15 +547,22 @@ module TrueVision3D
                 if active_storey_range.include?(tag_number)
                     storey_name = active_storey_map[tag_number]                   # Look up storey name
                     if storey_name
-                        storey_containers[storey_name] = entity                   # Record storey container
+                        storey_containers[storey_name] ||= []                     # Initialize storey array
+                        storey_containers[storey_name] << entity                  # Record storey container
                         entity_label = entity.name && !entity.name.empty? ? entity.name : layer_name
-                        puts "  ✓ Storey container detected: '#{entity_label}' -> #{storey_name}"
+                        puts "  ✓ Storey container detected: '#{entity_label}' -> #{storey_name} (#{storey_containers[storey_name].length})"
                     end
                 end
             end
 
             if storey_containers.any?
-                puts "  Found #{storey_containers.length} storey container(s)"
+                total_containers = storey_containers.values.map(&:length).sum
+                storey_containers.each do |storey_name, containers|
+                    if containers.length > 1
+                        puts "  WARNING: #{storey_name} has #{containers.length} root containers; exporting them as one merged storey."
+                    end
+                end
+                puts "  Found #{storey_containers.length} storey key(s), #{total_containers} container(s)"
             else
                 puts "  No storey containers found - using flat export mode"
             end
@@ -514,42 +574,48 @@ module TrueVision3D
 
         # FUNCTION | Organize Storey Children by Element Tags
         # ---------------------------------------------------------------
-        # Recurses into a storey container entity and groups its children
-        # by their tag numbers using the storey element tag map. Returns a
-        # hash mapping element names to arrays of child entities.
+        # Recurses into one or more storey container entities and groups
+        # their children by tag numbers using the storey element tag map.
+        # Returns a hash mapping element names to arrays of child entities.
         #
-        # @param storey_entity [Sketchup::Entity] Storey container group/component
-        # @param storey_name   [String]            e.g. "Storey__GroundFloor"
+        # @param storey_entities [Array<Sketchup::Entity>] Storey container groups/components
+        # @param storey_name     [String]                  e.g. "Storey__GroundFloor"
         # @return [Hash] { "ProposedWalls" => [entities...], ... }
         # ---------------------------------------------------------------
-        def self.Na__ExportCore__OrganizeStoreyChildrenByTags(storey_entity, storey_name)
+        def self.Na__ExportCore__OrganizeStoreyChildrenByTags(storey_entities, storey_name)
             element_groups = {}                                                    # <-- Element name => [entities] mapping
+            containers     = Array(storey_entities).compact
 
-            puts "  Organizing children of #{storey_name}..."
+            puts "  Organizing children of #{storey_name} (#{containers.length} container(s))..."
 
-            # Get the definition entities (children inside the storey container)
-            definition = storey_entity.respond_to?(:definition) ? storey_entity.definition : storey_entity
-            child_entities = definition.entities
+            containers.each_with_index do |storey_entity, index|
+                entity_label = self.Na__Helpers__EntityLabel(storey_entity)
+                puts "    Container #{index + 1}: #{entity_label}"
 
-            child_entities.each do |child|
-                next if self.Na__Helpers__EntityExcluded?(child)                        # Skip excluded
-                next unless child.respond_to?(:layer)                              # Skip if no layer
-                next unless child.is_a?(Sketchup::Group) || child.is_a?(Sketchup::ComponentInstance)
+                # Get the definition entities (children inside the storey container)
+                definition = storey_entity.respond_to?(:definition) ? storey_entity.definition : storey_entity
+                child_entities = definition.entities
 
-                child_layer = child.layer.name                                     # Get child tag name
-                tag_match = child_layer.match(/^(\d{2})__/)                       # Match two-digit prefix
-                next unless tag_match                                              # Skip if no tag number
+                child_entities.each do |child|
+                    next if self.Na__Helpers__EntityExcluded?(child)                    # Skip excluded
+                    next unless child.respond_to?(:layer)                          # Skip if no layer
+                    next unless child.is_a?(Sketchup::Group) || child.is_a?(Sketchup::ComponentInstance)
 
-                tag_number = tag_match[1].to_i                                    # Parse tag number
-                active_element_map = self.Na__ExportConfig__StoreyElementTagMap
-                element_name = active_element_map[tag_number]                    # Look up element name
+                    child_layer = child.layer.name                                 # Get child tag name
+                    tag_match = child_layer.match(/^(\d{2})__/)                   # Match two-digit prefix
+                    next unless tag_match                                          # Skip if no tag number
 
-                if element_name
-                    element_groups[element_name] ||= []                           # Initialize array if needed
-                    element_groups[element_name] << child                         # Add child to group
-                    puts "    Found child on layer '#{child_layer}' -> #{storey_name}__#{element_name}"
-                else
-                    puts "    Skipping child on layer '#{child_layer}' (tag #{tag_number} not in storey element map)"
+                    tag_number = tag_match[1].to_i                                # Parse tag number
+                    active_element_map = self.Na__ExportConfig__StoreyElementTagMap
+                    element_name = active_element_map[tag_number]                 # Look up element name
+
+                    if element_name
+                        element_groups[element_name] ||= []                       # Initialize array if needed
+                        element_groups[element_name] << child                     # Add child to group
+                        puts "    Found child on layer '#{child_layer}' -> #{storey_name}__#{element_name}"
+                    else
+                        puts "    Skipping child on layer '#{child_layer}' (tag #{tag_number} not in storey element map)"
+                    end
                 end
             end
 
@@ -558,6 +624,30 @@ module TrueVision3D
 
             puts "  #{storey_name}: #{element_groups.length} element group(s) found"
             element_groups
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Resolve Merged Storey Transform
+        # ---------------------------------------------------------------
+        # Duplicate storey root groups should normally share the same
+        # transform. We use the first transform for the merged export and
+        # warn if subsequent containers differ.
+        # ---------------------------------------------------------------
+        def self.Na__ExportCore__ResolveMergedStoreyTransform(storey_entities, storey_name)
+            containers = Array(storey_entities).compact
+            return nil if containers.empty?
+
+            first_transform = containers.first.transformation
+            first_signature = first_transform.to_a.map { |value| value.to_f.round(6) }
+
+            containers.drop(1).each_with_index do |entity, index|
+                signature = entity.transformation.to_a.map { |value| value.to_f.round(6) }
+                if signature != first_signature
+                    puts "  WARNING: #{storey_name} container #{index + 2} has a different transform; merged export uses container 1 transform."
+                end
+            end
+
+            first_transform
         end
         # ---------------------------------------------------------------
 
@@ -598,9 +688,11 @@ module TrueVision3D
 
                 # Remove any storey-tagged entities that may have been picked up by OrganizeEntitiesByTags
                 # (storey tags 90-93 are not in the export tag ranges so this is a safety check)
-                storey_containers.each do |storey_name, storey_entity|
-                    tag_groups.each do |group_name, entities|
-                        entities.delete(storey_entity)                             # Remove storey entity from flat groups
+                storey_containers.each do |_storey_name, storey_entities|
+                    Array(storey_entities).each do |storey_entity|
+                        tag_groups.each do |_group_name, entities|
+                            entities.delete(storey_entity)                         # Remove storey entity from flat groups
+                        end
                     end
                 end
                 tag_groups.delete_if { |_, entities| entities.length == 0 }        # Clean up empty groups
@@ -643,8 +735,8 @@ module TrueVision3D
             # Show storey items
             storey_export_plan = {}                                                # <-- { storey_name => { element_name => [entities] } }
             if has_storeys
-                storey_containers.each do |storey_name, storey_entity|
-                    element_groups = self.Na__ExportCore__OrganizeStoreyChildrenByTags(storey_entity, storey_name)
+                storey_containers.each do |storey_name, storey_entities|
+                    element_groups = self.Na__ExportCore__OrganizeStoreyChildrenByTags(storey_entities, storey_name)
                     storey_export_plan[storey_name] = element_groups
 
                     element_groups.each do |element_name, entities|
@@ -698,9 +790,10 @@ module TrueVision3D
                     storey_export_plan.each do |storey_name, element_groups|
                         puts "\n--- #{storey_name} ---"
 
-                        # Retrieve the storey container entity and its world-space transform
-                        storey_entity    = storey_containers[storey_name]              # <-- Storey container group/component
-                        storey_transform = storey_entity.transformation                # <-- World-space transform to bake into children
+                        # Retrieve the storey container transform for world-space baking.
+                        # Duplicate containers are merged per storey key.
+                        storey_entities  = storey_containers[storey_name]              # <-- Storey container group(s)/component(s)
+                        storey_transform = self.Na__ExportCore__ResolveMergedStoreyTransform(storey_entities, storey_name)
 
                         element_groups.each do |element_name, entities|
                             base_filename = "#{storey_name}__#{element_name}"

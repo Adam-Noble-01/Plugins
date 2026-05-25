@@ -92,8 +92,10 @@ module TrueVision3D
 
             # Remove storey entities from flat tag_groups for display
             if has_storeys
-                storey_containers.each do |storey_name, storey_entity|
-                    tag_groups.each { |_, entities| entities.delete(storey_entity) }
+                storey_containers.each do |_storey_name, storey_entities|
+                    Array(storey_entities).each do |storey_entity|
+                        tag_groups.each { |_, entities| entities.delete(storey_entity) }
+                    end
                 end
                 tag_groups.delete_if { |_, entities| entities.length == 0 }
             end
@@ -102,8 +104,8 @@ module TrueVision3D
             total_export_count = tag_groups.length
             storey_export_plan = {}
             if has_storeys
-                storey_containers.each do |storey_name, storey_entity|
-                    element_groups = self.Na__ExportCore__OrganizeStoreyChildrenByTags(storey_entity, storey_name)
+                storey_containers.each do |storey_name, storey_entities|
+                    element_groups = self.Na__ExportCore__OrganizeStoreyChildrenByTags(storey_entities, storey_name)
                     storey_export_plan[storey_name] = element_groups
                     total_export_count += element_groups.length
                 end
@@ -277,7 +279,8 @@ module TrueVision3D
             # Storey mode badge (shown when storey containers are detected)
             storey_badge_html = ""
             if has_storeys
-                storey_badge_html = "<div class='storey-badge'><strong>Storey Mode Active:</strong> #{storey_containers.length} storey container(s) detected. Building elements will be exported per-storey.</div>"
+                total_storey_containers = storey_containers.values.map(&:length).sum
+                storey_badge_html = "<div class='storey-badge'><strong>Storey Mode Active:</strong> #{storey_containers.length} storey key(s), #{total_storey_containers} container(s) detected. Duplicate storey containers are merged per-storey.</div>"
             end
             
             html += <<-HTML

@@ -39,7 +39,13 @@ module TrueVision3D
 
         # MODULE CONSTANTS | Door Detection Prefix
         # ------------------------------------------------------------
-        DOOR_ASSEMBLY_PREFIX  = "ADR".freeze                                  # <-- Entity name prefix for door assemblies
+        DOOR_ASSEMBLY_PREFIX      = "ADR".freeze                              # <-- Entity name prefix for door assemblies
+        DOOR_MOD_PREFIX           = "MOD".freeze                              # <-- Moving / animatable panel prefix
+        DOOR_ROT_PREFIX           = "ROT".freeze                              # <-- Rotation pivot marker prefix
+        DOOR_CLOSED_LAYER_NAME    = "Na__Door__Closed".freeze                 # <-- Runtime closed panel tag
+        DOOR_MOD_ROT_TAG          = "__ROT__".freeze                          # <-- Rotation modifier token
+        DOOR_MOD_MVE_TAG          = "__MVE__".freeze                          # <-- Movement modifier token
+        DOOR_MOD_FIXED_TAG        = "__FIXED__".freeze                        # <-- Fixed modifier token
         # ------------------------------------------------------------
 
         # CONSTANT | Y-Up to Z-Up Inverse Conversion Matrix
@@ -95,6 +101,87 @@ module TrueVision3D
             return false unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
             name = Na__DoorHandler__GetEntityName(entity)                     # <-- Resolve entity name
             name.start_with?(DOOR_ASSEMBLY_PREFIX)                            # <-- Check ADR prefix
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Check if Entity is a Door MOD Child
+        # ---------------------------------------------------------------
+        # TrueVision3D consumes MOD nodes directly for click-to-open
+        # animation. Closed-state MOD groups are runtime geometry, even
+        # when their SketchUp display tag is switched off for authoring.
+        #
+        # @param entity [Sketchup::Entity]
+        # @return       [Boolean]
+        # ---------------------------------------------------------------
+        def self.Na__DoorHandler__IsAnimatableMod?(entity)
+            return false unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+
+            name = Na__DoorHandler__GetEntityName(entity)
+            return false unless name.start_with?(DOOR_MOD_PREFIX)
+
+            name.include?(DOOR_MOD_ROT_TAG) ||
+                name.include?(DOOR_MOD_MVE_TAG) ||
+                name.include?(DOOR_MOD_FIXED_TAG)
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Check if Entity is Canonical Closed Runtime MOD
+        # ---------------------------------------------------------------
+        # Allows the exported GLB to include closed door panels when
+        # SketchUp's `Na__Door__Closed` tag is hidden. `Na__Door__Open`
+        # remains excluded through the central ExportExclusions list.
+        #
+        # @param entity [Sketchup::Entity]
+        # @return       [Boolean]
+        # ---------------------------------------------------------------
+        def self.Na__DoorHandler__IsClosedRuntimeMod?(entity)
+            return false unless Na__DoorHandler__IsAnimatableMod?(entity)
+            return false unless entity.respond_to?(:layer) && entity.layer
+
+            entity.layer.name == DOOR_CLOSED_LAYER_NAME
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Check if Direct ADR Child Should Export
+        # ---------------------------------------------------------------
+        # Keeps normal SketchUp visibility for static children, but treats
+        # closed MOD panels as required runtime geometry for TrueVision3D.
+        # Closed runtime MODs bypass `entity.hidden?` and tag-visibility
+        # checks so authoring-time hides (right-click Hide on the panel
+        # group, or hiding the `Na__Door__Closed` tag to preview the open
+        # state) cannot strip required door panels from the GLB.
+        #
+        # @param entity [Sketchup::Entity]
+        # @return       [Boolean]
+        # ---------------------------------------------------------------
+        def self.Na__DoorHandler__ChildExportable?(entity)
+            Na__DoorHandler__ChildExportDecision(entity)[0]                   # <-- Decision boolean only
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Decide Direct ADR Child Export + Reason
+        # ---------------------------------------------------------------
+        # Returns a [Boolean, String] tuple where the string is a short
+        # human-readable reason code suitable for diagnostic logging.
+        # Closed runtime MODs are evaluated first so they always export.
+        #
+        # @param entity [Sketchup::Entity]
+        # @return       [Array(Boolean, String)] [keep?, reason]
+        # ---------------------------------------------------------------
+        def self.Na__DoorHandler__ChildExportDecision(entity)
+            unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+                return [false, "not_group_or_component"]                      # <-- Bare faces/edges handled elsewhere
+            end
+
+            if Na__DoorHandler__IsClosedRuntimeMod?(entity)
+                return [true, "closed_runtime_mod_forced_export"]             # <-- Required door panel, bypass all guards
+            end
+
+            return [false, "entity_hidden_in_sketchup"]    if entity.hidden?
+            return [false, "tag_in_exclusion_list"]        if Na__Helpers__EntityExcluded?(entity)
+            return [false, "tag_visibility_off_at_export"] unless entity.layer.visible?
+
+            [true, "tag_visible_default_path"]
         end
         # ---------------------------------------------------------------
 
@@ -161,7 +248,7 @@ module TrueVision3D
         # @param bin_buffer      [String]      Binary buffer (ASCII-8BIT)
         # ---------------------------------------------------------------
         def self.Na__DoorHandler__ExportDoorAssemblies(door_assemblies, gltf, bin_buffer)
-            puts "\n    [DoorHandler] Exporting #{door_assemblies.length} door assembly(ies)..."
+            puts "\n    [DoorHandler v2.2.2] Exporting #{door_assemblies.length} mesh door assembly(ies)... (closed runtime MOD guard active)"
 
             door_assemblies.each do |door_data|
                 Na__DoorHandler__BuildDoorAssemblyNodes(
@@ -188,7 +275,7 @@ module TrueVision3D
         # @param bin_buffer      [String]      Binary buffer (ASCII-8BIT)
         # ---------------------------------------------------------------
         def self.Na__DoorHandler__ExportDoorLinework(door_assemblies, gltf, bin_buffer)
-            puts "\n    [DoorHandler/Linework] Exporting #{door_assemblies.length} door assembly(ies)..."
+            puts "\n    [DoorHandler/Linework v2.2.2] Exporting #{door_assemblies.length} linework door assembly(ies)... (closed runtime MOD guard active)"
 
             door_assemblies.each do |door_data|
                 Na__DoorHandler__BuildDoorAssemblyNodes(
@@ -221,6 +308,8 @@ module TrueVision3D
             adr_name = Na__DoorHandler__GetEntityName(adr_entity)
             type_label = export_type == :linework ? "Linework" : "Mesh"
             puts "      [DoorHandler/#{type_label}] Building door assembly: #{adr_name}"
+            exported_child_names = []
+            skipped_mod_names    = []
 
             # -------------------------------------------------------
             # ADR node: conjugated accumulated transform
@@ -246,11 +335,20 @@ module TrueVision3D
             # -------------------------------------------------------
             adr_entity.definition.entities.each do |child_entity|
                 next unless child_entity.is_a?(Sketchup::Group) || child_entity.is_a?(Sketchup::ComponentInstance)
-                next if Na__Helpers__EntityExcluded?(child_entity)
-                next if child_entity.hidden?                                  # <-- Skip hidden children
-                next unless child_entity.layer.visible?                       # <-- Skip invisible layers
 
-                child_name = Na__DoorHandler__GetEntityName(child_entity)
+                child_name           = Na__DoorHandler__GetEntityName(child_entity)
+                keep_child, reason   = Na__DoorHandler__ChildExportDecision(child_entity)
+                child_tag_name       = (child_entity.respond_to?(:layer) && child_entity.layer) ? child_entity.layer.name : "(no_layer)"
+                is_animatable_mod    = Na__DoorHandler__IsAnimatableMod?(child_entity)
+
+                unless keep_child
+                    skipped_mod_names << child_name if is_animatable_mod
+                    puts "        [DoorHandler/#{type_label}] SKIP  child='#{child_name}' tag='#{child_tag_name}' reason=#{reason}"
+                    next
+                end
+
+                puts "        [DoorHandler/#{type_label}] KEEP  child='#{child_name}' tag='#{child_tag_name}' reason=#{reason}"
+                exported_child_names << child_name
 
                 # Conjugate child's local SU transform to Y-up
                 child_yup_transform = Na__DoorHandler__ConjugateToYUp(child_entity.transformation)
@@ -267,8 +365,6 @@ module TrueVision3D
                 gltf["nodes"] << child_node
                 adr_node["children"] << child_node_index
 
-                puts "        [DoorHandler/#{type_label}] Child node: #{child_name}"
-
                 # Extract geometry from this child's subtree in Y-up local space
                 if export_type == :linework
                     Na__DoorHandler__ExtractChildLinework(child_entity, child_node_index, gltf, bin_buffer)
@@ -276,6 +372,13 @@ module TrueVision3D
                     Na__DoorHandler__ExtractChildGeometry(child_entity, child_node_index, gltf, bin_buffer)
                 end
             end
+
+            Na__DoorHandler__WarnIfMissingAnimatableMod(
+                adr_name,
+                type_label,
+                exported_child_names,
+                skipped_mod_names
+            )
 
             # Handle bare geometry directly at ADR level (uncommon but possible)
             if export_type == :linework
@@ -285,6 +388,34 @@ module TrueVision3D
             end
 
             puts "      [DoorHandler/#{type_label}] Door assembly complete: #{adr_name}"
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Warn When Door Assembly Cannot Animate
+        # ---------------------------------------------------------------
+        # Emits a focused Ruby Console warning for ADRs that retain their
+        # pivot marker but have no exported MOD child for TrueVision3D.
+        #
+        # @param adr_name             [String]
+        # @param type_label           [String]
+        # @param exported_child_names [Array<String>]
+        # @param skipped_mod_names    [Array<String>]
+        # ---------------------------------------------------------------
+        def self.Na__DoorHandler__WarnIfMissingAnimatableMod(adr_name, type_label, exported_child_names, skipped_mod_names)
+            has_rot = exported_child_names.any? { |name| name.start_with?(DOOR_ROT_PREFIX) }
+            has_mod = exported_child_names.any? do |name|
+                name.start_with?(DOOR_MOD_PREFIX) &&
+                    (name.include?(DOOR_MOD_ROT_TAG) ||
+                     name.include?(DOOR_MOD_MVE_TAG) ||
+                     name.include?(DOOR_MOD_FIXED_TAG))
+            end
+
+            return unless has_rot && !has_mod
+
+            puts "        [DoorHandler/#{type_label}] WARNING: ADR '#{adr_name}' exported with ROT marker but no animatable MOD child."
+            unless skipped_mod_names.empty?
+                puts "        [DoorHandler/#{type_label}] Skipped MOD child(ren): #{skipped_mod_names.join(', ')}"
+            end
         end
         # ---------------------------------------------------------------
 

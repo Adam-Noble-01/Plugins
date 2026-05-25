@@ -8,6 +8,36 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.2.2 - 25-May-2026
+#### Interior Door Closed-State Export Hardening + Per-Child Diagnostics
+
+- **Closed runtime MOD bypasses authoring-time hides**: `Na__DoorHandler__ChildExportable?` (now backed by `Na__DoorHandler__ChildExportDecision`) evaluates `Na__DoorHandler__IsClosedRuntimeMod?` BEFORE `entity.hidden?`, `Na__Helpers__EntityExcluded?`, and `entity.layer.visible?`. Closed door panels (and their nested handles / panel-design subgroups) on the `Na__Door__Closed` tag now export even when the author right-click-hides the panel group while previewing the open state or hides the `Na__Door__Closed` tag entirely.
+- **Per-child KEEP / SKIP log line**: `Na__DoorHandler__BuildDoorAssemblyNodes` now emits one line per direct ADR child showing the child name, its SketchUp tag, and a short reason code (`closed_runtime_mod_forced_export`, `entity_hidden_in_sketchup`, `tag_in_exclusion_list`, `tag_visibility_off_at_export`, `tag_visible_default_path`, `not_group_or_component`). Makes future "missing MOD" failures self-diagnosing from the Ruby Console.
+- **Version banner stamp**: `Na__DoorHandler__ExportDoorAssemblies` and `Na__DoorHandler__ExportDoorLinework` banner lines now print `[DoorHandler v2.2.2]` so a re-export can be verified without inspecting file timestamps.
+
+**Reason for fix:** Interior door ADRs created by Element Assembly Studio Pro tag their closed panel group with `Na__Door__Closed`. Exterior / bifold / sliding doors place their MOD groups on `Layer0` (the default tag), so they never depended on the closed-state guard. Live TrueVision3D scene-graph inspection confirmed the closed MOD was missing from the GLB for every interior door, with no visible MOD child under the ADR in the Three.js tree. The v2.2.1 guard handled the tag-visibility case but still failed if the MOD group itself was hidden via right-click → Hide.
+
+**Files Modified:**
+- `Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__.rb` (closed runtime check hoisted above hidden / exclusion / tag-visibility gates; per-child KEEP/SKIP logging; v2.2.2 banner)
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.2.1 - 25-May-2026
+#### Duplicate Storey Container Merge + Interior Door Export Reliability
+
+- **Duplicate storey container merge**: `Na__ExportCore__DetectStoreyContainers` now records storey containers as `StoreyName => [containers...]` instead of overwriting earlier containers with the same tag. This fixes projects that split a storey across multiple root groups, such as separate `90__Storey__GroundFloor` containers for existing and proposed content.
+- **Merged per-storey child grouping**: `Na__ExportCore__OrganizeStoreyChildrenByTags` now accepts all containers for a storey and merges their child element groups before building `Storey__{Name}__{Element}` GLBs. Proposed interior doors in a second ground-floor container are therefore exported into `Storey__GroundFloor__ProposedDoors` rather than being silently dropped.
+- **Transform diagnostics**: `Na__ExportCore__ResolveMergedStoreyTransform` warns if duplicate containers for the same storey do not share a matching transform. The first transform is used for the merged export, matching the expected same-origin storey-container workflow.
+- **Dialog preview parity**: `Na__TrueVision__GlbBuilder__UserInterface__.rb` now mirrors the merged storey-container data shape, so the export dialog reports storey keys and total containers accurately.
+- **Interior door closed-state export guard**: `Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__.rb` treats `Na__Door__Closed` MOD groups as runtime geometry before global exclusion checks, preserving closed interior door panels and handles while `Na__Door__Open` remains excluded.
+
+**Files Modified:**
+- `Na__TrueVision__GlbBuilder__CoreExport__.rb` (duplicate storey container arrays, merged child grouping, transform warnings)
+- `Na__TrueVision__GlbBuilder__UserInterface__.rb` (dialog preview updated for merged storey containers)
+- `Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__.rb` (closed runtime MOD export guard)
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.2.0 - 21-May-2026
 #### Site Boundaries Tag — New Export Category + TagsManager DataLib Integration
 
