@@ -126,7 +126,7 @@ Buildings are often logically organized by storey (Ground Floor, First Floor, Se
 - `ProjectName__Storey__FirstFloor__ProposedRoofs__MeshModel__.glb`
 
 **If your model has NO storey containers:**
-- The standard flat export system is used (unchanged from previous versions)
+<!-- - The standard flat export system is used (unchanged from previous versions) -->
 - Tag 10, 20, etc. continue to work as before for simple massing models
 - Full backward compatibility with existing workflows
 

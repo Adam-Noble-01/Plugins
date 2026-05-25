@@ -8,7 +8,7 @@
 ## Version History
 
 # ---------------------------------------------------------
-### GLB Builder Utility - Version 2.2.2 - 25-May-2026
+###  
 #### Interior Door Closed-State Export Hardening + Per-Child Diagnostics
 
 - **Closed runtime MOD bypasses authoring-time hides**: `Na__DoorHandler__ChildExportable?` (now backed by `Na__DoorHandler__ChildExportDecision`) evaluates `Na__DoorHandler__IsClosedRuntimeMod?` BEFORE `entity.hidden?`, `Na__Helpers__EntityExcluded?`, and `entity.layer.visible?`. Closed door panels (and their nested handles / panel-design subgroups) on the `Na__Door__Closed` tag now export even when the author right-click-hides the panel group while previewing the open state or hides the `Na__Door__Closed` tag entirely.
