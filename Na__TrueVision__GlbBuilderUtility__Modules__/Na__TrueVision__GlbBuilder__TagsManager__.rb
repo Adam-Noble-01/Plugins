@@ -188,8 +188,6 @@ module TrueVision3D
         # ---------------------------------------------------------------
 
 
-        # FUNCTION | Create Standardised Tags From Index
-        # ------------------------------------------------------------
         # HELPER FUNCTION | Apply Line Style and Edge Colour to a Tag (Layer)
         # ---------------------------------------------------------------
         # Applies Layout__LineStyleName and Layout__EdgeColourRGB from the
@@ -222,6 +220,8 @@ module TrueVision3D
         # ---------------------------------------------------------------
 
         # FUNCTION | Create Standardised Tags From Index
+        # ------------------------------------------------------------
+        def self.Na__TagsManager__CreateStandardisedTags
             model = Sketchup.active_model                                             # Get active model
 
             tags = self.Na__TagsManager__LoadTagsIndex                                # Load tags from JSON index

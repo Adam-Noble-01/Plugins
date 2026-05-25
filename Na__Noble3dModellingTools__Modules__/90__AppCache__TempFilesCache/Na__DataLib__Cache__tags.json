@@ -1,5 +1,5 @@
 {
-  "cached_at": 1779712210,
+  "cached_at": 1779739049,
   "data": {
     "meta": {
       "fileName": "Na__DataLib__CoreIndex__Tags__.json",
@@ -26,6 +26,48 @@
       "Data__URL": "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json"
     },
     "Na__DataLib__CoreIndex__Tags": {
+      "00__ModelFlagTags__": {
+        "Tag__Description": "Model-flag tags that control GLB export behaviour for specific geometry categories. Linework-hidden tags keep mesh geometry but suppress edges in the linework GLB at any nesting depth. Fully-excluded tags are stripped from both mesh and linework GLBs.",
+        "01__ModelFlag__FloorLevelLines": {
+          "Tag__SketchUpName": "01__ModelFlag__FloorLevelLines",
+          "Tag__Description": "Floor level reference lines drawn as construction aids. Mesh geometry on this tag is exported normally; edges are suppressed in the linework GLB at any nesting depth so they do not appear as visible lines in TrueVision3D.",
+          "Glb__ExportRangeNumbers": null,
+          "Glb__FullyExcluded": false,
+          "Glb__LineworkHidden": true,
+          "Layout__LineStyleName": "Dash",
+          "Layout__EdgeColourRGB": [
+            200,
+            50,
+            50
+          ]
+        },
+        "01__ModelFlag__BuildingJoinLines": {
+          "Tag__SketchUpName": "01__ModelFlag__BuildingJoinLines",
+          "Tag__Description": "Building join / party wall reference lines used to mark interfaces between existing and proposed elements. Mesh geometry is exported normally; edges are suppressed in the linework GLB at any nesting depth.",
+          "Glb__ExportRangeNumbers": null,
+          "Glb__FullyExcluded": false,
+          "Glb__LineworkHidden": true,
+          "Layout__LineStyleName": "Dash dot",
+          "Layout__EdgeColourRGB": [
+            200,
+            50,
+            50
+          ]
+        },
+        "01__ModelFlag__ElementsForRemoval": {
+          "Tag__SketchUpName": "01__ModelFlag__ElementsForRemoval",
+          "Tag__Description": "Geometry earmarked for demolition or removal in the proposed scheme. Completely excluded from GLB export — neither mesh nor linework is written to any GLB file.",
+          "Glb__ExportRangeNumbers": null,
+          "Glb__FullyExcluded": true,
+          "Glb__LineworkHidden": false,
+          "Layout__LineStyleName": "Long-dash dash",
+          "Layout__EdgeColourRGB": [
+            180,
+            0,
+            180
+          ]
+        }
+      },
       "00__SystemAndUtilityTags__": {
         "01__OrbitHelperCube": {
           "Tag__SketchUpName": "01__OrbitHelperCube",
@@ -553,9 +595,15 @@
         "00__Util__Linework__ColumnBackers",
         "02__ClearanceLines",
         "02__DoorHelpers__RotationPivots",
-        "Na__Door__Open"
+        "Na__Door__Open",
+        "01__ModelFlag__ElementsForRemoval"
       ],
       "FullyExcludedNote": "Entities on these tags are completely skipped during GLB export at any nesting depth.",
+      "LineworkHiddenTagNames": [
+        "01__ModelFlag__FloorLevelLines",
+        "01__ModelFlag__BuildingJoinLines"
+      ],
+      "LineworkHiddenNote": "Entities on these tags export mesh geometry normally but all edges are suppressed in the linework GLB at any nesting depth. A group or component tagged with one of these names short-circuits the entire subtree from edge collection.",
       "TreatAsUntaggedTagNames": [
         "03__LineThickness__01.00pt",
         "03__LineThickness__00.80pt",
@@ -568,6 +616,17 @@
         "03__LineThickness__00.15pt"
       ],
       "TreatAsUntaggedNote": "Entities on these tags are exported in the GLB but treated as Layer0/Untagged for segmentation. Edge vertex colours (MTE greyscale) are preserved for downstream depth cueing."
+    },
+    "GlbBuilderConfig": {
+      "Description": "Plugin-level runtime config for the TrueVision3D GlbBuilder. Layered: this block is the GitHub-shared default; an optional Na__TrueVision__GlbBuilder__AppConfig__.json in the plugin folder may override individual keys.",
+      "Logging": {
+        "ConsoleVerbose": false,
+        "ConsoleVerboseNote": "When false, all per-entity export messages skip the Sketchup Ruby Console (major speed win). Enable for live debugging only.",
+        "TextFileEnabled": true,
+        "TextFileEnabledNote": "When true, a complete export log is written to the selected export folder alongside the GLB files.",
+        "TextFileNamePattern": "GlbBuilder__ExportLog__%TIMESTAMP%.txt",
+        "TextFileNameNote": "%TIMESTAMP% is expanded to YYYY-MM-DD_HHMMSS at export time."
+      }
     },
     "LineStyleReference": {
       "Description": "Authoritative list of SketchUp Ruby API line style names accepted by Sketchup::Layer#line_style= via Sketchup.active_model.line_styles[name]. Names are CASE SENSITIVE per the official API. Use any value below as a tag's Layout__LineStyleName field to programmatically apply a non-solid line style to that SketchUp tag (layer). Note: this is the ONLY supported way to set tag line styles from Ruby - SketchUp does not expose a freeform stroke pattern API like Layout::Style does, so you are limited to this fixed set of named styles built into the running model. Apply via the TagManager (na_apply_line_style_to_tag) which guards on respond_to? for backwards compatibility.",
