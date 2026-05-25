@@ -1,0 +1,289 @@
+/* ============================================================================= */
+/* NA NOBLE3D MODELLING TOOLS - SELECTED HIERARCHY TAG REPORTER - STYLES       */
+/*                                                                               */
+/* FILE       : Na__Noble3dModellingTools__SelectedHierarchyTagReporter__Styles__.css */
+/* PURPOSE    : Stylesheet content inlined into HtmlDialog layout template       */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens (:root Variables)
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    color-scheme            : light;
+    font-family             : Arial, Helvetica, sans-serif;
+
+    --naEntityTree__ColorBackground   : #eef5fb;
+    --naEntityTree__ColorPanel        : #ffffff;
+    --naEntityTree__ColorBorder       : #c8d8eb;
+    --naEntityTree__ColorText         : #0b1f3a;
+    --naEntityTree__ColorMuted        : #4d6785;
+    --naEntityTree__ColorAccent       : #0f5fa8;
+    --naEntityTree__ColorAccentDark   : #08345f;
+    --naEntityTree__ColorSelected     : #e5f1ff;
+    --naEntityTree__ColorWarning      : #0b4f8a;
+    --naEntityTree__ShadowPanel       : 0 12px 32px rgba(4, 28, 58, 0.14);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout — Document, Shell
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing              : border-box;
+}
+
+body {
+    margin                  : 0;
+    background              : var(--naEntityTree__ColorBackground);
+    color                   : var(--naEntityTree__ColorText);
+}
+
+.naEntityTree__Shell {
+    display                 : flex;
+    flex-direction          : column;
+    min-height              : 100vh;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Header — Eyebrow, Title, Actions, Toggle
+ * ----------------------------------------------------------------------------- */
+
+.naEntityTree__Header {
+    display                 : flex;
+    justify-content         : space-between;
+    gap                     : 16px;
+    padding                 : 18px 22px;
+    background              : var(--naEntityTree__ColorPanel);
+    border-bottom           : 1px solid var(--naEntityTree__ColorBorder);
+}
+
+.naEntityTree__Eyebrow {
+    margin                  : 0 0 5px;
+    color                   : var(--naEntityTree__ColorMuted);
+    font-size               : 11px;
+    font-weight             : 700;
+    letter-spacing          : 0.12em;
+    text-transform          : uppercase;
+}
+
+.naEntityTree__Title {
+    margin                  : 0;
+    font-size               : 24px;
+    line-height             : 1.1;
+}
+
+.naEntityTree__HeaderActions {
+    display                 : flex;
+    align-items             : center;
+}
+
+.naEntityTree__Toggle {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 8px;
+    color                   : var(--naEntityTree__ColorMuted);
+    font-size               : 13px;
+    font-weight             : 700;
+    cursor                  : pointer;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Toolbar And Meta Panel — Action Bar, Summary Cards
+ * ----------------------------------------------------------------------------- */
+
+.naEntityTree__Toolbar,
+.naEntityTree__MetaPanel {
+    display                 : flex;
+    flex-wrap               : wrap;
+    gap                     : 10px;
+    padding                 : 12px 22px;
+    background              : #f5f9ff;
+    border-bottom           : 1px solid var(--naEntityTree__ColorBorder);
+}
+
+.naEntityTree__MetaPanel > div {
+    min-width               : 150px;
+    padding                 : 9px 12px;
+    background              : var(--naEntityTree__ColorPanel);
+    border                  : 1px solid var(--naEntityTree__ColorBorder);
+    border-radius           : 8px;
+}
+
+.naEntityTree__MetaLabel {
+    display                 : block;
+    margin-bottom           : 3px;
+    color                   : var(--naEntityTree__ColorMuted);
+    font-size               : 11px;
+    font-weight             : 700;
+    letter-spacing          : 0.08em;
+    text-transform          : uppercase;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Buttons — Primary, Secondary, Hover
+ * ----------------------------------------------------------------------------- */
+
+.naEntityTree__Button {
+    border                  : 0;
+    border-radius           : 7px;
+    padding                 : 9px 14px;
+    background              : var(--naEntityTree__ColorAccent);
+    color                   : #ffffff;
+    font-weight             : 700;
+    cursor                  : pointer;
+}
+
+.naEntityTree__Button:hover {
+    background              : var(--naEntityTree__ColorAccentDark);
+}
+
+.naEntityTree__Button--secondary {
+    background              : #0b2442;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Main Content — Summary, Tree Host
+ * ----------------------------------------------------------------------------- */
+
+.naEntityTree__Main {
+    flex                    : 1;
+    overflow                : auto;
+    padding                 : 18px 22px 24px;
+}
+
+.naEntityTree__Summary {
+    margin                  : 0 0 14px;
+    color                   : var(--naEntityTree__ColorMuted);
+}
+
+.naEntityTree__TreeHost {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 10px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Tree Nodes — Cards, Variants, Header, Badges, Text
+ * ----------------------------------------------------------------------------- */
+
+.naEntityTree__Node {
+    margin-left             : calc(var(--naEntityTree__Level, 0) * 18px);
+    background              : var(--naEntityTree__ColorPanel);
+    border                  : 1px solid var(--naEntityTree__ColorBorder);
+    border-left             : 5px solid var(--naEntityTree__ColorBorder);
+    border-radius           : 8px;
+    box-shadow              : var(--naEntityTree__ShadowPanel);
+    overflow                : hidden;
+}
+
+.naEntityTree__Node--selected {
+    background              : var(--naEntityTree__ColorSelected);
+    border-left-color       : var(--naEntityTree__ColorAccent);
+}
+
+.naEntityTree__Node--message {
+    color                   : var(--naEntityTree__ColorMuted);
+    box-shadow              : none;
+}
+
+.naEntityTree__NodeHeader {
+    padding                 : 10px 12px;
+}
+
+.naEntityTree__NodeTopLine {
+    display                 : flex;
+    align-items             : center;
+    flex-wrap               : wrap;
+    gap                     : 8px;
+    margin-bottom           : 5px;
+}
+
+.naEntityTree__Badge {
+    display                 : inline-flex;
+    align-items             : center;
+    min-height              : 20px;
+    padding                 : 3px 8px;
+    border-radius           : 999px;
+    background              : #e0ecf8;
+    color                   : var(--naEntityTree__ColorAccentDark);
+    font-size               : 11px;
+    font-weight             : 700;
+}
+
+.naEntityTree__Badge--selected {
+    background              : var(--naEntityTree__ColorAccent);
+    color                   : #ffffff;
+}
+
+.naEntityTree__NodeText {
+    margin                  : 0;
+    font-size               : 13px;
+    line-height             : 1.45;
+}
+
+.naEntityTree__LooseSummary {
+    margin                  : 0;
+    padding                 : 9px 12px;
+    background              : #f2f7fd;
+    border-top              : 1px solid var(--naEntityTree__ColorBorder);
+    color                   : var(--naEntityTree__ColorMuted);
+    font-size               : 12px;
+    line-height             : 1.45;
+}
+
+.naEntityTree__Children {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 10px;
+    padding                 : 0 0 10px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Footer — Status Line And Variants
+ * ----------------------------------------------------------------------------- */
+
+.naEntityTree__Status {
+    margin                  : 0;
+    padding                 : 11px 22px;
+    border-top              : 1px solid var(--naEntityTree__ColorBorder);
+    background              : var(--naEntityTree__ColorPanel);
+    color                   : var(--naEntityTree__ColorMuted);
+    font-size               : 12px;
+}
+
+.naEntityTree__Status--success {
+    color                   : var(--naEntityTree__ColorAccentDark);
+}
+
+.naEntityTree__Status--error {
+    color                   : var(--naEntityTree__ColorWarning);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+/* ============================================================================= */
+/* END OF FILE                                                                   */
+/* ============================================================================= */

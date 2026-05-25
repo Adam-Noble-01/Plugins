@@ -3,6 +3,54 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.4.1 - 25-May-2026 - Entity Tree Reporter Dialog
+
+### Update 01 - Entity Utils Hierarchy Reporter Module
+- Added a new Entity Utils feature module for read-only hierarchy and tag inspection:
+  - `10__PluginModules/11__SourceCode__SelectedHierarchyTagReporter/Na__Noble3dModellingTools__SelectedHierarchyTagReporter__Loader__.rb`
+  - `10__PluginModules/11__SourceCode__SelectedHierarchyTagReporter/Na__Noble3dModellingTools__SelectedHierarchyTagReporter__Run__.rb`
+  - `10__PluginModules/11__SourceCode__SelectedHierarchyTagReporter/Na__Noble3dModellingTools__SelectedHierarchyTagReporter__TreeData__.rb`
+  - `10__PluginModules/11__SourceCode__SelectedHierarchyTagReporter/Na__Noble3dModellingTools__SelectedHierarchyTagReporter__EntityText__.rb`
+  - `10__PluginModules/11__SourceCode__SelectedHierarchyTagReporter/Na__Noble3dModellingTools__SelectedHierarchyTagReporter__ConsoleReport__.rb`
+  - `10__PluginModules/11__SourceCode__SelectedHierarchyTagReporter/Na__Noble3dModellingTools__SelectedHierarchyTagReporter__DialogManager__.rb`
+- Refactored the original selected hierarchy/tag console reporter into small single-purpose modules for data collection, entity text formatting, console output, dialog lifecycle, and command entry.
+- Tree data builder now reports:
+  - active model root and active edit context path,
+  - selected object or multi-selection roots,
+  - nested group/component children,
+  - lowest-level loose geometry type/tag summaries,
+  - recursive component-definition skip notices.
+
+### Update 02 - Dedicated HtmlDialog Tree Viewer
+- Added a self-contained HtmlDialog UI for visual tree traversal:
+  - `10__PluginModules/11__SourceCode__SelectedHierarchyTagReporter/Na__Noble3dModellingTools__SelectedHierarchyTagReporter__UiLayout__.html`
+  - `10__PluginModules/11__SourceCode__SelectedHierarchyTagReporter/Na__Noble3dModellingTools__SelectedHierarchyTagReporter__Styles__.css`
+  - `10__PluginModules/11__SourceCode__SelectedHierarchyTagReporter/Na__Noble3dModellingTools__SelectedHierarchyTagReporter__UiBridge__.js`
+- Added `Selected Only` versus `Include siblings at selected level` reporting mode.
+- Added `Refresh Tree`, `Print Console Report`, and `Copy Tree Markdown` actions.
+- Clipboard export builds Markdown from the current tree data and uses a fallback copy path for older HtmlDialog clipboard behaviour.
+- Reworked coloured UI surfaces to a blue/dark-blue palette.
+- Updated report timestamps to display as `25-May-2026 - 10:55am`.
+
+### Update 03 - Registry, Router, and Loader Wiring
+- Registered the new tool in the JSON-driven UI command registry:
+  - `selected_hierarchy_tag_reporter`
+  - `Entity Utils > Hierarchy Reporting > Entity Tree Reporter`
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+- Routed the handler through:
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+
+### Validation Checklist
+- [x] JSON command registry parses successfully after adding command/button/hotkey entries.
+- [x] JavaScript bridge passes `node --check`.
+- [x] `git diff --check` passes for touched files.
+- [x] IDE diagnostics report no linter errors for the edited reporter UI and data files.
+- [x] Ruby syntax check was skipped because `ruby` is not available on PATH in the current shell.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.4.0 - 15-May-2026 - SSOT Materials/Tags Pipeline + Web Status + Reload Diagnostics
 
 ### Update 01 - Standard Data Cache Wrapper + Reload Purge/Prime

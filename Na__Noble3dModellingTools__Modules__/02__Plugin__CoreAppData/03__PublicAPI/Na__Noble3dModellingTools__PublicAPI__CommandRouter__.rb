@@ -81,6 +81,9 @@ module Na__Noble3dModellingTools
             when 'insert_component_in_place'
                 proc { Na__InsertComponentInPlace.Na__InsertComponentInPlace__Run }
 
+            when 'selected_hierarchy_tag_reporter'
+                proc { Na__SelectedHierarchyTagReporter.Na__SelectedHierarchyTagReporter__Run }
+
             when 'load_modelling_utility_materials'
                 proc { Na__MaterialUtils.Na__MaterialUtils__LoadModelingUtilityMaterials }
 

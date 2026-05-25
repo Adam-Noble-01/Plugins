@@ -144,6 +144,15 @@
             "expose_to_hotkeys" : true
         },
         {
+            "command_id"        : "selected_hierarchy_tag_reporter",
+            "command_name"      : "Na Noble3d - Entity Tree Reporter",
+            "tooltip"           : "Show the selected object hierarchy with tags in a visual tree dialog",
+            "status_bar_text"   : "Open the Entity Tree Reporter",
+            "menu_text"         : "Entity Tree Reporter",
+            "handler_key"       : "selected_hierarchy_tag_reporter",
+            "expose_to_hotkeys" : true
+        },
+        {
             "command_id"        : "load_modelling_utility_materials",
             "command_name"      : "Na Noble3d - Load Modelling Utility Materials",
             "tooltip"           : "Build modelling utility materials from the SSOT materials library",
@@ -346,6 +355,17 @@
             "description"            : "Loads a selected .skp file as a component and inserts it at world identity for Xref-style placement."
         },
         {
+            "button_id"              : "btn_selected_hierarchy_tag_reporter",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Hierarchy Reporting",
+            "tool_group_description" : "Read-only tools for inspecting selected containers, children, loose geometry, and tags.",
+            "tool_group_order"       : 20,
+            "button_order"           : 10,
+            "button_label"           : "Entity Tree Reporter",
+            "command_id"             : "selected_hierarchy_tag_reporter",
+            "description"            : "Opens a visual hierarchy tree for the current selection with tag summaries and optional sibling reporting."
+        },
+        {
             "button_id"              : "btn_load_modelling_utility_materials",
             "tab_name"               : "Material Utils",
             "tool_group_name"        : "Material Library Loading",
@@ -503,6 +523,10 @@
         },
         {
             "command_id"        : "insert_component_in_place",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "selected_hierarchy_tag_reporter",
             "expose_to_hotkeys" : true
         },
         {

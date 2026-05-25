@@ -1,11 +1,11 @@
 {
-  "cached_at": 1779344763,
+  "cached_at": 1779703145,
   "data": {
     "meta": {
       "fileName": "Na__DataLib__CoreIndex__Tags__.json",
       "description": "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout).",
       "version": "2.0.0",
-      "lastUpdated": "15-Mar-2026",
+      "lastUpdated": "21-May-2026",
       "namingConvention": "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
       "fieldPrefixes": {
         "Tag__": "Core SketchUp tag identity (name, description)",
@@ -69,6 +69,12 @@
             0,
             0
           ]
+        },
+        "02__Reference__CadLines__NotUsed": {
+          "Tag__SketchUpName": "02__Reference__CadLines__NotUsed",
+          "Tag__Description": "Cad lines that are not used in the model. Always excluded from GLB export.",
+          "Glb__ExportRangeNumbers": null,
+          "Glb__FullyExcluded": true
         },
         "05__3dModelingUtil__MirrorPlanes": {
           "Tag__SketchUpName": "05__3dModelingUtil__MirrorPlanes",
@@ -189,15 +195,24 @@
       "07__EnvironmentTags__": {
         "07__Landscape": {
           "Tag__SketchUpName": "07__Landscape",
-          "Tag__Description": "Landscape and site context elements including ground surface, planting, paving, and site boundaries.",
+          "Tag__Description": "Landscape and site context elements including ground surface, planting, and paving.",
           "Glb__ExportRangeNumbers": [
             7,
-            8,
             9
           ],
           "Glb__FullyExcluded": false,
           "Glb__ExportFileNameStem": "TrueVision__LandscapeEnvironment",
           "Storey__ElementExportName": "LandscapeEnvironment"
+        },
+        "08__Site__Boundaries": {
+          "Tag__SketchUpName": "08__Site__Boundaries",
+          "Tag__Description": "Site boundary lines exported as GLB, allows for toggling of the boundaries on and off.",
+          "Glb__ExportRangeNumbers": [
+            8
+          ],
+          "Glb__FullyExcluded": false,
+          "Glb__ExportFileNameStem": "TrueVision__SiteBoundaries",
+          "Storey__ElementExportName": "SiteBoundaries"
         }
       },
       "10_19__ExistingBuildingTags__": {
@@ -533,6 +548,7 @@
       "PatternExclusionRegex": "^TrueVision_.*_DoNotExportGLTF$",
       "PatternExclusionNote": "Any tag matching this pattern (TrueVision_{wildcard}_DoNotExportGLTF) is excluded from export at all nesting depths.",
       "FullyExcludedTagNames": [
+        "02__Reference__CadLines__NotUsed",
         "02__Linetype__DoorSwings",
         "00__Util__Linework__ColumnBackers",
         "02__ClearanceLines",

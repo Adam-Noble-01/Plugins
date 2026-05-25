@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<!--
+=============================================================================
+NA NOBLE3D MODELLING TOOLS - SELECTED HIERARCHY TAG REPORTER - UI LAYOUT
+
+FILE       : Na__Noble3dModellingTools__SelectedHierarchyTagReporter__UiLayout__.html
+PURPOSE    : Dedicated HtmlDialog shell for visual entity tree reporting
+=============================================================================
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Entity Tree Reporter</title>
+    <style>
+    {{STYLESHEET_CONTENT}}
+    </style>
+</head>
+<body>
+    <div class="naEntityTree__Shell">
+        <header class="naEntityTree__Header">
+            <div>
+                <p class="naEntityTree__Eyebrow">Na Noble3D Entity Utils</p>
+                <h1 class="naEntityTree__Title">Entity Tree Reporter</h1>
+            </div>
+            <div class="naEntityTree__HeaderActions">
+                <label class="naEntityTree__Toggle">
+                    <input id="naEntityTreeIncludeSiblings" type="checkbox">
+                    <span>Include siblings at selected level</span>
+                </label>
+            </div>
+        </header>
+
+        <section class="naEntityTree__Toolbar">
+            <button id="naEntityTreeRefresh" class="naEntityTree__Button" type="button">Refresh Tree</button>
+            <button id="naEntityTreePrint" class="naEntityTree__Button naEntityTree__Button--secondary" type="button">Print Console Report</button>
+            <button id="naEntityTreeCopyMarkdown" class="naEntityTree__Button naEntityTree__Button--secondary" type="button">Copy Tree Markdown</button>
+        </section>
+
+        <section class="naEntityTree__MetaPanel">
+            <div>
+                <span class="naEntityTree__MetaLabel">Selection</span>
+                <strong id="naEntityTreeSelectionCount">0 item(s)</strong>
+            </div>
+            <div>
+                <span class="naEntityTree__MetaLabel">Mode</span>
+                <strong id="naEntityTreeMode">Selected only</strong>
+            </div>
+            <div>
+                <span class="naEntityTree__MetaLabel">Generated</span>
+                <strong id="naEntityTreeGeneratedAt">n/a</strong>
+            </div>
+        </section>
+
+        <main class="naEntityTree__Main">
+            <p id="naEntityTreeSummary" class="naEntityTree__Summary">Loading hierarchy report...</p>
+            <div id="naEntityTreeHost" class="naEntityTree__TreeHost"></div>
+        </main>
+
+        <footer class="naEntityTree__Footer">
+            <p id="naEntityTreeStatus" class="naEntityTree__Status naEntityTree__Status--info">Ready.</p>
+        </footer>
+    </div>
+
+    <script>
+    window.Na__SelectedHierarchyTagReporter__InitialData = {{REPORT_DATA_JSON}};
+    </script>
+    <script>
+    {{UI_BRIDGE_SCRIPT}}
+    </script>
+</body>
+</html>
