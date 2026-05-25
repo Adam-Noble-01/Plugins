@@ -50,13 +50,12 @@ module TrueVision3D
                 next if Na__Helpers__EntityExcluded?(entity)
 
                 if entity.is_a?(Sketchup::Edge)
-                    # Visibility checks per user specification
                     next if entity.hidden?
                     next if entity.soft?
                     next if entity.smooth?
                     next unless entity.layer.visible?
+                    next if Na__Helpers__LayerLineworkHidden?(entity.layer.name)  # <-- suppress edges on linework-hidden tags
 
-                    # Transform endpoints to world space (Y-up, meters)
                     start_pt = parent_transform * entity.start.position
                     end_pt   = parent_transform * entity.end.position
 
@@ -69,7 +68,6 @@ module TrueVision3D
                         end_pt.z.to_f   * INCHES_TO_METERS
                     )
 
-                    # Edge color from material (default black)
                     col = entity.material ? entity.material.color : Sketchup::Color.new(0, 0, 0)
                     r = col.red   / 255.0
                     g = col.green / 255.0
@@ -81,18 +79,18 @@ module TrueVision3D
                     next if entity.hidden?
                     next unless entity.layer.visible?
                     next if instanced_skip_set && instanced_skip_set.key?(entity.object_id)
+                    next if Na__Helpers__LayerLineworkHidden?(entity.layer.name)  # <-- short-circuit whole subtree on linework-hidden tags
 
                     child_transform = parent_transform * entity.transformation
                     child_layer = (entity.layer.name == "Layer0") ? parent_layer : entity.layer
 
-                    # Door assembly detection: divert ADR-prefixed entities
                     if door_assemblies && Na__DoorHandler__IsDoorAssembly?(entity)
                         door_assemblies << {
                             entity:                entity,
                             accumulated_transform: child_transform
                         }
-                        puts "      [DoorHandler/Linework] Detected door assembly: #{Na__DoorHandler__GetEntityName(entity)}"
-                        next                                                  # <-- Skip normal flattening for this subtree
+                        Na__Log__Puts "      [DoorHandler/Linework] Detected door assembly: #{Na__DoorHandler__GetEntityName(entity)}"
+                        next
                     end
 
                     Na__LineworkEngine__TraverseEdges(entity.definition.entities, child_transform, child_layer, positions, colors, door_assemblies, instanced_skip_set)
@@ -174,16 +172,15 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__LineworkEngine__ExportLineworkToGlb(entities, filepath, parent_transform = nil)
             filepath += GLB_FILE_EXTENSION unless filepath.end_with?(GLB_FILE_EXTENSION)
-            puts "  Using virtual flattening for linework export (same transforms as mesh)..."
+            Na__Log__Puts "  Using virtual flattening for linework export (same transforms as mesh)..."
 
             begin
-                positions        = []
-                colors           = []
-                door_assemblies  = []                                         # <-- Collects ADR door assemblies during traversal
-                root_transform   = parent_transform ? Z_UP_TO_Y_UP_MATRIX * parent_transform : Z_UP_TO_Y_UP_MATRIX  # <-- Include parent (e.g. storey) transform when present
-                entity_count     = 0
+                positions       = []
+                colors          = []
+                door_assemblies = []
+                root_transform  = parent_transform ? Z_UP_TO_Y_UP_MATRIX * parent_transform : Z_UP_TO_Y_UP_MATRIX
+                entity_count    = 0
 
-                # Recursive pre-scan for instanced ComponentDefinitions (same scan as mesh export)
                 instanced_groups, instanced_skip_set = Na__Instancing__ScanForInstancedDefinitions(entities, root_transform)
 
                 entities.each do |entity|
@@ -191,22 +188,22 @@ module TrueVision3D
 
                     if entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
                         next if instanced_skip_set.key?(entity.object_id)
+                        next if Na__Helpers__LayerLineworkHidden?(entity.layer.name)  # <-- short-circuit whole subtree on linework-hidden tags
 
-                        entity_count += 1
-                        entity_name = Na__GlbEngine__SanitizeEntityName(entity)
-                        puts "    Traversing linework: #{entity_name}..."
+                        entity_count  += 1
+                        entity_name    = Na__GlbEngine__SanitizeEntityName(entity)
+                        Na__Log__Puts "    Traversing linework: #{entity_name}..."
 
                         accumulated_transform = root_transform * entity.transformation
-                        entity_layer = entity.layer
+                        entity_layer          = entity.layer
 
-                        # Check if this top-level entity itself is a door assembly
                         if Na__DoorHandler__IsDoorAssembly?(entity)
                             door_assemblies << {
                                 entity:                entity,
                                 accumulated_transform: accumulated_transform
                             }
-                            puts "      [DoorHandler/Linework] Detected top-level door assembly: #{entity_name}"
-                            next                                              # <-- Skip traversal, door handler will process it
+                            Na__Log__Puts "      [DoorHandler/Linework] Detected top-level door assembly: #{entity_name}"
+                            next
                         end
 
                         Na__LineworkEngine__TraverseEdges(
@@ -215,8 +212,8 @@ module TrueVision3D
                             entity_layer,
                             positions,
                             colors,
-                            door_assemblies,                                  # <-- Pass door collector for nested ADR detection
-                            instanced_skip_set                                # <-- Skip nested instanced components
+                            door_assemblies,
+                            instanced_skip_set
                         )
 
                     elsif entity.is_a?(Sketchup::Edge)
@@ -224,6 +221,7 @@ module TrueVision3D
                         next if entity.soft?
                         next if entity.smooth?
                         next unless entity.layer.visible?
+                        next if Na__Helpers__LayerLineworkHidden?(entity.layer.name)  # <-- suppress bare root-level edges on linework-hidden tags
 
                         start_pt = root_transform * entity.start.position
                         end_pt   = root_transform * entity.end.position
@@ -236,31 +234,27 @@ module TrueVision3D
                             end_pt.z.to_f   * INCHES_TO_METERS
                         )
                         col = entity.material ? entity.material.color : Sketchup::Color.new(0, 0, 0)
-                        r = col.red / 255.0
+                        r = col.red   / 255.0
                         g = col.green / 255.0
-                        b = col.blue / 255.0
+                        b = col.blue  / 255.0
                         a = (col.respond_to?(:alpha) ? col.alpha : 255) / 255.0
                         2.times { colors.push(r, g, b, a) }
                     end
                 end
 
-                # Report traversal results
                 edge_count = positions.length / 6
-                puts "    Linework traversal complete: #{entity_count} entities -> #{edge_count} edges"
+                Na__Log__Puts "    Linework traversal complete: #{entity_count} entities -> #{edge_count} edges"
 
                 if door_assemblies.any?
-                    puts "    [DoorHandler/Linework] #{door_assemblies.length} door assembly(ies) detected — will export with hierarchy preservation"
+                    Na__Log__Puts "    [DoorHandler/Linework] #{door_assemblies.length} door assembly(ies) detected — will export with hierarchy preservation"
                 end
 
-                # Build glTF structure from collected edges (if any)
                 if positions.empty? && door_assemblies.empty? && instanced_groups.empty?
-                    puts "  No visible edges, door assemblies, or instanced components found - skipping linework file"
+                    Na__Log__Puts "  No visible edges, door assemblies, or instanced components found - skipping linework file"
                     return false
                 end
 
-                # Build glTF structure (initialize even if no flat-traversal edges)
                 if positions.empty?
-                    # No flat edges, but we have door assemblies or instanced components — initialize minimal glTF
                     gltf = {
                         "asset"       => { "version" => "2.0", "generator" => "TrueVision3D GLB Builder Linework v1.5.0" },
                         "scene"       => 0,
@@ -273,26 +267,21 @@ module TrueVision3D
                     }
                     bin_buffer = String.new("", encoding: Encoding::ASCII_8BIT)
                 else
-                    # Normal linework export with edges
                     gltf, bin_buffer = Na__LineworkEngine__BuildGltfFromEdgeData(positions, colors)
                 end
 
-                # Append instanced shared linework meshes and per-instance nodes
                 Na__Instancing__ProcessAllInstancedLinework(instanced_groups, gltf, bin_buffer)
 
-                # Export door assemblies with preserved hierarchy (if any detected)
-                if door_assemblies.any?
-                    Na__DoorHandler__ExportDoorLinework(door_assemblies, gltf, bin_buffer)
-                end
+                Na__DoorHandler__ExportDoorLinework(door_assemblies, gltf, bin_buffer) if door_assemblies.any?
 
                 Na__GlbEngine__WriteGlbFile(filepath, gltf, bin_buffer)
 
-                puts "  ✓ Linework export complete"
+                Na__Log__Puts "  ✓ Linework export complete"
                 true
 
             rescue => e
-                puts "  ERROR: Linework export failed - #{e.message}"
-                puts "  #{e.backtrace.first(5).join("\n  ")}"
+                Na__Log__Warn "  ERROR: Linework export failed - #{e.message}"
+                Na__Log__Warn "  #{e.backtrace.first(5).join("\n  ")}"
                 false
             end
         end

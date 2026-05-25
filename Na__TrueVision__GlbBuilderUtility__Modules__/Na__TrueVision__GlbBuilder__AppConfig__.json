@@ -1,0 +1,13 @@
+{
+    "_documentation" : {
+        "purpose"       : "Local plugin-level override for GlbBuilder runtime settings. Keys present here override the matching defaults from GlbBuilderConfig inside Na__DataLib__CoreIndex__Tags__.json (the GitHub-shared SSOT). Keys absent here fall through to the DataLib default. Only the Logging sub-object is read at present.",
+        "ssot"          : "Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json  →  GlbBuilderConfig",
+        "usage"         : "To enable verbose Ruby Console logging during a debug session, set ConsoleVerbose to true and reload the plugin. Set it back to false when finished. Do NOT commit this file with ConsoleVerbose: true as it causes significant export slow-down."
+    },
+
+    "Logging" : {
+        "ConsoleVerbose"      : false,
+        "TextFileEnabled"     : true,
+        "TextFileNamePattern" : "GlbBuilder__ExportLog__%TIMESTAMP%.txt"
+    }
+}

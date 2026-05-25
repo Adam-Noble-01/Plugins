@@ -61,11 +61,11 @@ module TrueVision3D
         def self.Na__MaterialEngine__SetExportMode(mode)
             valid_modes = [:no_materials, :all_materials, :indexed_only]
             unless valid_modes.include?(mode)
-                puts "    [MaterialEngine] Invalid export mode: #{mode}, defaulting to :no_materials"
+                Na__Log__Warn "    [MaterialEngine] Invalid export mode: #{mode}, defaulting to :no_materials"
                 mode = :no_materials
             end
             @export_mode = mode
-            puts "    [MaterialEngine] Export mode set to: #{mode}"
+            Na__Log__Puts "    [MaterialEngine] Export mode set to: #{mode}"
         end
         # ---------------------------------------------------------------
 
@@ -133,7 +133,7 @@ module TrueVision3D
                     config = self.Na__MaterialLookup__GetConfig(material_name)
                     if config
                         self.Na__MaterialLookup__EnrichGltfMaterial(gltf_material, config)
-                        puts "    [MaterialEngine] Enriched: #{material_name}"
+                        Na__Log__Puts "    [MaterialEngine] Enriched: #{material_name}"
                     end
                 end
             end
@@ -187,7 +187,7 @@ module TrueVision3D
             }
 
             if @export_mode == :no_materials
-                puts "    [MaterialEngine] No-materials mode: all meshes will use default whitecard"
+                Na__Log__Puts "    [MaterialEngine] No-materials mode: all meshes will use default whitecard"
                 return true
             end
 
@@ -210,7 +210,7 @@ module TrueVision3D
             end
 
             mode_label = (@export_mode == :indexed_only) ? "indexed-only" : "all-materials"
-            puts "    [MaterialEngine] #{mode_label} mode: #{@material_map.length} material(s) exported"
+            Na__Log__Puts "    [MaterialEngine] #{mode_label} mode: #{@material_map.length} material(s) exported"
             true
         end
         # ---------------------------------------------------------------

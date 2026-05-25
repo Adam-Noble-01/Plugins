@@ -1,5 +1,8 @@
 {
     "tags": [
+        { "name": "01__ModelFlag__FloorLevelLines",      "description": "Floor level reference lines — mesh exported normally, edges suppressed in linework GLB at any nesting depth." },
+        { "name": "01__ModelFlag__BuildingJoinLines",    "description": "Building join / party wall reference lines — mesh exported normally, edges suppressed in linework GLB at any nesting depth." },
+        { "name": "01__ModelFlag__ElementsForRemoval",   "description": "Geometry earmarked for demolition or removal — fully excluded from both mesh and linework GLB export." },
         { "name": "01__OrbitHelperCube",                "description": "Camera orbit pivot for Web 3D Viewer App" },
         { "name": "07__Landscape",                      "description": "Landscape and site elements" },
         { "name": "08__Site__Boundaries",               "description": "Site boundary lines exported as GLB, allows for toggling of the boundaries on and off." },

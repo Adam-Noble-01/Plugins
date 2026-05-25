@@ -119,10 +119,10 @@ module TrueVision3D
             if instanced_groups.any?
                 total_instances = instanced_groups.sum { |g| g[:instances].length }
                 unique_defs     = instanced_groups.map { |g| g[:definition] }.uniq.length
-                puts "    [Instancing] Found #{total_instances} instanced placements across #{unique_defs} definition(s) (#{instanced_groups.length} mesh group(s))"
+                Na__Log__Puts "    [Instancing] Found #{total_instances} instanced placements across #{unique_defs} definition(s) (#{instanced_groups.length} mesh group(s))"
             end
             if mirrored_unique_fallback_count > 0
-                puts "    [Instancing] Mirrored fallback-to-unique count: #{mirrored_unique_fallback_count} placement(s)"
+                Na__Log__Puts "    [Instancing] Mirrored fallback-to-unique count: #{mirrored_unique_fallback_count} placement(s)"
             end
 
             [instanced_groups, skip_set]
@@ -332,7 +332,7 @@ module TrueVision3D
 
             total_verts = buckets.values.sum { |b| b[:vertex_count] }
             total_tris  = buckets.values.sum { |b| b[:indices].length / 3 }
-            puts "      [Instancing] Built shared mesh: #{def_name}#{mirror_label} (#{total_verts} verts, #{total_tris} tris)"
+            Na__Log__Puts "      [Instancing] Built shared mesh: #{def_name}#{mirror_label} (#{total_verts} verts, #{total_tris} tris)"
 
             mesh_index
         end
@@ -393,7 +393,7 @@ module TrueVision3D
             }
 
             edge_count = positions.length / 6
-            puts "      [Instancing] Built shared linework: #{definition.name}#{mirror_label} (#{edge_count} edges)"
+            Na__Log__Puts "      [Instancing] Built shared linework: #{definition.name}#{mirror_label} (#{edge_count} edges)"
 
             mesh_index
         end
@@ -506,7 +506,7 @@ module TrueVision3D
                     material_name  = material.respond_to?(:display_name) ? material.display_name : ""
                     material_index = Na__MaterialEngine__EnsureMaterialRegistered(material, gltf, bin_buffer)
                     if material_index > 0 && @material_map.key?(material)
-                        puts "      [Instancing] Registered new material: #{material_name} (index #{material_index})"
+                        Na__Log__Puts "      [Instancing] Registered new material: #{material_name} (index #{material_index})"
                     end
                 end
             end
@@ -533,7 +533,7 @@ module TrueVision3D
         def self.Na__Instancing__ProcessAllInstanced(instanced_groups, gltf, bin_buffer)
             return if instanced_groups.empty?
 
-            puts "\n    [Instancing] Building #{instanced_groups.length} shared mesh(es)..."
+            Na__Log__Puts "\n    [Instancing] Building #{instanced_groups.length} shared mesh(es)..."
 
             Na__Instancing__RegisterInstancedMaterials(instanced_groups, gltf, bin_buffer)
 
@@ -554,10 +554,10 @@ module TrueVision3D
 
                 instance_count = group[:instances].length
                 mirror_label   = group[:is_mirrored] ? " (mirrored)" : ""
-                puts "      [Instancing] #{group[:definition].name}#{mirror_label}: 1 mesh -> #{instance_count} nodes"
+                Na__Log__Puts "      [Instancing] #{group[:definition].name}#{mirror_label}: 1 mesh -> #{instance_count} nodes"
             end
 
-            puts "    [Instancing] Instanced mesh export complete\n"
+            Na__Log__Puts "    [Instancing] Instanced mesh export complete"
         end
         # ---------------------------------------------------------------
 
@@ -576,7 +576,7 @@ module TrueVision3D
         def self.Na__Instancing__ProcessAllInstancedLinework(instanced_groups, gltf, bin_buffer)
             return if instanced_groups.empty?
 
-            puts "\n    [Instancing/Linework] Building shared linework mesh(es)..."
+            Na__Log__Puts "\n    [Instancing/Linework] Building shared linework mesh(es)..."
 
             built_linework = {}                                               # <-- { [definition, is_mirrored] => mesh_index }
 
@@ -600,10 +600,10 @@ module TrueVision3D
 
                 instance_count = group[:instances].length
                 mirror_label   = is_mirrored ? " (mirrored)" : ""
-                puts "      [Instancing/Linework] #{definition.name}#{mirror_label}: #{instance_count} nodes"
+                Na__Log__Puts "      [Instancing/Linework] #{definition.name}#{mirror_label}: #{instance_count} nodes"
             end
 
-            puts "    [Instancing/Linework] Instanced linework export complete\n"
+            Na__Log__Puts "    [Instancing/Linework] Instanced linework export complete"
         end
         # ---------------------------------------------------------------
 

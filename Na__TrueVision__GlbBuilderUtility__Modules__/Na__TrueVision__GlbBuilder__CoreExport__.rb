@@ -32,7 +32,7 @@ module TrueVision3D
         # FUNCTION | Reset All Module State Variables
         # ---------------------------------------------------------------
         def self.Na__ExportCore__ResetState
-            puts "    Resetting module state for new export..."
+            Na__Log__Puts "    Resetting module state for new export..."
             
             # Clear all mapping variables
             @material_map           = {}                                          # <-- Material to index mapping
@@ -43,18 +43,18 @@ module TrueVision3D
             # Clear validation and layer data
             @validation_errors      = []                                          # <-- Validation error messages
             @excluded_layers        = []                                          # <-- Array of excluded layer names
+            @linework_hidden_layers = []                                          # <-- Array of linework-hidden layer names
             
             # Clear any progress tracking
             @last_reported_percentage = nil                                       # <-- Reset progress tracking
             
-            puts "    Module state reset complete"
+            Na__Log__Puts "    Module state reset complete"
         end
         # ---------------------------------------------------------------
     
         # FUNCTION | Initialize GLB Export Process
         # ------------------------------------------------------------
         def self.Na__ExportCore__StartExport
-            puts "DEBUG: Na__ExportCore__StartExport called"
             model = Sketchup.active_model                                         # Get active model
             
             # Check if there's anything to export using correct SketchUp API
@@ -63,20 +63,11 @@ module TrueVision3D
                 return false
             end
             
-            # Reset state at the very beginning
-            puts "DEBUG: Calling Na__ExportCore__ResetState"
             self.Na__ExportCore__ResetState                                            # Comprehensive state reset
-            
-            puts "DEBUG: Calling Na__ExportCore__IdentifyExcludedLayers"
             self.Na__ExportCore__IdentifyExcludedLayers(model)                         # Identify layers to exclude
-            
-            puts "\n=== Starting TrueVision GLB Export (Virtual Flattening) ==="
-            puts "Using non-destructive recursive traversal for world-space coordinates"
 
             FileUtils.mkdir_p(@texture_cache_folder) unless Dir.exist?(@texture_cache_folder)
-            puts "Texture cache folder: #{@texture_cache_folder}"
             
-            puts "DEBUG: Calling Na__UserInterface__ShowExportDialog"
             self.Na__UserInterface__ShowExportDialog                                    # Show export options dialog
         end
         # ---------------------------------------------------------------
@@ -149,6 +140,17 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Check if Layer Has Linework Hidden in Export
+        # ---------------------------------------------------------------
+        # Returns true for layers whose edges are suppressed in linework
+        # GLBs but whose mesh geometry is exported normally.
+        # ---------------------------------------------------------------
+        def self.Na__Helpers__LayerLineworkHidden?(layer_name)
+            return false unless @linework_hidden_layers
+            @linework_hidden_layers.include?(layer_name)
+        end
+        # ---------------------------------------------------------------
+
         # HELPER FUNCTION | Return a Readable Entity Label
         # ---------------------------------------------------------------
         def self.Na__Helpers__EntityLabel(entity)
@@ -170,8 +172,8 @@ module TrueVision3D
             return if suspicious_names.empty?
 
             label = self.Na__Helpers__EntityLabel(entity)
-            puts "  WARNING: OrbitHelperCube export candidate '#{label}' contains model-like descendants: #{suspicious_names.first(8).join(', ')}"
-            puts "  WARNING: Check the SketchUp tag assignment. Only the small orbit helper cube should be on '01__OrbitHelperCube'."
+            Na__Log__Warn "  WARNING: OrbitHelperCube export candidate '#{label}' contains model-like descendants: #{suspicious_names.first(8).join(', ')}"
+            Na__Log__Warn "  WARNING: Check the SketchUp tag assignment. Only the small orbit helper cube should be on '01__OrbitHelperCube'."
         end
         # ---------------------------------------------------------------
 
@@ -203,27 +205,22 @@ module TrueVision3D
         # HELPER FUNCTION | Extract Project Prefix from SketchUp Filename
         # ---------------------------------------------------------------
         def self.Na__Helpers__ExtractProjectPrefix(model)
-            # Get the model's file path using SketchUp API
             model_path = model.path
             
-            # Handle unsaved files
             if model_path.nil? || model_path.empty?
-                puts "  No project prefix - model not saved yet"
+                Na__Log__Puts "  No project prefix - model not saved yet"
                 return ""
             end
             
-            # Extract filename from path
             filename = File.basename(model_path)
-            
-            # Extract first section before "__" (e.g., "Rowbotham__" from "Rowbotham__WhiteCardModel__0.3.0__.skp")
-            match = filename.match(/^([^_]+)__/)
+            match    = filename.match(/^([^_]+)__/)
             
             if match
                 prefix = "#{match[1]}__"
-                puts "  Project prefix detected: '#{prefix}'"
+                Na__Log__Puts "  Project prefix detected: '#{prefix}'"
                 return prefix
             else
-                puts "  No project prefix found in filename: #{filename}"
+                Na__Log__Puts "  No project prefix found in filename: #{filename}"
                 return ""
             end
         end
@@ -239,9 +236,9 @@ module TrueVision3D
             end
 
             Dir.rmdir(@texture_cache_folder) if Dir.exist?(@texture_cache_folder) && Dir.empty?(@texture_cache_folder)
-            puts "      Cleaned up texture cache folder"
+            Na__Log__Puts "      Cleaned up texture cache folder"
         rescue => e
-            puts "      Texture cache cleanup warning: #{e.message}"
+            Na__Log__Warn "      Texture cache cleanup warning: #{e.message}"
         end
         # ---------------------------------------------------------------
     
@@ -270,29 +267,28 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__ExportCore__ValidateModelWatertight(model)
             @validation_errors = []                                                # Clear errors
-            total_entities = self.Na__ExportCore__CountAllEntities(model.active_entities)  # Count leaf containers only
-            checked_entities = 0                                                   # Progress counter
+            total_entities = self.Na__ExportCore__CountAllEntities(model.active_entities)
+            checked_entities = 0
             
-            puts "Smart validation: Checking #{total_entities} leaf containers (ignoring parent containers)..."
-            puts "  → Only validating groups/components that contain raw geometry"
-            puts "  → Skipping parent containers that only hold nested objects"
-            puts "  → Maximum nesting depth: #{MAX_NESTING_DEPTH} levels\n"
+            Na__Log__Puts "Smart validation: Checking #{total_entities} leaf containers (ignoring parent containers)..."
+            Na__Log__Puts "  -> Only validating groups/components that contain raw geometry"
+            Na__Log__Puts "  -> Skipping parent containers that only hold nested objects"
+            Na__Log__Puts "  -> Maximum nesting depth: #{MAX_NESTING_DEPTH} levels"
             
-            # Validate all entities recursively with smart detection
             validate_result = self.Na__ExportCore__ValidateEntitiesRecursive(model.active_entities, checked_entities, total_entities)
             
             if @validation_errors.any?
-                puts "\n=== VALIDATION ERRORS ==="
-                @validation_errors.each { |error| puts "  - #{error}" }
-                puts "\nNote: Only leaf containers (containing raw geometry) are validated."
-                puts "Parent containers that only hold nested objects are ignored."
-                puts "=== END VALIDATION ERRORS ===\n"
+                Na__Log__Warn "\n=== VALIDATION ERRORS ==="
+                @validation_errors.each { |error| Na__Log__Warn "  - #{error}" }
+                Na__Log__Warn "\nNote: Only leaf containers (containing raw geometry) are validated."
+                Na__Log__Warn "Parent containers that only hold nested objects are ignored."
+                Na__Log__Warn "=== END VALIDATION ERRORS ==="
                 return false
             end
             
-            puts "\n✓ All leaf containers validated successfully!"                # Success message
-            puts "  → #{total_entities} leaf containers checked"
-            puts "  → Parent containers automatically skipped\n"
+            Na__Log__Puts "\n✓ All leaf containers validated successfully!"
+            Na__Log__Puts "  -> #{total_entities} leaf containers checked"
+            Na__Log__Puts "  -> Parent containers automatically skipped"
             true
         end
         # ---------------------------------------------------------------
@@ -308,37 +304,32 @@ module TrueVision3D
                 case entity
                 when Sketchup::Group
                     if self.Na__ExportCore__IsLeafContainer?(entity)
-                        # Only validate groups that contain raw geometry (leaf containers)
                         if entity.manifold?
                             checked_count += 1
                             self.Na__ExportCore__ReportProgress("Validating", checked_count, total_count)
-                            puts "      ✓ Leaf group '#{entity.name || 'Unnamed'}' is solid"
+                            Na__Log__Puts "      ✓ Leaf group '#{entity.name || 'Unnamed'}' is solid"
                         else
                             entity_name = entity.name && !entity.name.empty? ? entity.name : 'Unnamed'
                             @validation_errors << "Group '#{entity_name}' contains geometry but is not solid"
                         end
                     else
-                        # Parent container - skip validation but traverse children
-                        puts "      → Skipping parent group '#{entity.name || 'Unnamed'}' (contains only nested containers)"
+                        Na__Log__Puts "      -> Skipping parent group '#{entity.name || 'Unnamed'}' (contains only nested containers)"
                     end
                     
-                    # Always traverse nested entities regardless of validation
                     checked_count = self.Na__ExportCore__ValidateEntitiesRecursive(entity.entities, checked_count, total_count, depth + 1)
                     
                 when Sketchup::ComponentInstance
                     if self.Na__ExportCore__IsLeafContainer?(entity)
-                        # Only validate components that contain raw geometry (leaf containers)
                         if entity.manifold?
                             checked_count += 1
                             self.Na__ExportCore__ReportProgress("Validating", checked_count, total_count)
-                            puts "      ✓ Leaf component '#{entity.name || entity.definition.name || 'Unnamed'}' is solid"
+                            Na__Log__Puts "      ✓ Leaf component '#{entity.name || entity.definition.name || 'Unnamed'}' is solid"
                         else
                             entity_name = entity.name && !entity.name.empty? ? entity.name : (entity.definition.name || 'Unnamed')
                             @validation_errors << "Component '#{entity_name}' contains geometry but is not solid"
                         end
                     else
-                        # Parent container - skip validation but traverse children
-                        puts "      → Skipping parent component '#{entity.name || entity.definition.name || 'Unnamed'}' (contains only nested containers)"
+                        Na__Log__Puts "      -> Skipping parent component '#{entity.name || entity.definition.name || 'Unnamed'}' (contains only nested containers)"
                     end
                     
                     # Always traverse nested entities regardless of validation
@@ -414,7 +405,7 @@ module TrueVision3D
         def self.Na__ExportCore__ReportProgress(operation, current, total)
             percentage = (current.to_f / total * 100).to_i
             if percentage % 10 == 0 && percentage != @last_reported_percentage
-                puts "#{operation}: #{percentage}% complete (#{current}/#{total})"
+                Na__Log__Puts "#{operation}: #{percentage}% complete (#{current}/#{total})"
                 @last_reported_percentage = percentage
             end
         end
@@ -433,51 +424,53 @@ module TrueVision3D
         def self.Na__ExportCore__IdentifyExcludedLayers(model)
             @excluded_layers          = []                                         # Reset excluded layers array
             @treat_as_untagged_layers = []                                         # Reset treat-as-untagged array
+            @linework_hidden_layers   = []                                         # Reset linework-hidden array
 
-            exclusion_pattern      = self.Na__ExportConfig__ExclusionPattern
-            fully_excluded_names   = self.Na__ExportConfig__FullyExcludedTagNames
-            treat_as_untagged_names = self.Na__ExportConfig__TreatAsUntaggedTagNames
+            exclusion_pattern        = self.Na__ExportConfig__ExclusionPattern
+            fully_excluded_names     = self.Na__ExportConfig__FullyExcludedTagNames
+            treat_as_untagged_names  = self.Na__ExportConfig__TreatAsUntaggedTagNames
+            linework_hidden_names    = self.Na__ExportConfig__LineworkHiddenTagNames
 
             model.layers.each do |layer|
                 if layer.name =~ exclusion_pattern || fully_excluded_names.include?(layer.name)
                     @excluded_layers << layer.name
                 elsif treat_as_untagged_names.include?(layer.name)
                     @treat_as_untagged_layers << layer.name
+                elsif linework_hidden_names.include?(layer.name)
+                    @linework_hidden_layers << layer.name
                 end
             end
 
-            puts "    Excluded layers: #{@excluded_layers.join(', ')}" if @excluded_layers.any?
-            puts "    Treat-as-untagged layers: #{@treat_as_untagged_layers.join(', ')}" if @treat_as_untagged_layers.any?
+            Na__Log__Puts "    Excluded layers: #{@excluded_layers.join(', ')}"           if @excluded_layers.any?
+            Na__Log__Puts "    Treat-as-untagged layers: #{@treat_as_untagged_layers.join(', ')}" if @treat_as_untagged_layers.any?
+            Na__Log__Puts "    Linework-hidden layers: #{@linework_hidden_layers.join(', ')}"     if @linework_hidden_layers.any?
         end
         # ---------------------------------------------------------------
     
         # SUB FUNCTION | Organize Entities by Tag Ranges
         # ---------------------------------------------------------------
         def self.Na__ExportCore__OrganizeEntitiesByTags(model)
-            tag_groups = {}                                                        # Initialize groups
-            found_layers = {}                                                      # Track found layer names
+            tag_groups   = {}
+            found_layers = {}
             
-            puts "\n=== Analyzing model layers ==="
+            Na__Log__Puts "\n=== Analyzing model layers ==="
             
             model.active_entities.each do |entity|
-                next if self.Na__Helpers__EntityExcluded?(entity)                       # Skip excluded
-                next unless entity.respond_to?(:layer)                             # Skip if no layer
+                next if self.Na__Helpers__EntityExcluded?(entity)
+                next unless entity.respond_to?(:layer)
                 
-                # Track all layer names found
                 layer_name = entity.layer.name
                 found_layers[layer_name] ||= 0
                 found_layers[layer_name] += 1
                 
-                # Get tag number from strict tag prefix format: ##__
-                tag_match = layer_name.match(/^(\d{2})__/)                        # Match two-digit prefix only
-                next unless tag_match                                              # Skip if no number
+                tag_match  = layer_name.match(/^(\d{2})__/)
+                next unless tag_match
                 
-                tag_number = tag_match[1].to_i                                    # Get tag number
+                tag_number = tag_match[1].to_i
                 
-                # Skip if in skip range (from DataLib or hardcoded fallback)
                 active_skip_ranges = self.Na__ExportConfig__SkipRanges
                 if active_skip_ranges.include?(tag_number)
-                    puts "  Skipping layer '#{layer_name}' (tag #{tag_number} is in ignored range)"
+                    Na__Log__Puts "  Skipping layer '#{layer_name}' (tag #{tag_number} is in ignored range)"
                     next
                 end
                 
@@ -487,23 +480,20 @@ module TrueVision3D
                     if range_arr.include?(tag_number)
                         tag_groups[group_name] ||= []
                         tag_groups[group_name] << entity
-                        puts "  Found entity on layer '#{layer_name}' -> #{group_name}.glb"
+                        Na__Log__Puts "  Found entity on layer '#{layer_name}' -> #{group_name}.glb"
                         self.Na__ExportCore__WarnIfOrbitHelperLooksContaminated(entity) if group_name == "01__OrbitHelperCube"
                         break
                     end
                 end
             end
             
-            # Report all layers found
-            puts "\n=== All layers in model ==="
+            Na__Log__Puts "\n=== All layers in model ==="
             found_layers.each do |layer_name, count|
-                puts "  '#{layer_name}' (#{count} entities)"
+                Na__Log__Puts "  '#{layer_name}' (#{count} entities)"
             end
-            puts "=========================\n"
+            Na__Log__Puts "=========================\n"
             
-            # Remove empty groups using correct API
             tag_groups.delete_if { |_, entities| entities.length == 0 }
-            
             tag_groups
         end
         # ---------------------------------------------------------------
@@ -529,28 +519,28 @@ module TrueVision3D
         def self.Na__ExportCore__DetectStoreyContainers(model)
             storey_containers = {}                                                 # <-- Storey name => [entities] mapping
 
-            puts "\n=== Scanning for Storey Containers ==="
+            Na__Log__Puts "\n=== Scanning for Storey Containers ==="
 
             model.active_entities.each do |entity|
-                next if self.Na__Helpers__EntityExcluded?(entity)                       # Skip excluded
-                next unless entity.respond_to?(:layer)                             # Skip if no layer
+                next if self.Na__Helpers__EntityExcluded?(entity)
+                next unless entity.respond_to?(:layer)
                 next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
 
-                layer_name = entity.layer.name                                     # Get entity tag name
-                tag_match = layer_name.match(/^(\d{2})__/)                        # Match two-digit prefix
-                next unless tag_match                                              # Skip if no tag number
+                layer_name = entity.layer.name
+                tag_match  = layer_name.match(/^(\d{2})__/)
+                next unless tag_match
 
-                tag_number = tag_match[1].to_i                                    # Parse tag number
+                tag_number = tag_match[1].to_i
 
                 active_storey_range = self.Na__ExportConfig__StoreyTagRange
-                active_storey_map  = self.Na__ExportConfig__StoreyTagMap
+                active_storey_map   = self.Na__ExportConfig__StoreyTagMap
                 if active_storey_range.include?(tag_number)
-                    storey_name = active_storey_map[tag_number]                   # Look up storey name
+                    storey_name = active_storey_map[tag_number]
                     if storey_name
-                        storey_containers[storey_name] ||= []                     # Initialize storey array
-                        storey_containers[storey_name] << entity                  # Record storey container
+                        storey_containers[storey_name] ||= []
+                        storey_containers[storey_name] << entity
                         entity_label = entity.name && !entity.name.empty? ? entity.name : layer_name
-                        puts "  ✓ Storey container detected: '#{entity_label}' -> #{storey_name} (#{storey_containers[storey_name].length})"
+                        Na__Log__Puts "  ✓ Storey container detected: '#{entity_label}' -> #{storey_name} (#{storey_containers[storey_name].length})"
                     end
                 end
             end
@@ -559,14 +549,14 @@ module TrueVision3D
                 total_containers = storey_containers.values.map(&:length).sum
                 storey_containers.each do |storey_name, containers|
                     if containers.length > 1
-                        puts "  WARNING: #{storey_name} has #{containers.length} root containers; exporting them as one merged storey."
+                        Na__Log__Warn "  WARNING: #{storey_name} has #{containers.length} root containers; exporting them as one merged storey."
                     end
                 end
-                puts "  Found #{storey_containers.length} storey key(s), #{total_containers} container(s)"
+                Na__Log__Puts "  Found #{storey_containers.length} storey key(s), #{total_containers} container(s)"
             else
-                puts "  No storey containers found - using flat export mode"
+                Na__Log__Puts "  No storey containers found - using flat export mode"
             end
-            puts "=== End Storey Scan ===\n"
+            Na__Log__Puts "=== End Storey Scan ==="
 
             storey_containers
         end
@@ -586,43 +576,41 @@ module TrueVision3D
             element_groups = {}                                                    # <-- Element name => [entities] mapping
             containers     = Array(storey_entities).compact
 
-            puts "  Organizing children of #{storey_name} (#{containers.length} container(s))..."
+            Na__Log__Puts "  Organizing children of #{storey_name} (#{containers.length} container(s))..."
 
             containers.each_with_index do |storey_entity, index|
                 entity_label = self.Na__Helpers__EntityLabel(storey_entity)
-                puts "    Container #{index + 1}: #{entity_label}"
+                Na__Log__Puts "    Container #{index + 1}: #{entity_label}"
 
-                # Get the definition entities (children inside the storey container)
-                definition = storey_entity.respond_to?(:definition) ? storey_entity.definition : storey_entity
+                definition     = storey_entity.respond_to?(:definition) ? storey_entity.definition : storey_entity
                 child_entities = definition.entities
 
                 child_entities.each do |child|
-                    next if self.Na__Helpers__EntityExcluded?(child)                    # Skip excluded
-                    next unless child.respond_to?(:layer)                          # Skip if no layer
+                    next if self.Na__Helpers__EntityExcluded?(child)
+                    next unless child.respond_to?(:layer)
                     next unless child.is_a?(Sketchup::Group) || child.is_a?(Sketchup::ComponentInstance)
 
-                    child_layer = child.layer.name                                 # Get child tag name
-                    tag_match = child_layer.match(/^(\d{2})__/)                   # Match two-digit prefix
-                    next unless tag_match                                          # Skip if no tag number
+                    child_layer = child.layer.name
+                    tag_match   = child_layer.match(/^(\d{2})__/)
+                    next unless tag_match
 
-                    tag_number = tag_match[1].to_i                                # Parse tag number
+                    tag_number         = tag_match[1].to_i
                     active_element_map = self.Na__ExportConfig__StoreyElementTagMap
-                    element_name = active_element_map[tag_number]                 # Look up element name
+                    element_name       = active_element_map[tag_number]
 
                     if element_name
-                        element_groups[element_name] ||= []                       # Initialize array if needed
-                        element_groups[element_name] << child                     # Add child to group
-                        puts "    Found child on layer '#{child_layer}' -> #{storey_name}__#{element_name}"
+                        element_groups[element_name] ||= []
+                        element_groups[element_name] << child
+                        Na__Log__Puts "    Found child on layer '#{child_layer}' -> #{storey_name}__#{element_name}"
                     else
-                        puts "    Skipping child on layer '#{child_layer}' (tag #{tag_number} not in storey element map)"
+                        Na__Log__Puts "    Skipping child on layer '#{child_layer}' (tag #{tag_number} not in storey element map)"
                     end
                 end
             end
 
-            # Remove empty groups
             element_groups.delete_if { |_, entities| entities.length == 0 }
 
-            puts "  #{storey_name}: #{element_groups.length} element group(s) found"
+            Na__Log__Puts "  #{storey_name}: #{element_groups.length} element group(s) found"
             element_groups
         end
         # ---------------------------------------------------------------
@@ -643,7 +631,7 @@ module TrueVision3D
             containers.drop(1).each_with_index do |entity, index|
                 signature = entity.transformation.to_a.map { |value| value.to_f.round(6) }
                 if signature != first_signature
-                    puts "  WARNING: #{storey_name} container #{index + 2} has a different transform; merged export uses container 1 transform."
+                    Na__Log__Warn "  WARNING: #{storey_name} container #{index + 2} has a different transform; merged export uses container 1 transform."
                 end
             end
 
@@ -662,180 +650,155 @@ module TrueVision3D
         # FUNCTION | Perform GLB Export with Configuration
         # ---------------------------------------------------------------
         def self.Na__ExportCore__PerformExport(export_dir)
-            model = Sketchup.active_model                                         # Get active model
-            
-            # Reset ALL state variables before export
-            self.Na__ExportCore__ResetState                                            # Comprehensive state reset
-            
-            # Re-identify excluded layers after reset
-            self.Na__ExportCore__IdentifyExcludedLayers(model)                         # Identify layers to exclude
-            
-            # Extract project prefix from SketchUp filename
-            project_prefix = self.Na__Helpers__ExtractProjectPrefix(model)
-            
-            # Get tag-based entity groups (flat / non-storey items)
-            tag_groups = self.Na__ExportCore__OrganizeEntitiesByTags(model)            # Organize by tags
+            model = Sketchup.active_model
 
-            # Detect storey containers at root level
-            storey_containers = self.Na__ExportCore__DetectStoreyContainers(model)     # Scan for storey tags (90-93)
-            has_storeys = storey_containers.any?                                      # Flag for storey mode
+            self.Na__ExportCore__ResetState
+            self.Na__ExportCore__IdentifyExcludedLayers(model)
 
-            # When storey containers are detected, remove them from flat tag_groups
-            # (they will be exported via the storey-specific path instead)
-            if has_storeys
-                puts "\n=== Storey Mode Active ==="
-                puts "Storey containers will be exported per-element, not as flat groups."
+            # Open the log session now that we have the export directory
+            self.Na__Log__OpenSession(export_dir)
 
-                # Remove any storey-tagged entities that may have been picked up by OrganizeEntitiesByTags
-                # (storey tags 90-93 are not in the export tag ranges so this is a safety check)
-                storey_containers.each do |_storey_name, storey_entities|
-                    Array(storey_entities).each do |storey_entity|
-                        tag_groups.each do |_group_name, entities|
-                            entities.delete(storey_entity)                         # Remove storey entity from flat groups
+            log_path = nil
+            begin
+                project_prefix    = self.Na__Helpers__ExtractProjectPrefix(model)
+                tag_groups        = self.Na__ExportCore__OrganizeEntitiesByTags(model)
+                storey_containers = self.Na__ExportCore__DetectStoreyContainers(model)
+                has_storeys       = storey_containers.any?
+
+                if has_storeys
+                    Na__Log__Puts "\n=== Storey Mode Active ==="
+                    Na__Log__Puts "Storey containers will be exported per-element, not as flat groups."
+
+                    storey_containers.each do |_storey_name, storey_entities|
+                        Array(storey_entities).each do |storey_entity|
+                            tag_groups.each { |_, entities| entities.delete(storey_entity) }
+                        end
+                    end
+                    tag_groups.delete_if { |_, entities| entities.length == 0 }
+                end
+                
+                if tag_groups.length == 0 && !has_storeys
+                    Na__Log__Warn "\n=== NO ENTITIES FOUND WITH PROPER TAG RANGES ==="
+                    Na__Log__Warn "Please ensure your top-level objects are on tags using the '##__' prefix format:"
+                    
+                    active_skip_ranges = self.Na__ExportConfig__SkipRanges
+                    skip_tags = active_skip_ranges.map { |v| v.to_s.rjust(2, '0') }.join(", ")
+                    Na__Log__Warn "  #{skip_tags} = Ignored (not exported)"
+                    
+                    active_tag_ranges = self.Na__ExportConfig__TagRanges
+                    active_tag_ranges.each do |group_name, range|
+                        range_arr   = range.is_a?(Range) ? range.to_a : Array(range)
+                        range_label = range_arr.map { |v| v.to_s.rjust(2, '0') }.join(", ")
+                        Na__Log__Warn "  #{range_label} = #{group_name}.glb"
+                    end
+                    
+                    UI.messagebox("No entities found with valid '##__' tag prefixes for export.\n\nPlease check the Ruby Console for required tag naming.")
+                    return false
+                end
+                
+                Na__Log__Puts "\n=== Export Plan ==="
+
+                tag_groups.each do |base_filename, entities|
+                    Na__Log__Puts "  #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb - #{entities.length} top-level entities"
+                    if base_filename != "01__OrbitHelperCube"
+                        Na__Log__Puts "  #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb - #{entities.length} top-level entities"
+                    end
+                end
+
+                storey_export_plan = {}
+                if has_storeys
+                    storey_containers.each do |storey_name, storey_entities|
+                        element_groups = self.Na__ExportCore__OrganizeStoreyChildrenByTags(storey_entities, storey_name)
+                        storey_export_plan[storey_name] = element_groups
+
+                        element_groups.each do |element_name, entities|
+                            base_filename = "#{storey_name}__#{element_name}"
+                            Na__Log__Puts "  #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb - #{entities.length} entities"
+                            Na__Log__Puts "  #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb - #{entities.length} entities"
                         end
                     end
                 end
-                tag_groups.delete_if { |_, entities| entities.length == 0 }        # Clean up empty groups
-            end
-            
-            # Check if there is anything to export at all
-            if tag_groups.length == 0 && !has_storeys
-                puts "\n=== NO ENTITIES FOUND WITH PROPER TAG RANGES ==="
-                puts "Please ensure your top-level objects are on tags using the '##__' prefix format:"
+                Na__Log__Puts "=== End Export Plan ==="
                 
-                active_skip_ranges = self.Na__ExportConfig__SkipRanges
-                skip_tags = active_skip_ranges.map { |v| v.to_s.rjust(2, '0') }.join(", ")
-                puts "  #{skip_tags} = Ignored (not exported)"
-                
-                active_tag_ranges = self.Na__ExportConfig__TagRanges
-                active_tag_ranges.each do |group_name, range|
-                    range_arr = range.is_a?(Range) ? range.to_a : Array(range)
-                    range_label = range_arr.map { |v| v.to_s.rjust(2, '0') }.join(", ")
-                    puts "  #{range_label} = #{group_name}.glb"
-                end
-                
-                puts "\nExample tag names: '01__OrbitHelperCube', '11__ExistingBuilding__Walls', '19__ExistingBuilding__InteriorDecor', '29__ProposedBuilding__InteriorDecor'"
-                puts "================================================\n"
-                
-                UI.messagebox("No entities found with valid '##__' tag prefixes for export.\n\nPlease check the Ruby Console for required tag naming.")
-                return false
-            end
-            
-            # Build and display export plan
-            puts "\n=== Export Plan ==="
-
-            # Show flat (non-storey) items
-            tag_groups.each do |base_filename, entities|
-                puts "  #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb - #{entities.length} top-level entities"
-                if base_filename != "01__OrbitHelperCube"
-                    puts "  #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb - #{entities.length} top-level entities"
-                end
-            end
-
-            # Show storey items
-            storey_export_plan = {}                                                # <-- { storey_name => { element_name => [entities] } }
-            if has_storeys
-                storey_containers.each do |storey_name, storey_entities|
-                    element_groups = self.Na__ExportCore__OrganizeStoreyChildrenByTags(storey_entities, storey_name)
-                    storey_export_plan[storey_name] = element_groups
-
-                    element_groups.each do |element_name, entities|
-                        base_filename = "#{storey_name}__#{element_name}"
-                        puts "  #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb - #{entities.length} entities"
-                        puts "  #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb - #{entities.length} entities"
-                    end
-                end
-            end
-            puts "=== End Export Plan ===\n"
-            
-            # Non-destructive export: no start_operation / abort_operation needed.
-            # The virtual flattening engine never modifies the SketchUp model.
-            # Twin output: Mesh + Linework GLB per tagged series.
-            begin
-                mesh_success = 0
+                mesh_success     = 0
                 linework_success = 0
 
                 # PHASE 1: Export flat (non-storey) tag groups
                 tag_groups.each do |base_filename, entities|
-                    puts "\nExporting series: #{project_prefix}#{base_filename}..."
+                    Na__Log__Puts "\nExporting series: #{project_prefix}#{base_filename}..."
 
-                    # Mesh model (face geometry)
                     mesh_filepath = File.join(export_dir, "#{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb")
                     if self.Na__GlbEngine__ExportEntitiesToGlb(entities, mesh_filepath)
                         mesh_success += 1
                     else
-                        puts "  ERROR: Failed to export mesh #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb"
+                        Na__Log__Warn "  ERROR: Failed to export mesh #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb"
                     end
 
-                    # Linework model (edge geometry) - Skip for OrbitHelperCube (mesh only needed for pivot point)
                     if base_filename == "01__OrbitHelperCube"
-                        puts "  Skipping linework export for OrbitHelperCube (mesh only)"
+                        Na__Log__Puts "  Skipping linework export for OrbitHelperCube (mesh only)"
                     else
                         linework_filepath = File.join(export_dir, "#{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb")
                         if self.Na__LineworkEngine__ExportLineworkToGlb(entities, linework_filepath)
                             linework_success += 1
                         else
-                            puts "  ERROR: Failed to export linework #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb"
+                            Na__Log__Warn "  ERROR: Failed to export linework #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb"
                         end
                     end
                 end
 
-                # PHASE 2: Export storey-based element groups (when storeys detected)
-                # Each storey container has its own transformation (position, rotation, scale)
-                # which must be passed to the export engine so child geometry is baked into
-                # world space. Without this, children would be exported in the storey
-                # container's local coordinate space (wrong position in the 3D viewer).
+                # PHASE 2: Export storey-based element groups
                 if has_storeys
-                    puts "\n=== Exporting Storey-Based Models ==="
+                    Na__Log__Puts "\n=== Exporting Storey-Based Models ==="
                     storey_export_plan.each do |storey_name, element_groups|
-                        puts "\n--- #{storey_name} ---"
+                        Na__Log__Puts "\n--- #{storey_name} ---"
 
-                        # Retrieve the storey container transform for world-space baking.
-                        # Duplicate containers are merged per storey key.
-                        storey_entities  = storey_containers[storey_name]              # <-- Storey container group(s)/component(s)
+                        storey_entities  = storey_containers[storey_name]
                         storey_transform = self.Na__ExportCore__ResolveMergedStoreyTransform(storey_entities, storey_name)
 
                         element_groups.each do |element_name, entities|
                             base_filename = "#{storey_name}__#{element_name}"
-                            puts "\nExporting storey series: #{project_prefix}#{base_filename}..."
+                            Na__Log__Puts "\nExporting storey series: #{project_prefix}#{base_filename}..."
 
-                            # Mesh model (face geometry) - pass storey transform for world-space baking
                             mesh_filepath = File.join(export_dir, "#{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb")
                             if self.Na__GlbEngine__ExportEntitiesToGlb(entities, mesh_filepath, storey_transform)
                                 mesh_success += 1
                             else
-                                puts "  ERROR: Failed to export mesh #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb"
+                                Na__Log__Warn "  ERROR: Failed to export mesh #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb"
                             end
 
-                            # Linework model (edge geometry) - pass storey transform for world-space baking
                             linework_filepath = File.join(export_dir, "#{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb")
                             if self.Na__LineworkEngine__ExportLineworkToGlb(entities, linework_filepath, storey_transform)
                                 linework_success += 1
                             else
-                                puts "  ERROR: Failed to export linework #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb"
+                                Na__Log__Warn "  ERROR: Failed to export linework #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb"
                             end
                         end
                     end
-                    puts "\n=== End Storey Export ===\n"
+                    Na__Log__Puts "\n=== End Storey Export ==="
                 end
 
                 success_count = mesh_success + linework_success
 
                 self.Na__Helpers__CleanupTextureCache
 
-                # Open output folder
                 if success_count > 0
-                    self.Na__Helpers__OpenFolder(export_dir)                            # Open in file explorer
+                    self.Na__Helpers__OpenFolder(export_dir)
                     storey_msg = has_storeys ? " (includes storey-based exports)" : ""
-                    UI.messagebox("GLB export completed!#{storey_msg}\n\n#{success_count} files (#{mesh_success} mesh + #{linework_success} linework) exported to:\n#{export_dir}")
+                    log_path   = self.Na__Log__CloseSession
+                    log_notice = log_path ? "\n\nExport log: #{File.basename(log_path)}" : ""
+                    UI.messagebox("GLB export completed!#{storey_msg}\n\n#{success_count} files (#{mesh_success} mesh + #{linework_success} linework) exported to:\n#{export_dir}#{log_notice}")
                 else
-                    UI.messagebox("Export failed. Please check the console for errors.")
+                    log_path = self.Na__Log__CloseSession
+                    UI.messagebox("Export failed. Please check the Ruby Console for errors.")
                 end
-                
+
             rescue => e
-                UI.messagebox("Export error: #{e.message}")                       # Show error message
-                puts "GLB Export Error: #{e.message}\n#{e.backtrace.join("\n")}"  # Log full error
+                Na__Log__Warn "GLB Export Error: #{e.message}\n#{e.backtrace.join("\n")}"
+                log_path = self.Na__Log__CloseSession
+                UI.messagebox("Export error: #{e.message}\n\nCheck the Ruby Console for details.")
                 false
+            ensure
+                log_path ||= self.Na__Log__CloseSession
             end
         end
         # ---------------------------------------------------------------

@@ -79,22 +79,22 @@ module TrueVision3D
             end
 
             begin
-                puts "    [MaterialLookup] Loading materials library via DataLib..."
+                Na__Log__Puts "    [MaterialLookup] Loading materials library via DataLib..."
                 data = Na__DataLib__CacheData.Na__Cache__LoadData(:materials, force_reload)
 
                 unless data
-                    puts "    [MaterialLookup] DataLib returned nil for :materials"
+                    Na__Log__Warn "    [MaterialLookup] DataLib returned nil for :materials"
                     return nil
                 end
 
                 @material_library_data = data
                 @material_lookup_index = nil
 
-                puts "    [MaterialLookup] Materials library loaded successfully via DataLib"
+                Na__Log__Puts "    [MaterialLookup] Materials library loaded successfully via DataLib"
                 @material_library_data
 
             rescue StandardError => e
-                puts "    [MaterialLookup] Failed to load library via DataLib: #{e.message}"
+                Na__Log__Warn "    [MaterialLookup] Failed to load library via DataLib: #{e.message}"
                 nil
             end
         end
@@ -118,7 +118,7 @@ module TrueVision3D
 
             library_data = @material_library_data
             unless library_data && library_data[MATERIALS_ROOT_KEY]
-                puts "    [MaterialLookup] No library data to index"
+                Na__Log__Warn "    [MaterialLookup] No library data to index"
                 return {}
             end
 
@@ -140,7 +140,7 @@ module TrueVision3D
             end
 
             @material_lookup_index = index                                    # <-- Cache the built index
-            puts "    [MaterialLookup] Index built: #{index.size} indexed materials"
+            Na__Log__Puts "    [MaterialLookup] Index built: #{index.size} indexed materials"
             index
         end
         # ---------------------------------------------------------------
@@ -294,7 +294,7 @@ module TrueVision3D
         def self.Na__MaterialLookup__ClearCache
             @material_library_data  = nil
             @material_lookup_index  = nil
-            puts "    [MaterialLookup] Cache cleared"
+            Na__Log__Puts "    [MaterialLookup] Cache cleared"
         end
         # ---------------------------------------------------------------
 

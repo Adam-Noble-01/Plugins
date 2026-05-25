@@ -68,8 +68,6 @@ module TrueVision3D
             return nil unless tags_data.is_a?(Hash)
 
             library         = tags_data['Na__DataLib__CoreIndex__Tags']
-            exclusions      = tags_data['ExportExclusions']
-            fully_excluded  = Array(exclusions && exclusions['FullyExcludedTagNames'])
             tag_entries     = []
 
             return nil unless library.is_a?(Hash)
@@ -84,12 +82,20 @@ module TrueVision3D
                     tag_name = entry['Tag__SketchUpName']
                     next if tag_name.nil? || tag_name.empty?
                     next unless self.Na__TagsManager__TagEligibleForCreation?(tag_name)
-                    next if fully_excluded.include?(tag_name)
-                    next if entry['Glb__FullyExcluded'] == true && entry['Storey__IsContainer'] != true
+
+                    # Allow ModelFlag tags (Glb__LineworkHidden or specific ModelFlag name pattern)
+                    # even when Glb__FullyExcluded is true — these are user-facing modelling flags
+                    is_model_flag   = tag_name.include?('ModelFlag') || entry['Glb__LineworkHidden'] == true
+                    is_storey       = entry['Storey__IsContainer'] == true
+
+                    # Skip fully-excluded tags unless they are model-flag or storey containers
+                    next if entry['Glb__FullyExcluded'] == true && !is_model_flag && !is_storey
 
                     tag_entries << {
-                        'name'        => tag_name,
-                        'description' => entry['Tag__Description']
+                        'name'              => tag_name,
+                        'description'       => entry['Tag__Description'],
+                        'line_style_name'   => entry['Layout__LineStyleName'],
+                        'edge_colour_rgb'   => entry['Layout__EdgeColourRGB']
                     }
                 end
             end
@@ -184,7 +190,38 @@ module TrueVision3D
 
         # FUNCTION | Create Standardised Tags From Index
         # ------------------------------------------------------------
-        def self.Na__TagsManager__CreateStandardisedTags
+        # HELPER FUNCTION | Apply Line Style and Edge Colour to a Tag (Layer)
+        # ---------------------------------------------------------------
+        # Applies Layout__LineStyleName and Layout__EdgeColourRGB from the
+        # tag entry to the newly created SketchUp layer where supported.
+        # Guards on respond_to? so older SketchUp versions are safe.
+        # ---------------------------------------------------------------
+        def self.Na__TagsManager__ApplyTagStyling(layer, tag_entry)
+            model = Sketchup.active_model
+
+            line_style_name = tag_entry['line_style_name']
+            if line_style_name && !line_style_name.empty?
+                begin
+                    line_style = model.line_styles[line_style_name]
+                    layer.line_style = line_style if line_style && layer.respond_to?(:line_style=)
+                rescue => e
+                    puts "    [TagsManager] Could not set line style '#{line_style_name}' on '#{layer.name}': #{e.message}"
+                end
+            end
+
+            edge_colour_rgb = tag_entry['edge_colour_rgb']
+            if edge_colour_rgb.is_a?(Array) && edge_colour_rgb.length >= 3
+                begin
+                    colour = Sketchup::Color.new(edge_colour_rgb[0], edge_colour_rgb[1], edge_colour_rgb[2])
+                    layer.color = colour if layer.respond_to?(:color=)
+                rescue => e
+                    puts "    [TagsManager] Could not set edge colour on '#{layer.name}': #{e.message}"
+                end
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Create Standardised Tags From Index
             model = Sketchup.active_model                                             # Get active model
 
             tags = self.Na__TagsManager__LoadTagsIndex                                # Load tags from JSON index
@@ -207,15 +244,16 @@ module TrueVision3D
                     already_exists = model.layers.any? { |l| l.name == tag_name }    # <-- Check if tag already exists
 
                     if already_exists
-                        skipped_tags << tag_name                                      # Record as skipped
+                        skipped_tags << tag_name
                         puts "  [SKIP] Tag already exists: #{tag_name}"
                     else
                         begin
-                            model.layers.add(tag_name)                                # <-- Create new tag (layer) in model
-                            created_tags << tag_name                                  # Record as created
+                            new_layer = model.layers.add(tag_name)
+                            self.Na__TagsManager__ApplyTagStyling(new_layer, tag_entry)
+                            created_tags << tag_name
                             puts "  [OK]   Tag created: #{tag_name}"
                         rescue => e
-                            error_tags << tag_name                                    # Record as failed
+                            error_tags << tag_name
                             puts "  [ERROR] Failed to create tag '#{tag_name}': #{e.message}"
                         end
                     end

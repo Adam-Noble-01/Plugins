@@ -88,11 +88,11 @@ module TrueVision3D
                 texture_index = Na__TextureEngine__CreateTextureEntry(image_index, sampler_index, gltf)
 
                 @texture_index_cache[material] = texture_index
-                puts "    [TextureEngine] Embedded texture for '#{material_name}' (#{texture.image_width}x#{texture.image_height}, #{png_data.bytesize} bytes)"
+                Na__Log__Puts "    [TextureEngine] Embedded texture for '#{material_name}' (#{texture.image_width}x#{texture.image_height}, #{png_data.bytesize} bytes)"
                 texture_index
 
             rescue => e
-                puts "    [TextureEngine] Failed to embed texture for '#{material_name}': #{e.message}"
+                Na__Log__Warn "    [TextureEngine] Failed to embed texture for '#{material_name}': #{e.message}"
                 nil
             end
         end
@@ -124,7 +124,7 @@ module TrueVision3D
 
             success = texture.write(temp_path, true)
             unless success && File.exist?(temp_path)
-                puts "    [TextureEngine] texture.write failed for '#{material_name}'"
+                Na__Log__Warn "    [TextureEngine] texture.write failed for '#{material_name}'"
                 return nil
             end
 
@@ -158,7 +158,7 @@ module TrueVision3D
             new_w = (original_w * scale).to_i
             new_h = (original_h * scale).to_i
 
-            puts "    [TextureEngine] Downscaling '#{material_name}': #{original_w}x#{original_h} -> #{new_w}x#{new_h}"
+            Na__Log__Puts "    [TextureEngine] Downscaling '#{material_name}': #{original_w}x#{original_h} -> #{new_w}x#{new_h}"
 
             begin
                 image_rep = Sketchup::ImageRep.new(source_path)
@@ -169,7 +169,7 @@ module TrueVision3D
                 File.delete(downscaled_path) if File.exist?(downscaled_path)
                 png_data
             rescue => e
-                puts "    [TextureEngine] Downscale failed, using original: #{e.message}"
+                Na__Log__Warn "    [TextureEngine] Downscale failed, using original: #{e.message}"
                 File.binread(source_path)
             end
         end
@@ -292,7 +292,7 @@ module TrueVision3D
         def self.Na__TextureEngine__ResetState
             @texture_index_cache = {}
             @sampler_index       = nil
-            puts "    [TextureEngine] State reset"
+            Na__Log__Puts "    [TextureEngine] State reset"
         end
         # ---------------------------------------------------------------
 

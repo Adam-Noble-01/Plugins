@@ -40,7 +40,7 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__GlbEngine__ExportEntitiesToGlb(entities, filepath, parent_transform = nil)
             filepath += GLB_FILE_EXTENSION unless filepath.end_with?(GLB_FILE_EXTENSION)
-            puts "  Using virtual flattening for non-destructive world-space export..."
+            Na__Log__Puts "  Using virtual flattening for non-destructive world-space export..."
 
             begin
                 # Phase 1: Create geometry buckets, door assembly collector, and root transform
@@ -68,7 +68,7 @@ module TrueVision3D
 
                         entity_count += 1
                         entity_name = Na__GlbEngine__SanitizeEntityName(entity)
-                        puts "    Traversing: #{entity_name}..."
+                        Na__Log__Puts "    Traversing: #{entity_name}..."
 
                         # Accumulate this entity's transform with the root Y-up conversion
                         accumulated_transform = root_transform * entity.transformation
@@ -81,7 +81,7 @@ module TrueVision3D
                                 entity:                entity,
                                 accumulated_transform: accumulated_transform
                             }
-                            puts "      [DoorHandler] Detected top-level door assembly: #{entity_name}"
+                            Na__Log__Puts "      [DoorHandler] Detected top-level door assembly: #{entity_name}"
                             next                                              # <-- Skip traversal, door handler will process it
                         end
 
@@ -118,10 +118,10 @@ module TrueVision3D
                     total_verts += b[:vertex_count]
                     total_tris  += b[:indices].length / 3
                 end
-                puts "    Traversal complete: #{entity_count} entities -> #{buckets.length} buckets, #{total_verts} vertices, #{total_tris} triangles"
+                Na__Log__Puts "    Traversal complete: #{entity_count} entities -> #{buckets.length} buckets, #{total_verts} vertices, #{total_tris} triangles"
 
                 if door_assemblies.any?
-                    puts "    [DoorHandler] #{door_assemblies.length} door assembly(ies) detected — will export with hierarchy preservation"
+                    Na__Log__Puts "    [DoorHandler] #{door_assemblies.length} door assembly(ies) detected — will export with hierarchy preservation"
                 end
 
                 # Phase 3: Build glTF structure and pack binary buffers (non-door geometry)
@@ -138,12 +138,12 @@ module TrueVision3D
                 # Phase 4: Write GLB file to disk
                 Na__GlbEngine__WriteGlbFile(filepath, gltf, bin_buffer)
 
-                puts "  ✓ Export complete (non-destructive, model unchanged)"
+                Na__Log__Puts "  ✓ Export complete (non-destructive, model unchanged)"
                 true
 
             rescue => e
-                puts "  ERROR: Export failed - #{e.message}"
-                puts "  #{e.backtrace.first(5).join("\n  ")}"
+                Na__Log__Warn "  ERROR: Export failed - #{e.message}"
+                Na__Log__Warn "  #{e.backtrace.first(5).join("\n  ")}"
                 false
             end
         end
@@ -209,27 +209,24 @@ module TrueVision3D
                 file.write(binary_data)                         # Binary payload
             end
 
-            puts "GLB file written: #{filepath} (#{total_size} bytes, BIN: #{binary_data.bytesize} bytes)"
+            Na__Log__Puts "GLB file written: #{filepath} (#{total_size} bytes, BIN: #{binary_data.bytesize} bytes)"
             Na__GlbEngine__ValidateGlbStructure(filepath)
         end
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Validate GLB Structure
         # ---------------------------------------------------------------
-        # Reads back the GLB file and verifies the header magic, version,
-        # and chunk structure for correctness.
-        # ---------------------------------------------------------------
         def self.Na__GlbEngine__ValidateGlbStructure(filepath)
-            puts "\n  Validating GLB structure..."
+            Na__Log__Puts "\n  Validating GLB structure..."
 
             File.open(filepath, 'rb') do |file|
                 magic   = file.read(4)
                 version = file.read(4).unpack('V')[0]
                 length  = file.read(4).unpack('V')[0]
 
-                puts "    Magic: #{magic} (should be 'glTF')"
-                puts "    Version: #{version} (should be 2)"
-                puts "    File size: #{length} bytes"
+                Na__Log__Puts "    Magic: #{magic} (should be 'glTF')"
+                Na__Log__Puts "    Version: #{version} (should be 2)"
+                Na__Log__Puts "    File size: #{length} bytes"
 
                 valid = true
                 valid = false unless magic == 'glTF'
@@ -241,15 +238,16 @@ module TrueVision3D
                     chunk_type   = file.read(4)
 
                     chunk_count += 1
-                    puts "    Chunk #{chunk_count}: #{chunk_type.inspect}, Length: #{chunk_length} bytes"
+                    Na__Log__Puts "    Chunk #{chunk_count}: #{chunk_type.inspect}, Length: #{chunk_length} bytes"
                     file.seek(chunk_length, IO::SEEK_CUR)
                 end
 
-                puts "  ✓ GLB validation #{valid ? 'passed' : 'FAILED'}"
+                result_msg = "  ✓ GLB validation #{valid ? 'passed' : 'FAILED'}"
+                valid ? Na__Log__Puts(result_msg) : Na__Log__Warn(result_msg)
                 valid
             end
         rescue => e
-            puts "  ✗ GLB Validation Error: #{e.message}"
+            Na__Log__Warn "  ✗ GLB Validation Error: #{e.message}"
             false
         end
         # ---------------------------------------------------------------

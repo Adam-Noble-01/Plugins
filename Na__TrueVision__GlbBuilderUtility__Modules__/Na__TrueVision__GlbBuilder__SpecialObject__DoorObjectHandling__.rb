@@ -248,7 +248,7 @@ module TrueVision3D
         # @param bin_buffer      [String]      Binary buffer (ASCII-8BIT)
         # ---------------------------------------------------------------
         def self.Na__DoorHandler__ExportDoorAssemblies(door_assemblies, gltf, bin_buffer)
-            puts "\n    [DoorHandler v2.2.2] Exporting #{door_assemblies.length} mesh door assembly(ies)... (closed runtime MOD guard active)"
+            Na__Log__Puts "\n    [DoorHandler v2.2.2] Exporting #{door_assemblies.length} mesh door assembly(ies)... (closed runtime MOD guard active)"
 
             door_assemblies.each do |door_data|
                 Na__DoorHandler__BuildDoorAssemblyNodes(
@@ -260,7 +260,7 @@ module TrueVision3D
                 )
             end
 
-            puts "    [DoorHandler] Door assembly export complete\n"
+            Na__Log__Puts "    [DoorHandler] Door assembly export complete"
         end
         # ---------------------------------------------------------------
 
@@ -275,7 +275,7 @@ module TrueVision3D
         # @param bin_buffer      [String]      Binary buffer (ASCII-8BIT)
         # ---------------------------------------------------------------
         def self.Na__DoorHandler__ExportDoorLinework(door_assemblies, gltf, bin_buffer)
-            puts "\n    [DoorHandler/Linework v2.2.2] Exporting #{door_assemblies.length} linework door assembly(ies)... (closed runtime MOD guard active)"
+            Na__Log__Puts "\n    [DoorHandler/Linework v2.2.2] Exporting #{door_assemblies.length} linework door assembly(ies)... (closed runtime MOD guard active)"
 
             door_assemblies.each do |door_data|
                 Na__DoorHandler__BuildDoorAssemblyNodes(
@@ -287,7 +287,7 @@ module TrueVision3D
                 )
             end
 
-            puts "    [DoorHandler/Linework] Door assembly linework export complete\n"
+            Na__Log__Puts "    [DoorHandler/Linework] Door assembly linework export complete"
         end
         # ---------------------------------------------------------------
 
@@ -307,7 +307,7 @@ module TrueVision3D
         def self.Na__DoorHandler__BuildDoorAssemblyNodes(adr_entity, accumulated_transform, gltf, bin_buffer, export_type = :mesh)
             adr_name = Na__DoorHandler__GetEntityName(adr_entity)
             type_label = export_type == :linework ? "Linework" : "Mesh"
-            puts "      [DoorHandler/#{type_label}] Building door assembly: #{adr_name}"
+            Na__Log__Puts "      [DoorHandler/#{type_label}] Building door assembly: #{adr_name}"
             exported_child_names = []
             skipped_mod_names    = []
 
@@ -343,11 +343,11 @@ module TrueVision3D
 
                 unless keep_child
                     skipped_mod_names << child_name if is_animatable_mod
-                    puts "        [DoorHandler/#{type_label}] SKIP  child='#{child_name}' tag='#{child_tag_name}' reason=#{reason}"
+                    Na__Log__Puts "        [DoorHandler/#{type_label}] SKIP  child='#{child_name}' tag='#{child_tag_name}' reason=#{reason}"
                     next
                 end
 
-                puts "        [DoorHandler/#{type_label}] KEEP  child='#{child_name}' tag='#{child_tag_name}' reason=#{reason}"
+                Na__Log__Puts "        [DoorHandler/#{type_label}] KEEP  child='#{child_name}' tag='#{child_tag_name}' reason=#{reason}"
                 exported_child_names << child_name
 
                 # Conjugate child's local SU transform to Y-up
@@ -387,7 +387,7 @@ module TrueVision3D
                 Na__DoorHandler__ExtractDirectGeometry(adr_entity, adr_node_index, gltf, bin_buffer)
             end
 
-            puts "      [DoorHandler/#{type_label}] Door assembly complete: #{adr_name}"
+            Na__Log__Puts "      [DoorHandler/#{type_label}] Door assembly complete: #{adr_name}"
         end
         # ---------------------------------------------------------------
 
@@ -412,9 +412,9 @@ module TrueVision3D
 
             return unless has_rot && !has_mod
 
-            puts "        [DoorHandler/#{type_label}] WARNING: ADR '#{adr_name}' exported with ROT marker but no animatable MOD child."
+            Na__Log__Warn "        [DoorHandler/#{type_label}] WARNING: ADR '#{adr_name}' exported with ROT marker but no animatable MOD child."
             unless skipped_mod_names.empty?
-                puts "        [DoorHandler/#{type_label}] Skipped MOD child(ren): #{skipped_mod_names.join(', ')}"
+                Na__Log__Warn "        [DoorHandler/#{type_label}] Skipped MOD child(ren): #{skipped_mod_names.join(', ')}"
             end
         end
         # ---------------------------------------------------------------
@@ -659,7 +659,7 @@ module TrueVision3D
                 parent_node["children"] ||= []
                 parent_node["children"] << mesh_node_index
 
-                puts "          [DoorHandler] Mesh: #{bucket_key} (#{bucket[:vertex_count]} verts, #{bucket[:indices].length / 3} tris)"
+                Na__Log__Puts "          [DoorHandler] Mesh: #{bucket_key} (#{bucket[:vertex_count]} verts, #{bucket[:indices].length / 3} tris)"
             end
         end
         # ---------------------------------------------------------------
@@ -714,7 +714,7 @@ module TrueVision3D
             parent_node["children"] << mesh_node_index
 
             edge_count = vertex_count / 2
-            puts "          [DoorHandler/Linework] Lines: #{edge_count} edges"
+            Na__Log__Puts "          [DoorHandler/Linework] Lines: #{edge_count} edges"
         end
         # ---------------------------------------------------------------
 

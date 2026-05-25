@@ -8,6 +8,59 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.3.0 - 25-May-2026
+#### ModelFlag Tags + Buffered TXT Export Log
+
+**New ModelFlag Tag Rules**
+- Three new `01__ModelFlag__*` tags added to `Na__DataLib__CoreIndex__Tags__.json` (SSOT):
+  - `01__ModelFlag__FloorLevelLines` — mesh exported normally; **edges suppressed in linework GLB** at any nesting depth. Dashed red line style.
+  - `01__ModelFlag__BuildingJoinLines` — same linework-hidden rule; dash-dot red line style.
+  - `01__ModelFlag__ElementsForRemoval` — **fully excluded** from both mesh and linework GLBs. Long-dash magenta line style.
+- `ExportExclusions` in the Tags JSON now carries a new `LineworkHiddenTagNames` array alongside the existing `FullyExcludedTagNames` array. The Ruby loader reads both.
+- Hardcoded fallback constants `LINEWORK_HIDDEN_DEFAULTS` added to `Na__TrueVision__GlbBuilder__Main__.rb` so the rule works even offline.
+- `Na__Helpers__LayerLineworkHidden?` helper added to `Na__TrueVision__GlbBuilder__CoreExport__.rb`.
+- `Na__ExportCore__IdentifyExcludedLayers` now populates a third bucket `@linework_hidden_layers` alongside `@excluded_layers` and `@treat_as_untagged_layers`.
+- `Na__LineworkEngine__TraverseEdges` and the top-level loop in `Na__LineworkEngine__ExportLineworkToGlb` both short-circuit on `LayerLineworkHidden?` — for Groups/Components the whole subtree is skipped, for bare Edges only that edge is dropped. Mesh engines are untouched.
+- The `Na__Instancing__BuildSharedLinework` path inherits the new filter automatically since it calls `Na__LineworkEngine__TraverseEdges`.
+- All three tags are included in the *Create Standardised Tags From Index* button output (TagsManager eligibility filter updated). Line styles and edge colours are applied at creation time via new `Na__TagsManager__ApplyTagStyling` helper.
+
+**New GlbBuilderConfig + Logging Block in Tags JSON**
+- `GlbBuilderConfig.Logging` section added to `Na__DataLib__CoreIndex__Tags__.json`:
+  - `ConsoleVerbose: false` — disables real-time per-entity `puts` to the Ruby Console by default. Major export speed improvement.
+  - `TextFileEnabled: true` — always writes a complete export log as a TXT file alongside the GLB outputs.
+  - `TextFileNamePattern: "GlbBuilder__ExportLog__%TIMESTAMP%.txt"` — `%TIMESTAMP%` expands to `YYYY-MM-DD_HHMMSS`.
+- New `Na__TrueVision__GlbBuilder__AppConfig__.json` (local plugin folder) — layered override file. Set `ConsoleVerbose: true` here for live debug sessions without editing the shared GitHub SSOT.
+- `Na__ExportConfig__OverlayLocalAppConfig` helper reads the local file at export time and overlays matching keys.
+
+**New Logging Module**
+- `Na__TrueVision__GlbBuilder__Logging__.rb` created with four functions:
+  - `Na__Log__OpenSession(export_dir)` — opens timestamped TXT file, writes header.
+  - `Na__Log__Puts(message)` — writes to TXT; echoes to console only when `ConsoleVerbose` is true.
+  - `Na__Log__Warn(message)` — unconditional; always writes to TXT and console. Used for all WARNING/ERROR lines.
+  - `Na__Log__CloseSession` — writes footer (elapsed time), closes file, returns path.
+- Session opens at the start of `Na__ExportCore__PerformExport` and closes in an `ensure` block so the log is always written even on crash.
+- Final messagebox includes the log filename when `TextFileEnabled` is true.
+
+**Files Modified:**
+- `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json`
+- `Na__TrueVision__GlbBuilder__AppConfig__.json` (new file)
+- `Na__TrueVision__GlbBuilder__TagsIndex__.json` (fallback entries)
+- `Na__TrueVision__GlbBuilder__Logging__.rb` (new module)
+- `Na__TrueVision__GlbBuilder__Main__.rb`
+- `Na__TrueVision__GlbBuilder__CoreExport__.rb`
+- `Na__TrueVision__GlbBuilder__EngineCore__LineworkModelHandling__.rb`
+- `Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__.rb`
+- `Na__TrueVision__GlbBuilder__EngineCore__.rb`
+- `Na__TrueVision__GlbBuilder__EngineCore__ComponentInstancing__.rb`
+- `Na__TrueVision__GlbBuilder__EngineCore__MaterialHandling__.rb`
+- `Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__.rb`
+- `Na__TrueVision__GlbBuilder__EngineCore__TextureHandling__.rb`
+- `Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__.rb`
+- `Na__TrueVision__GlbBuilder__UserInterface__.rb`
+- `Na__TrueVision__GlbBuilder__TagsManager__.rb`
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ###  
 #### Interior Door Closed-State Export Hardening + Per-Child Diagnostics
 

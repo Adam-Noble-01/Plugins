@@ -74,6 +74,7 @@ require_relative 'Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling_
 require_relative 'Na__TrueVision__GlbBuilder__UserInterface__'
 require_relative 'Na__TrueVision__GlbBuilder__DynamicReloaderPluginUtil__'
 require_relative 'Na__TrueVision__GlbBuilder__TagsManager__'
+require_relative 'Na__TrueVision__GlbBuilder__Logging__'
 require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module TrueVision3D
@@ -94,6 +95,13 @@ module TrueVision3D
             "02__ClearanceLines"
         ].freeze                                                                   # <-- Hardcoded fallback - overridden by DataLib at runtime
         TREAT_AS_UNTAGGED_DEFAULTS  =   [].freeze                                 # <-- Hardcoded fallback - overridden by DataLib at runtime
+        LINEWORK_HIDDEN_DEFAULTS    =   [
+            "01__ModelFlag__FloorLevelLines",
+            "01__ModelFlag__BuildingJoinLines"
+        ].freeze                                                                   # <-- Hardcoded fallback - overridden by DataLib at runtime
+        LOGGING_CONSOLE_VERBOSE_DEFAULT     = false                               # <-- Hardcoded fallback - overridden by DataLib/AppConfig at runtime
+        LOGGING_TEXT_FILE_ENABLED_DEFAULT   = true                                # <-- Hardcoded fallback - overridden by DataLib/AppConfig at runtime
+        LOGGING_TEXT_FILE_NAME_PATTERN_DEFAULT = "GlbBuilder__ExportLog__%TIMESTAMP%.txt".freeze  # <-- Hardcoded fallback
         INCHES_TO_METERS            =   0.0254                                    # <-- Unit conversion factor: inches → meters
         DEFAULT_EXPORT_NAME         =   "SketchUpExport"                          # <-- Default filename for exports
         GLB_FILE_EXTENSION          =   ".glb"                                    # <-- GLB file extension
@@ -106,12 +114,16 @@ module TrueVision3D
         @na_datalib_exclusion_pattern     = nil                                   # <-- Regex from Tags JSON ExportExclusions
         @na_datalib_fully_excluded        = nil                                   # <-- Array of fully excluded tag names
         @na_datalib_treat_as_untagged     = nil                                   # <-- Array of treat-as-untagged tag names
+        @na_datalib_linework_hidden       = nil                                   # <-- Array of linework-hidden tag names
         @na_datalib_skip_ranges           = nil                                   # <-- Array of skipped tag range numbers
         @na_datalib_tag_ranges            = nil                                   # <-- { Glb__ExportFileNameStem => [range_nums] } replaces TAG_RANGES
         @na_datalib_storey_tag_map        = nil                                   # <-- { tag_number => Storey__ContainerExportName } replaces STOREY_TAG_MAP
         @na_datalib_storey_element_map    = nil                                   # <-- { tag_number => Storey__ElementExportName } replaces STOREY_ELEMENT_TAG_MAP
         @na_datalib_storey_tag_range      = nil                                   # <-- Array of storey container tag numbers replaces STOREY_TAG_RANGE
         @na_datalib_loaded                = false                                 # <-- Flag to prevent re-loading
+        @na_logging_console_verbose       = LOGGING_CONSOLE_VERBOSE_DEFAULT       # <-- Console verbose flag (cached after load)
+        @na_logging_text_file_enabled     = LOGGING_TEXT_FILE_ENABLED_DEFAULT     # <-- Text file enabled flag (cached after load)
+        @na_logging_text_file_name_pattern = LOGGING_TEXT_FILE_NAME_PATTERN_DEFAULT # <-- Text file name pattern (cached after load)
         # ------------------------------------------------------------
 
     # endregion -------------------------------------------------------------------
@@ -141,16 +153,28 @@ module TrueVision3D
                     meta       = tags_data["meta"]
 
                     if exclusions.is_a?(Hash)
-                        pattern_str    = exclusions["PatternExclusionRegex"]
-                        fully_excluded = Array(exclusions["FullyExcludedTagNames"])
-                        treat_untagged = Array(exclusions["TreatAsUntaggedTagNames"])
+                        pattern_str       = exclusions["PatternExclusionRegex"]
+                        fully_excluded    = Array(exclusions["FullyExcludedTagNames"])
+                        treat_untagged    = Array(exclusions["TreatAsUntaggedTagNames"])
+                        linework_hidden   = Array(exclusions["LineworkHiddenTagNames"])
 
                         @na_datalib_exclusion_pattern = pattern_str ? Regexp.new(pattern_str) : nil
-                        @na_datalib_fully_excluded    = fully_excluded.empty? ? nil : fully_excluded
-                        @na_datalib_treat_as_untagged = treat_untagged.empty? ? nil : treat_untagged
+                        @na_datalib_fully_excluded    = fully_excluded.empty?  ? nil : fully_excluded
+                        @na_datalib_treat_as_untagged = treat_untagged.empty?  ? nil : treat_untagged
+                        @na_datalib_linework_hidden   = linework_hidden.empty? ? nil : linework_hidden
 
-                        puts "    [GlbBuilder] DataLib exclusions loaded: #{(fully_excluded).size} fully excluded, #{(treat_untagged).size} treat-as-untagged"
+                        puts "    [GlbBuilder] DataLib exclusions loaded: #{fully_excluded.size} fully excluded, #{treat_untagged.size} treat-as-untagged, #{linework_hidden.size} linework-hidden"
                     end
+
+                    glb_config = tags_data["GlbBuilderConfig"]
+                    if glb_config.is_a?(Hash) && glb_config["Logging"].is_a?(Hash)
+                        logging = glb_config["Logging"]
+                        @na_logging_console_verbose        = logging["ConsoleVerbose"]      == true
+                        @na_logging_text_file_enabled      = logging["TextFileEnabled"]     != false
+                        @na_logging_text_file_name_pattern = logging["TextFileNamePattern"] || LOGGING_TEXT_FILE_NAME_PATTERN_DEFAULT
+                    end
+
+                    self.Na__ExportConfig__OverlayLocalAppConfig
 
                     if meta.is_a?(Hash) && meta["skipRanges"].is_a?(Array)
                         @na_datalib_skip_ranges = meta["skipRanges"]
@@ -163,6 +187,33 @@ module TrueVision3D
             end
 
             @na_datalib_loaded = true
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Overlay Local AppConfig JSON Over DataLib Logging Defaults
+        # ---------------------------------------------------------------
+        # Reads Na__TrueVision__GlbBuilder__AppConfig__.json (if present) from
+        # the plugin folder and applies its Logging sub-keys on top of whatever
+        # was loaded from the DataLib. Missing keys in the local file are skipped
+        # so only present overrides take effect.
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__OverlayLocalAppConfig
+            local_config_path = File.join(NA_PLUGIN_ROOT, 'Na__TrueVision__GlbBuilder__AppConfig__.json')
+            return unless File.exist?(local_config_path)
+
+            begin
+                local_data = JSON.parse(File.read(local_config_path, encoding: 'UTF-8'))
+                logging    = local_data["Logging"]
+                return unless logging.is_a?(Hash)
+
+                @na_logging_console_verbose        = logging["ConsoleVerbose"]      == true         unless logging["ConsoleVerbose"].nil?
+                @na_logging_text_file_enabled      = logging["TextFileEnabled"]     != false        unless logging["TextFileEnabled"].nil?
+                @na_logging_text_file_name_pattern = logging["TextFileNamePattern"]                 if logging["TextFileNamePattern"].is_a?(String)
+
+                puts "    [GlbBuilder] Local AppConfig overlay applied (ConsoleVerbose=#{@na_logging_console_verbose}, TextFile=#{@na_logging_text_file_enabled})"
+            rescue => e
+                puts "    [GlbBuilder] WARNING: Could not read local AppConfig: #{e.message}"
+            end
         end
         # ---------------------------------------------------------------
 
@@ -236,6 +287,38 @@ module TrueVision3D
         def self.Na__ExportConfig__TreatAsUntaggedTagNames
             self.Na__ExportConfig__LoadFromDataLib
             @na_datalib_treat_as_untagged || TREAT_AS_UNTAGGED_DEFAULTS
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Linework-Hidden Tag Names
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__LineworkHiddenTagNames
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_linework_hidden || LINEWORK_HIDDEN_DEFAULTS
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return ConsoleVerbose Logging Flag
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__LoggingConsoleVerbose
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_logging_console_verbose
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return TextFileEnabled Logging Flag
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__LoggingTextFileEnabled
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_logging_text_file_enabled
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return TextFileNamePattern String
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__LoggingTextFileNamePattern
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_logging_text_file_name_pattern
         end
         # ---------------------------------------------------------------
 

@@ -118,7 +118,7 @@ module TrueVision3D
                             entity:                entity,
                             accumulated_transform: child_transform
                         }
-                        puts "      [DoorHandler] Detected door assembly: #{Na__DoorHandler__GetEntityName(entity)}"
+                        Na__Log__Puts "      [DoorHandler] Detected door assembly: #{Na__DoorHandler__GetEntityName(entity)}"
                         next
                     end
 
@@ -542,7 +542,7 @@ module TrueVision3D
             if respond_to?(:Na__MaterialEngine__PrepareMaterialsForExport)
                 Na__MaterialEngine__PrepareMaterialsForExport(buckets, gltf, bin_buffer)
             else
-                puts "    Warning: Material module not loaded - using default fallback."
+                Na__Log__Warn "    Warning: Material module not loaded - using default fallback."
                 gltf["materials"] << {
                     "name" => "Default",
                     "pbrMetallicRoughness" => {
@@ -558,12 +558,12 @@ module TrueVision3D
             buckets.each do |bucket_key, bucket|
                 next if bucket[:positions].empty?
 
-                puts "    Building mesh: #{bucket_key} (#{bucket[:vertex_count]} verts, #{bucket[:indices].length / 3} tris)"
+                Na__Log__Puts "    Building mesh: #{bucket_key} (#{bucket[:vertex_count]} verts, #{bucket[:indices].length / 3} tris)"
                 Na__GlbEngine__BuildMeshPrimitive(bucket_key, bucket, gltf, bin_buffer)
                 mesh_count += 1
             end
 
-            puts "    Total meshes built: #{mesh_count}"
+            Na__Log__Puts "    Total meshes built: #{mesh_count}"
             [gltf, bin_buffer]
         end
         # ---------------------------------------------------------------

@@ -32,13 +32,9 @@ module TrueVision3D
         # FUNCTION | Show Export Options Dialog
         # ------------------------------------------------------------
         def self.Na__UserInterface__ShowExportDialog
-            puts "DEBUG: Na__UserInterface__ShowExportDialog called"
             begin
-                # Close existing dialog if open
                 @export_dialog.close if @export_dialog && @export_dialog.visible?      # Close if already open
                 
-                # Create new dialog
-                puts "DEBUG: Creating new UI::HtmlDialog"
                 @export_dialog = UI::HtmlDialog.new(
                     :dialog_title => "TrueVision3D GLB Export Options",                # <-- Dialog title
                     :preferences_key => "TrueVision3D_GLBExport",                      # <-- Preferences key
@@ -50,23 +46,13 @@ module TrueVision3D
                     :top => 200                                                        # <-- Y position
                 )
                 
-                # Set dialog HTML
-                puts "DEBUG: Generating dialog HTML"
                 html_content = self.Na__UserInterface__GenerateDialogHtml
-                puts "DEBUG: HTML generated, length: #{html_content.length} characters"
                 @export_dialog.set_html(html_content)
-                
-                # Add callbacks
-                puts "DEBUG: Adding dialog callbacks"
                 self.Na__UserInterface__AddDialogCallbacks(@export_dialog)
-                
-                # Show dialog
-                puts "DEBUG: Showing dialog"
                 @export_dialog.show
-                puts "DEBUG: Dialog.show() called successfully"
             rescue => e
-                puts "ERROR in Na__UserInterface__ShowExportDialog: #{e.message}"
-                puts "Backtrace: #{e.backtrace.first(10).join("\n")}"
+                Na__Log__Warn "ERROR in Na__UserInterface__ShowExportDialog: #{e.message}"
+                Na__Log__Warn "Backtrace: #{e.backtrace.first(10).join("\n")}"
                 UI.messagebox("Dialog error: #{e.message}\n\nCheck Ruby Console for details.")
             end
         end
@@ -417,12 +403,10 @@ module TrueVision3D
             # Callback: Create Standardised Tags From Index
             dialog.add_action_callback("Na__TrueVision__GlbBuilder__CreateTags") do |action_context|
                 begin
-                    puts "    Tags button clicked - creating standardised tags..."
                     TrueVision3D::GlbBuilderUtility.Na__PublicApi__CreateStandardisedTags
-                    puts "    ✓ Create standardised tags callback executed"
                 rescue => e
-                    puts "    ✗ Error in create tags callback: #{e.message}"
-                    puts e.backtrace.join("\n")
+                    Na__Log__Warn "    ✗ Error in create tags callback: #{e.message}"
+                    Na__Log__Warn e.backtrace.join("\n")
                     UI.messagebox("Error creating tags: #{e.message}")
                 end
             end
@@ -430,24 +414,17 @@ module TrueVision3D
             # Callback: Reload Scripts (Developer Feature)
             dialog.add_action_callback("Na__TrueVision__GlbBuilder__Reload") do |action_context|
                 begin
-                    puts "    🔄 Reload button clicked - reloading all scripts..."
                     TrueVision3D::GlbBuilderUtility.Na__DevTools__ReloadScripts
-                    puts "    ✓ Reload callback executed successfully"
                 rescue => e
-                    puts "    ✗ Error in reload callback: #{e.message}"
-                    puts e.backtrace.join("\n")
+                    Na__Log__Warn "    ✗ Error in reload callback: #{e.message}"
+                    Na__Log__Warn e.backtrace.join("\n")
                 end
             end
             
             # Export callback - robust event handling
             dialog.add_action_callback("Na__TrueVision__GlbBuilder__Export") do |action_context, params_string|
-                puts "=== TrueVision3D GLB Export - Callback Received ==="
-                puts "Export button clicked - processing parameters..."
-                
-                # Get parameters from the callback URL
                 begin
                     if params_string && !params_string.empty?
-                        puts "Parameters received: #{params_string}"
                         params = JSON.parse(params_string)
                         @export_selection_only = params['selectionOnly']
                         @downscale_textures = params['downscaleTextures'] == true
@@ -455,18 +432,14 @@ module TrueVision3D
                         mode_string = params['materialExportMode'] || 'no_materials'
                         mode_sym = mode_string.to_sym
                         self.Na__MaterialEngine__SetExportMode(mode_sym)
-                        puts "Parsed parameters: selection=#{@export_selection_only}, materialMode=#{mode_sym}, downscaleTextures=#{@downscale_textures}"
                     else
                         @export_selection_only = false
                         @downscale_textures = false
                         self.Na__MaterialEngine__SetExportMode(:no_materials)
-                        puts "Using default parameters"
                     end
                     
                 rescue => e
-                    puts "Parameter parsing error: #{e.message}"
-                    puts "Error class: #{e.class}"
-                    puts "Backtrace: #{e.backtrace.first(3).join("\n")}"
+                    Na__Log__Warn "Parameter parsing error: #{e.message}"
                     @export_selection_only = false
                     @downscale_textures = false
                     self.Na__MaterialEngine__SetExportMode(:no_materials)
@@ -479,27 +452,19 @@ module TrueVision3D
                     export_dir = UI.select_directory(title: "Select Export Directory")
                     
                     if export_dir
-                        puts "Starting export to directory: #{export_dir}"
-                        self.Na__PublicApi__PerformExport(export_dir)                       # Perform the export
-                    else
-                        puts "Export cancelled - no directory selected"
+                        self.Na__PublicApi__PerformExport(export_dir)
                     end
                 rescue => e
-                    puts "ERROR in export directory selection: #{e.message}"
+                    Na__Log__Warn "ERROR in export directory selection: #{e.message}"
                     UI.messagebox("Error selecting export directory: #{e.message}")
                 end
             end
             
-            # Cancel callback
             dialog.add_action_callback("Na__TrueVision__GlbBuilder__Cancel") do |action_context|
-                puts "Export cancelled by user"
-                dialog.close                                                           # Close dialog
+                dialog.close
             end
             
-            # Error handling callback for any unhandled events
-            dialog.set_on_closed {
-                puts "Export dialog closed"
-            }
+            dialog.set_on_closed {}
         end
         # ---------------------------------------------------------------
     
