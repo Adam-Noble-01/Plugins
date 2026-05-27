@@ -3,6 +3,107 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.9.0 - 27-May-2026 - Wall-aware insertion frame (drawing-axes + measurement orientation)
+
+### Context
+Every Create Window / Create Door path previously inserted the new ComponentInstance with `Geom::Transformation.new(point_a)` -- a pure translation. The window/door geometry was always built with X = width along world +X, Y = wall depth along world +Y, Z = height along world +Z, so even when the user had rotated the SketchUp drawing axes (or measured a wall running along world +Y), the assembly was placed at the correct corner but facing the wrong way. The MeasurementTools also computed and then discarded the wall direction (Point B, depth point).
+
+### Fix Summary
+- **NEW helper module** `Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame` (`02__Src__AppModules/04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__InsertionFrame__.rb`). One central API:
+    - `na_build_measurement_frame_2pt(point_a, point_b)` -> Hash `{:origin_in, :xaxis, :yaxis, :zaxis}` where xaxis is the projection of (B - A) onto the drawing ground plane and yaxis = zaxis x xaxis.
+    - `na_build_measurement_frame_3pt(point_a, point_b, depth_point)` -> same Hash with depth_point driving yaxis (Gram-Schmidt re-orthogonalised against xaxis).
+    - `na_resolve_insertion_transform(frame_or_origin)` -> `Geom::Transformation`. Priority chain: full frame -> bare `Geom::Point3d` (orientation taken from `Sketchup.active_model.axes`) -> active drawing axes (placement-tool fallback).
+- **Measurement tools forward Point B (and depth point):**
+    - `Na__TwoPointOpeningTool` now sends `W, H, ax, ay, az, bx, by, bz`.
+    - `Na__ThreePointOpeningTool` now sends `W, H, D, ax, ay, az, bx, by, bz, dx, dy, dz`.
+- **DialogCallbacks / DialogRouter capture the full frame:**
+    - `WindowSystem::Na__DialogCallbacks.na_send_measurement_to_dialog` builds and caches `@na_last_measure_frame` via `InsertionFrame.na_build_measurement_frame_2pt`.
+    - `InteriorDoorSystem::Na__DialogRouter.na_send_door_measurement_to_dialog` builds and caches the 3-point frame via `InsertionFrame.na_build_measurement_frame_3pt`, exposed as `@na_last_measurement[:frame]`.
+    - Consume functions renamed `na_consume_pending_measurement_frame` (was `_origin`).
+- **All four engines now accept the frame:**
+    - `WindowSystem::Na__GeometryEngine.na_create_window_geometry` -- 3rd argument renamed `insertion_frame`; uses new helper `na_resolve_window_insertion_transform`.
+    - `ExteriorMultiFoldingDoorSystem::Na__GeometryEngine.na_build_bifold_door` -- delegates to `InsertionFrame.na_resolve_insertion_transform`.
+    - `ExteriorSlidingDoorSystem::Na__GeometryEngine.na_build_sliding_door` -- same.
+    - `InteriorDoorSystem::Na__GeometryEngine.na_create_door` -- same.
+- **`Na__WindowPlacementTool` is now axis-aware:**
+    - Rotation around `Sketchup.active_model.axes.zaxis` (was hard-coded world Z), so TAB rotates correctly when the user has re-oriented the tripod for an angled wall.
+    - Grid snap is now expressed in the drawing-axes frame (world -> local -> snap -> world) so a 5 mm lattice follows a rotated tripod rather than world XYZ.
+    - Status-bar coordinates are reported in the local (drawing-axes) frame.
+    - Crosshair lines and the rotation arc are drawn along the drawing-axes vectors.
+- **Measurement tools also snap to a local grid** so the picked Point A and Point B respect a rotated tripod before the frame is built. (`Na__TwoPointOpeningTool` + `Na__ThreePointOpeningTool` both now have a `na_axes_transform` helper.)
+- **AppCore Main loads the new helper module** before any system Init partial so the constants resolve cleanly at require time.
+
+### Priority Chain for the Insertion Transform
+1. **Full measurement frame** (origin + xaxis + yaxis + zaxis) -- the assembly is rotated onto the measured wall direction.
+2. **Bare origin Point3d** -- orientation comes from `Sketchup.active_model.axes` (so a user-rotated tripod is still honoured even when only Point A was captured).
+3. **No measurement** -- `axes.transformation` is returned and `Na__WindowPlacementTool` is engaged for an interactive click + TAB-rotate placement.
+4. **No model (defensive)** -- `IDENTITY`.
+
+This mirrors the canonical SketchUp Ruby idiom: `Geom::Transformation.axes(origin, xaxis, yaxis, zaxis)` followed by `entities.add_instance(definition, transform)`.
+
+### Files Changed (V1.9.0)
+- **NEW** `02__Src__AppModules/04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__InsertionFrame__.rb`
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__Main__.rb` (require InsertionFrame)
+- `02__Src__AppModules/06__Tools__MeasurementTools/Na__AssemblyStudio__MeasurementTools__TwoPointOpeningTool__.rb`
+- `02__Src__AppModules/06__Tools__MeasurementTools/Na__AssemblyStudio__MeasurementTools__ThreePointOpeningTool__.rb`
+- `02__Src__AppModules/07__Tools__PlacementTools/Na__AssemblyStudio__PlacementTools__WindowPlacementTool__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb`
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__GeometryEngine__.rb`
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__GeometryEngine__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__DialogRouter__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__GeometryEngine__.rb`
+
+### How to Test
+1. Reload SketchUp.
+2. **Wall along world +Y (no axis rotation):** Open the Window dialog, click *Measure Opening*, pick a corner pair on a wall whose face is parallel to world +Y. Click *Create Window* -- the casement should now sit flush in the wall with the frame depth pointing into the wall, not facing world +Y.
+3. **Rotated drawing axes, no measurement:** Use SketchUp's Axes tool to rotate the drawing tripod 45 degrees around Z (or right-click a face -> Align Axes). Open the dialog and click *Create Window* without measuring -- the placement tool should snap to a 5 mm grid that follows the rotated axes and TAB should rotate around the new Z. The cross-hair colours should align with the new red/green/blue tripod.
+4. **Bifold door, measured wall:** Switch the Window UI into Multi-folding mode, click *Measure Opening*, pick two corners on the wall, click *Create Window*. The bifold panels should fold along the wall direction, not world +X. (Compare to the second user screenshot.)
+5. **Interior Door, 3-point measure on an angled wall:** Rotate the axes to align with an angled wall. Click *Measure Door Opening*, pick A on the wall corner, B on the opposite jamb, D for the wall depth. Click *Create Door* -- the door lining + open-state copy should orient correctly to the wall, with the swing arc resting on the wall plane.
+6. **No regression on default behaviour:** With axes at world origin (default), all existing scenes should continue placing exactly as before.
+
+### Known Limitations
+- The 2-point measurement assumes A is to the "lower-left" of B (xaxis = horizontal component of B - A). If the user picks a reversed diagonal the resulting frame faces backwards; rotate post-placement with TAB or re-measure. The 3-point variant is unambiguous because the depth pick fixes the outward direction.
+- The internal rectangle-drawing overlay in the measurement tools still uses world-axis quadrant tests; this is purely visual feedback and does not affect the captured measurement frame.
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.8.1 - 27-May-2026 - Live Mode performance pass for Gothic Arch tracery
+
+### Context
+With Gothic Arch enabled, Live Mode felt sluggish: dragging the height/amount sliders introduced visible lag and even single object clicks paused for a second. Profiling the build path identified the per-arch-half `Group#intersect` against a transient glass-area cube as the dominant cost (12-16 SketchUp solid booleans per panel x ~50-200 ms each).
+
+### Fix Summary
+- Replaced the post-build cube-`intersect` clipping with a **2D Sutherland-Hodgman boundary clip** that runs BEFORE `add_face`. The arch face is constructed already pre-clipped; `pushpull` extrudes the final shape directly. Zero solid booleans on the clip path.
+- The new helper `GeometryHelpers.na_clip_polygon_to_aabb_2d` (and `na_clip_polygon_against_edge_2d`) takes a 2D point list (X-Z plane) and returns a clipped 2D point list. `na_create_glaze_bar_arch_half` now accepts an optional `clip_bounds` hash and runs the clip on its boundary points.
+- Deleted `na_clip_arch_halves_to_glass_area` and its `Na_Temp_ArchClip` cubes from `GeometryBuilders` entirely.
+- **Skipped the post-fuse soften/smooth pass when the panel has no arch halves** (straight bars have no near-coplanar edges to smooth). `na_fuse_glaze_bars` now flags `has_arch_halves` and only calls `na_soften_smooth_edges_within_angle` when relevant.
+- **Skipped pre-fuse back-material normalisation for arch halves** (`na_create_glaze_bar_arch_half` already paints both face sides at construction). The pre-fuse normaliser now bypasses any group whose name matches `/_Arch\\d+_[LR]$/`.
+- Bumped JS live-update debounce from **100ms to 200ms** in `Na__AssemblyStudio__WindowSystem__UiSystem__Bridge__.js` so the heavier Gothic Arch rebuild path no longer queues overlapping rebuilds during slider drags. Still feels immediate on direct edits.
+
+### Approximate Saving Per Live Update (panel with 3 arches, fuse_parts on)
+| Pass | Before | After |
+|---|---|---|
+| Arch clipping | 6 x ~150 ms = ~900 ms (cube creation + Group#intersect + post-paint per arch half) | ~6 x <1 ms 2D polygon clip during face construction |
+| Soften/smooth on non-arch panels | ~50-150 ms (always ran) | skipped |
+| Pre-fuse back-material normalise | grep + walk every arch face | skipped for arches (already symmetric) |
+| Live-update queueing during slider drag | 100 ms debounce stacked overlapping rebuilds | 200 ms debounce, one rebuild per gesture pause |
+
+### Files Changed (V1.8.1)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryHelpers__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryBuilders__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__FuseParts__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Bridge__.js`
+
+### How to Test
+1. Reload SketchUp.
+2. Open the Window tab, enable Live Mode, enable Gothic Arch.
+3. Drag the Height Of Arches and Amount Of Arches sliders -- the 3D rebuild should now keep pace without stalls.
+4. Click and select the window component in the SketchUp viewport -- selection should be near-instant (the previous ~1 second pause came from a queued live update finishing).
+5. Disable Gothic Arch and verify straight-bar live updates are still fast (and that the soften pass is being skipped per the DebugTools log).
+6. Confirm the visual output is unchanged in both 2D and 3D (arches still terminate flush against casement stiles and top rail).
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.8.0 - 27-May-2026 - Advanced Glazebar Controls: Margin Glazing & Gothic Arch Tracery
 
 ### Context

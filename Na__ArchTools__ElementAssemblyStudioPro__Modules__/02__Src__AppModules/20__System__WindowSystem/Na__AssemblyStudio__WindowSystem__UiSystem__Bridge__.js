@@ -40,7 +40,7 @@ let na_placementModeActive = false;                                  // True whi
 
 // CONSTANTS | Live Update Timing
 // ------------------------------------------------------------
-const NA_LIVE_UPDATE_DEBOUNCE_MS = 100;                              // 100ms debounce for smoother updates
+const NA_LIVE_UPDATE_DEBOUNCE_MS = 200;                              // 200ms debounce - covers the heavier Gothic Arch rebuild without feeling laggy on direct edits
 
 // endregion ===================================================================
 

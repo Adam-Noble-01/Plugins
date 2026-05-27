@@ -248,13 +248,24 @@ module Na__WindowSystem
                 end
 
                 # Pre-fuse pass: copy front material -> back material on
-                # every face of every glaze bar group. Without this, where
-                # a straight bar meets a gothic arch the joint can show a
-                # faint line because one face has a back material and the
-                # other does not. outer_shell respects existing materials,
-                # so equalising them before the boolean keeps the fused
-                # solid clean.
-                groups.each { |g| na_normalize_face_back_materials(g) }
+                # every face of glaze bar groups that are NOT already
+                # symmetric. The arch halves built by
+                # `GeometryHelpers.na_create_glaze_bar_arch_half` already
+                # paint both sides at construction, so we skip them here
+                # (saves an entities.grep walk per arch half).
+                groups.each do |g|
+                    next if g.nil? || !g.valid?
+                    next if g.name =~ /_Arch\d+_[LR]$/
+                    na_normalize_face_back_materials(g)
+                end
+
+                # Detect whether arch halves are part of this panel's
+                # fuse set. Used to decide whether the post-fuse soften
+                # pass is worth running -- straight bars have no
+                # near-coplanar edges to smooth, so the iteration over
+                # every edge in the fused result is pure waste for
+                # arch-free panels.
+                has_arch_halves = groups.any? { |g| g && g.valid? && g.name =~ /_Arch\d+_[LR]$/ }
 
                 DebugTools.na_debug_geometry("GlazeBar #{panel_id}: found #{groups.length} groups to fuse")
 
@@ -266,8 +277,9 @@ module Na__WindowSystem
                     # the tessellated gothic arc reads as a smooth curve
                     # rather than a faceted polyline. Equivalent to using
                     # SketchUp's Soften/Smooth Edges dialog with a 22 deg
-                    # angle threshold.
-                    na_soften_smooth_edges_within_angle(fused, 22.0)
+                    # angle threshold. Skipped entirely when there are
+                    # no arches (straight bars have nothing to smooth).
+                    na_soften_smooth_edges_within_angle(fused, 22.0) if has_arch_halves
 
                     result[:fused] += 1
                     DebugTools.na_debug_success("GlazeBar #{panel_id} fused into: #{fused.name}")

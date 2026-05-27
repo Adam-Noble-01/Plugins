@@ -467,18 +467,31 @@ module Na__WindowSystem
             half_bar = bar_width / 2.0
 
             # Extend the arch zone outward (half_bar on each side, half_bar
-            # on top). The extended geometry projects past the inside face
-            # of the casement; once each arch half is built we intersect
-            # it with a transient glass-area cube so the final solid
-            # terminates against clean plumb edges (no curved tangent
-            # gap against the casement stiles or top rail).
+            # on top). The extended boundary points are then CLIPPED in 2D
+            # (Sutherland-Hodgman against the glass rectangle) BEFORE
+            # add_face is called, so each arch half is constructed already
+            # pre-clipped. This replaced an earlier approach that ran a
+            # SketchUp solid Group#intersect against a transient cube per
+            # arch half -- the boolean was the single biggest contributor
+            # to Live Mode lag (~50-200ms per intersect x up to 16 halves).
+            # The 2D clip costs microseconds.
             ext_glass_left  = glass_left_x - half_bar
             ext_glass_width = glass_width  + (2 * half_bar)
             ext_arch_height = arch_height  + half_bar
             bay_width       = ext_glass_width.to_f / arch_amount
 
             segments_per_arc = na_gothic_tessellation_segment_count(arch_height_mm)
-            arch_halves = []
+
+            # Build clip-bounds hash once, reused for every arch half.
+            clip_bounds = nil
+            if glass_top_z
+                clip_bounds = {
+                    x_min: glass_left_x,
+                    x_max: glass_left_x + glass_width,
+                    y_min: springing_z,
+                    y_max: glass_top_z
+                }
+            end
 
             (0...arch_amount).each do |bay_index|
                 bay_left = ext_glass_left + (bay_index * bay_width)
@@ -488,88 +501,29 @@ module Na__WindowSystem
                 radius_outer = params[:radius] + half_bar
                 radius_inner = [params[:radius] - half_bar, 0.01].max
 
-                # Left arc-half: one face from the outer arc walked
-                # forward and the inner arc walked back, push-pulled into
-                # the wall by bar_depth.
-                left = GeometryHelpers.na_create_glaze_bar_arch_half(
+                # Left arc-half: face boundary computed, clipped in 2D
+                # against `clip_bounds` if provided, then push-pulled
+                # into the wall by bar_depth.
+                GeometryHelpers.na_create_glaze_bar_arch_half(
                     entities, opening_index, arch_index, "L",
                     bay_left + params[:left_center_x], springing_z,
                     radius_outer, radius_inner,
                     params[:left_start_ang], params[:left_end_ang],
                     segments_per_arc,
-                    y_offset, bar_depth, material
+                    y_offset, bar_depth, material,
+                    clip_bounds
                 )
-                arch_halves << left if left
 
                 # Right arc-half (mirror).
-                right = GeometryHelpers.na_create_glaze_bar_arch_half(
+                GeometryHelpers.na_create_glaze_bar_arch_half(
                     entities, opening_index, arch_index, "R",
                     bay_left + params[:right_center_x], springing_z,
                     radius_outer, radius_inner,
                     params[:right_start_ang], params[:right_end_ang],
                     segments_per_arc,
-                    y_offset, bar_depth, material
+                    y_offset, bar_depth, material,
+                    clip_bounds
                 )
-                arch_halves << right if right
-            end
-
-            return if glass_top_z.nil?
-            na_clip_arch_halves_to_glass_area(
-                entities, arch_halves,
-                glass_left_x, glass_left_x + glass_width,
-                y_offset, bar_depth,
-                springing_z, glass_top_z,
-                material
-            )
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Clip Arch Halves Against the Glass-Area Bounding Box
-        # ------------------------------------------------------------
-        # For each arch half (built with extended bounds), intersects it
-        # with a transient glass-area cube so the final solid is the
-        # arch's footprint inside the glass rectangle only -- giving
-        # clean plumb edges where the arch meets the casement.
-        #
-        # SketchUp's solid boolean ops typically consume both inputs and
-        # return a fresh group. We defensively call `valid?` and erase
-        # any leftover input groups in case a SketchUp version preserves
-        # them. The cube is created fresh per arch half because each
-        # intersect destroys it.
-        def self.na_clip_arch_halves_to_glass_area(entities, arch_halves, x_min, x_max, y_origin, bar_depth, z_min, z_max, material)
-            eps = 0.01 # inches; inflate the cube's Y range slightly so
-                       # boundary-touching faces stay inside the boolean
-            arch_halves.each do |arch|
-                next unless arch && arch.valid?
-
-                cube = GeometryHelpers.na_create_grouped_box(
-                    entities, "Na_Temp_ArchClip",
-                    x_min, y_origin - eps, z_min,
-                    x_max - x_min, bar_depth + (2 * eps), z_max - z_min,
-                    material
-                )
-                next unless cube
-
-                original_name = arch.name
-                result = nil
-                begin
-                    result = arch.intersect(cube)
-                rescue StandardError => e
-                    DebugTools.na_debug_error("Arch clip intersect raised: #{e.message}", e)
-                end
-
-                cube.erase! if cube && cube.valid?
-                arch.erase! if arch && arch.valid? && !arch.equal?(result)
-
-                if result && result.valid?
-                    result.name = original_name
-                    if material
-                        result.entities.grep(Sketchup::Face).each do |f|
-                            f.material      = material
-                            f.back_material = material
-                        end
-                    end
-                end
             end
         end
         # ---------------------------------------------------------------

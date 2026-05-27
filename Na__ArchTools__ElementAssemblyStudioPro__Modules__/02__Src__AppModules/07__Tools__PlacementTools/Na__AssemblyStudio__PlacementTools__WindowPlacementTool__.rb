@@ -7,13 +7,16 @@
 # CLASS      : Na__WindowPlacementTool
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Interactive placement tool for positioning a freshly-created
-#              window component. 5mm grid snap, Tab cycles 90deg rotations,
+#              window component. 5mm grid snap (local to the active drawing
+#              axes), Tab cycles 90deg rotations around the drawing-axes Z,
 #              ESC cancels and erases the instance.
 #
 # REFACTOR NOTES (v2 / EASP)
 # - Explicit require_relative on AppCore::DialogManager (was relying on load
 #   order via Main).
 # - Diagnostics routed through unified DebugTools.
+# - v0.12 - Axis-aware: snap grid and rotation pivot both respect
+#   Sketchup.active_model.axes so a user-rotated axes tripod is honoured.
 # =============================================================================
 
 require 'sketchup.rb'
@@ -30,7 +33,6 @@ module Na__AssemblyStudio
 
             NA_ROTATION_KEY   = 9
             NA_ROTATION_STEPS = [0, 90, 180, 270].freeze
-            NA_Z_AXIS         = Geom::Vector3d.new(0, 0, 1)
             NA_CROSSHAIR_SIZE = 300.mm
             NA_GRID_SIZE      = 5.mm
 
@@ -43,11 +45,13 @@ module Na__AssemblyStudio
                 @placement_committed = false
                 @original_transform  = instance.transformation.clone
                 @last_position       = instance.bounds.min
+                na_refresh_axes_cache
                 DebugTools.na_debug_placement("Placement tool initialized")
             end
 
             def activate
-                DebugTools.na_debug_placement("Placement tool activated")
+                na_refresh_axes_cache
+                DebugTools.na_debug_placement("Placement tool activated (zaxis=#{@axes_zaxis.inspect})")
                 na_update_status_text
                 Sketchup.active_model.active_view.invalidate
             end
@@ -118,28 +122,13 @@ module Na__AssemblyStudio
                 return unless @cursor_pos
                 view.line_width = 2
                 view.drawing_color = Sketchup::Color.new(255, 0, 0)
-                view.draw_line(@cursor_pos.offset(X_AXIS, -NA_CROSSHAIR_SIZE), @cursor_pos.offset(X_AXIS, NA_CROSSHAIR_SIZE))
+                view.draw_line(@cursor_pos.offset(@axes_xaxis, -NA_CROSSHAIR_SIZE), @cursor_pos.offset(@axes_xaxis, NA_CROSSHAIR_SIZE))
                 view.drawing_color = Sketchup::Color.new(0, 255, 0)
-                view.draw_line(@cursor_pos.offset(Y_AXIS, -NA_CROSSHAIR_SIZE), @cursor_pos.offset(Y_AXIS, NA_CROSSHAIR_SIZE))
+                view.draw_line(@cursor_pos.offset(@axes_yaxis, -NA_CROSSHAIR_SIZE), @cursor_pos.offset(@axes_yaxis, NA_CROSSHAIR_SIZE))
                 view.drawing_color = Sketchup::Color.new(0, 0, 255)
-                view.draw_line(@cursor_pos, @cursor_pos.offset(NA_Z_AXIS, NA_CROSSHAIR_SIZE))
+                view.draw_line(@cursor_pos, @cursor_pos.offset(@axes_zaxis, NA_CROSSHAIR_SIZE))
 
-                if @rotation_step > 0
-                    view.drawing_color = Sketchup::Color.new(255, 165, 0)
-                    view.line_width = 3
-                    arc_radius = NA_CROSSHAIR_SIZE * 0.3
-                    segments = 12
-                    arc_points = []
-                    (0..segments).each do |i|
-                        angle = (i.to_f / segments) * 90.degrees
-                        arc_points << Geom::Point3d.new(
-                            @cursor_pos.x + arc_radius * Math.cos(angle),
-                            @cursor_pos.y + arc_radius * Math.sin(angle),
-                            @cursor_pos.z
-                        )
-                    end
-                    view.draw_polyline(arc_points)
-                end
+                na_draw_rotation_arc(view) if @rotation_step > 0
             end
 
             # Public: called by DialogManager via the JS Tab interceptor
@@ -151,21 +140,25 @@ module Na__AssemblyStudio
 
             private
 
+            # Rotates the instance around the drawing-axes Z so a user-
+            # rotated axis tripod (e.g. aligned to an angled wall) is
+            # honoured. The pivot stays at the instance bounds.center.
             def na_advance_rotation
                 return unless @instance && @instance.valid?
-                center   = @instance.bounds.center
-                rotation = Geom::Transformation.rotation(center, NA_Z_AXIS, 90.degrees)
+                pivot    = @instance.bounds.center
+                rotation = Geom::Transformation.rotation(pivot, @axes_zaxis, 90.degrees)
                 @instance.transform!(rotation)
                 @rotation_step = (@rotation_step + 1) % 4
-                DebugTools.na_debug_placement("Rotation: #{NA_ROTATION_STEPS[@rotation_step]} degrees")
+                DebugTools.na_debug_placement("Rotation: #{NA_ROTATION_STEPS[@rotation_step]} degrees around drawing zaxis")
             end
 
             def na_update_status_text
                 degrees = NA_ROTATION_STEPS[@rotation_step]
                 if @cursor_pos
-                    x_mm = (@cursor_pos.x * 25.4).round
-                    y_mm = (@cursor_pos.y * 25.4).round
-                    z_mm = (@cursor_pos.z * 25.4).round
+                    local_pt = @cursor_pos.transform(@axes_inverse_transform)
+                    x_mm = (local_pt.x * 25.4).round
+                    y_mm = (local_pt.y * 25.4).round
+                    z_mm = (local_pt.z * 25.4).round
                     Sketchup.status_text =
                         "Click to place window at X:#{x_mm}mm Y:#{y_mm}mm Z:#{z_mm}mm | TAB to rotate [Current: #{degrees}deg] | ESC to cancel"
                 else
@@ -174,12 +167,61 @@ module Na__AssemblyStudio
                 end
             end
 
-            def na_round_to_grid(point)
-                Geom::Point3d.new(
-                    (point.x / NA_GRID_SIZE).round * NA_GRID_SIZE,
-                    (point.y / NA_GRID_SIZE).round * NA_GRID_SIZE,
-                    (point.z / NA_GRID_SIZE).round * NA_GRID_SIZE
+            # Snap the world picked point to a `NA_GRID_SIZE` lattice
+            # expressed in the model's drawing-axes coordinate system,
+            # not in world XYZ. That way a user-rotated axes tripod (or
+            # an angled wall) gets a snap grid aligned to the wall.
+            def na_round_to_grid(world_point)
+                local_pt    = world_point.transform(@axes_inverse_transform)
+                snapped_loc = Geom::Point3d.new(
+                    (local_pt.x / NA_GRID_SIZE).round * NA_GRID_SIZE,
+                    (local_pt.y / NA_GRID_SIZE).round * NA_GRID_SIZE,
+                    (local_pt.z / NA_GRID_SIZE).round * NA_GRID_SIZE
                 )
+                snapped_loc.transform(@axes_transform)
+            end
+
+            # Cache the active drawing-axes transforms each time the
+            # placement tool activates. Re-cached on activate() because
+            # the user may have moved the axes between dialog show and
+            # the first click.
+            def na_refresh_axes_cache
+                model = Sketchup.active_model
+                axes  = model && model.axes
+                if axes
+                    @axes_transform          = axes.transformation
+                    @axes_inverse_transform  = @axes_transform.inverse
+                    @axes_xaxis              = axes.xaxis
+                    @axes_yaxis              = axes.yaxis
+                    @axes_zaxis              = axes.zaxis
+                else
+                    @axes_transform          = Geom::Transformation.new
+                    @axes_inverse_transform  = Geom::Transformation.new
+                    @axes_xaxis              = X_AXIS
+                    @axes_yaxis              = Y_AXIS
+                    @axes_zaxis              = Z_AXIS
+                end
+            end
+
+            # Renders the 90 deg arc around the drawing-axes Z so it
+            # visually matches the rotation pivot. Arc points are built
+            # in the local frame then transformed back into world space.
+            def na_draw_rotation_arc(view)
+                view.drawing_color = Sketchup::Color.new(255, 165, 0)
+                view.line_width    = 3
+                arc_radius = NA_CROSSHAIR_SIZE * 0.3
+                segments   = 12
+                local_cursor = @cursor_pos.transform(@axes_inverse_transform)
+                arc_points   = (0..segments).map do |i|
+                    angle = (i.to_f / segments) * 90.degrees
+                    local_pt = Geom::Point3d.new(
+                        local_cursor.x + arc_radius * Math.cos(angle),
+                        local_cursor.y + arc_radius * Math.sin(angle),
+                        local_cursor.z
+                    )
+                    local_pt.transform(@axes_transform)
+                end
+                view.draw_polyline(arc_points)
             end
 
             def na_signal_dialog(_kind)

@@ -13,7 +13,7 @@
 #
 # DESCRIPTION:
 # - Public surface (mirrors the bifold and Window engines):
-#     * na_build_sliding_door(config, door_id, insertion_origin_in)  -> Instance
+#     * na_build_sliding_door(config, door_id, insertion_frame)      -> Instance
 #     * na_update_sliding_door(instance, config)                     -> Boolean
 # - Build pipeline:
 #     1. Validate config.
@@ -21,8 +21,9 @@
 #     3. Create ComponentDefinition "<ADR>__SlidingDoor__".
 #     4. Compose the ADR (head + base track + per-leaf MOD/ROT/MVE)
 #        via `Na__AssemblyComposer.na_compose_adr`.
-#     5. Add a single ComponentInstance at insertion_origin_in (or
-#        IDENTITY when nil). Tag :proposed_doors when available.
+#     5. Add a single ComponentInstance via Na__InsertionFrame which
+#        honours measurement frame > origin + model.axes > active axes.
+#        Tag :proposed_doors when available.
 # - Update path clears the definition entities and rebuilds in place;
 #   the instance position in the model is preserved.
 #
@@ -61,6 +62,7 @@ module Na__GeometryEngine
     GeometryHelpers    = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryHelpers
     AssemblyComposer   = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__AssemblyComposer
     DataSerializer     = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
+    InsertionFrame     = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                    # <-- Wall-aware insertion transform helper
 
 # endregion -------------------------------------------------------------------
 
@@ -78,11 +80,12 @@ module Na__GeometryEngine
 
     # FUNCTION | Build a New Sliding-Door Component Instance
     # ------------------------------------------------------------
-    # @param config_hash         [Hash]            full sliding config
-    # @param door_id             [String,nil]      pre-allocated ADR id (optional)
-    # @param insertion_origin_in [Geom::Point3d,nil] insertion point (inches)
+    # @param config_hash     [Hash]                   full sliding config
+    # @param door_id         [String,nil]             pre-allocated ADR id (optional)
+    # @param insertion_frame [Hash,Geom::Point3d,nil] measurement frame
+    #     (origin + xaxis/yaxis/zaxis), bare origin Point3d, or nil.
     # @return [Sketchup::ComponentInstance, nil]
-    def self.na_build_sliding_door(config_hash, door_id = nil, insertion_origin_in = nil)
+    def self.na_build_sliding_door(config_hash, door_id = nil, insertion_frame = nil)
         DebugTools.na_debug_method("ExtSlide::GeometryEngine.na_build_sliding_door")
 
         return nil unless config_hash.is_a?(Hash)
@@ -103,7 +106,7 @@ module Na__GeometryEngine
             door_def         = model.definitions.add(definition_name)
             AssemblyComposer.na_compose_adr(config_hash, door_def.entities, door_id)
 
-            instance_xform   = na_resolve_insertion_transform(insertion_origin_in)
+            instance_xform   = na_resolve_insertion_transform(insertion_frame)
             instance         = model.active_entities.add_instance(door_def, instance_xform)
 
             DataSerializer.na_set_door_id_on_instance(instance, door_id)               # <-- Pointer dict + canonical naming
@@ -162,9 +165,14 @@ module Na__GeometryEngine
 
     # HELPER FUNCTION | Resolve the Insertion Transform for the New Instance
     # ------------------------------------------------------------
-    def self.na_resolve_insertion_transform(insertion_origin_in)
-        return IDENTITY unless insertion_origin_in.is_a?(Geom::Point3d)
-        Geom::Transformation.new(insertion_origin_in)
+    # Delegates to the shared InsertionFrame helper so the sliding
+    # path honours the same priority as Window / Bifold / Interior
+    # Door (measurement frame > origin + active axes > active axes).
+    #
+    # @param insertion_frame [Hash, Geom::Point3d, nil]
+    # @return [Geom::Transformation]
+    def self.na_resolve_insertion_transform(insertion_frame)
+        InsertionFrame.na_resolve_insertion_transform(insertion_frame)
     end
     private_class_method :na_resolve_insertion_transform
     # ---------------------------------------------------------------

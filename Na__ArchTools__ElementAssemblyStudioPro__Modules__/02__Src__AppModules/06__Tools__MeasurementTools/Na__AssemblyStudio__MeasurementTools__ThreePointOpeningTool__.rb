@@ -332,12 +332,25 @@ module Na__AssemblyStudio
                 end
             end
 
+            # Snap to a `NA_GRID_SIZE` lattice expressed in the active
+            # drawing-axes frame so a user-rotated axes tripod (e.g.
+            # aligned to an angled wall) gets a snap grid that follows
+            # the wall rather than world XYZ.
             def na_round_to_grid(point)
-                Geom::Point3d.new(
-                    (point.x / NA_GRID_SIZE).round * NA_GRID_SIZE,
-                    (point.y / NA_GRID_SIZE).round * NA_GRID_SIZE,
-                    (point.z / NA_GRID_SIZE).round * NA_GRID_SIZE
+                axes_xform = na_axes_transform
+                local_pt   = point.transform(axes_xform.inverse)
+                snapped_loc = Geom::Point3d.new(
+                    (local_pt.x / NA_GRID_SIZE).round * NA_GRID_SIZE,
+                    (local_pt.y / NA_GRID_SIZE).round * NA_GRID_SIZE,
+                    (local_pt.z / NA_GRID_SIZE).round * NA_GRID_SIZE
                 )
+                snapped_loc.transform(axes_xform)
+            end
+
+            def na_axes_transform
+                model = Sketchup.active_model
+                return Geom::Transformation.new unless model
+                model.axes.transformation
             end
 
             def na_point_to_mm_string(point)
@@ -350,13 +363,18 @@ module Na__AssemblyStudio
                 depth_mm            = na_calculate_depth_mm(@point_a, @depth_point)
 
                 DebugTools.na_debug_success(
-                    "Three-point complete: W=#{width_mm}mm H=#{height_mm}mm D=#{depth_mm}mm"
+                    "Three-point complete: W=#{width_mm}mm H=#{height_mm}mm D=#{depth_mm}mm " \
+                    "A=(#{(@point_a.x * NA_INCH_TO_MM).round}, #{(@point_a.y * NA_INCH_TO_MM).round}, #{(@point_a.z * NA_INCH_TO_MM).round})mm " \
+                    "B=(#{(@point_b.x * NA_INCH_TO_MM).round}, #{(@point_b.y * NA_INCH_TO_MM).round}, #{(@point_b.z * NA_INCH_TO_MM).round})mm " \
+                    "D=(#{(@depth_point.x * NA_INCH_TO_MM).round}, #{(@depth_point.y * NA_INCH_TO_MM).round}, #{(@depth_point.z * NA_INCH_TO_MM).round})mm"
                 )
 
                 return unless @dialog_host.respond_to?(@cb_complete)
                 @dialog_host.public_send(@cb_complete,
                     width_mm, height_mm, depth_mm,
-                    @point_a.x, @point_a.y, @point_a.z
+                    @point_a.x,     @point_a.y,     @point_a.z,
+                    @point_b.x,     @point_b.y,     @point_b.z,
+                    @depth_point.x, @depth_point.y, @depth_point.z
                 )
             end
 

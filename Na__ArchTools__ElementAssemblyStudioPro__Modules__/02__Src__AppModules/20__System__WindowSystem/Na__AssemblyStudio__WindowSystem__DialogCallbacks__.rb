@@ -35,13 +35,14 @@ module Na__AssemblyStudio
             SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
             TwoPoint       = Na__AssemblyStudio::Na__MeasurementTools::Na__TwoPointOpeningTool
             PlacementTool  = Na__AssemblyStudio::Na__PlacementTools::Na__WindowPlacementTool
+            InsertionFrame = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                  # <-- Wall-aware insertion transform helper
 
             @na_dialog               = nil
             @na_window_component     = nil
             @na_bifold_component     = nil
             @na_sliding_component    = nil
             @na_config               = nil
-            @na_last_measure_origin  = nil
+            @na_last_measure_frame   = nil                                                                # <-- { :origin_in, :xaxis, :yaxis, :zaxis } or { :origin_in => Point3d }
             @na_current_placement_tool = nil
 
             def self.na_attach_dialog(dialog)
@@ -387,10 +388,10 @@ module Na__AssemblyStudio
                     @na_config["windowMetadata"][0]["LastModified"]   = Time.now.strftime("%Y-%m-%d %H:%M:%S")
                 end
 
-                pending_origin = na_consume_pending_measurement_origin
+                pending_frame = na_consume_pending_measurement_frame
 
                 @na_window_component = GeometryEngine.na_create_window_geometry(
-                    config["windowConfiguration"], window_id, pending_origin
+                    config["windowConfiguration"], window_id, pending_frame
                 )
 
                 if @na_window_component && @na_window_component.valid?
@@ -408,8 +409,10 @@ module Na__AssemblyStudio
                     DataSerializer.na_save_window_data(window_id, @na_config)
                     model.commit_operation
 
-                    if pending_origin
-                        UiBridge.na_send_status(@na_dialog, 'success', "Window placed at measured Point A: #{window_id}")
+                    if pending_frame
+                        oriented = InsertionFrame.na_frame_has_orientation?(pending_frame)
+                        status_label = oriented ? "measured Point A + wall direction" : "measured Point A"
+                        UiBridge.na_send_status(@na_dialog, 'success', "Window placed at #{status_label}: #{window_id}")
                     else
                         @na_current_placement_tool = PlacementTool.new(@na_window_component)
                         Sketchup.active_model.select_tool(@na_current_placement_tool)
@@ -448,7 +451,7 @@ module Na__AssemblyStudio
                 return unless model
 
                 window_config = config["windowConfiguration"] || {}
-                pending_origin = na_consume_pending_measurement_origin
+                pending_frame = na_consume_pending_measurement_frame
 
                 model.start_operation("Create Bifold Door", true)
 
@@ -456,7 +459,7 @@ module Na__AssemblyStudio
                 bifold_engine     = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
                 bifold_serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
 
-                instance = bifold_engine.na_build_bifold_door(window_config, nil, pending_origin)
+                instance = bifold_engine.na_build_bifold_door(window_config, nil, pending_frame)
 
                 if instance && instance.valid?
                     @na_bifold_component = instance
@@ -474,8 +477,10 @@ module Na__AssemblyStudio
 
                     model.commit_operation
 
-                    if pending_origin
-                        UiBridge.na_send_status(@na_dialog, 'success', "Bifold placed at measured Point A: #{instance.name}")
+                    if pending_frame
+                        oriented = InsertionFrame.na_frame_has_orientation?(pending_frame)
+                        status_label = oriented ? "measured Point A + wall direction" : "measured Point A"
+                        UiBridge.na_send_status(@na_dialog, 'success', "Bifold placed at #{status_label}: #{instance.name}")
                     else
                         @na_current_placement_tool = PlacementTool.new(instance)
                         Sketchup.active_model.select_tool(@na_current_placement_tool)
@@ -621,7 +626,7 @@ module Na__AssemblyStudio
                 return unless model
 
                 window_config = config["windowConfiguration"] || {}
-                pending_origin = na_consume_pending_measurement_origin
+                pending_frame = na_consume_pending_measurement_frame
 
                 model.start_operation("Create Sliding Door", true)
 
@@ -629,7 +634,7 @@ module Na__AssemblyStudio
                 sliding_engine     = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
                 sliding_serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
 
-                instance = sliding_engine.na_build_sliding_door(window_config, nil, pending_origin)
+                instance = sliding_engine.na_build_sliding_door(window_config, nil, pending_frame)
 
                 if instance && instance.valid?
                     @na_sliding_component = instance
@@ -647,8 +652,10 @@ module Na__AssemblyStudio
 
                     model.commit_operation
 
-                    if pending_origin
-                        UiBridge.na_send_status(@na_dialog, 'success', "Sliding placed at measured Point A: #{instance.name}")
+                    if pending_frame
+                        oriented = InsertionFrame.na_frame_has_orientation?(pending_frame)
+                        status_label = oriented ? "measured Point A + wall direction" : "measured Point A"
+                        UiBridge.na_send_status(@na_dialog, 'success', "Sliding placed at #{status_label}: #{instance.name}")
                     else
                         @na_current_placement_tool = PlacementTool.new(instance)
                         Sketchup.active_model.select_tool(@na_current_placement_tool)
@@ -967,11 +974,14 @@ module Na__AssemblyStudio
                 Sketchup.active_model.select_tool(tool)
             end
 
-            # Called by TwoPoint completion
-            def self.na_send_measurement_to_dialog(width_mm, height_mm, ax = nil, ay = nil, az = nil)
-                if ax && ay && az
-                    @na_last_measure_origin = Geom::Point3d.new(ax, ay, az)
-                end
+            # Called by TwoPoint completion. ax/ay/az carry Point A; the
+            # optional bx/by/bz carry Point B so the GeometryEngine can
+            # derive the wall-direction xaxis and respect the user's
+            # drawing axes when inserting the new component.
+            def self.na_send_measurement_to_dialog(width_mm, height_mm,
+                                                    ax = nil, ay = nil, az = nil,
+                                                    bx = nil, by = nil, bz = nil)
+                @na_last_measure_frame = na_build_window_measurement_frame(ax, ay, az, bx, by, bz)
                 UiBridge.na_execute_numeric_function(
                     @na_dialog, 'window.na_receiveMeasurement',
                     *[width_mm, height_mm, ax, ay, az].compact
@@ -982,10 +992,28 @@ module Na__AssemblyStudio
                 UiBridge.na_invoke(@na_dialog, 'window.na_measureCancelled')
             end
 
-            def self.na_consume_pending_measurement_origin
-                origin = @na_last_measure_origin
-                @na_last_measure_origin = nil
-                origin
+            # FUNCTION | Consume the Pending Measurement (Frame or Origin Only)
+            # ------------------------------------------------------------
+            # Returns the most recent measurement frame Hash and clears
+            # it so the next created window without a fresh measurement
+            # falls back to the placement tool. The Hash may carry just
+            # :origin_in (2-point fallback) or the full orientation
+            # vector trio.
+            def self.na_consume_pending_measurement_frame
+                frame = @na_last_measure_frame
+                @na_last_measure_frame = nil
+                frame
+            end
+
+            # HELPER FUNCTION | Build the Measurement Frame from Raw Callback Coords
+            # ------------------------------------------------------------
+            def self.na_build_window_measurement_frame(ax, ay, az, bx, by, bz)
+                return nil unless ax && ay && az
+                point_a = Geom::Point3d.new(ax, ay, az)
+                return { InsertionFrame::NA_FRAME_KEY_ORIGIN => point_a } unless bx && by && bz
+
+                point_b = Geom::Point3d.new(bx, by, bz)
+                InsertionFrame.na_build_measurement_frame_2pt(point_a, point_b)
             end
 
             def self.na_send_config_to_dialog

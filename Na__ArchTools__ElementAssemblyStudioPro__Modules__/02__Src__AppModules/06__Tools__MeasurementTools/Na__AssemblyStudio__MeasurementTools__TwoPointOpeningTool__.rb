@@ -232,13 +232,20 @@ module Na__AssemblyStudio
 
                 DebugTools.na_debug_success(
                     "Measurement complete: W=#{width_mm}mm, RawH=#{height_mm}mm, " \
-                    "Cill=#{@cill_height_mm}mm, AdjH=#{adjusted_height_mm}mm"
+                    "Cill=#{@cill_height_mm}mm, AdjH=#{adjusted_height_mm}mm, " \
+                    "A=(#{(@point_a.x * NA_INCH_TO_MM).round}, " \
+                    "#{(@point_a.y * NA_INCH_TO_MM).round}, " \
+                    "#{(@point_a.z * NA_INCH_TO_MM).round})mm, " \
+                    "B=(#{(@current_point.x * NA_INCH_TO_MM).round}, " \
+                    "#{(@current_point.y * NA_INCH_TO_MM).round}, " \
+                    "#{(@current_point.z * NA_INCH_TO_MM).round})mm"
                 )
 
                 return unless @dialog_host.respond_to?(@cb_complete)
                 @dialog_host.public_send(@cb_complete,
                     width_mm, adjusted_height_mm,
-                    @point_a.x, @point_a.y, @point_a.z
+                    @point_a.x,       @point_a.y,       @point_a.z,
+                    @current_point.x, @current_point.y, @current_point.z
                 )
             end
 
@@ -260,12 +267,25 @@ module Na__AssemblyStudio
                 end
             end
 
+            # Snap to a `NA_GRID_SIZE` lattice expressed in the active
+            # drawing-axes frame so a user-rotated axes tripod (e.g.
+            # aligned to an angled wall) gets a snap grid that follows
+            # the wall rather than world XYZ.
             def na_round_to_grid(point)
-                Geom::Point3d.new(
-                    (point.x / NA_GRID_SIZE).round * NA_GRID_SIZE,
-                    (point.y / NA_GRID_SIZE).round * NA_GRID_SIZE,
-                    (point.z / NA_GRID_SIZE).round * NA_GRID_SIZE
+                axes_xform = na_axes_transform
+                local_pt   = point.transform(axes_xform.inverse)
+                snapped_loc = Geom::Point3d.new(
+                    (local_pt.x / NA_GRID_SIZE).round * NA_GRID_SIZE,
+                    (local_pt.y / NA_GRID_SIZE).round * NA_GRID_SIZE,
+                    (local_pt.z / NA_GRID_SIZE).round * NA_GRID_SIZE
                 )
+                snapped_loc.transform(axes_xform)
+            end
+
+            def na_axes_transform
+                model = Sketchup.active_model
+                return Geom::Transformation.new unless model
+                model.axes.transformation
             end
 
             def na_point_to_mm_string(point)

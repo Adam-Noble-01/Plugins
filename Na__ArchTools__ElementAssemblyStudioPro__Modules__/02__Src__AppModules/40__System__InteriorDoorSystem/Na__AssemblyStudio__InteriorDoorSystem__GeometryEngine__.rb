@@ -12,7 +12,7 @@
 # DESCRIPTION:
 # - High-level orchestration mirroring Na__AssemblyStudio::Na__WindowSystem::Na__GeometryEngine.
 # - Public surface:
-#     * na_create_door(config, door_id, insertion_origin_in)
+#     * na_create_door(config, door_id, insertion_frame)
 #     * na_update_door(instance, config)
 #     * na_find_live_update_target(current_instance)
 # - Build pipeline:
@@ -24,9 +24,10 @@
 #     4. Compose the closed-state ADR / MOD / ROT assembly inside the
 #        definition (panel + handles only).
 #     5. Optionally duplicate + rotate to produce the open-state ADR copy.
-#     6. Add a single ComponentInstance at the model root; place it at
-#        insertion_origin_in (Point A from the measure tool) when supplied,
-#        otherwise IDENTITY (caller is expected to engage placement tool).
+#     6. Add a single ComponentInstance at the model root; resolve the
+#        insertion transform via Na__InsertionFrame which honours the
+#        measurement frame > origin-only (model.axes) > active axes
+#        priority chain so the door is rotated onto the wall direction.
 #     7. Caller runs the DataSerializer save afterwards.
 #
 # NAMING CONVENTION:
@@ -62,6 +63,7 @@ module Na__InteriorDoorSystem
         DoorAssemblyComposer= Na__AssemblyStudio::Na__InteriorDoorSystem::Na__DoorAssemblyComposer
         DataSerializer      = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__DataSerializer
         TagManager          = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
+        InsertionFrame      = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame              # <-- Wall-aware insertion transform helper
 
 # endregion -------------------------------------------------------------------
 
@@ -73,9 +75,10 @@ module Na__InteriorDoorSystem
         # ------------------------------------------------------------
         # @param config [Hash] Na__DoorConfiguration block
         # @param door_id [String, nil] Optional pre-generated ADR ID
-        # @param insertion_origin_in [Geom::Point3d, nil] Insertion point in inches (Point A)
+        # @param insertion_frame [Hash, Geom::Point3d, nil] Measurement frame
+        #     (origin + xaxis/yaxis/zaxis), bare origin Point3d, or nil.
         # @return [Sketchup::ComponentInstance, nil] The created instance, or nil on failure
-        def self.na_create_door(config, door_id = nil, insertion_origin_in = nil)
+        def self.na_create_door(config, door_id = nil, insertion_frame = nil)
             DebugTools.na_debug_method("GeometryEngine.na_create_door")
             model    = Sketchup.active_model
             return nil unless model
@@ -107,7 +110,7 @@ module Na__InteriorDoorSystem
                 end
 
                 tag_proposed_doors     = TagManager.na_get_or_create_tag(:proposed_doors)
-                instance_transform     = na_resolve_insertion_transform(insertion_origin_in)
+                instance_transform     = na_resolve_insertion_transform(insertion_frame)
                 instance               = model.active_entities.add_instance(door_def, instance_transform)
                 instance.name          = definition_name
                 instance.layer         = tag_proposed_doors if tag_proposed_doors
@@ -255,14 +258,18 @@ module Na__InteriorDoorSystem
 
         # HELPER FUNCTION | Resolve the Insertion Transformation for a New Door
         # ------------------------------------------------------------
-        # Priority order:
-        #   1. insertion_origin_in (Point A from the measure tool, in inches)
-        #   2. Identity (caller is expected to engage a placement tool)
-        def self.na_resolve_insertion_transform(insertion_origin_in)
-            return Geom::Transformation.new unless insertion_origin_in
-            return Geom::Transformation.new unless insertion_origin_in.is_a?(Geom::Point3d)
-
-            Geom::Transformation.new(insertion_origin_in)
+        # Priority order (delegates to InsertionFrame helper):
+        #   1. Measurement frame Hash (origin + xaxis/yaxis/zaxis) - the
+        #      door is rotated onto the measured wall direction.
+        #   2. Bare Point3d - orientation falls back to the model's
+        #      active drawing axes so a user-rotated axis is honoured.
+        #   3. Nil - returns the active drawing axes transformation
+        #      (placement tool fallback).
+        #
+        # @param insertion_frame [Hash, Geom::Point3d, nil]
+        # @return [Geom::Transformation]
+        def self.na_resolve_insertion_transform(insertion_frame)
+            InsertionFrame.na_resolve_insertion_transform(insertion_frame)
         end
         private_class_method :na_resolve_insertion_transform
         # ---------------------------------------------------------------

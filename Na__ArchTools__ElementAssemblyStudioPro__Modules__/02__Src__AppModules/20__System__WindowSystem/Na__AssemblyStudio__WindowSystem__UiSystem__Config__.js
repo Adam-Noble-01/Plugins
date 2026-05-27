@@ -34,7 +34,7 @@ const NA_UI_CONFIG = [
         type    :  'slider',
         min     :  300,
         max     :  4000,
-        step    :  10,
+        step    :  5,
         default :  900
     },
     {
@@ -44,7 +44,7 @@ const NA_UI_CONFIG = [
         type    :  'slider',
         min     :  300,
         max     :  2600,
-        step    :  10,
+        step    :  5,
         default :  1200
     },
     {

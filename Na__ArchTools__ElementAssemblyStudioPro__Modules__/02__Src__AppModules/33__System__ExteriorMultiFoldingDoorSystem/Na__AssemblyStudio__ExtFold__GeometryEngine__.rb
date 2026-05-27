@@ -14,7 +14,7 @@
 #
 # DESCRIPTION:
 # - Public surface (mirrors `Na__InteriorDoorSystem::Na__GeometryEngine`):
-#     * na_build_bifold_door(config, door_id, insertion_origin_in) -> Instance
+#     * na_build_bifold_door(config, door_id, insertion_frame)     -> Instance
 #     * na_update_bifold_door(instance, config)                    -> Boolean
 #     * na_resolve_layout_module(layout_id)                        -> Module
 # - Build pipeline:
@@ -24,8 +24,9 @@
 #     4. Generate panel descriptors via the chosen Layout module.
 #     5. Compose the ADR (head + base track + per-panel MOD/ROT/MVE)
 #        via `Na__AssemblyComposer.na_compose_adr`.
-#     6. Add a single ComponentInstance at insertion_origin_in (or
-#        IDENTITY when nil). Tag :proposed_doors when available.
+#     6. Add a single ComponentInstance via Na__InsertionFrame which
+#        honours measurement frame > origin + model.axes > active axes.
+#        Tag :proposed_doors when available.
 # - Update path clears the definition entities and rebuilds in place;
 #   the instance position in the model is preserved.
 #
@@ -70,6 +71,7 @@ module Na__GeometryEngine
     Layout_EqualEqual  = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__Layout__EqualEqual
     Layout_AllOneWay   = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__Layout__AllOneWay
     Layout_MasterSlaves = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__Layout__MasterSlaves
+    InsertionFrame     = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                    # <-- Wall-aware insertion transform helper
 
 # endregion -------------------------------------------------------------------
 
@@ -87,11 +89,12 @@ module Na__GeometryEngine
 
     # FUNCTION | Build a New Bifold-Door Component Instance
     # ------------------------------------------------------------
-    # @param config_hash         [Hash]        full bifold config
-    # @param door_id             [String,nil]  pre-allocated ADR id (optional)
-    # @param insertion_origin_in [Geom::Point3d,nil] insertion point (inches)
+    # @param config_hash     [Hash]                   full bifold config
+    # @param door_id         [String,nil]             pre-allocated ADR id (optional)
+    # @param insertion_frame [Hash,Geom::Point3d,nil] measurement frame
+    #     (origin + xaxis/yaxis/zaxis), bare origin Point3d, or nil.
     # @return [Sketchup::ComponentInstance, nil]
-    def self.na_build_bifold_door(config_hash, door_id = nil, insertion_origin_in = nil)
+    def self.na_build_bifold_door(config_hash, door_id = nil, insertion_frame = nil)
         DebugTools.na_debug_method("ExtFold::GeometryEngine.na_build_bifold_door")
 
         return nil unless config_hash.is_a?(Hash)
@@ -114,7 +117,7 @@ module Na__GeometryEngine
             door_def         = model.definitions.add(definition_name)
             AssemblyComposer.na_compose_adr(config_hash, descriptors, door_def.entities, door_id)
 
-            instance_xform   = na_resolve_insertion_transform(insertion_origin_in)
+            instance_xform   = na_resolve_insertion_transform(insertion_frame)
             instance         = model.active_entities.add_instance(door_def, instance_xform)
 
             DataSerializer.na_set_door_id_on_instance(instance, door_id)               # <-- Pointer dict + canonical naming
@@ -204,12 +207,14 @@ module Na__GeometryEngine
 
     # HELPER FUNCTION | Resolve the Insertion Transform for the New Instance
     # ------------------------------------------------------------
-    # Returns a translation transform when the caller supplied a
-    # measured Point A, otherwise IDENTITY (caller will engage the
-    # SketchUp placement tool just like the Window pipeline).
-    def self.na_resolve_insertion_transform(insertion_origin_in)
-        return IDENTITY unless insertion_origin_in.is_a?(Geom::Point3d)
-        Geom::Transformation.new(insertion_origin_in)
+    # Delegates to the shared InsertionFrame helper so the bifold
+    # path honours the same priority as Window / Sliding / Interior
+    # Door (measurement frame > origin + active axes > active axes).
+    #
+    # @param insertion_frame [Hash, Geom::Point3d, nil]
+    # @return [Geom::Transformation]
+    def self.na_resolve_insertion_transform(insertion_frame)
+        InsertionFrame.na_resolve_insertion_transform(insertion_frame)
     end
     private_class_method :na_resolve_insertion_transform
     # ---------------------------------------------------------------

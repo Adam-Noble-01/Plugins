@@ -48,6 +48,7 @@ module Na__InteriorDoorSystem
         DataSerializer = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__DataSerializer
         GeometryEngine = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__GeometryEngine
         AssetLibrary   = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__AssetLibrary
+        InsertionFrame = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                    # <-- Wall-aware insertion transform helper
 
 # endregion -------------------------------------------------------------------
 
@@ -221,8 +222,8 @@ module Na__InteriorDoorSystem
                 na_apply_create_metadata(config_root, door_id)
                 door_config_block  = config_root[NA_DOOR_CONFIG_KEY]
 
-                insertion_in       = na_consume_pending_measurement_origin
-                door_instance      = GeometryEngine.na_create_door(door_config_block, door_id, insertion_in)
+                insertion_frame    = na_consume_pending_measurement_frame
+                door_instance      = GeometryEngine.na_create_door(door_config_block, door_id, insertion_frame)
 
                 if door_instance && door_instance.valid?
                     DataSerializer.na_set_door_id_on_instance(
@@ -385,9 +386,11 @@ module Na__InteriorDoorSystem
 
         # FUNCTION | Receive Measurement from the 3-Point Tool
         # ------------------------------------------------------------
-        # Caches Point A (in inches) for use as the next door's
-        # automatic insertion point, then forwards the dimensions to
-        # the JS side so the UI sliders reflect the measurement.
+        # Caches Point A + the full orientation frame (xaxis along the
+        # wall, yaxis through the wall depth, zaxis up) for use as the
+        # next door's automatic insertion frame, then forwards the
+        # dimensions to the JS side so the UI sliders reflect the
+        # measurement.
         #
         # @param width_mm [Numeric]
         # @param height_mm [Numeric]
@@ -395,12 +398,29 @@ module Na__InteriorDoorSystem
         # @param origin_x_in [Numeric] Point A X in inches
         # @param origin_y_in [Numeric] Point A Y in inches
         # @param origin_z_in [Numeric] Point A Z in inches
-        def self.na_send_door_measurement_to_dialog(width_mm, height_mm, depth_mm, origin_x_in, origin_y_in, origin_z_in)
+        # @param point_b_x_in [Numeric, nil] Point B X in inches (defines wall direction)
+        # @param point_b_y_in [Numeric, nil] Point B Y in inches
+        # @param point_b_z_in [Numeric, nil] Point B Z in inches
+        # @param depth_x_in   [Numeric, nil] Depth point X in inches (into the wall)
+        # @param depth_y_in   [Numeric, nil] Depth point Y in inches
+        # @param depth_z_in   [Numeric, nil] Depth point Z in inches
+        def self.na_send_door_measurement_to_dialog(width_mm, height_mm, depth_mm,
+                                                     origin_x_in, origin_y_in, origin_z_in,
+                                                     point_b_x_in = nil, point_b_y_in = nil, point_b_z_in = nil,
+                                                     depth_x_in   = nil, depth_y_in   = nil, depth_z_in   = nil)
+            origin_pt    = Geom::Point3d.new(origin_x_in, origin_y_in, origin_z_in)
+            frame_struct = na_build_door_measurement_frame(
+                origin_pt,
+                point_b_x_in, point_b_y_in, point_b_z_in,
+                depth_x_in,   depth_y_in,   depth_z_in
+            )
+
             @na_last_measurement = {
                 :width_mm  => width_mm,
                 :height_mm => height_mm,
                 :depth_mm  => depth_mm,
-                :origin_in => Geom::Point3d.new(origin_x_in, origin_y_in, origin_z_in)
+                :origin_in => origin_pt,
+                :frame     => frame_struct                                                  # <-- Hash: {:origin_in, :xaxis, :yaxis, :zaxis}
             }
 
             dialog = na_active_dialog
@@ -423,7 +443,8 @@ module Na__InteriorDoorSystem
             DebugTools.na_debug_info(
                 "Sending door measurement to dialog: " \
                 "W=#{width_f}mm H=#{height_f}mm D=#{depth_f}mm " \
-                "origin=(#{ax}, #{ay}, #{az})in"
+                "origin=(#{ax}, #{ay}, #{az})in " \
+                "frame_oriented=#{InsertionFrame.na_frame_has_orientation?(frame_struct)}"
             )
             sent = UiBridge.na_execute_numeric_function(
                 dialog,
@@ -434,6 +455,19 @@ module Na__InteriorDoorSystem
                 DebugTools.na_debug_warn('Door measurement callback skipped: dialog/function not available')
             end
         end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build the Door Measurement Frame from Raw Coords
+        # ------------------------------------------------------------
+        def self.na_build_door_measurement_frame(origin_pt, bx, by, bz, dx, dy, dz)
+            point_b     = (bx && by && bz) ? Geom::Point3d.new(bx, by, bz) : nil
+            depth_point = (dx && dy && dz) ? Geom::Point3d.new(dx, dy, dz) : nil
+
+            return InsertionFrame.na_build_measurement_frame_3pt(origin_pt, point_b, depth_point) if point_b && depth_point
+            return InsertionFrame.na_build_measurement_frame_2pt(origin_pt, point_b)              if point_b
+            { InsertionFrame::NA_FRAME_KEY_ORIGIN => origin_pt }
+        end
+        private_class_method :na_build_door_measurement_frame
         # ---------------------------------------------------------------
 
         # FUNCTION | Notify the Dialog that the User Cancelled the Measure Tool
@@ -914,15 +948,19 @@ module Na__InteriorDoorSystem
         # ------------------------------------------------------------
         # Returns the Geom::Point3d (in inches) and clears the cache so
         # the next door created without a fresh measurement falls back
-        # to the placement tool. This implements the "Point A from
-        # measurement is the priority insertion point" rule.
-        def self.na_consume_pending_measurement_origin
+        # to the placement tool. This implements the "Point A + wall
+        # direction from measurement is the priority insertion frame"
+        # rule. Returns the frame Hash (with orientation vectors when
+        # the 3-point tool captured them); falls back to just the
+        # origin when the legacy 2-point payload was used.
+        def self.na_consume_pending_measurement_frame
             return nil unless @na_last_measurement
+            frame  = @na_last_measurement[:frame]
             origin = @na_last_measurement[:origin_in]
             @na_last_measurement = nil
-            origin
+            frame || (origin ? { InsertionFrame::NA_FRAME_KEY_ORIGIN => origin } : nil)
         end
-        private_class_method :na_consume_pending_measurement_origin
+        private_class_method :na_consume_pending_measurement_frame
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

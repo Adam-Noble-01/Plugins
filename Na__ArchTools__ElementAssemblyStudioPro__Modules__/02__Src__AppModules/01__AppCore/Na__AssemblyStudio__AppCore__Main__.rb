@@ -30,6 +30,7 @@ require_relative '../../../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLi
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Box__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Units__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Fuse__Shared__'
+require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__InsertionFrame__'
 
 # AppCore (UiBridge -> DialogManager -> SelectionCoordinator)
 require_relative 'Na__AssemblyStudio__AppCore__UiBridge__'

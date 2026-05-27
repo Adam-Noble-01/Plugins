@@ -45,6 +45,7 @@ module Na__WindowSystem
         GeometryHelpers = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryHelpers
         GeometryBuilders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
         SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
+        InsertionFrame   = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                  # <-- Wall-aware insertion transform helper
         # Door panel construction crosses the WindowSystem<->ExteriorSingleDoorSystem
         # contract via the PanelInterface module rather than touching the
         # builder directly.
@@ -104,7 +105,7 @@ module Na__WindowSystem
         # ------------------------------------------------------------
         # Creates a new window component with all specified geometry.
         # Each window gets a unique definition and instance name: AWN001__Window__
-        # 
+        #
         # When `multifold_mode == true` the call is delegated to the
         # Bifold Door system's GeometryEngine; when `sliding_mode == true`
         # the call is delegated to the Sliding Door system (Phase-3b).
@@ -113,17 +114,20 @@ module Na__WindowSystem
         #
         # @param config [Hash] Window configuration
         # @param window_id [String] Pre-generated window ID (e.g., "AWN001")
-        # @param insertion_origin_in [Geom::Point3d, nil] Optional insertion origin (inches),
-        #     typically Point A from the latest MeasureOpeningTool result. When nil the
-        #     instance is added at IDENTITY and the caller engages the placement tool.
+        # @param insertion_frame [Hash, Geom::Point3d, nil] Optional insertion frame.
+        #     Preferred shape is a Hash from the MeasurementTool with
+        #     :origin_in + :xaxis/:yaxis/:zaxis so the window is rotated
+        #     onto the wall. A bare Geom::Point3d is still accepted (the
+        #     model's active drawing axes provide orientation). When nil
+        #     the caller engages the placement tool.
         # @return [Sketchup::ComponentInstance, nil] The created component instance
-        def self.na_create_window_geometry(config, window_id = nil, insertion_origin_in = nil)
+        def self.na_create_window_geometry(config, window_id = nil, insertion_frame = nil)
             DebugTools.na_debug_method("GeometryEngine.na_create_window_geometry")
 
-            bifold_instance = na_dispatch_bifold_create(config, insertion_origin_in)
+            bifold_instance = na_dispatch_bifold_create(config, insertion_frame)
             return bifold_instance if bifold_instance
 
-            sliding_instance = na_dispatch_sliding_create(config, insertion_origin_in)
+            sliding_instance = na_dispatch_sliding_create(config, insertion_frame)
             return sliding_instance if sliding_instance
 
             model = Sketchup.active_model
@@ -171,15 +175,7 @@ module Na__WindowSystem
                 # Build window geometry
                 na_build_window_elements(window_entities, params, frame_material, glass_material, cill_material)
                 
-                # Resolve insertion transform: use Point A from the most recent measurement
-                # when supplied, otherwise IDENTITY (the caller will engage the placement tool).
-                insertion_transform = if insertion_origin_in.is_a?(Geom::Point3d)
-                                          DebugTools.na_debug_geometry("Inserting window at measured Point A: #{insertion_origin_in.inspect}")
-                                          Geom::Transformation.new(insertion_origin_in)
-                                      else
-                                          IDENTITY
-                                      end
-
+                insertion_transform = na_resolve_window_insertion_transform(insertion_frame)
                 instance = entities.add_instance(component_def, insertion_transform)
                 instance.name = component_name
 
@@ -292,6 +288,34 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Resolve the Insertion Transform for a New Window
+        # ------------------------------------------------------------
+        # Priority: full measurement frame (origin + axes) > origin only
+        # (orientation taken from `Sketchup.active_model.axes`) > active
+        # drawing axes (placement tool fallback) > IDENTITY.
+        #
+        # @param insertion_frame [Hash, Geom::Point3d, nil]
+        # @return [Geom::Transformation]
+        def self.na_resolve_window_insertion_transform(insertion_frame)
+            transform = InsertionFrame.na_resolve_insertion_transform(insertion_frame)
+
+            if InsertionFrame.na_frame_has_orientation?(insertion_frame)
+                DebugTools.na_debug_geometry(
+                    "Inserting window with measured frame: origin=#{insertion_frame[:origin_in].inspect} " \
+                    "xaxis=#{insertion_frame[:xaxis].inspect}"
+                )
+            elsif (origin = InsertionFrame.na_extract_origin(insertion_frame))
+                DebugTools.na_debug_geometry(
+                    "Inserting window at measured Point A (axis-aware): #{origin.inspect}"
+                )
+            else
+                DebugTools.na_debug_geometry("Inserting window at model drawing axes (placement tool fallback)")
+            end
+
+            transform
+        end
+        # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -304,7 +328,7 @@ module Na__WindowSystem
         # `Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine`.
         # Returns the created instance when dispatch applied, nil
         # otherwise (caller falls through to the standard window path).
-        def self.na_dispatch_bifold_create(config, insertion_origin_in)
+        def self.na_dispatch_bifold_create(config, insertion_frame)
             return nil unless config.is_a?(Hash)
             return nil unless config["multifold_mode"] == true
             return nil unless defined?(Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem)
@@ -313,7 +337,7 @@ module Na__WindowSystem
             engine = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
 
             DebugTools.na_debug_geometry("Window->Bifold dispatch: na_create_window_geometry forwarded to Bifold engine")
-            engine.na_build_bifold_door(config, nil, insertion_origin_in)
+            engine.na_build_bifold_door(config, nil, insertion_frame)
         rescue StandardError => e
             DebugTools.na_debug_error("WindowSystem -> Bifold dispatch (create) failed", e)
             nil
@@ -348,7 +372,7 @@ module Na__WindowSystem
         # `Na__ExteriorSlidingDoorSystem::Na__GeometryEngine`. Returns
         # the created instance when dispatch applied, nil otherwise
         # (caller falls through to the standard window path).
-        def self.na_dispatch_sliding_create(config, insertion_origin_in)
+        def self.na_dispatch_sliding_create(config, insertion_frame)
             return nil unless config.is_a?(Hash)
             return nil unless config["sliding_mode"] == true
             return nil unless defined?(Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem)
@@ -357,7 +381,7 @@ module Na__WindowSystem
             engine = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
 
             DebugTools.na_debug_geometry("Window->Sliding dispatch: na_create_window_geometry forwarded to Sliding engine")
-            engine.na_build_sliding_door(config, nil, insertion_origin_in)
+            engine.na_build_sliding_door(config, nil, insertion_frame)
         rescue StandardError => e
             DebugTools.na_debug_error("WindowSystem -> Sliding dispatch (create) failed", e)
             nil
