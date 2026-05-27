@@ -351,6 +351,72 @@ const NA_GLAZEBAR_CONFIG = [
         max     :  60,
         step    :  5,
         default :  25
+    },
+    // -------------------------------------------------------------------------
+    // Advanced Glazebar Controls (expandable)
+    //
+    // Houses two opt-in decorations driven by toggle children:
+    //   * Margin Glazing  - inset the outermost pair of bars by N mm and
+    //                       redistribute interior bars evenly between them.
+    //   * Gothic Arch     - overshooting two-centred lancet arches across the
+    //                       top of the glazed area; regular bars below adapt
+    //                       to the reduced effective glass height.
+    //
+    // Slider defaults for the Gothic arch sliders are static seeds; runtime
+    // dynamic recomputation lives in MainUiLogic
+    // (na_computeGothicArchAmountDefault / na_computeGothicArchHeightDefault).
+    // Visibility of dependant sliders is wired in MainUiLogic
+    // (na_updateAdvancedGlazebarVisibility).
+    // -------------------------------------------------------------------------
+    {
+        id      :  'advanced_glazebar_controls',
+        label   :  'Advanced Glazebar Controls',
+        type    :  'expandable',
+        default :  false,
+        children: [
+            {
+                id      :  'glazebar_margin_enabled',
+                label   :  'Glaze Bar Margins',
+                type    :  'toggle',
+                default :  false
+            },
+            {
+                id      :  'glazebar_margin_offset_mm',
+                label   :  'Glaze Bar Margin Size',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  50,
+                max     :  400,
+                step    :  10,
+                default :  120
+            },
+            {
+                id      :  'glazebar_gothic_arch_enabled',
+                label   :  'Glaze Bar Gothic Arch Decoration',
+                type    :  'toggle',
+                default :  false
+            },
+            {
+                id      :  'glazebar_gothic_arch_amount',
+                label   :  'Amount Of Arches',
+                unit    :  '',
+                type    :  'slider',
+                min     :  2,
+                max     :  8,
+                step    :  1,
+                default :  2
+            },
+            {
+                id      :  'glazebar_gothic_arch_height_mm',
+                label   :  'Height Of Arches',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  200,
+                max     :  800,
+                step    :  10,
+                default :  400
+            }
+        ]
     }
 ];
 

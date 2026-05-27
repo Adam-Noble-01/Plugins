@@ -61,7 +61,10 @@ module Na__FuseParts__Panel
 # -----------------------------------------------------------------------------
 
     NA_PANEL_PART_REGEX     = /^Na_DoorPanel_(Bifold_.+)_(Stile_(?:Left|Right)|Rail_(?:Top|Bottom))$/.freeze
-    NA_GLAZEBAR_PART_REGEX  = /^Na_GlazeBar_(Bifold_.+)_[HV]\d+$/.freeze
+    # Accepts straight bars (_H<n> / _V<n>) and Gothic arch halves
+    # (_Arch<n>_L / _Arch<n>_R, each a single pushpull solid) so a bifold
+    # leaf with arches but no straight bars still gets a fuse pass.
+    NA_GLAZEBAR_PART_REGEX  = /^Na_GlazeBar_(Bifold_.+?)_(?:[HV]\d+|Arch\d+_[LR])$/.freeze
     NA_FRAME_PART_PREFIX    = "Na_Frame_".freeze
     NA_MOD_NAME_REGEX       = /^MOD\d{3}/.freeze
 

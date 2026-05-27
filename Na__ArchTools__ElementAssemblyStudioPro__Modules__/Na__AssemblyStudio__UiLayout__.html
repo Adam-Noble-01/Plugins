@@ -27,81 +27,86 @@
 <body>
 
     <!-- ==========================================================================
-         REGION | Brand Header (logo left, EASP wordmark right) - v2 REBRAND
+         REGION | Top Chrome — pinned header (brand bar + tab strip)
+         Both elements live inside .na-top-chrome so the flex layout in body
+         keeps them above the scroll boundary at all times. The user can scroll
+         as far as they like and the tab buttons, Live Mode, and Measure Opening
+         are always visible — like freezing the top rows of a spreadsheet.
          ========================================================================== -->
-    <header class="na-brand-header">
-        <div class="na-brand-header__left">
-            <img src="01__AppAssets__ElementAssemblyStudio/Na__AssemblyStudio__Brand__NobleLogo__.png"
-                 class="na-brand-header__logo"
-                 alt="Noble Architecture"
-                 onerror="this.style.display='none'">
-        </div>
-        <div class="na-brand-header__right">
-            <span id="na-brand-title" class="na-brand-header__title">Element Assembly Studio Pro</span>
-            <span id="na-brand-subtitle" class="na-brand-header__subtitle">by Noble Architecture</span>
-        </div>
-    </header>
-    <!-- endregion ============================================================== -->
+    <div class="na-top-chrome">
 
-    <!-- ==========================================================================
-         REGION | Tab Strip (tab buttons left, action buttons right) - v2 REBRAND
-         The Live Mode and Measure Opening buttons that previously lived in the
-         top bar now sit on this same line, right-aligned, so the user always
-         sees them in context with the active tab.
-         ========================================================================== -->
-    <div class="na-tab-strip">
-        <nav id="na-tab-bar" class="na-tab-bar na-tab-strip__tabs" role="tablist">
-            <button id="na-tab-button-windows"
-                    class="na-tab na-tab-active"
-                    role="tab"
-                    aria-controls="na-tab-windows"
-                    aria-selected="true"
-                    data-na-tab-id="windows"
-                    onclick="Na_TabRouter.na_activateTab('windows')">
-                Windows
-            </button>
-            <button id="na-tab-button-doors"
-                    class="na-tab"
-                    role="tab"
-                    aria-controls="na-tab-doors"
-                    aria-selected="false"
-                    data-na-tab-id="doors"
-                    onclick="Na_TabRouter.na_activateTab('doors')">
-                Interior Doors
-            </button>
-            <button id="na-tab-button-settings"
-                    class="na-tab"
-                    role="tab"
-                    aria-controls="na-tab-settings"
-                    aria-selected="false"
-                    data-na-tab-id="settings"
-                    onclick="Na_TabRouter.na_activateTab('settings')">
-                Settings
-            </button>
-        </nav>
+        <!-- Brand Header (logo left, EASP wordmark right) -->
+        <header class="na-brand-header">
+            <div class="na-brand-header__left">
+                <img src="01__AppAssets__ElementAssemblyStudio/Na__AssemblyStudio__Brand__NobleLogo__.png"
+                     class="na-brand-header__logo"
+                     alt="Noble Architecture"
+                     onerror="this.style.display='none'">
+            </div>
+            <div class="na-brand-header__right">
+                <span id="na-brand-title" class="na-brand-header__title">Element Assembly Studio Pro</span>
+                <span id="na-brand-subtitle" class="na-brand-header__subtitle">by Noble Architecture</span>
+            </div>
+        </header>
 
-        <div class="na-tab-strip__actions">
-            <button id="na-btn-live"
-                    class="na-btn na-btn-secondary"
-                    onclick="Na_AppContext.na_dispatch_live_toggle()">
-                Live Mode
-            </button>
-            <button id="na-btn-measure"
-                    class="na-btn na-btn-secondary"
-                    onclick="Na_AppContext.na_dispatch_measure()">
-                Measure Opening
-            </button>
+        <!-- Tab Strip (tab buttons left, Live Mode / Measure Opening right) -->
+        <div class="na-tab-strip">
+            <nav id="na-tab-bar" class="na-tab-bar na-tab-strip__tabs" role="tablist">
+                <button id="na-tab-button-windows"
+                        class="na-tab na-tab-active"
+                        role="tab"
+                        aria-controls="na-tab-windows"
+                        aria-selected="true"
+                        data-na-tab-id="windows"
+                        onclick="Na_TabRouter.na_activateTab('windows')">
+                    Windows
+                </button>
+                <button id="na-tab-button-doors"
+                        class="na-tab"
+                        role="tab"
+                        aria-controls="na-tab-doors"
+                        aria-selected="false"
+                        data-na-tab-id="doors"
+                        onclick="Na_TabRouter.na_activateTab('doors')">
+                    Interior Doors
+                </button>
+                <button id="na-tab-button-settings"
+                        class="na-tab"
+                        role="tab"
+                        aria-controls="na-tab-settings"
+                        aria-selected="false"
+                        data-na-tab-id="settings"
+                        onclick="Na_TabRouter.na_activateTab('settings')">
+                    Settings
+                </button>
+            </nav>
+
+            <div class="na-tab-strip__actions">
+                <button id="na-btn-live"
+                        class="na-btn na-btn-secondary"
+                        onclick="Na_AppContext.na_dispatch_live_toggle()">
+                    Live Mode
+                </button>
+                <button id="na-btn-measure"
+                        class="na-btn na-btn-secondary"
+                        onclick="Na_AppContext.na_dispatch_measure()">
+                    Measure Opening
+                </button>
+            </div>
         </div>
+
     </div>
     <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================
-         REGION | Status Bar (shared across tabs)
+         REGION | Main Content — scrollable area beneath the pinned top chrome
          ========================================================================== -->
+    <main class="na-main-content">
+
+    <!-- Status Bar (shared across tabs) -->
     <div id="na-status-bar" class="na-status-bar na-hidden">
         <span id="na-status-message"></span>
     </div>
-    <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================
          REGION | Tab Panel - Windows
@@ -291,6 +296,9 @@
     </div>
     <!-- endregion ============================================================== -->
 
+    </main>
+    <!-- endregion (Main Content) =============================================== -->
+
 
     <!-- ==========================================================================
          REGION | JavaScript Includes (load order matters)
@@ -319,6 +327,9 @@
     <script src="02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Validation__.js"></script>
     <script src="02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Controls__.js"></script>
     <script src="02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Instance__.js"></script>
+
+    <!-- Shared glazebar math (margin glazing + Gothic arch helpers) -- consumed by WindowSystem, ExtSlide, ExtFold SVG generators -->
+    <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__GlazebarMath__.js"></script>
 
     <!-- WindowSystem viewport adapters and SVG generator -->
     <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js"></script>

@@ -234,6 +234,12 @@ module Na__AssemblyStudio
                 "glazebar_inset_mm",
                 "glass_thickness_mm",
                 "removed_glazebars",
+                # Advanced Glazebar Controls (Margin Glazing + Gothic Arch)
+                "glazebar_margin_enabled",
+                "glazebar_margin_offset_mm",
+                "glazebar_gothic_arch_enabled",
+                "glazebar_gothic_arch_amount",
+                "glazebar_gothic_arch_height_mm",
                 "fuse_parts"
             ].freeze
 

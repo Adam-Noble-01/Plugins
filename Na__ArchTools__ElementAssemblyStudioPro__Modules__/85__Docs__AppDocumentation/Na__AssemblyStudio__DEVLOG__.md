@@ -3,6 +3,65 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.8.0 - 27-May-2026 - Advanced Glazebar Controls: Margin Glazing & Gothic Arch Tracery
+
+### Context
+Two new opt-in decorations were requested for the glazing bar grid: **Margin Glazing** (consistent inset for the outermost pair of bars) and **Gothic Arch Tracery** (overshooting two-centred lancet arches at the top of each panel, modelled as filled ring segments with clean plumb terminations against the casement). Both features had to work identically in Window, Door Mode, Sliding, and Multifold modes, with full 2D preview + 3D model + DXF parity. Interior doors are explicitly out of scope.
+
+### Architecture Approach
+Both features sit under a new "Advanced Glazebar Controls" expandable in the Glaze Bars section, gated by two toggles. Geometry is computed by one shared maths module so the three rendering paths (SVG, Ruby 3D, DXF) stay byte-identical.
+
+### Margin Glazing
+- New toggle `glazebar_margin_enabled` and slider `glazebar_margin_offset_mm` (50-400 mm, runtime-clamped to 40 % of the smaller glazed dimension).
+- When the count on an axis is >= 2, the outer pair is inset by the margin, and inner bars distribute evenly between them via the shared helper `Na__GlazebarMath.na_computeBarPositions`.
+
+### Gothic Arch Tracery
+- New toggle `glazebar_gothic_arch_enabled` and sliders `glazebar_gothic_arch_amount` (2-8) and `glazebar_gothic_arch_height_mm` (200-800).
+- Geometry: **height-driven two-centred lancet arch**. For bay width `W` and apex height `H`, each arc's centre offset is `c = W/4 + H^2/W`, radius `R = c`. Visible **overshoot = 15 degrees** past the apex angle. Collapses to the classic equilateral case (`c = W`) when `H = W*sqrt(3)/2`.
+- Effective glazed area for regular bars shrinks by the **full arch zone** (apex + overshoot via `na_computeGothicTotalZoneHeight`), so springing position auto-snaps the overshoot terminus exactly to the inside face of the casement header.
+- Tessellation count per arc: `H < 450mm -> 24`, `<= 600mm -> 36`, else `48`. Same table on 2D and 3D.
+- **3D build**: one push-pulled face per arc half (`Na_GlazeBar_{panel_id}_Arch{n}_L` / `_R`). Pre-fuse pass copies front material to back material on every face (eliminates seam lines at bar/arch joints). Post-fuse pass softens + smooths any edge whose adjacent face normals diverge by <= 22 degrees so the tessellated arc reads as a continuous curve. Post-trim pass paints glass on both face sides so cut faces are not the default red backface.
+- **Extend then clip**: geometry is built half_bar wider on each side and half_bar taller on top, then clipped back to the glass rectangle (SVG via clip-path, 3D via `arch.intersect(glass_area_cube)`, DXF via Sutherland-Hodgman). Result: clean plumb terminations where arches meet the casement stiles and top rail (no curved tangent gap).
+- **2D rendering** uses tessellated `<polygon>` ring segments (filled with the frame material) so the chosen paint colour renders reliably and the bar thickness is baked into the geometry rather than relying on `stroke-width`.
+
+### Soft Coupling of Vertical Bars and Arches
+- Moving the Vertical Bars slider always sets `glazebar_gothic_arch_amount = clamp(vBars + 1, 2, 8)`. The Arches slider can be moved independently afterwards; the next vbar change re-syncs.
+- When arches are enabled and `vBars + 1 == archAmount`, vertical bars are positioned via `na_computeArchAlignedBarPositions` so each vbar sits directly beneath its corresponding interior arch springing (margin glazing takes priority if both are on).
+
+### Files Changed (V1.8.0)
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__Controls__.js` (expandable children now dispatch on type so toggles can sit inside Advanced sections)
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__Events__.js` (matching event-binding dispatch)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js` (new `advanced_glazebar_controls` expandable with 2 toggles + 3 sliders)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` (visibility, margin clamp, dynamic arch-amount/height defaults, soft-coupling of vbars -> arches, arch-enable seeding)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__GlazebarMath__.js` (NEW shared maths: margin positioning, gothic arc params, total-zone height, tessellation table, arch-aligned positions)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js` (`na_generateGlazeBarsSvg` consumes advancedOptions; new `na_generateGothicArchSvg` emits filled-polygon ring segments inside a glass-rect clip-path; arch-aligned vbar positioning)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__.rb` (5 new keys in `NA_DEFAULT_CONFIG`)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb` (`na_parse_config` reads/converts new keys; `na_advanced_glazebar_hash` packs them for the builder; passes `glass_top_z` through)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryBuilders__.rb` (margin-aware positions, gothic arch construction via single push-pulled faces per arc-half, post-build intersect-with-glass-cube clipping, arch-aligned vbar positioning)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryHelpers__.rb` (NEW `na_create_glaze_bar_arch_half` builds a ring-segment face and push-pulls it into the wall, paints both face sides)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__FuseParts__.rb` (regex extended to recognise `_Arch{n}_L|R`; pre-fuse pass `na_normalize_face_back_materials`; post-fuse pass `na_soften_smooth_edges_within_angle` at 22 deg; post-trim pass `na_repaint_trimmed_glass`)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb` (5 new keys added to `NA_DOOR_SHARED_WINDOW_KEYS` so bifold/sliding doors persist them)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DxfExporter__.rb` (margin-aware bars, gothic arch polylines with Sutherland-Hodgman clipping against glass rect, arch-aligned vbar positioning)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Export__Dxf__.js` (JS-side mirror of all DXF updates)
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__AssemblyComposer__.rb` (passes new advanced-glazebar hash through to the shared 3D builder)
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__FuseParts__Panel__.rb` (regex updated for arch halves)
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Viewport__ElevationGenerator__.js` (consumes shared GlazebarMath helpers)
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__AssemblyComposer__.rb` (passes new advanced-glazebar hash through)
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__FuseParts__Panel__.rb` (regex updated for arch halves)
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js` (consumes shared GlazebarMath helpers)
+- `Na__AssemblyStudio__UiLayout__.html` (loads the new GlazebarMath module before the SVG generators)
+
+### How to Test
+1. Reload SketchUp.
+2. Open the Window tab; expand "Advanced Glazebar Controls".
+3. **Margin Glazing**: enable, set horizontal/vertical bar counts >= 2, drag the margin slider, confirm outer pair insets and inner bars redistribute evenly. Slider clamps to 40 % of the smaller glazed dimension.
+4. **Gothic Arch**: enable, confirm sliders seed sensibly (amount = max(width-based, vBars+1); height = quarter of glazing-panel height). Confirm 2D preview shows filled tracery with crossing overshoots terminating cleanly at the casement; toggle Live Mode and create the window to confirm matching 3D.
+5. **Soft coupling**: change Vertical Bars - Amount Of Arches re-syncs to vBars+1. Change Arches directly afterwards - vbars stays. Change Vertical Bars again - re-sync fires.
+6. Repeat in `door_mode`, `sliding_mode`, `multifold_mode` to confirm parity. Do NOT expect any change in `Interior Doors` (out of scope).
+7. Export DXF and confirm arch polylines + offset bars terminate at the glass rectangle with no overshoot into the casement.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.7.8 - 22-May-2026 - Sliding sash horns from JSON assets with softened 3D profiles
 
 ### Context

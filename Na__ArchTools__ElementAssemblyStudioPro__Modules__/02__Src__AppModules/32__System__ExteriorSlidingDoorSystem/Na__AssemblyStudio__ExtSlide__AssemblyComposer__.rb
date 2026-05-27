@@ -642,11 +642,25 @@ module Na__AssemblyComposer
                                        panel_id, panel_index, frame_material = nil)
         h_bars = (config_hash["horizontal_glaze_bars"] || 0).to_i
         v_bars = (config_hash["vertical_glaze_bars"]   || 0).to_i
-        return if h_bars <= 0 && v_bars <= 0
+        gothic_arch_enabled = config_hash["glazebar_gothic_arch_enabled"] == true
+        return if h_bars <= 0 && v_bars <= 0 && !gothic_arch_enabled
 
         bar_width_mm    = (config_hash["glaze_bar_width_mm"] || 25).to_f
         bar_inset_mm    = (config_hash["glazebar_inset_mm"]  || 10).to_f
         glass_thick_mm  = (config_hash["glass_thickness_mm"] || 20).to_f
+
+        # Advanced glazebar (Margin + Gothic) — converted to inches inline
+        # so the WindowSystem builder receives the same units it gets from
+        # the regular window code path.
+        mm_to_inch = 1.0 / 25.4
+        advanced_glazebar = {
+            margin_enabled:  config_hash["glazebar_margin_enabled"] == true,
+            margin_offset:   (config_hash["glazebar_margin_offset_mm"] || 0).to_f * mm_to_inch,
+            arch_enabled:    gothic_arch_enabled,
+            arch_amount:     [[(config_hash["glazebar_gothic_arch_amount"] || 2).to_i, 2].max, 8].min,
+            arch_height:     (config_hash["glazebar_gothic_arch_height_mm"] || 0).to_f * mm_to_inch,
+            arch_height_mm:  (config_hash["glazebar_gothic_arch_height_mm"] || 0).to_f
+        }
 
         clear_box = na_compute_clear_glazing_box(origin_x_mm, origin_z_mm,
                                                  panel_w_mm, panel_h_mm,
@@ -699,7 +713,8 @@ module Na__AssemblyComposer
             0,
             0,
             panel_index,
-            0
+            0,
+            advanced_glazebar
         )
     rescue StandardError => e
         DebugTools.na_debug_error("ExtSlide::AssemblyComposer.na_build_panel_glaze_bars failed", e)

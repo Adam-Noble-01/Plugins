@@ -138,6 +138,16 @@ const Na__Export__Dxf = (function() {
         const hBars = config.horizontal_glaze_bars || 0;
         const vBars = config.vertical_glaze_bars || 0;
         const barWidth = config.glaze_bar_width_mm || 25;
+        // Advanced glazebar (Margin Glazing + Gothic Arch) options. Same
+        // payload shape used by the SVG generator so behaviour is mirrored
+        // identically between live preview, DXF and 3D.
+        const advancedGlazebar = {
+            marginEnabled : config.glazebar_margin_enabled === true,
+            marginOffset  : Math.max(0, Number(config.glazebar_margin_offset_mm || 0)),
+            archEnabled   : config.glazebar_gothic_arch_enabled === true,
+            archAmount    : Math.max(2, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),
+            archHeight    : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0))
+        };
         const removedCasementSet = na_getRemovedCasementSetForDxf(config.removed_casements); // <-- Per-panel removal lookup with legacy support
 
         const useIndividualSizes = config.casement_sizes_individual === true;
@@ -217,7 +227,8 @@ const Na__Export__Dxf = (function() {
                                 hBars, vBars, barWidth, slidingSashOverlap,
                                 { openingIndex: i, cellIndex: cellIndex, panelIndex: p },
                                 removedGlazebars,
-                                sashHornOptions
+                                sashHornOptions,
+                                advancedGlazebar
                             );
                         } else {
                             dxf += na_generateCasementDxf(
@@ -225,7 +236,8 @@ const Na__Export__Dxf = (function() {
                                 casTopRail, casBottomRail, casLeftStile, casRightStile,
                                 hBars, vBars, barWidth,
                                 { openingIndex: i, cellIndex: cellIndex, panelIndex: p, sashIndex: 0 },
-                                removedGlazebars
+                                removedGlazebars,
+                                advancedGlazebar
                             );
                         }
                     } else {
@@ -238,7 +250,8 @@ const Na__Export__Dxf = (function() {
                             vBars,
                             barWidth,
                             { openingIndex: i, cellIndex: cellIndex, panelIndex: p, sashIndex: 0 },
-                            removedGlazebars
+                            removedGlazebars,
+                            advancedGlazebar
                         );
                     }
                 }
@@ -252,7 +265,7 @@ const Na__Export__Dxf = (function() {
 
     // FUNCTION | Generate Casement DXF
     // ------------------------------------------------------------
-    function na_generateCasementDxf(x, y, width, height, topRail, bottomRail, leftStile, rightStile, hBars, vBars, barWidth, panelContext, removedGlazebars) {
+    function na_generateCasementDxf(x, y, width, height, topRail, bottomRail, leftStile, rightStile, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar) {
         let dxf = '';
 
         dxf += na_dxfRect(x, y, leftStile, height);
@@ -266,7 +279,7 @@ const Na__Export__Dxf = (function() {
         const glassHeight = height - topRail - bottomRail;
 
         dxf += na_dxfRect(glassX, glassY, glassWidth, glassHeight);
-        dxf += na_generateGlazeBarDxf(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, panelContext, removedGlazebars);
+        dxf += na_generateGlazeBarDxf(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar);
 
         return dxf;
     }
@@ -274,21 +287,38 @@ const Na__Export__Dxf = (function() {
 
     // FUNCTION | Generate Direct-Glazed DXF
     // ------------------------------------------------------------
-    function na_generateDirectGlazedDxf(x, y, width, height, hBars, vBars, barWidth, panelContext, removedGlazebars) {
+    function na_generateDirectGlazedDxf(x, y, width, height, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar) {
         let dxf = '';
         dxf += na_dxfRect(x, y, width, height);
-        dxf += na_generateGlazeBarDxf(x, y, width, height, hBars, vBars, barWidth, panelContext, removedGlazebars);
+        dxf += na_generateGlazeBarDxf(x, y, width, height, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar);
         return dxf;
     }
     // ---------------------------------------------------------------
 
     // FUNCTION | Generate Glaze Bars in Glass Area
     // ------------------------------------------------------------
-    function na_generateGlazeBarDxf(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, panelContext, removedGlazebars) {
+    // Honours Advanced Glazebar Controls so the DXF stream matches the
+    // live SVG preview and Ruby 3D model exactly. Margin glazing shifts
+    // the outer pair of bars; Gothic Arch shrinks the effective bar zone
+    // and emits a tessellated chain of rectangles per arc.
+    function na_generateGlazeBarDxf(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar) {
         let dxf = '';
+        const math = window.Na__GlazebarMath;
+        const adv  = advancedGlazebar || {};
+        const archEnabled   = adv.archEnabled === true;
+        const archAmount    = Math.max(1, Math.round(adv.archAmount || 1));
+        const archHeight    = Math.max(0, Number(adv.archHeight || 0));
+        const marginEnabled = adv.marginEnabled === true;
+        const marginOffset  = Math.max(0, Number(adv.marginOffset || 0));
 
-        if (hBars > 0) {
-            const sectionHeight = glassHeight / (hBars + 1);
+        const effectiveGlassHeight = (math && math.na_computeEffectiveGlassHeight)
+            ? math.na_computeEffectiveGlassHeight(glassHeight, archEnabled, archHeight, glassWidth, archAmount)
+            : (archEnabled ? Math.max(0, glassHeight - archHeight) : glassHeight);
+
+        if (hBars > 0 && effectiveGlassHeight > 0) {
+            const hPositions = math
+                ? math.na_computeBarPositions(glassY, effectiveGlassHeight, hBars, marginEnabled, marginOffset)
+                : na_fallbackBarPositions(glassY, effectiveGlassHeight, hBars);
             for (let b = 1; b <= hBars; b++) {
                 const barKey = na_getGlazebarKey(
                     panelContext.openingIndex,
@@ -299,14 +329,22 @@ const Na__Export__Dxf = (function() {
                     b
                 );
                 if (removedGlazebars.has(barKey)) continue;
-
-                const barY = glassY + (sectionHeight * b) - (barWidth / 2);
+                const barY = hPositions[b - 1] - (barWidth / 2);
                 dxf += na_dxfRect(glassX, barY, glassWidth, barWidth);
             }
         }
 
-        if (vBars > 0) {
-            const sectionWidth = glassWidth / (vBars + 1);
+        if (vBars > 0 && effectiveGlassHeight > 0) {
+            // When arches are on and vBars pairs naturally with arches
+            // (one vbar below every interior springing), align vbars to
+            // the EXTENDED-ZONE springings so the bars sit directly
+            // beneath the arch springings. Margin glazing takes priority.
+            const archAlignVbars = archEnabled && !marginEnabled && (vBars + 1 === archAmount);
+            const vPositions = math
+                ? (archAlignVbars
+                    ? math.na_computeArchAlignedBarPositions(glassX, glassWidth, vBars, barWidth, archAmount)
+                    : math.na_computeBarPositions(glassX, glassWidth, vBars, marginEnabled, marginOffset))
+                : na_fallbackBarPositions(glassX, glassWidth, vBars);
             for (let b = 1; b <= vBars; b++) {
                 const barKey = na_getGlazebarKey(
                     panelContext.openingIndex,
@@ -317,21 +355,170 @@ const Na__Export__Dxf = (function() {
                     b
                 );
                 if (removedGlazebars.has(barKey)) continue;
-
-                const barX = glassX + (sectionWidth * b) - (barWidth / 2);
-                dxf += na_dxfRect(barX, glassY, barWidth, glassHeight);
+                const barX = vPositions[b - 1] - (barWidth / 2);
+                dxf += na_dxfRect(barX, glassY, barWidth, effectiveGlassHeight);
             }
+        }
+
+        if (archEnabled && archHeight > 0 && archAmount >= 1) {
+            const springingY = glassY + effectiveGlassHeight;
+            dxf += na_generateGothicArchDxf(glassX, springingY, glassWidth, archHeight, archAmount, barWidth);
         }
 
         return dxf;
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Fallback Bar Positioning (used if GlazebarMath missing)
+    // ------------------------------------------------------------
+    function na_fallbackBarPositions(start, size, count) {
+        const out = [];
+        const step = size / (count + 1);
+        for (let i = 1; i <= count; i++) out.push(start + step * i);
+        return out;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Gothic Arch DXF Closed Polylines
+    // ------------------------------------------------------------
+    // Mirrors the Ruby DXF arch emitter exactly: each arc-half is a
+    // closed polygon walking the outer arc start->end and back along
+    // the inner arc, then clipped to the glass rectangle so the DXF
+    // matches the SketchUp solid + SVG preview (clean plumb edges
+    // where the arches meet the casement).
+    function na_generateGothicArchDxf(glassLeftX, springingY, glassWidth, archHeight, archAmount, barWidth) {
+        const math = window.Na__GlazebarMath;
+        if (!math || !math.na_computeGothicArcParams) return '';
+
+        let dxf = '';
+        const halfBar = barWidth / 2;
+        const extGlassLeft   = glassLeftX - halfBar;
+        const extGlassWidth  = glassWidth + (2 * halfBar);
+        const extArchHeight  = archHeight + halfBar;
+        const extBayWidth    = extGlassWidth / archAmount;
+        const segPerArc      = math.na_gothicTessellationSegmentCount(archHeight);
+
+        // Clip top edge must be at the true glass top (springingY +
+        // total_zone_height), NOT springingY + archHeight. The latter
+        // sits at apex height only and chopped the overshoot.
+        const originalBayWidth = glassWidth / archAmount;
+        const totalZoneHeight = (typeof math.na_computeGothicTotalZoneHeight === 'function')
+            ? math.na_computeGothicTotalZoneHeight(originalBayWidth, archHeight)
+            : archHeight;
+        const clipRect = {
+            xMin: glassLeftX,
+            xMax: glassLeftX + glassWidth,
+            yMin: springingY,
+            yMax: springingY + totalZoneHeight
+        };
+
+        for (let a = 0; a < archAmount; a++) {
+            const bayLeftX = extGlassLeft + (a * extBayWidth);
+            const params = math.na_computeGothicArcParams(extBayWidth, extArchHeight);
+            const rOut = params.radius + halfBar;
+            const rIn  = Math.max(0.01, params.radius - halfBar);
+
+            dxf += na_emitArcRingPolylineDxf(
+                bayLeftX + params.leftCenterX, springingY,
+                rOut, rIn, params.leftStartAng, params.leftEndAng, segPerArc, clipRect
+            );
+            dxf += na_emitArcRingPolylineDxf(
+                bayLeftX + params.rightCenterX, springingY,
+                rOut, rIn, params.rightStartAng, params.rightEndAng, segPerArc, clipRect
+            );
+        }
+
+        return dxf;
+    }
+    // ---------------------------------------------------------------
+
+    function na_emitArcRingPolylineDxf(cx, cy, rOut, rIn, startAng, endAng, segments, clipRect) {
+        const seg = Math.max(8, Math.round(segments));
+        let ring = [];
+        for (let i = 0; i <= seg; i++) {
+            const t = i / seg;
+            const ang = startAng + (endAng - startAng) * t;
+            ring.push({ x: cx + rOut * Math.cos(ang), y: cy + rOut * Math.sin(ang) });
+        }
+        for (let i = seg; i >= 0; i--) {
+            const t = i / seg;
+            const ang = startAng + (endAng - startAng) * t;
+            ring.push({ x: cx + rIn * Math.cos(ang), y: cy + rIn * Math.sin(ang) });
+        }
+        if (clipRect) {
+            ring = na_clipPolygonToAabb(ring, clipRect);
+        }
+        if (!ring || ring.length < 3) return '';
+        return na_dxfPolygon(ring);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Sutherland-Hodgman Polygon Clip Against an AABB
+    // ------------------------------------------------------------
+    // Mirrors the Ruby helper exactly so DXF output is identical
+    // whether the export is run from JS (client side) or Ruby. Clips
+    // a polygon (array of {x, y}) against the four edges of an
+    // axis-aligned rectangle { xMin, xMax, yMin, yMax }.
+    function na_clipPolygonToAabb(points, clipRect) {
+        let out = points;
+        out = na_clipPolygonAgainstEdge(out, 'left',   clipRect.xMin);
+        out = na_clipPolygonAgainstEdge(out, 'right',  clipRect.xMax);
+        out = na_clipPolygonAgainstEdge(out, 'bottom', clipRect.yMin);
+        out = na_clipPolygonAgainstEdge(out, 'top',    clipRect.yMax);
+        return out;
+    }
+    // ---------------------------------------------------------------
+
+    function na_clipPolygonAgainstEdge(poly, side, bound) {
+        if (!poly || poly.length === 0) return [];
+
+        function isInside(pt) {
+            if (side === 'left')   return pt.x >= bound;
+            if (side === 'right')  return pt.x <= bound;
+            if (side === 'bottom') return pt.y >= bound;
+            return pt.y <= bound; // top
+        }
+        function intersectPt(a, b) {
+            if (side === 'left' || side === 'right') {
+                const t = (bound - a.x) / (b.x - a.x);
+                return { x: bound, y: a.y + t * (b.y - a.y) };
+            }
+            const t = (bound - a.y) / (b.y - a.y);
+            return { x: a.x + t * (b.x - a.x), y: bound };
+        }
+
+        const result = [];
+        let prev = poly[poly.length - 1];
+        let prevIn = isInside(prev);
+        for (let i = 0; i < poly.length; i++) {
+            const curr = poly[i];
+            const currIn = isInside(curr);
+            if (currIn) {
+                if (!prevIn) result.push(intersectPt(prev, curr));
+                result.push(curr);
+            } else if (prevIn) {
+                result.push(intersectPt(prev, curr));
+            }
+            prev   = curr;
+            prevIn = currIn;
+        }
+        return result;
+    }
+    // ---------------------------------------------------------------
+    // ---------------------------------------------------------------
+
     // FUNCTION | Generate Sliding Sash Panel DXF
     // ------------------------------------------------------------
-    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, topSashBottomRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions) {
+    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, topSashBottomRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar) {
         const sashHeight = height / 2;
         const sashOverlap = Math.max(0, Math.min(overlapMm || 0, sashHeight - 1));
+
+        // Bottom sash suppresses the arch decoration (architectural
+        // tracery belongs to the head only). Margin glazing still applies.
+        const advancedNoArch = advancedGlazebar
+            ? { marginEnabled: advancedGlazebar.marginEnabled, marginOffset: advancedGlazebar.marginOffset,
+                archEnabled: false, archAmount: 0, archHeight: 0 }
+            : undefined;
 
         let dxf = '';
         dxf += na_generateCasementDxf(
@@ -344,7 +531,8 @@ const Na__Export__Dxf = (function() {
                 panelIndex: panelContext.panelIndex,
                 sashIndex: 1
             },
-            removedGlazebars
+            removedGlazebars,
+            advancedNoArch
         );
         dxf += na_generateCasementDxf(
             x, y + sashHeight, width, sashHeight,
@@ -356,7 +544,8 @@ const Na__Export__Dxf = (function() {
                 panelIndex: panelContext.panelIndex,
                 sashIndex: 0
             },
-            removedGlazebars
+            removedGlazebars,
+            advancedGlazebar
         );
 
         dxf += na_generateSlidingSashHornDxf(

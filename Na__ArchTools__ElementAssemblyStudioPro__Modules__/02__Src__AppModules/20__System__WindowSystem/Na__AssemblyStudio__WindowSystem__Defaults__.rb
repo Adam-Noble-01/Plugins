@@ -75,6 +75,8 @@ module Na__AssemblyStudio
                     "glass_thickness_mm": 20,
                     "horizontal_glaze_bars": 0, "vertical_glaze_bars": 0,
                     "glaze_bar_width_mm": 25, "glazebar_inset_mm": 10,
+                    "glazebar_margin_enabled": false, "glazebar_margin_offset_mm": 120,
+                    "glazebar_gothic_arch_enabled": false, "glazebar_gothic_arch_amount": 2, "glazebar_gothic_arch_height_mm": 400,
                     "has_cill": true, "cill_depth_mm": 50, "cill_height_mm": 50,
                     "frame_depth_mm": 70, "frame_wall_inset_mm": 0,
                     "removed_casements": [], "removed_transom_segments": [], "removed_glazebars": [],

@@ -211,6 +211,15 @@ const Na__Viewport__SvgGenerator = (function() {
         const hBars = config.horizontal_glaze_bars || 0;
         const vBars = config.vertical_glaze_bars || 0;
         const barWidth = config.glaze_bar_width_mm || 25;
+        // Advanced glazebar options (Margin Glazing + Gothic Arch). Packaged
+        // up so all the per-cell render paths receive the same flags.
+        const advancedGlazebar = {
+            marginEnabled  : config.glazebar_margin_enabled === true,
+            marginOffset   : Math.max(0, Number(config.glazebar_margin_offset_mm || 0)),
+            archEnabled    : config.glazebar_gothic_arch_enabled === true,
+            archAmount     : Math.max(2, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),
+            archHeight     : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0))
+        };
         const frameMaterialId = config.frame_material_id || 'MAT120__GenericWood';
         const frameColor = na_getMaterialColor(frameMaterialId);
         const showDimensions = config.show_dimensions !== false;
@@ -301,6 +310,7 @@ const Na__Viewport__SvgGenerator = (function() {
                         hBars: hBars,
                         vBars: vBars,
                         barWidth: barWidth,
+                        advancedGlazebar: advancedGlazebar,
                         removedGlazebars: removedGlazebars,
                         doorMode: doorMode,
                         doorPanelHeightMm: doorPanelHeightMm,
@@ -449,7 +459,7 @@ const Na__Viewport__SvgGenerator = (function() {
                             options.casTopRail, options.casBottomRail, options.casLeftStile, options.casRightStile,
                             options.frameColor, options.hBars, options.vBars, options.barWidth,
                             options.doorPanelHeightMm, options.doorConfig,
-                            panelContext, options.removedGlazebars
+                            panelContext, options.removedGlazebars, options.advancedGlazebar
                         )
                     );
                 } else if (options.slidingSashWindow) {
@@ -459,7 +469,7 @@ const Na__Viewport__SvgGenerator = (function() {
                             panelX, cell.y, panelWidth, cell.height,
                             options.casTopRail, options.casBottomRail, options.topSashBottomRail, options.casLeftStile, options.casRightStile,
                             options.frameColor, options.hBars, options.vBars, options.barWidth, options.slidingSashOverlap,
-                            panelContext, options.removedGlazebars, options.sashHornOptions
+                            panelContext, options.removedGlazebars, options.sashHornOptions, options.advancedGlazebar
                         )
                     );
                 } else {
@@ -475,14 +485,15 @@ const Na__Viewport__SvgGenerator = (function() {
                                 panelIndex: panelContext.panelIndex,
                                 sashIndex: 0
                             },
-                            options.removedGlazebars
+                            options.removedGlazebars,
+                            options.advancedGlazebar
                         )
                     );
                 }
             } else {
                 renderBucket.svg += na_svgRect(panelX, cell.y, panelWidth, cell.height, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
 
-                if (options.hBars > 0 || options.vBars > 0) {
+                if (options.hBars > 0 || options.vBars > 0 || (options.advancedGlazebar && options.advancedGlazebar.archEnabled)) {
                     na_mergeSvgRenderBuckets(
                         renderBucket,
                         na_generateGlazeBarsSvg(
@@ -500,7 +511,8 @@ const Na__Viewport__SvgGenerator = (function() {
                                 panelIndex: panelContext.panelIndex,
                                 sashIndex: 0
                             },
-                            options.removedGlazebars
+                            options.removedGlazebars,
+                            options.advancedGlazebar
                         )
                     );
                 }
@@ -587,7 +599,7 @@ const Na__Viewport__SvgGenerator = (function() {
 
     // FUNCTION | Generate SVG for a Single Casement with Individual Sizes
     // ------------------------------------------------------------
-    function na_generateSingleCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, panelContext, removedGlazebars) {
+    function na_generateSingleCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar) {
         const renderBucket = na_createSvgRenderBucket();
 
         renderBucket.svg += na_svgRect(x, y, leftStile, height, frameColor, '#000', 0.5);
@@ -602,7 +614,8 @@ const Na__Viewport__SvgGenerator = (function() {
 
         renderBucket.svg += na_svgRect(glassX, glassY, glassWidth, glassHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
 
-        if (hBars > 0 || vBars > 0) {
+        const archActive = !!(advancedGlazebar && advancedGlazebar.archEnabled);
+        if (hBars > 0 || vBars > 0 || archActive) {
             na_mergeSvgRenderBuckets(
                 renderBucket,
                 na_generateGlazeBarsSvg(
@@ -615,7 +628,8 @@ const Na__Viewport__SvgGenerator = (function() {
                     barWidth,
                     frameColor,
                     panelContext,
-                    removedGlazebars
+                    removedGlazebars,
+                    advancedGlazebar
                 )
             );
         }
@@ -709,7 +723,7 @@ const Na__Viewport__SvgGenerator = (function() {
     // ------------------------------------------------------------
     // Draws top and bottom casements stacked vertically.
     // Bottom sash gets a subtle shading overlay to indicate setback depth.
-    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions) {
+    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar) {
         const renderBucket = na_createSvgRenderBucket();
 
         const sashHeight = height / 2;
@@ -717,7 +731,14 @@ const Na__Viewport__SvgGenerator = (function() {
         const bottomSashY = y;
         const topSashY = y + sashHeight;
 
-        // Bottom sash extends behind the top sash to represent weathering overlap.
+        // Bottom sash: arches are NOT drawn here even when enabled, because
+        // architectural gothic tracery sits at the head of the assembly only.
+        // We pass an arch-disabled clone of advancedGlazebar so margin glazing
+        // still applies if the user enabled it.
+        const advancedNoArch = advancedGlazebar
+            ? { marginEnabled: advancedGlazebar.marginEnabled, marginOffset: advancedGlazebar.marginOffset,
+                archEnabled: false, archAmount: 0, archHeight: 0 }
+            : undefined;
         na_mergeSvgRenderBuckets(
             renderBucket,
             na_generateSingleCasementSvg(
@@ -730,14 +751,15 @@ const Na__Viewport__SvgGenerator = (function() {
                     panelIndex: panelContext.panelIndex,
                     sashIndex: 1
                 },
-                removedGlazebars
+                removedGlazebars,
+                advancedNoArch
             )
         );
 
         // Reduced by 50% from previous 0.2 intensity.
         renderBucket.svg += na_svgRect(x, bottomSashY, width, sashHeight + sashOverlap, 'rgba(0, 0, 0, 0.1)', 'none', 0);
 
-        // Draw top sash last so it visually sits in front.
+        // Top sash gets the full advancedGlazebar (margin + arches if enabled).
         na_mergeSvgRenderBuckets(
             renderBucket,
             na_generateSingleCasementSvg(
@@ -750,7 +772,8 @@ const Na__Viewport__SvgGenerator = (function() {
                     panelIndex: panelContext.panelIndex,
                     sashIndex: 0
                 },
-                removedGlazebars
+                removedGlazebars,
+                advancedGlazebar
             )
         );
 
@@ -779,7 +802,7 @@ const Na__Viewport__SvgGenerator = (function() {
     // ------------------------------------------------------------
     // Draws a full-height casement with stiles, top/bottom/mid rails,
     // glass + glaze bars in the upper zone, and door panel content in the lower zone.
-    function na_generateDoorCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, doorPanelHeightMm, doorConfig, panelContext, removedGlazebars) {
+    function na_generateDoorCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, doorPanelHeightMm, doorConfig, panelContext, removedGlazebars, advancedGlazebar) {
         const renderBucket = na_createSvgRenderBucket();
         const midRailW = (doorConfig && doorConfig.door_mid_rail_width_mm) || 150;
         const baseRailW = (doorConfig && doorConfig.door_base_rail_width_mm) || 200;
@@ -809,14 +832,16 @@ const Na__Viewport__SvgGenerator = (function() {
         if (glassHeight > 0 && glassWidth > 0) {
             renderBucket.svg += na_svgRect(glassX, glassY, glassWidth, glassHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
 
-            if (hBars > 0 || vBars > 0) {
+            const archActiveDoor = !!(advancedGlazebar && advancedGlazebar.archEnabled);
+            if (hBars > 0 || vBars > 0 || archActiveDoor) {
                 na_mergeSvgRenderBuckets(
                     renderBucket,
                     na_generateGlazeBarsSvg(
                         glassX, glassY, glassWidth, glassHeight,
                         hBars, vBars, barWidth, frameColor,
                         { openingIndex: panelContext.openingIndex, cellIndex: panelContext.cellIndex, panelIndex: panelContext.panelIndex, sashIndex: 0 },
-                        removedGlazebars
+                        removedGlazebars,
+                        advancedGlazebar
                     )
                 );
             }
@@ -915,17 +940,40 @@ const Na__Viewport__SvgGenerator = (function() {
     // ------------------------------------------------------------
     // Used for direct-glazed openings where casement has been removed.
     // Draws horizontal and vertical glaze bars within the given glass area.
-    function na_generateGlazeBarsSvg(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, frameColor, panelContext, removedGlazebars) {
+    function na_generateGlazeBarsSvg(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, frameColor, panelContext, removedGlazebars, advancedOptions) {
         const renderBucket = na_createSvgRenderBucket();
 
         if (glassWidth <= 0 || glassHeight <= 0) {
             return renderBucket;
         }
 
-        if (hBars > 0) {
-            const sectionHeight = glassHeight / (hBars + 1);
+        // Optional advanced behaviours (Margin Glazing + Gothic Arch).
+        // Defaults preserve the legacy divide-by-(N+1) layout exactly so
+        // unrelated call sites are unaffected.
+        const adv = advancedOptions || {};
+        const marginEnabled = adv.marginEnabled === true;
+        const marginOffset  = Math.max(0, Number(adv.marginOffset || 0));
+        const archEnabled   = adv.archEnabled === true;
+        const archAmount    = Math.max(1, Math.round(adv.archAmount || 1));
+        const archHeight    = Math.max(0, Number(adv.archHeight || 0));
+
+        // When arches are on, the regular bar grid occupies only the lower
+        // portion of the glass. Horizontal bars are computed against this
+        // reduced height, and vertical bars stop at the springing line.
+        // We subtract the FULL arch zone (apex + overshoot) so the
+        // overshoot termini land at the top of glass and the apex sits
+        // below, matching the casement-header tracery convention.
+        const effectiveGlassHeight = (window.Na__GlazebarMath && window.Na__GlazebarMath.na_computeEffectiveGlassHeight)
+            ? window.Na__GlazebarMath.na_computeEffectiveGlassHeight(glassHeight, archEnabled, archHeight, glassWidth, archAmount)
+            : (archEnabled ? Math.max(0, glassHeight - archHeight) : glassHeight);
+
+        if (hBars > 0 && effectiveGlassHeight > 0) {
+            const hPositions = window.Na__GlazebarMath.na_computeBarPositions(
+                glassY, effectiveGlassHeight, hBars, marginEnabled, marginOffset
+            );
             for (let b = 1; b <= hBars; b++) {
-                const barY = glassY + (sectionHeight * b) - (barWidth / 2);
+                const barCenterY = hPositions[b - 1];
+                const barY = barCenterY - (barWidth / 2);
                 const barKey = na_getGlazebarKey(
                     panelContext.openingIndex,
                     panelContext.cellIndex,
@@ -952,9 +1000,27 @@ const Na__Viewport__SvgGenerator = (function() {
         }
 
         if (vBars > 0) {
-            const sectionWidth = glassWidth / (vBars + 1);
+            // When arches are on and the vbar count matches the natural
+            // pairing (one vbar under every interior arch springing),
+            // align vbars with the EXTENDED-ZONE springings so the bars
+            // sit directly beneath the springings. Margin glazing takes
+            // priority if both are on (so its outer-pair inset still
+            // works as expected).
+            const archAlignVbars = archEnabled && !marginEnabled && (vBars + 1 === archAmount);
+            const vPositions = archAlignVbars
+                ? window.Na__GlazebarMath.na_computeArchAlignedBarPositions(
+                    glassX, glassWidth, vBars, barWidth, archAmount)
+                : window.Na__GlazebarMath.na_computeBarPositions(
+                    glassX, glassWidth, vBars, marginEnabled, marginOffset);
+            // Vertical bars only span the regular (non-arch) zone height,
+            // matching the reference image where mullions terminate at the
+            // arch springing line.
+            const vBarTop    = glassY;
+            const vBarHeight = effectiveGlassHeight;
             for (let b = 1; b <= vBars; b++) {
-                const barX = glassX + (sectionWidth * b) - (barWidth / 2);
+                if (vBarHeight <= 0) break;
+                const barCenterX = vPositions[b - 1];
+                const barX = barCenterX - (barWidth / 2);
                 const barKey = na_getGlazebarKey(
                     panelContext.openingIndex,
                     panelContext.cellIndex,
@@ -965,14 +1031,14 @@ const Na__Viewport__SvgGenerator = (function() {
                 );
 
                 if (!removedGlazebars.has(barKey)) {
-                    renderBucket.svg += na_svgRect(barX, glassY, barWidth, glassHeight, frameColor, '#000', 0.5);
+                    renderBucket.svg += na_svgRect(barX, vBarTop, barWidth, vBarHeight, frameColor, '#000', 0.5);
                 }
 
                 renderBucket.clickTargetsSvg += na_generateGlazebarClickTargetSvg(
                     barX,
-                    glassY,
+                    vBarTop,
                     barWidth,
-                    glassHeight,
+                    vBarHeight,
                     panelContext,
                     'vertical',
                     b
@@ -980,7 +1046,168 @@ const Na__Viewport__SvgGenerator = (function() {
             }
         }
 
+        if (archEnabled && archHeight > 0 && archAmount >= 1) {
+            const archSvg = na_generateGothicArchSvg(
+                glassX, glassY + effectiveGlassHeight, glassWidth, archHeight,
+                archAmount, barWidth, frameColor, panelContext
+            );
+            renderBucket.svg += archSvg;
+        }
+
         return renderBucket;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate SVG Gothic Arch Tracery for a Glazed Panel
+    // ------------------------------------------------------------
+    // Draws `archAmount` two-centred lancet arches across the top of the
+    // glazed area. Each arch consists of two overlapping arcs that overshoot
+    // the apex, producing the decorative crossing pattern visible in the
+    // reference images. Geometry is computed by the shared GlazebarMath
+    // module so 2D, Ruby 3D, and DXF all stay synchronised.
+    //
+    // Coordinates:
+    //   springingY  -- y of the springing line (top of the regular bar zone)
+    //   The arch zone occupies [springingY .. springingY + archHeight].
+    //   SVG y grows downward in the local context, but na_svgPath wraps
+    //   everything with an outer translate(0, -panel) flip, so within this
+    //   function we author paths in the same y-up convention used by the
+    //   surrounding SVG generators.
+    function na_generateGothicArchSvg(glassX, springingY, glassWidth, archHeight, archAmount, barWidth, frameColor, panelContext) {
+        if (glassWidth <= 0 || archHeight <= 0 || archAmount <= 0) return '';
+
+        const math = window.Na__GlazebarMath;
+        if (!math || !math.na_computeGothicArcParams) return '';
+
+        // Extend the arch zone outward (halfBar on each side, halfBar on
+        // top) so each arch terminates slightly past the inside face of
+        // the casement. An SVG clip-path then trims everything back to
+        // the glass rectangle, producing clean plumb edges where the
+        // arches meet the casement stiles and top rail (instead of the
+        // curved tangent that would otherwise be left behind).
+        const halfBar       = barWidth / 2;
+        const extGlassX     = glassX - halfBar;
+        const extGlassWidth = glassWidth + (2 * halfBar);
+        const extArchHeight = archHeight + halfBar;
+        const extBayWidth   = extGlassWidth / archAmount;
+
+        let polygons = '';
+        for (let a = 0; a < archAmount; a += 1) {
+            const bayLeftX = extGlassX + (a * extBayWidth);
+            const params   = math.na_computeGothicArcParams(extBayWidth, extArchHeight);
+            polygons += na_buildGothicArchPath(bayLeftX, springingY, params, barWidth, frameColor, panelContext, a);
+        }
+
+        // Glass-area clip rectangle in SVG y-down coords. The top edge
+        // sits at the TRUE glass top (the inside face of the casement
+        // header), which is springingY + total_zone_height (where
+        // total_zone_height = apex + overshoot). The caller's springingY
+        // was placed exactly so this lands at glass_top. Earlier we
+        // mistakenly clipped at springingY + archHeight (apex height
+        // only) which chopped the overshoot ring above the apex.
+        const originalBayWidth = glassWidth / archAmount;
+        const totalZoneHeight  = (typeof math.na_computeGothicTotalZoneHeight === 'function')
+            ? math.na_computeGothicTotalZoneHeight(originalBayWidth, archHeight)
+            : archHeight;
+        const glassTopMath = springingY + totalZoneHeight;
+
+        const clipId = 'na-glass-clip-' +
+            panelContext.openingIndex + '-' +
+            panelContext.cellIndex + '-' +
+            panelContext.panelIndex + '-' +
+            panelContext.sashIndex;
+
+        return (
+            '<defs>' +
+                '<clipPath id="' + clipId + '">' +
+                    '<rect x="' + glassX + '" y="' + (-glassTopMath) +
+                    '" width="' + glassWidth + '" height="' + totalZoneHeight + '"/>' +
+                '</clipPath>' +
+            '</defs>' +
+            '<g clip-path="url(#' + clipId + ')">' + polygons + '</g>'
+        );
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER | Build one bay's twin-arc SVG polygons (filled ring segments)
+    // ------------------------------------------------------------
+    // The arch bars are rendered as TESSELLATED POLYGONS rather than
+    // SVG <path> arcs so the chosen frame-material fill renders
+    // reliably in every browser/Embedded WebView combo. <path> with
+    // M-A-L-A-Z sometimes failed to fill because the implicit winding
+    // depends on sweep-flag direction, whereas <polygon> takes a flat
+    // point list and the SVG fill rule has unambiguous winding.
+    //
+    // The bar thickness is baked into the geometry: the polygon walks
+    // the OUTER radius (R + barWidth/2) forward through the arc, then
+    // back along the INNER radius (R - barWidth/2). The result is a
+    // closed ring segment of true bar-width thickness, filled with the
+    // frame material and outlined in 0.5px black -- matching how the
+    // straight glaze bars render via `na_svgRect`.
+    //
+    // The tessellation count mirrors the 3D side so all three
+    // representations (SVG, Ruby 3D, DXF) stay in lockstep.
+    function na_buildGothicArchPath(bayLeftX, springingY, params, barWidth, frameColor, panelContext, bayIndex) {
+        const leftCx  = bayLeftX + params.leftCenterX;
+        const rightCx = bayLeftX + params.rightCenterX;
+        const cy      = springingY;
+        const R       = params.radius;
+        const halfBar = barWidth / 2;
+        const rOut    = R + halfBar;
+        const rIn     = Math.max(0.01, R - halfBar);
+
+        const fill    = frameColor || '#000000';
+        const stroke  = '#000000';
+        const ctxId   = `${panelContext.openingIndex}_${panelContext.cellIndex}_${panelContext.panelIndex}_${panelContext.sashIndex}_arch${bayIndex}`;
+        const math    = window.Na__GlazebarMath;
+        const segments = (math && typeof math.na_gothicTessellationSegmentCount === 'function')
+            ? math.na_gothicTessellationSegmentCount(params.archHeight)
+            : 24;
+
+        const leftPts  = na_buildArchRingPolygonPoints(leftCx,  cy, rOut, rIn, params.leftStartAng,  params.leftEndAng,  segments);
+        const rightPts = na_buildArchRingPolygonPoints(rightCx, cy, rOut, rIn, params.rightStartAng, params.rightEndAng, segments);
+
+        return `
+            <polygon points="${leftPts}"  data-arch-id="${ctxId}_L" fill="${fill}" stroke="${stroke}" stroke-width="0.5"/>
+            <polygon points="${rightPts}" data-arch-id="${ctxId}_R" fill="${fill}" stroke="${stroke}" stroke-width="0.5"/>
+        `;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER | Build A Closed Ring-Segment Polygon Point List
+    // ------------------------------------------------------------
+    // Walks the outer radius from start_angle to end_angle, then the
+    // inner radius back, producing a flat space-separated "x,y x,y ..."
+    // list ready for an SVG <polygon> element. Y is negated to convert
+    // from math y-up to SVG y-down (same flip used by `na_svgRect`).
+    function na_buildArchRingPolygonPoints(cx, cy, rOut, rIn, startAng, endAng, segments) {
+        const seg = Math.max(8, Math.round(segments));
+        const pts = [];
+        for (let i = 0; i <= seg; i += 1) {
+            const t = i / seg;
+            const ang = startAng + (endAng - startAng) * t;
+            const x = cx + rOut * Math.cos(ang);
+            const y = cy + rOut * Math.sin(ang);
+            pts.push(x + ',' + (-y));
+        }
+        for (let i = seg; i >= 0; i -= 1) {
+            const t = i / seg;
+            const ang = startAng + (endAng - startAng) * t;
+            const x = cx + rIn * Math.cos(ang);
+            const y = cy + rIn * Math.sin(ang);
+            pts.push(x + ',' + (-y));
+        }
+        return pts.join(' ');
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER | Polar -> Cartesian endpoint (math y-up)
+    // ------------------------------------------------------------
+    function na_arcEndpoint(cx, cy, radius, angleRad) {
+        return {
+            x: cx + radius * Math.cos(angleRad),
+            y: cy + radius * Math.sin(angleRad)
+        };
     }
     // ---------------------------------------------------------------
 
@@ -1179,6 +1406,7 @@ const Na__Viewport__SvgGenerator = (function() {
         na_getSashHornElevationData: na_getSashHornElevationData,
         na_buildSashHornLogicalPoints: na_buildSashHornLogicalPoints,
         na_generateGlazeBarsSvg: na_generateGlazeBarsSvg,
+        na_generateGothicArchSvg: na_generateGothicArchSvg,                 // <-- Exposed for ExtFold/ExtSlide elevation parity
         na_collectValidGlazebarKeys: na_collectValidGlazebarKeys,
         na_getCasementKey: na_getCasementKey,                            // <-- Exposed for cross-module reuse
         na_getRemovedCasementSet: na_getRemovedCasementSet,              // <-- Exposed for DXF JS fallback

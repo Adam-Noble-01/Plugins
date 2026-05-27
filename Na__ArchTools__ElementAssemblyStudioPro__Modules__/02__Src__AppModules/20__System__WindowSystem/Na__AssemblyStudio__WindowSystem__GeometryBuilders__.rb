@@ -319,9 +319,9 @@ module Na__WindowSystem
         # @param casement_depth [Float, nil] Casement depth (when bars inside casement)
         # @param casement_inset [Float, nil] Casement inset from frame face
         # @param glazebar_inset [Float] Glaze bar inset from front/back of casement (or frame)
-        def self.na_create_glazebar_geometry(entities, opening_index, glass_width, glass_height, h_bars, v_bars, bar_width, glass_thickness, offset_x, offset_z, frame_depth, material, wall_inset = 0, casement_depth = nil, casement_inset = nil, glazebar_inset = 0, removed_glazebars = [], opening_layout_index = 0, cell_index = 0, panel_index = 0, sash_index = 0)
+        def self.na_create_glazebar_geometry(entities, opening_index, glass_width, glass_height, h_bars, v_bars, bar_width, glass_thickness, offset_x, offset_z, frame_depth, material, wall_inset = 0, casement_depth = nil, casement_inset = nil, glazebar_inset = 0, removed_glazebars = [], opening_layout_index = 0, cell_index = 0, panel_index = 0, sash_index = 0, advanced = nil)
             DebugTools.na_debug_geometry("Creating glaze bars for opening #{opening_index}: #{h_bars}H x #{v_bars}V")
-            
+
             if casement_depth && casement_inset
                 # Bars inset from casement faces
                 y_offset = wall_inset + casement_inset + glazebar_inset
@@ -332,28 +332,297 @@ module Na__WindowSystem
                 bar_depth = frame_depth - (2 * glazebar_inset)
             end
             bar_depth = [bar_depth, glass_thickness].max
-            
-            # Horizontal bars
-            if h_bars > 0
-                section_height = glass_height / (h_bars + 1)
-                (1..h_bars).each do |i|
+
+            # Resolve advanced options with safe fallbacks. `advanced` is an
+            # optional hash carrying the Margin Glazing + Gothic Arch state
+            # so callers that have not yet been migrated still get the
+            # legacy divide-by-(N+1) behaviour.
+            adv = advanced.is_a?(Hash) ? advanced : {}
+            margin_enabled   = adv[:margin_enabled]    == true
+            margin_offset    = (adv[:margin_offset]    || 0).to_f
+            arch_enabled     = adv[:arch_enabled]      == true
+            arch_amount      = [[(adv[:arch_amount]    || 2).to_i, 2].max, 8].min
+            arch_height      = (adv[:arch_height]      || 0).to_f
+            arch_height_mm   = (adv[:arch_height_mm]   || 0).to_f
+
+            # Gothic arch zone shrinks the effective glass area available
+            # for regular bars. We subtract the FULL arch zone (apex +
+            # overshoot) so the overshoot termini land at the top of glass
+            # and the apex sits below -- matching the 2D preview and the
+            # casement-header tracery convention.
+            effective_glass_height = glass_height
+            if arch_enabled && arch_height > 0 && arch_amount >= 1
+                bay_width = glass_width.to_f / arch_amount
+                total_arch_zone = na_compute_gothic_total_zone_height(bay_width, arch_height)
+                effective_glass_height = [glass_height - total_arch_zone, 0].max
+            end
+
+            # Horizontal bars (margin-aware positioning)
+            if h_bars > 0 && effective_glass_height > 0
+                h_positions = na_compute_bar_positions(offset_z, effective_glass_height, h_bars, margin_enabled, margin_offset)
+                h_positions.each_with_index do |bar_center_z, idx|
+                    i = idx + 1
                     next if na_glazebar_removed?(removed_glazebars, opening_layout_index, cell_index, panel_index, sash_index, "horizontal", i)
 
-                    bar_z = offset_z + (section_height * i) - (bar_width / 2)
+                    bar_z = bar_center_z - (bar_width / 2)
                     GeometryHelpers.na_create_glaze_bar_horizontal(entities, opening_index, i, offset_x, y_offset, bar_z, glass_width, bar_depth, bar_width, material)
                 end
             end
-            
-            # Vertical bars
-            if v_bars > 0
-                section_width = glass_width / (v_bars + 1)
-                (1..v_bars).each do |i|
+
+            # Vertical bars (margin-aware positioning, span only the non-arch zone).
+            # When arches are on and v_bars pairs naturally with arches
+            # (one vbar under every interior springing), align vbars to
+            # the extended-zone springings so they sit directly beneath
+            # the arch springings. Margin glazing takes precedence.
+            arch_align_vbars = arch_enabled && !margin_enabled && (v_bars + 1 == arch_amount)
+            if v_bars > 0 && effective_glass_height > 0
+                v_positions = if arch_align_vbars
+                                  na_compute_arch_aligned_bar_positions(offset_x, glass_width, v_bars, bar_width, arch_amount)
+                              else
+                                  na_compute_bar_positions(offset_x, glass_width, v_bars, margin_enabled, margin_offset)
+                              end
+                v_positions.each_with_index do |bar_center_x, idx|
+                    i = idx + 1
                     next if na_glazebar_removed?(removed_glazebars, opening_layout_index, cell_index, panel_index, sash_index, "vertical", i)
 
-                    bar_x = offset_x + (section_width * i) - (bar_width / 2)
-                    GeometryHelpers.na_create_glaze_bar_vertical(entities, opening_index, i, bar_x, y_offset, offset_z, bar_width, bar_depth, glass_height, material)
+                    bar_x = bar_center_x - (bar_width / 2)
+                    GeometryHelpers.na_create_glaze_bar_vertical(entities, opening_index, i, bar_x, y_offset, offset_z, bar_width, bar_depth, effective_glass_height, material)
                 end
             end
+
+            # Gothic arch tracery (post-positioning, top of the glazed area).
+            # glass_top_z is passed so the arch builder can clip its
+            # extended geometry back to the glass area boundary, producing
+            # clean plumb edges where the arches meet the casement.
+            if arch_enabled && arch_height > 0 && arch_amount >= 1
+                springing_z = offset_z + effective_glass_height
+                glass_top_z = offset_z + glass_height
+                na_create_gothic_arch_geometry(
+                    entities, opening_index,
+                    offset_x, springing_z, glass_width, arch_height, arch_amount,
+                    bar_width, bar_depth, y_offset,
+                    arch_height_mm, material,
+                    glass_top_z
+                )
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Compute Bar Centerline Positions Along One Axis
+        # ------------------------------------------------------------
+        # Mirrors window.Na__GlazebarMath.na_computeBarPositions in JS so
+        # 2D and 3D stay in lockstep. Default mode evenly divides `size`
+        # into (count+1) sections. Margin mode only kicks in for count >= 2:
+        # the outer pair is inset by `margin_offset` and inner bars are
+        # redistributed evenly between them.
+        def self.na_compute_bar_positions(start, size, count, margin_enabled, margin_offset)
+            return [] if count.nil? || count <= 0
+
+            if !margin_enabled || count < 2
+                step = size.to_f / (count + 1)
+                return (1..count).map { |i| start + step * i }
+            end
+
+            first_pos = start + margin_offset
+            last_pos  = start + size - margin_offset
+            return [first_pos, last_pos] if count == 2
+
+            inner_step = (last_pos - first_pos) / (count - 1).to_f
+            (0...count).map { |i| first_pos + inner_step * i }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Arch-Aligned Bar Positions (3D Mirror of JS Helper)
+        # ------------------------------------------------------------
+        # Returns vbar centerline positions aligned with the interior
+        # springings of the EXTENDED arch zone (glass + bar_width wider).
+        # Used when arches are enabled and v_bars + 1 == arch_amount so
+        # every vertical bar sits directly beneath an arch springing.
+        def self.na_compute_arch_aligned_bar_positions(glass_start, glass_size, count, bar_width, arch_amount)
+            return [] if count.nil? || count <= 0 || arch_amount.nil? || arch_amount < 2
+            half_bar = bar_width / 2.0
+            ext_glass_start = glass_start - half_bar
+            ext_glass_size  = glass_size  + (2 * half_bar)
+            ext_bay_width   = ext_glass_size / arch_amount.to_f
+            (0...count).map { |i| ext_glass_start + (i + 1) * ext_bay_width }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Create Gothic Arch Tracery Geometry For One Glazed Panel
+        # ------------------------------------------------------------
+        # Produces `arch_amount` two-centred lancet arches across the top
+        # of the glazed area. Each arch is composed of TWO arc-halves
+        # (left + right), each built as a single ring-segment face that
+        # is then push-pulled into the wall -- the idiomatic SketchUp
+        # workflow (draw 2D profile, extrude). One solid per arc-half
+        # fuses cleanly with the straight glaze bars in the FuseParts
+        # pipeline; no tiny-box tessellation, no outer_shell chains.
+        #
+        # Geometry parameters match the JS GlazebarMath helper exactly:
+        #   bay_width  = glass_width / arch_amount
+        #   c          = bay_width/4 + arch_height^2 / bay_width
+        #   radius     = c
+        #   arc sweep  = (apex angle +/- 15deg of overshoot)
+        def self.na_create_gothic_arch_geometry(entities, opening_index, glass_left_x, springing_z, glass_width, arch_height, arch_amount, bar_width, bar_depth, y_offset, arch_height_mm, material, glass_top_z = nil)
+            half_bar = bar_width / 2.0
+
+            # Extend the arch zone outward (half_bar on each side, half_bar
+            # on top). The extended geometry projects past the inside face
+            # of the casement; once each arch half is built we intersect
+            # it with a transient glass-area cube so the final solid
+            # terminates against clean plumb edges (no curved tangent
+            # gap against the casement stiles or top rail).
+            ext_glass_left  = glass_left_x - half_bar
+            ext_glass_width = glass_width  + (2 * half_bar)
+            ext_arch_height = arch_height  + half_bar
+            bay_width       = ext_glass_width.to_f / arch_amount
+
+            segments_per_arc = na_gothic_tessellation_segment_count(arch_height_mm)
+            arch_halves = []
+
+            (0...arch_amount).each do |bay_index|
+                bay_left = ext_glass_left + (bay_index * bay_width)
+                arch_index = bay_index + 1
+
+                params = na_compute_gothic_arc_params(bay_width, ext_arch_height)
+                radius_outer = params[:radius] + half_bar
+                radius_inner = [params[:radius] - half_bar, 0.01].max
+
+                # Left arc-half: one face from the outer arc walked
+                # forward and the inner arc walked back, push-pulled into
+                # the wall by bar_depth.
+                left = GeometryHelpers.na_create_glaze_bar_arch_half(
+                    entities, opening_index, arch_index, "L",
+                    bay_left + params[:left_center_x], springing_z,
+                    radius_outer, radius_inner,
+                    params[:left_start_ang], params[:left_end_ang],
+                    segments_per_arc,
+                    y_offset, bar_depth, material
+                )
+                arch_halves << left if left
+
+                # Right arc-half (mirror).
+                right = GeometryHelpers.na_create_glaze_bar_arch_half(
+                    entities, opening_index, arch_index, "R",
+                    bay_left + params[:right_center_x], springing_z,
+                    radius_outer, radius_inner,
+                    params[:right_start_ang], params[:right_end_ang],
+                    segments_per_arc,
+                    y_offset, bar_depth, material
+                )
+                arch_halves << right if right
+            end
+
+            return if glass_top_z.nil?
+            na_clip_arch_halves_to_glass_area(
+                entities, arch_halves,
+                glass_left_x, glass_left_x + glass_width,
+                y_offset, bar_depth,
+                springing_z, glass_top_z,
+                material
+            )
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Clip Arch Halves Against the Glass-Area Bounding Box
+        # ------------------------------------------------------------
+        # For each arch half (built with extended bounds), intersects it
+        # with a transient glass-area cube so the final solid is the
+        # arch's footprint inside the glass rectangle only -- giving
+        # clean plumb edges where the arch meets the casement.
+        #
+        # SketchUp's solid boolean ops typically consume both inputs and
+        # return a fresh group. We defensively call `valid?` and erase
+        # any leftover input groups in case a SketchUp version preserves
+        # them. The cube is created fresh per arch half because each
+        # intersect destroys it.
+        def self.na_clip_arch_halves_to_glass_area(entities, arch_halves, x_min, x_max, y_origin, bar_depth, z_min, z_max, material)
+            eps = 0.01 # inches; inflate the cube's Y range slightly so
+                       # boundary-touching faces stay inside the boolean
+            arch_halves.each do |arch|
+                next unless arch && arch.valid?
+
+                cube = GeometryHelpers.na_create_grouped_box(
+                    entities, "Na_Temp_ArchClip",
+                    x_min, y_origin - eps, z_min,
+                    x_max - x_min, bar_depth + (2 * eps), z_max - z_min,
+                    material
+                )
+                next unless cube
+
+                original_name = arch.name
+                result = nil
+                begin
+                    result = arch.intersect(cube)
+                rescue StandardError => e
+                    DebugTools.na_debug_error("Arch clip intersect raised: #{e.message}", e)
+                end
+
+                cube.erase! if cube && cube.valid?
+                arch.erase! if arch && arch.valid? && !arch.equal?(result)
+
+                if result && result.valid?
+                    result.name = original_name
+                    if material
+                        result.entities.grep(Sketchup::Face).each do |f|
+                            f.material      = material
+                            f.back_material = material
+                        end
+                    end
+                end
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Two-Centred Gothic Arc Parameters (Mirror of JS Helper)
+        # ------------------------------------------------------------
+        def self.na_compute_gothic_arc_params(bay_width, arch_height)
+            w = [bay_width.to_f, 0.0001].max
+            h = [arch_height.to_f, 0.0001].max
+            c = (w / 4.0) + (h * h) / w
+
+            apex_angle_left  = Math.atan2(h, (w / 2.0) - c)
+            overshoot        = (15.0 * Math::PI) / 180.0
+            right_center_x   = w - c
+            apex_angle_right = Math.atan2(h, (w / 2.0) - right_center_x)
+
+            {
+                bay_width:        w,
+                arch_height:      h,
+                radius:           c,
+                left_center_x:    c,
+                right_center_x:   right_center_x,
+                left_start_ang:   Math::PI,
+                left_end_ang:     apex_angle_left - overshoot,
+                right_start_ang:  0.0,
+                right_end_ang:    apex_angle_right + overshoot
+            }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Total Visible Arch Zone Height (Apex + Overshoot)
+        # ------------------------------------------------------------
+        # Mirror of na_computeGothicTotalZoneHeight in JS GlazebarMath.
+        # The 15-deg overshoot pushes each arc's terminus ABOVE the apex;
+        # this returns the visible top of the arch tracery so callers can
+        # shift the springing line down by the right amount and keep the
+        # entire tracery inside the casement header rather than letting
+        # the overshoot escape into the frame above.
+        def self.na_compute_gothic_total_zone_height(bay_width, apex_height)
+            params = na_compute_gothic_arc_params(bay_width, apex_height)
+            terminus_z = params[:radius] * Math.sin(params[:left_end_ang])
+            [apex_height, terminus_z].max
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Tessellation Segment Count Per Arc (Height-Driven)
+        # ------------------------------------------------------------
+        # Matches the JS table exactly so 2D, 3D, and DXF stay aligned.
+        def self.na_gothic_tessellation_segment_count(arch_height_mm)
+            h = arch_height_mm.to_f
+            return 24 if h < 450.0
+            return 36 if h <= 600.0
+            48
         end
         # ---------------------------------------------------------------
 

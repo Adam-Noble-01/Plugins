@@ -76,13 +76,32 @@
     padding: 0;
 }
 
+html {
+    height: 100%;
+}
+
 body {
     font-family: var(--na-font-family);
     font-size: var(--na-font-size-md);
     background-color: var(--na-bg-primary);
     color: var(--na-text-primary);
     line-height: 1.4;
-    overflow-x: hidden;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Top chrome (brand header + tab strip) stays pinned — never scrolls. */
+.na-top-chrome {
+    flex-shrink: 0;
+}
+
+/* Scrollable content area beneath the pinned top chrome. */
+.na-main-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 /* =============================================================================

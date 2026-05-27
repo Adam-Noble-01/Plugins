@@ -495,6 +495,18 @@ module Na__WindowSystem
             v_bars = (config["vertical_glaze_bars"] || 0).to_i
             bar_width = (config["glaze_bar_width_mm"] || constants[:default_glaze_bar_width]).to_f * mm_to_inch
             glazebar_inset = (config["glazebar_inset_mm"] || constants[:default_glazebar_inset]).to_f * mm_to_inch
+
+            # Advanced glazebar options (Margin Glazing + Gothic Arch).
+            # Booleans pass through untouched; dimensional values convert mm->inches.
+            # The amount slider stays as an integer (1..8).
+            glazebar_margin_enabled       = config["glazebar_margin_enabled"] == true
+            glazebar_margin_offset        = (config["glazebar_margin_offset_mm"] || 0).to_f * mm_to_inch
+            glazebar_gothic_arch_enabled  = config["glazebar_gothic_arch_enabled"] == true
+            glazebar_gothic_arch_amount   = [[(config["glazebar_gothic_arch_amount"] || 2).to_i, 2].max, 8].min
+            glazebar_gothic_arch_height   = (config["glazebar_gothic_arch_height_mm"] || 0).to_f * mm_to_inch
+            # Keep the mm value too so the tessellation count helper can
+            # branch on the human-readable height without re-converting.
+            glazebar_gothic_arch_height_mm = (config["glazebar_gothic_arch_height_mm"] || 0).to_f
             
             # Cill
             cill_depth = (config["cill_depth_mm"] || constants[:default_cill_depth]).to_f * mm_to_inch
@@ -593,6 +605,12 @@ module Na__WindowSystem
                 v_bars: v_bars,
                 bar_width: bar_width,
                 glazebar_inset: glazebar_inset,
+                glazebar_margin_enabled: glazebar_margin_enabled,
+                glazebar_margin_offset: glazebar_margin_offset,
+                glazebar_gothic_arch_enabled: glazebar_gothic_arch_enabled,
+                glazebar_gothic_arch_amount: glazebar_gothic_arch_amount,
+                glazebar_gothic_arch_height: glazebar_gothic_arch_height,
+                glazebar_gothic_arch_height_mm: glazebar_gothic_arch_height_mm,
                 has_cill: has_cill,
                 cill_depth: cill_depth,
                 cill_height: cill_height
@@ -958,13 +976,14 @@ module Na__WindowSystem
                     panel_wall_inset, params[:casement_depth], params[:casement_inset]
                 )
 
-                if params[:h_bars] > 0 || params[:v_bars] > 0
+                if params[:h_bars] > 0 || params[:v_bars] > 0 || params[:glazebar_gothic_arch_enabled]
                     GeometryBuilders.na_create_glazebar_geometry(
                         entities, panel_id, glass_w, glass_h, params[:h_bars], params[:v_bars],
                         params[:bar_width], params[:glass_thickness], glass_offset_x, glass_offset_z,
                         params[:frame_depth], frame_material, panel_wall_inset,
                         params[:casement_depth], params[:casement_inset], params[:glazebar_inset],
-                        params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index
+                        params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index,
+                        na_advanced_glazebar_hash(params)
                     )
                 end
             else
@@ -973,16 +992,34 @@ module Na__WindowSystem
                     panel_x, panel_z, params[:frame_depth], glass_material, panel_wall_inset
                 )
 
-                if params[:h_bars] > 0 || params[:v_bars] > 0
+                if params[:h_bars] > 0 || params[:v_bars] > 0 || params[:glazebar_gothic_arch_enabled]
                     GeometryBuilders.na_create_glazebar_geometry(
                         entities, panel_id, panel_width, panel_height, params[:h_bars], params[:v_bars],
                         params[:bar_width], params[:glass_thickness], panel_x, panel_z,
                         params[:frame_depth], frame_material, panel_wall_inset,
                         nil, nil, params[:glazebar_inset],
-                        params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index
+                        params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index,
+                        na_advanced_glazebar_hash(params)
                     )
                 end
             end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Pack Advanced Glazebar Params Into A Hash
+        # ------------------------------------------------------------
+        # Single source of truth for the hash GeometryBuilders consumes.
+        # Centralised so the three call sites in this file all stay in
+        # lockstep when keys are added or renamed.
+        def self.na_advanced_glazebar_hash(params)
+            {
+                margin_enabled:  params[:glazebar_margin_enabled],
+                margin_offset:   params[:glazebar_margin_offset],
+                arch_enabled:    params[:glazebar_gothic_arch_enabled],
+                arch_amount:     params[:glazebar_gothic_arch_amount],
+                arch_height:     params[:glazebar_gothic_arch_height],
+                arch_height_mm:  params[:glazebar_gothic_arch_height_mm]
+            }
         end
         # ---------------------------------------------------------------
 
@@ -1042,13 +1079,14 @@ module Na__WindowSystem
                     panel_wall_inset, cas_depth, params[:casement_inset]
                 )
 
-                if params[:h_bars] > 0 || params[:v_bars] > 0
+                if params[:h_bars] > 0 || params[:v_bars] > 0 || params[:glazebar_gothic_arch_enabled]
                     GeometryBuilders.na_create_glazebar_geometry(
                         entities, panel_id, glass_w, glass_h, params[:h_bars], params[:v_bars],
                         params[:bar_width], params[:glass_thickness], glass_x, glass_z,
                         params[:frame_depth], frame_material, panel_wall_inset,
                         cas_depth, params[:casement_inset], params[:glazebar_inset],
-                        params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index
+                        params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index,
+                        na_advanced_glazebar_hash(params)
                     )
                 end
             end

@@ -33,7 +33,11 @@ const Na__Ui__Controls = (function () {
     function na_createExpandableHtml(config) {
         let childControlsHtml = '';
         if (config.children && config.children.length > 0) {
-            config.children.forEach(child => { childControlsHtml += na_createSliderHtml(child); });
+            // Dispatch on child.type so expandable sections can host sliders,
+            // toggles, etc. (e.g. Advanced Glazebar Controls hosts both).
+            config.children.forEach(child => {
+                childControlsHtml += na_createControl(child);
+            });
         }
         return `
             <div class="na-control-item na-expandable-wrapper" data-control-id="${config.id}">

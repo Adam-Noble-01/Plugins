@@ -141,6 +141,24 @@ const Na_DynamicUI = (function() {
             na_applySlidingSashCasementDefaults();
         }
 
+        // Seed Gothic-arch defaults on the false->true edge so the user
+        // sees a sensible arch immediately. The Amount/Height sliders are
+        // then user-controllable until the toggle is disabled.
+        if (id === 'glazebar_gothic_arch_enabled' && previousValue !== true && normalizedValue === true) {
+            na_applyGothicArchDefaultsOnEnable();
+        }
+
+        // Soft-coupling: moving the Vertical Bars slider always drives
+        // the Amount Of Arches to (vBars + 1), clamped to the slider's
+        // [2..8] range. The user can still override arches manually
+        // afterwards (decoupled), but the next vbar change re-syncs.
+        // Mirrors the request that vbars and arches feel natural together
+        // in Live Mode where each interior arch springing sits over one
+        // vertical bar.
+        if (id === 'vertical_glaze_bars') {
+            na_syncArchAmountFromVerticalBars(value);
+        }
+
         // Mutual exclusivity between the three door-mode flags. When one
         // mode toggles ON, the other two toggle OFF so the user cannot
         // emit a hybrid window+sliding+bifold artefact. Touching the
@@ -236,6 +254,8 @@ const Na_DynamicUI = (function() {
         na_updateDoorPanelVisibility();
         na_updateSlidingDoorVisibility();
         na_updateMultifoldDoorVisibility();
+        na_updateAdvancedGlazebarVisibility();
+        na_clampGlazebarMarginOffset();
         na_updateTransomControlVisibility();
         na_updateWindowOnlyControlsVisibility();                                // <-- Phase 9: Hide casement/mullion/transom/sliding-sash controls in bifold/sliding mode
         na_updateWidthSliderRange();                                            // <-- Phase 10: Expand width to 8000mm in multi-leaf door modes
@@ -397,6 +417,170 @@ const Na_DynamicUI = (function() {
         const masterSideControl = document.querySelector('[data-control-id="bifold_door_master_side"]');
         if (openSideControl)   openSideControl.style.display   = (layout === 'AllOneWay')    ? '' : 'none';
         if (masterSideControl) masterSideControl.style.display = (layout === 'MasterSlaves') ? '' : 'none';
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Estimate Single-Casement Glazing Panel Width (mm)
+    // ------------------------------------------------------------
+    // Per-casement glazed width = (innerFrameWidth - (mullions * mullion_width)) / casementsPerOpening
+    // minus the casement's left + right stiles. This is used to seed Gothic
+    // arch defaults (one arch per ~250mm of glazing width beyond 450mm).
+    function na_getGlazingPanelWidthMm() {
+        const innerWidthMm = na_getInnerFrameWidthMm();
+        const mullionsCount = Math.max(0, Math.round(_config.mullions || 0));
+        const mullionWidth = Math.max(0, Number(_config.mullion_width_mm || 30));
+        const casementsPerOpening = Math.max(1, Math.round(_config.casements_per_opening || 1));
+        const openingsCount = mullionsCount + 1;
+
+        const totalCasementBandWidth = Math.max(0, innerWidthMm - (mullionsCount * mullionWidth));
+        const perOpeningWidth = totalCasementBandWidth / Math.max(1, openingsCount);
+        const perCasementWidth = perOpeningWidth / casementsPerOpening;
+
+        const casementWidth = Math.max(0, Number(_config.casement_width_mm || 65));
+        const useIndividualSizes = _config.casement_sizes_individual === true;
+        const leftStile  = useIndividualSizes ? Number(_config.casement_left_stile_mm  || casementWidth) : casementWidth;
+        const rightStile = useIndividualSizes ? Number(_config.casement_right_stile_mm || casementWidth) : casementWidth;
+
+        return Math.max(0, perCasementWidth - leftStile - rightStile);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Estimate Single-Casement Glazing Panel Height (mm)
+    // ------------------------------------------------------------
+    // Inner-frame height minus top/bottom casement rails. For multi-transom
+    // configurations this still represents a typical single-cell glazed
+    // height, which is the figure the Gothic-arch default reads against.
+    function na_getGlazingPanelHeightMm() {
+        const innerHeightMm = na_getInnerFrameHeightMm();
+        const transomCount = Math.max(0, Math.min(3, Math.round(_config.transoms || 0)));
+        const transomWidth = na_getTransomWidthMm();
+        const verticalCellHeight = Math.max(0, (innerHeightMm - (transomCount * transomWidth)) / (transomCount + 1));
+
+        const casementWidth = Math.max(0, Number(_config.casement_width_mm || 65));
+        const useIndividualSizes = _config.casement_sizes_individual === true;
+        const topRail    = useIndividualSizes ? Number(_config.casement_top_rail_mm    || casementWidth) : casementWidth;
+        const bottomRail = useIndividualSizes ? Number(_config.casement_bottom_rail_mm || casementWidth) : casementWidth;
+
+        return Math.max(0, verticalCellHeight - topRail - bottomRail);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Compute Default Gothic Arch Amount From Glazing Panel Width
+    // ------------------------------------------------------------
+    // 2 arches up to 450mm wide (the minimum the slider accepts), then
+    // +1 arch per additional 250mm. Clamped to the slider's [2..8] range.
+    function na_computeGothicArchAmountDefault(panelWidthMm) {
+        const width = Math.max(0, Number(panelWidthMm) || 0);
+        if (width <= 450) return 2;
+        const extra = Math.floor((width - 450) / 250);
+        return Math.max(2, Math.min(8, 2 + extra));
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Compute Default Gothic Arch Height From Glazing Panel Height
+    // ------------------------------------------------------------
+    // Quarter of the glazing panel height, rounded to the nearest 10mm and
+    // clamped to the slider's [200..800] range.
+    function na_computeGothicArchHeightDefault(glazingPanelHeightMm) {
+        const raw = Math.max(0, Number(glazingPanelHeightMm) || 0) / 4;
+        const rounded = Math.round(raw / 10) * 10;
+        return Math.max(200, Math.min(800, rounded));
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Compute Max Glaze Bar Margin Offset From Glazed Area
+    // ------------------------------------------------------------
+    // Margin must leave space for at least one interior lite. Cap is 40% of
+    // the smaller glazed dimension as specified, with the slider's static
+    // hard floor of 50mm still in force.
+    function na_computeMaxGlazebarMarginMm() {
+        const glassWidth  = na_getGlazingPanelWidthMm();
+        const glassHeight = na_getGlazingPanelHeightMm();
+        const smaller = Math.max(0, Math.min(glassWidth, glassHeight));
+        const cap = Math.floor((smaller * 0.4) / 10) * 10;
+        return Math.max(50, cap);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Seed Gothic Arch Defaults When First Enabled
+    // ------------------------------------------------------------
+    // Mirrors na_applyTransomDefaultsForCountChange - only fires on the
+    // false->true edge so the user's manual values are not stomped during
+    // routine re-renders. Both amount and height are recomputed from the
+    // current panel dimensions and written into _config plus the live DOM.
+    //
+    // Arch amount on enable = max(width-based default, vBars + 1) so the
+    // natural pairing (one vbar under every interior springing) is the
+    // initial state when the user already has vertical bars configured.
+    function na_applyGothicArchDefaultsOnEnable() {
+        const widthDefault = na_computeGothicArchAmountDefault(na_getGlazingPanelWidthMm());
+        const vBars        = Math.max(0, Math.round(Number(_config.vertical_glaze_bars || 0)));
+        const pairedAmount = Math.max(2, Math.min(8, vBars + 1));
+        const defaultAmount = Math.max(2, Math.min(8, Math.max(widthDefault, pairedAmount)));
+        const defaultHeight = na_computeGothicArchHeightDefault(na_getGlazingPanelHeightMm());
+
+        _config.glazebar_gothic_arch_amount = defaultAmount;
+        na_updateControlValue('glazebar_gothic_arch_amount', defaultAmount);
+
+        _config.glazebar_gothic_arch_height_mm = defaultHeight;
+        na_updateControlValue('glazebar_gothic_arch_height_mm', defaultHeight);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Sync Arch Amount From Vertical Bars Slider
+    // ------------------------------------------------------------
+    // Implements the soft-coupling rule: every change of the Vertical
+    // Bars slider re-pegs Amount Of Arches to (vBars + 1), clamped to
+    // the slider's [2..8] range. The Arches slider remains user-
+    // adjustable afterwards (decoupled until the next vbar change),
+    // so a "preferred" amount can still be dialled in manually.
+    function na_syncArchAmountFromVerticalBars(vBarsValue) {
+        const vBars        = Math.max(0, Math.round(Number(vBarsValue || 0)));
+        const pairedAmount = Math.max(2, Math.min(8, vBars + 1));
+        if (_config.glazebar_gothic_arch_amount === pairedAmount) return;
+        _config.glazebar_gothic_arch_amount = pairedAmount;
+        na_updateControlValue('glazebar_gothic_arch_amount', pairedAmount);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Advanced Glazebar Sub-Control Visibility
+    // ------------------------------------------------------------
+    // The Margin offset slider only shows when its toggle is on; the two
+    // Gothic-arch sliders only show when their toggle is on. Mirrors
+    // na_updateDoorPanelVisibility's trim-controls pattern.
+    function na_updateAdvancedGlazebarVisibility() {
+        const marginOffsetCtrl = document.querySelector('[data-control-id="glazebar_margin_offset_mm"]');
+        if (marginOffsetCtrl) {
+            const show = _config.glazebar_margin_enabled === true;
+            marginOffsetCtrl.style.display = show ? '' : 'none';
+        }
+
+        const archAmountCtrl = document.querySelector('[data-control-id="glazebar_gothic_arch_amount"]');
+        const archHeightCtrl = document.querySelector('[data-control-id="glazebar_gothic_arch_height_mm"]');
+        const showArchSliders = _config.glazebar_gothic_arch_enabled === true;
+        if (archAmountCtrl) archAmountCtrl.style.display = showArchSliders ? '' : 'none';
+        if (archHeightCtrl) archHeightCtrl.style.display = showArchSliders ? '' : 'none';
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Clamp Margin Offset Slider Against Current Glazed Area
+    // ------------------------------------------------------------
+    // Reads the live <input> max attributes off the slider + numeric input
+    // and replaces them with the per-panel cap so the user cannot drag past
+    // the geometric feasibility limit. Any existing config value over the
+    // new cap is pulled back and reflected in the UI immediately.
+    function na_clampGlazebarMarginOffset() {
+        const maxOffset = na_computeMaxGlazebarMarginMm();
+        const slider = document.getElementById('glazebar_margin_offset_mm-slider');
+        const input  = document.getElementById('glazebar_margin_offset_mm-input');
+        if (slider) slider.max = String(maxOffset);
+        if (input)  input.max  = String(maxOffset);
+
+        const current = Number(_config.glazebar_margin_offset_mm || 0);
+        if (current > maxOffset) {
+            _config.glazebar_margin_offset_mm = maxOffset;
+            na_updateControlValue('glazebar_margin_offset_mm', maxOffset);
+        }
     }
     // ---------------------------------------------------------------
 

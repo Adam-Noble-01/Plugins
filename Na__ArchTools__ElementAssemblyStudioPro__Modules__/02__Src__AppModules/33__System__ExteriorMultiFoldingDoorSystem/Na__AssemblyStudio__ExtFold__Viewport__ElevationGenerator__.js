@@ -184,8 +184,15 @@ const Na__ExtFold__ElevationGenerator = (function () {
         const hBars   = Math.max(0, Math.round(Number(config.horizontal_glaze_bars || 0)));
         const vBars   = Math.max(0, Math.round(Number(config.vertical_glaze_bars   || 0)));
         const barW    = Math.max(8, Number(config.glaze_bar_width_mm || 25));
-        const enabled = isGlazed && (hBars > 0 || vBars > 0);
-        return { enabled: enabled, hBars: hBars, vBars: vBars, barW: barW };
+        const advanced = {
+            marginEnabled : config.glazebar_margin_enabled === true,
+            marginOffset  : Math.max(0, Number(config.glazebar_margin_offset_mm || 0)),
+            archEnabled   : config.glazebar_gothic_arch_enabled === true,
+            archAmount    : Math.max(2, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),
+            archHeight    : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0))
+        };
+        const enabled = isGlazed && (hBars > 0 || vBars > 0 || advanced.archEnabled);
+        return { enabled: enabled, hBars: hBars, vBars: vBars, barW: barW, advanced: advanced };
     }
     // ---------------------------------------------------------------
 
@@ -384,26 +391,38 @@ const Na__ExtFold__ElevationGenerator = (function () {
     // Mirrors the WindowSystem grille builder: bars are evenly spaced
     // inside the clear glass rectangle, centred on the section dividers.
     function na_build_panel_glazebars(glassX, glassY, glassW, glassH, layout) {
-        const sg = window.Na__Viewport__SvgGenerator;
-        if (!sg) return '';
+        const sg   = window.Na__Viewport__SvgGenerator;
+        const math = window.Na__GlazebarMath;
+        if (!sg || !math) return '';
 
-        const { hBars, vBars, barW } = layout.glazeBars;
-        const colour = layout.frameColour;
+        const { hBars, vBars, barW, advanced } = layout.glazeBars;
+        const adv     = advanced || { marginEnabled:false, marginOffset:0, archEnabled:false, archAmount:0, archHeight:0 };
+        const colour  = layout.frameColour;
         let svg = '';
 
-        if (hBars > 0) {
-            const sectionH = glassH / (hBars + 1);
-            for (let i = 1; i <= hBars; i++) {
-                const cy = glassY + sectionH * i;
-                svg += sg.na_svgRect(glassX, cy - barW / 2, glassW, barW, colour, STROKE_BLACK, 1);
+        // Arch zone reduces the effective height available for regular
+        // bars. Subtract the FULL zone (apex + overshoot) so the
+        // overshoot termini land at top of glass, matching window-mode.
+        const effectiveGlassH = math.na_computeEffectiveGlassHeight(glassH, adv.archEnabled, adv.archHeight, glassW, adv.archAmount);
+
+        if (hBars > 0 && effectiveGlassH > 0) {
+            const hPos = math.na_computeBarPositions(glassY, effectiveGlassH, hBars, adv.marginEnabled, adv.marginOffset);
+            for (let i = 0; i < hPos.length; i += 1) {
+                svg += sg.na_svgRect(glassX, hPos[i] - barW / 2, glassW, barW, colour, STROKE_BLACK, 1);
             }
         }
-        if (vBars > 0) {
-            const sectionW = glassW / (vBars + 1);
-            for (let i = 1; i <= vBars; i++) {
-                const cx = glassX + sectionW * i;
-                svg += sg.na_svgRect(cx - barW / 2, glassY, barW, glassH, colour, STROKE_BLACK, 1);
+        if (vBars > 0 && effectiveGlassH > 0) {
+            const vPos = math.na_computeBarPositions(glassX, glassW, vBars, adv.marginEnabled, adv.marginOffset);
+            for (let i = 0; i < vPos.length; i += 1) {
+                svg += sg.na_svgRect(vPos[i] - barW / 2, glassY, barW, effectiveGlassH, colour, STROKE_BLACK, 1);
             }
+        }
+        if (adv.archEnabled && adv.archHeight > 0 && adv.archAmount >= 1 && typeof sg.na_generateGothicArchSvg === 'function') {
+            const springingY = glassY + effectiveGlassH;
+            svg += sg.na_generateGothicArchSvg(
+                glassX, springingY, glassW, adv.archHeight, adv.archAmount, barW, colour,
+                { openingIndex: 0, cellIndex: 0, panelIndex: 0, sashIndex: 0 }
+            );
         }
         return svg;
     }

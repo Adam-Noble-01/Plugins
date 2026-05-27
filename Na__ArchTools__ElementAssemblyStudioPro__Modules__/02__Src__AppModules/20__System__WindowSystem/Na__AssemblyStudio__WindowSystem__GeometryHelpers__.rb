@@ -215,6 +215,84 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Create One Gothic Arc Half (Filled Ring Segment + PushPull)
+        # ------------------------------------------------------------
+        # Produces ONE clean solid per arc-half (left or right) using
+        # SketchUp's idiomatic workflow:
+        #   1. Tessellate the outer arc (radius + bar_width/2) into N edges
+        #   2. Walk back along the inner arc (radius - bar_width/2)
+        #   3. Close the loop and add_face the whole 2D ring-segment
+        #   4. PushPull the face by bar_depth into the wall (+Y)
+        # This is dramatically faster than fusing N tiny boxes via outer_shell
+        # and produces a true SketchUp solid that fuses reliably with the
+        # straight glaze bars in the FuseParts pipeline.
+        #
+        # Group naming:
+        #   Na_GlazeBar_{opening_index}_Arch{arch_index}_L   (left half)
+        #   Na_GlazeBar_{opening_index}_Arch{arch_index}_R   (right half)
+        # The fuse pipeline's regex was updated to recognise this naming
+        # alongside the existing _H<n> / _V<n> straight-bar pattern.
+        def self.na_create_glaze_bar_arch_half(entities, opening_index, arch_index, side_label, center_x, center_z, radius_outer, radius_inner, start_angle, end_angle, segments, y_offset, bar_depth, material)
+            return nil if bar_depth <= 0 || radius_inner <= 0 || radius_outer <= radius_inner
+
+            seg_count = [segments.to_i, 8].max
+
+            # Outer arc points (start -> end, math y-up converted to XZ plane).
+            outer_pts = (0..seg_count).map do |i|
+                t = i.to_f / seg_count
+                ang = start_angle + (end_angle - start_angle) * t
+                Geom::Point3d.new(
+                    center_x + radius_outer * Math.cos(ang),
+                    y_offset,
+                    center_z + radius_outer * Math.sin(ang)
+                )
+            end
+
+            # Inner arc points (end -> start, reversed so the loop is CCW).
+            inner_pts = (0..seg_count).to_a.reverse.map do |i|
+                t = i.to_f / seg_count
+                ang = start_angle + (end_angle - start_angle) * t
+                Geom::Point3d.new(
+                    center_x + radius_inner * Math.cos(ang),
+                    y_offset,
+                    center_z + radius_inner * Math.sin(ang)
+                )
+            end
+
+            boundary_pts = outer_pts + inner_pts
+
+            group_name = "Na_GlazeBar_#{opening_index}_Arch#{arch_index}_#{side_label}"
+            group = entities.add_group
+            group.name = group_name
+
+            face = group.entities.add_face(boundary_pts)
+            if face.nil?
+                group.erase!
+                return nil
+            end
+
+            # Ensure PushPull extrudes into +Y (wall depth) regardless of
+            # which side SketchUp assigned the face normal.
+            push_distance = (face.normal.y >= 0) ? bar_depth : -bar_depth
+            face.pushpull(push_distance)
+
+            # Paint BOTH sides of every face so the solid renders the same
+            # whether SketchUp's view samples the front or the back during
+            # later boolean operations. Equal materials on both sides also
+            # mean the fuse pipeline does not leave a visible seam where
+            # the arch meets the straight glaze bars (the seam shows up
+            # only when neighbouring faces disagree on a back material).
+            if material
+                group.entities.grep(Sketchup::Face).each do |f|
+                    f.material      = material
+                    f.back_material = material
+                end
+            end
+
+            group
+        end
+        # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

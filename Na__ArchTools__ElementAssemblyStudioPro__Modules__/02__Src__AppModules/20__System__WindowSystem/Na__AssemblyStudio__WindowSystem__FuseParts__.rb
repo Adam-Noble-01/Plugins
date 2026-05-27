@@ -219,9 +219,17 @@ module Na__WindowSystem
 
             result = { fused: 0, failed: 0, skipped: 0 }
 
+            # Pattern accepts:
+            #   _H<n>        - horizontal straight bar
+            #   _V<n>        - vertical straight bar
+            #   _Arch<n>_L   - left half of a Gothic arc (single pushpull solid)
+            #   _Arch<n>_R   - right half of a Gothic arc (single pushpull solid)
+            # so panels with arches but zero straight bars still get a fuse
+            # pass triggered (the per-panel prefix collector below then
+            # picks up the arch halves unchanged).
             glazebar_panel_ids = na_find_unique_panel_ids(
                 entities,
-                /^Na_GlazeBar_(.+)_[HV]\d+$/
+                /^Na_GlazeBar_(.+?)_(?:[HV]\d+|Arch\d+_[LR])$/
             )
 
             if glazebar_panel_ids.empty?
@@ -239,11 +247,28 @@ module Na__WindowSystem
                     next
                 end
 
+                # Pre-fuse pass: copy front material -> back material on
+                # every face of every glaze bar group. Without this, where
+                # a straight bar meets a gothic arch the joint can show a
+                # faint line because one face has a back material and the
+                # other does not. outer_shell respects existing materials,
+                # so equalising them before the boolean keeps the fused
+                # solid clean.
+                groups.each { |g| na_normalize_face_back_materials(g) }
+
                 DebugTools.na_debug_geometry("GlazeBar #{panel_id}: found #{groups.length} groups to fuse")
 
                 fused = na_sequential_outer_shell(groups, "Na_GlazeBar_#{panel_id}_Fused")
 
                 if fused
+                    # Post-fuse pass: soften + smooth any edge whose two
+                    # adjacent face normals diverge by 22 deg or less, so
+                    # the tessellated gothic arc reads as a smooth curve
+                    # rather than a faceted polyline. Equivalent to using
+                    # SketchUp's Soften/Smooth Edges dialog with a 22 deg
+                    # angle threshold.
+                    na_soften_smooth_edges_within_angle(fused, 22.0)
+
                     result[:fused] += 1
                     DebugTools.na_debug_success("GlazeBar #{panel_id} fused into: #{fused.name}")
                 else
@@ -253,6 +278,57 @@ module Na__WindowSystem
             end
 
             result
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Copy Front Material To Back Face Of Every Face In Group
+        # ------------------------------------------------------------
+        # Faces created by Entities.add_face / pushpull keep their front
+        # material but leave the back side nil. When neighbouring groups
+        # are then boolean-merged, the seam between them stays visible
+        # because one side has a material and the other does not. This
+        # helper makes both sides agree before the boolean runs.
+        def self.na_normalize_face_back_materials(group)
+            return unless group && group.valid?
+            group.entities.grep(Sketchup::Face).each do |face|
+                next unless face.valid?
+                front_mat = face.material
+                back_mat  = face.back_material
+                if front_mat && back_mat.nil?
+                    face.back_material = front_mat
+                elsif back_mat && front_mat.nil?
+                    face.material = back_mat
+                end
+            end
+        rescue StandardError => e
+            DebugTools.na_debug_error("na_normalize_face_back_materials exception", e)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Soften + Smooth Edges Inside a Group Below an Angle Threshold
+        # ------------------------------------------------------------
+        # Mirrors SketchUp's Soften/Smooth Edges dialog: walks every edge
+        # in the group, and if the two adjacent face normals differ by
+        # less than `angle_deg`, marks the edge as both soft (no shading
+        # break) and smooth (interpolated face normals). This is how
+        # tessellated curves are made to read as continuous curves in
+        # SketchUp -- the standard professional workflow.
+        def self.na_soften_smooth_edges_within_angle(group, angle_deg)
+            return unless group && group.valid?
+            threshold_rad = angle_deg.to_f * Math::PI / 180.0
+            group.entities.grep(Sketchup::Edge).each do |edge|
+                next unless edge.valid?
+                faces = edge.faces
+                next unless faces.length == 2
+                normal_a = faces[0].normal
+                normal_b = faces[1].normal
+                angle = normal_a.angle_between(normal_b).abs
+                next unless angle <= threshold_rad
+                edge.soft   = true
+                edge.smooth = true
+            end
+        rescue StandardError => e
+            DebugTools.na_debug_error("na_soften_smooth_edges_within_angle exception", e)
         end
         # ---------------------------------------------------------------
 
@@ -318,6 +394,17 @@ module Na__WindowSystem
 
                     if trimmed
                         trimmed.name = "Na_Glass_#{panel_id}_Trimmed"
+
+                        # The trim operation creates NEW faces wherever the
+                        # bars cut through the glass; those new faces only
+                        # get a front material. SketchUp paints unpainted
+                        # backfaces in the default "red" debug colour, so
+                        # the result looks broken from inside the room.
+                        # Propagate the glass material to BOTH sides of
+                        # every face in the trimmed group so all glazing
+                        # reads consistently.
+                        na_repaint_trimmed_glass(trimmed)
+
                         result[:fused] += 1
                         DebugTools.na_debug_success("Glass #{panel_id} trimmed: #{trimmed.name}")
                     else
@@ -332,6 +419,42 @@ module Na__WindowSystem
             end
 
             result
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Apply Glass Material To Both Sides Of Every Face
+        # ------------------------------------------------------------
+        # Picks the glass material off whichever face already carries one
+        # (the original glass pane provided it before the trim), then
+        # writes it to front + back of every face in the group. This
+        # eliminates the default-red backface look on glass interiors
+        # that appears after `bar_group.trim(glass_group)` creates new
+        # cut faces with no back material set.
+        def self.na_repaint_trimmed_glass(group)
+            return unless group && group.valid?
+            faces = group.entities.grep(Sketchup::Face)
+            return if faces.empty?
+
+            glass_material = nil
+            faces.each do |face|
+                if face.material
+                    glass_material = face.material
+                    break
+                end
+                if face.back_material
+                    glass_material = face.back_material
+                    break
+                end
+            end
+            return unless glass_material
+
+            faces.each do |face|
+                next unless face.valid?
+                face.material      = glass_material
+                face.back_material = glass_material
+            end
+        rescue StandardError => e
+            DebugTools.na_debug_error("na_repaint_trimmed_glass exception", e)
         end
         # ---------------------------------------------------------------
 
