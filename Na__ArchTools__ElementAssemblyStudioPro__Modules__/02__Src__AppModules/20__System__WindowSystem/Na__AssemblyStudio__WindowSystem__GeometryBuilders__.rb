@@ -341,9 +341,10 @@ module Na__WindowSystem
             margin_enabled   = adv[:margin_enabled]    == true
             margin_offset    = (adv[:margin_offset]    || 0).to_f
             arch_enabled     = adv[:arch_enabled]      == true
-            arch_amount      = [[(adv[:arch_amount]    || 2).to_i, 2].max, 8].min
+            arch_amount      = [[(adv[:arch_amount]    || 2).to_i, 1].max, 8].min                  # <-- V1.9.4 Allow single lancet arch (was clamped to 2 minimum)
             arch_height      = (adv[:arch_height]      || 0).to_f
             arch_height_mm   = (adv[:arch_height_mm]   || 0).to_f
+            h_offset         = (adv[:h_offset]         || 0).to_f                          # <-- Inches; positive lifts horizontal bars towards top of glass
 
             # Gothic arch zone shrinks the effective glass area available
             # for regular bars. We subtract the FULL arch zone (apex +
@@ -357,9 +358,15 @@ module Na__WindowSystem
                 effective_glass_height = [glass_height - total_arch_zone, 0].max
             end
 
-            # Horizontal bars (margin-aware positioning)
+            # Horizontal bars (margin-aware positioning + user offset).
+            # The h_offset is applied AFTER the automatic spacing math
+            # so the slider acts as a uniform vertical nudge - critical
+            # when a Gothic arch shrinks the effective glass height and
+            # the auto-centred bar no longer aligns with the springing.
             if h_bars > 0 && effective_glass_height > 0
                 h_positions = na_compute_bar_positions(offset_z, effective_glass_height, h_bars, margin_enabled, margin_offset)
+                h_positions = h_positions.map { |z| z + h_offset } if h_offset != 0.0
+
                 h_positions.each_with_index do |bar_center_z, idx|
                     i = idx + 1
                     next if na_glazebar_removed?(removed_glazebars, opening_layout_index, cell_index, panel_index, sash_index, "horizontal", i)

@@ -145,8 +145,9 @@ const Na__Export__Dxf = (function() {
             marginEnabled : config.glazebar_margin_enabled === true,
             marginOffset  : Math.max(0, Number(config.glazebar_margin_offset_mm || 0)),
             archEnabled   : config.glazebar_gothic_arch_enabled === true,
-            archAmount    : Math.max(2, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),
-            archHeight    : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0))
+            archAmount    : Math.max(1, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),     // <-- V1.9.4 Allow single lancet arch (was clamped to 2 minimum)
+            archHeight    : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0)),
+            hOffsetMm     : Number(config.glazebar_horizontal_offset_mm || 0)                       // <-- Uniform vertical nudge for horizontal bars
         };
         const removedCasementSet = na_getRemovedCasementSetForDxf(config.removed_casements); // <-- Per-panel removal lookup with legacy support
 
@@ -310,15 +311,19 @@ const Na__Export__Dxf = (function() {
         const archHeight    = Math.max(0, Number(adv.archHeight || 0));
         const marginEnabled = adv.marginEnabled === true;
         const marginOffset  = Math.max(0, Number(adv.marginOffset || 0));
+        const hOffsetMm     = Number(adv.hOffsetMm || 0);                                          // <-- Uniform vertical nudge (positive = up)
 
         const effectiveGlassHeight = (math && math.na_computeEffectiveGlassHeight)
             ? math.na_computeEffectiveGlassHeight(glassHeight, archEnabled, archHeight, glassWidth, archAmount)
             : (archEnabled ? Math.max(0, glassHeight - archHeight) : glassHeight);
 
         if (hBars > 0 && effectiveGlassHeight > 0) {
-            const hPositions = math
+            const hPositionsRaw = math
                 ? math.na_computeBarPositions(glassY, effectiveGlassHeight, hBars, marginEnabled, marginOffset)
                 : na_fallbackBarPositions(glassY, effectiveGlassHeight, hBars);
+            const hPositions = hOffsetMm === 0
+                ? hPositionsRaw
+                : hPositionsRaw.map(function (y) { return y + hOffsetMm; });
             for (let b = 1; b <= hBars; b++) {
                 const barKey = na_getGlazebarKey(
                     panelContext.openingIndex,

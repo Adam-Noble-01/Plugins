@@ -217,8 +217,9 @@ const Na__Viewport__SvgGenerator = (function() {
             marginEnabled  : config.glazebar_margin_enabled === true,
             marginOffset   : Math.max(0, Number(config.glazebar_margin_offset_mm || 0)),
             archEnabled    : config.glazebar_gothic_arch_enabled === true,
-            archAmount     : Math.max(2, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),
-            archHeight     : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0))
+            archAmount     : Math.max(1, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),    // <-- V1.9.4 Allow single lancet arch (was clamped to 2 minimum)
+            archHeight     : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0)),
+            hOffsetMm      : Number(config.glazebar_horizontal_offset_mm || 0)              // <-- Uniform vertical nudge for all horizontal bars (positive = up in mm)
         };
         const frameMaterialId = config.frame_material_id || 'MAT120__GenericWood';
         const frameColor = na_getMaterialColor(frameMaterialId);
@@ -956,6 +957,11 @@ const Na__Viewport__SvgGenerator = (function() {
         const archEnabled   = adv.archEnabled === true;
         const archAmount    = Math.max(1, Math.round(adv.archAmount || 1));
         const archHeight    = Math.max(0, Number(adv.archHeight || 0));
+        // Uniform vertical nudge for horizontal bars. The SVG generator
+        // uses a y-up local context (see na_generateGothicArchSvg
+        // header comment), so adding the mm offset moves the bars
+        // upward visually - matching Ruby's positive-Z-is-up convention.
+        const hOffsetMm     = Number(adv.hOffsetMm || 0);
 
         // When arches are on, the regular bar grid occupies only the lower
         // portion of the glass. Horizontal bars are computed against this
@@ -968,9 +974,12 @@ const Na__Viewport__SvgGenerator = (function() {
             : (archEnabled ? Math.max(0, glassHeight - archHeight) : glassHeight);
 
         if (hBars > 0 && effectiveGlassHeight > 0) {
-            const hPositions = window.Na__GlazebarMath.na_computeBarPositions(
+            const hPositionsRaw = window.Na__GlazebarMath.na_computeBarPositions(
                 glassY, effectiveGlassHeight, hBars, marginEnabled, marginOffset
             );
+            const hPositions = hOffsetMm === 0
+                ? hPositionsRaw
+                : hPositionsRaw.map(function (y) { return y + hOffsetMm; });
             for (let b = 1; b <= hBars; b++) {
                 const barCenterY = hPositions[b - 1];
                 const barY = barCenterY - (barWidth / 2);

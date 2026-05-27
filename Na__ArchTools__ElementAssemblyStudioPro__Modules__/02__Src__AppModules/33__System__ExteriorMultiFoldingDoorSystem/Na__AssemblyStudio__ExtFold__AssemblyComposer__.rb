@@ -620,9 +620,11 @@ module Na__AssemblyComposer
             margin_enabled:  config_hash["glazebar_margin_enabled"] == true,
             margin_offset:   (config_hash["glazebar_margin_offset_mm"] || 0).to_f * mm_to_inch,
             arch_enabled:    gothic_arch_enabled,
-            arch_amount:     [[(config_hash["glazebar_gothic_arch_amount"] || 2).to_i, 2].max, 8].min,
+            arch_amount:     [[(config_hash["glazebar_gothic_arch_amount"] || 2).to_i, 1].max, 8].min,           # <-- V1.9.4 Allow single lancet arch
             arch_height:     (config_hash["glazebar_gothic_arch_height_mm"] || 0).to_f * mm_to_inch,
-            arch_height_mm:  (config_hash["glazebar_gothic_arch_height_mm"] || 0).to_f
+            arch_height_mm:  (config_hash["glazebar_gothic_arch_height_mm"] || 0).to_f,
+            h_offset:        (config_hash["glazebar_horizontal_offset_mm"] || 0).to_f * mm_to_inch,    # <-- Uniform vertical nudge for horizontal bars
+            h_offset_mm:     (config_hash["glazebar_horizontal_offset_mm"] || 0).to_f
         }
 
         clear_box = na_compute_clear_glazing_box(origin_x_mm, origin_z_mm,

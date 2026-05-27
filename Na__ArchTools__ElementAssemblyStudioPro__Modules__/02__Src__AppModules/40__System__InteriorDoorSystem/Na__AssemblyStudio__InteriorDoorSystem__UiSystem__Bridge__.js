@@ -44,24 +44,99 @@
     window.NA_DOOR_HANDLE_ASSET_PREVIEW_CACHE = window.NA_DOOR_HANDLE_ASSET_PREVIEW_CACHE || {};
     window.NA_DOOR_HANDLE_ASSET_PREVIEW_WARNINGS = window.NA_DOOR_HANDLE_ASSET_PREVIEW_WARNINGS || {};
 
+    // MODULE STATE | Pending Door Measurement Flag
+    // ------------------------------------------------------------
+    // Set true between window.na_receiveDoorMeasurement and the next
+    // create/cancel/clear. Drives the "Create at Measurement Point"
+    // button's enabled state so the user can't accidentally consume
+    // a stale (or non-existent) measurement.
+    window.na_hasPendingDoorMeasurement = false;
+    // ---------------------------------------------------------------
+
 
 // -----------------------------------------------------------------------------
 // REGION | UI Action Hooks (called from HTML onclick handlers)
 // -----------------------------------------------------------------------------
 
-    // FUNCTION | UI Action - Create New Door
+    // FUNCTION | UI Action - Create Door At the Cursor (Identity Placement)
     // ------------------------------------------------------------
-    window.na_createDoor = function () {
+    // Explicitly discards any cached measurement on the Ruby side
+    // before sending the config, so a stale Point A can never sneak
+    // in. Mirrors the Window tab's "Create at Cursor" semantics.
+    window.na_createDoorAtCursor = function () {
         if (typeof Na_DoorUI === 'undefined') return;
-        var payload = Na_DoorUI.na_get_active_config();
-        var json    = JSON.stringify(payload);
+        var json = JSON.stringify(Na_DoorUI.na_get_active_config());
 
-        if (window.sketchup && typeof window.sketchup.na_createDoor === 'function') {
+        if (window.sketchup && typeof window.sketchup.na_createDoorAtCursor === 'function') {
+            window.sketchup.na_createDoorAtCursor(json);
+        } else if (window.sketchup && typeof window.sketchup.na_createDoor === 'function') {
             window.sketchup.na_createDoor(json);
         } else {
-            console.warn('[Na_DoorBridge] sketchup.na_createDoor not available');
+            console.warn('[Na_DoorBridge] sketchup.na_createDoorAtCursor not available');
         }
     };
+    // ---------------------------------------------------------------
+
+    // FUNCTION | UI Action - Create Door At the Measured Point A
+    // ------------------------------------------------------------
+    // Only callable while a 3-point measurement is on file. Consumes
+    // the cached frame on the Ruby side and never engages a placement
+    // tool, so no cursor-follow ghost can appear.
+    window.na_createDoorAtMeasurement = function () {
+        if (!window.na_hasPendingDoorMeasurement) {
+            console.warn('[Na_DoorBridge] na_createDoorAtMeasurement called with no pending measurement');
+            if (typeof window.na_showStatus === 'function') {
+                window.na_showStatus('warning', 'No door measurement on file - use "Measure Opening" first.');
+            }
+            return;
+        }
+        if (typeof Na_DoorUI === 'undefined') return;
+        var json = JSON.stringify(Na_DoorUI.na_get_active_config());
+
+        if (window.sketchup && typeof window.sketchup.na_createDoorAtMeasurement === 'function') {
+            window.sketchup.na_createDoorAtMeasurement(json);
+        } else if (window.sketchup && typeof window.sketchup.na_createDoor === 'function') {
+            window.sketchup.na_createDoor(json);
+        } else {
+            console.warn('[Na_DoorBridge] sketchup.na_createDoorAtMeasurement not available');
+        }
+
+        na_setPendingDoorMeasurementAvailable(false);                                // <-- One-shot consume
+    };
+    // ---------------------------------------------------------------
+
+    // FUNCTION | UI Action - Create New Door (Legacy Smart Entrypoint)
+    // ------------------------------------------------------------
+    // Backward-compatible wrapper preserved for any inline onclick
+    // that still references `na_createDoor()` directly. Routes to
+    // the measurement variant when a pick is on file, otherwise to
+    // the cursor variant.
+    window.na_createDoor = function () {
+        if (window.na_hasPendingDoorMeasurement) {
+            window.na_createDoorAtMeasurement();
+        } else {
+            window.na_createDoorAtCursor();
+        }
+    };
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Toggle the "Create at Measurement Point" Door Button
+    // ------------------------------------------------------------
+    function na_setPendingDoorMeasurementAvailable(available) {
+        window.na_hasPendingDoorMeasurement = !!available;
+        var btn = document.getElementById('na-btn-door-create-at-measurement');
+        if (!btn) return;
+
+        if (window.na_hasPendingDoorMeasurement) {
+            btn.disabled = false;
+            btn.classList.add('na-btn-create-measure-ready');
+            btn.classList.remove('na-btn-disabled');
+        } else {
+            btn.disabled = true;
+            btn.classList.remove('na-btn-create-measure-ready');
+            btn.classList.add('na-btn-disabled');
+        }
+    }
     // ---------------------------------------------------------------
 
     // FUNCTION | UI Action - Update Existing Door
@@ -440,6 +515,8 @@
                 console.warn('[Na_DoorBridge] Na_DoorUI.na_reset_to_default failed:', resetErr);
             }
         }
+
+        na_setPendingDoorMeasurementAvailable(false);                          // <-- Deselect must not leave the measurement button armed
     };
     // ---------------------------------------------------------------
 
@@ -587,10 +664,12 @@
                 }
             }
 
+            na_setPendingDoorMeasurementAvailable(true);                         // <-- Arm the "Create at Measurement Point" button
+
             if (typeof window.na_showStatus === 'function') {
                 window.na_showStatus(
                     'success',
-                    'Door opening measured: ' + widthMm + 'mm x ' + heightMm + 'mm x ' + depthMm + 'mm  -  Insert at Point A queued.'
+                    'Door opening measured: ' + widthMm + 'mm x ' + heightMm + 'mm x ' + depthMm + 'mm  -  "Create at Measurement Point" is now active.'
                 );
             }
         } catch (err) {
@@ -610,7 +689,22 @@
     window.na_doorMeasureCancelled = function () {
         var btn = document.getElementById('na-btn-measure');                  // <-- Unified global Measure Opening button
         if (btn) btn.classList.remove('na-btn-measure-active');
+        na_setPendingDoorMeasurementAvailable(false);                         // <-- Cancelled pick should never leave the measurement button armed
     };
+    // ---------------------------------------------------------------
+
+    // INITIALISATION | Sync the "Create at Measurement Point" button on load
+    // ------------------------------------------------------------
+    // Run once after the DOM has the door tab markup so the class
+    // state and the `disabled` attribute are in sync from the very
+    // first frame, even before any Ruby callback fires.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+            na_setPendingDoorMeasurementAvailable(false);
+        });
+    } else {
+        na_setPendingDoorMeasurementAvailable(false);
+    }
     // ---------------------------------------------------------------
 
 // endregion -------------------------------------------------------------------

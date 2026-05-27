@@ -3,6 +3,253 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.9.4 - 27-May-2026 - Single Gothic lancet arch (Amount Of Arches = 1)
+
+### Context
+Bug report: although the Amount Of Arches slider visibly accepted the value `1` in the UI, the preview always rendered two arches and the 3D model also built two. The user wants the ability to produce the single-lancet pattern shown in the V1.9.4 hand sketch (one pointed arch per tall narrow window, no decorative paired arches).
+
+### Root Cause
+The UI slider's `min` was already `1`, but every downstream renderer + Ruby clamp coerced the value back up to `2` before drawing. There were SIX `Math.max(2, ...)` / `[..., 2].max` clamps spread across the SVG generator, JS DXF exporter, Bifold + Sliding elevation generators, the WindowSystem `na_create_glazebar_geometry` builder, and the four `arch_amount:` advanced-hash builders (Window engine + Window DXF exporter + Bifold composer + Sliding composer). Additionally, the JS UI helpers `na_applyGothicArchDefaultsOnEnable` and `na_syncArchAmountFromVerticalBars` both used a 2-minimum so even auto-seed paths could not produce a single arch.
+
+### Fix Summary
+Lowered every `arch_amount` floor from `2` to `1` so the slider's `[1..8]` range is honoured all the way through to the rendered geometry:
+
+**JavaScript clamps lowered (5 sites):**
+- `Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js` - `advancedGlazebar.archAmount`
+- `Na__AssemblyStudio__WindowSystem__UiSystem__Export__Dxf__.js` - `archAmount`
+- `Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js` - `advanced.archAmount`
+- `Na__AssemblyStudio__ExtSlide__Viewport__ElevationGenerator__.js` - `advanced.archAmount`
+- `Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` - `pairedAmount` (both `na_applyGothicArchDefaultsOnEnable` and `na_syncArchAmountFromVerticalBars`) plus the `defaultAmount` envelope.
+
+**Ruby clamps lowered (5 sites):**
+- `Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb` - parse-time clamp on `glazebar_gothic_arch_amount`.
+- `Na__AssemblyStudio__WindowSystem__GeometryBuilders__.rb` - `arch_amount` defensive re-clamp inside `na_create_glazebar_geometry`.
+- `Na__AssemblyStudio__WindowSystem__DxfExporter__.rb` - `arch_amount:` advanced-hash builder.
+- `Na__AssemblyStudio__ExtFold__AssemblyComposer__.rb` - same.
+- `Na__AssemblyStudio__ExtSlide__AssemblyComposer__.rb` - same.
+
+**UI auto-seed updated:**
+- `na_computeGothicArchAmountDefault(panelWidthMm)` now returns `1` for panels <= 300 mm wide (matches the narrow lancet windows in the V1.9.4 hand sketch), `2` for 300..450 mm, then `+1 per 250 mm` as before. Clamped to `[1..8]`.
+
+### Geometry Sanity Check (archAmount = 1)
+Verified the existing math handles the single-bay case without regressions:
+- The per-bay loop `for (let a = 0; a < archAmount; a++)` runs exactly once.
+- `na_computeGothicArcParams(W, H)` produces a valid two-centred lancet using the existing `c = W/4 + H^2/W` formula across the full glass width (no division by archAmount > 1 anywhere upstream of this call).
+- `na_computeArchAlignedBarPositions` early-returns `[]` for `arch_amount < 2`, but the only call site is gated on `vBars + 1 === archAmount` and `vBars > 0`, so with archAmount = 1 this branch is unreachable. Regular bar spacing applies.
+
+### Files Changed (V1.9.4)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Export__Dxf__.js`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryBuilders__.rb`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DxfExporter__.rb`
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__AssemblyComposer__.rb`
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js`
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__AssemblyComposer__.rb`
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Viewport__ElevationGenerator__.js`
+
+### How to Test
+1. Reload SketchUp and open Element Assembly Studio Pro.
+2. On the Windows tab set Width = 525, Height = 2390, Horizontal Bars = 0, Vertical Bars = 0.
+3. Expand "Advanced Glazebar Controls" and enable "Glaze Bar Gothic Arch Decoration". On a 525 mm panel the auto-seed will set Amount Of Arches = 2 (panel > 300 mm). Drag the slider to 1.
+4. Expected: the 2D preview now shows a SINGLE pointed arch spanning the full glass width (image 2 reference style). Two-arches and four-arches still work; the slider has just gained a new bottom value.
+5. Click "Create at Cursor" and confirm the 3D model matches the preview - one lancet arch with the classic 15 deg overshoot crossing.
+6. Open the same window in the Bifold + Sliding tabs and repeat - both door variants should also honour the new minimum.
+7. Set Vertical Bars = 0 while arches are enabled - the soft-coupling now snaps Amount Of Arches to 1 (was clamped to 2 previously). The user can still drag it back up manually.
+8. Export DXF and confirm the single-arch geometry is present in the DXF stream too.
+
+### Backward Compatibility
+- Default `glazebar_gothic_arch_amount` in `Na__WindowSystem::Na__Defaults` remains `2`, so existing saves and freshly enabled arches default to the same two-arch behaviour as V1.9.3.
+- Only manual drags to `1` or fresh enables on narrow (<= 300 mm) panels now produce a single arch.
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.9.3 - 27-May-2026 - Horizontal Bar Vertical Offset slider (Gothic-arch alignment)
+
+### Context
+Bug report and feature request: in Gothic-arch windows the automatic horizontal-bar position drops the central horizontal glaze bar well below the arch springing line, breaking the visual relationship between the bar and the tracery above. Existing controls (Margin Glazing, Gothic Arch Amount/Height) can not nudge the central bar up to meet the springing - they only affect spacing or arch geometry. The user needs a simple uniform vertical-offset slider that lifts (or lowers) every horizontal bar after the automatic spacing math runs.
+
+### Fix Summary
+Added a new config key `glazebar_horizontal_offset_mm` (default 0 mm, range -500..+500 mm, step 5 mm) inside the existing "Advanced Glazebar Controls" expandable on the Window tab. The slider applies a uniform vertical nudge to every horizontal glaze bar after `na_compute_bar_positions` returns; positive values move bars towards the top of the glass to meet a Gothic arch springing.
+
+Behaviour:
+- `h_bars == 1` -> the single central bar shifts.
+- `h_bars >= 2` -> all horizontal bars shift uniformly by the same amount.
+- `h_bars == 0` -> slider is hidden (no bars to move).
+- Independent of the Gothic Arch toggle (works in plain rectangular openings too).
+- Vertical bars are unaffected.
+
+### Plumbing Notes
+The offset is propagated through every rendering pipeline so 2D preview, Ruby 3D solid, DXF output, and the bifold + sliding elevation generators all stay in lockstep. The shared `Na__GlazebarMath.na_computeBarPositions` helper stays pure; the offset is applied at each call site (`hPositions.map(y => y + hOffsetMm)`) so the math module's contract is unchanged.
+
+Convention: positive offset = bar moves towards top of glass. This matches Ruby's +Z = up convention. The SVG renderers operate in a y-up local context (see header comment on `na_generateGothicArchSvg`) so adding the offset to the SVG Y coordinate moves bars upward visually too. The DXF generator likewise uses y-up so the same `+ hOffsetMm` rule applies. Three rendering paths, one convention.
+
+### Files Changed (V1.9.3)
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js`
+    - New slider descriptor inside `advanced_glazebar_controls.children`.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__.rb`
+    - Default `glazebar_horizontal_offset_mm: 0`.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb`
+    - Parse + convert to inches; thread `h_offset` + `h_offset_mm` through the `advanced` hash supplied to `na_create_glazebar_geometry`.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryBuilders__.rb`
+    - Read `h_offset` from advanced hash, apply to each horizontal bar Z position after `na_compute_bar_positions`.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js`
+    - `advancedGlazebar.hOffsetMm` flows into `na_generateGlazeBarsSvg`; horizontal bar Y values are nudged before drawing.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Export__Dxf__.js`
+    - Same offset application in the DXF stream.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DxfExporter__.rb`
+    - Ruby DXF exporter passes the offset through the same `advanced` hash key (mm-only path).
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`
+    - `na_updateAdvancedGlazebarVisibility` hides the slider when `horizontal_glaze_bars === 0`.
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb`
+    - Added `glazebar_horizontal_offset_mm` to `NA_DOOR_SHARED_WINDOW_KEYS` so bifold + sliding save payloads round-trip the new value.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__AssemblyComposer__.rb`
+    - Bifold composer threads `h_offset` + `h_offset_mm` into the shared glazebar `advanced` hash so 3D bifold panels also nudge.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__AssemblyComposer__.rb`
+    - Sliding composer mirror.
+- `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js`
+    - 2D elevation generator picks up `hOffsetMm` from `advanced` and applies it.
+- `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem/Na__AssemblyStudio__ExtSlide__Viewport__ElevationGenerator__.js`
+    - Sliding 2D mirror.
+
+### How to Test
+1. Reload SketchUp and open Element Assembly Studio Pro.
+2. On the Windows tab, set `Horizontal Bars = 1` (so a single central bar appears).
+3. Expand "Advanced Glazebar Controls" and enable "Glaze Bar Gothic Arch Decoration" (defaults: 2 arches, 400 mm). The central horizontal bar should sit below the arch springing.
+4. Drag the new "Horizontal Bar Vertical Offset" slider towards positive values. The bar should rise smoothly in the 2D preview and the 3D viewport. Stop where the bar lines up cleanly with the arch springing.
+5. Click "Create at Cursor" (or "Create at Measurement Point") and confirm the 3D model matches the preview.
+6. Export DXF and confirm the bar position in the DXF matches the visible nudged position.
+7. Set `Horizontal Bars = 0` - the offset slider should disappear from the panel (it has no effect when there are no bars).
+8. Increase `Horizontal Bars = 3` and confirm all three bars shift together by the same amount.
+9. Repeat steps 2-5 in Multi-Folding Door mode and Sliding Door mode - both door types should also honour the offset in both the elevation preview and the 3D solid.
+
+### Backward Compatibility
+- The new key defaults to 0, so any existing saved blob (which lacks the key) renders identically to V1.9.2 / V1.9.1.
+- The new key is included in `NA_DOOR_SHARED_WINDOW_KEYS` so it round-trips through the bifold + sliding save/load helpers; older saves silently fall back to 0 on load.
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.9.2 - 27-May-2026 - Measure Opening cill-aware fix (live config payload)
+
+### Context
+Bug report: when "Include Cill" is toggled OFF on the Windows tab, the Measure Opening tool returns a height value that is 50 mm shorter than what the user actually picked in the SketchUp viewport. The bug surfaces most obviously when the user opens the dialog fresh, toggles "Include Cill" off, then clicks Measure Opening before creating a window for the very first time.
+
+### Root Cause
+`Na__AssemblyStudio::Na__WindowSystem::Na__DialogCallbacks::na_handle_measure_opening` historically derived the cill-subtraction amount from the module-level `@na_config` Hash. That Hash is only populated by `na_handle_create_window` (i.e. AFTER the user clicks Create). Before the first Create the Hash is nil, so the function silently fell through to its hard-coded defaults (`cill_height_mm = 50`, `frame_bottom_thickness_mm = 50`) regardless of the UI toggle state. The 3-point opening tool then subtracted 50 mm from the measured Z height before forwarding the value to the JS slider.
+
+There was also a defensive `wc["has_cill"] != false` comparison that treated a missing key as "cill on", which would have masked the same problem if the live config ever arrived with the toggle key absent.
+
+### Fix Summary
+- **JS side - `Na__AssemblyStudio__AppCore__AppContext__.js`**: `na_dispatch_measure_windows()` now serialises the LIVE window configuration before firing the callback. It prefers `window.na_buildFullConfig()` (full envelope incl. metadata) and falls back to `{ windowConfiguration: Na_DynamicUI.na_getConfig() }`. If neither is available the callback is fired with no args, preserving the legacy contract. The serialiser lives in a small helper `na_resolve_live_window_config_json()`.
+- **Ruby side - `Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb`**:
+    - Callback registry signature widened: `proc { |json = nil| na_handle_measure_opening(json) }` so a JS push goes through without breaking the legacy no-arg call.
+    - `na_handle_measure_opening(config_json = nil)` now parses the live payload via new helper `na_parse_measure_payload(config_json)` (rescue-wrapped so malformed JSON falls back to the cached config, never crashes the tool).
+    - Cill + frame-bottom resolution extracted into two named helpers so the truth table is obvious:
+        - `na_resolve_frame_bottom_thickness_mm(wc)` -- honours `advanced_frame_controls` + `frame_bottom_thickness_mm` override or the uniform `frame_thickness_mm`, defaulting to 50 mm.
+        - `na_resolve_cill_subtraction_mm(wc, frame_bottom_thickness_mm)` -- returns the amount to deduct. Returns **0 unless `has_cill == true` AND the frame bottom is > 0**. Defensive nil / missing-key cases now resolve to 0 (no phantom subtraction), matching the user's intent.
+    - A DebugTools method log records which source the live config came from (`live` / `cached` / `defaults`).
+
+### Truth Table for Cill Subtraction
+| `has_cill` (live) | `frame_bottom_thickness_mm` | `cill_height_mm` | Subtracted from measured H |
+|---|---|---|---|
+| `true`            | 50                           | 50               | 50 mm  |
+| `true`            | 50                           | 75               | 75 mm  |
+| `true`            | 0  (bottom-frameless)        | 50               | 0 mm   |
+| `false`           | 50                           | 50               | **0 mm** (was 50, the bug) |
+| missing / nil     | 50                           | 50               | **0 mm** (defensive) |
+
+### Files Changed (V1.9.2)
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__AppContext__.js`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb`
+
+### How to Test
+1. Reload SketchUp.
+2. Open Element Assembly Studio Pro for the first time in a session (no window created yet).
+3. On the Windows tab, toggle "Include Cill" **off**.
+4. Click "Measure Opening" and pick a known opening - e.g. 1800 mm wide x 2100 mm tall.
+5. **Expected:** the Height slider receives the full 2100 mm. **Before this fix:** the slider received 2050 mm.
+6. Toggle "Include Cill" **on** again and re-measure the same opening.
+7. **Expected:** the Height slider receives the adjusted height: 2100 - cill_height_mm (e.g. 2050 mm at 50 mm cill, 2025 mm at 75 mm cill).
+8. Repeat in frameless mode (frame_bottom_thickness_mm = 0): subtraction should be 0 regardless of the cill toggle.
+9. Door tab Measure Opening is unaffected (3-point tool never subtracted cill anyway).
+
+### Backward Compatibility
+- The legacy `sketchup.na_measureOpening()` no-arg signature still works because the proc has a default `json = nil` and `na_handle_measure_opening` falls back to `@na_config` then to its 50 mm defaults. Any external tool or hook that fired the callback with no payload continues to work exactly as it did pre-V1.9.2.
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.9.1 - 27-May-2026 - Split Create button (cursor vs measurement) + ghost-cursor fix
+
+### Context
+A long-standing UX bug: after a measurement was used to insert a window/bifold/sliding-door, the SketchUp viewport still showed a "ghost" component following the cursor. The single `Create New Window` button conflated two intents -- "place at the cursor with the placement crosshair" and "place at the measured Point A" -- which made the path the user actually wanted ambiguous. The legacy `na_handle_create_window` Ruby branch could in some sequences leave the placement tool engaged even when a measurement was consumed.
+
+### Fix Summary
+Split the single Create button into two explicit, mutually-exclusive actions on both the Window tab and the Door tab. Each action has its own JS function, Ruby callback, and finalisation path so the "ghost cursor" can only ever appear when the user explicitly asks for cursor placement.
+
+**HTML (Na__AssemblyStudio__UiLayout__.html):**
+- Window tab `<section class="na-actions-section">` now hosts three buttons:
+    - `na-btn-create` (primary, always enabled) -> `na_createWindowAtCursor()`
+    - `na-btn-create-at-measurement` (`na-btn-create-measure`, disabled by default) -> `na_createWindowAtMeasurement()`
+    - `na-btn-update` (unchanged)
+- Door tab mirrored: `na-btn-door-create`, `na-btn-door-create-at-measurement`, `na-btn-door-update`.
+
+**CSS (Na__AssemblyStudio__Styles__Combined__.css):**
+- New `.na-btn-create-measure` muted idle style (looks disabled) and `.na-btn-create-measure-ready` orange-accent active style with a 2px box-shadow ring. Toggled by JS on every measurement state change so users see the button "light up" the moment a measurement is on file.
+
+**Window Bridge JS (Na__AssemblyStudio__WindowSystem__UiSystem__Bridge__.js):**
+- New module state `na_hasPendingMeasurement` and helper `na_setPendingMeasurementAvailable(available)` that owns the button's enabled / class state.
+- `na_receiveMeasurement` now arms the button via `na_setPendingMeasurementAvailable(true)`.
+- `na_measureCancelled` and `na_clearCurrentWindow` disarm it.
+- `na_createWindow()` (legacy) -> routes to cursor or measurement variant based on the flag. Kept for any inline `onclick` still pointing here.
+- `na_createWindowAtCursor()` -> calls `sketchup.na_createWindowAtCursor(json)` (falls back to `sketchup.na_createWindow` for older Ruby). Always engages the placement tool.
+- `na_createWindowAtMeasurement()` -> guarded by `na_hasPendingMeasurement`; calls `sketchup.na_createWindowAtMeasurement(json)`; disarms the button immediately (one-shot).
+- `na_prepareCreatePayload(mode)` helper centralises the SVG-valid guard.
+- DOM-ready handler now syncs the button class state with the initial `disabled` HTML attribute.
+
+**Door Bridge JS (Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Bridge__.js):**
+- Same pattern: `window.na_hasPendingDoorMeasurement`, helper `na_setPendingDoorMeasurementAvailable`.
+- `window.na_createDoorAtCursor`, `window.na_createDoorAtMeasurement`, and `window.na_createDoor` (legacy router).
+- `window.na_receiveDoorMeasurement` arms the button; `window.na_doorMeasureCancelled` and `window.na_clearCurrentDoor` disarm it.
+- DOM-ready / immediate-call init block ensures the button is in sync on first paint regardless of `document.readyState`.
+
+**Window DialogCallbacks Ruby (Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb):**
+- Callback registry now exposes three entrypoints:
+    - `na_createWindow`              -> `na_handle_create_window(json, mode: :auto)`
+    - `na_createWindowAtCursor`      -> `na_handle_create_window(json, mode: :cursor)`
+    - `na_createWindowAtMeasurement` -> `na_handle_create_window(json, mode: :measurement)`
+- `na_handle_create_window(config_json, mode:)` now resolves the pending frame via new helper `na_resolve_pending_frame_for_mode(mode)` before deciding to create geometry. Modes:
+    - `:cursor`      -> Consume + discard the cached frame and engage the placement tool. The "ghost" only appears here, by user request.
+    - `:measurement` -> Require a cached frame; abort with a warning status if none is on file; never engages the placement tool.
+    - `:auto`        -> Legacy back-compat: use the frame when present, otherwise engage the placement tool.
+- New helper `na_finalise_window_placement(instance, window_id, pending_frame, mode)` is the single source of truth for whether the placement tool gets activated. Same helper is mirrored for bifold + sliding as `na_finalise_bifold_or_sliding_placement`.
+- `na_handle_create_bifold_door` / `na_handle_create_sliding_door` now accept the resolved frame + mode from the caller instead of re-consuming the cache, so all three paths share the same finalisation logic.
+
+**Door DialogRouter Ruby (Na__AssemblyStudio__InteriorDoorSystem__DialogRouter__.rb):**
+- Three callbacks registered: `na_createDoor` (`:auto`), `na_createDoorAtCursor` (`:cursor`), `na_createDoorAtMeasurement` (`:measurement`).
+- `na_handle_create_door(config_json, mode:)` resolves the frame via new helper `na_resolve_door_pending_frame_for_mode(mode)`. In `:measurement` mode with no cached frame, the create call exits early with a user-visible "no measurement on file" warning and the model is never touched.
+
+### Files Changed (V1.9.1)
+- `Na__AssemblyStudio__UiLayout__.html`
+- `03__Style__AppStylesheets/Na__AssemblyStudio__Styles__Combined__.css`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Bridge__.js`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Bridge__.js`
+- `02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__DialogRouter__.rb`
+
+### How to Test
+1. Reload SketchUp.
+2. Open the Window dialog. The second button ("Create at Measurement Point") should appear muted and be unclickable. The first button ("Create at Cursor") should be active.
+3. Click "Measure Opening", pick two points on a wall. As soon as the measurement returns, the "Create at Measurement Point" button should turn orange with a soft glow.
+4. Click "Create at Measurement Point". The window should drop into the wall at Point A oriented to the wall direction with **no cursor-follow ghost**. The measurement button should immediately revert to its muted state.
+5. Click "Create at Cursor" instead. The placement crosshair / ghost component should engage as before; this is intentional in cursor mode.
+6. Take a measurement, then click "Create at Cursor" (mixing intents). The window should drop at the cursor (ghost mode) and the measurement button should also revert to muted because the cursor path explicitly discards the cached frame.
+7. Repeat the same sequence on the Doors tab. The behaviour should match the Window tab on all counts.
+8. Select an existing window / door, deselect it -- both "Create at Measurement Point" buttons should return to muted.
+9. Click "Create at Measurement Point" with no measurement on file (via the legacy `na_createDoor` from a script for example) -- you should see a "No measurement on file" warning status, and no geometry should be created.
+
+### Backward Compatibility
+- The legacy `na_createWindow` / `na_createDoor` Ruby callbacks remain registered and behave exactly as before V1.9.0 (smart routing). Older scripts or future devtools that call `sketchup.na_createWindow(json)` directly still work.
+- The JS-side legacy `na_createWindow()` / `window.na_createDoor()` wrappers route to the new explicit functions automatically, so any external inline onclick still works.
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.9.0 - 27-May-2026 - Wall-aware insertion frame (drawing-axes + measurement orientation)
 
 ### Context

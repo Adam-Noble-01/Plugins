@@ -326,9 +326,11 @@ module Na__WindowSystem
                 margin_enabled:  config["glazebar_margin_enabled"] == true,
                 margin_offset:   (config["glazebar_margin_offset_mm"] || 0).to_f,
                 arch_enabled:    config["glazebar_gothic_arch_enabled"] == true,
-                arch_amount:     [[(config["glazebar_gothic_arch_amount"] || 2).to_i, 2].max, 8].min,
+                arch_amount:     [[(config["glazebar_gothic_arch_amount"] || 2).to_i, 1].max, 8].min,            # <-- V1.9.4 Allow single lancet arch
                 arch_height:     (config["glazebar_gothic_arch_height_mm"] || 0).to_f,
-                arch_height_mm:  (config["glazebar_gothic_arch_height_mm"] || 0).to_f
+                arch_height_mm:  (config["glazebar_gothic_arch_height_mm"] || 0).to_f,
+                h_offset:        (config["glazebar_horizontal_offset_mm"] || 0).to_f,                # <-- DxfExporter works in mm so inches/mm collapse to the same value
+                h_offset_mm:     (config["glazebar_horizontal_offset_mm"] || 0).to_f
             }
             has_cill = config["has_cill"] != false
             cill_height = config["cill_height_mm"] || 50

@@ -150,7 +150,7 @@ const Na_DynamicUI = (function() {
 
         // Soft-coupling: moving the Vertical Bars slider always drives
         // the Amount Of Arches to (vBars + 1), clamped to the slider's
-        // [2..8] range. The user can still override arches manually
+        // [1..8] range. The user can still override arches manually
         // afterwards (decoupled), but the next vbar change re-syncs.
         // Mirrors the request that vbars and arches feel natural together
         // in Live Mode where each interior arch springing sits over one
@@ -467,13 +467,17 @@ const Na_DynamicUI = (function() {
 
     // FUNCTION | Compute Default Gothic Arch Amount From Glazing Panel Width
     // ------------------------------------------------------------
-    // 2 arches up to 450mm wide (the minimum the slider accepts), then
-    // +1 arch per additional 250mm. Clamped to the slider's [2..8] range.
+    // Narrow panels (<= 300mm) seed a single lancet arch - matches the
+    // reference detail in the V1.9.4 hand-sketch where each tall narrow
+    // window carries one pointed arch. From 300mm to 450mm we seed
+    // two arches, then +1 arch per additional 250mm. Clamped to the
+    // slider's [1..8] range.
     function na_computeGothicArchAmountDefault(panelWidthMm) {
         const width = Math.max(0, Number(panelWidthMm) || 0);
+        if (width <= 300) return 1;                                                                // <-- V1.9.4 narrow panel -> single arch
         if (width <= 450) return 2;
         const extra = Math.floor((width - 450) / 250);
-        return Math.max(2, Math.min(8, 2 + extra));
+        return Math.max(1, Math.min(8, 2 + extra));
     }
     // ---------------------------------------------------------------
 
@@ -515,8 +519,8 @@ const Na_DynamicUI = (function() {
     function na_applyGothicArchDefaultsOnEnable() {
         const widthDefault = na_computeGothicArchAmountDefault(na_getGlazingPanelWidthMm());
         const vBars        = Math.max(0, Math.round(Number(_config.vertical_glaze_bars || 0)));
-        const pairedAmount = Math.max(2, Math.min(8, vBars + 1));
-        const defaultAmount = Math.max(2, Math.min(8, Math.max(widthDefault, pairedAmount)));
+        const pairedAmount = Math.max(1, Math.min(8, vBars + 1));                                   // <-- V1.9.4 vBars=0 -> 1 arch
+        const defaultAmount = Math.max(1, Math.min(8, Math.max(widthDefault, pairedAmount)));        // <-- V1.9.4 allow single-arch result
         const defaultHeight = na_computeGothicArchHeightDefault(na_getGlazingPanelHeightMm());
 
         _config.glazebar_gothic_arch_amount = defaultAmount;
@@ -531,12 +535,12 @@ const Na_DynamicUI = (function() {
     // ------------------------------------------------------------
     // Implements the soft-coupling rule: every change of the Vertical
     // Bars slider re-pegs Amount Of Arches to (vBars + 1), clamped to
-    // the slider's [2..8] range. The Arches slider remains user-
+    // the slider's [1..8] range. The Arches slider remains user-
     // adjustable afterwards (decoupled until the next vbar change),
     // so a "preferred" amount can still be dialled in manually.
     function na_syncArchAmountFromVerticalBars(vBarsValue) {
         const vBars        = Math.max(0, Math.round(Number(vBarsValue || 0)));
-        const pairedAmount = Math.max(2, Math.min(8, vBars + 1));
+        const pairedAmount = Math.max(1, Math.min(8, vBars + 1));                                   // <-- V1.9.4 vBars=0 -> 1 arch (was clamped to 2 minimum)
         if (_config.glazebar_gothic_arch_amount === pairedAmount) return;
         _config.glazebar_gothic_arch_amount = pairedAmount;
         na_updateControlValue('glazebar_gothic_arch_amount', pairedAmount);
@@ -560,6 +564,15 @@ const Na_DynamicUI = (function() {
         const showArchSliders = _config.glazebar_gothic_arch_enabled === true;
         if (archAmountCtrl) archAmountCtrl.style.display = showArchSliders ? '' : 'none';
         if (archHeightCtrl) archHeightCtrl.style.display = showArchSliders ? '' : 'none';
+
+        // V1.9.3 - Horizontal Bar Vertical Offset only has a visible
+        // effect when there is at least one horizontal bar to move.
+        // Hide it when h_bars == 0 so the panel stays uncluttered.
+        const hOffsetCtrl = document.querySelector('[data-control-id="glazebar_horizontal_offset_mm"]');
+        if (hOffsetCtrl) {
+            const showHOffset = Math.max(0, Math.round(Number(_config.horizontal_glaze_bars || 0))) > 0;
+            hOffsetCtrl.style.display = showHOffset ? '' : 'none';
+        }
     }
     // ---------------------------------------------------------------
 

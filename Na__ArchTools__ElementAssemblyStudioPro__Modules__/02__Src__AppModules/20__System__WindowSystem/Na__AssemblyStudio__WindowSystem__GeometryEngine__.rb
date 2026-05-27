@@ -526,11 +526,16 @@ module Na__WindowSystem
             glazebar_margin_enabled       = config["glazebar_margin_enabled"] == true
             glazebar_margin_offset        = (config["glazebar_margin_offset_mm"] || 0).to_f * mm_to_inch
             glazebar_gothic_arch_enabled  = config["glazebar_gothic_arch_enabled"] == true
-            glazebar_gothic_arch_amount   = [[(config["glazebar_gothic_arch_amount"] || 2).to_i, 2].max, 8].min
+            glazebar_gothic_arch_amount   = [[(config["glazebar_gothic_arch_amount"] || 2).to_i, 1].max, 8].min   # <-- V1.9.4 Allow single lancet arch (was clamped to 2 minimum)
             glazebar_gothic_arch_height   = (config["glazebar_gothic_arch_height_mm"] || 0).to_f * mm_to_inch
             # Keep the mm value too so the tessellation count helper can
             # branch on the human-readable height without re-converting.
             glazebar_gothic_arch_height_mm = (config["glazebar_gothic_arch_height_mm"] || 0).to_f
+            # Uniform vertical nudge for horizontal bars. Positive = up.
+            # Stored in both inches (for direct addition to Z positions)
+            # and mm (for diagnostics + parity with other glazebar keys).
+            glazebar_horizontal_offset_mm = (config["glazebar_horizontal_offset_mm"] || 0).to_f
+            glazebar_horizontal_offset    = glazebar_horizontal_offset_mm * mm_to_inch
             
             # Cill
             cill_depth = (config["cill_depth_mm"] || constants[:default_cill_depth]).to_f * mm_to_inch
@@ -635,6 +640,8 @@ module Na__WindowSystem
                 glazebar_gothic_arch_amount: glazebar_gothic_arch_amount,
                 glazebar_gothic_arch_height: glazebar_gothic_arch_height,
                 glazebar_gothic_arch_height_mm: glazebar_gothic_arch_height_mm,
+                glazebar_horizontal_offset: glazebar_horizontal_offset,
+                glazebar_horizontal_offset_mm: glazebar_horizontal_offset_mm,
                 has_cill: has_cill,
                 cill_depth: cill_depth,
                 cill_height: cill_height
@@ -1042,7 +1049,9 @@ module Na__WindowSystem
                 arch_enabled:    params[:glazebar_gothic_arch_enabled],
                 arch_amount:     params[:glazebar_gothic_arch_amount],
                 arch_height:     params[:glazebar_gothic_arch_height],
-                arch_height_mm:  params[:glazebar_gothic_arch_height_mm]
+                arch_height_mm:  params[:glazebar_gothic_arch_height_mm],
+                h_offset:        params[:glazebar_horizontal_offset],                          # <-- inches
+                h_offset_mm:     params[:glazebar_horizontal_offset_mm]                        # <-- mm (for diagnostics)
             }
         end
         # ---------------------------------------------------------------

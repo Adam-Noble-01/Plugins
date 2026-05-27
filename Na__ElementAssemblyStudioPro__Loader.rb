@@ -45,8 +45,8 @@ unless file_loaded?(__FILE__)
         begin
             require main_file
             puts '[+] Element Assembly Studio Pro loaded successfully'
-        rescue StandardError => e
-            puts "[!] Error loading Element Assembly Studio Pro: #{e.message}"
+        rescue Exception => e
+            puts "[!] Error loading Element Assembly Studio Pro (#{e.class}): #{e.message}"
             puts e.backtrace.join("\n")
         end
     else

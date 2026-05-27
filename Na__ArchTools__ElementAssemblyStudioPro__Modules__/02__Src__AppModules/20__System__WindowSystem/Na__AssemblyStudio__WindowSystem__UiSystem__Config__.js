@@ -401,7 +401,7 @@ const NA_GLAZEBAR_CONFIG = [
                 label   :  'Amount Of Arches',
                 unit    :  '',
                 type    :  'slider',
-                min     :  2,
+                min     :  1,
                 max     :  8,
                 step    :  1,
                 default :  2
@@ -415,6 +415,36 @@ const NA_GLAZEBAR_CONFIG = [
                 max     :  800,
                 step    :  10,
                 default :  400
+            },
+            // ---------------------------------------------------------
+            // Horizontal Bar Vertical Offset
+            //
+            // Uniform vertical nudge applied to every horizontal glaze
+            // bar after the automatic spacing is computed. Positive
+            // values lift the bars towards the top of the glass.
+            //
+            // Use case: When Gothic Arch is enabled, the effective
+            // glass height shrinks to fit the arch zone, and the
+            // central horizontal bar drops below where it would
+            // visually align with the arch springing. This slider
+            // lets the user nudge that central bar (and any other
+            // horizontal bars) upward to line up with the springing
+            // or wherever the design calls for.
+            //
+            // Behaviour:
+            //   * h_bars == 1 -> single (central) bar shifts.
+            //   * h_bars >= 2 -> ALL horizontal bars shift uniformly.
+            //   * h_bars == 0 -> slider has no effect (no bars to move).
+            // ---------------------------------------------------------
+            {
+                id      :  'glazebar_horizontal_offset_mm',
+                label   :  'Horizontal Bar Vertical Offset',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  -500,
+                max     :   500,
+                step    :  5,
+                default :  0
             }
         ]
     }

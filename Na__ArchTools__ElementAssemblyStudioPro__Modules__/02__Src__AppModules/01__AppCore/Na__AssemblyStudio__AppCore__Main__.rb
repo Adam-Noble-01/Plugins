@@ -52,8 +52,8 @@ require_relative '../40__System__InteriorDoorSystem/Na__AssemblyStudio__Interior
 # Optional dev tools (silently skipped if folder removed for shipping)
 begin
     require_relative '../../65__Dev__DevTools/Na__AssemblyStudio__DevTools__Main__'
-rescue LoadError => e
-    Na__AssemblyStudio::Na__AppUtils::Na__DebugTools.na_debug_warn("DevTools not loaded: #{e.message}")
+rescue LoadError, SyntaxError => e
+    Na__AssemblyStudio::Na__AppUtils::Na__DebugTools.na_debug_warn("DevTools not loaded: #{e.class}: #{e.message}")
 end
 
 module Na__AssemblyStudio

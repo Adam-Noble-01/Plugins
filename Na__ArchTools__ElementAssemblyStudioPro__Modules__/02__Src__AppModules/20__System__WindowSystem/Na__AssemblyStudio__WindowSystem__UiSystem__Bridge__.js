@@ -25,12 +25,13 @@
 
 // Module Variables | Current Window State
 // ------------------------------------------------------------
-let na_currentWindowId = null;                                       // Current window ID being edited
-let na_isEditMode = false;                                           // Whether we're editing an existing window
-let na_liveModeEnabled = false;                                     // Live update mode state
-let na_liveUpdateTimer = null;                                       // Debounce timer for live updates
-let na_loadedMetadata = null;                                        // Cached metadata from Ruby (preserves timestamps)
-let na_placementModeActive = false;                                  // True while the SketchUp placement tool is active
+let na_currentWindowId          = null;                              // Current window ID being edited
+let na_isEditMode               = false;                             // Whether we're editing an existing window
+let na_liveModeEnabled          = false;                             // Live update mode state
+let na_liveUpdateTimer          = null;                              // Debounce timer for live updates
+let na_loadedMetadata           = null;                              // Cached metadata from Ruby (preserves timestamps)
+let na_placementModeActive      = false;                             // True while the SketchUp placement tool is active
+let na_hasPendingMeasurement    = false;                             // True between na_receiveMeasurement and the next create/cancel
 
 // endregion ===================================================================
 
@@ -132,6 +133,7 @@ window.na_clearCurrentWindow = function() {
     if (descInput) descInput.value = '';
 
     na_toggleEditMode(false);
+    na_setPendingMeasurementAvailable(false);                                 // <-- Defensive: a deselect should never leave a stale measurement enabled
 };
 // ---------------------------------------------------------------
 
@@ -206,12 +208,14 @@ window.na_receiveMeasurement = function(widthMm, heightMm /*, originXIn, originY
         height_mm: heightMm
     });
 
-    // Point A is cached on the Ruby side; the next na_createWindow call will
-    // insert at Point A automatically, falling back to the placement crosshair
-    // if no measurement is pending.
+    // The full measurement frame (Point A + xaxis + yaxis + zaxis) is
+    // cached on the Ruby side. The "Create at Measurement Point" button
+    // becomes the only path that consumes it - the "Create at Cursor"
+    // button explicitly discards it so the two flows are unambiguous.
+    na_setPendingMeasurementAvailable(true);
     window.na_showStatus(
         'success',
-        `Opening measured: ${widthMm}mm x ${heightMm}mm  -  Insert at Point A queued.`
+        `Opening measured: ${widthMm}mm x ${heightMm}mm  -  "Create at Measurement Point" is now active.`
     );
 };
 // ---------------------------------------------------------------
@@ -222,11 +226,12 @@ window.na_receiveMeasurement = function(widthMm, heightMm /*, originXIn, originY
 // Removes the active styling from the Measure Opening button.
 window.na_measureCancelled = function() {
     console.log('[NA_BRIDGE] Measurement cancelled');
-    
+
     const measureBtn = document.getElementById('na-btn-measure');
     if (measureBtn) {
         measureBtn.classList.remove('na-btn-measure-active');
     }
+    na_setPendingMeasurementAvailable(false);                                 // <-- Cancelled pick should never leave the measurement button armed
 };
 // ---------------------------------------------------------------
 
@@ -246,40 +251,127 @@ window.na_setPlacementActive = function(active) {
 // REGION | JavaScript -> Ruby Callbacks (Called by UI, sent to Ruby)
 // =============================================================================
 
-// FUNCTION | Create a New Window
+// FUNCTION | Create a New Window At the Cursor (Interactive Placement)
 // ------------------------------------------------------------
-// Called when user clicks "Create New Window" button
-// ONLY sends to SketchUp if SVG preview is valid
-function na_createWindow() {
-    console.log('[NA_BRIDGE] Create window requested');
-    
-    if (typeof Na_DynamicUI === 'undefined') {
-        console.error('[NA_BRIDGE] Na_DynamicUI not available');
+// Called when the user clicks the primary "Create at Cursor" button.
+// Explicitly discards any cached measurement on the Ruby side and
+// engages the SketchUp placement crosshair so the user clicks to
+// drop the new component. This is the path that produces the
+// "ghost" element following the cursor - which is intentional in
+// this mode and never appears in the measurement path.
+function na_createWindowAtCursor() {
+    if (!na_prepareCreatePayload('cursor')) return;
+
+    const configJson = JSON.stringify(na_buildFullConfig());
+    if (typeof sketchup === 'undefined') {
+        console.log('[NA_BRIDGE] SketchUp not available. Cursor create skipped.');
+        window.na_showStatus('warning', 'SketchUp connection not available');
         return;
     }
-    
-    // VALIDATION: Check if SVG preview is valid before sending to SketchUp
+
+    if (typeof sketchup.na_createWindowAtCursor === 'function') {
+        sketchup.na_createWindowAtCursor(configJson);
+    } else {
+        // Legacy fallback (older Ruby module without the explicit handler).
+        sketchup.na_createWindow(configJson);
+    }
+    if (document.activeElement) { document.activeElement.blur(); }
+}
+// ---------------------------------------------------------------
+
+// FUNCTION | Create a New Window At the Measured Point A (No Placement Tool)
+// ------------------------------------------------------------
+// Called when the user clicks the secondary "Create at Measurement
+// Point" button. The button is only enabled while a measurement is
+// pending; clicking it consumes the cached measurement frame on the
+// Ruby side, places the component directly at the wall, and never
+// engages the placement tool (no cursor-follow ghost).
+function na_createWindowAtMeasurement() {
+    if (!na_hasPendingMeasurement) {
+        console.warn('[NA_BRIDGE] na_createWindowAtMeasurement called with no pending measurement');
+        window.na_showStatus('warning', 'No measurement on file - use "Measure Opening" first.');
+        return;
+    }
+    if (!na_prepareCreatePayload('measurement')) return;
+
+    const configJson = JSON.stringify(na_buildFullConfig());
+    if (typeof sketchup === 'undefined') {
+        console.log('[NA_BRIDGE] SketchUp not available. Measurement create skipped.');
+        window.na_showStatus('warning', 'SketchUp connection not available');
+        return;
+    }
+
+    if (typeof sketchup.na_createWindowAtMeasurement === 'function') {
+        sketchup.na_createWindowAtMeasurement(configJson);
+    } else {
+        // Older Ruby modules accept the smart legacy callback which
+        // consumes the cached frame automatically.
+        sketchup.na_createWindow(configJson);
+    }
+
+    // Measurement is one-shot - the Ruby side has consumed it, so
+    // re-disable the button until the user measures again.
+    na_setPendingMeasurementAvailable(false);
+    if (document.activeElement) { document.activeElement.blur(); }
+}
+// ---------------------------------------------------------------
+
+// FUNCTION | Backward-Compatible Smart Create (Legacy Entrypoint)
+// ------------------------------------------------------------
+// Kept for any external/inline onclick that still says
+// `na_createWindow()`. Behaves like the previous build: if a
+// measurement is pending, use it; otherwise place at the cursor.
+function na_createWindow() {
+    if (na_hasPendingMeasurement) {
+        na_createWindowAtMeasurement();
+    } else {
+        na_createWindowAtCursor();
+    }
+}
+// ---------------------------------------------------------------
+
+// HELPER FUNCTION | Validate the SVG Preview Before a Create Call
+// ------------------------------------------------------------
+// Centralises the "preview must be valid" guard so both create
+// entrypoints share the same early-exit + status reporting.
+// @param {string} mode - "cursor" | "measurement" (for log clarity only)
+// @returns {boolean}    true when it is safe to call Ruby
+function na_prepareCreatePayload(mode) {
+    console.log('[NA_BRIDGE] Create window requested (mode=' + mode + ')');
+
+    if (typeof Na_DynamicUI === 'undefined') {
+        console.error('[NA_BRIDGE] Na_DynamicUI not available');
+        return false;
+    }
     if (!Na_DynamicUI.na_isSvgValid()) {
         console.warn('[NA_BRIDGE] SVG preview is not valid - cannot create window');
         window.na_showStatus('error', 'Cannot create window: preview validation failed');
-        return;
+        return false;
     }
-    
-    console.log('[NA_BRIDGE] SVG valid - sending to SketchUp');
-    
-    // Build full configuration object
-    const config = na_buildFullConfig();
-    const configJson = JSON.stringify(config);
-    
-    // Send to Ruby
-    if (typeof sketchup !== 'undefined') {
-        sketchup.na_createWindow(configJson);
-        // Blur active element so the SketchUp viewport can receive keyboard events.
-        // Tab key is handled separately via the keydown interceptor above.
-        if (document.activeElement) { document.activeElement.blur(); }
+    return true;
+}
+// ---------------------------------------------------------------
+
+// HELPER FUNCTION | Toggle the "Create at Measurement Point" Button
+// ------------------------------------------------------------
+// Single source of truth for the secondary create button's enabled
+// state. Sets `na_hasPendingMeasurement`, the HTML `disabled` flag,
+// and the `na-btn-create-measure-ready` accent class. Safe to call
+// before the DOM has finished loading - missing element is ignored.
+function na_setPendingMeasurementAvailable(available) {
+    na_hasPendingMeasurement = !!available;
+
+    const btn = document.getElementById('na-btn-create-at-measurement');
+    if (!btn) return;
+
+    if (na_hasPendingMeasurement) {
+        btn.disabled = false;
+        btn.classList.add('na-btn-create-measure-ready');
+        btn.classList.remove('na-btn-disabled');
     } else {
-        console.log('[NA_BRIDGE] SketchUp not available. Config:', config);
-        window.na_showStatus('warning', 'SketchUp connection not available');
+        btn.disabled = true;
+        btn.classList.remove('na-btn-create-measure-ready');
+        btn.classList.add('na-btn-disabled');
     }
 }
 // ---------------------------------------------------------------
@@ -601,9 +693,15 @@ function na_downloadDxf(dxfContent) {
 // ------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', function() {
     console.log('[NA_BRIDGE] Bridge initialized');
-    
+
     // Log to Ruby that JS is ready
     na_logToRuby('JavaScript bridge initialized and ready');
+
+    // Ensure the "Create at Measurement Point" button starts disabled
+    // even if the dialog opens with no measurement on file. The HTML
+    // sets `disabled` but the CSS-class state is owned by JS, so we
+    // sync them here once the DOM exists.
+    na_setPendingMeasurementAvailable(false);
 
     na_requestSashHornAssets();
 });

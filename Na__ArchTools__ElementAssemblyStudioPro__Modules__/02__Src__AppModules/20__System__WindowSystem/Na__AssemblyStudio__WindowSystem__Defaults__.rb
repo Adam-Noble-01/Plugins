@@ -168,6 +168,7 @@ module Na__WindowSystem
                 "glazebar_gothic_arch_enabled"          : false,
                 "glazebar_gothic_arch_amount"           : 2,
                 "glazebar_gothic_arch_height_mm"        : 400,
+                "glazebar_horizontal_offset_mm"         : 0,
 
                 "has_cill"                              : true,
                 "cill_depth_mm"                         : 50,

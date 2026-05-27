@@ -91,10 +91,43 @@
             return;
         }
         na_toggle_class(NA_BTN_MEASURE_ID, NA_BTN_MEASURE_ACTIVE_CLS, true);
-        sketchup.na_measureOpening();
+
+        // v1.9.2 - Pass the LIVE window config to Ruby so the measure
+        // tool's cill subtraction reflects the latest "Include Cill"
+        // toggle / cill_height_mm slider. Without this Ruby falls back
+        // to a stale @na_config (or its 50mm defaults) and a freshly
+        // opened dialog with cill turned off would still subtract 50mm.
+        var configJson = na_resolve_live_window_config_json();
+        if (configJson) {
+            sketchup.na_measureOpening(configJson);
+        } else {
+            sketchup.na_measureOpening();                                  // <-- Legacy path (defensive fallback)
+        }
+
         if (typeof window.na_showStatus === 'function') {
             window.na_showStatus('info', 'Click Point A (base corner) in the 3D viewport...');
         }
+    }
+
+    // HELPER FUNCTION | Resolve the Live Window Configuration as a JSON String
+    // ------------------------------------------------------------
+    // Prefers the bridge's `na_buildFullConfig()` (full envelope with
+    // metadata) and falls back to a minimal envelope built from
+    // `Na_DynamicUI.na_getConfig()` so the Ruby side can always read
+    // `windowConfiguration.has_cill` + `cill_height_mm` without
+    // re-implementing the merger.
+    function na_resolve_live_window_config_json() {
+        try {
+            if (typeof window.na_buildFullConfig === 'function') {
+                return JSON.stringify(window.na_buildFullConfig());
+            }
+            if (typeof Na_DynamicUI !== 'undefined' && typeof Na_DynamicUI.na_getConfig === 'function') {
+                return JSON.stringify({ windowConfiguration: Na_DynamicUI.na_getConfig() });
+            }
+        } catch (err) {
+            console.warn('[Na_AppContext] Failed to serialise live window config:', err);
+        }
+        return null;
     }
 
     function na_dispatch_measure_doors() {

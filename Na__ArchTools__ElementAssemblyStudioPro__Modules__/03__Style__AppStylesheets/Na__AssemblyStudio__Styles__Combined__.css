@@ -615,8 +615,8 @@ body {
 }
 
 .na-btn-large {
-    padding: var(--na-spacing-md) var(--na-spacing-xl);
-    font-size: var(--na-font-size-lg);
+    padding: calc(var(--na-spacing-md) * 0.75) calc(var(--na-spacing-xl) * 0.75);
+    font-size: calc(var(--na-font-size-lg) * 0.75);
     flex: 1;
 }
 
@@ -675,8 +675,8 @@ body {
 .na-actions-section {
     display: flex;
     flex-direction: row;
-    gap: var(--na-spacing-md);
-    padding: var(--na-spacing-lg);
+    gap: calc(var(--na-spacing-md) * 0.75);
+    padding: calc(var(--na-spacing-lg) * 0.75);
     background: var(--na-bg-secondary);
 }
 
@@ -824,6 +824,36 @@ body {
 .na-btn-live-active:hover {
     background: var(--na-accent-green-hover) !important;
     border-color: var(--na-accent-green-hover) !important;
+}
+
+/* Create at Measurement Point Button
+   ------------------------------------------------------------
+   Idle state mirrors the disabled chrome so the button visually
+   communicates that no measurement has been captured yet.
+   `.na-btn-create-measure-ready` is added by the bridge JS the
+   moment a measurement payload arrives, restoring the orange
+   accent + enabling clicks until the measurement is consumed. */
+.na-btn-create-measure {
+    background: var(--na-bg-tertiary);
+    border-color: var(--na-bg-tertiary);
+    color: var(--na-text-muted, #888);
+    cursor: not-allowed;
+    white-space: normal;
+    line-height: 1.25;
+    text-align: center;
+}
+
+.na-btn-create-measure-ready {
+    background: var(--na-accent-orange) !important;
+    border-color: var(--na-accent-orange) !important;
+    color: #fff !important;
+    cursor: pointer !important;
+    box-shadow: 0 0 0 2px rgba(255, 165, 0, 0.25);
+}
+
+.na-btn-create-measure-ready:hover {
+    background: #e68a00 !important;
+    border-color: #e68a00 !important;
 }
 
 /* Measure Opening Button - Active State

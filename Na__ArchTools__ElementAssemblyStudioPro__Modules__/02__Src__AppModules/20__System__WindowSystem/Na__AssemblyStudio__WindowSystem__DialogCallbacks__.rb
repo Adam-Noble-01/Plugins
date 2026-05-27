@@ -51,14 +51,16 @@ module Na__AssemblyStudio
 
             def self.na_callback_registry
                 {
-                    "na_createWindow"    => proc { |json| na_handle_create_window(json) },
-                    "na_updateWindow"    => proc { |json| na_handle_update_window(json) },
-                    "na_exportDxf"       => proc { |json| na_handle_export_dxf(json) },
-                    "na_liveUpdate"      => proc { |json| na_handle_live_update(json) },
-                    "na_requestConfig"   => proc { na_send_config_to_dialog },
-                    "na_requestSashHornAssets" => proc { na_send_sash_horn_assets_to_dialog },
-                    "na_measureOpening"  => proc { na_handle_measure_opening },
-                    "na_keyboard_tab"    => proc { @na_current_placement_tool.na_rotate if @na_current_placement_tool }
+                    "na_createWindow"               => proc { |json| na_handle_create_window(json, mode: :auto) },              # <-- Legacy smart entrypoint (back-compat)
+                    "na_createWindowAtCursor"       => proc { |json| na_handle_create_window(json, mode: :cursor) },            # <-- Always engages placement tool, ignores pending measurement
+                    "na_createWindowAtMeasurement"  => proc { |json| na_handle_create_window(json, mode: :measurement) },       # <-- Requires pending measurement, never engages placement tool
+                    "na_updateWindow"               => proc { |json| na_handle_update_window(json) },
+                    "na_exportDxf"                  => proc { |json| na_handle_export_dxf(json) },
+                    "na_liveUpdate"                 => proc { |json| na_handle_live_update(json) },
+                    "na_requestConfig"              => proc { na_send_config_to_dialog },
+                    "na_requestSashHornAssets"      => proc { na_send_sash_horn_assets_to_dialog },
+                    "na_measureOpening"             => proc { |json = nil| na_handle_measure_opening(json) },                  # <-- Optional live-config JSON from JS
+                    "na_keyboard_tab"               => proc { @na_current_placement_tool.na_rotate if @na_current_placement_tool }
                 }
             end
 
@@ -241,6 +243,7 @@ module Na__AssemblyStudio
                 "glazebar_gothic_arch_enabled",
                 "glazebar_gothic_arch_amount",
                 "glazebar_gothic_arch_height_mm",
+                "glazebar_horizontal_offset_mm",                                                    # <-- V1.9.3 Horizontal Bar Vertical Offset
                 "fuse_parts"
             ].freeze
 
@@ -366,16 +369,30 @@ module Na__AssemblyStudio
             # REGION | Create / Update / Live / DXF / Measure handlers
             # -----------------------------------------------------------------
 
-            def self.na_handle_create_window(config_json)
+            # FUNCTION | Handle the Create-Window Callback (Window/Bifold/Sliding)
+            # ------------------------------------------------------------
+            # @param config_json [String] Raw JSON payload from the dialog
+            # @param mode        [Symbol] :cursor, :measurement, or :auto
+            #     - :cursor      -> Discard any cached measurement and engage
+            #                       the SketchUp placement tool (cursor-follow ghost).
+            #     - :measurement -> Require a cached measurement, place at the
+            #                       wall, and skip the placement tool entirely.
+            #     - :auto        -> Legacy behaviour kept for backward compat:
+            #                       use the measurement when present, otherwise
+            #                       fall back to the placement tool.
+            def self.na_handle_create_window(config_json, mode: :auto)
                 config    = JSON.parse(config_json)
                 @na_config = config
 
+                pending_frame = na_resolve_pending_frame_for_mode(mode)
+                return if mode == :measurement && pending_frame.nil?                                 # <-- Strict mode bail-out (status already emitted)
+
                 if na_is_bifold_mode?(config["windowConfiguration"])
-                    return na_handle_create_bifold_door(config)
+                    return na_handle_create_bifold_door(config, pending_frame, mode)
                 end
 
                 if na_is_sliding_mode?(config["windowConfiguration"])
-                    return na_handle_create_sliding_door(config)
+                    return na_handle_create_sliding_door(config, pending_frame, mode)
                 end
 
                 model     = Sketchup.active_model
@@ -387,8 +404,6 @@ module Na__AssemblyStudio
                     @na_config["windowMetadata"][0]["CreatedDate"]    = Time.now.strftime("%Y-%m-%d %H:%M:%S")
                     @na_config["windowMetadata"][0]["LastModified"]   = Time.now.strftime("%Y-%m-%d %H:%M:%S")
                 end
-
-                pending_frame = na_consume_pending_measurement_frame
 
                 @na_window_component = GeometryEngine.na_create_window_geometry(
                     config["windowConfiguration"], window_id, pending_frame
@@ -409,16 +424,7 @@ module Na__AssemblyStudio
                     DataSerializer.na_save_window_data(window_id, @na_config)
                     model.commit_operation
 
-                    if pending_frame
-                        oriented = InsertionFrame.na_frame_has_orientation?(pending_frame)
-                        status_label = oriented ? "measured Point A + wall direction" : "measured Point A"
-                        UiBridge.na_send_status(@na_dialog, 'success', "Window placed at #{status_label}: #{window_id}")
-                    else
-                        @na_current_placement_tool = PlacementTool.new(@na_window_component)
-                        Sketchup.active_model.select_tool(@na_current_placement_tool)
-                        UiBridge.na_invoke(@na_dialog, 'window.na_setPlacementActive', 'true')
-                        UiBridge.na_send_status(@na_dialog, 'success', "Window created: #{window_id}")
-                    end
+                    na_finalise_window_placement(@na_window_component, window_id, pending_frame, mode)
                 else
                     model.abort_operation
                     UiBridge.na_send_status(@na_dialog, 'error', 'Failed to create window geometry')
@@ -428,6 +434,53 @@ module Na__AssemblyStudio
                 DebugTools.na_debug_error("Error creating window", e)
                 UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
             end
+
+            # HELPER FUNCTION | Resolve the Frame to Pass to the Engine Based on Mode
+            # ------------------------------------------------------------
+            # Single source of truth for "which measurement (if any)
+            # should this create call use?". Also emits the user-visible
+            # warning when :measurement is requested but the cache is
+            # empty so the engines never have to know about modes.
+            def self.na_resolve_pending_frame_for_mode(mode)
+                case mode
+                when :cursor
+                    na_consume_pending_measurement_frame                                            # <-- Discard the cache so it can't sneak in later
+                    nil                                                                              # <-- Force placement tool branch in the finaliser
+                when :measurement
+                    frame = na_consume_pending_measurement_frame
+                    unless frame
+                        DebugTools.na_debug_warn("Create-at-Measurement requested with no cached frame")
+                        UiBridge.na_send_status(@na_dialog, 'warning', 'No measurement on file. Use "Measure Opening" first.')
+                        return nil
+                    end
+                    frame
+                else
+                    na_consume_pending_measurement_frame                                            # <-- Legacy "auto" behaviour
+                end
+            end
+            private_class_method :na_resolve_pending_frame_for_mode
+
+            # HELPER FUNCTION | Finalise Placement After a Successful Window Create
+            # ------------------------------------------------------------
+            # Engages the SketchUp placement tool only when no frame was
+            # used (cursor mode or :auto with no measurement). When a
+            # frame was supplied the window is already at the wall and
+            # no cursor-follow ghost is shown.
+            def self.na_finalise_window_placement(instance, window_id, pending_frame, mode)
+                if pending_frame
+                    oriented     = InsertionFrame.na_frame_has_orientation?(pending_frame)
+                    status_label = oriented ? "measured Point A + wall direction" : "measured Point A"
+                    UiBridge.na_send_status(@na_dialog, 'success', "Window placed at #{status_label}: #{window_id}")
+                    return
+                end
+
+                @na_current_placement_tool = PlacementTool.new(instance)
+                Sketchup.active_model.select_tool(@na_current_placement_tool)
+                UiBridge.na_invoke(@na_dialog, 'window.na_setPlacementActive', 'true')
+                cursor_label = (mode == :cursor) ? "at cursor" : ""
+                UiBridge.na_send_status(@na_dialog, 'success', "Window created #{cursor_label}: #{window_id}".strip)
+            end
+            private_class_method :na_finalise_window_placement
 
             # -----------------------------------------------------------------
             # REGION | Bifold dispatch (Phase 3a)
@@ -446,12 +499,11 @@ module Na__AssemblyStudio
                 window_config["multifold_mode"] == true
             end
 
-            def self.na_handle_create_bifold_door(config)
+            def self.na_handle_create_bifold_door(config, pending_frame = nil, mode = :auto)
                 model = Sketchup.active_model
                 return unless model
 
                 window_config = config["windowConfiguration"] || {}
-                pending_frame = na_consume_pending_measurement_frame
 
                 model.start_operation("Create Bifold Door", true)
 
@@ -477,16 +529,7 @@ module Na__AssemblyStudio
 
                     model.commit_operation
 
-                    if pending_frame
-                        oriented = InsertionFrame.na_frame_has_orientation?(pending_frame)
-                        status_label = oriented ? "measured Point A + wall direction" : "measured Point A"
-                        UiBridge.na_send_status(@na_dialog, 'success', "Bifold placed at #{status_label}: #{instance.name}")
-                    else
-                        @na_current_placement_tool = PlacementTool.new(instance)
-                        Sketchup.active_model.select_tool(@na_current_placement_tool)
-                        UiBridge.na_invoke(@na_dialog, 'window.na_setPlacementActive', 'true')
-                        UiBridge.na_send_status(@na_dialog, 'success', "Bifold door created: #{instance.name}")
-                    end
+                    na_finalise_bifold_or_sliding_placement(instance, pending_frame, mode, "Bifold")
                 else
                     model.abort_operation
                     UiBridge.na_send_status(@na_dialog, 'error', 'Failed to create bifold door geometry')
@@ -621,12 +664,11 @@ module Na__AssemblyStudio
                 window_config["sliding_mode"] == true
             end
 
-            def self.na_handle_create_sliding_door(config)
+            def self.na_handle_create_sliding_door(config, pending_frame = nil, mode = :auto)
                 model = Sketchup.active_model
                 return unless model
 
                 window_config = config["windowConfiguration"] || {}
-                pending_frame = na_consume_pending_measurement_frame
 
                 model.start_operation("Create Sliding Door", true)
 
@@ -652,16 +694,7 @@ module Na__AssemblyStudio
 
                     model.commit_operation
 
-                    if pending_frame
-                        oriented = InsertionFrame.na_frame_has_orientation?(pending_frame)
-                        status_label = oriented ? "measured Point A + wall direction" : "measured Point A"
-                        UiBridge.na_send_status(@na_dialog, 'success', "Sliding placed at #{status_label}: #{instance.name}")
-                    else
-                        @na_current_placement_tool = PlacementTool.new(instance)
-                        Sketchup.active_model.select_tool(@na_current_placement_tool)
-                        UiBridge.na_invoke(@na_dialog, 'window.na_setPlacementActive', 'true')
-                        UiBridge.na_send_status(@na_dialog, 'success', "Sliding door created: #{instance.name}")
-                    end
+                    na_finalise_bifold_or_sliding_placement(instance, pending_frame, mode, "Sliding")
                 else
                     model.abort_operation
                     UiBridge.na_send_status(@na_dialog, 'error', 'Failed to create sliding door geometry')
@@ -671,6 +704,28 @@ module Na__AssemblyStudio
                 DebugTools.na_debug_error("Error creating sliding door", e)
                 UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
             end
+
+            # HELPER FUNCTION | Finalise Placement for a Bifold / Sliding Door
+            # ------------------------------------------------------------
+            # Engages the placement tool only when no measurement frame
+            # was used (cursor mode). Shared between bifold + sliding so
+            # both door variants get the exact same UX as the standard
+            # window path.
+            def self.na_finalise_bifold_or_sliding_placement(instance, pending_frame, mode, label)
+                if pending_frame
+                    oriented     = InsertionFrame.na_frame_has_orientation?(pending_frame)
+                    status_label = oriented ? "measured Point A + wall direction" : "measured Point A"
+                    UiBridge.na_send_status(@na_dialog, 'success', "#{label} placed at #{status_label}: #{instance.name}")
+                    return
+                end
+
+                @na_current_placement_tool = PlacementTool.new(instance)
+                Sketchup.active_model.select_tool(@na_current_placement_tool)
+                UiBridge.na_invoke(@na_dialog, 'window.na_setPlacementActive', 'true')
+                cursor_label = (mode == :cursor) ? "at cursor" : ""
+                UiBridge.na_send_status(@na_dialog, 'success', "#{label} door created #{cursor_label}: #{instance.name}".strip)
+            end
+            private_class_method :na_finalise_bifold_or_sliding_placement
 
             def self.na_handle_update_sliding_door(config)
                 instance = @na_sliding_component
@@ -955,24 +1010,85 @@ module Na__AssemblyStudio
                 UiBridge.na_send_status(@na_dialog, 'error', "Live update failed: #{e.message}")
             end
 
-            def self.na_handle_measure_opening
-                cill_height_mm = 50
+            # FUNCTION | Engage the Measure-Opening Tool (Cill-Aware)
+            # ------------------------------------------------------------
+            # @param config_json [String, nil] Optional JSON envelope
+            #     pushed by JS at the moment the user clicked Measure
+            #     Opening. When supplied we treat it as the authoritative
+            #     source of "Include Cill" + cill_height_mm + the per-
+            #     edge frame thickness so the cill subtraction always
+            #     matches the LIVE UI state.
+            #     When nil we fall back to the cached @na_config (set by
+            #     the most recent Create) so the legacy no-arg callback
+            #     contract still works.
+            def self.na_handle_measure_opening(config_json = nil)
+                live_config               = na_parse_measure_payload(config_json) || @na_config
+                cill_height_mm            = 50                                                      # <-- Defaults match Defaults__.rb
                 frame_bottom_thickness_mm = 50
-                if @na_config && @na_config["windowConfiguration"]
-                    wc = @na_config["windowConfiguration"]
-                    uniform = wc.key?("frame_thickness_mm") ? wc["frame_thickness_mm"].to_f : 50.0
-                    use_advanced = wc["advanced_frame_controls"] == true
-                    frame_bottom_thickness_mm = if use_advanced && wc.key?("frame_bottom_thickness_mm")
-                        wc["frame_bottom_thickness_mm"].to_f
-                    else
-                        uniform
-                    end
-                    cill_height_mm = (wc["has_cill"] != false && frame_bottom_thickness_mm > 0) ? (wc["cill_height_mm"] || 50) : 0
+
+                if live_config && live_config["windowConfiguration"]
+                    wc                        = live_config["windowConfiguration"]
+                    frame_bottom_thickness_mm = na_resolve_frame_bottom_thickness_mm(wc)
+                    cill_height_mm            = na_resolve_cill_subtraction_mm(wc, frame_bottom_thickness_mm)
                 end
+
+                DebugTools.na_debug_method(
+                    "na_handle_measure_opening (cill_subtract=#{cill_height_mm}mm, " \
+                    "frame_bottom=#{frame_bottom_thickness_mm}mm, " \
+                    "source=#{config_json ? 'live' : (@na_config ? 'cached' : 'defaults')})"
+                )
 
                 tool = TwoPoint.new(self, cill_height_mm, frame_bottom_thickness_mm)
                 Sketchup.active_model.select_tool(tool)
             end
+
+            # HELPER FUNCTION | Parse the Optional Live Config JSON From JS
+            # ------------------------------------------------------------
+            # Wrapped in rescue so a malformed payload never crashes the
+            # measure tool - it just falls back to the cached config.
+            def self.na_parse_measure_payload(config_json)
+                return nil unless config_json.is_a?(String) && !config_json.empty?
+                JSON.parse(config_json)
+            rescue StandardError => e
+                DebugTools.na_debug_warn("Measure callback received malformed config JSON: #{e.message}")
+                nil
+            end
+            private_class_method :na_parse_measure_payload
+
+            # HELPER FUNCTION | Resolve the Effective Frame-Bottom Thickness
+            # ------------------------------------------------------------
+            # Honours the advanced per-edge override when enabled, else
+            # uses the uniform `frame_thickness_mm`. 50mm default keeps
+            # backward compat with the legacy hard-coded value.
+            def self.na_resolve_frame_bottom_thickness_mm(wc)
+                uniform      = wc.key?("frame_thickness_mm") ? wc["frame_thickness_mm"].to_f : 50.0
+                use_advanced = wc["advanced_frame_controls"] == true
+                if use_advanced && wc.key?("frame_bottom_thickness_mm")
+                    wc["frame_bottom_thickness_mm"].to_f
+                else
+                    uniform
+                end
+            end
+            private_class_method :na_resolve_frame_bottom_thickness_mm
+
+            # HELPER FUNCTION | Resolve the Cill Subtraction in mm
+            # ------------------------------------------------------------
+            # Returns the amount that should be DEDUCTED from the raw
+            # measured Z height before the value is forwarded to the
+            # dialog. Returns 0 when:
+            #   - the user has toggled "Include Cill" OFF, OR
+            #   - the frame is bottom-frameless (frame_bottom == 0), OR
+            #   - `has_cill` is missing AND the user has no live config
+            #     (defensive: treat unknown state as no cill so we do
+            #     not invent a phantom 50mm deduction).
+            # Otherwise returns the configured `cill_height_mm` (50mm
+            # default when the key is missing on a positive `has_cill`).
+            def self.na_resolve_cill_subtraction_mm(wc, frame_bottom_thickness_mm)
+                return 0 unless wc["has_cill"] == true
+                return 0 unless frame_bottom_thickness_mm > 0
+                (wc["cill_height_mm"] || 50).to_f
+            end
+            private_class_method :na_resolve_cill_subtraction_mm
 
             # Called by TwoPoint completion. ax/ay/az carry Point A; the
             # optional bx/by/bz carry Point B so the GeometryEngine can

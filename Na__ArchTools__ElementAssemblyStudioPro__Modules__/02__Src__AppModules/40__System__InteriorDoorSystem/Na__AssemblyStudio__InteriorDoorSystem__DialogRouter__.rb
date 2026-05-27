@@ -157,7 +157,15 @@ module Na__InteriorDoorSystem
             return unless dialog
 
             dialog.add_action_callback("na_createDoor") do |_ac, config_json|
-                na_handle_create_door(config_json)
+                na_handle_create_door(config_json, mode: :auto)                                       # <-- Legacy smart entrypoint (back-compat)
+            end
+
+            dialog.add_action_callback("na_createDoorAtCursor") do |_ac, config_json|
+                na_handle_create_door(config_json, mode: :cursor)                                     # <-- Discards pending measurement
+            end
+
+            dialog.add_action_callback("na_createDoorAtMeasurement") do |_ac, config_json|
+                na_handle_create_door(config_json, mode: :measurement)                                # <-- Requires pending measurement
             end
 
             dialog.add_action_callback("na_updateDoor") do |_ac, config_json|
@@ -205,8 +213,20 @@ module Na__InteriorDoorSystem
 
         # FUNCTION | Handle Create Door Callback
         # ------------------------------------------------------------
-        def self.na_handle_create_door(config_json)
-            DebugTools.na_debug_method("DialogRouter.na_handle_create_door")
+        # FUNCTION | Handle the Create-Door Callback
+        # ------------------------------------------------------------
+        # @param config_json [String] Raw JSON payload from the dialog
+        # @param mode        [Symbol] :cursor, :measurement, or :auto
+        #     - :cursor      -> Discard any cached measurement; door is
+        #                       inserted at the model drawing axes
+        #                       origin (no placement tool is engaged on
+        #                       the door path, so no cursor-follow ghost).
+        #     - :measurement -> Require a cached 3-point frame, place
+        #                       at the wall using xaxis/yaxis/zaxis.
+        #     - :auto        -> Use the cached frame when present,
+        #                       otherwise fall back to drawing axes.
+        def self.na_handle_create_door(config_json, mode: :auto)
+            DebugTools.na_debug_method("DialogRouter.na_handle_create_door (mode=#{mode})")
             model = Sketchup.active_model
             return unless model
 
@@ -216,13 +236,15 @@ module Na__InteriorDoorSystem
                 na_normalize_architrave_config_keys!(config_root)
                 @na_current_config = config_root
 
+                insertion_frame    = na_resolve_door_pending_frame_for_mode(mode)
+                return if mode == :measurement && insertion_frame.nil?                                 # <-- Strict mode bail-out (status already emitted)
+
                 model.start_operation("Create Interior Door", true)
 
                 door_id            = DataSerializer.na_generate_next_door_id
                 na_apply_create_metadata(config_root, door_id)
                 door_config_block  = config_root[NA_DOOR_CONFIG_KEY]
 
-                insertion_frame    = na_consume_pending_measurement_frame
                 door_instance      = GeometryEngine.na_create_door(door_config_block, door_id, insertion_frame)
 
                 if door_instance && door_instance.valid?
@@ -961,6 +983,33 @@ module Na__InteriorDoorSystem
             frame || (origin ? { InsertionFrame::NA_FRAME_KEY_ORIGIN => origin } : nil)
         end
         private_class_method :na_consume_pending_measurement_frame
+
+        # HELPER FUNCTION | Resolve Pending Frame for a Create-Door Mode
+        # ------------------------------------------------------------
+        # Single source of truth for "which measurement (if any) does
+        # this create call use?". Mirrors the Window-tab pattern so
+        # both tabs share the same predictable two-button semantics.
+        #
+        # @param mode [Symbol] :cursor, :measurement, :auto
+        # @return [Hash, nil] Frame Hash for the engine (nil = no frame)
+        def self.na_resolve_door_pending_frame_for_mode(mode)
+            case mode
+            when :cursor
+                na_consume_pending_measurement_frame                                                # <-- Discard the cache so it can't sneak in later
+                nil                                                                                   # <-- Engine will fall back to model drawing axes
+            when :measurement
+                frame = na_consume_pending_measurement_frame
+                unless frame
+                    DebugTools.na_debug_warn("Create-Door-at-Measurement requested with no cached frame")
+                    na_send_status_to_dialog("warning", 'No door measurement on file. Use "Measure Opening" first.')
+                    return nil
+                end
+                frame
+            else
+                na_consume_pending_measurement_frame                                                # <-- Legacy "auto" behaviour
+            end
+        end
+        private_class_method :na_resolve_door_pending_frame_for_mode
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

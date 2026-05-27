@@ -188,8 +188,9 @@ const Na__ExtFold__ElevationGenerator = (function () {
             marginEnabled : config.glazebar_margin_enabled === true,
             marginOffset  : Math.max(0, Number(config.glazebar_margin_offset_mm || 0)),
             archEnabled   : config.glazebar_gothic_arch_enabled === true,
-            archAmount    : Math.max(2, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),
-            archHeight    : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0))
+            archAmount    : Math.max(1, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),     // <-- V1.9.4 Allow single lancet arch
+            archHeight    : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0)),
+            hOffsetMm     : Number(config.glazebar_horizontal_offset_mm || 0)                       // <-- Uniform vertical nudge for horizontal bars (positive = up)
         };
         const enabled = isGlazed && (hBars > 0 || vBars > 0 || advanced.archEnabled);
         return { enabled: enabled, hBars: hBars, vBars: vBars, barW: barW, advanced: advanced };
@@ -406,7 +407,11 @@ const Na__ExtFold__ElevationGenerator = (function () {
         const effectiveGlassH = math.na_computeEffectiveGlassHeight(glassH, adv.archEnabled, adv.archHeight, glassW, adv.archAmount);
 
         if (hBars > 0 && effectiveGlassH > 0) {
-            const hPos = math.na_computeBarPositions(glassY, effectiveGlassH, hBars, adv.marginEnabled, adv.marginOffset);
+            const hPosRaw = math.na_computeBarPositions(glassY, effectiveGlassH, hBars, adv.marginEnabled, adv.marginOffset);
+            const hOffsetMm = Number(adv.hOffsetMm || 0);
+            const hPos = hOffsetMm === 0
+                ? hPosRaw
+                : hPosRaw.map(function (y) { return y + hOffsetMm; });
             for (let i = 0; i < hPos.length; i += 1) {
                 svg += sg.na_svgRect(glassX, hPos[i] - barW / 2, glassW, barW, colour, STROKE_BLACK, 1);
             }
