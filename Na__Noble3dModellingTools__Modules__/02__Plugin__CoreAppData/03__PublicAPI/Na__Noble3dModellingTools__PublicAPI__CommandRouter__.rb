@@ -114,6 +114,12 @@ module Na__Noble3dModellingTools
             when 'reload_plugin_data'
                 proc { Na__ReloadManager.Na__Noble3dModellingTools__ReloadPluginData }
 
+            when 'cull_edges_below_threshold'
+                proc { Na__CullEdgesBelowThreshold.Na__CullEdgesBelowThreshold__Run }
+
+            when 'ortho_mirror_tool'
+                proc { Na__OrthoMirrorTool.Na__OrthoMirrorTool__Run }
+
             else
                 nil
             end

@@ -241,6 +241,24 @@
             "menu_text"         : "Reload Plugin Data",
             "handler_key"       : "reload_plugin_data",
             "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "cull_edges_below_threshold",
+            "command_name"      : "Na Noble3d - Cull Edges Below Threshold",
+            "tooltip"           : "Delete edges shorter than a user-defined threshold using group isolation",
+            "status_bar_text"   : "Cull small edges below a length threshold",
+            "menu_text"         : "Cull Edges Below Threshold",
+            "handler_key"       : "cull_edges_below_threshold",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "ortho_mirror_tool",
+            "command_name"      : "Na Noble3d - Ortho Mirror Tool",
+            "tooltip"           : "Activate the 2D camera-based ortho mirror tool",
+            "status_bar_text"   : "Activate Ortho Mirror Tool",
+            "menu_text"         : "Ortho Mirror Tool",
+            "handler_key"       : "ortho_mirror_tool",
+            "expose_to_hotkeys" : true
         }
     ],
     "buttons"                : [
@@ -454,6 +472,28 @@
             "description"            : "Loads all TrueVision export and storey tags while leaving modelling helper and line thickness tags separate."
         },
         {
+            "button_id"              : "btn_ortho_mirror_tool",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Mirror Tools",
+            "tool_group_description" : "Tools for mirroring selected geometry using view-based or axis-constrained mirror planes.",
+            "tool_group_order"       : 50,
+            "button_order"           : 10,
+            "button_label"           : "Ortho Mirror Tool",
+            "command_id"             : "ortho_mirror_tool",
+            "description"            : "Activates the interactive 2D mirror tool. Click two points to define the mirror axis; arrow keys lock to X/Y/Z axes. Works in parallel projection views."
+        },
+        {
+            "button_id"              : "btn_cull_edges_below_threshold",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Edge Cleanup",
+            "tool_group_description" : "Tools for removing unwanted or sub-threshold edges from selected geometry.",
+            "tool_group_order"       : 40,
+            "button_order"           : 10,
+            "button_label"           : "Cull Edges Below Threshold",
+            "command_id"             : "cull_edges_below_threshold",
+            "description"            : "Prompts for a minimum edge length, then deletes all selected edges below that threshold using a group isolation strategy to preserve shared vertices."
+        },
+        {
             "button_id"              : "btn_reload_plugin",
             "tab_name"               : "Settings",
             "tool_group_name"        : "Plugin Maintenance",
@@ -567,6 +607,14 @@
         },
         {
             "command_id"        : "reload_plugin_data",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "cull_edges_below_threshold",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "ortho_mirror_tool",
             "expose_to_hotkeys" : true
         }
     ]
