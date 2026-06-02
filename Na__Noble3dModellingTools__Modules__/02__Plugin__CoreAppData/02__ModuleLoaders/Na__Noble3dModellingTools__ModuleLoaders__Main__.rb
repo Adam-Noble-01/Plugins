@@ -37,6 +37,7 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/11__SourceCode__SelectedHierarchyTagReporter/Na__Noble3dModellingTools__SelectedHierarchyTagReporter__Loader__'
             require_relative '../../10__PluginModules/12__SourceCode__CullEdgesBelowThreshold/Na__Noble3dModellingTools__CullEdgesBelowThreshold__Loader__'
             require_relative '../../10__PluginModules/13__SourceCode__OrthoMirrorTool/Na__Noble3dModellingTools__OrthoMirrorTool__Loader__'
+            require_relative '../../10__PluginModules/14__SourceCode__ImageCarousel/Na__Noble3dModellingTools__ImageCarousel__Loader__'
 
             @na_feature_modules_loaded = true
             true

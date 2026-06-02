@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Na Noble3d Tools : Image Viewer</title>
+  <style>
+    {{STYLESHEET_CONTENT}}
+  </style>
+</head>
+<body>
+
+  <div class="naImageViewer__App">
+
+    <!-- Toolbar -->
+    <div class="naImageViewer__Toolbar">
+      <span class="naImageViewer__ToolbarLabel">Image Viewer</span>
+      <button
+        id="naImageViewer_btnChoose"
+        class="naImageViewer__Btn naImageViewer__Btn--primary"
+        onclick="window.location='skp:choose_folder@'; return false;"
+      >Select Folder</button>
+      <div class="naImageViewer__ToolbarSpacer"></div>
+      <button id="naImageViewer_btnPrev"    class="naImageViewer__Btn" title="Previous (&#8592;)">&#10216;</button>
+      <button id="naImageViewer_btnNext"    class="naImageViewer__Btn" title="Next (&#8594;)">&#10217;</button>
+      <button id="naImageViewer_btnFit"     class="naImageViewer__Btn" title="Fit to viewport (0)">Fit</button>
+      <button id="naImageViewer_btnFill"    class="naImageViewer__Btn" title="Fill viewport">Fill</button>
+      <button id="naImageViewer_btn100"     class="naImageViewer__Btn" title="Actual size (1)">100%</button>
+      <button id="naImageViewer_btnZoomIn"  class="naImageViewer__Btn" title="Zoom in (+)">&#65291;</button>
+      <button id="naImageViewer_btnZoomOut" class="naImageViewer__Btn" title="Zoom out (&#8722;)">&#8722;</button>
+      <button id="naImageViewer_btnRotateL" class="naImageViewer__Btn" title="Rotate left (R)">&#10226;</button>
+      <button id="naImageViewer_btnRotateR" class="naImageViewer__Btn" title="Rotate right (Shift+R)">&#10227;</button>
+      <button id="naImageViewer_btnFull"    class="naImageViewer__Btn" title="Fullscreen (F)">&#9974;</button>
+    </div>
+
+    <!-- Main: thumbnails + canvas viewer -->
+    <div class="naImageViewer__Main">
+
+      <div class="naImageViewer__Thumbs" id="naImageViewer_thumbs"></div>
+
+      <div class="naImageViewer__ViewerPane">
+        <div class="naImageViewer__CanvasWrap">
+          <canvas class="naImageViewer__Canvas" id="naImageViewer_canvas"></canvas>
+        </div>
+
+        <!-- Status bar -->
+        <div class="naImageViewer__StatusBar">
+          <div class="naImageViewer__StatusText" id="naImageViewer_meta">No folder selected</div>
+          <button id="naImageViewer_btnReveal" class="naImageViewer__Btn" title="Reveal in file explorer">Reveal</button>
+          <button id="naImageViewer_btnCopy"   class="naImageViewer__Btn" title="Copy file path to clipboard">Copy Path</button>
+        </div>
+      </div>
+
+    </div><!-- /.naImageViewer__Main -->
+
+  </div><!-- /.naImageViewer__App -->
+
+  <script>
+    window.Na__ImageViewer__PendingFolderList = null;
+    window.SKP_onFolderChosen = function(list) {
+      window.Na__ImageViewer__PendingFolderList = list;
+      var statusEl = document.getElementById('naImageViewer_meta');
+      if (statusEl && list && list.length) {
+        statusEl.textContent = 'Received ' + list.length + ' image path(s). Initialising viewer...';
+      }
+      if (window.Na__ImageViewer__OnFolderChosen) {
+        window.Na__ImageViewer__OnFolderChosen(list);
+      }
+    };
+  </script>
+
+  <script>
+    {{UI_BRIDGE_SCRIPT}}
+  </script>
+
+</body>
+</html>

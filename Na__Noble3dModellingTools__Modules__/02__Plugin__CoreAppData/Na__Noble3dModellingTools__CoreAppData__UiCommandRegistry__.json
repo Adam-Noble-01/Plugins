@@ -37,6 +37,12 @@
             "tab_description" : "Tag-library utilities for loading Noble Architecture standard tags and line styles into the active model."
         },
         {
+            "tab_id"          : "misc_utils",
+            "tab_name"        : "Misc Utils",
+            "tab_order"       : 60,
+            "tab_description" : "Miscellaneous utility tools for general workflow support."
+        },
+        {
             "tab_id"          : "settings",
             "tab_name"        : "Settings",
             "tab_order"       : 90,
@@ -258,6 +264,15 @@
             "status_bar_text"   : "Activate Ortho Mirror Tool",
             "menu_text"         : "Ortho Mirror Tool",
             "handler_key"       : "ortho_mirror_tool",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "image_carousel",
+            "command_name"      : "Na Noble3d - Image Viewer",
+            "tooltip"           : "Open the Image Viewer to browse a selected folder of images",
+            "status_bar_text"   : "Open Image Viewer",
+            "menu_text"         : "Image Viewer",
+            "handler_key"       : "image_carousel",
             "expose_to_hotkeys" : true
         }
     ],
@@ -494,6 +509,17 @@
             "description"            : "Prompts for a minimum edge length, then deletes all selected edges below that threshold using a group isolation strategy to preserve shared vertices."
         },
         {
+            "button_id"              : "btn_image_carousel",
+            "tab_name"               : "Misc Utils",
+            "tool_group_name"        : "Image Tools",
+            "tool_group_description" : "Utilities for browsing and inspecting project image files.",
+            "tool_group_order"       : 10,
+            "button_order"           : 10,
+            "button_label"           : "Image Viewer",
+            "command_id"             : "image_carousel",
+            "description"            : "Opens a dedicated image viewer for browsing any selected folder. Supports zoom, pan, rotate, and copy filepath. Ignores 00__Archive and 00__Ignore subfolders."
+        },
+        {
             "button_id"              : "btn_reload_plugin",
             "tab_name"               : "Settings",
             "tool_group_name"        : "Plugin Maintenance",
@@ -615,6 +641,10 @@
         },
         {
             "command_id"        : "ortho_mirror_tool",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "image_carousel",
             "expose_to_hotkeys" : true
         }
     ]

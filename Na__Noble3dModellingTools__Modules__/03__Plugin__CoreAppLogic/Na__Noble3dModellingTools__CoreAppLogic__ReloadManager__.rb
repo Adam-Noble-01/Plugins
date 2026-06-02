@@ -32,6 +32,7 @@ module Na__Noble3dModellingTools
                 Na__ModuleLoaders.Na__Noble3dModellingTools__LoadFeatureModules
             end
 
+            na_reset_feature_dialogs_after_reload
             Na__DialogManager.Na__Noble3dModellingTools__RefreshDialogIfVisible
 
             cache_has_failures = standard_cache_sources.values.any? { |source| source == :failed }
@@ -102,6 +103,16 @@ module Na__Noble3dModellingTools
         rescue => error
             puts "[Na__Noble3dModellingTools] Standard cache refresh warning: #{error.class}: #{error.message}"
             {}
+        end
+
+        def self.na_reset_feature_dialogs_after_reload
+            if defined?(Na__ImageCarousel__DialogManager) &&
+               Na__ImageCarousel__DialogManager.respond_to?(:Na__ImageCarousel__DialogManager__ResetDialog)
+                Na__ImageCarousel__DialogManager.Na__ImageCarousel__DialogManager__ResetDialog
+                puts '[Na__Noble3dModellingTools] Reload reset Image Viewer dialog.'
+            end
+        rescue => error
+            puts "[Na__Noble3dModellingTools] Feature dialog reset warning: #{error.class}: #{error.message}"
         end
 
         def self.na_standard_cache_summary_text(source_map)

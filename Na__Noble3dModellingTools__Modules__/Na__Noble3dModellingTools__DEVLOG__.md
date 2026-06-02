@@ -3,6 +3,71 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.4.2 - 02-Jun-2026 - Image Viewer Migration (Misc Utils)
+
+### Update 01 - Image Carousel Module Migration from Vale Design Suite
+- Migrated the Vale Design Suite image carousel viewer into Noble3d Modelling Tools as module `14__SourceCode__ImageCarousel`.
+- Source reference:
+  - `ValeDesignSuite/Utils__NotesAppAndImageViewer/Util__SketchUpModel__InBuiltImageViewingCaraselApp__HtmlDialogue.rb`
+- Added dedicated standalone HtmlDialog feature module:
+  - `10__PluginModules/14__SourceCode__ImageCarousel/Na__Noble3dModellingTools__ImageCarousel__Loader__.rb`
+  - `10__PluginModules/14__SourceCode__ImageCarousel/Na__Noble3dModellingTools__ImageCarousel__Run__.rb`
+  - `10__PluginModules/14__SourceCode__ImageCarousel/Na__Noble3dModellingTools__ImageCarousel__DialogManager__.rb`
+  - `10__PluginModules/14__SourceCode__ImageCarousel/Na__Noble3dModellingTools__ImageCarousel__FolderScanner__.rb`
+  - `10__PluginModules/14__SourceCode__ImageCarousel/Na__Noble3dModellingTools__ImageCarousel__UiLayout__.html`
+  - `10__PluginModules/14__SourceCode__ImageCarousel/Na__Noble3dModellingTools__ImageCarousel__Styles__.css`
+  - `10__PluginModules/14__SourceCode__ImageCarousel/Na__Noble3dModellingTools__ImageCarousel__UiBridge__.js`
+- Split monolithic Vale heredoc into modular Ruby + external HTML/CSS/JS assets, matching the Entity Tree Reporter pattern.
+
+### Update 02 - Misc Utils Tab + Registry, Router, and Loader Wiring
+- Added new `Misc Utils` tab (order 60) to the JSON-driven UI command registry.
+- Registered command, button, and hotkey binding:
+  - `image_carousel` / `Image Viewer`
+  - `Misc Utils > Image Tools > Image Viewer`
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+- Wired handler and module load paths through:
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+
+### Update 03 - Rebrand, Feature Trim, and Folder Scan Rules
+- Removed Vale branding and Vale CSS tokens; replaced with Noble3d `--naImageViewer__*` design tokens and Segoe UI styling.
+- Removed slideshow animation feature (Play/Pause button, timer, and Space shortcut).
+- Added recursive folder scanner with archive ignore rules:
+  - Skips any image whose relative path passes through `00__Archive` or `00__Ignore` at any nesting level.
+- Normalised Windows scan paths to forward slashes before `Dir.glob` to avoid backslash glob failures.
+
+### Update 04 - HtmlDialog Bridge and Reload Hardening
+- Select Folder uses SketchUp action URL bridge on the button:
+  - `onclick="window.location='skp:choose_folder@'; return false;"`
+- Ruby folder results are pushed back via `window.SKP_onFolderChosen(...)`.
+- Added lightweight HTML bootstrap callback before injected bridge script so Ruby always has a stable JS entry point even if the larger bridge initialises later.
+- Fixed older CEF parser issue by avoiding raw backslash regex literals in JS path conversion (`String.fromCharCode(92)`).
+- Added `Na__ImageCarousel__DialogManager__ResetDialog` and wired it into reload flow so `Reload Plugin Data` closes stale viewer windows and forces fresh HTML/CSS/JS injection on next open:
+  - `03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__ReloadManager__.rb`
+- Guarded scanner constants with `const_defined?` to avoid reload warnings during repeated `load`.
+
+### Update 05 - Copy Path Clipboard Fix (SketchUp 2026 API Gap)
+- Replaced unavailable `UI.copy_text_to_clipboard` call (not present in this SketchUp Ruby build) with OS clipboard commands:
+  - Windows: `clip`
+  - macOS fallback: `pbcopy`
+- JS-side `document.execCommand('copy')` fallback retained for HtmlDialog clipboard behaviour.
+- Ruby callback logs successful copy path to console for verification.
+
+### Validation Checklist
+- [x] `Misc Utils` tab appears in the main HtmlDialog.
+- [x] `Image Viewer` button opens standalone viewer HtmlDialog from registry command routing.
+- [x] `Select Folder` opens native OS folder picker and loads images from selected folder and child folders.
+- [x] Images inside `00__Archive` / `00__Ignore` subfolders are excluded from scan results.
+- [x] Thumbnail sidebar and main canvas viewer render loaded images correctly.
+- [x] Slideshow/play animation controls are removed.
+- [x] `Copy Path` copies current image native file path to clipboard without Ruby API error.
+- [x] `Reload Plugin Data` resets Image Viewer dialog state and reloads updated viewer assets.
+- [x] JavaScript bridge passes `node --check`.
+- [x] IDE diagnostics report no linter errors for edited Image Carousel files.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.4.1 - 25-May-2026 - Entity Tree Reporter Dialog
 
 ### Update 01 - Entity Utils Hierarchy Reporter Module

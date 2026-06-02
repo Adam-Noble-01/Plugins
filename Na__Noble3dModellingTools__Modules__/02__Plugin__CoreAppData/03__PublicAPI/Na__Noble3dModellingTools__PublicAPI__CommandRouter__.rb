@@ -120,6 +120,9 @@ module Na__Noble3dModellingTools
             when 'ortho_mirror_tool'
                 proc { Na__OrthoMirrorTool.Na__OrthoMirrorTool__Run }
 
+            when 'image_carousel'
+                proc { Na__ImageCarousel.Na__ImageCarousel__Run }
+
             else
                 nil
             end

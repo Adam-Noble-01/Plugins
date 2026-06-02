@@ -1,0 +1,251 @@
+/* ============================================================================= */
+/* NA NOBLE3D MODELLING TOOLS - IMAGE VIEWER - STYLES                            */
+/*                                                                               */
+/* FILE       : Na__Noble3dModellingTools__ImageCarousel__Styles__.css           */
+/* PURPOSE    : Stylesheet injected into the Image Viewer HtmlDialog             */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    color-scheme                        : light;
+
+    --naImageViewer__Bg                 : #f4f6f8;
+    --naImageViewer__PanelBg            : #ffffff;
+    --naImageViewer__CanvasBg           : #e0e4e8;
+    --naImageViewer__Text               : #1b1f24;
+    --naImageViewer__MutedText          : #5b636d;
+    --naImageViewer__Border             : #d6dbe1;
+    --naImageViewer__Accent             : #2f77d5;
+    --naImageViewer__AccentHover        : #2464b8;
+    --naImageViewer__ThumbActiveBorder  : #2f77d5;
+    --naImageViewer__ThumbHoverBorder   : #2f77d5;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Reset And Layout
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing                          : border-box;
+}
+
+html,
+body {
+    margin                              : 0;
+    padding                             : 0;
+    height                              : 100%;
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 13px;
+    line-height                         : 1.4;
+    background                          : var(--naImageViewer__Bg);
+    color                               : var(--naImageViewer__Text);
+}
+
+.naImageViewer__App {
+    display                             : flex;
+    flex-direction                      : column;
+    height                              : 100%;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+/* -----------------------------------------------------------------------------
+ * REGION | Toolbar
+ * ----------------------------------------------------------------------------- */
+
+.naImageViewer__Toolbar {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 6px;
+    padding                             : 7px 10px;
+    background                          : var(--naImageViewer__PanelBg);
+    border-bottom                       : 1px solid var(--naImageViewer__Border);
+    flex-shrink                         : 0;
+}
+
+.naImageViewer__ToolbarLabel {
+    font-weight                         : 600;
+    font-size                           : 12px;
+    color                               : var(--naImageViewer__MutedText);
+    margin-right                        : auto;
+}
+
+.naImageViewer__ToolbarSpacer {
+    flex                                : 1;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Buttons
+ * ----------------------------------------------------------------------------- */
+
+.naImageViewer__Btn {
+    appearance                          : none;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 4px;
+    background                          : #fdfdfd;
+    color                               : var(--naImageViewer__Text);
+    padding                             : 5px 9px;
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 12px;
+    cursor                              : pointer;
+    transition                          : border-color 120ms ease, background-color 120ms ease;
+    white-space                         : nowrap;
+}
+
+.naImageViewer__Btn:hover {
+    border-color                        : var(--naImageViewer__Accent);
+    background                          : #f0f5ff;
+}
+
+.naImageViewer__Btn:active {
+    background                          : #e5eeff;
+}
+
+.naImageViewer__Btn--primary {
+    background                          : var(--naImageViewer__Accent);
+    border-color                        : var(--naImageViewer__Accent);
+    color                               : #ffffff;
+}
+
+.naImageViewer__Btn--primary:hover {
+    background                          : var(--naImageViewer__AccentHover);
+    border-color                        : var(--naImageViewer__AccentHover);
+}
+
+.naImageViewer__Btn[disabled] {
+    opacity                             : 0.45;
+    cursor                              : not-allowed;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Main Content — Thumbnail Sidebar and Canvas Viewer
+ * ----------------------------------------------------------------------------- */
+
+.naImageViewer__Main {
+    flex                                : 1;
+    display                             : flex;
+    min-height                          : 0;
+}
+
+.naImageViewer__Thumbs {
+    width                               : 210px;
+    max-width                           : 38%;
+    overflow                            : auto;
+    border-right                        : 1px solid var(--naImageViewer__Border);
+    background                          : var(--naImageViewer__PanelBg);
+    padding                             : 8px;
+    flex-shrink                         : 0;
+}
+
+.naImageViewer__Thumb {
+    position                            : relative;
+    margin-bottom                       : 8px;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 5px;
+    padding                             : 6px;
+    cursor                              : pointer;
+    background                          : var(--naImageViewer__PanelBg);
+    transition                          : border-color 120ms ease;
+}
+
+.naImageViewer__Thumb:hover {
+    border-color                        : var(--naImageViewer__ThumbHoverBorder);
+}
+
+.naImageViewer__Thumb--active {
+    outline                             : 2px solid var(--naImageViewer__ThumbActiveBorder);
+    border-color                        : var(--naImageViewer__ThumbActiveBorder);
+}
+
+.naImageViewer__ThumbImg {
+    display                             : block;
+    width                               : 100%;
+    border-radius                       : 3px;
+}
+
+.naImageViewer__ThumbCaption {
+    margin-top                          : 5px;
+    font-size                           : 11px;
+    color                               : var(--naImageViewer__MutedText);
+    white-space                         : nowrap;
+    overflow                            : hidden;
+    text-overflow                       : ellipsis;
+}
+
+.naImageViewer__Thumb--hidden {
+    display                             : none;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Canvas Viewer
+ * ----------------------------------------------------------------------------- */
+
+.naImageViewer__ViewerPane {
+    position                            : relative;
+    flex                                : 1;
+    min-width                           : 0;
+    display                             : flex;
+    flex-direction                      : column;
+}
+
+.naImageViewer__CanvasWrap {
+    position                            : relative;
+    flex                                : 1;
+    min-height                          : 0;
+    background                          : var(--naImageViewer__CanvasBg);
+}
+
+.naImageViewer__Canvas {
+    position                            : absolute;
+    inset                               : 0;
+    width                               : 100%;
+    height                              : 100%;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Status Bar
+ * ----------------------------------------------------------------------------- */
+
+.naImageViewer__StatusBar {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 10px;
+    padding                             : 7px 10px;
+    background                          : var(--naImageViewer__PanelBg);
+    border-top                          : 1px solid var(--naImageViewer__Border);
+    flex-shrink                         : 0;
+}
+
+.naImageViewer__StatusText {
+    font-size                           : 12px;
+    color                               : var(--naImageViewer__MutedText);
+    flex                                : 1;
+    overflow                            : hidden;
+    white-space                         : nowrap;
+    text-overflow                       : ellipsis;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+/* ============================================================================= */
+/* END OF FILE                                                                   */
+/* ============================================================================= */
