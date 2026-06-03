@@ -123,6 +123,15 @@ module Na__Noble3dModellingTools
             when 'image_carousel'
                 proc { Na__ImageCarousel.Na__ImageCarousel__Run }
 
+            when 'flatten_3d_to_group'
+                proc { Na__Flatten3dTo2d.Na__Flatten3dTo2d__RunToGroup }
+
+            when 'flatten_3d_to_silhouette'
+                proc { Na__Flatten3dTo2d.Na__Flatten3dTo2d__RunToSilhouette }
+
+            when 'pdf_vector_importer'
+                proc { Na__PdfVectorImporter.Na__PdfVectorImporter__Run }
+
             else
                 nil
             end

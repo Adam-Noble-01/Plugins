@@ -19,6 +19,12 @@
             "tab_description" : "Geometry generation tools for rapid concept modelling."
         },
         {
+            "tab_id"          : "import_tools",
+            "tab_name"        : "Import Tools",
+            "tab_order"       : 25,
+            "tab_description" : "Importers that convert external file data into SketchUp geometry."
+        },
+        {
             "tab_id"          : "entity_utils",
             "tab_name"        : "Entity Utils",
             "tab_order"       : 30,
@@ -274,6 +280,33 @@
             "menu_text"         : "Image Viewer",
             "handler_key"       : "image_carousel",
             "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "flatten_3d_to_group",
+            "command_name"      : "Na Noble3d - Flatten 3D To Group",
+            "tooltip"           : "Flatten selected groups/components to a 2D linework group",
+            "status_bar_text"   : "Flatten selection to a 2D linework group (Parallel Projection)",
+            "menu_text"         : "Flatten 3D To Group",
+            "handler_key"       : "flatten_3d_to_group",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "flatten_3d_to_silhouette",
+            "command_name"      : "Na Noble3d - Flatten 3D To Silhouette",
+            "tooltip"           : "Flatten selected groups/components to a 2D silhouette outline",
+            "status_bar_text"   : "Flatten selection to a 2D silhouette outline (Parallel Projection)",
+            "menu_text"         : "Flatten 3D To Silhouette",
+            "handler_key"       : "flatten_3d_to_silhouette",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "pdf_vector_importer",
+            "command_name"      : "Na Noble3d - PDF Vector Importer",
+            "tooltip"           : "Import vector linework from a PDF as flattened edges centred at the origin",
+            "status_bar_text"   : "Import vector lines from a PDF file",
+            "menu_text"         : "PDF Vector Importer",
+            "handler_key"       : "pdf_vector_importer",
+            "expose_to_hotkeys" : true
         }
     ],
     "buttons"                : [
@@ -509,6 +542,28 @@
             "description"            : "Prompts for a minimum edge length, then deletes all selected edges below that threshold using a group isolation strategy to preserve shared vertices."
         },
         {
+            "button_id"              : "btn_flatten_3d_to_group",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Group / Component to 2D",
+            "tool_group_description" : "Flatten selected groups/components onto the current parallel-projection view as a new flat 2D group.",
+            "tool_group_order"       : 30,
+            "button_order"           : 10,
+            "button_label"           : "Flatten 3D To Group",
+            "command_id"             : "flatten_3d_to_group",
+            "description"            : "Projects all linework of the selected groups/components onto a camera-facing front plane and builds one new flat 2D group. The original 3D geometry is preserved. Requires Parallel Projection."
+        },
+        {
+            "button_id"              : "btn_flatten_3d_to_silhouette",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Group / Component to 2D",
+            "tool_group_description" : "Flatten selected groups/components onto the current parallel-projection view as a new flat 2D group.",
+            "tool_group_order"       : 30,
+            "button_order"           : 20,
+            "button_label"           : "Flatten 3D To Silhouette",
+            "command_id"             : "flatten_3d_to_silhouette",
+            "description"            : "Projects the selected groups/components onto a camera-facing front plane and keeps only the outline perimeter (interior holes preserved) as one new flat 2D group. Great for outlines and stencils. Requires Parallel Projection."
+        },
+        {
             "button_id"              : "btn_image_carousel",
             "tab_name"               : "Misc Utils",
             "tool_group_name"        : "Image Tools",
@@ -518,6 +573,17 @@
             "button_label"           : "Image Viewer",
             "command_id"             : "image_carousel",
             "description"            : "Opens a dedicated image viewer for browsing any selected folder. Supports zoom, pan, rotate, and copy filepath. Ignores 00__Archive and 00__Ignore subfolders."
+        },
+        {
+            "button_id"              : "btn_pdf_vector_importer",
+            "tab_name"               : "Import Tools",
+            "tool_group_name"        : "Vector Import",
+            "tool_group_description" : "Tools for importing 2D vector linework from external files.",
+            "tool_group_order"       : 10,
+            "button_order"           : 10,
+            "button_label"           : "PDF Vector Importer",
+            "command_id"             : "pdf_vector_importer",
+            "description"            : "Select a PDF and import its vector linework as edges, flattened to the XY plane and centred on the origin. Prompts for page (multi-page PDFs), scale factor and curve smoothness."
         },
         {
             "button_id"              : "btn_reload_plugin",
@@ -645,6 +711,18 @@
         },
         {
             "command_id"        : "image_carousel",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "flatten_3d_to_group",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "flatten_3d_to_silhouette",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "pdf_vector_importer",
             "expose_to_hotkeys" : true
         }
     ]

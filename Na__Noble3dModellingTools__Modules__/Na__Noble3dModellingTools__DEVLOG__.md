@@ -3,6 +3,46 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.4.3 - 03-Jun-2026 - Flatten 3D To 2D (Geometry Tools)
+
+### Update 01 - Flatten 3D To 2D Feature Module
+- Added a new geometry feature module that projects the selected groups/components onto a camera-facing plane while the view is in Parallel Projection, producing a single new flat 2D group. The original 3D geometry is never modified.
+- Two public entrypoints / tools:
+  - `Flatten 3D To Group` - all linework projected and rebuilt as a 2D group (soft/smooth/hidden edge flags preserved; auto-created faces stripped).
+  - `Flatten 3D To Silhouette` - outer face loops projected and merged, interior edges removed, fill stripped, leaving the union outline with interior holes preserved (true stencil). Good for outlines and stencils.
+- New module folder `10__PluginModules/15__SourceCode__Flatten3dTo2d`:
+  - `Na__Noble3dModellingTools__Flatten3dTo2d__Loader__.rb`
+  - `Na__Noble3dModellingTools__Flatten3dTo2d__ViewProjection__.rb`
+  - `Na__Noble3dModellingTools__Flatten3dTo2d__GeometryCollector__.rb`
+  - `Na__Noble3dModellingTools__Flatten3dTo2d__FlattenBuilder__.rb`
+  - `Na__Noble3dModellingTools__Flatten3dTo2d__SilhouetteBuilder__.rb`
+  - `Na__Noble3dModellingTools__Flatten3dTo2d__Run__.rb`
+
+### Update 02 - Behaviour and View Handling
+- Requires Parallel Projection. In Perspective the tool offers a YES/NO prompt to switch the active view to Parallel Projection (`camera.perspective = false`) and continue, or cancels.
+- Projects along the current camera direction (any ortho angle, not just standard Front/Top/etc).
+- Geometry is collected in the active drawing context's coordinate space (recursive transform baking), and the world camera direction is mapped into that context via `model.edit_transform`, so the tool is correct at top level and inside nested containers.
+- The new 2D group is placed at the front-most extent of the selection (closest to camera) so it stays tight to the originals rather than sitting far back when returning to a 3D view.
+- All work is wrapped in a single undoable `start_operation`/`commit_operation`; the new group is selected on success.
+
+### Update 03 - Registry, Router, and Loader Wiring
+- Registered commands, buttons, and hotkey bindings in the JSON-driven UI command registry under `Geometry Tools > Group / Component to 2D` (tool_group_order 60):
+  - `flatten_3d_to_group` / `Flatten 3D To Group`
+  - `flatten_3d_to_silhouette` / `Flatten 3D To Silhouette`
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+- Wired handlers and module load paths through:
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+
+### Validation Checklist
+- [ ] Both buttons appear under `Geometry Tools > Group / Component to 2D`; both menu items and hotkey bindings register.
+- [ ] In a head-on Parallel Projection view, selecting the two window groups and running each tool yields a flat group facing the camera, sitting at the front of the originals; originals untouched; result is selected; single undo reverts it.
+- [ ] Perspective view triggers the switch-to-parallel prompt.
+- [ ] Silhouette keeps the gap between the window frames as a hole; Flatten To Group keeps full internal linework.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.4.2 - 02-Jun-2026 - Image Viewer Migration (Misc Utils)
 
 ### Update 01 - Image Carousel Module Migration from Vale Design Suite
