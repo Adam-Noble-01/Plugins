@@ -72,10 +72,10 @@ module Na__Noble3dModellingTools
         # Edge-on faces project to near-zero area and raise inside add_face; these
         # are skipped so they simply do not contribute to the silhouette.
         # ------------------------------------------------------------
-        def self.na_add_projected_face(group_entities, outer_points, plane_value, view_normal)
+        def self.na_add_projected_face(group_entities, outer_points, plane_value, view_normal, edit_inverse)
             return false unless outer_points && outer_points.length >= 3
 
-            projected = outer_points.map { |point| na_project_point(point, plane_value, view_normal) }
+            projected = outer_points.map { |point| na_to_local(na_project_point(point, plane_value, view_normal), edit_inverse) }
             face      = group_entities.add_face(projected)
             !face.nil? && face.valid?
         rescue StandardError

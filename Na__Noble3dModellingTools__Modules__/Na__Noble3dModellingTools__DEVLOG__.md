@@ -3,6 +3,32 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.4.4 - 03-Jun-2026 - Flatten 3D To 2D Refinements (Visibility + Entity Utils)
+
+### Update 01 - Camera-Visible Hidden-Line Removal (Flatten 3D To Group)
+- `Flatten 3D To Group` now omits edges that are not visible to the camera, so back and occluded linework is no longer projected into the flattened group.
+- Added module `Na__Noble3dModellingTools__Flatten3dTo2d__VisibilityFilter__.rb`:
+  - A point is visible when a ray cast from just in front of it toward the camera hits no face (`model.raytest`, wysiwyg = respect shown geometry).
+  - Each edge is sampled along its length; consecutive visible samples are merged into single sub-segments, giving clean cuts at occlusion boundaries. Per-edge sample count is adaptive (capped) and edge soft/smooth/hidden flags are carried onto every emitted sub-segment.
+- `Flatten 3D To Silhouette` is unchanged: its outline is the union of all projected face areas, which is independent of inter-surface occlusion.
+
+### Update 02 - World-Space Projection Pipeline
+- Refactored the projection pipeline to work in world space (so `model.raytest` and the camera direction align), converting finished points back into the active edit context via `model.edit_transform.inverse` only at creation time. At the top level this is a no-op.
+- `GeometryCollector` now accepts a `base_transform` (passed `model.edit_transform`) so collected coordinates are world-space; builders take an `edit_inverse` and map each projected point to the active context before adding.
+
+### Update 03 - Moved to Entity Utils
+- Relocated the `Group / Component to 2D` tool group from `Geometry Tools` to `Entity Utils` (tool_group_order 30, after Component Containers and Hierarchy Reporting):
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+
+### Validation Checklist
+- [ ] Both Flatten buttons now appear under `Entity Utils > Group / Component to 2D`.
+- [ ] In a head-on Parallel Projection view, `Flatten 3D To Group` shows only the front/visible linework; back and occluded edges are gone.
+- [ ] Partially occluded edges are cut at the occlusion boundary rather than dropped or kept whole.
+- [ ] `Flatten 3D To Silhouette` still produces the union outline with interior holes; originals untouched; single undo reverts either tool.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.4.3 - 03-Jun-2026 - Flatten 3D To 2D (Geometry Tools)
 
 ### Update 01 - Flatten 3D To 2D Feature Module

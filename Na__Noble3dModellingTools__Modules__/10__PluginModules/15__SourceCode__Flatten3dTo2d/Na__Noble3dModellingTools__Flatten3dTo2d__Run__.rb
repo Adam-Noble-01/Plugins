@@ -55,7 +55,8 @@ module Na__Noble3dModellingTools
             view = model.active_view
             return na_result(false, 'Flatten cancelled: this tool requires Parallel Projection.') unless na_ensure_parallel_projection(view)
 
-            view_normal = na_context_direction(na_world_view_direction(view), model.edit_transform)
+            world_normal = na_world_view_direction(view)
+            edit_inverse = model.edit_transform.inverse
 
             operation_name = na_operation_name(mode)
             operation_started = false
@@ -65,7 +66,7 @@ module Na__Noble3dModellingTools
                 model.start_operation(operation_name, true)
                 operation_started = true
 
-                result_group = na_build_for_mode(mode, model.active_entities, selection, view_normal)
+                result_group = na_build_for_mode(mode, model, model.active_entities, selection, world_normal, edit_inverse)
 
                 if result_group.nil? || !result_group.valid? || na_group_empty?(result_group)
                     model.abort_operation
@@ -91,15 +92,19 @@ module Na__Noble3dModellingTools
 
         # HELPER FUNCTION | Collect and Build the Group for the Requested Mode
         # ------------------------------------------------------------
-        def self.na_build_for_mode(mode, active_entities, selection, view_normal)
+        def self.na_build_for_mode(mode, model, active_entities, selection, view_normal, edit_inverse)
+            base_transform = model.edit_transform
+
             if mode == :silhouette
-                faces = na_collect_world_faces(selection)
+                faces = na_collect_world_faces(selection, base_transform)
                 return nil if faces.empty?
-                na_build_silhouette_group(active_entities, faces, view_normal)[:group]
+                na_build_silhouette_group(active_entities, faces, view_normal, edit_inverse)[:group]
             else
-                edges = na_collect_world_edges(selection)
+                edges = na_collect_world_edges(selection, base_transform)
                 return nil if edges.empty?
-                na_build_linework_group(active_entities, edges, view_normal)
+                visible_edges = na_filter_visible_edges(model, edges, view_normal)
+                return nil if visible_edges.empty?
+                na_build_linework_group(active_entities, visible_edges, view_normal, edit_inverse)
             end
         end
         # ------------------------------------------------------------
@@ -170,7 +175,7 @@ module Na__Noble3dModellingTools
             if mode == :silhouette
                 'No faces could be projected. The selection may contain no faces, or all faces are edge-on to this view.'
             else
-                'No edges could be flattened from the selection.'
+                'No camera-visible edges were found to flatten from this view.'
             end
         end
         # ------------------------------------------------------------

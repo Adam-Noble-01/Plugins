@@ -109,14 +109,15 @@ module Na__Noble3dModellingTools
 # REGION | Vector Detection
 # -----------------------------------------------------------------------------
 
-        # HELPER FUNCTION | Return Indices of Pages Containing Vector Data
+        # HELPER FUNCTION | Return Indices of Pages Containing Importable Vector Data
         # ------------------------------------------------------------
         def self.na_pages_with_vector_data(pages)
             indices = []
             pages.each_with_index do |content, index|
-                if Na__PdfVectorImporter__ContentParser.Na__PdfVectorImporter__ContentHasVectorData?(content)
-                    indices << index
-                end
+                next unless Na__PdfVectorImporter__ContentParser.Na__PdfVectorImporter__ContentHasVectorData?(content)
+
+                parsed = Na__PdfVectorImporter__ContentParser.Na__PdfVectorImporter__ParsePolylines(content, 2)
+                indices << index if parsed[:polylines] && !parsed[:polylines].empty?  # <-- Confirm painted geometry, not clip-only
             end
             indices
         end
