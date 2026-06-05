@@ -87,7 +87,7 @@ module Na__Noble3dModellingTools
 
         def self.na_build_tab_buttons_html
             tabs = Na__ConfigLoader.Na__Noble3dModellingTools__Tabs
-            tabs.each_with_index.map do |tab, index|
+            tab_buttons = tabs.each_with_index.map do |tab, index|
                 active_class = index.zero? ? ' naNoble3d__TabButton--active' : ''
                 tab_id = tab.fetch('tab_id', '')
                 tab_name = tab.fetch('tab_name', tab_id)
@@ -95,12 +95,29 @@ module Na__Noble3dModellingTools
                 <<~HTML_BUTTON.strip
                 <button class="naNoble3d__TabButton#{active_class}" onclick='Na__Noble3d__ShowTab(#{tab_id.to_json}, this)'>#{na_escape_html(tab_name)}</button>
                 HTML_BUTTON
-            end.join("\n        ")
+            end
+
+            search_button = '<button class="naNoble3d__TabButton naNoble3d__TabButton--search" ' \
+                            "onclick='Na__Noble3d__ShowSearchTab(this)'>Search</button>"
+
+            (tab_buttons + [search_button]).join("\n        ")
         end
 
         def self.na_build_tab_content_html
+            search_panel_html = <<~HTML_SEARCH_PANEL
+            <section id="tab-search" class="naNoble3d__TabPanel">
+                <header class="naNoble3d__TabHeader">
+                    <h2 class="naNoble3d__TabTitle">Search Results</h2>
+                    <p class="naNoble3d__TabDescription">Search across all tools and commands.</p>
+                </header>
+                <div id="naNoble3dSearchResults" class="naNoble3d__SearchResultsGrid">
+                    <p class="naNoble3d__EmptyState">Type to search all tools&hellip;</p>
+                </div>
+            </section>
+            HTML_SEARCH_PANEL
+
             tabs = Na__ConfigLoader.Na__Noble3dModellingTools__Tabs
-            tabs.each_with_index.map do |tab, index|
+            regular_tabs_html = tabs.each_with_index.map do |tab, index|
                 active_class = index.zero? ? ' naNoble3d__TabPanel--active' : ''
                 tab_id = tab.fetch('tab_id', '')
                 tab_name = tab.fetch('tab_name', tab_id)
@@ -117,6 +134,8 @@ module Na__Noble3dModellingTools
                 </section>
                 HTML_TAB
             end.join("\n")
+
+            [search_panel_html, regular_tabs_html].join("\n")
         end
 
         def self.na_build_tab_tools_html(buttons)
@@ -138,9 +157,10 @@ module Na__Noble3dModellingTools
                 button_label = button.fetch('button_label', 'Run')
                 button_description = button.fetch('description', '')
                 command_id = button.fetch('command_id', '')
+                tab_name = button.fetch('tab_name', '')
 
                 <<~HTML_CARD
-                <button type="button" class="naNoble3d__ToolCard" onclick='Na__Noble3d__RunCommand(#{command_id.to_json})'>
+                <button type="button" class="naNoble3d__ToolCard" onclick='Na__Noble3d__RunCommand(#{command_id.to_json})' data-tab-name="#{na_escape_html(tab_name)}">
                     <span class="naNoble3d__ToolTitle">#{na_escape_html(button_label)}</span>
                     <span class="naNoble3d__ToolDescription">#{na_escape_html(button_description)}</span>
                 </button>

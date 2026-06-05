@@ -3,6 +3,47 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.4.6 - 05-Jun-2026 - Cross-Tab Search Feature (UI)
+
+### Update 01 - Persistent Search Bar
+- Added a full-width search input row (`naNoble3d__SearchBar`) rendered directly in `Na__Noble3dModellingTools__UiLayout__.html`, positioned between the tab navigation and the main content area so it is always visible regardless of the active tab.
+- Input is `type="search"` (browser-native clear button included), wired via an `input` event listener added in `DOMContentLoaded` in `Na__Noble3dModellingTools__UiBridge__.js`.
+
+### Update 02 - Dedicated Search Results Tab Panel
+- `na_build_tab_content_html` in `Na__Noble3dModellingTools__CoreAppLogic__DialogManager__.rb` now prepends a static `<section id="tab-search">` panel before all regular tab panels. The panel contains `#naNoble3dSearchResults` (`naNoble3d__SearchResultsGrid`), which starts empty and is populated entirely at runtime by JavaScript.
+- A **Search** tab button (`naNoble3d__TabButton--search`) is appended last in `na_build_tab_buttons_html`, wired to `Na__Noble3d__ShowSearchTab(this)` which switches to the search panel and focuses the input in a single call.
+
+### Update 03 - Real-Time Client-Side Filtering (`Na__Noble3d__SearchTools`)
+- All tool cards are server-rendered into the DOM at dialog open (hidden per-tab via CSS). Search works entirely client-side with no Ruby round-trip.
+- `Na__Noble3d__SearchTools(query)` in `UiBridge__.js` iterates every `.naNoble3d__ToolCard` element across all non-search panels, lowercases and matches the query against `.naNoble3d__ToolTitle` and `.naNoble3d__ToolDescription` text content, clones each hit via `cloneNode(true)` (preserving the original `onclick` handler), appends a `naNoble3d__SearchResultTab` badge span (reads `data-tab-name`), and renders results into `#naNoble3dSearchResults`. A "No tools found" empty state is shown when no matches exist.
+- `na_build_button_cards_html` in `DialogManager__.rb` now adds `data-tab-name="..."` to every rendered card button so the cloned result cards always carry their source tab name.
+
+### Update 04 - Tab State Tracking And Restore
+- `naSearchState { lastTabId, lastTabButton }` in `UiBridge__.js` tracks the last active non-search tab.
+- `Na__Noble3d__ShowTab` extended: on switching to any non-search tab it records that tab to `naSearchState` and programmatically clears the search input (programmatic `.value = ''` does not fire the `input` event, preventing re-entrancy).
+- Clearing the search input (empty query) calls `na__Noble3d__RestorePreviousTab`, which re-activates the last recorded tab. Clicking any regular tab button while search is active clears the input and restores that tab.
+
+### Update 05 - Search UI Styles
+- New CSS regions added to `Na__Noble3dModellingTools__Styles__.css`:
+  - `naNoble3d__SearchBar` — full-width row, same background and border-bottom as the tab bar.
+  - `naNoble3d__SearchInput` — inherits font, accent border + subtle focus ring on focus, muted placeholder text.
+  - `naNoble3d__TabButton--search` — dashed accent border, right-aligned via `margin-left: auto`; solid accent fill when active.
+  - `naNoble3d__SearchResultsGrid` — same `auto-fit minmax(220px,1fr)` grid as `naNoble3d__ToolGrid`.
+  - `naNoble3d__SearchResultTab` — small uppercase accent-coloured badge at the bottom of each result card showing the source tab name.
+
+### Validation Checklist
+- [ ] Search bar appears between the tab row and content on every tab; **Search** button is last in the tab bar.
+- [ ] Typing a partial name (e.g. "offset") immediately switches to the Search Results tab and shows all matching cards from every tab, each with a source-tab badge.
+- [ ] Matching is case-insensitive and searches both title and description text.
+- [ ] Clicking a result card executes its command identically to clicking the card on its original tab.
+- [ ] Clearing the search input (backspace or the native ✕ button) restores the previously active tab.
+- [ ] Clicking any regular tab while search is active clears the search input and switches to that tab.
+- [ ] Clicking the Search tab button focuses the search input.
+- [ ] No tools found state shows the "No tools found for …" message instead of an empty grid.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.4.5 - 05-Jun-2026 - Multiple Offset Tool (Geometry Tools)
 
 ### Update 01 - Multiple Offset Tool Feature Module

@@ -304,6 +304,88 @@ body {
 
 /* endregion ------------------------------------------------------------------- */
 
+/* -----------------------------------------------------------------------------
+ * REGION | Search Bar — Persistent Input Row Between Tabs And Content
+ * ----------------------------------------------------------------------------- */
+
+.naNoble3d__SearchBar {
+    padding                 : 8px 12px;
+    border-bottom           : 1px solid var(--naNoble3d_Border);
+    background              : var(--naNoble3d_PanelBg);
+}
+
+.naNoble3d__SearchInput {
+    width                   : 100%;
+    padding                 : 6px 10px;
+    font-size               : 12px;
+    font-family             : inherit;
+    border                  : 1px solid var(--naNoble3d_Border);
+    border-radius           : 4px;
+    background              : var(--naNoble3d_Bg);
+    color                   : var(--naNoble3d_Text);
+    outline                 : none;
+    transition              : border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.naNoble3d__SearchInput:focus {
+    border-color            : var(--naNoble3d_Accent);
+    box-shadow              : 0 0 0 2px rgba(47, 119, 213, 0.18);
+}
+
+.naNoble3d__SearchInput::placeholder {
+    color                   : var(--naNoble3d_MutedText);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Search Tab Button — Visual Distinction From Regular Tabs
+ * ----------------------------------------------------------------------------- */
+
+.naNoble3d__TabButton--search {
+    border-style            : dashed;
+    color                   : var(--naNoble3d_Accent);
+    margin-left             : auto;
+}
+
+.naNoble3d__TabButton--search:hover {
+    background              : rgba(47, 119, 213, 0.06);
+}
+
+.naNoble3d__TabButton--search.naNoble3d__TabButton--active {
+    color                   : #ffffff;
+    background              : var(--naNoble3d_Accent);
+    border-color            : var(--naNoble3d_Accent);
+    border-style            : solid;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Search Results — Grid And Source Tab Badge
+ * ----------------------------------------------------------------------------- */
+
+.naNoble3d__SearchResultsGrid {
+    display                 : grid;
+    grid-template-columns   : repeat(auto-fit, minmax(220px, 1fr));
+    gap                     : 10px;
+}
+
+.naNoble3d__SearchResultTab {
+    display                 : block;
+    font-size               : 10px;
+    font-weight             : 500;
+    color                   : var(--naNoble3d_Accent);
+    letter-spacing          : 0.2px;
+    margin-top              : 2px;
+    text-transform          : uppercase;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
 /* ============================================================================= */
 /* END OF FILE                                                                   */
 /* ============================================================================= */
