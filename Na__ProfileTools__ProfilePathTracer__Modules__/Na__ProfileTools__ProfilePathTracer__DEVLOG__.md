@@ -3,6 +3,87 @@
 ## Version History
 
 # =======================================================================================
+## Profile Path Tracer - v1.1.3 - 05-Jun-2026
+
+### Fix (critical): Closed-loop sweep shrank the profile cross-section
+
+#### Symptom
+
+Applying any library profile along a **closed loop** (e.g. `Interactive path picking`
+around a roof perimeter) produced a sweep with the **wrong cross-section size**: a
+`PRF1301...w120` half-round gutter came out **~85 mm** wide instead of `120 mm`.
+Straight / open-path runs were always correct. The error was **profile-agnostic** and
+applied to every profile, which made the profile library effectively unusable for loops.
+
+#### Root cause (confirmed by math)
+
+`Sketchup::Face#followme` sweeps the start cap face **as-is** — it does not re-orient the
+cap perpendicular to the path. The closed-loop start cap was being built perpendicular to
+the **corner bisector** at the start vertex, while the sweep actually travelled along the
+**first edge** `V0 -> V1`. An oblique cap produces an oblique prism whose true
+(perpendicular) cross-section is foreshortened by `cos(theta)`, where `theta` is the angle
+between the bisector and the first edge.
+
+At a right-angle loop corner `theta = 45 deg`, so `120 mm x cos(45) = 84.85 ~ 85 mm`,
+matching the report exactly. Open paths used the outgoing edge tangent for the cap (already
+perpendicular to the sweep), which is why they stayed correct.
+
+The oblique cap came from `Na__Geometry__BuildStartFrameTangent`, which returned a
+**bisector** tangent for closed loops; that frame became the cap normal in
+`Na__Geometry__BuildTransformedProfileFace`. Because both the initial build and the
+dynamic-regeneration path share `Na__Geometry__SweepProfileIntoGroup`, **regeneration
+shrank too**.
+
+#### Fix
+
+Two coordinated changes inside the shared sweep so both initial build and regen are fixed:
+
+1. **Cap perpendicular to the first edge.** `Na__Geometry__BuildStartFrameTangent` now
+   always returns the outgoing (first-edge) tangent. This also corrects the preview ghost
+   polyline (`Na__Geometry__BuildPreviewProfilePolyline`), which used the same frame.
+
+2. **Midpoint-start closed-loop sweep.** A new `Na__Geometry__BuildSweepRailPlan` computes
+   the follow-me rail. For closed loops it starts and ends at the **midpoint `M` of the
+   first segment** (`M -> V1 -> ... -> Vn -> V0 -> M`) and builds the cap at `M`
+   perpendicular to `(V1 - V0)`. Starting mid-segment is the standard robust technique:
+   the start and end caps are coplanar, so they merge and the closure corner miters
+   cleanly. Open paths keep the corner list as the rail and cap at the first vertex.
+
+3. **Seam removal follows the cap plane.** `Na__Geometry__RemoveClosureSeamFaces` now takes
+   a `closure_plane` hash `{ origin: M, normal: (V1 - V0), ordered_points: [...] }` from the
+   rail plan (origin `M`, not `ordered_points[0]`), so the now-coplanar internal seam face
+   is reliably detected and erased. It returns `0` (no-op) for open paths.
+
+The `ordered_points` corner list is still used unchanged for the Helpers polylines and the
+attribute-dictionary stamping, so regeneration stays idempotent; the midpoint exists only
+on the temporary follow-me rail, which is erased afterward by
+`Na__Geometry__ErasePathRailEdges`.
+
+#### Removed (DRY)
+
+`Na__Geometry__IncomingTangentAtIndex` and `Na__Geometry__BisectorTangent` became dead code
+once the bisector branch was dropped, and were deleted.
+
+#### Files touched (modified)
+
+| Path | Change |
+|---|---|
+| `02__Src__AppModules/04__GeometryHelpers/Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | `BuildStartFrameTangent` -> first-edge tangent only; new `BuildSweepRailPlan` (midpoint start + cap frame + closure plane); `SweepProfileIntoGroup` uses the rail plan; `RemoveClosureSeamFaces` takes `closure_plane`; removed `IncomingTangentAtIndex` / `BisectorTangent`; header note |
+
+#### Behaviour notes / scope
+
+- Open-path behaviour is unchanged (was already correct).
+- On **sloped open** runs the gutter stays full-width but tilts to be perpendicular to the
+  run; making it sit upright on a slope is a separate enhancement, not this fix.
+- Geometry-only change: no data-schema, profile-library, or UI changes.
+
+#### Verification
+
+Confirmed in SketchUp: closed loops (flat and sloped) produce a full `120 mm` cross-section
+with clean mitered corners and no internal seam face; open/straight runs remain `120 mm`;
+moving a Helpers edge regenerates at the correct size; verified across multiple profiles.
+
+# =======================================================================================
 ## Profile Path Tracer - v1.1.2 - 12-May-2026
 
 ### Feature: Helper path tag, rail cleanup, and dynamic regeneration

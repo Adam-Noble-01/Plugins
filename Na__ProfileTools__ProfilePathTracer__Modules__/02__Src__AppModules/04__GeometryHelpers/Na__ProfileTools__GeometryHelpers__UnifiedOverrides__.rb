@@ -7,6 +7,13 @@
 # PURPOSE    : Unified-schema-only geometry builder. Edge materials now
 #              delegate to Na__EdgeColourManager for exact RGB + no duplicates.
 #
+# CROSS-SECTION FIDELITY (v1.1.3):
+#   Follow Me sweeps the start cap face *as-is*, so the cap MUST be perpendicular
+#   to the first swept edge or the true cross-section is foreshortened by
+#   cos(angle). Closed loops therefore start/end the sweep at the MIDPOINT of the
+#   first segment (see Na__Geometry__BuildSweepRailPlan) so both caps are coplanar
+#   and the corner miters cleanly. Open paths cap at the first vertex.
+#
 # =============================================================================
 
 module Na__ProfileTools__ProfilePathTracer
@@ -117,17 +124,12 @@ module Na__ProfileTools__ProfilePathTracer
             return nil unless ordered_points && nearest_index
             return nil if ordered_points.length < 2
 
-            point_count = ordered_points.length
-            outgoing_tangent = self.Na__Geometry__OutgoingTangentAtIndex(ordered_points, nearest_index, is_closed_loop)
-            return nil unless outgoing_tangent
-
-            if is_closed_loop && point_count >= 3
-                incoming_tangent = self.Na__Geometry__IncomingTangentAtIndex(ordered_points, nearest_index, is_closed_loop)
-                bisector = self.Na__Geometry__BisectorTangent(incoming_tangent, outgoing_tangent)
-                return bisector if bisector
-            end
-
-            outgoing_tangent
+            # Always orient the start cap perpendicular to the first swept edge.
+            # SketchUp's follow-me sweeps the cap face as-is, so any oblique cap
+            # (e.g. a corner bisector) would foreshorten the true cross-section.
+            # Closed-loop seam coplanarity is handled separately in
+            # Na__Geometry__BuildSweepRailPlan (midpoint start), not here.
+            self.Na__Geometry__OutgoingTangentAtIndex(ordered_points, nearest_index, is_closed_loop)
         end
 
         def self.Na__Geometry__OutgoingTangentAtIndex(ordered_points, index, is_closed_loop)
@@ -144,34 +146,6 @@ module Na__ProfileTools__ProfilePathTracer
             return nil if tangent.length <= 0.001
             tangent.normalize!
             tangent
-        end
-
-        def self.Na__Geometry__IncomingTangentAtIndex(ordered_points, index, is_closed_loop)
-            point_count = ordered_points.length
-            return nil if point_count < 2
-
-            if index > 0
-                tangent = ordered_points[index] - ordered_points[index - 1]
-            elsif is_closed_loop
-                tangent = ordered_points[0] - ordered_points[point_count - 1]
-            else
-                tangent = ordered_points[1] - ordered_points[0]
-            end
-            return nil if tangent.length <= 0.001
-            tangent.normalize!
-            tangent
-        end
-
-        def self.Na__Geometry__BisectorTangent(incoming_tangent, outgoing_tangent)
-            return nil unless incoming_tangent && outgoing_tangent
-            sum = Geom::Vector3d.new(
-                incoming_tangent.x + outgoing_tangent.x,
-                incoming_tangent.y + outgoing_tangent.y,
-                incoming_tangent.z + outgoing_tangent.z
-            )
-            return nil if sum.length <= 0.001
-            sum.normalize!
-            sum
         end
 
         def self.Na__Geometry__TransformProfilePoints(local_points, frame_transform, rotation_step)
@@ -456,26 +430,26 @@ module Na__ProfileTools__ProfilePathTracer
         def self.Na__Geometry__SweepProfileIntoGroup(target_entities:, model:, profile_data:,
                                                         ordered_points:, is_closed_loop:, frame_transform:,
                                                         rotation_step:, toggle_states:, resolved_path_data:)
+            sweep_plan = self.Na__Geometry__BuildSweepRailPlan(ordered_points, is_closed_loop, frame_transform)
+            return { 'isSwept' => false, 'reason' => sweep_plan[:reason] } unless sweep_plan[:isValid]
+
+            rail_points   = sweep_plan[:rail_points]
+            cap_frame     = sweep_plan[:cap_frame]
+            closure_plane = sweep_plan[:closure_plane]
+
             path_edges    = []
             path_edge_ids = []
 
-            (0...(ordered_points.length - 1)).each do |index|
-                edge = target_entities.add_line(ordered_points[index], ordered_points[index + 1])
+            (0...(rail_points.length - 1)).each do |index|
+                edge = target_entities.add_line(rail_points[index], rail_points[index + 1])
                 if edge && edge.valid?
                     path_edges << edge
                     begin; path_edge_ids << edge.persistent_id; rescue; end
                 end
             end
-            if is_closed_loop
-                closing_edge = target_entities.add_line(ordered_points[-1], ordered_points[0])
-                if closing_edge && closing_edge.valid?
-                    path_edges << closing_edge
-                    begin; path_edge_ids << closing_edge.persistent_id; rescue; end
-                end
-            end
 
             face_result = self.Na__Geometry__BuildTransformedProfileFace(
-                target_entities, profile_data, frame_transform, rotation_step, toggle_states
+                target_entities, profile_data, cap_frame, rotation_step, toggle_states
             )
             return { 'isSwept' => false, 'reason' => face_result['reason'] } unless face_result['isValid']
 
@@ -483,7 +457,7 @@ module Na__ProfileTools__ProfilePathTracer
             profile_face.followme(path_edges)
             target_entities.erase_entities(profile_face) if profile_face.valid?
 
-            self.Na__Geometry__RemoveClosureSeamFaces(target_entities, ordered_points, frame_transform, is_closed_loop)
+            self.Na__Geometry__RemoveClosureSeamFaces(target_entities, closure_plane)
             styled_edge_count = self.Na__Geometry__ApplyUnifiedEdgeStates(
                 target_entities, model, profile_data, path_edge_ids, resolved_path_data
             )
@@ -491,6 +465,54 @@ module Na__ProfileTools__ProfilePathTracer
             { 'isSwept' => true, 'styledEdgeCount' => styled_edge_count }
         rescue => error
             { 'isSwept' => false, 'reason' => error.message }
+        end
+
+        # Builds the follow-me rail, the perpendicular cap frame and (for closed
+        # loops) the closure seam plane.
+        #
+        # Open path : rail = the corner points as-is, cap at the first vertex.
+        # Closed loop: rail starts and ends at the midpoint M of the first
+        #              segment (M -> V1 -> ... -> Vn -> V0 -> M) so the start and
+        #              end caps are coplanar and merge into a clean mitered seam.
+        #              The cap is built at M, perpendicular to (V1 - V0), which
+        #              preserves the true profile cross-section.
+        def self.Na__Geometry__BuildSweepRailPlan(ordered_points, is_closed_loop, frame_transform)
+            points = Array(ordered_points)
+            return { isValid: false, reason: 'Path must contain at least two points.' } if points.length < 2
+
+            unless is_closed_loop
+                return {
+                    isValid: true,
+                    rail_points: points,
+                    cap_frame: frame_transform,
+                    closure_plane: nil
+                }
+            end
+
+            return { isValid: false, reason: 'Closed path must contain at least three points.' } if points.length < 3
+
+            first_vertex  = points[0]
+            second_vertex = points[1]
+            tangent = second_vertex - first_vertex
+            return { isValid: false, reason: 'First path segment has zero length.' } if tangent.length <= 0.001
+            tangent.normalize!
+
+            midpoint = Geom.linear_combination(0.5, first_vertex, 0.5, second_vertex)
+            cap_frame = self.Na__Geometry__BuildPathFrameFromTangent(midpoint, tangent)
+            return { isValid: false, reason: 'Closed-loop cap frame could not be built.' } unless cap_frame
+
+            rail_points = [midpoint] + points[1..-1] + [first_vertex, midpoint]
+
+            {
+                isValid: true,
+                rail_points: rail_points,
+                cap_frame: cap_frame,
+                closure_plane: {
+                    origin: midpoint,
+                    normal: tangent,
+                    ordered_points: points
+                }
+            }
         end
 
         def self.Na__Geometry__ErasePathRailEdges(target_entities, path_edges)
@@ -549,14 +571,17 @@ module Na__ProfileTools__ProfilePathTracer
             Na__DebugTools.Na__Debug__Warn("Assembly dictionary stamp warning: #{error.message}")
         end
 
-        def self.Na__Geometry__RemoveClosureSeamFaces(entities, ordered_points, frame_transform, is_closed_loop)
-            return 0 unless is_closed_loop == true
-            return 0 unless entities && ordered_points && frame_transform
-            return 0 if ordered_points.length < 3
+        # closure_plane: { origin: M, normal: (V1 - V0), ordered_points: [...] }
+        # built by Na__Geometry__BuildSweepRailPlan; nil for open paths (no seam).
+        def self.Na__Geometry__RemoveClosureSeamFaces(entities, closure_plane)
+            return 0 unless closure_plane.is_a?(Hash)
+            return 0 unless entities
 
-            closure_origin = ordered_points[0]
-            closure_normal = frame_transform.zaxis
-            return 0 unless closure_normal && closure_normal.length > 0.001
+            closure_origin = closure_plane[:origin]
+            closure_normal = closure_plane[:normal]
+            ordered_points = Array(closure_plane[:ordered_points])
+            return 0 unless closure_origin && closure_normal && closure_normal.length > 0.001
+            return 0 if ordered_points.length < 3
 
             plane = [closure_origin, closure_normal]
             plane_distance_tolerance = 0.05.mm

@@ -120,6 +120,9 @@ module Na__Noble3dModellingTools
             when 'ortho_mirror_tool'
                 proc { Na__OrthoMirrorTool.Na__OrthoMirrorTool__Run }
 
+            when 'multiple_offset_tool'
+                proc { Na__MultipleOffsetTool.Na__MultipleOffsetTool__Run }
+
             when 'image_carousel'
                 proc { Na__ImageCarousel.Na__ImageCarousel__Run }
 
@@ -131,6 +134,9 @@ module Na__Noble3dModellingTools
 
             when 'pdf_vector_importer'
                 proc { Na__PdfVectorImporter.Na__PdfVectorImporter__Run }
+
+            when 'convert_groups_to_component'
+                proc { Na__GroupsToComponent.Na__GroupsToComponent__Run }
 
             else
                 nil
