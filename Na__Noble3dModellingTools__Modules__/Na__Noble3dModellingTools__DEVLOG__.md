@@ -3,6 +3,54 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.4.5 - 05-Jun-2026 - Multiple Offset Tool (Geometry Tools)
+
+### Update 01 - Multiple Offset Tool Feature Module
+- Added an interactive tool that offsets the outer perimeter of many selected faces at once, each computed in its OWN plane, so non-coplanar selections (e.g. the five faces of a bay window) all inset/expand correctly in a single gesture. SketchUp's native Offset is limited to one face/loop at a time.
+- New module folder `10__PluginModules/18__SourceCode__MultipleOffsetTool` (mirrors the OrthoMirrorTool interactive-tool pattern: Constants -> Helpers -> Tool -> Run):
+  - `Na__Noble3dModellingTools__MultipleOffsetTool__Loader__.rb`
+  - `Na__Noble3dModellingTools__MultipleOffsetTool__Constants__.rb`
+  - `Na__Noble3dModellingTools__MultipleOffsetTool__Helpers__.rb`
+  - `Na__Noble3dModellingTools__MultipleOffsetTool__Tool__.rb`
+  - `Na__Noble3dModellingTools__MultipleOffsetTool__Run__.rb`
+
+### Update 02 - Per-Face Offset Geometry (Helpers)
+- Each face gets a local 2D frame derived from its own loop points via a Newell-method normal (`na_build_face_plane_frame`, `na_newell_normal`, `na_first_edge_direction`) rather than a transformed `face.normal`, then offset in that plane.
+- Signed perpendicular miter offset (`na_inward_offset_polygon`): positive distance insets inward, negative expands outward; sign is winding-aware via shoelace area (`na_signed_area_2d`).
+- Validity guard (`na_offset_polygon_valid?` + `na_point_in_polygon_2d?`): inward results must shrink and stay inside the source; outward must grow. This rejects the "exploded miter" loops that previously shot off to huge sizes.
+- Per-face inscribed radius bounds the shared distance (`recompute_max_offset` + `clamp_distance`) so a single value can never blow up the smallest face.
+
+### Update 03 - Coordinate-Space and Units Correctness
+- Geometry is read and built in WORLD space: while a group/component is open for editing SketchUp already reports `vertex.position` in world coordinates, so the tool reads vertices directly and adds the loop with `entities.add_edges` in world space (no double `edit_transform`). This fixed the giant/displaced preview seen when working inside groups.
+- Internal maths stays in inches (SketchUp's internal unit); user text is parsed via `String#to_l` (honours model units/locale); the stored last-used distance is persisted as a raw inch value and read back with `Float#to_l` to avoid unit-format ambiguity (`...__Run__` `Na__MultipleOffsetTool__StoredDistance` / `__StoreDistance`).
+
+### Update 04 - Fluid Preview / Commit Interaction (Fredo-style)
+- Reworked to a preview-then-commit model after researching the SketchUp 2026 VCB regression (API issue #1076 / focus loss): committing inside `onUserText` breaks the next Enter. The tool now NEVER commits on the preview path.
+  - Mouse drives a live orange preview (cursor inside a face = inward, outside the perimeter = outward) via `view.pickray` + `Geom.intersect_line_plane`.
+  - Typing a value locks the preview to that exact size and overrides the mouse (`@typed`); re-typing freely just updates the preview. A genuine mouse move (beyond `MOUSE_MOVE_TOLERANCE_PX`) releases the lock; stray sub-pixel events are ignored.
+  - Commit happens on a left-click OR a double-Enter within `DOUBLE_ENTER_SECONDS` (handled in both `onUserText` and `onReturn`). After commit the tool re-arms on the new inner faces for the next offset; Esc finishes.
+- `rearm_vcb_and_focus` re-asserts the VCB label/value and calls `Sketchup.focus` (guarded, deferred via `UI.start_timer`) on activate and after each commit, so typed values register without first clicking the viewport.
+
+### Update 05 - Registry, Router, and Loader Wiring
+- Registered command, button, and hotkey binding in the JSON-driven UI registry under a new `Geometry Tools > Offset Tools` group (tool_group_order 35, between Lattice Generation and Edge Cleanup):
+  - `multiple_offset_tool` / `Multiple Offset Tool`
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+- Wired handler and module load paths through:
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+- Shortened the button description to match the concise style of the other tool cards.
+
+### Validation Checklist
+- [ ] `Multiple Offset Tool` appears under `Geometry Tools > Offset Tools`; menu item and hotkey binding register.
+- [ ] Selecting the five non-coplanar bay-window faces shows a synchronised orange inset preview on all of them; cursor inside insets inward, outside the perimeter expands outward.
+- [ ] Typing a value (e.g. 25, then 50, then -15) updates the preview each time and overrides the mouse; a genuine mouse move resumes cursor control.
+- [ ] Left-click applies; double-Enter (two Enters within ~1s) applies; each face becomes a border frame + inner face; inner faces are re-selected; single undo reverts a commit.
+- [ ] Works at model root and inside an open group/component without displaced/oversized geometry.
+- [ ] IDE diagnostics report no linter errors for the module; JSON registry parses.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.4.4 - 03-Jun-2026 - Flatten 3D To 2D Refinements (Visibility + Entity Utils)
 
 ### Update 01 - Camera-Visible Hidden-Line Removal (Flatten 3D To Group)

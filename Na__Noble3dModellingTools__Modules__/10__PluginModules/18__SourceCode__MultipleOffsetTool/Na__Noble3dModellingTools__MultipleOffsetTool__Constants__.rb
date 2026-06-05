@@ -25,7 +25,7 @@ module Na__Noble3dModellingTools
             "constants" => {
                 "visual"   => ["PREVIEW_LINE_COLOR", "PREVIEW_LINE_WIDTH", "INVALID_HINT_COLOR"],
                 "state"    => ["STATE_IDLE", "STATE_PREVIEW"],
-                "geometry" => ["MIN_EDGE_LENGTH_INTERNAL", "MIN_AREA_INTERNAL", "LINE_INTERSECT_EPSILON", "OFFSET_LIMIT_SAFETY_FACTOR", "OFFSET_SEED_FRACTION", "OUTWARD_LIMIT_MULTIPLE"],
+                "geometry" => ["MIN_EDGE_LENGTH_INTERNAL", "MIN_AREA_INTERNAL", "LINE_INTERSECT_EPSILON", "OFFSET_LIMIT_SAFETY_FACTOR", "OFFSET_SEED_FRACTION", "OUTWARD_LIMIT_MULTIPLE", "MOUSE_MOVE_TOLERANCE_PX", "DOUBLE_ENTER_SECONDS"],
                 "defaults" => ["DEFAULT_OFFSET_DISTANCE", "PREF_NAMESPACE", "PREF_DISTANCE"]
             },
             "helper_functions" => {
@@ -34,8 +34,8 @@ module Na__Noble3dModellingTools
                 "distance" => ["na_point_to_polygon_min_distance", "na_point_to_segment_distance_2d"]
             },
             "tool_class" => {
-                "lifecycle" => ["initialize", "activate", "deactivate", "resume"],
-                "input"     => ["onMouseMove", "onLButtonDown", "onKeyDown", "onCancel", "enableVCB?", "onUserText"],
+                "lifecycle" => ["initialize", "activate", "deactivate", "resume", "rearm_vcb_and_focus"],
+                "input"     => ["onMouseMove", "onLButtonDown", "onKeyDown", "onCancel", "enableVCB?", "onUserText", "onReturn"],
                 "drawing"   => ["draw", "getExtents"],
                 "core"      => ["build_face_cache", "recompute_previews", "commit_offset", "rebuild_cache_from_selection"]
             },
@@ -79,6 +79,8 @@ module Na__Noble3dModellingTools
         OFFSET_LIMIT_SAFETY_FACTOR = 0.98                               # <-- Fraction of inscribed radius treated as max inward inset
         OFFSET_SEED_FRACTION       = 0.5                                # <-- Seed offset as a fraction of the max inset
         OUTWARD_LIMIT_MULTIPLE     = 50.0                               # <-- Max outward (negative) offset as a multiple of the inward cap
+        MOUSE_MOVE_TOLERANCE_PX    = 2                                  # <-- Screen-pixel travel before a move ends the re-typeable state
+        DOUBLE_ENTER_SECONDS       = 1.0                                # <-- Two Enter presses within this window commit the previewed offset
 
 # endregion -------------------------------------------------------------------
 

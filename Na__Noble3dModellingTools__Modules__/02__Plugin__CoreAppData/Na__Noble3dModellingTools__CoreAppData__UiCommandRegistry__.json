@@ -568,7 +568,7 @@
             "button_order"           : 10,
             "button_label"           : "Multiple Offset Tool",
             "command_id"             : "multiple_offset_tool",
-            "description"            : "Activates the interactive multiple offset tool. Select one or more faces (including non-coplanar faces), then move the mouse or type a distance to inset every face perimeter inward at once. Each face is offset within its own plane; click or press Enter to apply, Esc to finish."
+            "description"            : "Offsets the perimeter of multiple selected faces at once, each in its own plane. Mouse or type a value (negative = outward); click or double-Enter to apply."
         },
         {
             "button_id"              : "btn_cull_edges_below_threshold",
