@@ -2,7 +2,7 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
-        "version"           : "1.1.0",
+        "version"           : "1.2.0",
         "lastUpdated"       : "06-Jun-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
@@ -115,6 +115,7 @@
                 "AlphaTest"         : 0.0,
                 "DepthWrite"        : true,
                 "EnvMapIntensity"   : 0.0,
+                "AoExclude"         : false,
                 "TextureMaps": {
                     "BaseColorUrl"  : null,
                     "NormalUrl"     : null,
@@ -180,7 +181,8 @@
                 "Opacity"           : 0.9,
                 "Transparent"       : true,
                 "IsDoubleSided"     : true,
-                "PbrRoughness"      : 0.85
+                "PbrRoughness"      : 0.85,
+                "AoExclude"         : true
             }
         },
 
