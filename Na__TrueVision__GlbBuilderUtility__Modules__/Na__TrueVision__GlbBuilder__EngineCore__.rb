@@ -64,26 +64,31 @@ module TrueVision3D
                     next if Na__Helpers__EntityExcluded?(entity)
 
                     if entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
-                        next if instanced_skip_set.key?(entity.object_id)
+                        # IMPORTANT: Door assemblies must be checked BEFORE the instancing
+                        # skip-set test. Each door ComponentInstance must get its own GLB
+                        # node with a baked world matrix so TrueVision3D can animate all
+                        # instances independently. Without this guard, the second (and any
+                        # subsequent) instance of an identical door definition is silently
+                        # consumed by the instancing path, which flattens the ADR/MOD/ROT
+                        # hierarchy into a static mesh and prevents animation.
+                        accumulated_transform = root_transform * entity.transformation  # <-- Computed here for all paths
+                        entity_layer          = entity.layer
 
-                        entity_count += 1
-                        entity_name = Na__GlbEngine__SanitizeEntityName(entity)
-                        Na__Log__Puts "    Traversing: #{entity_name}..."
-
-                        # Accumulate this entity's transform with the root Y-up conversion
-                        accumulated_transform = root_transform * entity.transformation
-                        # Top-level entities define their own layer context
-                        entity_layer = entity.layer
-
-                        # Check if this top-level entity itself is a door assembly
                         if Na__DoorHandler__IsDoorAssembly?(entity)
                             door_assemblies << {
                                 entity:                entity,
                                 accumulated_transform: accumulated_transform
                             }
+                            entity_name = Na__GlbEngine__SanitizeEntityName(entity)
                             Na__Log__Puts "      [DoorHandler] Detected top-level door assembly: #{entity_name}"
                             next                                              # <-- Skip traversal, door handler will process it
                         end
+
+                        next if instanced_skip_set.key?(entity.object_id)
+
+                        entity_count += 1
+                        entity_name = Na__GlbEngine__SanitizeEntityName(entity)
+                        Na__Log__Puts "    Traversing: #{entity_name}..."
 
                         # Normal traversal for non-door entities
                         Na__GlbEngine__TraverseEntities(

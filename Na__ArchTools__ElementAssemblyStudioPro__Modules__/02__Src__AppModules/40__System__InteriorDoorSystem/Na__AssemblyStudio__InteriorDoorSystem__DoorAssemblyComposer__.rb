@@ -13,12 +13,14 @@
 #
 # DESCRIPTION:
 # - Builds the moving door panel as a top-level group at the
-#   ComponentDefinition root. The group name is chosen per swing
-#   direction so TrueVision3D's click-to-open animation rotates each
-#   door the correct way (the JS scanner parses the signed degree
-#   token from the group name via Na__DoorAnim__DEG_REGEX):
-#     * Outward swing -> "MOD001__ROT__-90-Deg__DoorPanel" (clockwise from above)
-#     * Inward  swing -> "MOD001__ROT__90-Deg__DoorPanel"  (counterclockwise from above)
+#   ComponentDefinition root. The group name encodes the EXACT rotation
+#   angle so TrueVision3D's click-to-open animation swings each door
+#   in the correct direction. The angle is computed from both swing
+#   direction AND hinge side (mirroring na_compute_open_rotation_transform):
+#     * Left  + Inward  -> "MOD001__ROT__-90-Deg__DoorPanel"
+#     * Right + Inward  -> "MOD001__ROT__90-Deg__DoorPanel"
+#     * Left  + Outward -> "MOD001__ROT__90-Deg__DoorPanel"
+#     * Right + Outward -> "MOD001__ROT__-90-Deg__DoorPanel"
 #   The MOD group holds the panel solid, the handles, and the panel
 #   design linework.
 # - There is NO inner ADR wrapper group. The outer ComponentDefinition
@@ -91,22 +93,29 @@ module Na__InteriorDoorSystem
         # redundant single-child group, which would strip the MOD
         # prefix that TrueVision3D's animation scanner relies on.
         #
-        # The MOD group name encodes the rotation direction in its
-        # degree token. TrueVision3D's Na__DoorAnim__DEG_REGEX
-        # (`/(-?\d+)-Deg/i`) parses the signed integer and rotates
-        # the door panel about the Y axis through the ROT pivot.
-        # The sign is chosen per swing direction so each door type
-        # opens in the correct direction (verified empirically):
-        #   * Outward swing  ->  -90-Deg   (correct for outward in TV3D)
-        #   * Inward  swing  ->  +90-Deg   (flips so the panel swings into the room)
-        # The static legacy alias NA_GROUP_NAME_MOD_PANEL preserves
-        # the previous default (outward) for any code that imports
-        # the constant directly; the composer routes through
-        # na_resolve_mod_panel_name(config) at build time.
-        NA_GROUP_NAME_MOD_PANEL_OUTWARD = "MOD001__ROT__-90-Deg__DoorPanel".freeze
-        NA_GROUP_NAME_MOD_PANEL_INWARD  = "MOD001__ROT__90-Deg__DoorPanel".freeze
-        NA_GROUP_NAME_MOD_PANEL         = NA_GROUP_NAME_MOD_PANEL_OUTWARD                   # <-- legacy alias
-        NA_GROUP_NAME_ROT_HINGE         = "ROT001__RotationPoint__DoorHingeCentre".freeze
+        # The MOD group name encodes the exact signed rotation angle.
+        # TrueVision3D's Na__DoorAnim__DEG_REGEX (`/(-?\d+)-Deg/i`)
+        # parses the signed integer and rotates the door panel about
+        # the Y axis (GLB Y-up == SketchUp Z-up) through the ROT pivot.
+        #
+        # The correct angle depends on BOTH swing direction AND hinge
+        # side — the same formula used by na_compute_open_rotation_transform:
+        #   base_angle = left-hinge → +90, right-hinge → -90
+        #   sign       = inward     → -1,  outward     → +1
+        #   angle      = base_angle × sign
+        #
+        # Truth table:
+        #   Left  + Inward  → -90   Right + Inward  → +90
+        #   Left  + Outward → +90   Right + Outward → -90
+        #
+        # na_resolve_mod_panel_name(config) computes this dynamically.
+        # The static constants below are retained as reference values only.
+        NA_GROUP_NAME_MOD_PANEL_RIGHT_OUTWARD = "MOD001__ROT__-90-Deg__DoorPanel".freeze
+        NA_GROUP_NAME_MOD_PANEL_RIGHT_INWARD  = "MOD001__ROT__90-Deg__DoorPanel".freeze
+        NA_GROUP_NAME_MOD_PANEL_OUTWARD       = NA_GROUP_NAME_MOD_PANEL_RIGHT_OUTWARD       # <-- legacy alias (right-handed)
+        NA_GROUP_NAME_MOD_PANEL_INWARD        = NA_GROUP_NAME_MOD_PANEL_RIGHT_INWARD        # <-- legacy alias (right-handed)
+        NA_GROUP_NAME_MOD_PANEL               = NA_GROUP_NAME_MOD_PANEL_RIGHT_OUTWARD       # <-- legacy alias
+        NA_GROUP_NAME_ROT_HINGE               = "ROT001__RotationPoint__DoorHingeCentre".freeze
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -196,24 +205,36 @@ module Na__InteriorDoorSystem
 # REGION | Internal Helpers - Geometry
 # -----------------------------------------------------------------------------
 
-        # HELPER FUNCTION | Resolve the MOD Panel Group Name for the Door's Swing Direction
+        # HELPER FUNCTION | Resolve the MOD Panel Group Name (Hinge Side + Swing Direction)
         # ------------------------------------------------------------
         # TrueVision3D's Na__DoorAnim__DEG_REGEX parses the signed
         # degree token from the MOD group name and rotates the door
-        # panel about the Y axis through the ROT pivot. We pick the
-        # sign per swing direction so each door type opens in the
-        # correct direction in the click-to-open animation:
-        #   * Outward swing -> "-90-Deg" (clockwise from above in TV3D)
-        #   * Inward  swing -> "90-Deg"  (counterclockwise from above)
-        # Defaults to inward when the configuration omits the field
-        # (matches the Na__DoorConfiguration default).
+        # panel about the Y axis (GLB Y-up = SketchUp Z-up) through
+        # the ROT pivot.
+        #
+        # The CORRECT angle depends on BOTH swing direction AND hinge
+        # side. This mirrors the same formula used by
+        # na_compute_open_rotation_transform so the animation angle in
+        # the GLB always matches SketchUp's open-state preview:
+        #
+        #   base_angle = left-hinge → +90°,  right-hinge → -90°
+        #   sign       = inward     → -1,     outward     → +1
+        #   angle      = base_angle × sign
+        #
+        # Result table:
+        #   Left  + Inward  → -90   ← panel swings into room on left hinge
+        #   Right + Inward  → +90   ← panel swings into room on right hinge
+        #   Left  + Outward → +90   ← panel swings toward exterior on left hinge
+        #   Right + Outward → -90   ← panel swings toward exterior on right hinge
         def self.na_resolve_mod_panel_name(config)
             swing_direction = (config["Na__DoorConfig__SwingDirection"] || "Inward").to_s.downcase
-            case swing_direction
-            when "inward"  then NA_GROUP_NAME_MOD_PANEL_INWARD
-            when "outward" then NA_GROUP_NAME_MOD_PANEL_OUTWARD
-            else                NA_GROUP_NAME_MOD_PANEL_INWARD
-            end
+            swing_side      = (config["Na__DoorConfig__SwingSide"]      || "Left").to_s.downcase
+
+            base_angle = (swing_side == "left") ? 90 : -90
+            sign       = (swing_direction == "inward") ? -1 : 1
+            angle      = base_angle * sign
+
+            "MOD001__ROT__#{angle}-Deg__DoorPanel"
         end
         private_class_method :na_resolve_mod_panel_name
         # ---------------------------------------------------------------

@@ -92,7 +92,8 @@ module TrueVision3D
         EXCLUDED_LAYER_DESCRIPTION  =   "TrueVision_*_DoNotExportGLTF".freeze     # <-- Human-readable description for excluded layers
         ALWAYS_EXCLUDED_LAYER_NAMES =   [
             "02__Linetype__DoorSwings",
-            "02__ClearanceLines"
+            "02__ClearanceLines",
+            "Na__Door__Open"                                                       # <-- Open-state MOD preview; must never land in GLB
         ].freeze                                                                   # <-- Hardcoded fallback - overridden by DataLib at runtime
         TREAT_AS_UNTAGGED_DEFAULTS  =   [].freeze                                 # <-- Hardcoded fallback - overridden by DataLib at runtime
         LINEWORK_HIDDEN_DEFAULTS    =   [

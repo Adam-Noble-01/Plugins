@@ -107,12 +107,13 @@ module TrueVision3D
                     end
 
                 elsif entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
-                    next if instanced_skip_set && instanced_skip_set.key?(entity.object_id)
-
                     child_transform = parent_transform * entity.transformation
-                    raw_layer = entity.layer.name
-                    child_layer = (raw_layer == "Layer0" || Na__Helpers__LayerTreatedAsUntagged?(raw_layer)) ? parent_layer : entity.layer
+                    raw_layer       = entity.layer.name
+                    child_layer     = (raw_layer == "Layer0" || Na__Helpers__LayerTreatedAsUntagged?(raw_layer)) ? parent_layer : entity.layer
 
+                    # IMPORTANT: Door assemblies bypass the instancing skip-set.
+                    # Every ADR instance needs its own hierarchy node in the GLB
+                    # so all instances animate independently in TrueVision3D.
                     if door_assemblies && Na__DoorHandler__IsDoorAssembly?(entity)
                         door_assemblies << {
                             entity:                entity,
@@ -121,6 +122,8 @@ module TrueVision3D
                         Na__Log__Puts "      [DoorHandler] Detected door assembly: #{Na__DoorHandler__GetEntityName(entity)}"
                         next
                     end
+
+                    next if instanced_skip_set && instanced_skip_set.key?(entity.object_id)
 
                     Na__GlbEngine__TraverseEntities(entity.definition.entities, child_transform, child_layer, buckets, door_assemblies, instanced_skip_set)
                 end
