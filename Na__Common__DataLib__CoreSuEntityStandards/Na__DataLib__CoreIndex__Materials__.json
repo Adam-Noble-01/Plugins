@@ -188,9 +188,9 @@
                 "SketchUpName"      : "MAT161__Generic__PlantStem",
                 "Description"       : "Generic plant stem -- cool grey-green, matte, double-sided for stem geometry",
                 "BaseColor"         : "rgb(207, 213, 207)",
-                "Opacity"           : 1.0,
+                "Opacity"           : 0.99,
                 "Transparent"       : false,
-                "IsDoubleSided"     : false,
+                "IsDoubleSided"     : true,
                 "PbrRoughness"      : 0.90,
                 "AoExclude"         : true
             }
