@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
-        "version"           : "1.2.0",
-        "lastUpdated"       : "06-Jun-2026",
+        "version"           : "1.3.0",
+        "lastUpdated"       : "07-Jun-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json (v1.0.0)"
@@ -233,6 +233,33 @@
                 "Description"       : "Sapele hardwood - warm reddish-brown grain",
                 "BaseColor"         : "rgb(180, 160, 140)",
                 "PbrRoughness"      : 0.75
+            }
+        },
+
+        "MAT700__GlassSeries__": {
+            "MAT701__Glass__BlackenedGlass": {
+                "SketchUpName"      : "MAT701__Glass__BlackenedGlass",
+                "Description"       : "Blackened glass pane -- dark blue-grey tint, semi-transparent with mild metalness for a contemporary blackened aesthetic",
+                "BaseColor"         : "rgb(91, 99, 112)",
+                "Opacity"           : 0.40,
+                "Transparent"       : true,
+                "IsDoubleSided"     : true,
+                "PbrRoughness"      : 0.05,
+                "PbrMetallic"       : 0.0,
+                "DepthWrite"        : false,
+                "EnvMapIntensity"   : 0.7
+            },
+            "MAT702__Glass__ObscureGlass": {
+                "SketchUpName"      : "MAT702__Glass__ObscureGlass",
+                "Description"       : "Obscure glass pane -- same dark blue-grey tint as BlackenedGlass but increased opacity for a more opaque obscured appearance",
+                "BaseColor"         : "rgb(91, 99, 112)",
+                "Opacity"           : 0.70,
+                "Transparent"       : true,
+                "IsDoubleSided"     : true,
+                "PbrRoughness"      : 0.05,
+                "PbrMetallic"       : 0.0,
+                "DepthWrite"        : false,
+                "EnvMapIntensity"   : 0.7
             }
         },
 
