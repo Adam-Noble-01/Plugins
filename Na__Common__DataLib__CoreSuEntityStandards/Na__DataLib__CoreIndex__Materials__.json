@@ -176,11 +176,12 @@
             },
             "MAT160__Generic__PlantFoliage": {
                 "SketchUpName"       : "MAT160__Generic__PlantFoliage",
-                "Description"        : "Generic plant foliage -- muted sage green, semi-transparent, double-sided for single-plane leaf geometry",
+                "Description"        : "Generic plant foliage -- muted sage green, semi-transparent, double-sided for single-plane leaf geometry. DepthWrite disabled so transparent leaves sort correctly against the glass (no view-angle dependent disappearance).",
                 "BaseColor"          : "rgb(140, 150, 125)",
                 "Opacity"            : 1.00,
-                "Transparent"        : true,
+                "Transparent"        : false,
                 "IsDoubleSided"      : true,
+                "DepthWrite"         : true,
                 "PbrRoughness"       : 0.85,
                 "AoExclude"          : true,
                 "ProfileLineExclude" : true
