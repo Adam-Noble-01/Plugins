@@ -237,20 +237,8 @@
         },
 
         "MAT700__GlassSeries__": {
-            "MAT701__Glass__BlackenedGlass": {
-                "SketchUpName"      : "MAT701__Glass__BlackenedGlass",
-                "Description"       : "Blackened glass pane -- dark blue-grey tint, semi-transparent with mild metalness for a contemporary blackened aesthetic",
-                "BaseColor"         : "rgb(45, 49, 56)",
-                "Opacity"           : 0.40,
-                "Transparent"       : true,
-                "IsDoubleSided"     : true,
-                "PbrRoughness"      : 0.05,
-                "PbrMetallic"       : 0.0,
-                "DepthWrite"        : false,
-                "EnvMapIntensity"   : 0.7
-            },
-            "MAT702__Glass__ObscureGlass": {
-                "SketchUpName"      : "MAT702__Glass__ObscureGlass",
+            "MAT704__Glass__ObscureGlass": {
+                "SketchUpName"      : "MAT704__Glass__ObscureGlass",
                 "Description"       : "Obscure glass pane -- same dark blue-grey tint as BlackenedGlass but increased opacity for a more opaque obscured appearance",
                 "BaseColor"         : "rgb(91, 99, 112)",
                 "Opacity"           : 0.70,
@@ -260,7 +248,20 @@
                 "PbrMetallic"       : 0.0,
                 "DepthWrite"        : false,
                 "EnvMapIntensity"   : 0.7
+            },
+            "MAT705__Glass__BlackenedGlass": {
+                "SketchUpName"      : "MAT705__Glass__BlackenedGlass",
+                "Description"       : "Blackened glass pane -- dark blue-grey tint, semi-transparent with mild metalness for a contemporary blackened aesthetic",
+                "BaseColor"         : "rgb(45, 49, 56)",
+                "Opacity"           : 0.40,
+                "Transparent"       : true,
+                "IsDoubleSided"     : true,
+                "PbrRoughness"      : 0.05,
+                "PbrMetallic"       : 0.0,
+                "DepthWrite"        : false,
+                "EnvMapIntensity"   : 0.7
             }
+
         },
 
         "MAT600__MetalSeries__": {
