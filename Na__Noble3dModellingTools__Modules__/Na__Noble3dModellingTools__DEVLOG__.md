@@ -3,6 +3,42 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.4.7 - 07-Jun-2026 - Entity Tree Reporter V3 (Folding, Type & Solid Badges)
+
+### Update 01 - Identical Instance Folding (Feature 1)
+- Any group of 4 or more sibling container entities that share the same `ComponentDefinition` GUID is now collapsed into a single **Grouped Identical Instances** fold node in the tree, preventing the UI from becoming un-navigatable when a component with thousands of instances (e.g. a leaf) is present.
+- The fold node records `instance_count`, `definition_name`, `entity_type_label`, and `is_solid` so all context is visible without expanding.
+- All individual child entity nodes are pre-built at report-time and embedded inside the fold node's `children` array — expansion is handled entirely by the browser's native `<details>/<summary>` mechanism with no additional Ruby round-trip.
+- Threshold constant `NA_GROUPING_THRESHOLD = 4` added to `TreeData__.rb`; groups of 1–3 identical definitions continue to render as individual cards.
+- New Ruby helpers: `na_grouped_container_children` (groups by definition key, dispatches to fold or individual path), `na_grouped_instances_node` (builds the wrapper node hash).
+- Both `na_entity_node` (for recursive child containers) and `na_sibling_context_node` now route through `na_grouped_container_children`.
+
+### Update 02 - Group / Component Type Badge (Feature 2)
+- Every container entity node now carries an `entity_type_label` field (`'Group'` or `'Component'`) sourced from `EntityText__.rb` via the new `Na__SelectedHierarchyTagReporter__EntityText__EntityTypeLabel` helper.
+- The UI renders this as a coloured badge: green for Group, indigo for Component.
+- The Markdown clipboard export and Ruby Console report also include the type label.
+
+### Update 03 - Solid / Non-Solid Badge (Feature 3)
+- Every container entity node now carries an `is_solid` boolean (or `nil` if indeterminate) sourced from `entity.definition.manifold?` via the new `Na__SelectedHierarchyTagReporter__EntityText__IsSolid` helper.
+- Uses the non-deprecated `Sketchup::ComponentDefinition#manifold?` API; the deprecated `Group#manifold?` and `ComponentInstance#manifold?` are intentionally avoided.
+- The UI renders this as a coloured badge: green "Solid" or amber "Non-Solid". No badge is shown when the result is `nil` (non-container entities).
+- Solid/Non-Solid state is also shown on grouped-instances fold nodes (derived from the first instance's definition).
+
+### Update 04 - CSS Badge Variants And Grouped Instances Styles
+- New badge modifiers in `Styles__.css`: `--group` (green), `--component` (indigo), `--solid` (teal-green), `--non-solid` (amber), `--grouped` (purple) for the instance-count badge.
+- New `<details>` layout classes: `.naEntityTree__GroupedInstances` (left border purple, shadow), `.naEntityTree__GroupedSummary` (hover highlight, hidden default marker), `.naEntityTree__Children--grouped` (tinted background for expanded content).
+
+### Validation Checklist
+- [ ] A component with 4+ instances of the same definition renders as a single collapsed fold card showing count, type, and solid state.
+- [ ] Expanding the fold card reveals all individual instance cards.
+- [ ] Components of 1–3 identical instances still render as individual cards (no fold).
+- [ ] Every Group card shows a green "Group" badge.
+- [ ] Every Component Instance card shows an indigo "Component" badge.
+- [ ] A closed watertight geometry container shows a green "Solid" badge.
+- [ ] A non-manifold or nested-content container shows an amber "Non-Solid" badge.
+- [ ] Console report and Markdown clipboard copy both include type and solid info.
+
+## -----------------------------------------------------------------------------
 ## Na Noble3d Modelling Tools | Version 0.4.6 - 05-Jun-2026 - Cross-Tab Search Feature (UI)
 
 ### Update 01 - Persistent Search Bar
