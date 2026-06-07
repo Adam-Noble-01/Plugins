@@ -175,24 +175,26 @@
                 "EnvMapIntensity"   : 1.0
             },
             "MAT160__Generic__PlantFoliage": {
-                "SketchUpName"      : "MAT160__Generic__PlantFoliage",
-                "Description"       : "Generic plant foliage -- muted sage green, semi-transparent, double-sided for single-plane leaf geometry",
-                "BaseColor"         : "rgb(140, 150, 125)",
-                "Opacity"           : 0.9,
-                "Transparent"       : true,
-                "IsDoubleSided"     : true,
-                "PbrRoughness"      : 0.85,
-                "AoExclude"         : true
+                "SketchUpName"       : "MAT160__Generic__PlantFoliage",
+                "Description"        : "Generic plant foliage -- muted sage green, semi-transparent, double-sided for single-plane leaf geometry",
+                "BaseColor"          : "rgb(140, 150, 125)",
+                "Opacity"            : 1.00,
+                "Transparent"        : true,
+                "IsDoubleSided"      : true,
+                "PbrRoughness"       : 0.85,
+                "AoExclude"          : true,
+                "ProfileLineExclude" : true
             },
             "MAT161__Generic__PlantStem": {
-                "SketchUpName"      : "MAT161__Generic__PlantStem",
-                "Description"       : "Generic plant stem -- cool grey-green, matte, double-sided for stem geometry",
-                "BaseColor"         : "rgb(207, 213, 207)",
-                "Opacity"           : 1.00,
-                "Transparent"       : false,
-                "IsDoubleSided"     : true,
-                "PbrRoughness"      : 0.90,
-                "AoExclude"         : true
+                "SketchUpName"       : "MAT161__Generic__PlantStem",
+                "Description"        : "Generic plant stem -- cool grey-green, matte, double-sided for stem geometry",
+                "BaseColor"          : "rgb(207, 213, 207)",
+                "Opacity"            : 1.00,
+                "Transparent"        : false,
+                "IsDoubleSided"      : true,
+                "PbrRoughness"       : 0.90,
+                "AoExclude"          : true,
+                "ProfileLineExclude" : true
             }
        
         },

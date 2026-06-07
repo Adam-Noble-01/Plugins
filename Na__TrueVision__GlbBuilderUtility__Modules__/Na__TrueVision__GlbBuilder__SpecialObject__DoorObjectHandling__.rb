@@ -43,6 +43,7 @@ module TrueVision3D
         DOOR_MOD_PREFIX           = "MOD".freeze                              # <-- Moving / animatable panel prefix
         DOOR_ROT_PREFIX           = "ROT".freeze                              # <-- Rotation pivot marker prefix
         DOOR_CLOSED_LAYER_NAME    = "Na__Door__Closed".freeze                 # <-- Runtime closed panel tag
+        DOOR_OPEN_LAYER_NAME      = "Na__Door__Open".freeze                   # <-- Authoring-time open-state preview (NEVER exported)
         DOOR_MOD_ROT_TAG          = "__ROT__".freeze                          # <-- Rotation modifier token
         DOOR_MOD_MVE_TAG          = "__MVE__".freeze                          # <-- Movement modifier token
         DOOR_MOD_FIXED_TAG        = "__FIXED__".freeze                        # <-- Fixed modifier token
@@ -163,7 +164,18 @@ module TrueVision3D
         # ---------------------------------------------------------------
         # Returns a [Boolean, String] tuple where the string is a short
         # human-readable reason code suitable for diagnostic logging.
-        # Closed runtime MODs are evaluated first so they always export.
+        #
+        # Guard order (first matching rule wins):
+        #   1. Na__Door__Open tag  → unconditionally excluded. This is the
+        #      authoring-time open-state preview copy: it is already rotated
+        #      by SketchUp and must NEVER reach the GLB. If it does, TrueVision
+        #      registers two panels on the same ADR, starts the open copy from
+        #      its pre-rotated position, then applies the animation angle again
+        #      — producing a 180-degree rotation error visible to the user.
+        #      This guard ignores DataLib exclusion lists and tag visibility so
+        #      it cannot be bypassed by exporting in open-state preview mode.
+        #   2. Na__Door__Closed tag → unconditionally included (force-exported).
+        #   3. Standard visibility / exclusion checks for all other children.
         #
         # @param entity [Sketchup::Entity]
         # @return       [Array(Boolean, String)] [keep?, reason]
@@ -173,6 +185,13 @@ module TrueVision3D
                 return [false, "not_group_or_component"]                      # <-- Bare faces/edges handled elsewhere
             end
 
+            # Guard 1: open-state preview — unconditionally excluded.
+            if entity.respond_to?(:layer) && entity.layer &&
+               entity.layer.name == DOOR_OPEN_LAYER_NAME
+                return [false, "open_state_preview_always_excluded"]          # <-- Never export; pre-rotated copy corrupts TV3D animation
+            end
+
+            # Guard 2: closed-state runtime MOD — unconditionally included.
             if Na__DoorHandler__IsClosedRuntimeMod?(entity)
                 return [true, "closed_runtime_mod_forced_export"]             # <-- Required door panel, bypass all guards
             end

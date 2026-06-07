@@ -93,29 +93,19 @@ module Na__InteriorDoorSystem
         # redundant single-child group, which would strip the MOD
         # prefix that TrueVision3D's animation scanner relies on.
         #
-        # The MOD group name encodes the exact signed rotation angle.
+        # MOD group name encodes the exact signed rotation angle so
         # TrueVision3D's Na__DoorAnim__DEG_REGEX (`/(-?\d+)-Deg/i`)
-        # parses the signed integer and rotates the door panel about
-        # the Y axis (GLB Y-up == SketchUp Z-up) through the ROT pivot.
+        # can derive the correct direction for every door instance.
+        # na_resolve_mod_panel_name(config) computes the angle dynamically
+        # from both SwingSide and SwingDirection using the same formula as
+        # na_compute_open_rotation_transform — so the GLB animation always
+        # matches the SketchUp open-state preview.
         #
-        # The correct angle depends on BOTH swing direction AND hinge
-        # side — the same formula used by na_compute_open_rotation_transform:
-        #   base_angle = left-hinge → +90, right-hinge → -90
-        #   sign       = inward     → -1,  outward     → +1
-        #   angle      = base_angle × sign
-        #
-        # Truth table:
-        #   Left  + Inward  → -90   Right + Inward  → +90
-        #   Left  + Outward → +90   Right + Outward → -90
-        #
-        # na_resolve_mod_panel_name(config) computes this dynamically.
-        # The static constants below are retained as reference values only.
-        NA_GROUP_NAME_MOD_PANEL_RIGHT_OUTWARD = "MOD001__ROT__-90-Deg__DoorPanel".freeze
-        NA_GROUP_NAME_MOD_PANEL_RIGHT_INWARD  = "MOD001__ROT__90-Deg__DoorPanel".freeze
-        NA_GROUP_NAME_MOD_PANEL_OUTWARD       = NA_GROUP_NAME_MOD_PANEL_RIGHT_OUTWARD       # <-- legacy alias (right-handed)
-        NA_GROUP_NAME_MOD_PANEL_INWARD        = NA_GROUP_NAME_MOD_PANEL_RIGHT_INWARD        # <-- legacy alias (right-handed)
-        NA_GROUP_NAME_MOD_PANEL               = NA_GROUP_NAME_MOD_PANEL_RIGHT_OUTWARD       # <-- legacy alias
-        NA_GROUP_NAME_ROT_HINGE               = "ROT001__RotationPoint__DoorHingeCentre".freeze
+        # Reference values (right-handed defaults):
+        NA_GROUP_NAME_MOD_PANEL_OUTWARD = "MOD001__ROT__-90-Deg__DoorPanel".freeze   # <-- right+outward
+        NA_GROUP_NAME_MOD_PANEL_INWARD  = "MOD001__ROT__90-Deg__DoorPanel".freeze    # <-- right+inward
+        NA_GROUP_NAME_MOD_PANEL         = NA_GROUP_NAME_MOD_PANEL_OUTWARD             # <-- legacy alias
+        NA_GROUP_NAME_ROT_HINGE         = "ROT001__RotationPoint__DoorHingeCentre".freeze
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
