@@ -240,7 +240,7 @@
             "MAT701__Glass__BlackenedGlass": {
                 "SketchUpName"      : "MAT701__Glass__BlackenedGlass",
                 "Description"       : "Blackened glass pane -- dark blue-grey tint, semi-transparent with mild metalness for a contemporary blackened aesthetic",
-                "BaseColor"         : "rgb(91, 99, 112)",
+                "BaseColor"         : "rgb(45, 49, 56)",
                 "Opacity"           : 0.40,
                 "Transparent"       : true,
                 "IsDoubleSided"     : true,
