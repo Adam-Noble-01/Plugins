@@ -129,23 +129,22 @@ module Na__Noble3dModellingTools
             container_entities, loose_geometry_entities = na_partition_entities(context_entities)
 
             sibling_node = {
-                node_type: 'sibling_group',
-                level: level_number,
-                role: 'Current Context Siblings',
-                title: "Items: #{context_entities.length}",
-                display_text: "Current Context Siblings | Items: #{context_entities.length}",
-                tag_name: 'n/a',
-                selected: false,
+                node_type:              'sibling_group',
+                level:                  level_number,
+                role:                   'Current Context Siblings',
+                title:                  "Items: #{context_entities.length}",
+                display_text:           "Current Context Siblings | Items: #{context_entities.length}",
+                tag_name:               'n/a',
+                selected:               false,
                 loose_geometry_summary: na_loose_geometry_summary(loose_geometry_entities),
-                children: container_entities.map do |entity|
-                    na_entity_node(
-                        entity,
-                        level_number + 1,
-                        selected_entity_keys.include?(na_runtime_key(entity)) ? 'Selected Object' : 'Sibling Object',
-                        selected_entity_keys,
-                        visited_definition_keys
-                    )
-                end
+                children:               na_grouped_container_children(
+                    container_entities,
+                    level_number + 1,
+                    nil,                                                             # <-- role resolved per-entity inside helper
+                    selected_entity_keys,
+                    visited_definition_keys,
+                    true                                                             # <-- sibling_role_mode
+                )
             }
 
             sibling_node[:children] << na_message_node(level_number + 1, 'Empty Context', 'No entities found.') if context_entities.empty?
@@ -174,15 +173,13 @@ module Na__Noble3dModellingTools
             next_visited_definition_keys = definition_key ? visited_definition_keys + [definition_key] : visited_definition_keys
             container_entities, loose_geometry_entities = na_partition_entities(child_entities.to_a)
             node[:loose_geometry_summary] = na_loose_geometry_summary(loose_geometry_entities)
-            node[:children] = container_entities.map do |child_entity|
-                na_entity_node(
-                    child_entity,
-                    level_number + 1,
-                    'Child Object',
-                    selected_entity_keys,
-                    next_visited_definition_keys
-                )
-            end
+            node[:children] = na_grouped_container_children(
+                container_entities,
+                level_number + 1,
+                'Child Object',
+                selected_entity_keys,
+                next_visited_definition_keys
+            )
 
             if container_entities.empty? && loose_geometry_entities.empty?
                 node[:children] << na_message_node(level_number + 1, 'Empty Container', 'Tag: n/a')
@@ -193,17 +190,78 @@ module Na__Noble3dModellingTools
 
         def self.na_base_entity_node(entity, level_number, role_label, selected_flag)
             {
-                node_type: 'entity',
-                entity_key: na_runtime_key(entity),
-                level: level_number,
-                role: role_label,
-                title: Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__EntityTypeName(entity),
-                display_text: Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__EntityDescription(entity),
-                tag_name: Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__TagNameForEntity(entity),
-                entity_name: Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__EntityNameForEntity(entity),
-                definition_name: Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__RawDefinitionNameForEntity(entity),
-                selected: selected_flag,
-                children: []
+                node_type:         'entity',
+                entity_key:        na_runtime_key(entity),
+                level:             level_number,
+                role:              role_label,
+                title:             Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__EntityTypeName(entity),
+                display_text:      Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__EntityDescription(entity),
+                tag_name:          Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__TagNameForEntity(entity),
+                entity_name:       Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__EntityNameForEntity(entity),
+                definition_name:   Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__RawDefinitionNameForEntity(entity),
+                entity_type_label: Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__EntityTypeLabel(entity),
+                is_solid:          Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__IsSolid(entity),
+                selected:          selected_flag,
+                children:          []
+            }
+        end
+
+        NA_GROUPING_THRESHOLD = 4                                                    # <-- Fold groups of this size or larger
+
+        # Groups a flat list of container entities by definition key.
+        # Any group of 4+ identical instances collapses into a single grouped_instances node.
+        # Groups of 1-3 are emitted as individual entity nodes as before.
+        # sibling_role_mode: when true, each individual node's role is resolved from selection state.
+        def self.na_grouped_container_children(container_entities, level_number, role_label, selected_entity_keys, visited_definition_keys, sibling_role_mode = false)
+            grouped = container_entities.group_by do |entity|
+                Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__DefinitionKeyForEntity(entity) || na_runtime_key(entity)
+            end
+
+            grouped.flat_map do |_def_key, entities|
+                if entities.length >= NA_GROUPING_THRESHOLD
+                    [na_grouped_instances_node(entities, level_number, selected_entity_keys, visited_definition_keys)]
+                else
+                    entities.map do |entity|
+                        resolved_role = if sibling_role_mode
+                            selected_entity_keys.include?(na_runtime_key(entity)) ? 'Selected Object' : 'Sibling Object'
+                        else
+                            role_label
+                        end
+                        na_entity_node(entity, level_number, resolved_role, selected_entity_keys, visited_definition_keys)
+                    end
+                end
+            end
+        end
+
+        # Builds a fold-wrapper node for N identical instances that share the same definition.
+        # All N child entity nodes are pre-built so they can be expanded in the UI without
+        # any additional Ruby round-trip.
+        def self.na_grouped_instances_node(entities, level_number, selected_entity_keys, visited_definition_keys)
+            first          = entities.first
+            def_name       = Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__RawDefinitionNameForEntity(first)
+            type_label     = Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__EntityTypeLabel(first)
+            is_solid       = Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__IsSolid(first)
+            any_selected   = entities.any? { |e| selected_entity_keys.include?(na_runtime_key(e)) }
+            quoted_name    = Na__SelectedHierarchyTagReporter__EntityText.Na__SelectedHierarchyTagReporter__EntityText__QuotedOrUnnamed(def_name)
+            count          = entities.length
+            type_text      = type_label || 'Container'
+            display_text   = "Grouped Identical Instances | Definition: #{quoted_name} | Count: #{count} | Type: #{type_text}"
+
+            {
+                node_type:         'grouped_instances',
+                level:             level_number,
+                role:              'Grouped Identical Instances',
+                title:             display_text,
+                display_text:      display_text,
+                instance_count:    count,
+                definition_name:   def_name,
+                entity_type_label: type_label,
+                is_solid:          is_solid,
+                tag_name:          'n/a',
+                selected:          any_selected,
+                children:          entities.map { |entity|
+                    na_entity_node(entity, level_number + 1, 'Instance', selected_entity_keys, visited_definition_keys)
+                }
             }
         end
 

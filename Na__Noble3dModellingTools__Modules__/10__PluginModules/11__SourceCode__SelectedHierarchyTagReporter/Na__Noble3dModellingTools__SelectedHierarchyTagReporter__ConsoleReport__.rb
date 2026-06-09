@@ -57,6 +57,8 @@ module Na__Noble3dModellingTools
             level_number = node.fetch(:level, 0).to_i
             puts "#{na_indent(level_number)}Level #{level_number} | #{na_node_line_text(node)}"
 
+            return if node.fetch(:node_type, '').to_s == 'grouped_instances'         # <-- summary line only; do not recurse into individual instances
+
             na_print_loose_geometry_summary(node)
 
             node.fetch(:children, []).each do |child_node|
@@ -73,9 +75,22 @@ module Na__Noble3dModellingTools
         end
 
         def self.na_node_line_text(node)
+            node_type    = node.fetch(:node_type, '').to_s
             display_text = node.fetch(:display_text, '').to_s
-            role_label = node.fetch(:role, '').to_s
-            return display_text if node.fetch(:node_type, '') == 'model'
+            role_label   = node.fetch(:role, '').to_s
+
+            return display_text if node_type == 'model'
+
+            if node_type == 'grouped_instances'
+                count       = node.fetch(:instance_count, 0).to_i
+                def_name    = node.fetch(:definition_name, '').to_s
+                type_label  = node.fetch(:entity_type_label, 'Container').to_s
+                is_solid    = node[:is_solid]
+                solid_text  = is_solid == true ? ', Solid' : (is_solid == false ? ', Non-Solid' : '')
+                quoted_name = def_name.empty? ? '(unnamed)' : "\"#{def_name}\""
+                return "#{count}x #{quoted_name} (#{type_label}#{solid_text})"
+            end
+
             return display_text if role_label.empty?
             return display_text if display_text.start_with?(role_label)
 

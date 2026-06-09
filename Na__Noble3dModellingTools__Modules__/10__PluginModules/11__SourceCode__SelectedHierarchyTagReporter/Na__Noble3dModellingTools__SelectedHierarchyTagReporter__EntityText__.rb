@@ -20,6 +20,26 @@ module Na__Noble3dModellingTools
             entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
         end
 
+        def self.Na__SelectedHierarchyTagReporter__EntityText__EntityTypeLabel(entity)
+            return 'Group'     if entity.is_a?(Sketchup::Group)
+            return 'Component' if entity.is_a?(Sketchup::ComponentInstance)
+
+            nil
+        rescue
+            nil
+        end
+
+        def self.Na__SelectedHierarchyTagReporter__EntityText__IsSolid(entity)
+            return nil unless entity.respond_to?(:definition)
+
+            definition = entity.definition
+            return nil unless definition
+
+            definition.manifold?                                                     # <-- Use ComponentDefinition#manifold? (non-deprecated)
+        rescue
+            nil
+        end
+
         def self.Na__SelectedHierarchyTagReporter__EntityText__ChildEntitiesForContainer(entity)
             if entity.is_a?(Sketchup::Group)
                 entity.entities

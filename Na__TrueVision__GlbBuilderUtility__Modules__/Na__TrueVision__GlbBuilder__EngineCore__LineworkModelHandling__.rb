@@ -80,6 +80,7 @@ module TrueVision3D
                     next unless entity.layer.visible?
                     next if instanced_skip_set && instanced_skip_set.key?(entity.object_id)
                     next if Na__Helpers__LayerLineworkHidden?(entity.layer.name)  # <-- short-circuit whole subtree on linework-hidden tags
+                    next if Na__Helpers__EntityProfileLineExcluded?(entity)       # <-- short-circuit whole subtree on name-based profile-line exclusion
 
                     child_transform = parent_transform * entity.transformation
                     child_layer = (entity.layer.name == "Layer0") ? parent_layer : entity.layer
@@ -189,6 +190,7 @@ module TrueVision3D
                     if entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
                         next if instanced_skip_set.key?(entity.object_id)
                         next if Na__Helpers__LayerLineworkHidden?(entity.layer.name)  # <-- short-circuit whole subtree on linework-hidden tags
+                        next if Na__Helpers__EntityProfileLineExcluded?(entity)       # <-- short-circuit whole subtree on name-based profile-line exclusion
 
                         entity_count  += 1
                         entity_name    = Na__GlbEngine__SanitizeEntityName(entity)

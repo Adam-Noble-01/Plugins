@@ -8,6 +8,29 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.4.0 - 07-Jun-2026
+#### Name-Based Profile-Line (Linework) Exclusion
+
+**Why**
+- A potted olive-tree with 2,557 instanced leaves seized the TrueVision renderer. The dominant cost was the exported edge linework being upgraded to thousands of `LineSegments2` fat-line objects at runtime. The cleanest fix is to never export the edges for foliage at all.
+
+**New DataLib-driven name exclusion**
+- New `Na__DataLib__PipelineExclusions` section added to `Na__DataLib__CoreIndex__Components__.json` (SSOT, bumped to v1.1.0) with a `Na__DataLib__PipelineExclusions__ProfileLines.Names` token list and a `MatchMode` (`contains`). Tokens match SketchUp Group names AND Component definition names, so the rule applies equally to groups and components and generalises across plants.
+- `Na__TrueVision__GlbBuilder__Main__.rb`:
+  - New module vars `@na_datalib_profileline_excluded` / `@na_datalib_profileline_matchmode`.
+  - `Na__ExportConfig__LoadFromDataLib` now also loads `Na__Cache__LoadData(:components)` and reads the ProfileLines exclusion tokens + match mode.
+  - New getters `Na__ExportConfig__ProfileLineExcludedNames` and `Na__ExportConfig__ProfileLineMatchMode`.
+- `Na__TrueVision__GlbBuilder__CoreExport__.rb`:
+  - New `Na__Helpers__NameMatchesAnyToken?` (contains/prefix matching) and `Na__Helpers__EntityProfileLineExcluded?` (tests entity name + component definition name).
+- `Na__TrueVision__GlbBuilder__EngineCore__LineworkModelHandling__.rb`:
+  - Both Group/Component branches of `Na__LineworkEngine__TraverseEdges` now `next if Na__Helpers__EntityProfileLineExcluded?(entity)` — the whole subtree's edges are skipped (covers stems, branches, leaves container). Mesh export is untouched.
+- `Na__TrueVision__GlbBuilder__EngineCore__ComponentInstancing__.rb`:
+  - `Na__Instancing__ProcessAllInstancedLinework` skips any instanced definition whose name matches the ProfileLines tokens, so the heavily-instanced leaf component never produces a `SharedLinework_*` resource or nodes.
+
+**Net effect**
+- The `__LineworkModel__` GLB no longer contains leaf/stem/branch edges; the plant pot and all other geometry keep their edges. A re-export is required for existing models.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.3.0 - 25-May-2026
 #### ModelFlag Tags + Buffered TXT Export Log
 

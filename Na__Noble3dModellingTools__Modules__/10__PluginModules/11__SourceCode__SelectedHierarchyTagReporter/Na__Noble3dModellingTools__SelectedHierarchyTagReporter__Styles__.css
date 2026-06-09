@@ -155,6 +155,15 @@ body {
     background              : #0b2442;
 }
 
+.naEntityTree__Button--download {
+    background              : #145a32;
+    margin-left             : auto;
+}
+
+.naEntityTree__Button--download:hover {
+    background              : #0a3d22;
+}
+
 /* endregion ------------------------------------------------------------------- */
 
 
@@ -280,6 +289,74 @@ body {
 
 .naEntityTree__Status--error {
     color                   : var(--naEntityTree__ColorWarning);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+/* -----------------------------------------------------------------------------
+ * REGION | Badge Variants — Entity Type And Solid State
+ * ----------------------------------------------------------------------------- */
+
+.naEntityTree__Badge--group {
+    background              : #e6f0e6;
+    color                   : #1a5c1a;
+}
+
+.naEntityTree__Badge--component {
+    background              : #e8eaf6;
+    color                   : #283593;
+}
+
+.naEntityTree__Badge--solid {
+    background              : #e0f4ec;
+    color                   : #145a32;
+}
+
+.naEntityTree__Badge--non-solid {
+    background              : #fff3e0;
+    color                   : #7f4600;
+}
+
+.naEntityTree__Badge--grouped {
+    background              : #ede7f6;
+    color                   : #4527a0;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Grouped Instances — Collapsible <details> Block
+ * ----------------------------------------------------------------------------- */
+
+.naEntityTree__GroupedInstances {
+    margin-left             : calc(var(--naEntityTree__Level, 0) * 18px);
+    background              : var(--naEntityTree__ColorPanel);
+    border                  : 1px solid var(--naEntityTree__ColorBorder);
+    border-left             : 5px solid #b39ddb;
+    border-radius           : 8px;
+    box-shadow              : var(--naEntityTree__ShadowPanel);
+    overflow                : hidden;
+}
+
+.naEntityTree__GroupedSummary {
+    padding                 : 10px 12px;
+    cursor                  : pointer;
+    list-style              : none;                      /* remove default marker */
+    user-select             : none;
+}
+
+.naEntityTree__GroupedSummary::-webkit-details-marker {
+    display                 : none;
+}
+
+.naEntityTree__GroupedSummary:hover {
+    background              : #f5f0ff;
+}
+
+.naEntityTree__Children--grouped {
+    border-top              : 1px solid var(--naEntityTree__ColorBorder);
+    background              : #faf8ff;
 }
 
 /* endregion ------------------------------------------------------------------- */

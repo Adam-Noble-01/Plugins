@@ -151,6 +151,52 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Token Match a Name Against an Exclusion List
+        # ---------------------------------------------------------------
+        # Returns true when name matches any token. Match mode "contains"
+        # uses substring matching (so XX_YYYY...__Plant__SubComp__Leaf
+        # matches the token "__Plant__SubComp__Leaf"); any other mode falls
+        # back to prefix matching in either direction.
+        # ---------------------------------------------------------------
+        def self.Na__Helpers__NameMatchesAnyToken?(name, tokens, match_mode)
+            return false if name.nil? || name.empty?
+            return false if tokens.nil? || tokens.empty?
+
+            tokens.any? do |token|
+                next false if token.nil? || token.empty?
+                if match_mode == "contains"
+                    name.include?(token)
+                else
+                    name.start_with?(token) || token.start_with?(name)
+                end
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Check if Entity's Linework Is Profile-Line Excluded
+        # ---------------------------------------------------------------
+        # Name-based linework omission for Groups AND Components. Tests the
+        # entity instance/group name and, for components, the definition name
+        # against the Components DataLib ProfileLines exclusion tokens.
+        # Used to short-circuit whole subtrees in the linework traversal.
+        # ---------------------------------------------------------------
+        def self.Na__Helpers__EntityProfileLineExcluded?(entity)
+            tokens     = self.Na__ExportConfig__ProfileLineExcludedNames
+            return false if tokens.empty?
+            match_mode = self.Na__ExportConfig__ProfileLineMatchMode
+
+            if entity.respond_to?(:name) && entity.name
+                return true if self.Na__Helpers__NameMatchesAnyToken?(entity.name, tokens, match_mode)
+            end
+
+            if entity.respond_to?(:definition) && entity.definition && entity.definition.name
+                return true if self.Na__Helpers__NameMatchesAnyToken?(entity.definition.name, tokens, match_mode)
+            end
+
+            false
+        end
+        # ---------------------------------------------------------------
+
         # HELPER FUNCTION | Return a Readable Entity Label
         # ---------------------------------------------------------------
         def self.Na__Helpers__EntityLabel(entity)

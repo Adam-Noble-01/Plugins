@@ -1,9 +1,9 @@
 {
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Components__.json",
-        "description"       : "Single source of truth for all Noble Architecture standard SketchUp component and group naming conventions. Documents the prefix systems, ID formats, sub-part names, and attribute dictionary keys used across all Na__ plugins. Serves as the reference for any plugin that creates or identifies Na__ components in the model.",
-        "version"           : "1.0.0",
-        "lastUpdated"       : "15-Mar-2026",
+        "description"       : "Single source of truth for all Noble Architecture standard SketchUp component and group naming conventions. Documents the prefix systems, ID formats, sub-part names, and attribute dictionary keys used across all Na__ plugins. Serves as the reference for any plugin that creates or identifies Na__ components in the model. Also defines the Na__DataLib__PipelineExclusions render-pipeline exclusion lists consumed by the TrueVision GLB Builder and the TrueVision3D WebApp renderer.",
+        "version"           : "1.1.0",
+        "lastUpdated"       : "07-Jun-2026",
         "sourceFiles"       : [
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__DataSerializer__.rb",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__GeometryEngine__.rb",
@@ -149,6 +149,29 @@
             "SharedLineworkNote"    : "Internal glTF node name for instanced linework geometry. Not a SketchUp entity name."
         }
 
+    },
+
+    "Na__DataLib__PipelineExclusions": {
+        "Description" : "Definitive name-based render-pipeline exclusion lists. Tokens are substring-matched against SketchUp Group names AND Component definition/instance names, so all instances, sub-parts and future assets following the naming convention are covered. Consumed by the TrueVision GLB Builder (linework omission at export) and the TrueVision3D WebApp renderer (SSAO layer exclusion at runtime). Applies equally to Groups and Components.",
+        "MatchMode"   : "contains",
+        "Na__DataLib__PipelineExclusions__AmbientOcclusion": {
+            "Description" : "Entities excluded from the screen-space ambient occlusion (SSAO) pipeline at runtime. Matching meshes are assigned to Three.js layer 1 which the depth/normal pre-passes ignore.",
+            "Names"       : [
+                "__Plant__SubComp__Stem",
+                "__Plant__SubComp__Branches",
+                "__Plant__SubGroup__LeavesContainer",
+                "__Plant__SubComp__Leaf__Individual"
+            ]
+        },
+        "Na__DataLib__PipelineExclusions__ProfileLines": {
+            "Description" : "Entities whose edge linework is omitted entirely from the LineworkModel GLB by the exporter, so no profile-line / fat-line geometry is ever produced for them.",
+            "Names"       : [
+                "__Plant__SubComp__Stem",
+                "__Plant__SubComp__Branches",
+                "__Plant__SubGroup__LeavesContainer",
+                "__Plant__SubComp__Leaf__Individual"
+            ]
+        }
     },
 
     "AttributeDictionaryCatalogue": {

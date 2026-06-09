@@ -92,7 +92,8 @@ module TrueVision3D
         EXCLUDED_LAYER_DESCRIPTION  =   "TrueVision_*_DoNotExportGLTF".freeze     # <-- Human-readable description for excluded layers
         ALWAYS_EXCLUDED_LAYER_NAMES =   [
             "02__Linetype__DoorSwings",
-            "02__ClearanceLines"
+            "02__ClearanceLines",
+            "Na__Door__Open"                                                       # <-- Open-state MOD preview; must never land in GLB
         ].freeze                                                                   # <-- Hardcoded fallback - overridden by DataLib at runtime
         TREAT_AS_UNTAGGED_DEFAULTS  =   [].freeze                                 # <-- Hardcoded fallback - overridden by DataLib at runtime
         LINEWORK_HIDDEN_DEFAULTS    =   [
@@ -115,6 +116,8 @@ module TrueVision3D
         @na_datalib_fully_excluded        = nil                                   # <-- Array of fully excluded tag names
         @na_datalib_treat_as_untagged     = nil                                   # <-- Array of treat-as-untagged tag names
         @na_datalib_linework_hidden       = nil                                   # <-- Array of linework-hidden tag names
+        @na_datalib_profileline_excluded  = nil                                   # <-- Array of name tokens whose linework is omitted (Components JSON)
+        @na_datalib_profileline_matchmode = "contains"                            # <-- Match mode for profile-line exclusion tokens
         @na_datalib_skip_ranges           = nil                                   # <-- Array of skipped tag range numbers
         @na_datalib_tag_ranges            = nil                                   # <-- { Glb__ExportFileNameStem => [range_nums] } replaces TAG_RANGES
         @na_datalib_storey_tag_map        = nil                                   # <-- { tag_number => Storey__ContainerExportName } replaces STOREY_TAG_MAP
@@ -181,6 +184,22 @@ module TrueVision3D
                     end
 
                     self.Na__ExportConfig__BuildHashesFromTagEntries(tags_data)
+                end
+
+                # PIPELINE EXCLUSIONS | Load name-based linework omission list from Components JSON
+                components_data = Na__DataLib__CacheData.Na__Cache__LoadData(:components)
+                if components_data.is_a?(Hash)
+                    pipeline_exclusions = components_data["Na__DataLib__PipelineExclusions"]
+                    if pipeline_exclusions.is_a?(Hash)
+                        match_mode      = pipeline_exclusions["MatchMode"]
+                        profile_section = pipeline_exclusions["Na__DataLib__PipelineExclusions__ProfileLines"]
+                        profile_names   = profile_section.is_a?(Hash) ? Array(profile_section["Names"]) : []
+
+                        @na_datalib_profileline_matchmode = match_mode.is_a?(String) ? match_mode : "contains"
+                        @na_datalib_profileline_excluded  = profile_names.empty? ? nil : profile_names
+
+                        puts "    [GlbBuilder] DataLib pipeline exclusions loaded: #{profile_names.size} profile-line names (match=#{@na_datalib_profileline_matchmode})"
+                    end
                 end
             rescue => e
                 puts "    [GlbBuilder] WARNING: DataLib load failed, using hardcoded fallbacks: #{e.message}"
@@ -295,6 +314,26 @@ module TrueVision3D
         def self.Na__ExportConfig__LineworkHiddenTagNames
             self.Na__ExportConfig__LoadFromDataLib
             @na_datalib_linework_hidden || LINEWORK_HIDDEN_DEFAULTS
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Profile-Line Excluded Name Tokens
+        # ---------------------------------------------------------------
+        # Names of Groups / Component definitions whose edge linework must be
+        # omitted entirely from the LineworkModel GLB. Sourced from the
+        # Components DataLib Na__DataLib__PipelineExclusions__ProfileLines list.
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__ProfileLineExcludedNames
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_profileline_excluded || []
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Profile-Line Exclusion Match Mode
+        # ---------------------------------------------------------------
+        def self.Na__ExportConfig__ProfileLineMatchMode
+            self.Na__ExportConfig__LoadFromDataLib
+            @na_datalib_profileline_matchmode || "contains"
         end
         # ---------------------------------------------------------------
 

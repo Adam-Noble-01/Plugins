@@ -94,34 +94,96 @@
     }
 
     function Na__SelectedHierarchyTagReporter__RenderNode(node) {
+        if (node.node_type === 'grouped_instances') {
+            return Na__SelectedHierarchyTagReporter__RenderGroupedInstancesNode(node);
+        }
+
         var levelNumber = Number(node.level || 0);
         var nodeClasses = ['naEntityTree__Node'];
-        var childNodes = Array.isArray(node.children) ? node.children : [];
-        var selectedBadge = '';
+        var childNodes  = Array.isArray(node.children) ? node.children : [];
+        var topBadges   = [];
 
         if (node.selected) {
             nodeClasses.push('naEntityTree__Node--selected');
-            selectedBadge = '<span class="naEntityTree__Badge naEntityTree__Badge--selected">Selected</span>';
         }
 
         if (node.node_type === 'message') {
             nodeClasses.push('naEntityTree__Node--message');
         }
 
+        topBadges.push('<span class="naEntityTree__Badge">Level ' + levelNumber + '</span>');
+        topBadges.push('<span class="naEntityTree__Badge">' + Na__SelectedHierarchyTagReporter__EscapeHtml(node.role || 'Entity') + '</span>');
+        topBadges.push('<span class="naEntityTree__Badge">Tag: ' + Na__SelectedHierarchyTagReporter__EscapeHtml(node.tag_name || 'n/a') + '</span>');
+
+        var typeLabel = node.entity_type_label;
+        if (typeLabel) {
+            var typeMod = typeLabel === 'Group' ? 'group' : 'component';
+            topBadges.push('<span class="naEntityTree__Badge naEntityTree__Badge--' + typeMod + '">' + Na__SelectedHierarchyTagReporter__EscapeHtml(typeLabel) + '</span>');
+        }
+
+        var isSolid = node.is_solid;
+        if (isSolid === true || isSolid === false) {
+            var solidLabel = isSolid ? 'Solid' : 'Non-Solid';
+            var solidMod   = isSolid ? 'solid' : 'non-solid';
+            topBadges.push('<span class="naEntityTree__Badge naEntityTree__Badge--' + solidMod + '">' + solidLabel + '</span>');
+        }
+
+        if (node.selected) {
+            topBadges.push('<span class="naEntityTree__Badge naEntityTree__Badge--selected">Selected</span>');
+        }
+
         return [
             '<section class="' + nodeClasses.join(' ') + '" style="--naEntityTree__Level:' + levelNumber + '">',
                 '<header class="naEntityTree__NodeHeader">',
                     '<div class="naEntityTree__NodeTopLine">',
-                        '<span class="naEntityTree__Badge">Level ' + levelNumber + '</span>',
-                        '<span class="naEntityTree__Badge">' + Na__SelectedHierarchyTagReporter__EscapeHtml(node.role || 'Entity') + '</span>',
-                        '<span class="naEntityTree__Badge">Tag: ' + Na__SelectedHierarchyTagReporter__EscapeHtml(node.tag_name || 'n/a') + '</span>',
-                        selectedBadge,
+                        topBadges.join(''),
                     '</div>',
                     '<p class="naEntityTree__NodeText">' + Na__SelectedHierarchyTagReporter__EscapeHtml(node.display_text || node.title || '') + '</p>',
                 '</header>',
                 Na__SelectedHierarchyTagReporter__RenderLooseSummary(node.loose_geometry_summary),
                 childNodes.length ? '<div class="naEntityTree__Children">' + childNodes.map(Na__SelectedHierarchyTagReporter__RenderNode).join('') + '</div>' : '',
             '</section>'
+        ].join('');
+    }
+
+    function Na__SelectedHierarchyTagReporter__RenderGroupedInstancesNode(node) {
+        var levelNumber  = Number(node.level || 0);
+        var childNodes   = Array.isArray(node.children) ? node.children : [];
+        var count        = Number(node.instance_count || 0);
+        var summaryBadges = [];
+
+        summaryBadges.push('<span class="naEntityTree__Badge">Level ' + levelNumber + '</span>');
+        summaryBadges.push('<span class="naEntityTree__Badge naEntityTree__Badge--grouped">' + count.toLocaleString() + ' Identical Instances</span>');
+
+        var typeLabel = node.entity_type_label;
+        if (typeLabel) {
+            var typeMod = typeLabel === 'Group' ? 'group' : 'component';
+            summaryBadges.push('<span class="naEntityTree__Badge naEntityTree__Badge--' + typeMod + '">' + Na__SelectedHierarchyTagReporter__EscapeHtml(typeLabel) + '</span>');
+        }
+
+        var isSolid = node.is_solid;
+        if (isSolid === true || isSolid === false) {
+            var solidLabel = isSolid ? 'Solid' : 'Non-Solid';
+            var solidMod   = isSolid ? 'solid' : 'non-solid';
+            summaryBadges.push('<span class="naEntityTree__Badge naEntityTree__Badge--' + solidMod + '">' + solidLabel + '</span>');
+        }
+
+        if (node.selected) {
+            summaryBadges.push('<span class="naEntityTree__Badge naEntityTree__Badge--selected">Contains Selected</span>');
+        }
+
+        var defName = Na__SelectedHierarchyTagReporter__EscapeHtml(node.definition_name || '(unnamed)');
+
+        return [
+            '<details class="naEntityTree__GroupedInstances" style="--naEntityTree__Level:' + levelNumber + '">',
+                '<summary class="naEntityTree__GroupedSummary">',
+                    '<div class="naEntityTree__NodeTopLine">',
+                        summaryBadges.join(''),
+                    '</div>',
+                    '<p class="naEntityTree__NodeText">Definition: &ldquo;' + defName + '&rdquo; &mdash; expand to view all ' + count.toLocaleString() + ' instances</p>',
+                '</summary>',
+                childNodes.length ? '<div class="naEntityTree__Children naEntityTree__Children--grouped">' + childNodes.map(Na__SelectedHierarchyTagReporter__RenderNode).join('') + '</div>' : '',
+            '</details>'
         ].join('');
     }
 
@@ -170,63 +232,149 @@
     }
 
     function Na__SelectedHierarchyTagReporter__CopyMarkdownReport() {
-        var markdownText = Na__SelectedHierarchyTagReporter__BuildMarkdownReport(
+        var treeText = Na__SelectedHierarchyTagReporter__BuildMarkdownReport(
             Na__SelectedHierarchyTagReporter__State.reportData || {}
         );
 
-        Na__SelectedHierarchyTagReporter__CopyTextToClipboard(markdownText)
+        Na__SelectedHierarchyTagReporter__CopyTextToClipboard(treeText)
             .then(function() {
-                Na__SelectedHierarchyTagReporter__SetStatus('Copied current tree to clipboard as Markdown.', 'success');
+                Na__SelectedHierarchyTagReporter__SetStatus('Copied tree to clipboard as plain text.', 'success');
             })
             .catch(function(error) {
                 Na__SelectedHierarchyTagReporter__SetStatus('Clipboard copy failed: ' + error.message, 'error');
             });
     }
 
+    function Na__SelectedHierarchyTagReporter__DownloadTreeText() {
+        var treeText = Na__SelectedHierarchyTagReporter__BuildMarkdownReport(
+            Na__SelectedHierarchyTagReporter__State.reportData || {}
+        );
+
+        var reportData = Na__SelectedHierarchyTagReporter__State.reportData || {};
+        var timestamp  = String(reportData.generated_at || 'report').replace(/[^a-zA-Z0-9_-]/g, '_');
+        var filename   = 'EntityTree_' + timestamp + '.txt';
+
+        try {
+            var blob = new Blob([treeText], { type: 'text/plain;charset=utf-8' });
+            var url  = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            link.href     = url;
+            link.download = filename;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            Na__SelectedHierarchyTagReporter__SetStatus('Downloaded: ' + filename, 'success');
+        } catch (error) {
+            Na__SelectedHierarchyTagReporter__SetStatus('Download failed: ' + error.message, 'error');
+        }
+    }
+
     function Na__SelectedHierarchyTagReporter__BuildMarkdownReport(reportData) {
-        var markdownLines = [
-            '# Entity Tree Reporter',
-            '',
-            '- Generated: ' + String(reportData.generated_at || 'n/a'),
-            '- Selection: ' + String(reportData.selection_count || 0) + ' item(s)',
-            '- Mode: ' + (reportData.include_siblings ? 'Selected level with siblings' : 'Selected only'),
+        var RULE = '--------------------------------------------------------------------------------';
+        var lines = [
+            'Entity Tree Reporter',
+            RULE,
+            'Generated : ' + String(reportData.generated_at || 'n/a'),
+            'Selection : ' + String(reportData.selection_count || 0) + ' item(s)',
+            'Mode      : ' + (reportData.include_siblings ? 'Selected level with siblings' : 'Selected only'),
             '',
             String(reportData.summary || ''),
-            '',
-            '## Tree'
+            RULE,
+            ''
         ];
 
         var nodes = Array.isArray(reportData.nodes) ? reportData.nodes : [];
-        nodes.forEach(function(node) {
-            Na__SelectedHierarchyTagReporter__AppendMarkdownNode(markdownLines, node);
+        nodes.forEach(function(node, idx) {
+            Na__SelectedHierarchyTagReporter__AppendTreeNode(lines, node, '', idx === nodes.length - 1);
         });
 
-        return markdownLines.join('\n');
+        return lines.join('\n');
     }
 
-    function Na__SelectedHierarchyTagReporter__AppendMarkdownNode(markdownLines, node) {
-        var levelNumber = Number(node.level || 0);
-        var indentText = new Array(levelNumber + 1).join('  ');
-        var selectedText = node.selected ? ' **[Selected]**' : '';
-        var nodeText = String(node.display_text || node.title || '').replace(/\s+/g, ' ').trim();
+    // Returns the plain-text label for one tree node — no markdown syntax whatsoever.
+    function Na__SelectedHierarchyTagReporter__PlainNodeText(node) {
+        var nodeType  = String(node.node_type || '');
+        var typeLabel = node.entity_type_label ? String(node.entity_type_label) : null;
+        var rawTag    = String(node.tag_name || '');
+        var tagPart   = (rawTag && rawTag !== 'n/a' && rawTag.toLowerCase() !== 'untagged')
+            ? '  [Tag: ' + rawTag + ']' : '';
+        var solidPart = node.is_solid === true  ? '  [Solid]'
+                      : node.is_solid === false ? '  [Non-Solid]' : '';
+        var selPart   = node.selected ? '  [SELECTED]' : '';
 
-        markdownLines.push(indentText + '- Level ' + levelNumber + ' | ' + String(node.role || 'Entity') + ' | ' + nodeText + selectedText);
-
-        if (node.loose_geometry_summary) {
-            markdownLines.push(
-                indentText +
-                '  - Lowest Level Loose Geometry | Items: ' +
-                String(node.loose_geometry_summary.item_count || 0) +
-                ' | Types: ' +
-                String(node.loose_geometry_summary.type_summary || '') +
-                ' | Tags: ' +
-                String(node.loose_geometry_summary.tag_summary || '')
-            );
+        if (nodeType === 'model') {
+            return 'Model Root';
         }
 
-        (Array.isArray(node.children) ? node.children : []).forEach(function(childNode) {
-            Na__SelectedHierarchyTagReporter__AppendMarkdownNode(markdownLines, childNode);
+        if (nodeType === 'message') {
+            return '(' + String(node.display_text || node.title || '') + ')';
+        }
+
+        if (nodeType === 'grouped_instances') {
+            var count   = Number(node.instance_count || 0);
+            var defName = String(node.definition_name || '(unnamed)');
+            var label   = typeLabel || 'Container';
+            var selG    = node.selected ? '  [CONTAINS SELECTED]' : '';
+            return 'x' + count.toLocaleString() + ' ' + label + ': ' + defName + solidPart + selG;
+        }
+
+        if (typeLabel === 'Group') {
+            var name = String(node.entity_name || '(unnamed)');
+            var role = String(node.role || '');
+            var rp   = (role && role !== 'Child Object' && role !== 'Instance' && role !== 'Sibling Object')
+                ? '[' + role + ']  ' : '';
+            return rp + 'Group: ' + name + tagPart + solidPart + selPart;
+        }
+
+        if (typeLabel === 'Component') {
+            var defN  = String(node.definition_name || '(unnamed)');
+            var roleC = String(node.role || '');
+            var rpC   = (roleC && roleC !== 'Child Object' && roleC !== 'Instance' && roleC !== 'Sibling Object')
+                ? '[' + roleC + ']  ' : '';
+            return rpC + 'Component: ' + defN + tagPart + solidPart + selPart;
+        }
+
+        return String(node.display_text || node.title || '');
+    }
+
+    // Recursive plain-text tree renderer using ASCII box-drawing connectors.
+    // prefix    : continuation string from all ancestors (pipes and spaces)
+    // isLast    : whether this node is the last sibling at its level
+    // isRoot    : true only for the top-level model root node (no connector drawn)
+    function Na__SelectedHierarchyTagReporter__AppendTreeNode(lines, node, prefix, isLast, isRoot) {
+        var connector;
+        var childPrefix;
+
+        if (isRoot) {
+            connector   = '';            // root prints its own label flush-left
+            childPrefix = '';            // its children start with no ancestor pipe
+        } else {
+            connector   = isLast ? '\u2514\u2500\u2500 ' : '\u251c\u2500\u2500 ';
+            childPrefix = prefix + (isLast ? '    ' : '\u2502   ');
+        }
+
+        lines.push(prefix + connector + Na__SelectedHierarchyTagReporter__PlainNodeText(node));
+
+        if (node.node_type === 'grouped_instances') {
+            return; // summary line only — do not recurse into individual instances
+        }
+
+        var children    = Array.isArray(node.children) ? node.children : [];
+        var hasGeometry = !!node.loose_geometry_summary;
+
+        children.forEach(function(child, idx) {
+            var childIsLast = !hasGeometry && (idx === children.length - 1);
+            Na__SelectedHierarchyTagReporter__AppendTreeNode(lines, child, childPrefix, childIsLast, false);
         });
+
+        if (hasGeometry) {
+            var s = node.loose_geometry_summary;
+            var geoLine = 'Geometry: ' + Number(s.item_count || 0).toLocaleString() +
+                ' items (' + String(s.type_summary || '') + ')';
+            lines.push(childPrefix + '\u2514\u2500\u2500 ' + geoLine);
+        }
     }
 
     function Na__SelectedHierarchyTagReporter__CopyTextToClipboard(textValue) {
@@ -258,9 +406,10 @@
 
     function Na__SelectedHierarchyTagReporter__RegisterEvents() {
         var includeSiblingsCheckbox = Na__SelectedHierarchyTagReporter__Element('naEntityTreeIncludeSiblings');
-        var refreshButton = Na__SelectedHierarchyTagReporter__Element('naEntityTreeRefresh');
-        var printButton = Na__SelectedHierarchyTagReporter__Element('naEntityTreePrint');
-        var copyMarkdownButton = Na__SelectedHierarchyTagReporter__Element('naEntityTreeCopyMarkdown');
+        var refreshButton           = Na__SelectedHierarchyTagReporter__Element('naEntityTreeRefresh');
+        var printButton             = Na__SelectedHierarchyTagReporter__Element('naEntityTreePrint');
+        var copyMarkdownButton      = Na__SelectedHierarchyTagReporter__Element('naEntityTreeCopyMarkdown');
+        var downloadButton          = Na__SelectedHierarchyTagReporter__Element('naEntityTreeDownload');
 
         if (includeSiblingsCheckbox) {
             includeSiblingsCheckbox.addEventListener('change', Na__SelectedHierarchyTagReporter__RefreshFromRuby);
@@ -276,6 +425,10 @@
 
         if (copyMarkdownButton) {
             copyMarkdownButton.addEventListener('click', Na__SelectedHierarchyTagReporter__CopyMarkdownReport);
+        }
+
+        if (downloadButton) {
+            downloadButton.addEventListener('click', Na__SelectedHierarchyTagReporter__DownloadTreeText);
         }
     }
 

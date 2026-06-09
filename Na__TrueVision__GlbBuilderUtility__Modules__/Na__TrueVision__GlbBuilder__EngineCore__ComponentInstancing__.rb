@@ -585,6 +585,13 @@ module TrueVision3D
                 is_mirrored = group[:is_mirrored]
                 cache_key   = [definition, is_mirrored]
 
+                # PROFILE-LINE EXCLUSION | Skip instanced linework entirely for excluded definitions
+                # (e.g. the leaf component) so no SharedLinework_* resource or nodes are produced.
+                if Na__Helpers__EntityProfileLineExcluded?(definition)
+                    Na__Log__Puts "      [Instancing/Linework] Skipping profile-line-excluded definition: #{definition.name}"
+                    next
+                end
+
                 unless built_linework.key?(cache_key)
                     built_linework[cache_key] = Na__Instancing__BuildSharedLinework(definition, is_mirrored, gltf, bin_buffer)
                 end
