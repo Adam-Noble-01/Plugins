@@ -32,8 +32,8 @@ module Trimble
 
     EXTENSION.creator     = "SketchUp"
     EXTENSION.description = LH["EXTENSION_DESCRIPTION"]
-    EXTENSION.version     = "1.0.1"
-    EXTENSION.copyright   = "2025, #{EXTENSION.creator}"
+    EXTENSION.version     = "1.0.2"
+    EXTENSION.copyright   = "2026, #{EXTENSION.creator}"
     Sketchup.register_extension(EXTENSION, true)
   end
 end

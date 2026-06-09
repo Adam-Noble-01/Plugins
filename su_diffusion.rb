@@ -12,7 +12,7 @@ module SketchUpDiffusion
 
 		extension = SketchupExtension.new('AI Render', loader)
 		extension.description = 'AI Render'
-		extension.version     = '1.2025.12.12'
+		extension.version     = '1.2026.06.03'
 		extension.copyright   = 'Trimble Inc. 2025'
 		extension.creator = 'Trimble'
 		@@mCurrentVersion = extension.version

@@ -19,7 +19,7 @@ module Na__Noble3dModellingTools
         SCRIPT_METHOD_INDEX = {
             "script_info" => {
                 "name"    => "Na__MultipleOffsetTool",
-                "version" => "1.0.0",
+                "version" => "1.0.1",
                 "purpose" => "Interactive multi-face inward perimeter offset tool (per-face plane)"
             },
             "constants" => {
@@ -37,7 +37,7 @@ module Na__Noble3dModellingTools
                 "lifecycle" => ["initialize", "activate", "deactivate", "resume", "rearm_vcb_and_focus"],
                 "input"     => ["onMouseMove", "onLButtonDown", "onKeyDown", "onCancel", "enableVCB?", "onUserText", "onReturn"],
                 "drawing"   => ["draw", "getExtents"],
-                "core"      => ["build_face_cache", "recompute_previews", "commit_offset", "rebuild_cache_from_selection"]
+                "core"      => ["build_face_cache", "recompute_previews", "commit_offset", "rebuild_cache_from_selection", "ensure_sane_seed_distance"]
             },
             "entry_points" => {
                 "public" => ["Na__MultipleOffsetTool__Run"]

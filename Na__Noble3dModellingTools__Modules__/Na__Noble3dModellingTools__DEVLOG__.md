@@ -3,6 +3,27 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.4.7 - 09-Jun-2026 - Multiple Offset Tool Edge Stickiness Fix
+
+### Update 01 - Offset Edges Now Properly Integrate With Coplanar Faces
+- Fixed a geometry stickiness bug in `commit_offset` where the committed offset loop had no face-topology connection to the outer face it sat on. Edges appeared in the correct position but SketchUp never registered them as part of the face, so the parent face was never split and no inner face was created — the same symptom as the native SketchUp `Entities#add_edges` documented limitation ("if the points form a closed loop, the first and last vertex will not merge").
+- Root cause: `Entities#add_edges` intentionally creates free-floating edges with no face integration. It does not merge the first/last vertex into a closed ring, and it does not create faces from closed loops. Both `Edge#find_faces` and `Entities#intersect_with` were investigated as fix candidates but are inapplicable here (`find_faces` requires a closed topological ring at the vertex level; `intersect_with` finds intersections between crossing faces, not a polygon sitting inside another face).
+- Fix: Replaced `add_edges` with `Entities#add_face(world_points)` — the officially supported SketchUp API method for creating geometry that integrates with existing coplanar topology. `add_face` creates the inner face directly (returned as the result), registers all new edges with the surrounding outer face, and causes SketchUp to punch a proper inner-loop hole in it. This is the same stickiness behaviour produced by the native Offset tool.
+- Added a `face.reverse!` guard after `add_face` to realign the face normal to match the outer face direction, preventing inverted front/back on the committed offset face.
+- Removed the now-redundant `na_find_inner_face` helper method (previously used to search for an inner face that `add_edges` might create; `add_face` returns the inner face directly).
+- File edited: `10__PluginModules/18__SourceCode__MultipleOffsetTool/Na__Noble3dModellingTools__MultipleOffsetTool__Tool__.rb`
+- Constants index updated: `na_find_inner_face` removed from `tool_class > core` method index in `Na__Noble3dModellingTools__MultipleOffsetTool__Constants__.rb`.
+
+### Validation Checklist
+- [ ] Committing an offset on a flat face produces a border-frame face and a fully filled inner face (no floating/unattached edges).
+- [ ] The inner face normal matches the outer face normal (same front/back facing).
+- [ ] The surrounding outer face is correctly split into a frame with an inner-loop hole.
+- [ ] Offset works at model root and inside an open group/component.
+- [ ] Single undo reverts the committed offset cleanly.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.4.6 - 05-Jun-2026 - Cross-Tab Search Feature (UI)
 
 ### Update 01 - Persistent Search Bar

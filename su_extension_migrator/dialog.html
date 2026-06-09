@@ -63,22 +63,50 @@
       }
 
       function initLocalization() {
-        document.getElementById('cancel-button').innerHTML = getString('DIALOG_CANCEL');
-        document.getElementById('next-button').innerHTML = getString('DIALOG_NEXT');
-        document.getElementById('back-button').innerHTML = getString('DIALOG_BACK');
-        document.getElementById('finish-button').innerHTML = getString('DIALOG_DONE');
-        document.getElementById('migrate-button').innerHTML = getString('DIALOG_MIGRATE');
+        document.getElementById('cancel-button').textContent = getString('DIALOG_CANCEL');
+        document.getElementById('next-button').textContent = getString('DIALOG_NEXT');
+        document.getElementById('back-button').textContent = getString('DIALOG_BACK');
+        document.getElementById('finish-button').textContent = getString('DIALOG_DONE');
+        document.getElementById('migrate-button').textContent = getString('DIALOG_MIGRATE');
 
-        document.getElementById('source-location-label').innerHTML = getString('SOURCE_LOCATION');
-        document.getElementById('target-location-label').innerHTML = getString('TARGET_LOCATION');
+        document.getElementById('source-location-label').textContent = getString('SOURCE_LOCATION');
+        document.getElementById('target-location-label').textContent = getString('TARGET_LOCATION');
+      }
+
+      /**
+       * Wrap node around substring in TextNode.
+       *
+       * Can e.g. turn keyword into a link or make it italic or bold.
+       *
+       * @param {textNode} textNode - The text node to search in.
+       * @param {RegExp} regex - A regex matching 3 exactly 3 groups: the text
+       *                         before the one to wrap, the text to wrap, and
+       *                         the text after.
+       * @return {bool} Whether any text was wrapped.                      
+       */
+      function wrapText(textNode, regex, wrapNode) {
+        var matches = textNode.nodeValue.match(regex);
+        if (!matches) return false;
+
+        textNode.nodeValue = matches[1];
+        wrapNode.appendChild(document.createTextNode(matches[2]));
+        textNode.parentNode.insertBefore(wrapNode, textNode.nextSibling);
+        var suffixNode = document.createTextNode(matches[3]);
+        textNode.parentNode.insertBefore(suffixNode, wrapNode.nextSibling);
+
+        return true;
       }
 
       function warnNoSourceLocations() {
         displayStage(STAGE_BLOCKING_ERROR);
-        let message = getString('NO_SOURCE_AVAILABLE');
-        message = message.replaceAll('\\n', "<br />");
-        message = message.replace('Extension Warehouse', '<a href="javascript:openEW()">Extension Warehouse</a>');
-        document.getElementById('error-message').innerHTML = message;
+        let messageNode = document.getElementById('error-message')
+        messageNode.textContent  = getString('NO_SOURCE_AVAILABLE');
+        
+        // Turn "Extension Warehouse" into a clickable link
+        let linkNode = document.createElement('a');
+        linkNode.href = 'javascript:openEW()';
+        let regex = RegExp('([\\s\\S]*)(Extension Warehouse)([\\s\\S]*)', 'i');
+        wrapText(messageNode.childNodes[0], regex, linkNode)
       }
 
 
@@ -111,29 +139,41 @@
 
       function createList() {
         displayStage(STAGE_SELECT_EXTENSIONS);
-        document.getElementById('summary').innerHTML = getString('MESSAGE_SELECT');
+        document.getElementById('summary').textContent = getString('MESSAGE_SELECT');
 
-        var list = document.getElementById('extension-list');
-        var html = '';
+        var listNode = document.getElementById('extension-list');
 
         for (extension of extensions) {
           var enabled = extension['migration_type'] != MIGRATE_TYPE_MANUAL;
           var checked = enabled && extension['status'] != STATUS_SKIP;
-
+          
           // Using label to funnel click to the checkbox
-          html += '<label id="extension-row-' + extension['index'] + '">';
-          html += '<div class="extension-status">';
-          html += '<input type="checkbox" onclick="sketchup.toggleSkip(' + extension['index'] + ', this.checked)" ';
-          if (checked) html += 'checked ';
-          if (!enabled) html += 'disabled ';
-          html += '/>';
-          html += '</div>';
-          html += '<b>' + extension['name'] + '</b><div class="truncate extension-info">';
-          if (extension['description']) html += extension['description'];
-          html += '</div></label>';
-        }
+          var labelNode = document.createElement('label');
+          labelNode.id = 'extension-row-' + extension['index'];
+          
+          var statusNode = document.createElement('div');
+          statusNode.className = 'extension-status';
+          labelNode.appendChild(statusNode);
+          
+          checkBoxNode = document.createElement('input');
+          checkBoxNode.type = 'checkbox';
+          checkBoxNode.disabled = !enabled;
+          checkBoxNode.checked = checked;
+          let extensionIndex = extension['index'];
+          checkBoxNode.onclick = function() { sketchup.toggleSkip(extensionIndex, this.checked) };
+          statusNode.appendChild(checkBoxNode);
 
-        list.innerHTML = html; // TODO: Use proper nice JS instead of innerHTML.
+          var bNode = document.createElement('b');
+          bNode.textContent = extension['name'];
+          labelNode.appendChild(bNode);
+          
+          var descriptionNode = document.createElement('div');
+          descriptionNode.className = 'truncate extension-info';
+          if (extension['description']) descriptionNode.textContent = extension['description'];
+          labelNode.appendChild(descriptionNode);
+          
+          listNode.appendChild(labelNode);
+        }
 
         updateMigrateButton();
       }
@@ -152,7 +192,7 @@
 
       function migrate() {
         displayStage(STAGE_MIGRATE);
-        document.getElementById('summary').innerHTML = getString('MESSAGE_MIGRATING');
+        document.getElementById('summary').textContent = getString('MESSAGE_MIGRATING');
 
         for (extension of extensions) {
           var row = document.getElementById('extension-row-' + extension['index']);
@@ -192,7 +232,7 @@
           } else if(status == STATUS_FAILED) {
             row.className = 'failure'
             var description = row.getElementsByClassName('extension-info')[0]
-            description.innerHTML = getString('EXTENSION_STATUS_FAILURE');
+            description.textContent = getString('EXTENSION_STATUS_FAILURE');
             description.classList.remove('truncate');
             if (extension['ruby_error']) {
               // Only add once per extension
@@ -225,7 +265,7 @@
             row.scrollIntoView({ behavior: "smooth", block: "nearest" });
           } else if(status == STATUS_MIGRATED) {
             row.className = 'success'
-            row.getElementsByClassName('extension-info')[0].innerHTML = getString('EXTENSION_STATUS_SUCCESS');
+            row.getElementsByClassName('extension-info')[0].textContent = getString('EXTENSION_STATUS_SUCCESS');
           } else if(status == STATUS_COPIED_NOT_LOADED) {
             row.className = 'copied-not-loaded'
           }
@@ -249,11 +289,11 @@
             message = getString('SUMMARY_ALL_SUCCESS');
           }
         }
-        document.getElementById('summary').innerHTML = message;
+        document.getElementById('summary').textContent = message;
 
         if(disableLoading) {
           const finishButton = document.getElementById('finish-button');
-          finishButton.innerHTML = getString('DIALOG_RESTART_LATER');
+          finishButton.textContent = getString('DIALOG_RESTART_LATER');
           // Can't be styled as the primary button if the preferred action is
           // for the user to instead restart SketchUp.
           finishButton.classList.remove('btn-primary');

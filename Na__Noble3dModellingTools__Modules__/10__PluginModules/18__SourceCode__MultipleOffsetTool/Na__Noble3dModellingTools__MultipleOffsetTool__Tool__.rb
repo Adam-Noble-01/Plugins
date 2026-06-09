@@ -22,6 +22,10 @@ module Na__Noble3dModellingTools
         # ------------------------------------------------------------
         class MultipleOffsetTool
 
+# -----------------------------------------------------------------------------
+# REGION | Tool Lifecycle - Activation, State Initialisation, and VCB Focus
+# -----------------------------------------------------------------------------
+
             # INITIALIZE | Tool Constructor
             # ------------------------------------------------------------
             def initialize
@@ -67,6 +71,33 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
+            # DEACTIVATE | Called When Tool Is Deselected
+            # ------------------------------------------------------------
+            def deactivate(view)
+                Sketchup::set_status_text('', SB_VCB_VALUE)
+                view.invalidate
+            end
+            # ------------------------------------------------------------
+
+
+            # RESUME | Called When Tool Is Resumed After Another Tool Exits
+            # ------------------------------------------------------------
+            def resume(view)
+                update_status_text
+                update_vcb
+                view.invalidate
+            end
+            # ------------------------------------------------------------
+
+
+            # ENABLE VCB | Allow Numeric Entry in the Measurements Box
+            # ------------------------------------------------------------
+            def enableVCB?
+                true
+            end
+            # ------------------------------------------------------------
+
+
             # SUB FUNCTION | Re-arm the VCB and Return Keyboard Focus
             # ------------------------------------------------------------
             # Two SketchUp focus pitfalls are handled here:
@@ -94,42 +125,21 @@ module Na__Noble3dModellingTools
             end
             # ------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
 
-            # DEACTIVATE | Called When Tool Is Deselected
+# -----------------------------------------------------------------------------
+# REGION | Mouse Input - Cursor Tracking and Offset Distance Derivation
+# -----------------------------------------------------------------------------
+
+            # FUNCTION | Track Cursor and Derive Signed Offset Distance
             # ------------------------------------------------------------
-            def deactivate(view)
-                Sketchup::set_status_text('', SB_VCB_VALUE)
-                view.invalidate
-            end
-            # ------------------------------------------------------------
-
-
-            # RESUME | Called When Tool Is Resumed
-            # ------------------------------------------------------------
-            def resume(view)
-                update_status_text
-                update_vcb
-                view.invalidate
-            end
-            # ------------------------------------------------------------
-
-
-            # ENABLE VCB | Allow Numeric Entry in the Measurements Box
-            # ------------------------------------------------------------
-            def enableVCB?
-                true
-            end
-            # ------------------------------------------------------------
-
-
-            # ON MOUSE MOVE | Track Cursor and Derive Offset Distance
+            # A typed value locks the preview and overrides the mouse. Only a
+            # GENUINE move (beyond MOUSE_MOVE_TOLERANCE_PX) releases that lock and
+            # hands control back to the cursor. SketchUp fires stray onMouseMove
+            # events / sub-pixel jitter right after a typed entry; ignoring those
+            # keeps the typed preview stable until the user actually moves the mouse.
             # ------------------------------------------------------------
             def onMouseMove(flags, x, y, view)
-                # A typed value locks the preview and overrides the mouse. Only a
-                # GENUINE move (a few real pixels of travel) releases that lock and
-                # hands control back to the cursor. SketchUp fires stray onMouseMove
-                # events / sub-pixel jitter right after a typed entry; ignoring those
-                # keeps the typed preview stable.
                 moved = @last_mouse_xy.nil? ||
                         (x - @last_mouse_xy[0]).abs > MOUSE_MOVE_TOLERANCE_PX ||
                         (y - @last_mouse_xy[1]).abs > MOUSE_MOVE_TOLERANCE_PX
@@ -149,14 +159,14 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
-            # SUB FUNCTION | Derive a Signed Offset Distance From the Cursor
+            # SUB FUNCTION | Derive a Signed Offset Distance From the Cursor Position
             # ------------------------------------------------------------
             # The cursor ray is intersected with a reference face's plane so we get a
             # reliable in-plane point even when the cursor is over empty space. The
             # distance is the gap to the nearest perimeter edge; its sign comes from
             # whether the cursor lies inside the face (inward / positive) or outside
             # the perimeter (outward / negative). This lets the mouse drive both
-            # inward insets and outward expansions.
+            # inward insets and outward expansions naturally.
             # ------------------------------------------------------------
             def update_distance_from_cursor(view, x, y)
                 return if @faces.empty?
@@ -182,10 +192,12 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
-            # SUB FUNCTION | Choose the Reference Face for the Cursor Ray
+            # SUB HELPER FUNCTION | Choose the Best Reference Face for a Cursor Ray
             # ------------------------------------------------------------
-            # Prefers the cached face directly under the cursor; otherwise picks the
-            # cached face whose plane the ray meets nearest its perimeter.
+            # Prefers the cached face directly under the cursor (picked by InputPoint);
+            # otherwise falls back to the cached face whose plane the ray meets nearest
+            # its perimeter — so hovering over empty space between faces still drives
+            # a sensible offset distance from the closest face boundary.
             # ------------------------------------------------------------
             def reference_face_for_ray(ray)
                 picked = @ip.face
@@ -215,12 +227,17 @@ module Na__Noble3dModellingTools
             end
             # ------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
 
-            # ON LEFT BUTTON DOWN | Commit the Previewed Offset
+# -----------------------------------------------------------------------------
+# REGION | Keyboard and VCB Input - Text Entry, Enter, Keys, and Click Commit
+# -----------------------------------------------------------------------------
+
+            # FUNCTION | Left Click - Commit the Previewed Offset
             # ------------------------------------------------------------
             # The click is the single commit action (mouse and typing only ever
-            # build the preview). This keeps every model change out of onUserText,
-            # which is what avoids the SketchUp 2026 VCB focus regression.
+            # build the preview). Keeping all model changes out of onUserText is
+            # what avoids the SketchUp 2026 VCB focus regression.
             # ------------------------------------------------------------
             def onLButtonDown(flags, x, y, view)
                 return if @faces.empty?
@@ -230,9 +247,9 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
-            # ON USER TEXT | Lock the Live Preview to a Typed VCB Distance
+            # FUNCTION | VCB Text Entry - Lock Preview to a Typed Distance
             # ------------------------------------------------------------
-            # Typing does NOT commit - it only locks the orange preview to the typed
+            # Typing does NOT commit — it only locks the orange preview to the typed
             # value, overriding the mouse. Positive insets inward, negative expands
             # outward. The user can re-type freely (each entry just updates the
             # preview), then CLICK or press ENTER AGAIN within one second to apply.
@@ -295,7 +312,7 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
-            # ON RETURN | Commit on a Quick Second Enter (Empty VCB Path)
+            # FUNCTION | Enter Key (Empty VCB Path) - Commit on Double-Enter
             # ------------------------------------------------------------
             # When the measurements box is empty, SketchUp routes Enter here instead
             # of onUserText. If it lands within the double-Enter window after a typed
@@ -316,7 +333,7 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
-            # ON KEY DOWN | Handle Keyboard Input
+            # FUNCTION | Key Down - Escape Exits the Tool
             # ------------------------------------------------------------
             def onKeyDown(key, repeat, flags, view)
                 escape_key_code = (Sketchup.platform == :platform_win ? 27 : 53)
@@ -330,7 +347,7 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
-            # ON CANCEL | Handle Tool Cancellation
+            # FUNCTION | Cancel - Clear VCB on Tool Cancellation
             # ------------------------------------------------------------
             def onCancel(reason, view)
                 Sketchup::set_status_text('', SB_VCB_VALUE)
@@ -338,8 +355,17 @@ module Na__Noble3dModellingTools
             end
             # ------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
 
-            # DRAW | Render the Live Offset Preview Loops
+# -----------------------------------------------------------------------------
+# REGION | OpenGL Drawing - Live Preview Loop Rendering
+# -----------------------------------------------------------------------------
+
+            # FUNCTION | Draw - Render the Live Offset Preview Loops
+            # ------------------------------------------------------------
+            # Draws one GL_LINE_LOOP per face in orange for every valid previewed
+            # offset polygon. Skipped for faces whose offset is currently invalid
+            # (distance too large or collapsed geometry).
             # ------------------------------------------------------------
             def draw(view)
                 return if @previews.empty?
@@ -356,10 +382,11 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
-            # GET EXTENTS | Report Overlay Bounds So Preview Is Not Clipped
+            # FUNCTION | Get Extents - Report Overlay Bounds So Preview Is Not Clipped
             # ------------------------------------------------------------
             # Covers only the tool's own drawing (preview loops + cursor), all in
-            # world space.
+            # world space. SketchUp calls this before draw to prevent near/far clip
+            # from cutting off the preview geometry.
             # ------------------------------------------------------------
             def getExtents
                 bounds = Geom::BoundingBox.new
@@ -374,17 +401,23 @@ module Na__Noble3dModellingTools
             end
             # ------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
 
-            # FUNCTION | Build the Cached Per-Face Offset Data
+# -----------------------------------------------------------------------------
+# REGION | Face Cache - Selection Data, Offset Bounds, and Distance Clamping
+# -----------------------------------------------------------------------------
+
+            # FUNCTION | Build the Cached Per-Face Offset Data From a Selection
             # ------------------------------------------------------------
             # SketchUp reports vertex.position in WORLD coordinates whenever the
             # owning group/component is open for editing (and at the model root the
             # two spaces coincide). The selected faces always live in the active
             # edit context, so their vertex positions are already world; we must NOT
             # multiply by edit_transform (that double transform was what displaced
-            # and exploded the preview inside groups). Everything - measurement,
-            # preview, drawing, and add_edges on commit - therefore stays in world
+            # and exploded the preview inside groups). Everything — measurement,
+            # preview, drawing, and add_face on commit — therefore stays in world
             # space, which is also the space the open edit context writes back into.
+            # ------------------------------------------------------------
             def build_face_cache(faces)
                 @faces = []
 
@@ -424,10 +457,12 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
-            # SUB FUNCTION | Compute the Shared Maximum Safe Inset (Inches)
+            # SUB FUNCTION | Compute the Shared Maximum Safe Inset Distance
             # ------------------------------------------------------------
-            # The offset is bounded by the smallest face's inscribed radius so a
-            # single shared distance can never explode any face's miter geometry.
+            # The offset is bounded by the smallest face's inscribed radius (centroid
+            # to nearest edge) so a single shared distance can never explode any
+            # face's miter geometry. A safety factor keeps the working cap just under
+            # the true inscribed radius to absorb floating-point drift.
             # ------------------------------------------------------------
             def recompute_max_offset
                 limits = @faces.map { |data| data[:inset_limit] }
@@ -438,7 +473,7 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
-            # SUB FUNCTION | Clamp the Working Distance to the Safe Range
+            # SUB FUNCTION | Clamp the Working Distance to the Safe Inward/Outward Range
             # ------------------------------------------------------------
             # Positive = inward (capped at the inscribed-radius limit so the miter
             # geometry can never explode). Negative = outward (capped at a generous
@@ -464,7 +499,50 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
+            # SUB FUNCTION | Clamp the Seed Distance to a Sane Starting Value
+            # ------------------------------------------------------------
+            # Prevents a stale/oversized stored distance (or an empty preference)
+            # from seeding a giant offset on first use. If the current distance is
+            # unusable or larger than the smallest face can accept, it is reset to a
+            # fraction of the shared maximum inset. A reasonable in-range value the
+            # user typed earlier is left untouched.
+            # ------------------------------------------------------------
+            def ensure_sane_seed_distance
+                return if @faces.empty? || @max_offset.nil?
+
+                current_distance = @distance.to_f
+                if current_distance <= Na__MultipleOffsetTool::MIN_EDGE_LENGTH_INTERNAL || current_distance > @max_offset
+                    @distance = (@max_offset * Na__MultipleOffsetTool::OFFSET_SEED_FRACTION).to_l
+                end
+            end
+            # ------------------------------------------------------------
+
+
+            # SUB FUNCTION | Rebuild the Face Cache From the Current Selection
+            # ------------------------------------------------------------
+            # Called after each commit to re-arm the tool on the newly created inner
+            # faces so the user can immediately chain another offset without
+            # re-selecting.
+            # ------------------------------------------------------------
+            def rebuild_cache_from_selection(model)
+                build_face_cache(model.selection.grep(Sketchup::Face))
+                @state = @faces.empty? ? STATE_IDLE : STATE_PREVIEW
+                ensure_sane_seed_distance
+                recompute_previews
+            end
+            # ------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Offset Preview and Geometry Commit
+# -----------------------------------------------------------------------------
+
             # FUNCTION | Recompute Preview Loops for All Cached Faces
+            # ------------------------------------------------------------
+            # Maps each cached face through the 2D offset math and back to world
+            # space. Invalid results (distance too large, collapsed, or winding-
+            # flipped) are stored as nil so draw and commit can skip them cleanly.
             # ------------------------------------------------------------
             def recompute_previews
                 expand = @distance.to_f < 0                               # <-- Negative distance offsets outward
@@ -486,11 +564,17 @@ module Na__Noble3dModellingTools
 
             # FUNCTION | Commit the Previewed Offset Into Model Geometry
             # ------------------------------------------------------------
-            # The single point where geometry is created. Adds the previewed offset
-            # loop to every valid face, re-selects the resulting inner faces, then
-            # re-arms on that new selection so the user can immediately preview and
-            # apply another offset. Clears the preview so the committed (real) lines
-            # are not overdrawn until the next mouse move or typed value.
+            # The single point where geometry is written to the model. Uses
+            # Entities#add_face (the officially supported API path) so the new offset
+            # polygon integrates fully with existing coplanar topology: SketchUp
+            # creates the inner face, registers the new edges with the surrounding
+            # outer face, and punches a proper inner-loop hole — giving the same
+            # stickiness as the native Offset tool.
+            #
+            # After commit the tool re-arms on the new inner faces so the user can
+            # immediately preview and apply another offset. The preview array is
+            # cleared so committed (real) lines are not overdrawn until the next
+            # interaction.
             # ------------------------------------------------------------
             def commit_offset(view)
                 model = Sketchup.active_model
@@ -513,13 +597,23 @@ module Na__Noble3dModellingTools
                         next unless world_points
                         next unless data[:face].valid?
 
-                        # The open edit context accepts geometry in world coordinates
-                        # (the same space vertex.position reported), so the world loop
-                        # is added directly with no inverse transform.
-                        loop_points = world_points + [world_points.first]
-                        new_edges   = data[:entities].add_edges(loop_points)
-                        inner_face  = na_find_inner_face(new_edges)
-                        new_inner_faces << inner_face if inner_face
+                        # Entities#add_face is the officially supported path for creating
+                        # a face that properly integrates with existing coplanar geometry.
+                        # It creates the inner offset face AND registers the new edges
+                        # with the surrounding outer face, causing SketchUp to punch an
+                        # inner-loop hole in it — the same stickiness the native offset
+                        # tool produces. Entities#add_edges only creates floating edges
+                        # with no face-topology connection (the SketchUp API docs state
+                        # it does not merge first/last vertices or create faces for
+                        # closed loops), so the outer face is never split.
+                        inner_face = data[:entities].add_face(world_points)
+                        next unless inner_face && inner_face.valid?
+
+                        # add_face may return the face with an inverted normal; realign it
+                        # to point the same direction as the outer face so front/back are
+                        # consistent after the offset is applied.
+                        inner_face.reverse! unless inner_face.normal.samedirection?(data[:normal_world])
+                        new_inner_faces << inner_face
                     end
 
                     Na__MultipleOffsetTool.Na__MultipleOffsetTool__StoreDistance(@distance)
@@ -549,63 +643,13 @@ module Na__Noble3dModellingTools
             end
             # ------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
 
-            # SUB FUNCTION | Find the Inner Face Bounded Solely by New Edges
-            # ------------------------------------------------------------
-            # Both the inner face and the surrounding frame border every new edge,
-            # so the inner face is identified as the one whose every edge is one of
-            # the newly added loop edges.
-            # ------------------------------------------------------------
-            def na_find_inner_face(new_edges)
-                return nil if new_edges.nil? || new_edges.empty?
+# -----------------------------------------------------------------------------
+# REGION | Status Bar and VCB Helpers
+# -----------------------------------------------------------------------------
 
-                candidate_faces = nil
-                new_edges.each do |edge|
-                    next unless edge.valid?
-                    edge_faces = edge.faces
-                    candidate_faces = candidate_faces.nil? ? edge_faces : (candidate_faces & edge_faces)
-                end
-                return nil if candidate_faces.nil? || candidate_faces.empty?
-
-                edge_set = new_edges
-                candidate_faces.find do |face|
-                    face.valid? && (face.edges - edge_set).empty?
-                end
-            end
-            # ------------------------------------------------------------
-
-
-            # FUNCTION | Rebuild the Face Cache From the Current Selection
-            # ------------------------------------------------------------
-            def rebuild_cache_from_selection(model)
-                build_face_cache(model.selection.grep(Sketchup::Face))
-                @state = @faces.empty? ? STATE_IDLE : STATE_PREVIEW
-                ensure_sane_seed_distance
-                recompute_previews
-            end
-            # ------------------------------------------------------------
-
-
-            # SUB FUNCTION | Clamp the Seed Distance to a Sane Per-Face Value
-            # ------------------------------------------------------------
-            # Prevents a stale/oversized stored distance (or an empty preference)
-            # from seeding a giant offset. If the current distance is unusable or
-            # larger than the smallest face can accept, it is reset to a fraction
-            # of the shared maximum inset. A reasonable in-range value the user
-            # typed earlier is left untouched.
-            # ------------------------------------------------------------
-            def ensure_sane_seed_distance
-                return if @faces.empty? || @max_offset.nil?
-
-                current_distance = @distance.to_f
-                if current_distance <= Na__MultipleOffsetTool::MIN_EDGE_LENGTH_INTERNAL || current_distance > @max_offset
-                    @distance = (@max_offset * Na__MultipleOffsetTool::OFFSET_SEED_FRACTION).to_l
-                end
-            end
-            # ------------------------------------------------------------
-
-
-            # HELPER FUNCTION | Update the VCB Label and Value
+            # HELPER FUNCTION | Update the VCB Label and Current Distance Value
             # ------------------------------------------------------------
             def update_vcb
                 Sketchup::set_status_text('Offset', SB_VCB_LABEL)
@@ -614,7 +658,7 @@ module Na__Noble3dModellingTools
             # ------------------------------------------------------------
 
 
-            # HELPER FUNCTION | Update the Status Bar Prompt
+            # HELPER FUNCTION | Update the Status Bar Prompt Text
             # ------------------------------------------------------------
             def update_status_text
                 if @faces.empty?
@@ -624,6 +668,8 @@ module Na__Noble3dModellingTools
                 end
             end
             # ------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
 
         end # class MultipleOffsetTool
 
