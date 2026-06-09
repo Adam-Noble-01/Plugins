@@ -103,7 +103,7 @@
         const centerY = (minY + maxY) / 2;
         const halfWidth = Math.max(10, (maxX - minX) / 2);
         const halfHeight = Math.max(10, (maxY - minY) / 2);
-        const margin = NA_PREVIEW_MARGIN;
+        const margin = (options && typeof options.margin === 'number') ? options.margin : NA_PREVIEW_MARGIN;
 
         return {
             centerX: centerX,
@@ -233,13 +233,28 @@
             };
         }
 
-        var toggleStates = (options && options.toggleStates) ? options.toggleStates : {};
-        var rotationStep = (options && options.rotationStep) ? Number(options.rotationStep) : 0;
+        var toggleStates     = (options && options.toggleStates)     ? options.toggleStates     : {};
+        var rotationStep     = (options && options.rotationStep)     ? Number(options.rotationStep) : 0;
+        var thumbnailMode    = !!(options && options.thumbnailMode);
+        var reverseDirection = !!(options && options.reverseDirection);
+
         points = Na__Svg__ApplyMirrorToggles(points, toggleStates);
         points = Na__Svg__ApplyRotationStep(points, rotationStep);
+        if (reverseDirection) {
+            points = Na__Svg__FlipAcrossYAtX(points, 0);
+        }
         points = Na__Svg__FlipAcrossYAtX(points, 0);
 
-        const bounds = Na__Svg__Bounds(points, { includeOrigin: true });
+        var boundsOptions;
+        if (thumbnailMode) {
+            var tightBounds = Na__Svg__Bounds(points, { includeOrigin: false, margin: 0 });
+            var propMargin = Math.max(tightBounds.halfWidth, tightBounds.halfHeight) * 0.10;
+            boundsOptions = { includeOrigin: false, margin: Math.max(propMargin, 4) };
+        } else {
+            boundsOptions = { includeOrigin: true };
+        }
+
+        const bounds = Na__Svg__Bounds(points, boundsOptions);
         const profileLine = Na__Svg__ClosedPolyline(points, 'naProfileLine');
 
         return {

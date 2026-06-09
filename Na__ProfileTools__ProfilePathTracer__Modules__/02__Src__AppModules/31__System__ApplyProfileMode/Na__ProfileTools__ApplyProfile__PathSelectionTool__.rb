@@ -33,11 +33,12 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Initialization / State
     # -------------------------------------------------------------------------
 
-        def initialize(profile_key, profile_data, toggle_states = {}, initial_rotation_step = 0)
+        def initialize(profile_key, profile_data, toggle_states = {}, initial_rotation_step = 0, reverse_direction = false)
             @na_profile_key = profile_key
             @na_profile_data = profile_data || {}
             @na_toggle_states = toggle_states || {}
             @na_rotation_step = initial_rotation_step.to_i % 4
+            @na_reverse_direction = reverse_direction == true
             @na_key_tab_held = false
             @na_crosshair_size = NA_DEFAULT_CROSSHAIR_SIZE
 
@@ -311,7 +312,8 @@ module Na__ProfileTools__ProfilePathTracer
                 profile_data: @na_profile_data,
                 path_points: path_points,
                 rotation_step: @na_rotation_step,
-                toggle_states: @na_toggle_states
+                toggle_states: @na_toggle_states,
+                reverse_direction: @na_reverse_direction
             )
 
             Sketchup::set_status_text(result['statusMessage'].to_s, NA_STATUS_PROMPT_KEY)

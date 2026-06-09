@@ -117,7 +117,7 @@ module Na__ProfileTools__ProfilePathTracer
             points.first.distance(points.last) <= NA_INTERACTIVE_LOOP_CLOSE_TOLERANCE
         end
 
-        def self.Na__Engine__GenerateFromInteractivePath(profile_key:, profile_data:, path_points:, rotation_step:, toggle_states: {})
+        def self.Na__Engine__GenerateFromInteractivePath(profile_key:, profile_data:, path_points:, rotation_step:, toggle_states: {}, reverse_direction: false)
             model = Sketchup.active_model
             return { 'isBuilt' => false, 'statusMessage' => 'Generation failed: No active model.' } unless model
 
@@ -131,7 +131,8 @@ module Na__ProfileTools__ProfilePathTracer
                 path_data: path_data,
                 start_point: start_point,
                 rotation_step: rotation_step,
-                toggle_states: toggle_states
+                toggle_states: toggle_states,
+                reverse_direction: reverse_direction
             )
         end
 
@@ -159,7 +160,7 @@ module Na__ProfileTools__ProfilePathTracer
             )
         end
 
-        def self.Na__Engine__GenerateFromPathData(profile_key:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {})
+        def self.Na__Engine__GenerateFromPathData(profile_key:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, reverse_direction: false)
             model = Sketchup.active_model
             return { 'isBuilt' => false, 'statusMessage' => 'Generation failed: No active model.' } unless model
             unless self.Na__Engine__UnifiedProfileRecord?(profile_data)
@@ -186,7 +187,8 @@ module Na__ProfileTools__ProfilePathTracer
                 path_data: resolved_path_data,
                 start_point: start_point,
                 rotation_step: rotation_step,
-                toggle_states: toggle_states
+                toggle_states: toggle_states,
+                reverse_direction: reverse_direction
             )
 
             if result['isBuilt']

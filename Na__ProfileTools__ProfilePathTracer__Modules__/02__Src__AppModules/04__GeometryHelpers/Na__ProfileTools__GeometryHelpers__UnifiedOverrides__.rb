@@ -328,7 +328,7 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Solid — follow-me along path
     # -------------------------------------------------------------------------
 
-        def self.Na__Geometry__BuildProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {})
+        def self.Na__Geometry__BuildProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, reverse_direction: false)
             return { 'isBuilt' => false, 'reason' => 'No active model.' } unless model
             unless self.Na__Geometry__ProfileType(profile_data) == 'na_unified_asset'
                 return { 'isBuilt' => false, 'reason' => 'Only unified schema profiles are supported.' }
@@ -369,6 +369,8 @@ module Na__ProfileTools__ProfilePathTracer
             solid_group.name = 'Na__ProfileTrace__SweptSolid'
             solid_entities = solid_group.entities
 
+            effective_rotation_step = reverse_direction ? (rotation_step + 2) % 4 : rotation_step
+
             swept = self.Na__Geometry__SweepProfileIntoGroup(
                 target_entities:    solid_entities,
                 model:              model,
@@ -376,7 +378,7 @@ module Na__ProfileTools__ProfilePathTracer
                 ordered_points:     ordered_points,
                 is_closed_loop:     is_closed_loop,
                 frame_transform:    frame_transform,
-                rotation_step:      rotation_step,
+                rotation_step:      effective_rotation_step,
                 toggle_states:      toggle_states,
                 resolved_path_data: resolved_path_data
             )
@@ -387,6 +389,14 @@ module Na__ProfileTools__ProfilePathTracer
             styled_edge_count = swept['styledEdgeCount']
 
             self.Na__Geometry__BuildHelpersSubGroup(model, helpers_group, ordered_points, is_closed_loop)
+
+            if reverse_direction
+                z_flip = Geom::Transformation.scaling(parent_group.bounds.center, 1.0, 1.0, -1.0)
+                parent_group.transform!(z_flip)
+                z_correction = parent_group.bounds.max.z - parent_group.bounds.min.z
+                z_translate = Geom::Transformation.translation(Geom::Vector3d.new(0, 0, z_correction))
+                parent_group.transform!(z_translate)
+            end
 
             # @delegate: ../02__AppData/Na__ProfileTools__AppData__DataSerializer__
             self.Na__Geometry__StampAssemblyDictionaries(

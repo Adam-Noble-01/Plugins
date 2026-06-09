@@ -20,6 +20,7 @@
         pathMode: 'interactive',
         rotationStep: 0,
         isPreviewEnabled: true,
+        reverseDirection: false,
         toggleDefinitions: {},
         toggleStates: {},
         profiles: {},
@@ -66,7 +67,24 @@
                 return Na__UiState.profiles[sceneProfileKey];
             }
         }
+        var store = window.Na__ProfileTools__ProfileStore;
+        if (store && store.Na__Store__GetSelectedRecord()) {
+            return store.Na__Store__GetSelectedRecord();
+        }
         return Na__UiState.profiles[Na__UiState.profileKey] || null;
+    }
+
+    function Na__Ui__UpdateActiveProfileIndicator() {
+        var indicatorEl = document.getElementById('naActiveProfileIndicator');
+        if (!indicatorEl) return;
+        var store  = window.Na__ProfileTools__ProfileStore;
+        var record = store ? store.Na__Store__GetSelectedRecord() : null;
+        if (record) {
+            var name = record.displayName || record.profileKey || '';
+            indicatorEl.innerHTML = '<span class="na-active-profile__name">' + name + '</span>';
+        } else {
+            indicatorEl.innerHTML = '<span class="na-active-profile__hint">No profile selected — choose one in the Gallery.</span>';
+        }
     }
 
     // endregion ----------------------------------------------------------------
@@ -91,7 +109,8 @@
 
         const previewResult = svgGen.Na__Svg__GenerateProfile(selectedProfile, {
             toggleStates: Na__UiState.toggleStates,
-            rotationStep: Na__UiState.rotationStep
+            rotationStep: Na__UiState.rotationStep,
+            reverseDirection: Na__UiState.reverseDirection
         });
 
         viewportSvg.setAttribute('viewBox', previewResult.viewBox || '-120 -120 240 240');
@@ -108,13 +127,37 @@
     // REGION | Payload Builders
     // -------------------------------------------------------------------------
 
+    function Na__Ui__ResolveActiveProfileKey() {
+        var store = window.Na__ProfileTools__ProfileStore;
+        if (store) {
+            var storeKey = store.Na__Store__GetSelectedKey();
+            if (storeKey) return storeKey;
+        }
+        return Na__UiState.profileKey || '';
+    }
+
+    function Na__Ui__SyncProfileKeyFromStore() {
+        var store = window.Na__ProfileTools__ProfileStore;
+        if (!store) return;
+
+        var selectedKey = store.Na__Store__GetSelectedKey();
+        if (!selectedKey) return;
+
+        Na__UiState.profileKey = selectedKey;
+        var record = store.Na__Store__GetSelectedRecord();
+        if (record) {
+            Na__UiState.profiles[selectedKey] = record;
+        }
+    }
+
     function Na__Ui__BuildGeneratePayload() {
         return {
-            profileKey: Na__UiState.profileKey,
+            profileKey: Na__Ui__ResolveActiveProfileKey(),
             profileSourceMode: Na__UiState.profileSourceMode,
             pathMode: Na__UiState.pathMode,
             rotationStep: Na__UiState.rotationStep,
             isPreviewEnabled: Na__UiState.isPreviewEnabled,
+            reverseDirection: Na__UiState.reverseDirection,
             toggleStates: Na__UiState.toggleStates
         };
     }
@@ -155,6 +198,12 @@
             Na__UiState.toggleStates[toggleKey] = isEnabled;
             Na__Ui__RenderProfilePreview();
             Na__Ui__SetStatus('Toggle: ' + toggleKey + ' = ' + (isEnabled ? 'ON' : 'OFF'));
+        },
+        Na__Events__OnReverseDirectionToggle: function() {
+            Na__UiState.reverseDirection = !Na__UiState.reverseDirection;
+            Na__Ui__Render();
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus('Reverse direction: ' + (Na__UiState.reverseDirection ? 'ON' : 'OFF'));
         },
         Na__Events__OnGenerate: function() {
             if (Na__UiState.profileSourceMode === 'scene' && Na__UiState.sceneProfileStatus.isValid !== true) {
@@ -200,10 +249,41 @@
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
+    // REGION | Store Event Handlers (keep Apply tab in sync with Gallery selection)
+    // -------------------------------------------------------------------------
+
+    function Na__Apply__OnStoreSelectedChanged(payload) {
+        if (payload && payload.key) {
+            Na__UiState.profileKey = payload.key;
+            if (payload.record) {
+                Na__UiState.profiles[payload.key] = payload.record;
+            }
+        }
+        Na__Ui__UpdateActiveProfileIndicator();
+        Na__Ui__RenderProfilePreview();
+    }
+
+    function Na__Apply__OnStoreMetaUpdated(payload) {
+        if (payload && payload.key && payload.record) {
+            Na__UiState.profiles[payload.key] = payload.record;
+        }
+        Na__Ui__UpdateActiveProfileIndicator();
+        Na__Ui__RenderProfilePreview();
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
     // REGION | Tab Lifecycle (mount / unmount contract)
     // -------------------------------------------------------------------------
 
     function na_mount() {
+        var appCtx = window.Na_AppContext;
+        if (appCtx) {
+            appCtx.na_subscribe('na_selected_changed',     Na__Apply__OnStoreSelectedChanged);
+            appCtx.na_subscribe('na_profile_meta_updated', Na__Apply__OnStoreMetaUpdated);
+        }
+        Na__Ui__SyncProfileKeyFromStore();
         Na__Ui__Render();
         Na__Ui__RenderProfilePreview();
     }
@@ -233,6 +313,10 @@
             Na__UiState.profiles = profileMap;
             Na__UiState.profileKey = payload.profileKey || '';
             Na__UiState.profileSourceMode = payload.profileSourceMode || 'library';
+
+            if (window.Na__ProfileTools__ProfileStore) {
+                window.Na__ProfileTools__ProfileStore.Na__Store__SetProfiles(profileMap, Na__UiState.profileKey);
+            }
             Na__UiState.pathMode = payload.pathMode || 'interactive';
             Na__UiState.rotationStep = Number(payload.rotationStep || 0) % 4;
             Na__UiState.isPreviewEnabled = payload.isPreviewEnabled !== false;

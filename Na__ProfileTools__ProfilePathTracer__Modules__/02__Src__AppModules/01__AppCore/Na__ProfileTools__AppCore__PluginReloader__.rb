@@ -20,17 +20,22 @@ module Na__ProfileTools__ProfilePathTracer
         NA_JS_SUBFOLDER_FILES = [
             '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__UiSystem__BridgeBase__.js',
             '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__UiSystem__MainShell__.js',
+            '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__ProfileStore__.js',
             '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__TabRouter__.js',
             '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__AppContext__.js',
-            '02__Src__AppModules/03__AppUtils/Na__ProfileTools__AppUtils__SettingsTab__UiLogic__.js',
-            '02__Src__AppModules/03__AppUtils/Na__ProfileTools__AppUtils__SettingsTab__Bridge__.js',
             '02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__ProfileTools__Viewport__SvgGenerator__.js',
-            '02__Src__AppModules/10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__UiSystem__Config__.js',
-            '02__Src__AppModules/10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js',
-            '02__Src__AppModules/10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__UiSystem__Bridge__.js',
-            '02__Src__AppModules/20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js',
-            '02__Src__AppModules/20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__UiSystem__Events__.js',
-            '02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__Placeholder__.js'
+            '02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__CardRenderer__.js',
+            '02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__MainUiLogic__.js',
+            '02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js',
+            '02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__Events__.js',
+            '02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__UiSystem__MainUiLogic__.js',
+            '02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__UiSystem__Bridge__.js',
+            '02__Src__AppModules/33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__Config__.js',
+            '02__Src__AppModules/33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js',
+            '02__Src__AppModules/33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__Bridge__.js',
+            '02__Src__AppModules/33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__MainUiLogic__.js',
+            '02__Src__AppModules/35__System__SettingsMode/Na__ProfileTools__AppUtils__SettingsTab__UiLogic__.js',
+            '02__Src__AppModules/35__System__SettingsMode/Na__ProfileTools__AppUtils__SettingsTab__Bridge__.js'
         ].freeze
 
     # endregion ----------------------------------------------------------------

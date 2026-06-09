@@ -3,6 +3,115 @@
 ## Version History
 
 # =======================================================================================
+
+## Profile Path Tracer - v1.1.5 - 09-Jun-2026 - Added Reverse Profile Direction Toggle
+
+### Summary
+Added a "Reverse Direction" toggle button to the Apply Profile tab. When active, the
+generated profile is swept with a +180° rotation offset then the resulting group is
+Z-axis flipped and translated back to the original path line, effectively reversing the
+winding direction of the profile without requiring knowledge of edge winding order.
+The SVG 2D preview mirrors left-right to give immediate visual feedback.
+
+### How It Works
+1. User presses **⇄ Reverse** button (left of Generate).
+2. JS sets `reverseDirection: true` in `Na__UiState` and rebuilds the generate payload.
+3. Ruby receives `reverseDirection` in `generate_config`.
+4. `UnifiedOverrides__` computes `effective_rotation_step = (rotation_step + 2) % 4` before the sweep.
+5. After the sweep group is created, `Geom::Transformation.scaling(bounds.center, 1, 1, -1)` flips it on the world Z axis.
+6. A follow-up `Geom::Transformation.translation([0, 0, z_extent])` corrects the vertical offset so the profile sits back on the original path line.
+7. SVG preview applies a double `FlipAcrossYAtX(0)` (left-right mirror) to reflect the reversed orientation.
+
+### Button UX
+- Inactive: `⇄ Reverse` — `naButtonSecondary` style (white).
+- Active: `⇄ Reversed` — `naButton--reverseActive` style (desaturated red `#a84444`).
+
+### Files Touched
+
+| Path | Change |
+|---|---|
+| `02__Src__AppModules/33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js` | Added Reverse button left of Generate; active text + red tint class |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__Events__.js` | Wired `#naBtnReverseDirection` click to `Na__Events__OnReverseDirectionToggle` |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js` | Added `reverseDirection` state, toggle handler, payload field, preview re-render on toggle, `reverseDirection` passed to SVG generator |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__DialogManager__.rb` | Extracted `reverseDirection` from config; passed to both selection-mode and interactive-mode paths |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | Added `reverse_direction` to `initialize`; threaded through to `Na__Engine__GenerateFromInteractivePath` |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__PlacementEngine__.rb` | Added `reverse_direction:` keyword to `Na__Engine__GenerateFromInteractivePath` and `Na__Engine__GenerateFromPathData` |
+| `02__Src__AppModules/04__GeometryHelpers/Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | Added `reverse_direction:` to `Na__Geometry__BuildProfileAlongPath`; applied `effective_rotation_step`, Z-scale flip, and Z-translate correction |
+| `02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__ProfileTools__Viewport__SvgGenerator__.js` | Reads `reverseDirection` option; applies left-right flip (`FlipAcrossYAtX` twice = X mirror) when active |
+| `03__Style__AppStylesheets/Na__ProfileTools__CoreUi__Styles__Index__.css` | Added `.naButton--reverseActive` desaturated red style |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.1.4 - 09-Jun-2026 - Added Gallery View, Edit Profile Tab & Folder Renumber
+
+### Summary
+Major UX refactor: added a live Gallery tab with SVG-thumbnail cards and keyword-prioritised
+search, a new Edit Profile tab for in-place metadata editing, a shared ProfileStore as the
+single source of truth for selected profile state, and a full system-module folder renumber
+to match the new tab order.
+
+### Folder Renumber Migration
+| Old Path | New Path |
+|---|---|
+| `02__Src__AppModules/10__System__CreateNewProfile/` | `02__Src__AppModules/33__System__CreateProfileMode/` |
+| `02__Src__AppModules/20__System__ApplyProfileAlongPath/` | `02__Src__AppModules/31__System__ApplyProfileMode/` |
+| `02__Src__AppModules/03__AppUtils/Na__...SettingsTab__*.js` | `02__Src__AppModules/35__System__SettingsMode/` |
+| (new) | `02__Src__AppModules/30__System__GalleryMode/` (existing, now live) |
+| (new) | `02__Src__AppModules/32__System__EditProfileMode/` |
+
+All `require_relative` paths in `Main__.rb`, `NA_JS_SUBFOLDER_FILES` in `PluginReloader__.rb`,
+and `<script src>` paths in `UiLayout__.html` updated accordingly.
+
+### New and Changed Files
+
+| Path | Change |
+|---|---|
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__ProfileStore__.js` | **NEW** — Shared profile map + selected-key store; dispatches `na_profiles_changed`, `na_selected_changed`, `na_profile_meta_updated` via Na_AppContext |
+| `02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__CardRenderer__.js` | **NEW** — SVG-thumb card builder + keyword-prioritised filter/sort |
+| `02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__MainUiLogic__.js` | **NEW** — Gallery tab: card grid, search bar, thumbnail-size cycle, card-click selection |
+| `02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__Placeholder__.js` | **DELETED** — replaced by MainUiLogic |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__UiSystem__MainUiLogic__.js` | **NEW** — Edit Profile tab: live metadata form, SVG preview, store subscription |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__UiSystem__Bridge__.js` | **NEW** — JS→Ruby save bridge + ReceiveUpdateProfileMetaResult receive handler |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__MetaWriter__.rb` | **NEW** — Ruby: path-guard validation, .bak backup, JSON patch, file write, re-parse via ProfileLibrary |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__DialogManager__.rb` | Added `na_profilepathtracer_update_profile_meta` callback delegating to MetaWriter |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__Main__.rb` | Updated require_relative paths (31, 33) + added require for MetaWriter (32) |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__PluginReloader__.rb` | Updated NA_JS_SUBFOLDER_FILES to all new paths + new modules |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__TabRouter__.js` | Added `edit-profile` to NA_TAB_TO_GLOBAL; default tab changed to `gallery` |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js` | Populate ProfileStore from ReceiveBootstrap; subscribe to store events; added active-profile indicator helper |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__Events__.js` | Removed naProfileSelect dropdown event wiring |
+| `02__Src__AppModules/33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js` | Removed naProfileSelect form row; replaced with read-only active-profile indicator driven by ProfileStore |
+| `Na__ProfileTools__UiLayout__.html` | Tab order: Gallery (default), Apply Profile, Edit Profile, Create Profile, Settings; added Edit Profile panel; updated all script src paths |
+| `03__Style__AppStylesheets/Na__ProfileTools__UiFeature__Styles__Gallery__.css` | **NEW** — Gallery toolbar, card grid (sm/md/lg), cards, chips, empty state |
+| `03__Style__AppStylesheets/Na__ProfileTools__UiFeature__Styles__EditProfile__.css` | **NEW** — Edit Profile form, geo-summary bar, active-profile indicator, empty state |
+| `03__Style__AppStylesheets/Na__ProfileTools__CoreUi__Styles__Index__.css` | Added @import for Gallery and EditProfile stylesheets |
+
+### Architecture: Shared Selection Flow
+```
+Ruby BuildBootstrapPayload → ReceiveBootstrap → ProfileStore.SetProfiles
+ProfileStore → na_profiles_changed → Gallery renders cards
+Gallery card click → ProfileStore.SetSelected → na_selected_changed
+na_selected_changed → EditProfile tab reloads | Apply tab indicator refreshes
+EditProfile form input → ProfileStore.ApplyMetaPatch → na_profile_meta_updated
+EditProfile Save → Bridge → Ruby MetaWriter (.bak + overwrite) → UpdateRecord → na_selected_changed
+```
+
+# =======================================================================================
+
+## Session — 09-Jun-2026 | Gallery Polish Fixes
+
+### Changes
+
+| Path | Change |
+|---|---|
+| `03__Style__AppStylesheets/Na__ProfileTools__CoreUi__Styles__Index__.css` | Added `vector-effect: non-scaling-stroke` to `.naProfileLine`, `.naAxisLine`, `.naProfileOriginLine`, `.naProfileOriginPoint` — ensures consistent stroke weight across all card sizes regardless of viewBox scale |
+| `02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__ProfileTools__Viewport__SvgGenerator__.js` | Added `thumbnailMode` option to `Na__Svg__GenerateProfile`: uses `includeOrigin: false` + 10% proportional margin so gallery cards show a tight, centred fit regardless of how far the profile geometry sits from its origin point. Also added `margin` override to `Na__Svg__Bounds` |
+| `02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__CardRenderer__.js` | Pass `thumbnailMode: true` to `Na__Svg__GenerateProfile`; switched hover tooltip from `title=""` to `data-tooltip=""` for fast CSS-only reveal |
+| `03__Style__AppStylesheets/Na__ProfileTools__UiFeature__Styles__Gallery__.css` | Tooltip redesigned as bottom-of-card overlay (position absolute, bottom 0) so it is never clipped by the grid's `overflow-y: auto` container; 100 ms delay, 80 ms fade |
+| `02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__MainUiLogic__.js` | Gallery card click navigates to **Apply Profile** tab (was incorrectly set to Edit Profile) |
+
+# =======================================================================================
+
+# =======================================================================================
 ## Profile Path Tracer - v1.1.3 - 05-Jun-2026
 
 ### Fix (critical): Closed-loop sweep shrank the profile cross-section
@@ -290,6 +399,6 @@ satisfying the single-source-of-truth requirement.
 |---|---|
 | `02__Src__AppModules/20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__SceneProfileRegistry__.rb` | Replaced broken inline mesh-edge block with `Na__Exporter__BuildMeshEdgeRecord` delegation |
 
-# =======================================================================================
+# ===============================================================================
 
 # END OF DEVLOG

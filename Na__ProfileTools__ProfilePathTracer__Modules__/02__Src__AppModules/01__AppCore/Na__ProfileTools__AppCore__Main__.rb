@@ -53,21 +53,27 @@ require_relative '../04__GeometryHelpers/Na__ProfileTools__GeometryHelpers__Axis
 # REGION | System - Apply Profile Along Path
 # -------------------------------------------------------------------------
 
-require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__ProfileLibrary__'
-require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__PlacementEngine__'
-require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__3dPreviewGraphics__'
-require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__KeyboardHandlers__'
-require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__PathSelectionTool__'
-require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__HeadlessRunner__'
-require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__SceneProfileRegistry__'
-require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__ApplyProfile__SceneProfilePicker__'
-require_relative '../20__System__ApplyProfileAlongPath/Na__ProfileTools__RegenerationEngine__Main__'
+require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__ProfileLibrary__'
+require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__PlacementEngine__'
+require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__3dPreviewGraphics__'
+require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__KeyboardHandlers__'
+require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__PathSelectionTool__'
+require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__HeadlessRunner__'
+require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__SceneProfileRegistry__'
+require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__SceneProfilePicker__'
+require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__RegenerationEngine__Main__'
 
 # -------------------------------------------------------------------------
 # REGION | System - Create New Profile
 # -------------------------------------------------------------------------
 
-require_relative '../10__System__CreateNewProfile/Na__ProfileTools__CreateNewProfile__Exporter__'
+require_relative '../33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__Exporter__'
+
+# -------------------------------------------------------------------------
+# REGION | System - Edit Profile
+# -------------------------------------------------------------------------
+
+require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__MetaWriter__'
 
 # -------------------------------------------------------------------------
 # REGION | AppCore (must load last — depends on all systems above)

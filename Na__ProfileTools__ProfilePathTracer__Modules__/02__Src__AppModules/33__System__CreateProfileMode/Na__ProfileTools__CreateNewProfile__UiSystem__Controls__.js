@@ -82,20 +82,27 @@
 
         const hasToggles = Object.keys(toggleDefinitions).length > 0;
 
+        var store            = window.Na__ProfileTools__ProfileStore;
+        var activeRecord     = store ? store.Na__Store__GetSelectedRecord() : null;
+        var activeName       = activeRecord ? (activeRecord.displayName || activeRecord.profileKey || '') : '';
+        var activeHint       = activeName
+            ? '<span class="na-active-profile__name">' + activeName + '</span>'
+            : '<span class="na-active-profile__hint">No profile selected — choose one in the Gallery.</span>';
+
         return [
             '<div class="na-section na-section--controls">',
+
+            '  <div class="naFormRow">',
+            '    <label>Active Profile</label>',
+            '    <div class="na-active-profile" id="naActiveProfileIndicator">',
+            activeHint,
+            '    </div>',
+            '  </div>',
 
             '  <div class="naFormRow">',
             '    <label for="naProfileSourceModeSelect">Profile Source</label>',
             '    <select class="naSelect" id="naProfileSourceModeSelect">',
             Na__Ui__BuildOptionsHtml(config.profileSourceModeOptions, profileSourceModeValue),
-            '    </select>',
-            '  </div>',
-
-            '  <div class="naFormRow">',
-            '    <label for="naProfileSelect">Profile</label>',
-            '    <select class="naSelect" id="naProfileSelect">',
-            Na__Ui__BuildOptionsHtml(config.profileOptions, profileValue),
             '    </select>',
             '  </div>',
 
@@ -143,6 +150,7 @@
             ].join('') : '',
 
             '<div class="na-section na-actions-section">',
+            '  <button class="naButton naButtonSecondary' + (state.reverseDirection ? ' naButton--reverseActive' : '') + '" id="naBtnReverseDirection" title="Flip profile direction: rotates 180\u00b0 and flips Z-axis">' + (state.reverseDirection ? '\u21c4 Reversed' : '\u21c4 Reverse') + '</button>',
             '  <button class="naButton naButtonPrimary" id="naBtnGenerate">Generate Profile</button>',
             '</div>'
         ].join('');

@@ -1,0 +1,223 @@
+/* =============================================================================
+   NA PROFILE TOOLS - UI FEATURE STYLES - GALLERY
+   =============================================================================
+   FILE       : Na__ProfileTools__UiFeature__Styles__Gallery__.css
+   PURPOSE    : Gallery tab — toolbar, responsive card grid (sm/md/lg sizes),
+                profile cards, SVG thumbnail frames, keyword chips, empty state.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Gallery Panel Body */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-panel-body {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    overflow            : hidden;
+    height              : 100%;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Toolbar */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-toolbar {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    padding             : 10px 14px;
+    background          : var(--na-tab-strip-bg);
+    border-bottom       : 1px solid var(--na-border);
+    flex-shrink         : 0;
+}
+
+.na-gallery-search {
+    flex                : 1;
+    padding             : 7px 10px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    font-size           : 13px;
+    font-family         : inherit;
+    background          : #fff;
+    color               : var(--na-text);
+}
+
+.na-gallery-search:focus {
+    outline             : none;
+    border-color        : var(--na-accent);
+}
+
+.na-gallery-size-btn {
+    flex-shrink         : 0;
+    min-width           : 68px;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Card Grid */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-grid {
+    display             : grid;
+    gap                 : 12px;
+    padding             : 14px;
+    overflow-y          : auto;
+    flex                : 1;
+    align-content       : start;
+}
+
+.na-gallery-grid--sm {
+    grid-template-columns : repeat(auto-fill, minmax(110px, 1fr));
+}
+
+.na-gallery-grid--md {
+    grid-template-columns : repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.na-gallery-grid--lg {
+    grid-template-columns : repeat(auto-fill, minmax(220px, 1fr));
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Card */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-card {
+    background          : var(--na-panel);
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    overflow            : hidden;
+    cursor              : pointer;
+    transition          : border-color 0.12s, box-shadow 0.12s;
+}
+
+.na-gallery-card:hover {
+    border-color        : var(--na-accent);
+    box-shadow          : 0 2px 8px rgba(26,115,232,0.14);
+}
+
+.na-gallery-card--selected {
+    border-color        : var(--na-accent);
+    box-shadow          : 0 0 0 2px rgba(26,115,232,0.28);
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Card Thumbnail */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-card__thumb {
+    background          : #f8f9fb;
+    border-bottom       : 1px solid var(--na-border);
+    padding             : 10px;
+    aspect-ratio        : 1 / 1;
+    display             : flex;
+    align-items         : center;
+    justify-content     : center;
+    overflow            : hidden;
+}
+
+.na-gallery-card__svg {
+    display             : block;
+    width               : 100%;
+    height              : 100%;
+    overflow            : hidden;
+}
+
+.na-gallery-card__thumb-empty {
+    width               : 100%;
+    height              : 100%;
+    background          : var(--na-bg);
+    border-radius       : 3px;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Card Meta */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-card__meta {
+    padding             : 8px 10px 10px;
+}
+
+.na-gallery-card__name {
+    font-size           : 12px;
+    font-weight         : 600;
+    color               : var(--na-text);
+    white-space         : nowrap;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    margin-bottom       : 2px;
+}
+
+.na-gallery-card__category {
+    font-size           : 11px;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    margin-bottom       : 5px;
+}
+
+.na-gallery-card__chips {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 3px;
+}
+
+.na-gallery-card__chip {
+    display             : inline-block;
+    padding             : 2px 6px;
+    background          : var(--na-status-bg);
+    color               : var(--na-accent);
+    border-radius       : 10px;
+    font-size           : 10px;
+    font-weight         : 500;
+    line-height         : 1.4;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Empty State */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-empty {
+    grid-column         : 1 / -1;
+    padding             : 40px 20px;
+    text-align          : center;
+    color               : var(--na-subtle);
+    font-size           : 13px;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Card Tooltip (bottom overlay — stays inside card, never clipped) */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-card[data-tooltip] {
+    position            : relative;
+}
+
+.na-gallery-card[data-tooltip]::after {
+    content             : attr(data-tooltip);
+    position            : absolute;
+    bottom              : 0;
+    left                : 0;
+    right               : 0;
+    background          : rgba(20, 24, 32, 0.82);
+    color               : #ffffff;
+    font-size           : 11px;
+    font-weight         : 500;
+    padding             : 5px 8px;
+    text-align          : center;
+    white-space         : nowrap;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    pointer-events      : none;
+    opacity             : 0;
+    transition          : opacity 0.08s ease;
+    transition-delay    : 0.1s;
+    z-index             : 10;
+}
+
+.na-gallery-card[data-tooltip]:hover::after {
+    opacity             : 1;
+}
+
+/* endregion ----------------------------------------------------------------- */

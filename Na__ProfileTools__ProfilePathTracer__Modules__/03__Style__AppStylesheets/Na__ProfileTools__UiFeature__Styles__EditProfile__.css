@@ -1,0 +1,92 @@
+/* =============================================================================
+   NA PROFILE TOOLS - UI FEATURE STYLES - EDIT PROFILE
+   =============================================================================
+   FILE       : Na__ProfileTools__UiFeature__Styles__EditProfile__.css
+   PURPOSE    : Edit Profile tab — form layout, SVG preview, geometry counts,
+                active-profile indicator on Apply tab, empty / no-selection state.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Edit Profile Panel */
+/* ----------------------------------------------------------------- */
+
+.na-edit-profile {
+    padding             : 0 0 16px;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | SVG Preview Section */
+/* ----------------------------------------------------------------- */
+
+.na-edit-profile__preview-section {
+    padding             : 12px 16px;
+}
+
+.na-edit-profile__preview-wrap {
+    min-height          : 180px;
+}
+
+.na-edit-profile__preview-svg {
+    height              : 200px;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Geometry Summary Bar */
+/* ----------------------------------------------------------------- */
+
+.na-edit-profile__geo-summary {
+    display             : flex;
+    gap                 : 18px;
+    padding             : 8px 12px;
+    background          : var(--na-status-bg);
+    border-radius       : 4px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+}
+
+.na-edit-profile__geo-item strong {
+    color               : var(--na-text);
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Empty / No Selection State */
+/* ----------------------------------------------------------------- */
+
+.na-edit-profile-empty {
+    padding             : 40px 24px;
+    text-align          : center;
+    color               : var(--na-subtle);
+    font-size           : 13px;
+    line-height         : 1.7;
+}
+
+.na-edit-profile-empty p {
+    margin              : 0 0 10px;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Active Profile Indicator (Apply Profile tab) */
+/* ----------------------------------------------------------------- */
+
+.na-active-profile {
+    display             : flex;
+    align-items         : center;
+    min-height          : 34px;
+    padding             : 6px 10px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : #fafbfc;
+    font-size           : 13px;
+}
+
+.na-active-profile__name {
+    font-weight         : 600;
+    color               : var(--na-text);
+}
+
+.na-active-profile__hint {
+    color               : var(--na-subtle);
+    font-style          : italic;
+}
+
+/* endregion ----------------------------------------------------------------- */

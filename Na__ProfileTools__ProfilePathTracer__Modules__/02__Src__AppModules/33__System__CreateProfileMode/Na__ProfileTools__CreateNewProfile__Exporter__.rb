@@ -683,7 +683,7 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | DataLib Helpers (Tags + Edge Materials)
     # -------------------------------------------------------------------------
 
-        # @delegate: ../../../03__AppUtils/Na__ProfileTools__AppUtils__TagApplier__
+        # @delegate: ../../../03__AppUtils/Na__ProfileTools__AppUtils__TagApplier__  (from 33__System__CreateProfileMode)
         def self.Na__Exporter__FindTagEntryByName(target_tag_name)
             Na__TagApplier.Na__TagApplier__FindTagEntryByName(target_tag_name)
         end

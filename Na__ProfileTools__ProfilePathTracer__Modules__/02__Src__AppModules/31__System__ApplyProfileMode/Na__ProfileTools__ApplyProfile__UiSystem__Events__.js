@@ -17,7 +17,6 @@
 
     function Na__Ui__AttachEvents(handlers) {
         var profileSourceModeSelect = document.getElementById('naProfileSourceModeSelect');
-        var profileSelect           = document.getElementById('naProfileSelect');
         var pathModeSelect          = document.getElementById('naPathModeSelect');
         var btnGenerate             = document.getElementById('naBtnGenerate');
         var btnPickSceneProfile     = document.getElementById('naBtnPickSceneProfile');
@@ -26,12 +25,6 @@
         if (profileSourceModeSelect) {
             profileSourceModeSelect.addEventListener('change', function() {
                 handlers.Na__Events__OnProfileSourceModeChange(profileSourceModeSelect.value);
-            });
-        }
-
-        if (profileSelect) {
-            profileSelect.addEventListener('change', function() {
-                handlers.Na__Events__OnProfileChange(profileSelect.value);
             });
         }
 
@@ -67,6 +60,13 @@
         if (btnGenerate) {
             btnGenerate.addEventListener('click', function() {
                 handlers.Na__Events__OnGenerate();
+            });
+        }
+
+        var btnReverseDirection = document.getElementById('naBtnReverseDirection');
+        if (btnReverseDirection) {
+            btnReverseDirection.addEventListener('click', function() {
+                handlers.Na__Events__OnReverseDirectionToggle();
             });
         }
 

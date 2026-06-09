@@ -17,7 +17,7 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | File Paths
     # -------------------------------------------------------------------------
 
-        # @delegate: ../../04__Data__ProfileLibrary/
+        # @delegate: ../../04__Data__ProfileLibrary/  (from 31__System__ApplyProfileMode)
         NA_PROFILE_DATA_DIR = File.expand_path('../../04__Data__ProfileLibrary', File.dirname(__FILE__)).freeze
 
     # endregion ----------------------------------------------------------------

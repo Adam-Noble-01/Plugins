@@ -8,7 +8,7 @@
 //              Tab modules are resolved by a small lookup table so adding
 //              new tabs does not require editing this file.
 //
-// TABS       : apply-profile | gallery | settings
+// TABS       : gallery (default) | apply-profile | edit-profile | create-profile | settings
 //
 // =============================================================================
 
@@ -16,7 +16,7 @@
     'use strict';
 
     var Na_TabRouter          = {};
-    var na_active_tab_id      = 'apply-profile';
+    var na_active_tab_id      = 'gallery';
     var NA_TAB_BUTTON_PREFIX  = 'na-tab-button-';
     var NA_TAB_PANEL_PREFIX   = 'na-tab-';
 
@@ -25,9 +25,10 @@
     // -------------------------------------------------------------------------
 
     var NA_TAB_TO_GLOBAL = {
-        'apply-profile'  : 'Na__ProfileTools__ApplyProfile__Tab',
-        'create-profile' : 'Na__ProfileTools__CreateNewProfile__Tab',
         'gallery'        : 'Na__ProfileTools__Gallery__Tab',
+        'apply-profile'  : 'Na__ProfileTools__ApplyProfile__Tab',
+        'edit-profile'   : 'Na__ProfileTools__EditProfile__Tab',
+        'create-profile' : 'Na__ProfileTools__CreateNewProfile__Tab',
         'settings'       : 'Na__ProfileTools__Settings__Tab'
     };
 

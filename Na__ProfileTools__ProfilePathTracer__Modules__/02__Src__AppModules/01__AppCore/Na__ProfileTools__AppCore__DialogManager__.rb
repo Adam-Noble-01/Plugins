@@ -246,6 +246,19 @@ module Na__ProfileTools__ProfilePathTracer
                 Na__DebugTools.Na__Debug__Error('DynRegen detach-all callback failed.', error)
                 self.Na__Dialog__SetStatusFromRuby("Detach all failed: #{error.message}")
             end
+
+            dialog.add_action_callback('na_profilepathtracer_update_profile_meta') do |_context, json_payload|
+                params = JSON.parse(json_payload.to_s)
+                result = Na__EditProfile__MetaWriter.Na__MetaWriter__SaveMeta(params)
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveUpdateProfileMetaResult', result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Update profile meta callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveUpdateProfileMetaResult',
+                    { 'isSaved' => false, 'reason' => "Save failed: #{error.message}",
+                      'statusMessage' => "Save failed: #{error.message}" }
+                )
+            end
         end
 
     # endregion ----------------------------------------------------------------
@@ -604,6 +617,7 @@ module Na__ProfileTools__ProfilePathTracer
             profile_data = profile_resolution['profileData']
             toggle_states = self.Na__Dialog__NormalizedToggleStates(generate_config)
             rotation_step = generate_config['rotationStep'].to_i % 4
+            reverse_direction = generate_config['reverseDirection'] == true
 
             if path_mode == 'selection'
                 validation = Na__PathAnalysis.Na__Path__BuildSegments(Sketchup.active_model.selection.to_a)
@@ -626,7 +640,8 @@ module Na__ProfileTools__ProfilePathTracer
                     path_data: path_data,
                     start_point: path_data[:ordered_points].first,
                     rotation_step: rotation_step,
-                    toggle_states: toggle_states
+                    toggle_states: toggle_states,
+                    reverse_direction: reverse_direction
                 )
 
                 return {
@@ -636,7 +651,7 @@ module Na__ProfileTools__ProfilePathTracer
             end
 
             model = Sketchup.active_model
-            interactive_tool = Na__PathSelectionTool.new(profile_key, profile_data, toggle_states, rotation_step)
+            interactive_tool = Na__PathSelectionTool.new(profile_key, profile_data, toggle_states, rotation_step, reverse_direction)
             model.select_tool(interactive_tool)
 
             {
