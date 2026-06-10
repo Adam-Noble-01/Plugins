@@ -474,10 +474,16 @@
             "02__Reference__CadLines__NotUsed",
             "02__Linetype__DoorSwings",
             "00__Util__Linework__ColumnBackers",
+            "01__LineType__AnchorPoints",
+            "02__ProfilePathTracer_Helpers",
+            "05__CadNotUsed",
+            "05__Mirror",
+            "06__Drawings",
             "02__ClearanceLines",
             "02__DoorHelpers__RotationPivots",
             "Na__Door__Open",
             "01__ModelFlag__ElementsForRemoval"
+    
         ],
         "FullyExcludedNote"        : "Entities on these tags are completely skipped during GLB export at any nesting depth.",
         "LineworkHiddenTagNames"   : [
