@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Na Noble3d Tools : PNG To Linework</title>
+  <style>
+    {{STYLESHEET_CONTENT}}
+  </style>
+</head>
+<body>
+
+  <div class="naPngTrace__App">
+
+    <!-- Toolbar -->
+    <div class="naPngTrace__Toolbar">
+      <span class="naPngTrace__ToolbarLabel">PNG To Linework</span>
+      <span class="naPngTrace__FileName" id="naPng_fileName">No image loaded</span>
+      <div class="naPngTrace__ToolbarSpacer"></div>
+      <button id="naPng_btnChoose" class="naPngTrace__Btn naPngTrace__Btn--primary">Choose PNG</button>
+    </div>
+
+    <!-- Main: controls + SVG preview -->
+    <div class="naPngTrace__Main">
+
+      <aside class="naPngTrace__Controls">
+
+        <div class="naPngTrace__ControlGroup">
+          <div class="naPngTrace__GroupTitle">Real World Scale</div>
+
+          <div class="naPngTrace__ControlItem">
+            <label class="naPngTrace__ControlLabel" for="naPng_realWidth">Image Width (mm)</label>
+            <input type="number" class="naPngTrace__NumberInput" id="naPng_realWidth" value="12000" min="10" max="1000000" step="50" />
+            <div class="naPngTrace__ControlHint">Estimated real-world width of the whole image, e.g. 12000 for a 12m tree row.</div>
+          </div>
+        </div>
+
+        <div class="naPngTrace__ControlGroup">
+          <div class="naPngTrace__GroupTitle">Linework Complexity</div>
+
+          <div class="naPngTrace__ControlItem">
+            <label class="naPngTrace__ControlLabel" for="naPng_minSegment">Min Segment Length (mm)</label>
+            <div class="naPngTrace__SliderRow">
+              <input type="range" class="naPngTrace__Slider" id="naPng_minSegmentSlider" value="5" min="0.5" max="100" step="0.5" />
+              <input type="number" class="naPngTrace__NumberInput naPngTrace__NumberInput--small" id="naPng_minSegment" value="5" min="0.25" max="500" step="0.5" />
+            </div>
+            <div class="naPngTrace__ControlHint">Longer segments = fewer edges. 5mm avoids unnecessary micro-edges.</div>
+          </div>
+
+          <div class="naPngTrace__ControlItem">
+            <label class="naPngTrace__ControlLabel" for="naPng_minPathLength">Detail Cull - Min Path Length (mm)</label>
+            <div class="naPngTrace__SliderRow">
+              <input type="range" class="naPngTrace__Slider" id="naPng_minPathLengthSlider" value="0" min="0" max="500" step="5" />
+              <input type="number" class="naPngTrace__NumberInput naPngTrace__NumberInput--small" id="naPng_minPathLength" value="0" min="0" max="10000" step="5" />
+            </div>
+            <div class="naPngTrace__ControlHint">Drops whole paths shorter than this - thins dense detail like foliage texture. 0 keeps everything.</div>
+          </div>
+
+          <div class="naPngTrace__ControlItem">
+            <label class="naPngTrace__ControlLabel" for="naPng_vertexMerge">Vertex Merge Distance (mm)</label>
+            <div class="naPngTrace__SliderRow">
+              <input type="range" class="naPngTrace__Slider" id="naPng_vertexMergeSlider" value="0" min="0" max="100" step="1" />
+              <input type="number" class="naPngTrace__NumberInput naPngTrace__NumberInput--small" id="naPng_vertexMerge" value="0" min="0" max="1000" step="1" />
+            </div>
+            <div class="naPngTrace__ControlHint">Final pass - welds vertices within this distance together, collapsing junction tessellation into clean nodes. 0 = off.</div>
+          </div>
+
+          <div class="naPngTrace__ControlItem">
+            <label class="naPngTrace__ControlLabel" for="naPng_alphaThreshold">Alpha Threshold</label>
+            <div class="naPngTrace__SliderRow">
+              <input type="range" class="naPngTrace__Slider" id="naPng_alphaThresholdSlider" value="128" min="1" max="254" step="1" />
+              <input type="number" class="naPngTrace__NumberInput naPngTrace__NumberInput--small" id="naPng_alphaThreshold" value="128" min="1" max="254" step="1" />
+            </div>
+            <div class="naPngTrace__ControlHint">Pixels with alpha above this value count as linework.</div>
+          </div>
+
+          <div class="naPngTrace__ControlItem">
+            <label class="naPngTrace__ControlLabel" for="naPng_traceMode">Trace Mode</label>
+            <select class="naPngTrace__Select" id="naPng_traceMode">
+              <option value="centerline" selected>Centerline (pen linework)</option>
+              <option value="outline">Outline (filled silhouettes)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="naPngTrace__ControlGroup">
+          <div class="naPngTrace__GroupTitle">SketchUp Output</div>
+
+          <div class="naPngTrace__ControlItem">
+            <label class="naPngTrace__ControlLabel" for="naPng_plane">Drawing Plane</label>
+            <select class="naPngTrace__Select" id="naPng_plane">
+              <option value="vertical" selected>Vertical X-Z (elevations, trees, people)</option>
+              <option value="ground">Ground X-Y (plan linework)</option>
+            </select>
+          </div>
+
+          <div class="naPngTrace__ControlItem naPngTrace__ControlItem--inline">
+            <input type="checkbox" id="naPng_showSource" checked />
+            <label class="naPngTrace__ControlLabel" for="naPng_showSource">Show source image under preview</label>
+          </div>
+        </div>
+
+        <div class="naPngTrace__ControlGroup">
+          <div class="naPngTrace__GroupTitle">Trace Statistics</div>
+          <div class="naPngTrace__StatsGrid">
+            <span class="naPngTrace__StatLabel">Paths</span>      <span class="naPngTrace__StatValue" id="naPng_statPaths">-</span>
+            <span class="naPngTrace__StatLabel">Vertices</span>   <span class="naPngTrace__StatValue" id="naPng_statVertices">-</span>
+            <span class="naPngTrace__StatLabel">Edges</span>      <span class="naPngTrace__StatValue" id="naPng_statEdges">-</span>
+            <span class="naPngTrace__StatLabel">Scale</span>      <span class="naPngTrace__StatValue" id="naPng_statScale">-</span>
+            <span class="naPngTrace__StatLabel">Output Size</span><span class="naPngTrace__StatValue" id="naPng_statSize">-</span>
+          </div>
+        </div>
+
+        <button id="naPng_btnCreate" class="naPngTrace__Btn naPngTrace__Btn--create" disabled>Create &amp; Place in Model</button>
+        <div class="naPngTrace__ControlHint naPngTrace__ControlHint--center">Places with the crosshair tool - snaps to a 5mm grid, ESC cancels.</div>
+
+      </aside>
+
+      <div class="naPngTrace__ViewportPane">
+        <div class="naPngTrace__ViewportHeader">
+          <span class="naPngTrace__ViewportTitle">SVG Preview</span>
+          <button id="naPng_btnResetView" class="naPngTrace__Btn naPngTrace__Btn--small">Reset View</button>
+        </div>
+        <div class="naPngTrace__SvgWrapper" id="naPng_svgWrapper">
+          <svg id="naPng_svg" class="naPngTrace__Svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
+
+    </div><!-- /.naPngTrace__Main -->
+
+    <!-- Status bar -->
+    <div class="naPngTrace__StatusBar">
+      <div class="naPngTrace__StatusText" id="naPng_status">Loading...</div>
+    </div>
+
+  </div><!-- /.naPngTrace__App -->
+
+  <script>
+    {{TRACE_ENGINE_SCRIPT}}
+  </script>
+  <script>
+    {{SVG_PREVIEW_SCRIPT}}
+  </script>
+  <script>
+    {{UI_BRIDGE_SCRIPT}}
+  </script>
+
+</body>
+</html>

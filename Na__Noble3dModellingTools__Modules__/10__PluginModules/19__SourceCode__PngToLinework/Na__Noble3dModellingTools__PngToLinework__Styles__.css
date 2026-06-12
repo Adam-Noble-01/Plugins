@@ -1,0 +1,345 @@
+/* =============================================================================
+   NA NOBLE3D MODELLING TOOLS - PNG TO LINEWORK - STYLESHEET
+   =============================================================================
+
+   FILE       : Na__Noble3dModellingTools__PngToLinework__Styles__.css
+   PURPOSE    : Light Noble Architecture theme for the PNG To Linework dialog.
+   CREATED    : 2026
+
+   ============================================================================= */
+
+/* -----------------------------------------------------------------------------
+   REGION | Theme Variables and Base
+   ----------------------------------------------------------------------------- */
+
+:root {
+    --na-bg-primary    : #f0f0f0;
+    --na-bg-secondary  : #ffffff;
+    --na-bg-tertiary   : #e6e6e6;
+    --na-border        : #d0d0d0;
+    --na-text-primary  : #1e1e1e;
+    --na-text-secondary: #5a5a5a;
+    --na-accent-blue   : #4a90d9;
+    --na-accent-green  : #3d9a50;
+    --na-accent-red    : #c0392b;
+    --na-accent-amber  : #c97a12;
+    --na-font-family   : 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--na-font-family);
+    font-size: 13px;
+    color: var(--na-text-primary);
+    background: var(--na-bg-primary);
+}
+
+/* endregion ------------------------------------------------------------------ */
+
+/* -----------------------------------------------------------------------------
+   REGION | App Shell
+   ----------------------------------------------------------------------------- */
+
+.naPngTrace__App {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.naPngTrace__Toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--na-bg-secondary);
+    border-bottom: 1px solid var(--na-border);
+    flex: 0 0 auto;
+}
+
+.naPngTrace__ToolbarLabel {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.naPngTrace__FileName {
+    color: var(--na-text-secondary);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 50%;
+}
+
+.naPngTrace__ToolbarSpacer { flex: 1 1 auto; }
+
+.naPngTrace__Main {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* endregion ------------------------------------------------------------------ */
+
+/* -----------------------------------------------------------------------------
+   REGION | Controls Column
+   ----------------------------------------------------------------------------- */
+
+.naPngTrace__Controls {
+    flex: 0 0 300px;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--na-bg-primary);
+    border-right: 1px solid var(--na-border);
+}
+
+.naPngTrace__ControlGroup {
+    background: var(--na-bg-secondary);
+    border: 1px solid var(--na-border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+
+.naPngTrace__GroupTitle {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--na-text-secondary);
+    margin-bottom: 8px;
+}
+
+.naPngTrace__ControlItem { margin-bottom: 10px; }
+.naPngTrace__ControlItem:last-child { margin-bottom: 0; }
+
+.naPngTrace__ControlItem--inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.naPngTrace__ControlLabel {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.naPngTrace__ControlItem--inline .naPngTrace__ControlLabel {
+    margin-bottom: 0;
+    font-weight: 400;
+}
+
+.naPngTrace__ControlHint {
+    font-size: 11px;
+    color: var(--na-text-secondary);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+.naPngTrace__ControlHint--center {
+    text-align: center;
+    margin-top: 6px;
+}
+
+.naPngTrace__SliderRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.naPngTrace__Slider {
+    flex: 1 1 auto;
+    accent-color: var(--na-accent-blue);
+}
+
+.naPngTrace__NumberInput,
+.naPngTrace__Select {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--na-border);
+    border-radius: 4px;
+    background: var(--na-bg-secondary);
+    color: var(--na-text-primary);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.naPngTrace__NumberInput--small {
+    width: 72px;
+    flex: 0 0 auto;
+}
+
+.naPngTrace__NumberInput:focus,
+.naPngTrace__Select:focus {
+    outline: none;
+    border-color: var(--na-accent-blue);
+}
+
+/* endregion ------------------------------------------------------------------ */
+
+/* -----------------------------------------------------------------------------
+   REGION | Stats Panel
+   ----------------------------------------------------------------------------- */
+
+.naPngTrace__StatsGrid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+}
+
+.naPngTrace__StatLabel {
+    color: var(--na-text-secondary);
+    font-size: 12px;
+}
+
+.naPngTrace__StatValue {
+    font-size: 12px;
+    font-weight: 600;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.naPngTrace__StatValue--warn  { color: var(--na-accent-amber); }
+.naPngTrace__StatValue--error { color: var(--na-accent-red); }
+
+/* endregion ------------------------------------------------------------------ */
+
+/* -----------------------------------------------------------------------------
+   REGION | Buttons
+   ----------------------------------------------------------------------------- */
+
+.naPngTrace__Btn {
+    padding: 6px 14px;
+    border: 1px solid var(--na-border);
+    border-radius: 4px;
+    background: var(--na-bg-secondary);
+    color: var(--na-text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.naPngTrace__Btn:hover:not(:disabled) {
+    border-color: var(--na-accent-blue);
+    color: var(--na-accent-blue);
+}
+
+.naPngTrace__Btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.naPngTrace__Btn--primary {
+    background: var(--na-accent-blue);
+    border-color: var(--na-accent-blue);
+    color: #ffffff;
+}
+
+.naPngTrace__Btn--primary:hover:not(:disabled) {
+    background: #3a7fc4;
+    color: #ffffff;
+}
+
+.naPngTrace__Btn--create {
+    width: 100%;
+    padding: 10px 14px;
+    font-weight: 700;
+    background: var(--na-accent-green);
+    border-color: var(--na-accent-green);
+    color: #ffffff;
+}
+
+.naPngTrace__Btn--create:hover:not(:disabled) {
+    background: #338544;
+    color: #ffffff;
+}
+
+.naPngTrace__Btn--small {
+    padding: 3px 10px;
+    font-size: 12px;
+}
+
+/* endregion ------------------------------------------------------------------ */
+
+/* -----------------------------------------------------------------------------
+   REGION | Viewport Pane
+   ----------------------------------------------------------------------------- */
+
+.naPngTrace__ViewportPane {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--na-bg-secondary);
+}
+
+.naPngTrace__ViewportHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--na-border);
+    flex: 0 0 auto;
+}
+
+.naPngTrace__ViewportTitle {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--na-text-secondary);
+}
+
+.naPngTrace__SvgWrapper {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    cursor: grab;
+    background:
+        linear-gradient(45deg, #fafafa 25%, transparent 25%, transparent 75%, #fafafa 75%),
+        linear-gradient(45deg, #fafafa 25%, #ffffff 25%, #ffffff 75%, #fafafa 75%);
+    background-size: 24px 24px;
+    background-position: 0 0, 12px 12px;
+}
+
+.naPngTrace__SvgWrapper:active { cursor: grabbing; }
+
+.naPngTrace__Svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* endregion ------------------------------------------------------------------ */
+
+/* -----------------------------------------------------------------------------
+   REGION | Status Bar
+   ----------------------------------------------------------------------------- */
+
+.naPngTrace__StatusBar {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    background: var(--na-bg-tertiary);
+    border-top: 1px solid var(--na-border);
+}
+
+.naPngTrace__StatusText {
+    font-size: 12px;
+    color: var(--na-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.naPngTrace__StatusText--error { color: var(--na-accent-red); font-weight: 600; }
+
+/* endregion ------------------------------------------------------------------ */
+
+/* =============================================================================
+   END OF FILE
+   ============================================================================= */

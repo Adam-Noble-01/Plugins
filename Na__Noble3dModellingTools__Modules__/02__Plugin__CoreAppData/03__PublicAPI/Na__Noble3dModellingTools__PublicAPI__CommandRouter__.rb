@@ -138,6 +138,9 @@ module Na__Noble3dModellingTools
             when 'convert_groups_to_component'
                 proc { Na__GroupsToComponent.Na__GroupsToComponent__Run }
 
+            when 'png_to_linework'
+                proc { Na__PngToLinework.Na__PngToLinework__Run }
+
             else
                 nil
             end

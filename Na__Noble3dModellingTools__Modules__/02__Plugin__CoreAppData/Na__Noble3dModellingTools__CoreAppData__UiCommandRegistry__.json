@@ -325,6 +325,15 @@
             "menu_text"         : "PDF Vector Importer",
             "handler_key"       : "pdf_vector_importer",
             "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "png_to_linework",
+            "command_name"      : "Na Noble3d - PNG To Linework",
+            "tooltip"           : "Trace a transparent-background PNG into SketchUp edge linework with a live preview",
+            "status_bar_text"   : "Trace a PNG file into SketchUp linework",
+            "menu_text"         : "PNG To Linework",
+            "handler_key"       : "png_to_linework",
+            "expose_to_hotkeys" : true
         }
     ],
     "buttons"                : [
@@ -626,6 +635,17 @@
             "description"            : "Select a PDF and import its vector linework as edges, flattened to the XY plane and centred on the origin. Prompts for page (multi-page PDFs), scale factor and curve smoothness."
         },
         {
+            "button_id"              : "btn_png_to_linework",
+            "tab_name"               : "Import Tools",
+            "tool_group_name"        : "Raster Tracing",
+            "tool_group_description" : "Tools for tracing raster images into SketchUp edge linework.",
+            "tool_group_order"       : 20,
+            "button_order"           : 10,
+            "button_label"           : "PNG To Linework",
+            "command_id"             : "png_to_linework",
+            "description"            : "Select a transparent-background PNG (trees, plants, people) and trace it into segmented edge linework. Live SVG preview with real-world size, minimum segment length and trace mode controls, then crosshair placement with 5mm snap."
+        },
+        {
             "button_id"              : "btn_reload_plugin",
             "tab_name"               : "Settings",
             "tool_group_name"        : "Plugin Maintenance",
@@ -771,6 +791,10 @@
         },
         {
             "command_id"        : "pdf_vector_importer",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "png_to_linework",
             "expose_to_hotkeys" : true
         }
     ]

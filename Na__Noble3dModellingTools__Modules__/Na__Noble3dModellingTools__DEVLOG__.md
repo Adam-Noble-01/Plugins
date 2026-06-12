@@ -3,6 +3,80 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.4.9 - 12-Jun-2026 - PNG To Linework (Import Tools)
+
+### Update 01 - PNG To Linework Feature Module
+- Added a new Import Tools feature module that traces transparent-background PNG linework drawings (trees, plants, people, organic shapes) into SketchUp segmented edge components via an interactive HtmlDialog with a live SVG preview. Pipeline: PNG -> SVG preview -> SketchUp model.
+- New module folder `10__PluginModules/19__SourceCode__PngToLinework`:
+  - `Na__Noble3dModellingTools__PngToLinework__Loader__.rb`
+  - `Na__Noble3dModellingTools__PngToLinework__Run__.rb`
+  - `Na__Noble3dModellingTools__PngToLinework__DialogManager__.rb`
+  - `Na__Noble3dModellingTools__PngToLinework__GeometryBuilder__.rb`
+  - `Na__Noble3dModellingTools__PngToLinework__PlacementTool__.rb`
+  - `Na__Noble3dModellingTools__PngToLinework__UiLayout__.html`
+  - `Na__Noble3dModellingTools__PngToLinework__Styles__.css`
+  - `Na__Noble3dModellingTools__PngToLinework__TraceEngine__.js`
+  - `Na__Noble3dModellingTools__PngToLinework__SvgPreview__.js`
+  - `Na__Noble3dModellingTools__PngToLinework__UiBridge__.js`
+
+### Update 02 - PNG Selection and Alpha-Channel Validation (Ruby)
+- `Run__.rb` opens the OS file picker (`UI.openpanel`, PNG filter, last-directory persistence via `Sketchup.read_default`/`write_default`), then validates BEFORE any processing:
+  - PNG signature + IHDR header parse (width/height/colour type read directly from the byte stream).
+  - Proper alpha-channel check: colour type 4 (grey+alpha) or 6 (RGBA), or a `tRNS` chunk for palette/grey/RGB images. Files without alpha are rejected with an explanatory message box.
+  - 25MB file-size guard against oversized base64 data-URI pushes.
+- SketchUp Ruby has no PNG decoder, so the raster work runs in the dialog's Chromium canvas: Ruby base64-encodes the file bytes and pushes a `data:image/png;base64,...` URI to JS (data URIs avoid canvas tainting so `getImageData` always works). A second full alpha-variation check runs in JS on the decoded pixels - a fully opaque PNG is rejected even if its header claims alpha.
+
+### Update 03 - Raster-To-Vector Trace Engine (JavaScript)
+- `TraceEngine__.js` pipeline, all in millimetres with model Y-up:
+  1. Decode to canvas `ImageData`, downscaling to max 2048px dimension (UI-lockup guard).
+  2. Binarise on a user alpha threshold (default 128).
+  3. Trace mode (dropdown):
+     - **Centerline** (default) - Zhang-Suen thinning to a 1px skeleton, then junction/endpoint-aware path walking (union of node-to-node walks + pure-cycle recovery). One edge run per drawn pen line.
+     - **Outline** - marching-squares contour extraction with endpoint-hash segment chaining into closed loops. Best for filled silhouettes.
+  4. Scale px -> mm from the user's typed real-world image width (e.g. 12000 for a 12m tree row); mm/px and derived output size shown live for tangible scale.
+  5. Ramer-Douglas-Peucker simplification + minimum-segment spacing filter (default 5mm) - the primary edge-count control.
+  6. Detail Cull - drops whole paths shorter than a total mm length (thins dense foliage confetti; 0 = off).
+  7. Centre all polylines on their bounding-box centre (component origin = drawing centre).
+  8. FINAL vertex merge (weld) pass - see Update 07.
+- Edge-count crash guards: Create button disabled above 50,000 edges (mirrored as a hard limit in the Ruby GeometryBuilder), amber warning above 20,000.
+
+### Update 04 - Live SVG Preview Dialog
+- `SvgPreview__.js` reuses the Element Assembly Studio viewBox-state viewport pattern as a standalone copy (no cross-plugin dependency): cursor-anchored wheel zoom, drag pan with 5px click threshold, Reset View fit with 10% padding and wrapper-aspect correction.
+- Polylines render as `<polyline>` strings with `vector-effect="non-scaling-stroke"`; SVG Y is negated from model Y-up at render time. Optional source-image underlay (`<image>` at 0.22 opacity, positioned in the same centred mm frame) for trace verification, plus an origin marker.
+- Control rows (slider + number-input pairs, `naPngTrace__*` class prefix, light `--na-*` Vale palette) re-trace on a 150ms debounce so scrubbing stays fast and forgiving. Live stats: paths / vertices / edges / scale / output size.
+
+### Update 05 - Geometry Build and Crosshair Placement (Ruby)
+- `GeometryBuilder__.rb` converts mm polylines to inch `Geom::Point3d`s on the chosen plane - Vertical X-Z (elevations: trees, people) or Ground X-Y (plans) - and builds a `ComponentDefinition` of plain segmented edges via `entities.add_edges` (no curves), named `Na__PngLinework__<file>__<HHMMSS>`.
+- Creation happens inside an OPEN `start_operation`; the placement tool commits on click so create-and-place is ONE undo step, and ESC aborts the operation erasing the component cleanly.
+- `PlacementTool__.rb` follows the Insert Primitives placement pattern: `Sketchup::InputPoint` pick, 5mm grid snap (mm-converted rounding), six-arm blue crosshair drawn in `draw`, live instance repositioning via `move!` (records no undo steps), selection + tool pop on click.
+
+### Update 06 - Registry, Router, and Loader Wiring
+- Registered command, button, and hotkey binding in the JSON-driven UI registry under a new `Import Tools > Raster Tracing` group (tool_group_order 20, after Vector Import):
+  - `png_to_linework` / `PNG To Linework`
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+- Wired handler and module load paths through:
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+- Fixed a capitalized-method dispatch NameError on first in-SketchUp run (`uninitialized constant ...PickAndValidatePng`): bare capitalized identifiers parse as constants in Ruby, so the same-module call in `Run__.rb` now uses an explicit `self.` receiver (same fix class as v0.2.0 Update 04).
+
+### Update 07 - Final Vertex Merge (Weld) Pass for Junction Tessellation
+- Skeleton junctions in centerline mode leave small diamond/box tessellation clusters (visible when zoomed into trunk/branch intersections). Added a vertex weld as the FINAL pipeline step - after tracing, simplification, detail cull, and centring - so it cannot interfere with any earlier step.
+- `na_mergeVertices` in `TraceEngine__.js`: union-find clustering over a spatial hash grid (O(n), path-halving), every vertex snapped to its cluster centroid, zero-length segments and fully collapsed polylines dropped. Welding is transitive (chained clusters), which is exactly what collapses junction tessellation chains into single clean nodes.
+- New `Vertex Merge Distance (mm)` control (slider 0-100, default 0 = off) in the Linework Complexity group, wired through `UiBridge__.js` (`vertexMergeMm` trace option).
+- Browser-harness verification with `PineTrees__BackroundRemvoed__.png` (2172x724 RGBA) at 12000mm / 5mm min segment: weld off = 24,184 edges; weld 8mm = 4,992 edges with tree structure intact and junction diamonds collapsed; weld 20mm = 1,068 edges (aggressive canopy collapse - user-controlled trade-off).
+
+### Validation Checklist
+- [x] JSON registry parses; JS files pass `node --check`; IDE lints clean (Ruby syntax check skipped - `ruby` not on PATH; logic reviewed manually).
+- [x] Browser harness (exact DialogManager template substitution + real PNG payload): alpha check passes for RGBA, fully-opaque rejection path works, centerline and outline modes both trace the three pine trees correctly.
+- [x] Controls re-trace live on a 150ms debounce; stats and edge-count guards update; Create disabled above 50,000 edges.
+- [x] Wheel zoom / drag pan / Reset View verified; Create payload (plane, fileName, centred mm polylines) verified via mocked `sketchup` bridge.
+- [x] Vertex merge verified as final pass: junction tessellation collapses, earlier pipeline steps unaffected at 0mm.
+- [ ] In-SketchUp: button under `Import Tools > Raster Tracing` opens picker -> dialog -> Create & Place places with crosshair + 5mm snap; ESC cancels and erases; single undo reverts a placement.
+- [ ] In-SketchUp: non-alpha PNG is rejected with the explanatory message box before the dialog opens.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.4.8 - 09-Jun-2026 - Multiple Offset Tool Edge Stickiness Fix
 
 ### Update 01 - Offset Edges Now Properly Integrate With Coplanar Faces
