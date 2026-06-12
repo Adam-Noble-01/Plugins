@@ -32,7 +32,12 @@
           <div class="naPngTrace__ControlItem">
             <label class="naPngTrace__ControlLabel" for="naPng_realWidth">Image Width (mm)</label>
             <input type="number" class="naPngTrace__NumberInput" id="naPng_realWidth" value="12000" min="10" max="1000000" step="50" />
-            <div class="naPngTrace__ControlHint">Estimated real-world width of the whole image, e.g. 12000 for a 12m tree row.</div>
+          </div>
+
+          <div class="naPngTrace__ControlItem">
+            <label class="naPngTrace__ControlLabel" for="naPng_realHeight">Image Height (mm)</label>
+            <input type="number" class="naPngTrace__NumberInput" id="naPng_realHeight" value="12000" min="10" max="1000000" step="50" />
+            <div class="naPngTrace__ControlHint">Aspect locked - editing either dimension updates the other in unison. Defaults to 12m height with the width following the loaded image's aspect.</div>
           </div>
         </div>
 

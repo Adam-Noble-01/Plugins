@@ -65,6 +65,12 @@
 - New `Vertex Merge Distance (mm)` control (slider 0-100, default 0 = off) in the Linework Complexity group, wired through `UiBridge__.js` (`vertexMergeMm` trace option).
 - Browser-harness verification with `PineTrees__BackroundRemvoed__.png` (2172x724 RGBA) at 12000mm / 5mm min segment: weld off = 24,184 edges; weld 8mm = 4,992 edges with tree structure intact and junction diamonds collapsed; weld 20mm = 1,068 edges (aggressive canopy collapse - user-controlled trade-off).
 
+### Update 08 - Aspect-Locked Width / Height Inputs (12m Default Height)
+- Added an `Image Height (mm)` input beside `Image Width (mm)` in the Real World Scale group; the pair is aspect-locked to the loaded image's pixel aspect, so editing either dimension updates the other in unison (`na_syncAspectLockedPair` in `UiBridge__.js`, aspect captured from the PNG IHDR pixel dimensions on image load).
+- On image load the height now defaults to 12,000mm (12m) and the width is derived from the image aspect (e.g. the 2172x724 pine-tree row loads as 36,000 x 12,000mm).
+- The trace engine continues to consume `realWidthMm` only; height is always the derived counterpart, so no pipeline behaviour changed.
+- Browser-harness verified: load defaults 36000/12000; width edit 12000 -> height 4000; height edit 6000 -> width 18000; output-size stat tracks.
+
 ### Validation Checklist
 - [x] JSON registry parses; JS files pass `node --check`; IDE lints clean (Ruby syntax check skipped - `ruby` not on PATH; logic reviewed manually).
 - [x] Browser harness (exact DialogManager template substitution + real PNG payload): alpha check passes for RGBA, fully-opaque rejection path works, centerline and outline modes both trace the three pine trees correctly.

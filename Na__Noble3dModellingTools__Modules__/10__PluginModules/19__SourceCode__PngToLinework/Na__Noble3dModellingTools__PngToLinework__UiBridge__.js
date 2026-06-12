@@ -25,8 +25,10 @@
     var NA_MAX_EDGE_COUNT     = 50000;                                        // <-- Mirrored hard guard in the Ruby GeometryBuilder
     var NA_WARN_EDGE_COUNT    = 20000;
     var NA_RETRACE_DEBOUNCE   = 150;                                          // <-- Keeps slider scrubbing fast and forgiving
+    var NA_DEFAULT_HEIGHT_MM  = 12000;                                        // <-- 12m default real-world image height on load
 
     var sourceImage   = null;                                                 // <-- { dataUri, fileName, pixelWidth, pixelHeight }
+    var sourceAspect  = null;                                                 // <-- pixelWidth / pixelHeight, locks width-height unison
     var decodedImage  = null;
     var traceResult   = null;
     var retraceTimer  = null;
@@ -85,9 +87,13 @@
     // ------------------------------------------------------------
     window.Na__PngToLinework__SetSourceImage = function (payload) {
         sourceImage  = payload;
+        sourceAspect = payload.pixelHeight > 0 ? (payload.pixelWidth / payload.pixelHeight) : 1;
         decodedImage = null;
         traceResult  = null;
         firstRender  = true;
+
+        na_el('naPng_realHeight').value = NA_DEFAULT_HEIGHT_MM;               // <-- 12m default height, width follows the image aspect
+        na_el('naPng_realWidth').value  = Math.round(NA_DEFAULT_HEIGHT_MM * sourceAspect);
 
         na_el('naPng_fileName').textContent = payload.fileName + '  (' + payload.pixelWidth + ' x ' + payload.pixelHeight + ' px)';
         na_setStatus('Decoding ' + payload.fileName + '...', true);
@@ -245,7 +251,17 @@
     // FUNCTION | Attach All Control and Button Listeners
     // ------------------------------------------------------------
     function na_attachListeners() {
-        ['naPng_realWidth', 'naPng_minSegment', 'naPng_minPathLength', 'naPng_vertexMerge', 'naPng_alphaThreshold'].forEach(function (id) {
+        na_el('naPng_realWidth').addEventListener('input', function () {
+            na_syncAspectLockedPair('width');
+            na_scheduleRetrace();
+        });
+
+        na_el('naPng_realHeight').addEventListener('input', function () {
+            na_syncAspectLockedPair('height');
+            na_scheduleRetrace();
+        });
+
+        ['naPng_minSegment', 'naPng_minPathLength', 'naPng_vertexMerge', 'naPng_alphaThreshold'].forEach(function (id) {
             na_el(id).addEventListener('input', function () {
                 na_syncSliderPair(id);
                 na_scheduleRetrace();
@@ -285,6 +301,24 @@
     function na_syncSliderPair(inputId) {
         var slider = na_el(inputId + 'Slider');
         if (slider) { slider.value = na_el(inputId).value; }
+    }
+    // ------------------------------------------------------------
+
+    // HELPER FUNCTION | Keep Width and Height Inputs Locked to the Image Aspect
+    // ------------------------------------------------------------
+    function na_syncAspectLockedPair(changedDimension) {
+        if (!sourceAspect) { return; }
+
+        var widthInput  = na_el('naPng_realWidth');
+        var heightInput = na_el('naPng_realHeight');
+
+        if (changedDimension === 'width') {
+            var widthValue = parseFloat(widthInput.value);
+            if (widthValue > 0) { heightInput.value = Math.round(widthValue / sourceAspect); }
+        } else {
+            var heightValue = parseFloat(heightInput.value);
+            if (heightValue > 0) { widthInput.value = Math.round(heightValue * sourceAspect); }
+        }
     }
     // ------------------------------------------------------------
 
