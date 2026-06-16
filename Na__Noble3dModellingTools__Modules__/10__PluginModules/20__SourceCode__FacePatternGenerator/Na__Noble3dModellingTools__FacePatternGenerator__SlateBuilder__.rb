@@ -1,11 +1,31 @@
 # =============================================================================
 # NA NOBLE3D MODELLING TOOLS - FACE PATTERN GENERATOR - SLATE BUILDER
 # =============================================================================
+#
+# FILE       : Na__Noble3dModellingTools__FacePatternGenerator__SlateBuilder__.rb
+# NAMESPACE  : Na__Noble3dModellingTools::Na__FacePatternGenerator__SlateBuilder
+# AUTHOR     : Adam Noble - Noble Architecture
+# PURPOSE    : Apply a slate roof pattern by placing component instances on the
+#              selected face using proven course-tiling logic from the prototype.
+# CREATED    : 2026
+#
+# DESCRIPTION:
+# - Slate Apply ignores dialog polylines and regenerates from the live selection.
+# - Uses face.classify_point for corner-inside tests (handles edge coincidence).
+# - Visible gauge = (slate_length - headlap) / 2 per UK roofing convention.
+# - Half-bond stagger offsets alternate courses by half a slate width + gap.
+#
+# =============================================================================
 
 module Na__Noble3dModellingTools
     module Na__FacePatternGenerator__SlateBuilder
 
+# -----------------------------------------------------------------------------
+# REGION | Constants
+# -----------------------------------------------------------------------------
+
         NA_OPERATION_NAME = 'Face Pattern Generator - Apply Slate'.freeze
+
         SAFE_POINT_CLASSES = [
             Sketchup::Face::PointInside,
             Sketchup::Face::PointOnFace,
@@ -17,10 +37,18 @@ module Na__Noble3dModellingTools
             'slate_600x300_100' => [600.0, 300.0, 100.0],
             'slate_500x300_100' => [500.0, 300.0, 100.0],
             'slate_500x250_100' => [500.0, 250.0, 100.0],
-            'slate_460x220_80' => [460.0, 220.0, 80.0],
-            'slate_400x250_75' => [400.0, 250.0, 75.0]
+            'slate_460x220_80'  => [460.0, 220.0, 80.0],
+            'slate_400x250_75'  => [400.0, 250.0, 75.0]
         }.freeze
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Public Entry Point
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | Apply Slate Component Instances to the Selected Face
+        # ------------------------------------------------------------
         def self.Na__FacePatternGenerator__ApplySlatePattern(payload_hash)
             model = Sketchup.active_model
             return na_result(false, 'No active model available.') unless model
@@ -28,15 +56,15 @@ module Na__Noble3dModellingTools
             face = Na__FacePatternGenerator__FaceData.Na__FacePatternGenerator__GetSingleSelectedFace(model.selection)
             return na_result(false, 'Select the target face before applying the slate pattern.') unless face
 
-            options = na_read_options(payload_hash)
+            options          = na_read_options(payload_hash)
             visible_gauge_mm = (options[:slate_length_mm] - options[:headlap_mm]) / 2.0
             return na_result(false, 'Headlap must be smaller than slate length.') if visible_gauge_mm <= 0
 
             model.start_operation(NA_OPERATION_NAME, true)
             begin
                 definition = na_build_slate_definition(model, options[:slate_width_mm], visible_gauge_mm)
-                group = model.active_entities.add_group
-                group.name = 'Na Face Pattern - Slate'
+                group      = model.active_entities.add_group
+                group.name   = 'Na Face Pattern - Slate'
 
                 count = na_populate_face(
                     group.entities,
@@ -61,39 +89,44 @@ module Na__Noble3dModellingTools
                 na_result(false, "Slate build failed: #{error.class}: #{error.message}")
             end
         end
+        # ------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Options and Definition
+# -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | Parse Slate Options from the Apply Payload
+        # ------------------------------------------------------------
         def self.na_read_options(payload_hash)
             preset_key = payload_hash.fetch('preset_key', '').to_s
-            preset = PRESET_TABLE[preset_key]
-
-            slate_length_mm = payload_hash.fetch('slate_length_mm', preset ? preset[0] : 500.0).to_f
-            slate_width_mm = payload_hash.fetch('slate_width_mm', preset ? preset[1] : 250.0).to_f
-            headlap_mm = payload_hash.fetch('headlap_mm', preset ? preset[2] : 100.0).to_f
-            side_gap_mm = payload_hash.fetch('side_gap_mm', 0.0).to_f
-            lift_mm = payload_hash.fetch('lift_mm', 0.0).to_f
-            stagger = !!payload_hash.fetch('stagger', true)
+            preset     = PRESET_TABLE[preset_key]
 
             {
-                slate_length_mm: slate_length_mm,
-                slate_width_mm: slate_width_mm,
-                headlap_mm: headlap_mm,
-                side_gap_mm: side_gap_mm,
-                lift_mm: lift_mm,
-                stagger: stagger
+                slate_length_mm: payload_hash.fetch('slate_length_mm', preset ? preset[0] : 500.0).to_f,
+                slate_width_mm:  payload_hash.fetch('slate_width_mm', preset ? preset[1] : 250.0).to_f,
+                headlap_mm:      payload_hash.fetch('headlap_mm', preset ? preset[2] : 100.0).to_f,
+                side_gap_mm:     payload_hash.fetch('side_gap_mm', 0.0).to_f,
+                lift_mm:         payload_hash.fetch('lift_mm', 0.0).to_f,
+                stagger:         !!payload_hash.fetch('stagger', true)
             }
         end
         private_class_method :na_read_options
+        # ------------------------------------------------------------
 
+        # HELPER FUNCTION | Get or Create the Slate Rectangle Component Definition
+        # ------------------------------------------------------------
         def self.na_build_slate_definition(model, slate_width_mm, visible_gauge_mm)
-            width_text = slate_width_mm.round(1)
-            gauge_text = visible_gauge_mm.round(1)
+            width_text      = slate_width_mm.round(1)
+            gauge_text      = visible_gauge_mm.round(1)
             definition_name = "Na__FacePattern__Slate__#{width_text}x#{gauge_text}"
 
             existing = model.definitions[definition_name]
             return existing if existing
 
             definition = model.definitions.add(definition_name)
-            entities = definition.entities
+            entities   = definition.entities
 
             p0 = Geom::Point3d.new(0, 0, 0)
             p1 = Geom::Point3d.new(slate_width_mm.mm, 0, 0)
@@ -108,20 +141,29 @@ module Na__Noble3dModellingTools
             definition
         end
         private_class_method :na_build_slate_definition
+        # ------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Face Population
+# -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | Tile Slate Instances Across the Face in Courses
+        # ------------------------------------------------------------
         def self.na_populate_face(entities, definition, face, slate_width_mm, visible_gauge_mm, side_gap_mm, lift_mm, stagger)
             basis = na_build_basis(face)
             return 0 unless basis
 
             local_vertices = face.outer_loop.vertices.map { |vertex| na_to_local_2d(vertex.position, basis) }
-            min_x, max_x = local_vertices.map(&:first).minmax
-            min_y, max_y = local_vertices.map(&:last).minmax
+            min_x, max_x   = local_vertices.map(&:first).minmax
+            min_y, max_y   = local_vertices.map(&:last).minmax
 
             x_step_mm = slate_width_mm + side_gap_mm
             y_step_mm = visible_gauge_mm
             row_index = 0
-            y_mm = min_y - y_step_mm
-            count = 0
+            y_mm      = min_y - y_step_mm
+            count     = 0
 
             while y_mm <= max_y + y_step_mm
                 row_offset_mm = stagger && row_index.odd? ? -(x_step_mm / 2.0) : 0.0
@@ -155,7 +197,16 @@ module Na__Noble3dModellingTools
             count
         end
         private_class_method :na_populate_face
+        # ------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Basis and Point Tests
+# -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | Derive Placement Axes from the Face Normal
+        # ------------------------------------------------------------
         def self.na_build_basis(face)
             normal = face.normal
             return nil if normal.length < 0.001
@@ -165,7 +216,7 @@ module Na__Noble3dModellingTools
             normal.reverse! if normal.z < 0
 
             world_up = Geom::Vector3d.new(0, 0, 1)
-            x_axis = world_up.cross(normal)
+            x_axis   = world_up.cross(normal)
             if x_axis.length < 0.001
                 edge = face.outer_loop.edges.max_by(&:length)
                 return nil unless edge
@@ -185,7 +236,10 @@ module Na__Noble3dModellingTools
             }
         end
         private_class_method :na_build_basis
+        # ------------------------------------------------------------
 
+        # HELPER FUNCTION | Project a World Point to Local 2D Millimetres
+        # ------------------------------------------------------------
         def self.na_to_local_2d(point, basis)
             vector = point - basis[:origin]
             [
@@ -194,7 +248,10 @@ module Na__Noble3dModellingTools
             ]
         end
         private_class_method :na_to_local_2d
+        # ------------------------------------------------------------
 
+        # HELPER FUNCTION | Test Whether All Slate Corners Lie on or Inside the Face
+        # ------------------------------------------------------------
         def self.na_corners_fit_face?(face, local_corners, basis)
             local_corners.all? do |xy|
                 world_point = basis[:origin]
@@ -204,13 +261,26 @@ module Na__Noble3dModellingTools
             end
         end
         private_class_method :na_corners_fit_face?
+        # ------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Result Helper
+# -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | Build Standard Result Hash
+        # ------------------------------------------------------------
         def self.na_result(success_flag, message_text, extra = {})
             { success: !!success_flag, message: message_text.to_s }.merge(extra)
         end
         private_class_method :na_result
-    end
-end
+        # ------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+    end # module Na__FacePatternGenerator__SlateBuilder
+end # module Na__Noble3dModellingTools
 
 # =============================================================================
 # END OF FILE

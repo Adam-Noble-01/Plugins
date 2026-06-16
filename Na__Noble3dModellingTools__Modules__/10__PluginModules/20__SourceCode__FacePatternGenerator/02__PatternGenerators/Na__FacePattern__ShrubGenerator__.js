@@ -1,15 +1,34 @@
-(function () {
+// =============================================================================
+// NA NOBLE3D MODELLING TOOLS - FACE PATTERN - SHRUB GENERATOR
+// =============================================================================
+//
+// FILE       : Na__FacePattern__ShrubGenerator__.js
+// NAMESPACE  : window.Na__FacePattern__ShrubGenerator
+// AUTHOR     : Adam Noble - Noble Architecture
+// PURPOSE    : Single closed silhouette — Round / Wild / Topiary base shapes;
+//              interior-point sampler for non-rectangular faces.
+// CREATED    : 2026
+//
+// =============================================================================
+
+window.Na__FacePattern__ShrubGenerator = (function () {
     'use strict';
 
+    // -------------------------------------------------------------------------
+    // REGION | Shape Construction
+    // -------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Build a Parametric Closed Silhouette Polyline
+    // ------------------------------------------------------------
     function na_baseShape(type, centerX, centerY, width, height) {
         var points = [];
-        var steps = 56;
-        var rx = width * 0.5;
-        var ry = height * 0.5;
+        var steps  = 56;
+        var rx     = width * 0.5;
+        var ry     = height * 0.5;
 
         for (var index = 0; index <= steps; index += 1) {
-            var t = (index / steps) * Math.PI * 2;
-            var x = centerX + (Math.cos(t) * rx);
+            var t     = (index / steps) * Math.PI * 2;
+            var x     = centerX + (Math.cos(t) * rx);
             var yScale = 1;
 
             if (type === 'topiary') {
@@ -23,30 +42,68 @@
         }
         return points;
     }
+    // ------------------------------------------------------------
 
+    // HELPER FUNCTION | Apply Leaf-Scale Roughness Jitter to the Silhouette
+    // ------------------------------------------------------------
     function na_applyRoughness(polyline, roughnessPct, leafScale) {
         var roughness = Math.max(0, Math.min(100, Number(roughnessPct) || 0)) / 100;
-        if (roughness <= 0) {
-            return polyline;
-        }
+        if (roughness <= 0) { return polyline; }
 
-        var output = [];
+        var output    = [];
         var amplitude = Math.max(2, Number(leafScale) || 16) * roughness * 0.5;
         for (var index = 0; index < polyline.length; index += 1) {
-            var point = polyline[index];
+            var point   = polyline[index];
             var jitterX = (Math.sin((index + 1) * 0.7) * amplitude);
             var jitterY = (Math.cos((index + 1) * 0.6) * amplitude);
             output.push([point[0] + jitterX, point[1] + jitterY]);
         }
         return output;
     }
+    // ------------------------------------------------------------
 
+    // endregion ---------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Interior Point Sampling
+    // -------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Find an Interior Point with Cardinal Clearance
+    // ------------------------------------------------------------
+    function na_findInteriorPoint(bounds, outer, holes, clipApi) {
+        var stepX = Math.max(20, bounds.width / 30);
+        var stepY = Math.max(20, bounds.height / 30);
+        for (var x = bounds.min_x + stepX; x < bounds.max_x - stepX; x += stepX) {
+            for (var y = bounds.min_y + stepY; y < bounds.max_y - stepY; y += stepY) {
+                var center = [x, y];
+                if (!clipApi.na_pointInFace(center, outer, holes)) { continue; }
+                if (clipApi.na_pointInFace([x + 10, y], outer, holes) &&
+                    clipApi.na_pointInFace([x - 10, y], outer, holes) &&
+                    clipApi.na_pointInFace([x, y + 10], outer, holes) &&
+                    clipApi.na_pointInFace([x, y - 10], outer, holes)) {
+                    return center;
+                }
+            }
+        }
+        return null;
+    }
+    // ------------------------------------------------------------
+
+    // endregion ---------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Public Generator
+    // -------------------------------------------------------------------------
+
+    // FUNCTION | Generate a Shrub Silhouette Polyline for the Selected Face
+    // ------------------------------------------------------------
     function na_generate(context) {
-        var bounds = context.faceData.bounds;
-        var params = context.params;
+        var bounds  = context.faceData.bounds;
+        var params  = context.params;
         var clipApi = window.Na__FacePattern__PolygonClip;
         var centerX = bounds.min_x + (bounds.width * 0.5);
         var centerY = bounds.min_y + (bounds.height * 0.5);
+
         if (!clipApi.na_pointInFace([centerX, centerY], context.faceData.outer, context.faceData.holes)) {
             for (var sampleX = bounds.min_x; sampleX <= bounds.max_x; sampleX += Math.max(20, bounds.width / 20)) {
                 for (var sampleY = bounds.min_y; sampleY <= bounds.max_y; sampleY += Math.max(20, bounds.height / 20)) {
@@ -60,8 +117,8 @@
             }
         }
 
-        var baseWidth = Math.max(200, Number(params.shrub_width_mm) || bounds.width * 0.75);
-        var baseHeight = Math.max(200, Number(params.shrub_height_mm) || bounds.height * 0.75);
+        var baseWidth    = Math.max(200, Number(params.shrub_width_mm) || bounds.width * 0.75);
+        var baseHeight   = Math.max(200, Number(params.shrub_height_mm) || bounds.height * 0.75);
         var bestPolyline = null;
 
         for (var attempt = 0; attempt < 5; attempt += 1) {
@@ -91,7 +148,7 @@
 
         if (!bestPolyline || bestPolyline.length < 3) {
             var interior = na_findInteriorPoint(bounds, context.faceData.outer, context.faceData.holes, clipApi);
-            var radius = 30;
+            var radius   = 30;
             while (interior && radius >= 2) {
                 var fallback = [
                     [interior[0], interior[1] + radius],
@@ -117,28 +174,16 @@
             status: 'Shrub silhouette generated.'
         };
     }
+    // ------------------------------------------------------------
 
-    function na_findInteriorPoint(bounds, outer, holes, clipApi) {
-        var stepX = Math.max(20, bounds.width / 30);
-        var stepY = Math.max(20, bounds.height / 30);
-        for (var x = bounds.min_x + stepX; x < bounds.max_x - stepX; x += stepX) {
-            for (var y = bounds.min_y + stepY; y < bounds.max_y - stepY; y += stepY) {
-                var center = [x, y];
-                if (!clipApi.na_pointInFace(center, outer, holes)) {
-                    continue;
-                }
-                if (clipApi.na_pointInFace([x + 10, y], outer, holes) &&
-                    clipApi.na_pointInFace([x - 10, y], outer, holes) &&
-                    clipApi.na_pointInFace([x, y + 10], outer, holes) &&
-                    clipApi.na_pointInFace([x, y - 10], outer, holes)) {
-                    return center;
-                }
-            }
-        }
-        return null;
-    }
+    // endregion ---------------------------------------------------------------
 
-    window.Na__FacePattern__ShrubGenerator = {
+    return {
         na_generate: na_generate
     };
+
 })();
+
+// =============================================================================
+// END OF FILE
+// =============================================================================

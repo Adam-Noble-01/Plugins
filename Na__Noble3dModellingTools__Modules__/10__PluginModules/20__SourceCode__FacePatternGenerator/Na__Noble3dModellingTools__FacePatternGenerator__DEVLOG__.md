@@ -10,8 +10,36 @@ Unified parametric surface pattern generator that reads a single selected
 SketchUp face, previews five architectural pattern types in an SVG HtmlDialog,
 and applies the generated linework back onto the face plane.
 
----
+# =============================================================================
+# VERSION HISTORY
+# =============================================================================
 
+
+# Na Noble3d Modelling Tools
+## Version 0.2.0 - 16-Jun-2026 - Noble Code Style and Dialog UI Polish
+
+### Update 01 - Noble Code Style Pass (All Module Source Files)
+- Restyled every Ruby and JavaScript file in the module to match the PNG To Linework / Noble 3D Tools conventions: file headers (`FILE`, `NAMESPACE`, `AUTHOR`, `PURPOSE`, `CREATED`), `# REGION |` / `// REGION |` blocks, `# FUNCTION |` / `# HELPER FUNCTION |` comment readers, inline `# <--` / `// <--` notes, and `# END OF FILE` footers.
+- Ruby files updated: `Loader__`, `Run__`, `DialogManager__`, `FaceData__`, `GeometryBuilder__`, `SlateBuilder__`. DialogManager callbacks now wrap handlers in `begin/rescue` with console logging, matching the PngToLinework dialog manager pattern.
+- JavaScript files updated: all six `01__SharedJs/` modules, all five `02__PatternGenerators/` modules, plus `AppCore__`, `UiBridge__`, `SvgPreview__`, and `UiConfig__`. Shared modules converted to IIFE exports where appropriate (`window.Na__FacePattern__*`).
+
+### Update 02 - HtmlDialog Layout Restructure (`UiLayout__.html`)
+- Added a full HTML file header block documenting injection placeholders, Ruby↔JS bridge calls, and the dialog workflow.
+- Restructured the controls column into card-style groups with `GroupTitle` / `ControlItem` / `ControlHint`: Pattern Selection, Pattern Parameters (dynamic mount), Export, and Apply with a centred hint.
+- Moved **Reset View** from the controls column into a viewport header row (SVG Preview title + button), matching the PNG To Linework layout.
+- Status bar now uses an outer `StatusBar` wrapper and inner `StatusText` element (`id="naFacePat_status"`) for consistent footer messaging.
+
+### Update 03 - Columnified Stylesheet (`Styles__.css`)
+- Rewrote the stylesheet in the columnified Noble property format (`property : value;` with aligned colons) used by `Na__Noble3dModellingTools__Styles__.css`.
+- Organised into named regions: Design Tokens, Base Layout, App Shell, Controls Column, Buttons, Viewport Pane, Status Bar.
+- Aligned visual treatment with PNG To Linework: button hover/disabled states, full-height viewport column with header bar, checkerboard SVG wrapper, tertiary status-bar background.
+- Added flatten rule for `#naFacePat_dynamicControls` nested groups so DynamicUI-injected fields do not double-render card borders.
+
+### Update 04 - DynamicUI Status Class Fix
+- `Na__FacePattern__DynamicUI__.js` — status error styling updated from `naFacePat__StatusBar--error` to `naFacePat__StatusText--error` after the status `id` moved to the inner footer element in the layout restructure.
+
+---
+# Na Noble3d Modelling Tools
 ## Version 0.1.0 - 16-Jun-2026 - Initial Migration from Prototype
 
 ### Purpose
@@ -22,7 +50,7 @@ Migrate five standalone Maker.js browser prototypes
 HtmlDialog feature module under the naming convention and module structure
 established by the PNG To Linework tool.
 
----
+# =============================================================================
 
 ### Module File Map
 

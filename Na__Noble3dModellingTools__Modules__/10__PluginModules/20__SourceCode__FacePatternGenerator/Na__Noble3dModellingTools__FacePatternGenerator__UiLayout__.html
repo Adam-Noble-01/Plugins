@@ -1,45 +1,116 @@
 <!doctype html>
+<!--
+=============================================================================
+NA NOBLE3D MODELLING TOOLS - FACE PATTERN GENERATOR - UI LAYOUT
+=============================================================================
+
+FILE       : Na__Noble3dModellingTools__FacePatternGenerator__UiLayout__.html
+PURPOSE    : HtmlDialog shell for the Face Pattern Generator feature module.
+             Controls column + SVG preview viewport. All assets are inlined
+             by DialogManager via set_html (no external file base URL).
+
+INJECTION  : {{STYLESHEET_CONTENT}}  — Na__Noble3dModellingTools__FacePatternGenerator__Styles__.css
+             {{SCRIPTS_CONTENT}}     — Shared JS, pattern generators, AppCore, UiBridge
+
+RUBY -> JS : Na__FacePattern__SetFaceData(payload)
+             Na__FacePattern__SetStatus(message, success)
+JS -> RUBY : sketchup.na_dialog_ready / na_refresh_face / na_apply_pattern / na_js_log
+
+WORKFLOW:
+1. User selects one face in SketchUp, then launches the tool.
+2. Ruby pushes face boundary + basis JSON; SVG preview draws the perimeter.
+3. User picks a pattern type; DynamicUI builds parameter controls from UiConfig.
+4. Preview regenerates on every control change; Apply writes geometry to the model.
+
+=============================================================================
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Na Noble3d Tools : Face Pattern Generator</title>
-  <style>{{STYLESHEET_CONTENT}}</style>
+  <style>
+    {{STYLESHEET_CONTENT}}
+  </style>
 </head>
 <body>
+
+  <!-- REGION | App Shell -->
   <div class="naFacePat__App">
+
+    <!-- Toolbar -->
     <div class="naFacePat__Toolbar">
-      <div class="naFacePat__ToolbarTitle">Face Pattern Generator</div>
-      <div class="naFacePat__ToolbarMeta" id="naFacePat_faceMeta">No face loaded</div>
+      <span class="naFacePat__ToolbarLabel">Face Pattern Generator</span>
+      <span class="naFacePat__ToolbarMeta" id="naFacePat_faceMeta">No face loaded</span>
       <div class="naFacePat__ToolbarSpacer"></div>
-      <button id="naFacePat_btnRefreshFace" class="naFacePat__Btn naFacePat__Btn--secondary">Refresh Face</button>
+      <button id="naFacePat_btnRefreshFace" class="naFacePat__Btn naFacePat__Btn--secondary" type="button">Refresh Face</button>
     </div>
 
+    <!-- Main: controls + SVG preview -->
     <div class="naFacePat__Main">
+
+      <!-- Controls column -->
       <aside class="naFacePat__ControlsPane">
+
+        <!-- Pattern selection -->
         <div class="naFacePat__ControlGroup">
-          <label class="naFacePat__Label" for="naFacePat_patternType">Pattern Type</label>
-          <select id="naFacePat_patternType" class="naFacePat__Select"></select>
+          <div class="naFacePat__GroupTitle">Pattern Selection</div>
+
+          <div class="naFacePat__ControlItem">
+            <label class="naFacePat__ControlLabel" for="naFacePat_patternType">Pattern Type</label>
+            <select id="naFacePat_patternType" class="naFacePat__Select"></select>
+            <div class="naFacePat__ControlHint">Patio, Brickwork, Stonework, Shrub, or Slate Roof — each with its own parameters below.</div>
+          </div>
         </div>
-        <div class="naFacePat__ControlGroup" id="naFacePat_dynamicControls"></div>
-        <div class="naFacePat__ActionRow">
-          <button id="naFacePat_btnResetView" class="naFacePat__Btn naFacePat__Btn--secondary">Reset View</button>
-          <button id="naFacePat_btnDownloadDxf" class="naFacePat__Btn naFacePat__Btn--secondary">Download DXF</button>
+
+        <!-- Dynamic pattern parameters (built by Na__FacePattern__DynamicUI from UiConfig) -->
+        <div class="naFacePat__ControlGroup naFacePat__ControlGroup--dynamic">
+          <div class="naFacePat__GroupTitle">Pattern Parameters</div>
+          <div id="naFacePat_dynamicControls"></div>
         </div>
-        <button id="naFacePat_btnApply" class="naFacePat__Btn naFacePat__Btn--primary">Apply to Face</button>
+
+        <!-- Export -->
+        <div class="naFacePat__ControlGroup">
+          <div class="naFacePat__GroupTitle">Export</div>
+
+          <div class="naFacePat__ControlItem">
+            <button id="naFacePat_btnDownloadDxf" class="naFacePat__Btn naFacePat__Btn--secondary" type="button">Download DXF</button>
+            <div class="naFacePat__ControlHint">Exports the current SVG preview linework as a 2D DXF file.</div>
+          </div>
+        </div>
+
+        <!-- Apply -->
+        <button id="naFacePat_btnApply" class="naFacePat__Btn naFacePat__Btn--primary" type="button">Apply to Face</button>
+        <div class="naFacePat__ControlHint naFacePat__ControlHint--center">Writes the generated pattern onto the selected face in one undo step.</div>
+
       </aside>
 
-      <section class="naFacePat__ViewportPane">
-        <div class="naFacePat__ViewportWrapper" id="naFacePat_svgWrapper">
-          <svg id="naFacePat_svg"></svg>
+      <!-- SVG preview viewport -->
+      <div class="naFacePat__ViewportPane">
+        <div class="naFacePat__ViewportHeader">
+          <span class="naFacePat__ViewportTitle">SVG Preview</span>
+          <button id="naFacePat_btnResetView" class="naFacePat__Btn naFacePat__Btn--small" type="button">Reset View</button>
         </div>
-      </section>
+        <div class="naFacePat__ViewportWrapper" id="naFacePat_svgWrapper">
+          <svg id="naFacePat_svg" class="naFacePat__Svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
+
+    </div><!-- /.naFacePat__Main -->
+
+    <!-- Status bar -->
+    <div class="naFacePat__StatusBar">
+      <div class="naFacePat__StatusText" id="naFacePat_status">Waiting for selected face...</div>
     </div>
 
-    <div class="naFacePat__StatusBar" id="naFacePat_status">Waiting for selected face...</div>
-  </div>
+  </div><!-- /.naFacePat__App -->
+  <!-- endregion | App Shell -->
 
-  <script>{{SCRIPTS_CONTENT}}</script>
+  <!-- Inlined dialog scripts (Shared JS + generators + AppCore + UiBridge) -->
+  <script>
+    {{SCRIPTS_CONTENT}}
+  </script>
+
 </body>
 </html>

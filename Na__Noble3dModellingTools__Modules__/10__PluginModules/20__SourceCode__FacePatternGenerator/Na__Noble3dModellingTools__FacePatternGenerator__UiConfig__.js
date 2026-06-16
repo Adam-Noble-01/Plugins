@@ -1,5 +1,22 @@
+// =============================================================================
+// NA NOBLE3D MODELLING TOOLS - FACE PATTERN GENERATOR - UI CONFIG
+// =============================================================================
+//
+// FILE       : Na__Noble3dModellingTools__FacePatternGenerator__UiConfig__.js
+// NAMESPACE  : window.Na__FacePattern__UiConfig
+// AUTHOR     : Adam Noble - Noble Architecture
+// PURPOSE    : Per-pattern field descriptors (type, label, default, min, max,
+//              options) consumed by the DynamicUI control panel builder.
+// CREATED    : 2026
+//
+// =============================================================================
+
 (function () {
     'use strict';
+
+    // -------------------------------------------------------------------------
+    // REGION | Pattern Field Descriptors
+    // -------------------------------------------------------------------------
 
     var NA_PATTERN_CONFIG = {
         patio: {
@@ -145,18 +162,37 @@
         }
     };
 
+    // endregion ---------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Public API
+    // -------------------------------------------------------------------------
+
+    // FUNCTION | Return Pattern Key / Label Pairs for the Top-Level Selector
+    // ------------------------------------------------------------
     function na_patternEntries() {
         return Object.keys(NA_PATTERN_CONFIG).map(function (key) {
             return { key: key, label: NA_PATTERN_CONFIG[key].label };
         });
     }
+    // ------------------------------------------------------------
 
+    // FUNCTION | Return the Field Descriptor Set for a Pattern Key
+    // ------------------------------------------------------------
     function na_getPatternConfig(patternKey) {
         return NA_PATTERN_CONFIG[patternKey] || NA_PATTERN_CONFIG.patio;
     }
+    // ------------------------------------------------------------
+
+    // endregion ---------------------------------------------------------------
 
     window.Na__FacePattern__UiConfig = {
         na_patternEntries: na_patternEntries,
         na_getPatternConfig: na_getPatternConfig
     };
+
 })();
+
+// =============================================================================
+// END OF FILE
+// =============================================================================

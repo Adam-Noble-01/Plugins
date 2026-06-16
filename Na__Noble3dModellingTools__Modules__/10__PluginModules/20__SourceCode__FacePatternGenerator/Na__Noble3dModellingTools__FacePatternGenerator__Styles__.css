@@ -1,150 +1,343 @@
-html, body {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    overflow: hidden;
-    font-family: "Segoe UI", Arial, sans-serif;
-    color: #1f2933;
+/* ============================================================================= */
+/* NA NOBLE3D MODELLING TOOLS - FACE PATTERN GENERATOR - STYLESHEET             */
+/*                                                                               */
+/* FILE       : Na__Noble3dModellingTools__FacePatternGenerator__Styles__.css    */
+/* PURPOSE    : Light Noble Architecture theme for the Face Pattern Generator    */
+/*              HtmlDialog — controls column + SVG preview viewport.             */
+/* CREATED    : 2026                                                             */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * #region | Design Tokens (:root Variables)
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    --na-bg-primary         : #f0f0f0;
+    --na-bg-secondary       : #ffffff;
+    --na-bg-tertiary        : #e6e6e6;
+    --na-border             : #d0d0d0;
+    --na-text-primary       : #1e1e1e;
+    --na-text-secondary     : #5a5a5a;
+    --na-accent-blue        : #4a90d9;
+    --na-accent-green       : #3d9a50;
+    --na-accent-red         : #c0392b;
+    --na-accent-amber       : #c97a12;
+    --na-font-family        : 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout — Document Reset
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing              : border-box;
+}
+
+html,
+body {
+    margin                  : 0;
+    padding                 : 0;
+    height                  : 100%;
+    overflow                : hidden;
+    font-family             : var(--na-font-family);
+    font-size               : 13px;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-primary);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | App Shell — Root Layout, Toolbar, Main Split
+ * ----------------------------------------------------------------------------- */
+
 .naFacePat__App {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-    background: #f3f5f8;
+    display                 : flex;
+    flex-direction          : column;
+    height                  : 100vh;
 }
 
 .naFacePat__Toolbar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    background: #ffffff;
-    border-bottom: 1px solid #d8dde6;
+    display                 : flex;
+    align-items             : center;
+    gap                     : 12px;
+    padding                 : 8px 12px;
+    background              : var(--na-bg-secondary);
+    border-bottom           : 1px solid var(--na-border);
+    flex                    : 0 0 auto;
 }
 
+.naFacePat__ToolbarLabel,
 .naFacePat__ToolbarTitle {
-    font-size: 14px;
-    font-weight: 700;
+    font-size               : 14px;
+    font-weight             : 700;
 }
 
 .naFacePat__ToolbarMeta {
-    font-size: 12px;
-    color: #65758a;
+    color                   : var(--na-text-secondary);
+    font-size               : 12px;
+    white-space             : nowrap;
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+    max-width               : 50%;
 }
 
 .naFacePat__ToolbarSpacer {
-    flex: 1;
+    flex                    : 1 1 auto;
 }
 
 .naFacePat__Main {
-    display: flex;
-    flex: 1;
-    min-height: 0;
+    display                 : flex;
+    flex                    : 1 1 auto;
+    min-height              : 0;
 }
 
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Controls Column — Groups, Items, Inputs
+ * ----------------------------------------------------------------------------- */
+
 .naFacePat__ControlsPane {
-    width: 360px;
-    padding: 14px;
-    border-right: 1px solid #d8dde6;
-    background: #ffffff;
-    overflow-y: auto;
+    width                   : 360px;
+    flex                    : 0 0 360px;
+    overflow-y              : auto;
+    padding                 : 12px;
+    background              : var(--na-bg-primary);
+    border-right            : 1px solid var(--na-border);
 }
 
 .naFacePat__ControlGroup {
-    margin-bottom: 14px;
+    background              : var(--na-bg-secondary);
+    border                  : 1px solid var(--na-border);
+    border-radius           : 6px;
+    padding                 : 10px 12px;
+    margin-bottom           : 12px;
 }
 
+.naFacePat__ControlGroup--dynamic {
+    padding-bottom          : 4px;
+}
+
+.naFacePat__GroupTitle {
+    font-size               : 11px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.06em;
+    color                   : var(--na-text-secondary);
+    margin-bottom           : 8px;
+}
+
+.naFacePat__ControlItem {
+    margin-bottom           : 10px;
+}
+
+.naFacePat__ControlItem:last-child {
+    margin-bottom           : 0;
+}
+
+.naFacePat__ControlLabel,
 .naFacePat__Label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: #52657a;
-    margin-bottom: 6px;
+    display                 : block;
+    font-weight             : 600;
+    margin-bottom           : 4px;
+}
+
+.naFacePat__ControlHint,
+.naFacePat__Hint {
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    margin-top              : 4px;
+    line-height             : 1.4;
+}
+
+.naFacePat__ControlHint--center {
+    text-align              : center;
+    margin-top              : 6px;
 }
 
 .naFacePat__Select,
 .naFacePat__Input {
-    width: 100%;
-    box-sizing: border-box;
-    font-size: 13px;
-    padding: 7px 9px;
-    border: 1px solid #c6cfdb;
-    border-radius: 6px;
-    background: #fff;
+    width                   : 100%;
+    padding                 : 5px 8px;
+    border                  : 1px solid var(--na-border);
+    border-radius           : 4px;
+    background              : var(--na-bg-secondary);
+    color                   : var(--na-text-primary);
+    font-family             : inherit;
+    font-size               : 13px;
 }
 
-.naFacePat__Hint {
-    font-size: 11px;
-    color: #7b8797;
-    margin-top: 4px;
+.naFacePat__Select:focus,
+.naFacePat__Input:focus {
+    outline                 : none;
+    border-color            : var(--na-accent-blue);
+}
+
+/* DynamicUI injects nested control groups — flatten inner card styling */
+#naFacePat_dynamicControls .naFacePat__ControlGroup {
+    background              : transparent;
+    border                  : none;
+    border-radius           : 0;
+    padding                 : 0;
+    margin-bottom           : 10px;
 }
 
 .naFacePat__ActionRow {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 10px;
+    display                 : flex;
+    gap                     : 8px;
+    margin-bottom           : 10px;
 }
 
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Buttons — Primary, Secondary, Small
+ * ----------------------------------------------------------------------------- */
+
 .naFacePat__Btn {
-    border: 1px solid #9fb0c6;
-    border-radius: 6px;
-    padding: 8px 10px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    background: #ffffff;
+    padding                 : 6px 14px;
+    border                  : 1px solid var(--na-border);
+    border-radius           : 4px;
+    background              : var(--na-bg-secondary);
+    color                   : var(--na-text-primary);
+    font-family             : inherit;
+    font-size               : 13px;
+    font-weight             : 600;
+    cursor                  : pointer;
+}
+
+.naFacePat__Btn:hover:not(:disabled) {
+    border-color            : var(--na-accent-blue);
+    color                   : var(--na-accent-blue);
+}
+
+.naFacePat__Btn:disabled {
+    opacity                 : 0.45;
+    cursor                  : not-allowed;
 }
 
 .naFacePat__Btn--primary {
-    width: 100%;
-    background: #2f6fd9;
-    border-color: #2f6fd9;
-    color: #ffffff;
+    width                   : 100%;
+    padding                 : 10px 14px;
+    background              : var(--na-accent-blue);
+    border-color            : var(--na-accent-blue);
+    color                   : #ffffff;
 }
 
-.naFacePat__Btn--secondary:hover {
-    background: #edf2f8;
+.naFacePat__Btn--primary:hover:not(:disabled) {
+    background              : #3a7fc4;
+    color                   : #ffffff;
 }
+
+.naFacePat__Btn--secondary:hover:not(:disabled) {
+    background              : var(--na-bg-tertiary);
+    border-color            : var(--na-border);
+    color                   : var(--na-text-primary);
+}
+
+.naFacePat__Btn--small {
+    padding                 : 3px 10px;
+    font-size               : 12px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Viewport Pane — Header, Checkerboard Wrapper, SVG Canvas
+ * ----------------------------------------------------------------------------- */
 
 .naFacePat__ViewportPane {
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    padding: 12px;
+    display                 : flex;
+    flex-direction          : column;
+    flex                    : 1 1 auto;
+    min-width               : 0;
+    min-height              : 0;
+    background              : var(--na-bg-secondary);
+}
+
+.naFacePat__ViewportHeader {
+    display                 : flex;
+    align-items             : center;
+    justify-content         : space-between;
+    padding                 : 6px 12px;
+    border-bottom           : 1px solid var(--na-border);
+    flex                    : 0 0 auto;
+}
+
+.naFacePat__ViewportTitle {
+    font-size               : 11px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.06em;
+    color                   : var(--na-text-secondary);
 }
 
 .naFacePat__ViewportWrapper {
-    width: 100%;
-    height: 100%;
-    border: 1px solid #cad3df;
-    border-radius: 8px;
-    background-image: linear-gradient(45deg, #f6f8fb 25%, transparent 25%),
-                      linear-gradient(-45deg, #f6f8fb 25%, transparent 25%),
-                      linear-gradient(45deg, transparent 75%, #f6f8fb 75%),
-                      linear-gradient(-45deg, transparent 75%, #f6f8fb 75%);
-    background-size: 18px 18px;
-    background-position: 0 0, 0 9px, 9px -9px, -9px 0;
-    cursor: grab;
+    flex                    : 1 1 auto;
+    min-height              : 0;
+    width                   : 100%;
+    overflow                : hidden;
+    cursor                  : grab;
+    background              :
+        linear-gradient(45deg, #fafafa 25%, transparent 25%, transparent 75%, #fafafa 75%),
+        linear-gradient(45deg, #fafafa 25%, #ffffff 25%, #ffffff 75%, #fafafa 75%);
+    background-size         : 24px 24px;
+    background-position     : 0 0, 12px 12px;
 }
 
-#naFacePat_svg {
-    width: 100%;
-    height: 100%;
-    display: block;
+.naFacePat__ViewportWrapper:active {
+    cursor                  : grabbing;
 }
+
+.naFacePat__Svg,
+#naFacePat_svg {
+    width                   : 100%;
+    height                  : 100%;
+    display                 : block;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Status Bar — Footer Message Line
+ * ----------------------------------------------------------------------------- */
 
 .naFacePat__StatusBar {
-    min-height: 32px;
-    line-height: 32px;
-    padding: 0 14px;
-    background: #ffffff;
-    border-top: 1px solid #d8dde6;
-    font-size: 12px;
-    color: #23384f;
+    display                 : flex;
+    align-items             : center;
+    flex                    : 0 0 auto;
+    padding                 : 6px 12px;
+    background              : var(--na-bg-tertiary);
+    border-top              : 1px solid var(--na-border);
 }
 
-.naFacePat__StatusBar--error {
-    color: #a61c1c;
+.naFacePat__StatusText {
+    font-size               : 12px;
+    color                   : var(--na-text-secondary);
+    line-height             : 1.4;
+    white-space             : nowrap;
+    overflow                : hidden;
+    text-overflow           : ellipsis;
 }
+
+.naFacePat__StatusText--error {
+    color                   : var(--na-accent-red);
+    font-weight             : 600;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* ============================================================================= */
+/* END OF FILE                                                                   */
+/* ============================================================================= */

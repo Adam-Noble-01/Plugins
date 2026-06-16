@@ -1,6 +1,13 @@
 # =============================================================================
 # NA NOBLE3D MODELLING TOOLS - FACE PATTERN GENERATOR - LOADER
 # =============================================================================
+#
+# FILE       : Na__Noble3dModellingTools__FacePatternGenerator__Loader__.rb
+# NAMESPACE  : Na__Noble3dModellingTools::Na__FacePatternGenerator
+# PURPOSE    : Load all Face Pattern Generator sub-modules in dependency order
+# CREATED    : 2026
+#
+# =============================================================================
 
 require_relative 'Na__Noble3dModellingTools__FacePatternGenerator__FaceData__'
 require_relative 'Na__Noble3dModellingTools__FacePatternGenerator__GeometryBuilder__'
