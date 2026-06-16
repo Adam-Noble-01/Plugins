@@ -2,12 +2,13 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Components__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp component and group naming conventions. Documents the prefix systems, ID formats, sub-part names, and attribute dictionary keys used across all Na__ plugins. Serves as the reference for any plugin that creates or identifies Na__ components in the model. Also defines the Na__DataLib__PipelineExclusions render-pipeline exclusion lists consumed by the TrueVision GLB Builder and the TrueVision3D WebApp renderer.",
-        "version"           : "1.1.0",
-        "lastUpdated"       : "07-Jun-2026",
+        "version"           : "1.3.0",
+        "lastUpdated"       : "16-Jun-2026",
         "sourceFiles"       : [
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__DataSerializer__.rb",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__GeometryEngine__.rb",
             "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__.rb",
+            "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__SpecialObject__CameraFollowObjectHandling__.rb",
             "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__Main__.rb",
             "ValeDesignSuite/Tools_WindowPanelConfigurator/ValeDesignSuite_Tools_WindowPanelConfigurator.rb",
             "Na__InsertPrimatives__Modules__/Na__InsertPrimatives__Main__.rb"
@@ -93,6 +94,42 @@
             "AttributeDictionaries" : null
         },
 
+        "SiteVegetation2D__Billboard__": {
+            "Description"           : "2D planar site vegetation components that always face the camera (billboard / camera-follow). Separate from the high-quality 3D foreground vegetation system. Geometry is typically linework-only or linework with optional faces. Exported with hierarchy preservation and pivot data baked into glTF node extras for ValeVision and TrueVision.",
+            "SourcePlugin"          : "Na__TrueVision__GlbBuilderUtility",
+            "Tag__SketchUpName"     : "09__Site__Vegetation__2D",
+            "ComponentNamePattern"  : "{NN}_{NNNN}__SiteVegetation__{Type}__{Name}__{Height}__Var-{NN}",
+            "ComponentNameExample"  : "09_0100__SiteVegetation__Tree__MatureSpruce__14m-Height__Var-01",
+            "DetectionRegex"        : "^\\d{2}_\\d{4}__SiteVegetation__",
+            "OriginPointMarker"     : {
+                "GroupName"         : "00__OriginPoint",
+                "Tag__SketchUpName" : "00__OriginPoint",
+                "Description"       : "Nested failsafe group whose centre defines the rotation pivot. Geometry excluded from GLB; centre captured as pivotLocal in node extras."
+            },
+            "Behaviours"            : {
+                "CameraFollow"      : true,
+                "RotationAxis"      : "LocalZ_SketchUp / Y_ThreeJs",
+                "YawOnly"           : true,
+                "AoExclude"         : true,
+                "ShadeFlatness"     : 0.85
+            },
+            "BehaviourNotes"        : {
+                "ShadeFlatness"     : "Runtime lighting flatness for the billboard fill mesh. 0.0 = full directional shading (lit normally); 1.0 = fully flat (directional darkening removed, uniform albedo). Use higher values for flat 2D planar assets that darken undesirably as they rotate, lower values for assets that should still catch directional light. Resolution order: per-component Behaviours.ShadeFlatness overrides this section default; absent = 0.0. Baked into glTF node extras as shadeFlatness and consumed by ValeVision/TrueVision."
+            },
+            "Components"            : {
+                "09_0100__SiteVegetation__Tree__MatureSpruce__14m-Height__Var-01": {
+                    "SemanticName"  : "09_0100__SiteVegetation__Tree__MatureSpruce__14m-Height__Var-01",
+                    "Description"   : "Mature spruce tree - 14m height - 2D camera-follow billboard variant 01",
+                    "Behaviours"    : {
+                        "CameraFollow" : true,
+                        "YawOnly"      : true,
+                        "AoExclude"    : true,
+                        "ShadeFlatness": 0.85
+                    }
+                }
+            }
+        },
+
         "PanelComponents__PNL__": {
             "Description"           : "Window panel components created by ValeDesignSuite WindowPanelConfigurator (standalone, not the ArchTools version). Used for bespoke one-off window configurations.",
             "SourcePlugin"          : "ValeDesignSuite::Tools::WindowPanelConfigurator",
@@ -160,7 +197,8 @@
                 "__Plant__SubComp__Stem",
                 "__Plant__SubComp__Branches",
                 "__Plant__SubGroup__LeavesContainer",
-                "__Plant__SubComp__Leaf__Individual"
+                "__Plant__SubComp__Leaf__Individual",
+                "__SiteVegetation__"
             ]
         },
         "Na__DataLib__PipelineExclusions__ProfileLines": {

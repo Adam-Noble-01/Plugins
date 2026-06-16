@@ -141,6 +141,9 @@ module Na__Noble3dModellingTools
             when 'png_to_linework'
                 proc { Na__PngToLinework.Na__PngToLinework__Run }
 
+            when 'face_pattern_generator'
+                proc { Na__FacePatternGenerator.Na__FacePatternGenerator__Run }
+
             else
                 nil
             end

@@ -1,0 +1,150 @@
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    font-family: "Segoe UI", Arial, sans-serif;
+    color: #1f2933;
+}
+
+.naFacePat__App {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background: #f3f5f8;
+}
+
+.naFacePat__Toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #ffffff;
+    border-bottom: 1px solid #d8dde6;
+}
+
+.naFacePat__ToolbarTitle {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.naFacePat__ToolbarMeta {
+    font-size: 12px;
+    color: #65758a;
+}
+
+.naFacePat__ToolbarSpacer {
+    flex: 1;
+}
+
+.naFacePat__Main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.naFacePat__ControlsPane {
+    width: 360px;
+    padding: 14px;
+    border-right: 1px solid #d8dde6;
+    background: #ffffff;
+    overflow-y: auto;
+}
+
+.naFacePat__ControlGroup {
+    margin-bottom: 14px;
+}
+
+.naFacePat__Label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #52657a;
+    margin-bottom: 6px;
+}
+
+.naFacePat__Select,
+.naFacePat__Input {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 13px;
+    padding: 7px 9px;
+    border: 1px solid #c6cfdb;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.naFacePat__Hint {
+    font-size: 11px;
+    color: #7b8797;
+    margin-top: 4px;
+}
+
+.naFacePat__ActionRow {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.naFacePat__Btn {
+    border: 1px solid #9fb0c6;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    background: #ffffff;
+}
+
+.naFacePat__Btn--primary {
+    width: 100%;
+    background: #2f6fd9;
+    border-color: #2f6fd9;
+    color: #ffffff;
+}
+
+.naFacePat__Btn--secondary:hover {
+    background: #edf2f8;
+}
+
+.naFacePat__ViewportPane {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    padding: 12px;
+}
+
+.naFacePat__ViewportWrapper {
+    width: 100%;
+    height: 100%;
+    border: 1px solid #cad3df;
+    border-radius: 8px;
+    background-image: linear-gradient(45deg, #f6f8fb 25%, transparent 25%),
+                      linear-gradient(-45deg, #f6f8fb 25%, transparent 25%),
+                      linear-gradient(45deg, transparent 75%, #f6f8fb 75%),
+                      linear-gradient(-45deg, transparent 75%, #f6f8fb 75%);
+    background-size: 18px 18px;
+    background-position: 0 0, 0 9px, 9px -9px, -9px 0;
+    cursor: grab;
+}
+
+#naFacePat_svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.naFacePat__StatusBar {
+    min-height: 32px;
+    line-height: 32px;
+    padding: 0 14px;
+    background: #ffffff;
+    border-top: 1px solid #d8dde6;
+    font-size: 12px;
+    color: #23384f;
+}
+
+.naFacePat__StatusBar--error {
+    color: #a61c1c;
+}

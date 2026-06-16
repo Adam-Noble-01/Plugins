@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Na Noble3d Tools : Face Pattern Generator</title>
+  <style>{{STYLESHEET_CONTENT}}</style>
+</head>
+<body>
+  <div class="naFacePat__App">
+    <div class="naFacePat__Toolbar">
+      <div class="naFacePat__ToolbarTitle">Face Pattern Generator</div>
+      <div class="naFacePat__ToolbarMeta" id="naFacePat_faceMeta">No face loaded</div>
+      <div class="naFacePat__ToolbarSpacer"></div>
+      <button id="naFacePat_btnRefreshFace" class="naFacePat__Btn naFacePat__Btn--secondary">Refresh Face</button>
+    </div>
+
+    <div class="naFacePat__Main">
+      <aside class="naFacePat__ControlsPane">
+        <div class="naFacePat__ControlGroup">
+          <label class="naFacePat__Label" for="naFacePat_patternType">Pattern Type</label>
+          <select id="naFacePat_patternType" class="naFacePat__Select"></select>
+        </div>
+        <div class="naFacePat__ControlGroup" id="naFacePat_dynamicControls"></div>
+        <div class="naFacePat__ActionRow">
+          <button id="naFacePat_btnResetView" class="naFacePat__Btn naFacePat__Btn--secondary">Reset View</button>
+          <button id="naFacePat_btnDownloadDxf" class="naFacePat__Btn naFacePat__Btn--secondary">Download DXF</button>
+        </div>
+        <button id="naFacePat_btnApply" class="naFacePat__Btn naFacePat__Btn--primary">Apply to Face</button>
+      </aside>
+
+      <section class="naFacePat__ViewportPane">
+        <div class="naFacePat__ViewportWrapper" id="naFacePat_svgWrapper">
+          <svg id="naFacePat_svg"></svg>
+        </div>
+      </section>
+    </div>
+
+    <div class="naFacePat__StatusBar" id="naFacePat_status">Waiting for selected face...</div>
+  </div>
+
+  <script>{{SCRIPTS_CONTENT}}</script>
+</body>
+</html>

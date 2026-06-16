@@ -46,6 +46,7 @@ module TrueVision3D
                 # Phase 1: Create geometry buckets, door assembly collector, and root transform
                 buckets          = Na__GlbEngine__CreateBuckets()
                 door_assemblies  = []                                         # <-- Collects ADR door assemblies during traversal
+                camera_follow_assemblies = []                                 # <-- Collects camera-follow billboard assemblies
                 root_transform   = parent_transform ? Z_UP_TO_Y_UP_MATRIX * parent_transform : Z_UP_TO_Y_UP_MATRIX  # <-- Include parent (e.g. storey) transform when present
                 entity_count     = 0
 
@@ -84,6 +85,16 @@ module TrueVision3D
                             next                                              # <-- Skip traversal, door handler will process it
                         end
 
+                        if Na__CameraFollowHandler__IsCameraFollowAssembly?(entity)
+                            camera_follow_assemblies << {
+                                entity:                entity,
+                                accumulated_transform: accumulated_transform
+                            }
+                            entity_name = Na__GlbEngine__SanitizeEntityName(entity)
+                            Na__Log__Puts "      [CameraFollowHandler] Detected top-level camera-follow assembly: #{entity_name}"
+                            next
+                        end
+
                         next if instanced_skip_set.key?(entity.object_id)
 
                         entity_count += 1
@@ -97,7 +108,8 @@ module TrueVision3D
                             entity_layer,
                             buckets,
                             door_assemblies,                                  # <-- Pass door collector for nested ADR detection
-                            instanced_skip_set                                # <-- Skip nested instanced components
+                            instanced_skip_set,                               # <-- Skip nested instanced components
+                            camera_follow_assemblies                          # <-- Pass camera-follow collector
                         )
 
                     elsif entity.is_a?(Sketchup::Face)
@@ -129,6 +141,10 @@ module TrueVision3D
                     Na__Log__Puts "    [DoorHandler] #{door_assemblies.length} door assembly(ies) detected — will export with hierarchy preservation"
                 end
 
+                if camera_follow_assemblies.any?
+                    Na__Log__Puts "    [CameraFollowHandler] #{camera_follow_assemblies.length} camera-follow assembly(ies) detected — will export with hierarchy preservation"
+                end
+
                 # Phase 3: Build glTF structure and pack binary buffers (non-door geometry)
                 gltf, bin_buffer = Na__GlbEngine__BuildGltfFromBuckets(buckets)
 
@@ -138,6 +154,10 @@ module TrueVision3D
                 # Phase 3b: Export door assemblies with preserved hierarchy (if any detected)
                 if door_assemblies.any?
                     Na__DoorHandler__ExportDoorAssemblies(door_assemblies, gltf, bin_buffer)
+                end
+
+                if camera_follow_assemblies.any?
+                    Na__CameraFollowHandler__ExportCameraFollowAssemblies(camera_follow_assemblies, gltf, bin_buffer)
                 end
 
                 # Phase 4: Write GLB file to disk

@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout).",
-        "version"           : "2.0.0",
-        "lastUpdated"       : "21-May-2026",
+        "version"           : "2.1.0",
+        "lastUpdated"       : "16-Jun-2026",
         "namingConvention"  : "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
         "fieldPrefixes"     : {
             "Tag__"    : "Core SketchUp tag identity (name, description)",
@@ -123,6 +123,12 @@
                 "Tag__Description"           : "Reference geometry and drawing data (images, PDFs, etc.) imported for modeling guidance only. Always excluded from GLB export.",
                 "Glb__ExportRangeNumbers"    : null,
                 "Glb__FullyExcluded"         : true
+            },
+            "00__OriginPoint": {
+                "Tag__SketchUpName"          : "00__OriginPoint",
+                "Tag__Description"           : "Failsafe local-origin and rotation-pivot marker group inside camera-follow billboard components. Geometry on this tag is never exported; the group centre position is captured by the GlbBuilder and baked into glTF node extras as pivotLocal for downstream ValeVision and TrueVision camera-follow behaviour.",
+                "Glb__ExportRangeNumbers"    : null,
+                "Glb__FullyExcluded"         : true
             }
         },
 
@@ -205,10 +211,18 @@
             "07__Landscape": {
                 "Tag__SketchUpName"          : "07__Landscape",
                 "Tag__Description"           : "Landscape and site context elements including ground surface, planting, and paving.",
-                "Glb__ExportRangeNumbers"    : [7, 9],
+                "Glb__ExportRangeNumbers"    : [7],
                 "Glb__FullyExcluded"         : false,
                 "Glb__ExportFileNameStem"    : "TrueVision__LandscapeEnvironment",
                 "Storey__ElementExportName"  : "LandscapeEnvironment"
+            },
+            "09__Site__Vegetation__2D": {
+                "Tag__SketchUpName"          : "09__Site__Vegetation__2D",
+                "Tag__Description"           : "2D planar site vegetation components that always face the camera (billboard / camera-follow). Lightweight background trees, shrubs, and similar linework or face assets authored as flat SketchUp components. Exported as a dedicated GLB segment for separate visibility control in ValeVision and TrueVision.",
+                "Glb__ExportRangeNumbers"    : [9],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__SiteVegetation2D",
+                "Storey__ElementExportName"  : "SiteVegetation2D"
             },
             "08__Site__Boundaries": {
                 "Tag__SketchUpName"          : "08__Site__Boundaries",
@@ -482,7 +496,8 @@
             "02__ClearanceLines",
             "02__DoorHelpers__RotationPivots",
             "Na__Door__Open",
-            "01__ModelFlag__ElementsForRemoval"
+            "01__ModelFlag__ElementsForRemoval",
+            "00__OriginPoint"
     
         ],
         "FullyExcludedNote"        : "Entities on these tags are completely skipped during GLB export at any nesting depth.",

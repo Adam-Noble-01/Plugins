@@ -87,7 +87,7 @@ module TrueVision3D
         # @param door_assemblies  [Array|nil]               Collected door records (nil = disabled)
         # @param instanced_skip_set [Hash|nil]              Object IDs to skip (instancing)
         # ---------------------------------------------------------------
-        def self.Na__GlbEngine__TraverseEntities(entities, parent_transform, parent_layer, buckets, door_assemblies = nil, instanced_skip_set = nil)
+        def self.Na__GlbEngine__TraverseEntities(entities, parent_transform, parent_layer, buckets, door_assemblies = nil, instanced_skip_set = nil, camera_follow_assemblies = nil)
             is_mirrored   = Na__GlbEngine__CalcDeterminant3x3(parent_transform) < 0
             normal_matrix = Na__GlbEngine__CalcNormalMatrix(parent_transform)
 
@@ -123,9 +123,18 @@ module TrueVision3D
                         next
                     end
 
+                    if camera_follow_assemblies && Na__CameraFollowHandler__IsCameraFollowAssembly?(entity)
+                        camera_follow_assemblies << {
+                            entity:                entity,
+                            accumulated_transform: child_transform
+                        }
+                        Na__Log__Puts "      [CameraFollowHandler] Detected camera-follow assembly: #{Na__CameraFollowHandler__GetEntityName(entity)}"
+                        next
+                    end
+
                     next if instanced_skip_set && instanced_skip_set.key?(entity.object_id)
 
-                    Na__GlbEngine__TraverseEntities(entity.definition.entities, child_transform, child_layer, buckets, door_assemblies, instanced_skip_set)
+                    Na__GlbEngine__TraverseEntities(entity.definition.entities, child_transform, child_layer, buckets, door_assemblies, instanced_skip_set, camera_follow_assemblies)
                 end
             end
         end

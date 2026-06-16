@@ -149,6 +149,7 @@ module TrueVision3D
                 next if Na__Helpers__EntityExcluded?(entity)
                 next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
                 next if Na__DoorHandler__IsDoorAssembly?(entity)
+                next if Na__CameraFollowHandler__IsCameraFollowAssembly?(entity)
 
                 accumulated_transform = parent_transform * entity.transformation
 

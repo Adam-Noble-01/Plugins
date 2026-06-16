@@ -334,6 +334,15 @@
             "menu_text"         : "PNG To Linework",
             "handler_key"       : "png_to_linework",
             "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "face_pattern_generator",
+            "command_name"      : "Na Noble3d - Face Pattern Generator",
+            "tooltip"           : "Open one unified pattern dialog for patio, brickwork, stonework, shrub and slate previews",
+            "status_bar_text"   : "Generate pattern linework directly from one selected face",
+            "menu_text"         : "Face Pattern Generator",
+            "handler_key"       : "face_pattern_generator",
+            "expose_to_hotkeys" : true
         }
     ],
     "buttons"                : [
@@ -646,6 +655,17 @@
             "description"            : "Select a transparent-background PNG (trees, plants, people) and trace it into segmented edge linework. Live SVG preview with real-world size, minimum segment length and trace mode controls, then crosshair placement with 5mm snap."
         },
         {
+            "button_id"              : "btn_face_pattern_generator",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Surface Pattern Tools",
+            "tool_group_description" : "Generate face-bound patio, brickwork, stonework, shrub and slate patterns from one unified dialog.",
+            "tool_group_order"       : 55,
+            "button_order"           : 10,
+            "button_label"           : "Face Pattern Generator",
+            "command_id"             : "face_pattern_generator",
+            "description"            : "Select a single face, preview pattern fit in SVG, then apply directly onto the selected face perimeter."
+        },
+        {
             "button_id"              : "btn_reload_plugin",
             "tab_name"               : "Settings",
             "tool_group_name"        : "Plugin Maintenance",
@@ -795,6 +815,10 @@
         },
         {
             "command_id"        : "png_to_linework",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "face_pattern_generator",
             "expose_to_hotkeys" : true
         }
     ]

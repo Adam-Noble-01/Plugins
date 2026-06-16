@@ -71,6 +71,7 @@ require_relative 'Na__TrueVision__GlbBuilder__EngineCore__TextureHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__LineworkModelHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__'
+require_relative 'Na__TrueVision__GlbBuilder__SpecialObject__CameraFollowObjectHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__UserInterface__'
 require_relative 'Na__TrueVision__GlbBuilder__DynamicReloaderPluginUtil__'
 require_relative 'Na__TrueVision__GlbBuilder__TagsManager__'
@@ -199,6 +200,15 @@ module TrueVision3D
                         @na_datalib_profileline_excluded  = profile_names.empty? ? nil : profile_names
 
                         puts "    [GlbBuilder] DataLib pipeline exclusions loaded: #{profile_names.size} profile-line names (match=#{@na_datalib_profileline_matchmode})"
+                    end
+
+                    components_library = components_data["Na__DataLib__CoreIndex__Components"]
+                    if components_library.is_a?(Hash)
+                        billboard_section = components_library["SiteVegetation2D__Billboard__"]
+                        if billboard_section.is_a?(Hash)
+                            Na__CameraFollowHandler__Configure(billboard_section)
+                            puts "    [GlbBuilder] DataLib camera-follow billboards configured from Components SSOT"
+                        end
                     end
                 end
             rescue => e
@@ -424,7 +434,8 @@ module TrueVision3D
         # ------------------------------------------------------------
         TAG_RANGES = {
             "01__OrbitHelperCube"                           => [1],                   # <-- Camera orbit pivot for Web 3D Viewer App
-            "TrueVision__LandscapeEnvironment"              => [7, 9],                # <-- Landscape & Environment (range 8 is now SiteBoundaries)
+            "TrueVision__LandscapeEnvironment"              => [7],                   # <-- Landscape & Environment (range 9 is SiteVegetation2D)
+            "TrueVision__SiteVegetation2D"                  => [9],                   # <-- 2D camera-follow billboard vegetation
             "TrueVision__SiteBoundaries"                    => [8],                   # <-- Site boundaries (fences, walls, site lines)
             "TrueVision__MainBuildingModel__Existing"       => [10],                  # <-- Existing Main Building Flag (whole building in simplified Massing Models)
             "TrueVision__MainBuildingModel__ExistingWalls"  => [11],                  # <-- Existing Building Walls
@@ -476,7 +487,7 @@ module TrueVision3D
         STOREY_ELEMENT_TAG_MAP = {
             7  => "LandscapeEnvironment",                                          # <-- Landscape & Environment
             8  => "SiteBoundaries",                                                # <-- Site boundaries (fences, walls, site lines)
-            9  => "LandscapeEnvironment",                                          # <-- Landscape & Environment
+            9  => "SiteVegetation2D",                                              # <-- 2D camera-follow billboard vegetation
             11 => "ExistingWalls",                                                 # <-- Existing Building Walls
             12 => "ExistingFloors",                                                # <-- Existing Building Floors
             13 => "ExistingRoofs",                                                 # <-- Existing Building Roofs

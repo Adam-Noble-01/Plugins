@@ -8,6 +8,45 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.5.1 - 16-Jun-2026
+#### Camera Follow Billboards - Per-Component Shade Flatness
+
+**Why**
+- Directional lighting darkens a billboard plane at certain yaw angles as it rotates to face the camera. Undesirable for flat 2D planar assets (trees), but some assets may still want directional shading — hence a per-component knob.
+
+**New SSOT data field**
+- Components SSOT v1.3.0: `SiteVegetation2D__Billboard__.Behaviours.ShadeFlatness` (0.0–1.0) plus per-component override under each `Components.<name>.Behaviours`.
+  - `0.0` = full directional shading (default if absent); `1.0` = fully flat (directional darkening removed, uniform albedo).
+  - Spruce sample set to `0.85`.
+- Exporter resolves component-override → section-default → `0.0` and bakes `shadeFlatness` into the assembly node `extras` (works in PureEngine, which does not load the DataLib at runtime).
+
+**ValeVision3D downstream**
+- `3dObjectInteraction__Animation__CameraFollowBillboards__.js` reads `extras.shadeFlatness` and patches the billboard fill material (`onBeforeCompile`, three.js r160) to `mix(lit, albedo, flatness)`. Materials are cloned per billboard so shared instances are untouched. Linework (LineMaterial) is unaffected.
+- Master switch: AppConfig `3dObject__Interaction__CameraFollow__FlatShadingEnabled` (default true).
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.5.0 - 16-Jun-2026
+#### Camera Follow / 2D Billboard Vegetation Export
+
+**Why**
+- Support lightweight 2D planar site vegetation (trees, people, pets) that always face the camera in ValeVision and TrueVision, matching SketchUp's billboard component behaviour.
+
+**New special-object handler**
+- `Na__TrueVision__GlbBuilder__SpecialObject__CameraFollowObjectHandling__.rb`:
+  - Detects assemblies by SSOT name regex (`SiteVegetation2D__Billboard__`) and/or tag `09__Site__Vegetation__2D`.
+  - Captures `00__OriginPoint` group centre as `pivotLocal` in glTF node extras; origin geometry excluded via `FullyExcludedTagNames`.
+  - Preserves hierarchy (mesh + linework) with `extras.type = CameraFollowBillboard`.
+- Wired at the same four injection points as ADR door assemblies (mesh top-level, TraverseEntities, linework top-level, TraverseEdges).
+- Instancing scan skips camera-follow assemblies (each instance needs its own pivot).
+
+**DataLib / export segmentation**
+- Tags SSOT v2.1.0: new `09__Site__Vegetation__2D` tag → `TrueVision__SiteVegetation2D` GLB stem; range 9 removed from `07__Landscape`.
+- Components SSOT v1.2.0: new `SiteVegetation2D__Billboard__` section + first tree component entry; AO exclusion token `__SiteVegetation__` added (ProfileLines unchanged).
+
+**ValeVision3D downstream**
+- `3dObjectInteraction__Animation__CameraFollowBillboards__.js` reads baked extras and rotates billboards each render frame around Y through `pivotLocal`.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.4.0 - 07-Jun-2026
 #### Name-Based Profile-Line (Linework) Exclusion
 

@@ -3,6 +3,102 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.5.0 - 16-Jun-2026 - Face Pattern Generator (Geometry Tools)
+
+### Update 01 - Face Pattern Generator Feature Module
+- Added a new Geometry Tools feature module that reads one selected SketchUp face, projects it to local 2D millimetre coordinates, previews a chosen architectural surface pattern inside an HtmlDialog SVG viewport, then applies the generated linework back onto the face in a grouped undo-safe operation.
+- Five pattern types in one unified dialog: Patio, Brickwork, Stonework, Shrub, and Slate Roof. All use direct SVG polyline rendering with no external library dependency (MakerJS removed).
+- New module folder `10__PluginModules/20__SourceCode__FacePatternGenerator`:
+  - `Na__Noble3dModellingTools__FacePatternGenerator__Loader__.rb`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__Run__.rb`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__FaceData__.rb`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__DialogManager__.rb`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__GeometryBuilder__.rb`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__SlateBuilder__.rb`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__UiLayout__.html`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__Styles__.css`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__UiBridge__.js`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__UiConfig__.js`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__SvgPreview__.js`
+  - `Na__Noble3dModellingTools__FacePatternGenerator__AppCore__.js`
+  - `01__SharedJs/Na__FacePattern__DynamicUI__.js`
+  - `01__SharedJs/Na__FacePattern__Viewport__.js`
+  - `01__SharedJs/Na__FacePattern__Noise__.js`
+  - `01__SharedJs/Na__FacePattern__RectGeometry__.js`
+  - `01__SharedJs/Na__FacePattern__PolygonClip__.js`
+  - `01__SharedJs/Na__FacePattern__DxfExport__.js`
+  - `02__PatternGenerators/Na__FacePattern__PatioGenerator__.js`
+  - `02__PatternGenerators/Na__FacePattern__BrickworkGenerator__.js`
+  - `02__PatternGenerators/Na__FacePattern__StoneworkGenerator__.js`
+  - `02__PatternGenerators/Na__FacePattern__ShrubGenerator__.js`
+  - `02__PatternGenerators/Na__FacePattern__SlateRoofGenerator__.js`
+- Sub-devlog: `10__PluginModules/20__SourceCode__FacePatternGenerator/Na__Noble3dModellingTools__FacePatternGenerator__DEVLOG__.md`
+
+### Update 02 - Single-Face Selection and Local 2D Projection (Ruby)
+- `FaceData__.rb` enforces a strict single-face constraint (`selection.grep(Sketchup::Face)`, validates exactly one valid face). Opens a messagebox if 0 or more than 1 faces are selected — multi-face selection deferred to a future version.
+- Builds an orthonormal local basis per face: slope-first strategy for pitched surfaces (up-slope → Y axis → cross-product X axis), longest-outer-edge fallback for near-horizontal faces. Normal is always flipped to the visible/positive-Z side.
+- Projects the outer loop and all inner loops (holes) from world `Geom::Point3d` inches into local `[x_mm, y_mm]` float pairs using `vector.dot(axis) / 1.mm`.
+- Serialises `{ outer, holes, bounds, basis }` to JSON and pushes to the dialog via `execute_script` using the standard PNG-to-Linework handshake: JS fires `na_dialog_ready`, Ruby pushes `Na__FacePattern__SetFaceData(payload)`.
+- A **Refresh Face** button lets the user re-pick from SketchUp without closing the dialog.
+
+### Update 03 - Unified HtmlDialog SVG Preview (No External Library)
+- Dialog follows the PNG To Linework shell: inline `{{STYLESHEET_CONTENT}}` + `{{SCRIPTS_CONTENT}}` substitution via `DialogManager__.rb`. No CDN; all scripts are local files bundled at open time.
+- `SvgPreview__.js` renders a two-layer SVG: a dashed grey boundary polyline for the face outline/holes, and solid dark lines for pattern geometry. Y-axis is negated from model Y-up to SVG Y-down during point formatting.
+- `Viewport__.js` provides cursor-anchored wheel zoom and drag-pan on the SVG viewBox state, matching the PngToLinework SvgPreview pattern.
+- Pattern type dropdown drives `AppCore__.js → UiConfig__.js` to rebuild the dynamic control panel via `DynamicUI__.js` (per-field `<input type="number">` and `<select>` elements), then immediately regenerates the preview.
+- Live preview regenerates on every control change without a Ruby round-trip; `Apply to Face` serialises the current polylines and face basis, then sends to Ruby via `sketchup.na_apply_pattern`.
+
+### Update 04 - Shared JS Infrastructure Modules
+- `Na__FacePattern__Noise__.js` — Mulberry32 seeded random + bilinear 2D value noise + 3-octave FBM. Consolidates the identical noise functions that were duplicated across the Brickwork and Stonework prototype HTML files.
+- `Na__FacePattern__RectGeometry__.js` — `na_makeRectPolyline(x,y,w,h)` (closed `[x,y]` array), `na_clipRectToBounds(...)` (axis-aligned clip returning null on empty result). Replaces the 4-`M.paths.Line` rectangle pattern from the prototypes.
+- `Na__FacePattern__PolygonClip__.js` — point-in-polygon ray-cast (`na_pointInFace`), segment-against-ring intersection, polyline clip (`na_clipPolyline`), and centroid-inside-face keeper (`na_keepWhenCentroidInside`). Enables accurate face-polygon clipping without a geometry library.
+- `Na__FacePattern__DxfExport__.js` — writes minimal DXF LINE entities to a `Blob` and triggers a filename download. Does not depend on MakerJS.
+- `Na__FacePattern__DynamicUI__.js` — JSON-config-driven control panel builder (`na_mount`, `na_setFields`, `na_getValues`). Select and number fields. Fires `onChange` on every input/change event.
+
+### Update 05 - Pattern Generators (JS)
+- All generators share the same call signature `na_generate({ faceData, params })` → `{ polylines, status }`.
+- Each generates raw rectangles or point arrays over the face bounding box, then clips to the face polygon via `PolygonClip` before returning.
+- **Patio** — grid-based greedy tile packer with six weighted tile types (module units 1×1 to 3×2). Centroid-inside-face filter discards tiles outside the boundary.
+- **Brickwork** — Stretcher / Flemish / English bond courses generated from face bounds height; Imperial (215×65mm) and Metric (230×76mm) unit systems. Artistic render mode uses FBM noise density masking to scatter missing bricks.
+- **Stonework** — Coursed (random-height rows) and Uncoursed/Snecked (skyline packer) stone placement. Three size presets. Tumbled-corner radius and edge roughness parameters (numeric only in preview; Ruby builder handles 3D geometry).
+- **Shrub** — Single closed silhouette (Round/Wild/Topiary ellipse base shape) scaled to a user-defined width/height, centred within the face. An interior-point sampler finds a usable centroid for non-rectangular faces (e.g. L-shapes) before attempting up to 5 scaled-down fits.
+- **Slate Roof** — Course-array tiling (visible gauge = `(slate_length − headlap) / 2`), half-bond stagger option, six UK presets matching the original Ruby slate script. Preview uses all-corners-inside check; Apply delegates to `SlateBuilder__.rb` for component-instance creation, reusing the battle-tested face-clip logic from the prototype.
+- Smoke-tested in Node against rectangular (3000×2000mm) and L-shaped (3000×2000mm notched) faces: all five generators return non-empty polyline arrays.
+
+### Update 06 - SketchUp Apply Pipeline (Ruby)
+- `GeometryBuilder__.rb` — receives `{ polylines, basis, lift_mm, close_paths, group_name }` JSON from the dialog. Transforms each local `[x_mm, y_mm]` point to world space via `origin.offset(x_axis, x_mm.mm).offset(y_axis, y_mm.mm).offset(z_axis, lift_mm.mm)`. Builds edges with `entities.add_line` inside a named group wrapped in a single `start_operation`/`commit_operation`. Aborts cleanly if no edges are produced.
+- `SlateBuilder__.rb` — receives slate parameters, re-reads the single currently selected face, and runs the same face-basis + populate-with-instances logic as the original `Na__SlateRoofPatternGenerator__V2.rb`. Uses `add_instance` with a cached component definition per unique `width × visible_gauge` combination. All instances placed on one undo step.
+- `DialogManager__.rb` routes `na_apply_pattern` callback: `pattern_type == 'slate'` dispatches to `SlateBuilder`, all others to `GeometryBuilder`. Status result is pushed back to the dialog status bar via `Na__FacePattern__SetStatus`.
+
+### Update 07 - Registry, Router, and Loader Wiring
+- Registered command, button (Geometry Tools > Surface Pattern Tools, tool_group_order 55), and hotkey binding in the JSON-driven UI registry:
+  - `face_pattern_generator` / `Face Pattern Generator`
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+- Wired handler and module load paths through:
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+
+### Update 08 - MakerJS Dependency Removed
+- Initial implementation attempted to vendor a MakerJS browser-compat shim, but path resolution of the relative `../../01__ExternalDependencies__VersionLocked/…` path failed in the SketchUp Ruby `File.join` / `__dir__` context.
+- MakerJS was not actually used: all generators produce raw `[x,y]` polyline arrays that render directly as SVG `<polyline>` elements. The shim and its folder were deleted.
+- `DialogManager__.rb` now loads only the local shared JS modules and pattern generators — no external libraries required.
+
+### Validation Checklist
+- [x] JSON registry parses; JS files pass `node --check`; IDE lints clean.
+- [x] Generator smoke tests pass on rectangular and L-shaped faces for all five pattern types.
+- [x] No MakerJS references remain in the Face Pattern Generator module.
+- [ ] In-SketchUp: button appears under `Geometry Tools > Surface Pattern Tools`.
+- [ ] In-SketchUp: selecting one face and clicking the button opens the dialog with face dimensions shown in the toolbar and the face boundary drawn in the SVG viewport.
+- [ ] In-SketchUp: switching pattern type rebuilds controls and live-previews the new pattern.
+- [ ] In-SketchUp: `Apply to Face` creates a named group of edges on the face plane; single undo reverts it.
+- [ ] In-SketchUp: `Refresh Face` re-reads the current selection without closing the dialog.
+- [ ] In-SketchUp: `Download DXF` saves the current polylines as a `.dxf` file.
+- [ ] In-SketchUp: `Slate Roof` apply creates component instances with the correct visible gauge, not edge polylines.
+- [ ] In-SketchUp: selecting 0 faces or 2+ faces shows a messagebox and does not open the dialog.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.4.9 - 12-Jun-2026 - PNG To Linework (Import Tools)
 
 ### Update 01 - PNG To Linework Feature Module

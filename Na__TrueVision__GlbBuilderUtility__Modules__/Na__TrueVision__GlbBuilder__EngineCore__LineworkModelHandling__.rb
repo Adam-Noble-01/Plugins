@@ -45,7 +45,7 @@ module TrueVision3D
         # @param colors          [Array<Float>]            Flat [r,g,b,a, r,g,b,a, ...] output
         # @param door_assemblies  [Array|nil]               Collected door records (nil = disabled)
         # ---------------------------------------------------------------
-        def self.Na__LineworkEngine__TraverseEdges(entities, parent_transform, parent_layer, positions, colors, door_assemblies = nil, instanced_skip_set = nil)
+        def self.Na__LineworkEngine__TraverseEdges(entities, parent_transform, parent_layer, positions, colors, door_assemblies = nil, instanced_skip_set = nil, camera_follow_assemblies = nil)
             entities.each do |entity|
                 next if Na__Helpers__EntityExcluded?(entity)
 
@@ -94,7 +94,16 @@ module TrueVision3D
                         next
                     end
 
-                    Na__LineworkEngine__TraverseEdges(entity.definition.entities, child_transform, child_layer, positions, colors, door_assemblies, instanced_skip_set)
+                    if camera_follow_assemblies && Na__CameraFollowHandler__IsCameraFollowAssembly?(entity)
+                        camera_follow_assemblies << {
+                            entity:                entity,
+                            accumulated_transform: child_transform
+                        }
+                        Na__Log__Puts "      [CameraFollowHandler/Linework] Detected camera-follow assembly: #{Na__CameraFollowHandler__GetEntityName(entity)}"
+                        next
+                    end
+
+                    Na__LineworkEngine__TraverseEdges(entity.definition.entities, child_transform, child_layer, positions, colors, door_assemblies, instanced_skip_set, camera_follow_assemblies)
                 end
             end
         end
@@ -179,6 +188,7 @@ module TrueVision3D
                 positions       = []
                 colors          = []
                 door_assemblies = []
+                camera_follow_assemblies = []
                 root_transform  = parent_transform ? Z_UP_TO_Y_UP_MATRIX * parent_transform : Z_UP_TO_Y_UP_MATRIX
                 entity_count    = 0
 
@@ -188,7 +198,6 @@ module TrueVision3D
                     next if Na__Helpers__EntityExcluded?(entity)
 
                     if entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
-                        next if instanced_skip_set.key?(entity.object_id)
                         next if Na__Helpers__LayerLineworkHidden?(entity.layer.name)  # <-- short-circuit whole subtree on linework-hidden tags
                         next if Na__Helpers__EntityProfileLineExcluded?(entity)       # <-- short-circuit whole subtree on name-based profile-line exclusion
 
@@ -208,6 +217,17 @@ module TrueVision3D
                             next
                         end
 
+                        if Na__CameraFollowHandler__IsCameraFollowAssembly?(entity)
+                            camera_follow_assemblies << {
+                                entity:                entity,
+                                accumulated_transform: accumulated_transform
+                            }
+                            Na__Log__Puts "      [CameraFollowHandler/Linework] Detected top-level camera-follow assembly: #{entity_name}"
+                            next
+                        end
+
+                        next if instanced_skip_set.key?(entity.object_id)
+
                         Na__LineworkEngine__TraverseEdges(
                             entity.definition.entities,
                             accumulated_transform,
@@ -215,7 +235,8 @@ module TrueVision3D
                             positions,
                             colors,
                             door_assemblies,
-                            instanced_skip_set
+                            instanced_skip_set,
+                            camera_follow_assemblies
                         )
 
                     elsif entity.is_a?(Sketchup::Edge)
@@ -251,7 +272,11 @@ module TrueVision3D
                     Na__Log__Puts "    [DoorHandler/Linework] #{door_assemblies.length} door assembly(ies) detected — will export with hierarchy preservation"
                 end
 
-                if positions.empty? && door_assemblies.empty? && instanced_groups.empty?
+                if camera_follow_assemblies.any?
+                    Na__Log__Puts "    [CameraFollowHandler/Linework] #{camera_follow_assemblies.length} camera-follow assembly(ies) detected — will export with hierarchy preservation"
+                end
+
+                if positions.empty? && door_assemblies.empty? && camera_follow_assemblies.empty? && instanced_groups.empty?
                     Na__Log__Puts "  No visible edges, door assemblies, or instanced components found - skipping linework file"
                     return false
                 end
@@ -275,6 +300,7 @@ module TrueVision3D
                 Na__Instancing__ProcessAllInstancedLinework(instanced_groups, gltf, bin_buffer)
 
                 Na__DoorHandler__ExportDoorLinework(door_assemblies, gltf, bin_buffer) if door_assemblies.any?
+                Na__CameraFollowHandler__ExportCameraFollowLinework(camera_follow_assemblies, gltf, bin_buffer) if camera_follow_assemblies.any?
 
                 Na__GlbEngine__WriteGlbFile(filepath, gltf, bin_buffer)
 

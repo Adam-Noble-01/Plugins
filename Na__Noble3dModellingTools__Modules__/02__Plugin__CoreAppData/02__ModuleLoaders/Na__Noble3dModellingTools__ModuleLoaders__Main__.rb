@@ -43,6 +43,7 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/17__SourceCode__GroupsToComponent/Na__Noble3dModellingTools__GroupsToComponent__Loader__'
             require_relative '../../10__PluginModules/18__SourceCode__MultipleOffsetTool/Na__Noble3dModellingTools__MultipleOffsetTool__Loader__'
             require_relative '../../10__PluginModules/19__SourceCode__PngToLinework/Na__Noble3dModellingTools__PngToLinework__Loader__'
+            require_relative '../../10__PluginModules/20__SourceCode__FacePatternGenerator/Na__Noble3dModellingTools__FacePatternGenerator__Loader__'
 
             @na_feature_modules_loaded = true
             true
