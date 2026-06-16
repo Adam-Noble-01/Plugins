@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<!-- =============================================================================
+     NA COMPONENT EDITOR TOOLS - UI LAYOUT
+     =============================================================================
+     FILE       : Na__ComponentEditorTools__UiLayout__.html
+     PURPOSE    : Main HtmlDialog shell with tab navigation and content panels
+     CREATED    : 2026
+     ============================================================================= -->
+<html lang="en">
+
+<!-- REGION | Head ----------------------------------------------------------- -->
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Na Component Editor Tools</title>
+    <link rel="stylesheet" href="Na__ComponentEditorTools__Styles__.css">
+</head>
+<!-- endregion --------------------------------------------------------------- -->
+
+<body>
+    <div class="naComponentEditor__Shell">
+
+        <!-- REGION | Brand Header ------------------------------------------- -->
+        <header class="naComponentEditor__BrandHeader">
+            <div class="naComponentEditor__BrandLeft">
+                <img id="na-component-logo"
+                     class="naComponentEditor__Logo"
+                     src="../06__Assets/Na__ComponentEditorTools__Brand__NobleLogo__.png"
+                     alt="Noble Architecture logo"
+                     onerror="this.style.display='none'">
+            </div>
+            <div class="naComponentEditor__Title">
+                <span class="naComponentEditor__TitleMain">Na Component Editor Tools</span>
+                <span class="naComponentEditor__TitleSub">by Noble Architecture</span>
+            </div>
+        </header>
+        <!-- endregion ------------------------------------------------------- -->
+
+        <!-- REGION | Tab Action Bar ----------------------------------------- -->
+        <div class="naComponentEditor__TabActionBar">
+            <nav class="naComponentEditor__TabBar">
+                <button class="naComponentEditor__TabButton naComponentEditor__TabButton--active" data-tab-id="overview" type="button">Overview</button>
+                <button class="naComponentEditor__TabButton" data-tab-id="attributes" type="button">Attributes</button>
+                <button class="naComponentEditor__TabButton" data-tab-id="thumbnail" type="button">Thumbnail</button>
+                <button class="naComponentEditor__TabButton" data-tab-id="settings" type="button">Settings</button>
+            </nav>
+            <div class="naComponentEditor__HeaderActions">
+                <button id="na-component-btn-update-component" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Update Component</button>
+                <button id="na-component-btn-header-refresh" class="naComponentEditor__Button" type="button">Reload Selection</button>
+            </div>
+        </div>
+        <!-- endregion ------------------------------------------------------- -->
+
+        <main class="naComponentEditor__Main">
+
+            <!-- REGION | Tab: Overview -------------------------------------- -->
+            <section id="na-component-tab-overview" class="naComponentEditor__TabPanel naComponentEditor__TabPanel--active" data-tab-id="overview">
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Editable Fields</h2>
+                    <p id="na-component-overview-message" class="naComponentEditor__PanelSubheading">Select one component instance or group to begin.</p>
+                    <div class="naComponentEditor__Grid2">
+                        <label class="naComponentEditor__Label">
+                            <span>Instance Name</span>
+                            <input id="na-component-instance-name" class="naComponentEditor__Input" type="text">
+                        </label>
+                        <label class="naComponentEditor__Label">
+                            <span>Definition Name</span>
+                            <input id="na-component-definition-name" class="naComponentEditor__Input" type="text">
+                        </label>
+                    </div>
+                    <div style="height:10px;"></div>
+                    <label class="naComponentEditor__Label">
+                        <span>Definition Description</span>
+                        <textarea id="na-component-definition-description" class="naComponentEditor__Textarea"></textarea>
+                    </label>
+                    <div style="height:10px;"></div>
+                    <div class="naComponentEditor__ButtonRow">
+                        <button id="na-component-btn-apply-fields" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Apply Edits</button>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Grid2">
+                    <div class="naComponentEditor__Panel">
+                        <h2 class="naComponentEditor__PanelHeading">Instance Data</h2>
+                        <div id="na-component-overview-instance-data" class="naComponentEditor__MetaRows"></div>
+                    </div>
+                    <div class="naComponentEditor__Panel">
+                        <h2 class="naComponentEditor__PanelHeading">Definition Data</h2>
+                        <div id="na-component-overview-definition-data" class="naComponentEditor__MetaRows"></div>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Behavior</h2>
+                    <div id="na-component-overview-behavior-data" class="naComponentEditor__MetaRows"></div>
+                </section>
+            </section>
+            <!-- endregion --------------------------------------------------- -->
+
+            <!-- REGION | Tab: Attributes ------------------------------------ -->
+            <section id="na-component-tab-attributes" class="naComponentEditor__TabPanel" data-tab-id="attributes">
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Add / Update Attribute</h2>
+                    <p id="na-component-attributes-message" class="naComponentEditor__PanelSubheading">Use this form to write attributes to either instance or definition scope.</p>
+                    <div class="naComponentEditor__Grid3">
+                        <label class="naComponentEditor__Label">
+                            <span>Scope</span>
+                            <select id="na-component-attr-scope" class="naComponentEditor__Select">
+                                <option value="instance">Instance</option>
+                                <option value="definition">Definition</option>
+                            </select>
+                        </label>
+                        <label class="naComponentEditor__Label">
+                            <span>Dictionary</span>
+                            <input id="na-component-attr-dictionary" class="naComponentEditor__Input" type="text" placeholder="Example: SU_DefinitionSet">
+                        </label>
+                        <label class="naComponentEditor__Label">
+                            <span>Key</span>
+                            <input id="na-component-attr-key" class="naComponentEditor__Input" type="text" placeholder="Example: Price">
+                        </label>
+                    </div>
+                    <div style="height:10px;"></div>
+                    <div class="naComponentEditor__Grid3">
+                        <label class="naComponentEditor__Label">
+                            <span>Value</span>
+                            <input id="na-component-attr-value" class="naComponentEditor__Input" type="text">
+                        </label>
+                        <label class="naComponentEditor__Label">
+                            <span>Type</span>
+                            <select id="na-component-attr-type" class="naComponentEditor__Select">
+                                <option value="string">String</option>
+                                <option value="integer">Integer</option>
+                                <option value="float">Float</option>
+                                <option value="boolean">Boolean</option>
+                            </select>
+                        </label>
+                        <div class="naComponentEditor__Label" style="justify-content:flex-end;">
+                            <span>&nbsp;</span>
+                            <button id="na-component-btn-set-attribute" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Set Attribute</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Grid2">
+                    <div class="naComponentEditor__Panel">
+                        <h2 class="naComponentEditor__PanelHeading">Instance Attributes</h2>
+                        <div id="na-component-attributes-instance"></div>
+                    </div>
+                    <div class="naComponentEditor__Panel">
+                        <h2 class="naComponentEditor__PanelHeading">Definition Attributes</h2>
+                        <div id="na-component-attributes-definition"></div>
+                    </div>
+                </section>
+            </section>
+            <!-- endregion --------------------------------------------------- -->
+
+            <!-- REGION | Tab: Thumbnail ------------------------------------- -->
+            <section id="na-component-tab-thumbnail" class="naComponentEditor__TabPanel" data-tab-id="thumbnail">
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Visible View Render And Thumbnail</h2>
+                    <p id="na-component-thumbnail-message" class="naComponentEditor__PanelSubheading">Save the literal active viewport render, including visible dimensions, style effects, and watermark overlays.</p>
+                    <div class="naComponentEditor__ButtonRow">
+                        <button id="na-component-btn-refresh-thumbnail" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Save Visible View Render</button>
+                        <button id="na-component-btn-capture-viewport" class="naComponentEditor__Button" type="button">Export Viewport PNG</button>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Current Render Preview</h2>
+                    <div class="naComponentEditor__ThumbnailPreviewWrap">
+                        <img id="na-component-thumbnail-preview-image" class="naComponentEditor__ThumbnailPreviewImage" alt="Current component thumbnail preview">
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Grid2">
+                    <div class="naComponentEditor__Panel">
+                        <h2 class="naComponentEditor__PanelHeading">Thumbnail Camera</h2>
+                        <div id="na-component-thumbnail-camera" class="naComponentEditor__MetaRows"></div>
+                    </div>
+                    <div class="naComponentEditor__Panel">
+                        <h2 class="naComponentEditor__PanelHeading">Export Paths</h2>
+                        <div id="na-component-thumbnail-temp-paths" class="naComponentEditor__MetaRows"></div>
+                    </div>
+                </section>
+            </section>
+            <!-- endregion --------------------------------------------------- -->
+
+            <!-- REGION | Tab: Settings -------------------------------------- -->
+            <section id="na-component-tab-settings" class="naComponentEditor__TabPanel" data-tab-id="settings">
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Plugin Maintenance</h2>
+                    <p class="naComponentEditor__PanelSubheading">Reload plugin Ruby files and rebuild the dialog without restarting SketchUp.</p>
+                    <div class="naComponentEditor__ButtonRow">
+                        <button id="na-component-btn-settings-reload" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Reload Plugin</button>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">About</h2>
+                    <p class="naComponentEditor__MutedText">Na Component Editor Tools by Noble Architecture.</p>
+                    <p class="naComponentEditor__MutedText">Tabs: Overview, Attributes, Thumbnail, Settings.</p>
+                    <p class="naComponentEditor__MutedText">Shared assets are resolved from <span class="naComponentEditor__Mono">Na__Common__PluginDependencies</span>.</p>
+                </section>
+            </section>
+            <!-- endregion --------------------------------------------------- -->
+
+        </main>
+
+        <!-- REGION | Status Bar --------------------------------------------- -->
+        <footer class="naComponentEditor__StatusBar">
+            <p id="na-component-status" class="naComponentEditor__StatusText">Ready.</p>
+        </footer>
+        <!-- endregion ------------------------------------------------------- -->
+
+    </div>
+
+    <!-- REGION | Scripts ---------------------------------------------------- -->
+    <script src="Na__ComponentEditorTools__UiBridge__.js"></script>
+    <script src="Na__ComponentEditorTools__Tab__Overview__.js"></script>
+    <script src="Na__ComponentEditorTools__Tab__Attributes__.js"></script>
+    <script src="Na__ComponentEditorTools__Tab__Thumbnail__.js"></script>
+    <script src="Na__ComponentEditorTools__Tab__Settings__.js"></script>
+    <script src="Na__ComponentEditorTools__TabRouter__.js"></script>
+    <!-- endregion --------------------------------------------------------------- -->
+
+</body>
+</html>
+
+<!-- =============================================================================
+     END OF FILE
+     ============================================================================= -->

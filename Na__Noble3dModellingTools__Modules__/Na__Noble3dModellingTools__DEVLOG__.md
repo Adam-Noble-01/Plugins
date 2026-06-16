@@ -3,6 +3,64 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.5.1 - 16-Jun-2026 - Component Editor Tools Migration (Entity Utils)
+
+### Update 01 - Component Editor Tools Migrated as Self-Contained Sub-Dialog Module
+- Migrated the standalone `Na__ComponentEditorTools` plugin into Noble 3D Modelling Tools as a self-contained sub-dialog module (`21__SourceCode__ComponentEditorTools`), following the same pattern as FacePatternGenerator, ImageCarousel, and SelectedHierarchyTagReporter. The dialog opens as an independent `UI::HtmlDialog` with 4 tabs (Overview, Attributes, Thumbnail, Settings) and a live `SelectionObserver`, launched from the Entity Utils tab.
+- New module folder `10__PluginModules/21__SourceCode__ComponentEditorTools/`:
+  - `Na__Noble3dModellingTools__ComponentEditorTools__Loader__.rb` (thin Noble 3D entry point)
+  - `01__AppCore/Na__ComponentEditorTools__AppCore__Main__.rb`
+  - `01__AppCore/Na__ComponentEditorTools__AppCore__PathResolver__.rb`
+  - `01__AppCore/Na__ComponentEditorTools__AppCore__UiBridge__.rb`
+  - `01__AppCore/Na__ComponentEditorTools__AppCore__SelectionObserver__.rb`
+  - `01__AppCore/Na__ComponentEditorTools__AppCore__DialogManager__.rb`
+  - `01__AppCore/Na__ComponentEditorTools__AppCore__PluginReloader__.rb`
+  - `02__SelectionInspector/Na__ComponentEditorTools__SelectionInspector__Main__.rb`
+  - `03__MetadataEditor/Na__ComponentEditorTools__MetadataEditor__Main__.rb`
+  - `04__ThumbnailTools/Na__ComponentEditorTools__ThumbnailTools__Main__.rb`
+  - `05__UserInterface/Na__ComponentEditorTools__UiLayout__.html`
+  - `05__UserInterface/Na__ComponentEditorTools__Styles__.css`
+  - `05__UserInterface/Na__ComponentEditorTools__UiBridge__.js`
+  - `05__UserInterface/Na__ComponentEditorTools__TabRouter__.js`
+  - `05__UserInterface/Na__ComponentEditorTools__Tab__Overview__.js`
+  - `05__UserInterface/Na__ComponentEditorTools__Tab__Attributes__.js`
+  - `05__UserInterface/Na__ComponentEditorTools__Tab__Thumbnail__.js`
+  - `05__UserInterface/Na__ComponentEditorTools__Tab__Settings__.js`
+  - `06__Assets/Na__ComponentEditorTools__Brand__NobleLogo__.png`
+
+### Update 02 - Registry, Router, and Loader Wiring
+- Registered command, button, and hotkey binding in the JSON-driven UI registry under the new `Entity Utils > Component Inspection` group (tool_group_order 5, rendering above Component Containers):
+  - `open_component_editor` / `Component Editor Tools`
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+- Wired handler and module load paths through:
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+
+### Update 03 - Entity Utils Group Consolidation
+- Merged the former standalone `Hierarchy Reporting` group (Entity Tree Reporter) into the new `Component Inspection` group alongside Component Editor Tools:
+  - Both tools share `tool_group_name: "Component Inspection"` and `tool_group_order: 5`.
+  - Component Editor Tools at `button_order: 10`, Entity Tree Reporter at `button_order: 20`.
+  - Group description: `Tools for inspecting and editing selected components, groups, and entity hierarchies.`
+
+### Update 04 - Path Adaptations for New Nesting Depth
+- Standalone folder structure had `01__AppCore` two levels deep inside the module root (`02__Src__AppModules/01__AppCore/`); new structure is one level deep (`21__SourceCode__ComponentEditorTools/01__AppCore/`). Three files updated:
+  - `PathResolver__.rb`: `ModulesRoot` changed from `File.expand_path('../..', __dir__)` to `File.expand_path('..', __dir__)`; `PluginRoot` set to `File.expand_path('../../..', ModulesRoot)` to traverse from module root through `10__PluginModules/`, `Na__Noble3dModellingTools__Modules__/`, to `Plugins/`. Memoization (`||=`) removed to prevent stale-path caching when both standalone and migrated copies are loaded simultaneously.
+  - `AppCore__Main__.rb`: `NA_MODULES_ROOT` and `NA_PLUGIN_ROOT` constants updated to match the same depth arithmetic.
+  - `PluginReloader__.rb`: glob pattern changed from `Dir.glob(File.join(modules_root, '02__Src__AppModules', '**', '*.rb'))` to `Dir.glob(File.join(modules_root, '**', '*.rb'))`.
+  - `AppCore__Main__.rb`: `require_relative` paths updated from `../10__System__SelectionInspector/`, `../20__System__MetadataEditor/`, `../30__System__ThumbnailTools/` to `../02__SelectionInspector/`, `../03__MetadataEditor/`, `../04__ThumbnailTools/`.
+  - `UiLayout__.html`: brand logo `src` updated from `../01__AppAssets__ComponentEditorTools/...` to `../06__Assets/...` to match the renamed assets subfolder.
+
+### Validation Checklist
+- [x] `Component Inspection` group appears at the top of `Entity Utils` containing both `Component Editor Tools` and `Entity Tree Reporter`.
+- [x] Clicking `Component Editor Tools` opens the full 4-tab HtmlDialog; selection auto-populates on Overview tab.
+- [x] Brand logo displays correctly in Component Editor dialog header.
+- [x] All 4 tabs (Overview, Attributes, Thumbnail, Settings) render and function correctly.
+- [x] Standalone `Na__ComponentEditorTools` plugin continues to function in parallel (cleanup deferred to Phase 2).
+- [ ] Phase 2 cleanup: delete `Na__ComponentEditorTools__Loader__.rb` and `Na__ComponentEditorTools__Modules__/` from Plugins root.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.5.0 - 16-Jun-2026 - Face Pattern Generator (Geometry Tools)
 
 ### Update 01 - Face Pattern Generator Feature Module

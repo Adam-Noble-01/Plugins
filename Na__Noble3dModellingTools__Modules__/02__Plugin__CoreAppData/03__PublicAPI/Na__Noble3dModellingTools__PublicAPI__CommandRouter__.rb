@@ -144,6 +144,9 @@ module Na__Noble3dModellingTools
             when 'face_pattern_generator'
                 proc { Na__FacePatternGenerator.Na__FacePatternGenerator__Run }
 
+            when 'open_component_editor'
+                proc { Na__ComponentEditorTools.Na__ComponentEditorTools__OpenDialog }
+
             else
                 nil
             end

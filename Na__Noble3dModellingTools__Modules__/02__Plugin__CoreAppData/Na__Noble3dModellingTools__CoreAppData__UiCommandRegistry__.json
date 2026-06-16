@@ -343,6 +343,15 @@
             "menu_text"         : "Face Pattern Generator",
             "handler_key"       : "face_pattern_generator",
             "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "open_component_editor",
+            "command_name"      : "Na Noble3d - Component Editor Tools",
+            "tooltip"           : "Open the Component Editor dialog to inspect and edit the selected component or group",
+            "status_bar_text"   : "Open Component Editor Tools",
+            "menu_text"         : "Component Editor Tools",
+            "handler_key"       : "open_component_editor",
+            "expose_to_hotkeys" : true
         }
     ],
     "buttons"                : [
@@ -435,6 +444,17 @@
             "description"            : "Creates a grouped wire bounding box around the full extents of the current selection."
         },
         {
+            "button_id"              : "btn_open_component_editor",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Component Inspection",
+            "tool_group_description" : "Tools for inspecting and editing selected components, groups, and entity hierarchies.",
+            "tool_group_order"       : 5,
+            "button_order"           : 10,
+            "button_label"           : "Component Editor Tools",
+            "command_id"             : "open_component_editor",
+            "description"            : "Opens the Component Editor dialog for the selected component or group. Edit instance name, definition, attributes, and thumbnails."
+        },
+        {
             "button_id"              : "btn_convert_components_to_groups",
             "tab_name"               : "Entity Utils",
             "tool_group_name"        : "Component Containers",
@@ -470,10 +490,10 @@
         {
             "button_id"              : "btn_selected_hierarchy_tag_reporter",
             "tab_name"               : "Entity Utils",
-            "tool_group_name"        : "Hierarchy Reporting",
-            "tool_group_description" : "Read-only tools for inspecting selected containers, children, loose geometry, and tags.",
-            "tool_group_order"       : 20,
-            "button_order"           : 10,
+            "tool_group_name"        : "Component Inspection",
+            "tool_group_description" : "Tools for inspecting and editing selected components, groups, and entity hierarchies.",
+            "tool_group_order"       : 5,
+            "button_order"           : 20,
             "button_label"           : "Entity Tree Reporter",
             "command_id"             : "selected_hierarchy_tag_reporter",
             "description"            : "Opens a visual hierarchy tree for the current selection with tag summaries and optional sibling reporting."
@@ -819,6 +839,10 @@
         },
         {
             "command_id"        : "face_pattern_generator",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "open_component_editor",
             "expose_to_hotkeys" : true
         }
     ]
