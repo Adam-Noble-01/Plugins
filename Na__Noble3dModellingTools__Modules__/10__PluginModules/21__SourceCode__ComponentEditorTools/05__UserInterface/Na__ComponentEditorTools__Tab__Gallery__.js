@@ -118,12 +118,25 @@
             na_hide_context_menu();
         });
 
+        var insert_axis_item = document.createElement('div');
+        insert_axis_item.className = 'naComponentEditor__ContextMenuItem';
+        insert_axis_item.textContent = 'Insert At Axis';
+        insert_axis_item.title = 'Place component origin at the current model axes origin';
+        insert_axis_item.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (entry.path && typeof window.Na__ComponentEditorTools__InsertAtAxis === 'function') {
+                window.Na__ComponentEditorTools__InsertAtAxis(entry.path);
+            }
+            na_hide_context_menu();
+        });
+
         menu.appendChild(copy_item);
+        menu.appendChild(insert_axis_item);
 
         var vw = document.documentElement.clientWidth;
         var vh = document.documentElement.clientHeight;
         var menu_w = 190;
-        var menu_h = 40;
+        var menu_h = 80;
         var left = Math.min(event.clientX, vw - menu_w - 4);
         var top  = Math.min(event.clientY, vh - menu_h - 4);
 
