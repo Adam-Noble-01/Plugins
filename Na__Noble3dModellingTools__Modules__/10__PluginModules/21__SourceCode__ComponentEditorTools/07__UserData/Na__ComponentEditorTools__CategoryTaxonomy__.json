@@ -1,0 +1,98 @@
+{
+  "categories": [
+    {
+      "name": "Building",
+      "types": [
+        "Window",
+        "Door",
+        "Wall",
+        "Floor",
+        "Roof",
+        "Rooflight",
+        "Staircase",
+        "Column",
+        "Beam",
+        "Ironmongery",
+        "Structural"
+      ]
+    },
+    {
+      "name": "Fixtures",
+      "types": [
+        "Kitchen Fixtures",
+        "Bathroom Fixtures",
+        "Sanitaryware",
+        "Heating",
+        "Electrical",
+        "Lighting"
+      ]
+    },
+    {
+      "name": "Furniture",
+      "types": [
+        "Lounge",
+        "Dining Room",
+        "Bedroom",
+        "Kitchen",
+        "Office",
+        "Outdoor Lounge",
+        "Outdoor Dining",
+        "Storage"
+      ]
+    },
+    {
+      "name": "Interior Furnishings",
+      "types": [
+        "Soft Furnishings",
+        "Rugs",
+        "Curtains & Blinds",
+        "Artwork",
+        "Decor Accessories",
+        "Indoor Plants"
+      ]
+    },
+    {
+      "name": "Vale Orangery",
+      "types": [
+        "Window",
+        "Door",
+        "Door Handle",
+        "Ironmongery",
+        "Roof Lantern",
+        "Glazing Bar",
+        "Cresting",
+        "Finial"
+      ]
+    },
+    {
+      "name": "Vale Conservatory",
+      "types": [
+        "Window",
+        "Door",
+        "Door Handle",
+        "Ironmongery",
+        "Roof Vent",
+        "Glazing Bar",
+        "Ridge",
+        "Finial"
+      ]
+    },
+    {
+      "name": "Environment",
+      "types": [
+        "Tree",
+        "Shrub",
+        "Hedge",
+        "Planting",
+        "Site Vegetation 2D",
+        "Landscape",
+        "Paving",
+        "Site Boundary",
+        "Vehicle",
+        "People",
+        "Vegetation",
+        "Scene Context"
+      ]
+    }
+  ]
+}

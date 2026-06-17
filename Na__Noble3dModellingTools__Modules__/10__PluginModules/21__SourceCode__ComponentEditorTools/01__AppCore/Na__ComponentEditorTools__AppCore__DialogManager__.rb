@@ -20,8 +20,9 @@ module Na__ComponentEditorTools
         @na_selection_observer = nil
         @na_status_message = 'Ready.'
         @na_status_variant = 'info'
-        @na_active_tab_id = 'overview'
+        @na_active_tab_id = 'gallery'
         @na_current_selection_key = nil
+        @na_library_cache = nil
 
 # endregion -------------------------------------------------------------------
 
@@ -52,6 +53,9 @@ module Na__ComponentEditorTools
             self.Na__ComponentEditorTools__AttachSelectionObserverIfNeeded
             self.Na__ComponentEditorTools__BuildAndPushPayload
             self.Na__ComponentEditorTools__PushActiveTab
+            self.Na__ComponentEditorTools__PushUserConfig
+            self.Na__ComponentEditorTools__PushTaxonomy
+            self.Na__ComponentEditorTools__PushCachedLibraryDataIfAvailable
             @na_dialog
         rescue => error
             UI.messagebox("Na__ComponentEditorTools\n\n#{error.class}: #{error.message}")
@@ -123,6 +127,9 @@ module Na__ComponentEditorTools
 
         def self.Na__ComponentEditorTools__BindCallbacks(dialog)
             callback_registry = {
+
+                # ----- Existing selection/editor callbacks -------------------
+
                 'na_componenteditortools_request_selection' => proc {
                     self.Na__ComponentEditorTools__BuildAndPushPayload
                 },
@@ -159,7 +166,182 @@ module Na__ComponentEditorTools
                 },
                 'na_componenteditortools_reload_plugin' => proc {
                     self.Na__ComponentEditorTools__HandleReloadRequest
+                },
+
+                # ----- User Config callbacks ---------------------------------
+
+                'na_componenteditortools_get_user_config' => proc {
+                    self.Na__ComponentEditorTools__PushUserConfig
+                },
+                'na_componenteditortools_set_library_path' => proc {
+                    default_dir = Na__UserConfig.Na__ComponentEditorTools__LibraryPath
+                    default_dir = Dir.home if default_dir.empty?
+                    folder = UI.select_directory(title: 'Select Components Library Folder', directory: default_dir)
+                    if folder
+                        Na__UserConfig.Na__ComponentEditorTools__SetLibraryPath(folder)
+                        @na_library_cache = nil
+                        UI.start_timer(0.0, false) {
+                            self.Na__ComponentEditorTools__PushUserConfig
+                            self.Na__ComponentEditorTools__PushStatus("Library folder set. Click \"Load Library\" in the Gallery or Index tab, or use Refresh Library in Settings.", 'success')
+                        }
+                    else
+                        UI.start_timer(0.0, false) {
+                            self.Na__ComponentEditorTools__PushStatus('Ready.', 'info')
+                        }
+                    end
+                },
+                'na_componenteditortools_add_blocked_folder' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    folder_name = (payload_hash['folder_name'] || payload_hash[:folder_name]).to_s.strip
+                    unless folder_name.empty?
+                        Na__UserConfig.Na__ComponentEditorTools__AddBlockedFolder(folder_name)
+                        self.Na__ComponentEditorTools__PushUserConfig
+                        self.Na__ComponentEditorTools__PushStatus("Blocked: #{folder_name}", 'success')
+                    end
+                },
+                'na_componenteditortools_remove_blocked_folder' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    folder_name = (payload_hash['folder_name'] || payload_hash[:folder_name]).to_s.strip
+                    unless folder_name.empty?
+                        Na__UserConfig.Na__ComponentEditorTools__RemoveBlockedFolder(folder_name)
+                        self.Na__ComponentEditorTools__PushUserConfig
+                        self.Na__ComponentEditorTools__PushStatus("Unblocked: #{folder_name}", 'success')
+                    end
+                },
+                'na_componenteditortools_add_blocked_file' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    file_name = (payload_hash['file_name'] || payload_hash[:file_name]).to_s.strip
+                    unless file_name.empty?
+                        Na__UserConfig.Na__ComponentEditorTools__AddBlockedFile(file_name)
+                        self.Na__ComponentEditorTools__PushUserConfig
+                        self.Na__ComponentEditorTools__PushStatus("File blocked: #{file_name}", 'success')
+                    end
+                },
+                'na_componenteditortools_remove_blocked_file' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    file_name = (payload_hash['file_name'] || payload_hash[:file_name]).to_s.strip
+                    unless file_name.empty?
+                        Na__UserConfig.Na__ComponentEditorTools__RemoveBlockedFile(file_name)
+                        self.Na__ComponentEditorTools__PushUserConfig
+                        self.Na__ComponentEditorTools__PushStatus("File unblocked: #{file_name}", 'success')
+                    end
+                },
+
+                # ----- Library scan + data callbacks -------------------------
+
+                'na_componenteditortools_scan_library' => proc {
+                    self.Na__ComponentEditorTools__HandleScanLibrary(force_refresh: false)
+                },
+                'na_componenteditortools_refresh_library' => proc {
+                    self.Na__ComponentEditorTools__HandleScanLibrary(force_refresh: true)
+                },
+                'na_componenteditortools_get_gallery' => proc {
+                    self.Na__ComponentEditorTools__HandleGetGallery
+                },
+                'na_componenteditortools_get_index' => proc {
+                    self.Na__ComponentEditorTools__HandleGetIndex
+                },
+
+                # ----- Placement callback ------------------------------------
+
+                'na_componenteditortools_insert_library_component' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    component_path = (payload_hash['path'] || payload_hash[:path]).to_s
+                    result = Na__LibraryPlacementTool.Na__ComponentEditorTools__StartPlacement(component_path, @na_dialog)
+                    if result[:ok]
+                        self.Na__ComponentEditorTools__PushStatus(result[:message], 'info')
+                    else
+                        self.Na__ComponentEditorTools__PushStatus(result[:message], 'error')
+                    end
+                },
+                'na_componenteditortools_open_component_file' => proc { |raw_payload|
+                    payload_hash    = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    component_path  = (payload_hash['path'] || payload_hash[:path]).to_s.strip
+                    if component_path.empty? || !File.exist?(component_path)
+                        self.Na__ComponentEditorTools__PushStatus("File not found: #{File.basename(component_path)}", 'error')
+                    else
+                        self.Na__ComponentEditorTools__PushStatus("Opening: #{File.basename(component_path)}", 'info')
+                        UI.start_timer(0.0, false) {
+                            if Sketchup.platform == :platform_win
+                                system("start \"\" \"#{component_path}\"")
+                            else
+                                system("open \"#{component_path}\"")
+                            end
+                        }
+                    end
+                },
+
+                # ----- Index editing callbacks --------------------------------
+
+                'na_componenteditortools_rename_library_component' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    result = Na__LibraryEditor.Na__ComponentEditorTools__RenameComponent(payload_hash)
+                    self.Na__ComponentEditorTools__PushStatus(result[:message], result[:success] ? 'success' : 'error')
+                    self.Na__ComponentEditorTools__HandleGetIndex if result[:success]
+                },
+                'na_componenteditortools_update_library_metadata' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    result = Na__LibraryEditor.Na__ComponentEditorTools__UpdateMetadata(payload_hash)
+                    self.Na__ComponentEditorTools__PushStatus(result[:message], result[:success] ? 'success' : 'error')
+                    self.Na__ComponentEditorTools__HandleGetIndex if result[:success]
+                },
+                'na_componenteditortools_update_library_data' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    result = Na__LibraryEditor.Na__ComponentEditorTools__UpdateLibraryData(payload_hash)
+                    self.Na__ComponentEditorTools__PushStatus(result[:message], result[:success] ? 'success' : 'error')
+                    self.Na__ComponentEditorTools__HandleGetIndex if result[:success]
+                },
+                'na_componenteditortools_update_field' => proc { |raw_payload|
+                    self.Na__ComponentEditorTools__HandleUpdateField(raw_payload)
+                },
+
+                # ----- Category taxonomy callbacks ----------------------------
+
+                'na_componenteditortools_get_taxonomy' => proc {
+                    self.Na__ComponentEditorTools__PushTaxonomy
+                },
+                'na_componenteditortools_add_category' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    name = (payload_hash['category'] || payload_hash[:category]).to_s.strip
+                    if Na__Taxonomy.Na__ComponentEditorTools__AddCategory(name)
+                        self.Na__ComponentEditorTools__PushStatus("Category added: #{name}", 'success')
+                    else
+                        self.Na__ComponentEditorTools__PushStatus("Category not added (empty or duplicate).", 'warning')
+                    end
+                    self.Na__ComponentEditorTools__PushTaxonomy
+                },
+                'na_componenteditortools_remove_category' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    name = (payload_hash['category'] || payload_hash[:category]).to_s.strip
+                    Na__Taxonomy.Na__ComponentEditorTools__RemoveCategory(name)
+                    self.Na__ComponentEditorTools__PushStatus("Category removed: #{name}", 'success')
+                    self.Na__ComponentEditorTools__PushTaxonomy
+                },
+                'na_componenteditortools_add_type' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    category = (payload_hash['category'] || payload_hash[:category]).to_s.strip
+                    type_val = (payload_hash['type']     || payload_hash[:type]).to_s.strip
+                    if Na__Taxonomy.Na__ComponentEditorTools__AddType(category, type_val)
+                        self.Na__ComponentEditorTools__PushStatus("Type added: #{category} \u2192 #{type_val}", 'success')
+                    else
+                        self.Na__ComponentEditorTools__PushStatus("Type not added (empty or duplicate).", 'warning')
+                    end
+                    self.Na__ComponentEditorTools__PushTaxonomy
+                },
+                'na_componenteditortools_remove_type' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    category = (payload_hash['category'] || payload_hash[:category]).to_s.strip
+                    type_val = (payload_hash['type']     || payload_hash[:type]).to_s.strip
+                    Na__Taxonomy.Na__ComponentEditorTools__RemoveType(category, type_val)
+                    self.Na__ComponentEditorTools__PushStatus("Type removed: #{category} \u2192 #{type_val}", 'success')
+                    self.Na__ComponentEditorTools__PushTaxonomy
+                },
+                'na_componenteditortools_seed_taxonomy' => proc {
+                    Na__Taxonomy.Na__ComponentEditorTools__SeedFromStandards
+                    self.Na__ComponentEditorTools__PushStatus('Categories populated from SSOT standards.', 'success')
+                    self.Na__ComponentEditorTools__PushTaxonomy
                 }
+
             }
 
             Na__UiBridge.Na__ComponentEditorTools__RegisterCallbacks(dialog, callback_registry)
@@ -205,6 +387,193 @@ module Na__ComponentEditorTools
                     current_thumbnail_preview_source: 'visible_viewport'
                 }
             )
+        end
+
+        def self.Na__ComponentEditorTools__PushUserConfig
+            config_payload = Na__UserConfig.Na__ComponentEditorTools__GetAll
+            Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
+                @na_dialog,
+                'Na__ComponentEditorTools__ReceiveUserConfig',
+                config_payload
+            )
+        end
+
+        def self.Na__ComponentEditorTools__PushTaxonomy
+            taxonomy_payload = Na__Taxonomy.Na__ComponentEditorTools__GetAll
+            Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
+                @na_dialog,
+                'Na__ComponentEditorTools__ReceiveTaxonomy',
+                taxonomy_payload
+            )
+        end
+
+        def self.Na__ComponentEditorTools__HandleScanLibrary(force_refresh: false)
+            if !force_refresh && @na_library_cache
+                self.Na__ComponentEditorTools__PushLibraryData(@na_library_cache)
+                return
+            end
+
+            if force_refresh
+                @na_library_cache = nil
+                Na__LibraryExtractor.Na__ComponentEditorTools__PurgeLastResult
+                Na__LibraryExtractor.Na__ComponentEditorTools__InvalidateCache
+            end
+
+            self.Na__ComponentEditorTools__PushStatus('Scanning library...', 'info')
+            scan_result = Na__LibraryScanner.Na__ComponentEditorTools__ScanLibrary
+
+            unless scan_result[:ok]
+                self.Na__ComponentEditorTools__PushStatus(scan_result[:message], 'error')
+                return
+            end
+
+            self.Na__ComponentEditorTools__PushStatus(
+                "#{scan_result[:message]} Extracting metadata (this may take a moment for large libraries)...",
+                'info'
+            )
+            entries = Na__LibraryExtractor.Na__ComponentEditorTools__ExtractAll(scan_result[:entries])
+            folders = Na__LibraryScanner.Na__ComponentEditorTools__FolderList
+
+            library_data = {
+                'ok'           => true,
+                'library_path' => scan_result[:library_path],
+                'entries'      => entries,
+                'folders'      => folders,
+                'message'      => "#{entries.length} component(s) loaded."
+            }
+
+            @na_library_cache = library_data
+            Na__LibraryExtractor.Na__ComponentEditorTools__SaveLastResult(library_data)
+
+            self.Na__ComponentEditorTools__PushLibraryData(library_data)
+            self.Na__ComponentEditorTools__PushStatus("Library loaded: #{entries.length} component(s). Use Refresh to re-scan.", 'success')
+        rescue => error
+            self.Na__ComponentEditorTools__PushStatus("Scan failed: #{error.class}: #{error.message}", 'error')
+        end
+
+        def self.Na__ComponentEditorTools__HandleGetGallery
+            if @na_library_cache
+                self.Na__ComponentEditorTools__PushLibraryData(@na_library_cache)
+            else
+                self.Na__ComponentEditorTools__HandleScanLibrary(force_refresh: false)
+            end
+        end
+
+        def self.Na__ComponentEditorTools__HandleGetIndex
+            if @na_library_cache
+                self.Na__ComponentEditorTools__PushLibraryData(@na_library_cache)
+            else
+                self.Na__ComponentEditorTools__HandleScanLibrary(force_refresh: false)
+            end
+        end
+
+        def self.Na__ComponentEditorTools__PushLibraryData(library_data)
+            entries      = library_data['entries']      || library_data[:entries]      || []
+            folders      = library_data['folders']      || library_data[:folders]      || []
+            library_path = library_data['library_path'] || library_data[:library_path] || ''
+            message      = library_data['message']      || library_data[:message]      || "#{entries.length} component(s)."
+
+            Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
+                @na_dialog,
+                'Na__ComponentEditorTools__ReceiveGallery',
+                {
+                    ok:           true,
+                    library_path: library_path,
+                    entries:      entries,
+                    folders:      folders,
+                    message:      message
+                }
+            )
+
+            Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
+                @na_dialog,
+                'Na__ComponentEditorTools__ReceiveIndex',
+                {
+                    ok:           true,
+                    library_path: library_path,
+                    entries:      entries,
+                    message:      message
+                }
+            )
+        end
+
+        def self.Na__ComponentEditorTools__HandleUpdateField(raw_payload)
+            payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+            old_path = (payload_hash['path'] || payload_hash[:path]).to_s
+
+            result = Na__LibraryEditor.Na__ComponentEditorTools__UpdateField(payload_hash)
+            self.Na__ComponentEditorTools__PushStatus(result[:message], result[:success] ? 'success' : 'error')
+
+            # Always re-extract the component from disk and push it back, so the
+            # row reflects the real on-disk state. On failure the file is
+            # unchanged, which cleanly reverts the cell out of its "Saving" state.
+            new_path = (result[:updated_path] || result['updated_path']).to_s
+            new_path = old_path if new_path.empty?
+
+            updated_entry = self.Na__ComponentEditorTools__RefreshSingleCacheEntry(old_path, new_path)
+
+            if updated_entry
+                self.Na__ComponentEditorTools__PushEntryUpdate(old_path, updated_entry)
+            else
+                self.Na__ComponentEditorTools__HandleGetIndex
+            end
+        rescue => error
+            self.Na__ComponentEditorTools__PushStatus("Update failed: #{error.class}: #{error.message}", 'error')
+        end
+
+        def self.Na__ComponentEditorTools__RefreshSingleCacheEntry(old_path, new_path)
+            library_root = Na__LibraryScanner.Na__ComponentEditorTools__NormalisePath(
+                Na__UserConfig.Na__ComponentEditorTools__LibraryPath
+            )
+            entry_meta    = Na__LibraryScanner.Na__ComponentEditorTools__BuildEntryMeta(new_path, library_root)
+            updated_entry = Na__LibraryExtractor.Na__ComponentEditorTools__ExtractFromFile(entry_meta)
+            return nil unless updated_entry
+
+            norm_old = old_path.to_s.tr('\\', '/')
+
+            if @na_library_cache
+                entries = @na_library_cache['entries'] || @na_library_cache[:entries] || []
+                index   = entries.index do |existing|
+                    (existing['path'] || existing[:path]).to_s.tr('\\', '/') == norm_old
+                end
+
+                if index
+                    entries[index] = updated_entry
+                else
+                    entries << updated_entry
+                end
+
+                @na_library_cache['entries'] = entries
+                Na__LibraryExtractor.Na__ComponentEditorTools__SaveLastResult(@na_library_cache)
+            end
+
+            updated_entry
+        rescue => error
+            puts "[Na__ComponentEditorTools] RefreshSingleCacheEntry warning: #{error.class}: #{error.message}"
+            nil
+        end
+
+        def self.Na__ComponentEditorTools__PushEntryUpdate(old_path, updated_entry)
+            Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
+                @na_dialog,
+                'Na__ComponentEditorTools__ReceiveEntryUpdate',
+                {
+                    old_path: old_path,
+                    entry:    updated_entry
+                }
+            )
+        end
+
+        def self.Na__ComponentEditorTools__PushCachedLibraryDataIfAvailable
+            return if @na_library_cache
+
+            disk_cache = Na__LibraryExtractor.Na__ComponentEditorTools__LoadLastResult
+            return unless disk_cache
+
+            @na_library_cache = disk_cache
+            self.Na__ComponentEditorTools__PushLibraryData(disk_cache)
+        rescue => error
+            puts "[Na__ComponentEditorTools] PushCachedLibraryData warning: #{error.class}: #{error.message}"
         end
 
 # endregion -------------------------------------------------------------------

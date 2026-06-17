@@ -3,6 +3,96 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.5.4 - 17-Jun-2026 - Component Editor Tools Settings & Gallery UX
+
+### Update 01 - Settings Tab Collapsible Sections
+- **Library Exclusions** — the standalone Blocked Folder Names panel replaced with a collapsible `<details>/<summary>` disclosure panel containing two nested subsection cards: **Folder Exclusions** (existing behaviour) and new **File Exclusions** (exact basename match anywhere in the library tree). Collapsed by default, positioned after Plugin Maintenance.
+- **Component Categories & Types** — taxonomy management panel wrapped in the same disclosure pattern; collapsed by default.
+- New CSS region for disclosure/subsection styling; chip classes reused for both exclusion lists.
+- Full file-exclusion stack: `UserConfig__.rb` stores `blocked_file_names`, `Scanner__.rb` filters via `BlockedFile?`, `DialogManager__.rb` registers add/remove callbacks, `UiBridge__.js` exposes bridge functions, `Tab__Settings__.js` renders chips via shared renderer.
+
+### Update 02 - Gallery Header Panel Removed
+- Removed the "Component Gallery" panel section (heading + status message + Load/Reload button) from the top of the Gallery tab. Grid now occupies the full tab body.
+- **Reload Selection** header button repurposed as **Reload Library** (calls `RefreshLibrary` with confirm prompt).
+- **Update Component** header button also guarded with a confirm prompt to prevent accidental triggers.
+- Dead code removed from `Tab__Gallery__.js`: `na_gallery_message` helper, `msg_el` block, `na-gallery-btn-load` listener.
+- Sub-devlog: `10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__DEVLOG__.md`
+
+### Validation Checklist
+- [x] Both disclosure panels collapse/expand correctly; settings layout clean.
+- [x] File exclusions work end-to-end: chip → config → scanner → gallery/index filtered.
+- [x] Gallery opens to bare grid; auto-load fires on tab activate.
+- [x] Both confirm guards prevent accidental triggers.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.5.3 - 17-Jun-2026 - Component Editor Tools Index UX Improvements
+
+### Update 01 - Index Tab Filter Bar (Matches Gallery)
+- Added the same 4-control filter bar (Folder, Category, Type, Search) to the Index tab, displayed in the tab action bar whenever Index is active — mirroring the existing Gallery filter mechanism exactly.
+- `TabRouter__.js` — added `naComponentEditor__TabBar--indexActive` class toggle alongside existing `galleryActive`.
+- `Tab__Index__.js` — new DOM helpers, taxonomy helpers, populate functions (`na_populate_index_folder_filter`, `na_populate_index_category_filter`, `na_populate_index_type_filter`); `na_rebuild_table` extended to apply folder/category/type filters; `na_render_index` populates all three on data arrival; `na_bind_events_once` binds change listeners; `SetTaxonomy` repopulates index dropdowns.
+- `UiLayout__.html` — `naComponentEditor__IndexFilters` div added to tab bar nav; text input removed from index panel toolbar (moved to tab bar).
+- `Styles__.css` — `IndexFilters` show/hide rules and sizing (matching GalleryFilters pattern).
+- Sub-devlog: `10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__DEVLOG__.md`
+
+### Update 02 - Index Panel Header Removed
+- Removed the "Component Index" panel section (heading, subheading, Load/Reload + Collapse All toolbar) that wasted vertical space at the top of the Index tab.
+- Load/Reload and Collapse All buttons moved into the `IndexFilters` bar in the tab action bar, separated by a thin vertical divider.
+- `na-index-message` retained as a hidden `<span>` so the JS null-check continues to work.
+
+### Update 03 - Open Component File Action
+- New **Open** button added to each Index row's Actions cell. Clicking it opens the row's `.skp` file in a new SketchUp instance using the OS default file association (`start` on Windows, `open` on macOS).
+- `Tab__Index__.js` — Open button appended after Insert in `na_build_actions_cell`.
+- `UiBridge__.js` — `Na__ComponentEditorTools__OpenComponentFile` bridge function and window export.
+- `DialogManager__.rb` — `na_componenteditortools_open_component_file` callback; validates path exists, pushes status, defers shell call via `UI.start_timer(0.0, false)`.
+
+### Validation Checklist
+- [x] Index filter bar shows on Index tab, hides on all other tabs.
+- [x] Folder dropdown populated from scanned `relative_dir` values; Category/Type from taxonomy.
+- [x] Filters combine with text search; category change cascades type dropdown.
+- [x] Load/Reload and Collapse All accessible from tab bar in Index mode.
+- [x] Open button launches .skp in new SketchUp instance without affecting current session.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.5.2 - 17-Jun-2026 - Component Editor Tools Library Manager Expansion
+
+### Update 01 - Major Feature Expansion: Component Library Manager
+- Expanded **Component Editor Tools** (`21__SourceCode__ComponentEditorTools`) from a selection-only inspector into a full **Component Library Manager** with Gallery and Index tabs, disk-backed library scanning, thumbnail caching, and click-to-place insertion — while retaining the original Overview / Attributes / Thumbnail / Settings workflow for the active selection.
+- New **Gallery** tab: searchable thumbnail grid with folder, category, and type filters; card click launches drawing-axis placement tool.
+- New **Index** tab: sortable/filterable table of all library `.skp` files; double-click inline editing for Code, Gallery Name, Definition Name, File Name, Folder, and Description; cascading Category and Type dropdowns; drill-down edit panel for Notes and custom dictionary fields.
+- New **Settings** extensions: components library folder path, Refresh Library, folder/file exclusion lists, and editable **Category → Type** taxonomy with **Populate from Standards** (reads local SSOT Tags file).
+- Per-component metadata stored in each definition's `Na__ComponentLibrary` attribute dictionary (`code`, `gallery_name`, `notes`, `category`, `type`, plus user custom fields) — travels with the `.skp` and survives cache reloads.
+- Sub-devlog: `10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__DEVLOG__.md`
+
+### Update 02 - New Module Files and Subsystems
+- `07__UserData/` — user config JSON and category taxonomy JSON.
+- `01__AppCore/Na__ComponentEditorTools__AppCore__UserConfig__.rb`
+- `01__AppCore/Na__ComponentEditorTools__AppCore__Taxonomy__.rb`
+- `08__LibraryManager/` — Scanner, Extractor, Serializer, Editor, PlacementTool.
+- `05__UserInterface/Na__ComponentEditorTools__Tab__Gallery__.js`
+- `05__UserInterface/Na__ComponentEditorTools__Tab__Index__.js`
+- Extended: `DialogManager__.rb`, `PathResolver__.rb`, `UiBridge__.js`, `UiLayout__.html`, `Styles__.css`, `Tab__Settings__.js`, `AppCore__Main__.rb`.
+
+### Update 03 - Index Tab Toolbar Polish (UI Bug Fixes)
+- Fixed tab button squishing in Index mode: `flex-shrink: 0` and `white-space: nowrap` added to `.naComponentEditor__TabButton`; `flex-shrink: 0` on `.naComponentEditor__TabDivider` (`Styles__.css`).
+- "Load / Reload" and "Collapse All" action buttons moved out of the filter row into the right-hand header actions area, in a new `.naComponentEditor__IndexActions` wrapper shown only when Index tab is active. Existing auditing-tab buttons wrapped in `.naComponentEditor__AuditingActions`. `TabRouter__.js` drives both groups' visibility.
+- Sub-devlog: **Version 0.5.1**.
+
+### Validation Checklist
+- [x] Settings: browse library folder, Refresh Library, manage blocked folders/files.
+- [x] Gallery: load library, search/filter by folder/category/type, click-to-place component.
+- [x] Index: sort/filter table, double-click edit cells, category/type dropdowns save to `.skp`.
+- [x] Index: Load/Reload and Collapse All buttons positioned cleanly in right header, separate from filters.
+- [x] Library data persists in `Na__ComponentLibrary` dict; cache keyed by path + mtime.
+- [x] Taxonomy editable in Settings; seedable from SSOT Tags standards file.
+- [ ] Bulk category/type assignment across multiple components (future).
+- [ ] Phase 2 cleanup: remove standalone `Na__ComponentEditorTools` from Plugins root.
+
+## -----------------------------------------------------------------------------
+# =============================================================================
+
 ## Na Noble3d Modelling Tools | Version 0.5.1 - 16-Jun-2026 - Component Editor Tools Migration (Entity Utils)
 
 ### Update 01 - Component Editor Tools Migrated as Self-Contained Sub-Dialog Module

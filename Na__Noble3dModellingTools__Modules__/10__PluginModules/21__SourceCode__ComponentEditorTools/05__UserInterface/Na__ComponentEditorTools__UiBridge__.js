@@ -17,8 +17,12 @@
 // -----------------------------------------------------------------------------
 
     var Na__ComponentEditorTools__State = {
-        payload: null,
-        activeTab: 'overview'
+        payload:     null,
+        activeTab:   'overview',
+        userConfig:  null,
+        galleryData: null,
+        indexData:   null,
+        taxonomy:    null
     };
 
 // endregion -------------------------------------------------------------------
@@ -153,6 +157,70 @@
         }
     }
 
+    function Na__ComponentEditorTools__ReceiveUserConfig(config_payload) {
+        if (!config_payload || typeof config_payload !== 'object') return;
+        Na__ComponentEditorTools__State.userConfig = config_payload;
+
+        if (window.Na__ComponentEditorTools__SettingsTab &&
+            typeof window.Na__ComponentEditorTools__SettingsTab.Na__ComponentEditorTools__RenderConfig === 'function') {
+            window.Na__ComponentEditorTools__SettingsTab.Na__ComponentEditorTools__RenderConfig(config_payload);
+        }
+    }
+
+    function Na__ComponentEditorTools__ReceiveGallery(gallery_payload) {
+        if (!gallery_payload || typeof gallery_payload !== 'object') return;
+        Na__ComponentEditorTools__State.galleryData = gallery_payload;
+
+        if (gallery_payload.message) na_set_status(gallery_payload.message, 'info');
+
+        if (window.Na__ComponentEditorTools__GalleryTab &&
+            typeof window.Na__ComponentEditorTools__GalleryTab.Na__ComponentEditorTools__RenderGallery === 'function') {
+            window.Na__ComponentEditorTools__GalleryTab.Na__ComponentEditorTools__RenderGallery(gallery_payload);
+        }
+    }
+
+    function Na__ComponentEditorTools__ReceiveIndex(index_payload) {
+        if (!index_payload || typeof index_payload !== 'object') return;
+        Na__ComponentEditorTools__State.indexData = index_payload;
+
+        if (window.Na__ComponentEditorTools__IndexTab &&
+            typeof window.Na__ComponentEditorTools__IndexTab.Na__ComponentEditorTools__RenderIndex === 'function') {
+            window.Na__ComponentEditorTools__IndexTab.Na__ComponentEditorTools__RenderIndex(index_payload);
+        }
+    }
+
+    function Na__ComponentEditorTools__ReceiveTaxonomy(taxonomy_payload) {
+        if (!taxonomy_payload || typeof taxonomy_payload !== 'object') return;
+        Na__ComponentEditorTools__State.taxonomy = taxonomy_payload;
+
+        if (window.Na__ComponentEditorTools__SettingsTab &&
+            typeof window.Na__ComponentEditorTools__SettingsTab.Na__ComponentEditorTools__RenderTaxonomy === 'function') {
+            window.Na__ComponentEditorTools__SettingsTab.Na__ComponentEditorTools__RenderTaxonomy(taxonomy_payload);
+        }
+
+        if (window.Na__ComponentEditorTools__IndexTab &&
+            typeof window.Na__ComponentEditorTools__IndexTab.Na__ComponentEditorTools__SetTaxonomy === 'function') {
+            window.Na__ComponentEditorTools__IndexTab.Na__ComponentEditorTools__SetTaxonomy(taxonomy_payload);
+        }
+
+        if (window.Na__ComponentEditorTools__GalleryTab &&
+            typeof window.Na__ComponentEditorTools__GalleryTab.Na__ComponentEditorTools__SetTaxonomy === 'function') {
+            window.Na__ComponentEditorTools__GalleryTab.Na__ComponentEditorTools__SetTaxonomy(taxonomy_payload);
+        }
+    }
+
+    function Na__ComponentEditorTools__ReceiveEntryUpdate(update_payload) {
+        if (!update_payload || typeof update_payload !== 'object') return;
+
+        if (window.Na__ComponentEditorTools__IndexTab &&
+            typeof window.Na__ComponentEditorTools__IndexTab.Na__ComponentEditorTools__ApplyEntryUpdate === 'function') {
+            window.Na__ComponentEditorTools__IndexTab.Na__ComponentEditorTools__ApplyEntryUpdate(
+                update_payload.old_path, update_payload.entry
+            );
+        }
+    }
+
+
 // endregion -------------------------------------------------------------------
 
 
@@ -198,6 +266,98 @@
         na_call_ruby('na_componenteditortools_reload_plugin');
     }
 
+    function Na__ComponentEditorTools__GetUserConfig() {
+        na_call_ruby('na_componenteditortools_get_user_config');
+    }
+
+    function Na__ComponentEditorTools__SetLibraryPath() {
+        na_set_status('Selecting library folder...', 'info');
+        na_call_ruby('na_componenteditortools_set_library_path');
+    }
+
+    function Na__ComponentEditorTools__AddBlockedFolder(folder_name) {
+        na_call_ruby('na_componenteditortools_add_blocked_folder', { folder_name: folder_name || '' });
+    }
+
+    function Na__ComponentEditorTools__RemoveBlockedFolder(folder_name) {
+        na_call_ruby('na_componenteditortools_remove_blocked_folder', { folder_name: folder_name || '' });
+    }
+
+    function Na__ComponentEditorTools__AddBlockedFile(file_name) {
+        na_call_ruby('na_componenteditortools_add_blocked_file', { file_name: file_name || '' });
+    }
+
+    function Na__ComponentEditorTools__RemoveBlockedFile(file_name) {
+        na_call_ruby('na_componenteditortools_remove_blocked_file', { file_name: file_name || '' });
+    }
+
+    function Na__ComponentEditorTools__ScanLibrary() {
+        na_set_status('Loading library...', 'info');
+        na_call_ruby('na_componenteditortools_scan_library');
+    }
+
+    function Na__ComponentEditorTools__RefreshLibrary() {
+        na_set_status('Refreshing library index...', 'info');
+        na_call_ruby('na_componenteditortools_refresh_library');
+    }
+
+    function Na__ComponentEditorTools__GetGallery() {
+        na_call_ruby('na_componenteditortools_get_gallery');
+    }
+
+    function Na__ComponentEditorTools__GetIndex() {
+        na_call_ruby('na_componenteditortools_get_index');
+    }
+
+    function Na__ComponentEditorTools__InsertLibraryComponent(component_path) {
+        na_call_ruby('na_componenteditortools_insert_library_component', { path: component_path || '' });
+    }
+
+    function Na__ComponentEditorTools__OpenComponentFile(component_path) {
+        na_call_ruby('na_componenteditortools_open_component_file', { path: component_path || '' });
+    }
+
+    function Na__ComponentEditorTools__RenameLibraryComponent(payload) {
+        na_call_ruby('na_componenteditortools_rename_library_component', payload || {});
+    }
+
+    function Na__ComponentEditorTools__UpdateLibraryMetadata(payload) {
+        na_call_ruby('na_componenteditortools_update_library_metadata', payload || {});
+    }
+
+    function Na__ComponentEditorTools__UpdateLibraryData(payload) {
+        na_call_ruby('na_componenteditortools_update_library_data', payload || {});
+    }
+
+    function Na__ComponentEditorTools__UpdateField(payload) {
+        na_call_ruby('na_componenteditortools_update_field', payload || {});
+    }
+
+    function Na__ComponentEditorTools__GetTaxonomy() {
+        na_call_ruby('na_componenteditortools_get_taxonomy');
+    }
+
+    function Na__ComponentEditorTools__AddCategory(category_name) {
+        na_call_ruby('na_componenteditortools_add_category', { category: category_name || '' });
+    }
+
+    function Na__ComponentEditorTools__RemoveCategory(category_name) {
+        na_call_ruby('na_componenteditortools_remove_category', { category: category_name || '' });
+    }
+
+    function Na__ComponentEditorTools__AddType(category_name, type_name) {
+        na_call_ruby('na_componenteditortools_add_type', { category: category_name || '', type: type_name || '' });
+    }
+
+    function Na__ComponentEditorTools__RemoveType(category_name, type_name) {
+        na_call_ruby('na_componenteditortools_remove_type', { category: category_name || '', type: type_name || '' });
+    }
+
+    function Na__ComponentEditorTools__SeedTaxonomy() {
+        na_set_status('Populating categories from standards...', 'info');
+        na_call_ruby('na_componenteditortools_seed_taxonomy');
+    }
+
 // endregion -------------------------------------------------------------------
 
 
@@ -209,6 +369,22 @@
         return Na__ComponentEditorTools__State.payload;
     }
 
+    function Na__ComponentEditorTools__CurrentGalleryData() {
+        return Na__ComponentEditorTools__State.galleryData;
+    }
+
+    function Na__ComponentEditorTools__CurrentIndexData() {
+        return Na__ComponentEditorTools__State.indexData;
+    }
+
+    function Na__ComponentEditorTools__CurrentUserConfig() {
+        return Na__ComponentEditorTools__State.userConfig;
+    }
+
+    function Na__ComponentEditorTools__CurrentTaxonomy() {
+        return Na__ComponentEditorTools__State.taxonomy;
+    }
+
 // endregion -------------------------------------------------------------------
 
 
@@ -216,19 +392,50 @@
 // REGION | Window Exports
 // -----------------------------------------------------------------------------
 
-    window.Na__ComponentEditorTools__ReceiveStatus      = Na__ComponentEditorTools__ReceiveStatus;
-    window.Na__ComponentEditorTools__ReceivePayload     = Na__ComponentEditorTools__ReceivePayload;
-    window.Na__ComponentEditorTools__SetActiveTab       = Na__ComponentEditorTools__SetActiveTab;
-    window.Na__ComponentEditorTools__NotifyActiveTab    = Na__ComponentEditorTools__NotifyActiveTab;
-    window.Na__ComponentEditorTools__RequestSelection   = Na__ComponentEditorTools__RequestSelection;
-    window.Na__ComponentEditorTools__ApplyBasicFields   = Na__ComponentEditorTools__ApplyBasicFields;
-    window.Na__ComponentEditorTools__UpdateComponent    = Na__ComponentEditorTools__UpdateComponent;
-    window.Na__ComponentEditorTools__SetAttribute       = Na__ComponentEditorTools__SetAttribute;
-    window.Na__ComponentEditorTools__DeleteAttribute    = Na__ComponentEditorTools__DeleteAttribute;
-    window.Na__ComponentEditorTools__RefreshThumbnail   = Na__ComponentEditorTools__RefreshThumbnail;
-    window.Na__ComponentEditorTools__CaptureViewportPng = Na__ComponentEditorTools__CaptureViewportPng;
-    window.Na__ComponentEditorTools__ReloadPlugin       = Na__ComponentEditorTools__ReloadPlugin;
-    window.Na__ComponentEditorTools__CurrentPayload     = Na__ComponentEditorTools__CurrentPayload;
+    window.Na__ComponentEditorTools__ReceiveStatus           = Na__ComponentEditorTools__ReceiveStatus;
+    window.Na__ComponentEditorTools__ReceivePayload          = Na__ComponentEditorTools__ReceivePayload;
+    window.Na__ComponentEditorTools__ReceiveUserConfig       = Na__ComponentEditorTools__ReceiveUserConfig;
+    window.Na__ComponentEditorTools__ReceiveGallery          = Na__ComponentEditorTools__ReceiveGallery;
+    window.Na__ComponentEditorTools__ReceiveIndex            = Na__ComponentEditorTools__ReceiveIndex;
+    window.Na__ComponentEditorTools__ReceiveEntryUpdate      = Na__ComponentEditorTools__ReceiveEntryUpdate;
+    window.Na__ComponentEditorTools__ReceiveTaxonomy         = Na__ComponentEditorTools__ReceiveTaxonomy;
+    window.Na__ComponentEditorTools__SetActiveTab            = Na__ComponentEditorTools__SetActiveTab;
+    window.Na__ComponentEditorTools__NotifyActiveTab         = Na__ComponentEditorTools__NotifyActiveTab;
+    window.Na__ComponentEditorTools__RequestSelection        = Na__ComponentEditorTools__RequestSelection;
+    window.Na__ComponentEditorTools__ApplyBasicFields        = Na__ComponentEditorTools__ApplyBasicFields;
+    window.Na__ComponentEditorTools__UpdateComponent         = Na__ComponentEditorTools__UpdateComponent;
+    window.Na__ComponentEditorTools__SetAttribute            = Na__ComponentEditorTools__SetAttribute;
+    window.Na__ComponentEditorTools__DeleteAttribute         = Na__ComponentEditorTools__DeleteAttribute;
+    window.Na__ComponentEditorTools__RefreshThumbnail        = Na__ComponentEditorTools__RefreshThumbnail;
+    window.Na__ComponentEditorTools__CaptureViewportPng      = Na__ComponentEditorTools__CaptureViewportPng;
+    window.Na__ComponentEditorTools__ReloadPlugin            = Na__ComponentEditorTools__ReloadPlugin;
+    window.Na__ComponentEditorTools__GetUserConfig           = Na__ComponentEditorTools__GetUserConfig;
+    window.Na__ComponentEditorTools__SetLibraryPath          = Na__ComponentEditorTools__SetLibraryPath;
+    window.Na__ComponentEditorTools__AddBlockedFolder        = Na__ComponentEditorTools__AddBlockedFolder;
+    window.Na__ComponentEditorTools__RemoveBlockedFolder     = Na__ComponentEditorTools__RemoveBlockedFolder;
+    window.Na__ComponentEditorTools__AddBlockedFile          = Na__ComponentEditorTools__AddBlockedFile;
+    window.Na__ComponentEditorTools__RemoveBlockedFile       = Na__ComponentEditorTools__RemoveBlockedFile;
+    window.Na__ComponentEditorTools__ScanLibrary             = Na__ComponentEditorTools__ScanLibrary;
+    window.Na__ComponentEditorTools__RefreshLibrary          = Na__ComponentEditorTools__RefreshLibrary;
+    window.Na__ComponentEditorTools__GetGallery              = Na__ComponentEditorTools__GetGallery;
+    window.Na__ComponentEditorTools__GetIndex                = Na__ComponentEditorTools__GetIndex;
+    window.Na__ComponentEditorTools__InsertLibraryComponent  = Na__ComponentEditorTools__InsertLibraryComponent;
+    window.Na__ComponentEditorTools__OpenComponentFile        = Na__ComponentEditorTools__OpenComponentFile;
+    window.Na__ComponentEditorTools__RenameLibraryComponent  = Na__ComponentEditorTools__RenameLibraryComponent;
+    window.Na__ComponentEditorTools__UpdateLibraryMetadata   = Na__ComponentEditorTools__UpdateLibraryMetadata;
+    window.Na__ComponentEditorTools__UpdateLibraryData       = Na__ComponentEditorTools__UpdateLibraryData;
+    window.Na__ComponentEditorTools__UpdateField             = Na__ComponentEditorTools__UpdateField;
+    window.Na__ComponentEditorTools__GetTaxonomy             = Na__ComponentEditorTools__GetTaxonomy;
+    window.Na__ComponentEditorTools__AddCategory             = Na__ComponentEditorTools__AddCategory;
+    window.Na__ComponentEditorTools__RemoveCategory          = Na__ComponentEditorTools__RemoveCategory;
+    window.Na__ComponentEditorTools__AddType                 = Na__ComponentEditorTools__AddType;
+    window.Na__ComponentEditorTools__RemoveType              = Na__ComponentEditorTools__RemoveType;
+    window.Na__ComponentEditorTools__SeedTaxonomy            = Na__ComponentEditorTools__SeedTaxonomy;
+    window.Na__ComponentEditorTools__CurrentPayload          = Na__ComponentEditorTools__CurrentPayload;
+    window.Na__ComponentEditorTools__CurrentGalleryData      = Na__ComponentEditorTools__CurrentGalleryData;
+    window.Na__ComponentEditorTools__CurrentIndexData        = Na__ComponentEditorTools__CurrentIndexData;
+    window.Na__ComponentEditorTools__CurrentUserConfig       = Na__ComponentEditorTools__CurrentUserConfig;
+    window.Na__ComponentEditorTools__CurrentTaxonomy         = Na__ComponentEditorTools__CurrentTaxonomy;
 
 // endregion -------------------------------------------------------------------
 
@@ -241,22 +448,27 @@
         var refresh_button = document.getElementById('na-component-btn-header-refresh');
         if (refresh_button) {
             refresh_button.addEventListener('click', function () {
-                Na__ComponentEditorTools__RequestSelection();
+                if (window.confirm('Reload Library? This will re-scan and re-extract all component files and may take a moment.')) {
+                    Na__ComponentEditorTools__RefreshLibrary();
+                }
             });
         }
 
         var update_button = document.getElementById('na-component-btn-update-component');
         if (update_button) {
             update_button.addEventListener('click', function () {
-                Na__ComponentEditorTools__UpdateComponent({
-                    instance_name: document.getElementById('na-component-instance-name').value,
-                    definition_name: document.getElementById('na-component-definition-name').value,
-                    definition_description: document.getElementById('na-component-definition-description').value
-                });
+                if (window.confirm('Apply component updates to the selected SketchUp entity?')) {
+                    Na__ComponentEditorTools__UpdateComponent({
+                        instance_name: document.getElementById('na-component-instance-name').value,
+                        definition_name: document.getElementById('na-component-definition-name').value,
+                        definition_description: document.getElementById('na-component-definition-description').value
+                    });
+                }
             });
         }
 
         Na__ComponentEditorTools__RequestSelection();
+        Na__ComponentEditorTools__GetTaxonomy();
     });
 
 // endregion -------------------------------------------------------------------

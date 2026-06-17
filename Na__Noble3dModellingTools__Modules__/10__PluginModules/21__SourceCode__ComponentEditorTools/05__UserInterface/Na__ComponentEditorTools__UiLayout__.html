@@ -38,15 +38,49 @@
 
         <!-- REGION | Tab Action Bar ----------------------------------------- -->
         <div class="naComponentEditor__TabActionBar">
-            <nav class="naComponentEditor__TabBar">
-                <button class="naComponentEditor__TabButton naComponentEditor__TabButton--active" data-tab-id="overview" type="button">Overview</button>
+            <nav class="naComponentEditor__TabBar naComponentEditor__TabBar--galleryActive">
+                <button class="naComponentEditor__TabButton" data-tab-id="overview" type="button">Overview</button>
                 <button class="naComponentEditor__TabButton" data-tab-id="attributes" type="button">Attributes</button>
                 <button class="naComponentEditor__TabButton" data-tab-id="thumbnail" type="button">Thumbnail</button>
                 <button class="naComponentEditor__TabButton" data-tab-id="settings" type="button">Settings</button>
+                <span class="naComponentEditor__TabDivider" aria-hidden="true"></span>
+                <button class="naComponentEditor__TabButton naComponentEditor__TabButton--active" data-tab-id="gallery" type="button">Gallery</button>
+                <button class="naComponentEditor__TabButton" data-tab-id="index" type="button">Index</button>
+                <span class="naComponentEditor__TabDivider" aria-hidden="true"></span>
+                <div class="naComponentEditor__GalleryFilters">
+                    <select id="na-gallery-folder-filter" class="naComponentEditor__Select naComponentEditor__GalleryFolderFilter">
+                        <option value="">All Folders</option>
+                    </select>
+                    <select id="na-gallery-category-filter" class="naComponentEditor__Select naComponentEditor__GalleryCategoryFilter">
+                        <option value="">All Categories</option>
+                    </select>
+                    <select id="na-gallery-type-filter" class="naComponentEditor__Select naComponentEditor__GalleryTypeFilter">
+                        <option value="">All Types</option>
+                    </select>
+                    <input id="na-gallery-search" class="naComponentEditor__Input naComponentEditor__GallerySearch" type="text" placeholder="Search components&hellip;">
+                </div>
+                <div class="naComponentEditor__IndexFilters">
+                    <select id="na-index-folder-filter" class="naComponentEditor__Select naComponentEditor__IndexFolderFilter">
+                        <option value="">All Folders</option>
+                    </select>
+                    <select id="na-index-category-filter" class="naComponentEditor__Select naComponentEditor__IndexCategoryFilter">
+                        <option value="">All Categories</option>
+                    </select>
+                    <select id="na-index-type-filter" class="naComponentEditor__Select naComponentEditor__IndexTypeFilter">
+                        <option value="">All Types</option>
+                    </select>
+                    <input id="na-index-filter" class="naComponentEditor__Input naComponentEditor__IndexSearch" type="text" placeholder="Search components&hellip;">
+                </div>
             </nav>
             <div class="naComponentEditor__HeaderActions">
-                <button id="na-component-btn-update-component" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Update Component</button>
-                <button id="na-component-btn-header-refresh" class="naComponentEditor__Button" type="button">Reload Selection</button>
+                <div class="naComponentEditor__AuditingActions">
+                    <button id="na-component-btn-update-component" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Update Component</button>
+                    <button id="na-component-btn-header-refresh" class="naComponentEditor__Button" type="button">Reload Library</button>
+                </div>
+                <div class="naComponentEditor__IndexActions">
+                    <button id="na-index-btn-load" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Load / Reload</button>
+                    <button id="na-index-btn-collapse-all" class="naComponentEditor__Button" type="button">Collapse All</button>
+                </div>
             </div>
         </div>
         <!-- endregion ------------------------------------------------------- -->
@@ -54,7 +88,7 @@
         <main class="naComponentEditor__Main">
 
             <!-- REGION | Tab: Overview -------------------------------------- -->
-            <section id="na-component-tab-overview" class="naComponentEditor__TabPanel naComponentEditor__TabPanel--active" data-tab-id="overview">
+            <section id="na-component-tab-overview" class="naComponentEditor__TabPanel" data-tab-id="overview">
                 <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">Editable Fields</h2>
                     <p id="na-component-overview-message" class="naComponentEditor__PanelSubheading">Select one component instance or group to begin.</p>
@@ -188,19 +222,108 @@
             <!-- REGION | Tab: Settings -------------------------------------- -->
             <section id="na-component-tab-settings" class="naComponentEditor__TabPanel" data-tab-id="settings">
                 <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Components Library Folder</h2>
+                    <p class="naComponentEditor__PanelSubheading">Set the root folder that Gallery and Index will scan for .skp component files.</p>
+                    <div class="naComponentEditor__LibraryPathRow">
+                        <input id="na-settings-library-path" class="naComponentEditor__Input naComponentEditor__LibraryPathInput" type="text" readonly placeholder="No folder configured">
+                        <button id="na-settings-btn-browse-library" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Browse&hellip;</button>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Library Index</h2>
+                    <p class="naComponentEditor__PanelSubheading">The index is cached to disk so it loads instantly on next open. Use Refresh to force a full re-scan (purges cache and re-extracts all files).</p>
+                    <div class="naComponentEditor__ButtonRow">
+                        <button id="na-settings-btn-refresh-library" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Refresh Library</button>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">Plugin Maintenance</h2>
                     <p class="naComponentEditor__PanelSubheading">Reload plugin Ruby files and rebuild the dialog without restarting SketchUp.</p>
                     <div class="naComponentEditor__ButtonRow">
-                        <button id="na-component-btn-settings-reload" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Reload Plugin</button>
+                        <button id="na-component-btn-settings-reload" class="naComponentEditor__Button" type="button">Reload Plugin</button>
                     </div>
+                </section>
+
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Component Categories &amp; Types</h2>
+                    <p class="naComponentEditor__PanelSubheading">Define the broad categories and their contextual types used to classify components in the Index and filter the Gallery. Populate from the shared SSOT standards, then tailor as needed.</p>
+                    <div class="naComponentEditor__ButtonRow">
+                        <button id="na-settings-btn-seed-taxonomy" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Populate from Standards</button>
+                    </div>
+                    <div id="na-settings-taxonomy-list" class="naComponentEditor__TaxonomyList"></div>
+                    <div class="naComponentEditor__BlockedAddRow">
+                        <input id="na-settings-category-input" class="naComponentEditor__Input naComponentEditor__BlockedInput" type="text" placeholder="New category name&hellip;">
+                        <button id="na-settings-btn-add-category" class="naComponentEditor__Button" type="button">Add Category</button>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Panel">
+                    <details class="naComponentEditor__SettingsDisclosure">
+                        <summary class="naComponentEditor__SettingsDisclosureSummary">Library Exclusions</summary>
+                        <div class="naComponentEditor__SettingsDisclosureBody">
+
+                            <section class="naComponentEditor__ExclusionSubsection">
+                                <h3 class="naComponentEditor__ExclusionSubheading">Folder Exclusions</h3>
+                                <p class="naComponentEditor__PanelSubheading">Folders matching these names are excluded from Gallery and Index scans regardless of their location in the library tree.</p>
+                                <div id="na-settings-blocked-folder-list" class="naComponentEditor__BlockedList"></div>
+                                <div class="naComponentEditor__BlockedAddRow">
+                                    <input id="na-settings-blocked-folder-input" class="naComponentEditor__Input naComponentEditor__BlockedInput" type="text" placeholder="Folder name to block&hellip;">
+                                    <button id="na-settings-btn-add-blocked-folder" class="naComponentEditor__Button" type="button">Add</button>
+                                </div>
+                            </section>
+
+                            <section class="naComponentEditor__ExclusionSubsection naComponentEditor__ExclusionSubsection--last">
+                                <h3 class="naComponentEditor__ExclusionSubheading">File Exclusions</h3>
+                                <p class="naComponentEditor__PanelSubheading">Specific .skp filenames to exclude from scans regardless of which folder they are in.</p>
+                                <div id="na-settings-blocked-file-list" class="naComponentEditor__BlockedList"></div>
+                                <div class="naComponentEditor__BlockedAddRow">
+                                    <input id="na-settings-blocked-file-input" class="naComponentEditor__Input naComponentEditor__BlockedInput" type="text" placeholder="File name to block (e.g. temp.skp)&hellip;">
+                                    <button id="na-settings-btn-add-blocked-file" class="naComponentEditor__Button" type="button">Add</button>
+                                </div>
+                            </section>
+
+                        </div>
+                    </details>
                 </section>
 
                 <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">About</h2>
                     <p class="naComponentEditor__MutedText">Na Component Editor Tools by Noble Architecture.</p>
-                    <p class="naComponentEditor__MutedText">Tabs: Overview, Attributes, Thumbnail, Settings.</p>
+                    <p class="naComponentEditor__MutedText">Tabs: Overview, Attributes, Thumbnail, Settings | Gallery, Index.</p>
                     <p class="naComponentEditor__MutedText">Shared assets are resolved from <span class="naComponentEditor__Mono">Na__Common__PluginDependencies</span>.</p>
                 </section>
+            </section>
+            <!-- endregion --------------------------------------------------- -->
+
+            <!-- REGION | Tab: Gallery --------------------------------------- -->
+            <section id="na-component-tab-gallery" class="naComponentEditor__TabPanel naComponentEditor__TabPanel--active" data-tab-id="gallery">
+                <div id="na-gallery-grid" class="naComponentEditor__GalleryGrid"></div>
+            </section>
+            <!-- endregion --------------------------------------------------- -->
+
+            <!-- REGION | Tab: Index ----------------------------------------- -->
+            <section id="na-component-tab-index" class="naComponentEditor__TabPanel" data-tab-id="index">
+                <span id="na-index-message" hidden></span>
+                <div id="na-index-table-wrap" class="naComponentEditor__IndexTableWrap">
+                        <table id="na-index-table" class="naComponentEditor__IndexTable">
+                            <thead>
+                                <tr>
+                                    <th data-sort-key="code" class="naComponentEditor__IndexTh naComponentEditor__IndexTh--sortable naComponentEditor__IndexTh--code">Code <span class="naComponentEditor__SortIndicator"></span></th>
+                                    <th data-sort-key="gallery_name" class="naComponentEditor__IndexTh naComponentEditor__IndexTh--sortable naComponentEditor__IndexTh--galleryName">Gallery Name <span class="naComponentEditor__SortIndicator"></span></th>
+                                    <th data-sort-key="category" class="naComponentEditor__IndexTh naComponentEditor__IndexTh--sortable naComponentEditor__IndexTh--category">Category <span class="naComponentEditor__SortIndicator"></span></th>
+                                    <th data-sort-key="type" class="naComponentEditor__IndexTh naComponentEditor__IndexTh--sortable naComponentEditor__IndexTh--type">Type <span class="naComponentEditor__SortIndicator"></span></th>
+                                    <th data-sort-key="def_name" class="naComponentEditor__IndexTh naComponentEditor__IndexTh--sortable">Definition Name <span class="naComponentEditor__SortIndicator"></span></th>
+                                    <th data-sort-key="file_name" class="naComponentEditor__IndexTh naComponentEditor__IndexTh--sortable">File Name <span class="naComponentEditor__SortIndicator"></span></th>
+                                    <th data-sort-key="relative_dir" class="naComponentEditor__IndexTh naComponentEditor__IndexTh--sortable">Folder <span class="naComponentEditor__SortIndicator"></span></th>
+                                    <th data-sort-key="description" class="naComponentEditor__IndexTh">Description</th>
+                                    <th class="naComponentEditor__IndexTh naComponentEditor__IndexTh--actions">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="na-index-tbody"></tbody>
+                        </table>
+                </div>
             </section>
             <!-- endregion --------------------------------------------------- -->
 
@@ -220,6 +343,8 @@
     <script src="Na__ComponentEditorTools__Tab__Attributes__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Thumbnail__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Settings__.js"></script>
+    <script src="Na__ComponentEditorTools__Tab__Gallery__.js"></script>
+    <script src="Na__ComponentEditorTools__Tab__Index__.js"></script>
     <script src="Na__ComponentEditorTools__TabRouter__.js"></script>
     <!-- endregion --------------------------------------------------------------- -->
 

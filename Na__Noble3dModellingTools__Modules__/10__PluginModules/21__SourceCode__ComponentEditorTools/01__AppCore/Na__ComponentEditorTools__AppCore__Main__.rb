@@ -20,10 +20,17 @@ require 'fileutils'
 
 require_relative 'Na__ComponentEditorTools__AppCore__PathResolver__'
 require_relative 'Na__ComponentEditorTools__AppCore__UiBridge__'
+require_relative 'Na__ComponentEditorTools__AppCore__UserConfig__'
+require_relative 'Na__ComponentEditorTools__AppCore__Taxonomy__'
 require_relative 'Na__ComponentEditorTools__AppCore__SelectionObserver__'
 require_relative '../02__SelectionInspector/Na__ComponentEditorTools__SelectionInspector__Main__'
 require_relative '../03__MetadataEditor/Na__ComponentEditorTools__MetadataEditor__Main__'
 require_relative '../04__ThumbnailTools/Na__ComponentEditorTools__ThumbnailTools__Main__'
+require_relative '../08__LibraryManager/Na__ComponentEditorTools__LibraryManager__Scanner__'
+require_relative '../08__LibraryManager/Na__ComponentEditorTools__LibraryManager__Serializer__'
+require_relative '../08__LibraryManager/Na__ComponentEditorTools__LibraryManager__Extractor__'
+require_relative '../08__LibraryManager/Na__ComponentEditorTools__LibraryManager__Editor__'
+require_relative '../08__LibraryManager/Na__ComponentEditorTools__LibraryManager__PlacementTool__'
 require_relative 'Na__ComponentEditorTools__AppCore__PluginReloader__'
 require_relative 'Na__ComponentEditorTools__AppCore__DialogManager__'
 
@@ -36,7 +43,7 @@ module Na__ComponentEditorTools
     NA_EXTENSION_NAME          = 'Na__ComponentEditorTools'.freeze
     NA_DIALOG_TITLE            = 'Na Component Editor Tools'.freeze
     NA_DIALOG_PREFERENCES_KEY  = 'Na__ComponentEditorTools'.freeze
-    NA_DEFAULT_ACTIVE_TAB      = 'overview'.freeze
+    NA_DEFAULT_ACTIVE_TAB      = 'gallery'.freeze
 
     NA_MODULES_ROOT = File.expand_path('..', __dir__).freeze
     NA_PLUGIN_ROOT  = File.expand_path('../../..', NA_MODULES_ROOT).freeze

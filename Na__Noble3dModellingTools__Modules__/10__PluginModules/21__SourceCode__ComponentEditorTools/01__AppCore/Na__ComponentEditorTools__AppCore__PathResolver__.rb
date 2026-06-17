@@ -41,6 +41,40 @@ module Na__ComponentEditorTools
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
+# REGION | User Data Paths
+# -----------------------------------------------------------------------------
+
+        def self.Na__ComponentEditorTools__UserDataDirectory
+            File.join(self.Na__ComponentEditorTools__ModulesRoot, '07__UserData')
+        end
+
+        def self.Na__ComponentEditorTools__UserConfigFilePath
+            File.join(self.Na__ComponentEditorTools__UserDataDirectory, 'Na__ComponentEditorTools__UserConfig__.json')
+        end
+
+        def self.Na__ComponentEditorTools__CategoryTaxonomyFilePath
+            File.join(self.Na__ComponentEditorTools__UserDataDirectory, 'Na__ComponentEditorTools__CategoryTaxonomy__.json')
+        end
+
+        def self.Na__ComponentEditorTools__LibraryCacheDirectory
+            File.join(Sketchup.temp_dir, 'Na__ComponentEditorTools__LibraryCache')
+        end
+
+        def self.Na__ComponentEditorTools__LibraryCacheFilePath
+            File.join(self.Na__ComponentEditorTools__LibraryCacheDirectory, 'Na__ComponentEditorTools__LibraryCache__.json')
+        end
+
+        def self.Na__ComponentEditorTools__LibraryThumbnailCacheDirectory
+            File.join(self.Na__ComponentEditorTools__LibraryCacheDirectory, 'thumbnails')
+        end
+
+        def self.Na__ComponentEditorTools__LibraryLastResultFilePath
+            File.join(self.Na__ComponentEditorTools__LibraryCacheDirectory, 'Na__ComponentEditorTools__LibraryLastResult__.json')
+        end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
 # REGION | Plugin And Shared Asset Paths
 # -----------------------------------------------------------------------------
 
@@ -50,6 +84,14 @@ module Na__ComponentEditorTools
 
         def self.Na__ComponentEditorTools__ToolbarIconPath
             File.join(self.Na__ComponentEditorTools__SharedAssetsDirectory, 'IMG02__ICN__NaCompanyIcon.png')
+        end
+
+        def self.Na__ComponentEditorTools__DataLibTagsFilePath
+            File.join(
+                self.Na__ComponentEditorTools__PluginRoot,
+                'Na__Common__DataLib__CoreSuEntityStandards',
+                'Na__DataLib__CoreIndex__Tags__.json'
+            )
         end
 
 # endregion -------------------------------------------------------------------

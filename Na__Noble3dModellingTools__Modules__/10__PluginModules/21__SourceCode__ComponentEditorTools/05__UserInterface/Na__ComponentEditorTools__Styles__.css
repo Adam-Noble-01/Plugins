@@ -123,6 +123,19 @@ body {
     flex-wrap                       : wrap;
     gap                             : 8px;
     padding-right                   : 12px;
+    flex-shrink                     : 0;
+}
+
+.naComponentEditor__AuditingActions {
+    display                         : flex;
+    align-items                     : center;
+    gap                             : 8px;
+}
+
+.naComponentEditor__IndexActions {
+    display                         : none;
+    align-items                     : center;
+    gap                             : 8px;
 }
 
 .naComponentEditor__TabActionBar {
@@ -149,6 +162,8 @@ body {
     padding                         : 7px 10px;
     cursor                          : pointer;
     font-size                       : 12px;
+    flex-shrink                     : 0;
+    white-space                     : nowrap;
 }
 
 .naComponentEditor__TabButton:hover {
@@ -470,6 +485,750 @@ body {
         justify-content             : flex-start;
         padding                     : 0 12px 10px;
     }
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Tab Divider
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__TabDivider {
+    display                         : inline-block;
+    width                           : 1px;
+    height                          : 22px;
+    background                      : var(--naComponentEditor_Border);
+    align-self                      : center;
+    margin                          : 0 4px;
+    border-radius                   : 1px;
+    opacity                         : 0.7;
+    flex-shrink                     : 0;
+}
+
+.naComponentEditor__GalleryFilters {
+    display                         : none;
+    align-items                     : center;
+    gap                             : 6px;
+}
+
+.naComponentEditor__TabBar--galleryActive .naComponentEditor__GalleryFilters {
+    display                         : flex;
+}
+
+.naComponentEditor__GalleryFilters .naComponentEditor__Select {
+    min-width                       : 100px;
+    font-size                       : 12px;
+    padding                         : 5px 6px;
+}
+
+.naComponentEditor__GalleryFilters .naComponentEditor__GallerySearch {
+    width                           : 160px;
+    min-width                       : unset;
+    font-size                       : 12px;
+    padding                         : 5px 8px;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Tab Bar - Index Filters
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__IndexFilters {
+    display                         : none;
+    align-items                     : center;
+    gap                             : 6px;
+}
+
+.naComponentEditor__TabBar--indexActive .naComponentEditor__IndexFilters {
+    display                         : flex;
+}
+
+.naComponentEditor__IndexFilters .naComponentEditor__Select {
+    min-width                       : 100px;
+    font-size                       : 12px;
+    padding                         : 5px 6px;
+}
+
+.naComponentEditor__IndexFilters .naComponentEditor__IndexSearch {
+    width                           : 160px;
+    min-width                       : unset;
+    font-size                       : 12px;
+    padding                         : 5px 8px;
+}
+
+.naComponentEditor__IndexFolderFilter,
+.naComponentEditor__IndexCategoryFilter,
+.naComponentEditor__IndexTypeFilter {
+    min-width                       : 140px;
+}
+
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Settings - Library Path Row
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__LibraryPathRow {
+    display                         : flex;
+    gap                             : 8px;
+    align-items                     : center;
+}
+
+.naComponentEditor__LibraryPathInput {
+    flex                            : 1;
+    background                      : #f4f6f8;
+    color                           : var(--naComponentEditor_MutedText);
+    cursor                          : default;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Settings - Library Exclusions Disclosure
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__SettingsDisclosure {
+    width                           : 100%;
+    border                          : none;
+    margin                          : 0;
+    padding                         : 0;
+}
+
+.naComponentEditor__SettingsDisclosureSummary {
+    list-style                      : none;
+    cursor                          : pointer;
+    font-size                        : 13px;
+    font-weight                     : 600;
+    color                           : var(--naComponentEditor_Text);
+    padding                         : 2px 0;
+    user-select                     : none;
+    display                         : flex;
+    align-items                     : center;
+    gap                             : 6px;
+}
+
+.naComponentEditor__SettingsDisclosureSummary::-webkit-details-marker {
+    display                         : none;
+}
+
+.naComponentEditor__SettingsDisclosureSummary::before {
+    content                         : '\25B6';
+    font-size                       : 9px;
+    transition                      : transform 0.15s ease;
+    flex-shrink                     : 0;
+}
+
+.naComponentEditor__SettingsDisclosure[open] .naComponentEditor__SettingsDisclosureSummary::before {
+    transform                       : rotate(90deg);
+}
+
+.naComponentEditor__SettingsDisclosureBody {
+    padding-top                     : 12px;
+    border-top                      : 1px solid var(--naComponentEditor_Border);
+    margin-top                      : 10px;
+}
+
+.naComponentEditor__ExclusionSubsection {
+    background                      : var(--naComponentEditor_TabPanel);
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 6px;
+    padding                         : 10px 12px;
+    margin-bottom                   : 10px;
+}
+
+.naComponentEditor__ExclusionSubsection--last {
+    margin-bottom                   : 0;
+}
+
+.naComponentEditor__ExclusionSubheading {
+    margin                          : 0 0 6px;
+    font-size                       : 12px;
+    font-weight                     : 600;
+    color                           : var(--naComponentEditor_Text);
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Settings - Blocked Folder Chips
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__BlockedList {
+    display                         : flex;
+    flex-wrap                       : wrap;
+    gap                             : 6px;
+    margin-bottom                   : 10px;
+    min-height                      : 28px;
+}
+
+.naComponentEditor__BlockedChip {
+    display                         : inline-flex;
+    align-items                     : center;
+    gap                             : 4px;
+    background                      : #eef2f7;
+    border                          : 1px solid #c9d4e0;
+    border-radius                   : 20px;
+    padding                         : 3px 10px 3px 12px;
+    font-size                       : 12px;
+}
+
+.naComponentEditor__BlockedChipLabel {
+    font-family                     : Consolas, Menlo, monospace;
+}
+
+.naComponentEditor__BlockedChipRemove {
+    border                          : none;
+    background                      : none;
+    cursor                          : pointer;
+    color                           : var(--naComponentEditor_Error);
+    font-size                       : 14px;
+    padding                         : 0 2px;
+    line-height                     : 1;
+    border-radius                   : 50%;
+}
+
+.naComponentEditor__BlockedChipRemove:hover {
+    background                      : #fde8e8;
+}
+
+.naComponentEditor__BlockedAddRow {
+    display                         : flex;
+    gap                             : 8px;
+    align-items                     : center;
+}
+
+.naComponentEditor__BlockedInput {
+    flex                            : 1;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Gallery Grid
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__GalleryFolderFilter {
+    min-width                       : 120px;
+}
+
+.naComponentEditor__GalleryGrid {
+    display                         : grid;
+    grid-template-columns           : repeat(auto-fill, minmax(140px, 1fr));
+    gap                             : 10px;
+    padding                         : 0 12px 12px;
+}
+
+.naComponentEditor__GalleryEmpty {
+    grid-column                     : 1 / -1;
+    padding                         : 20px;
+    text-align                      : center;
+}
+
+.naComponentEditor__GalleryCard {
+    background                      : var(--naComponentEditor_Panel);
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 8px;
+    overflow                        : hidden;
+    cursor                          : pointer;
+    transition                      : box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.naComponentEditor__GalleryCard:hover {
+    border-color                    : var(--naComponentEditor_Accent);
+    box-shadow                      : 0 2px 8px rgba(47,119,213,0.15);
+}
+
+.naComponentEditor__GalleryThumbWrap {
+    width                           : 100%;
+    aspect-ratio                    : 1 / 1;
+    display                         : flex;
+    align-items                     : center;
+    justify-content                 : center;
+    background                      : #f0f2f5;
+    overflow                        : hidden;
+}
+
+.naComponentEditor__GalleryThumbWrap--noImage::before {
+    content                         : "\2014";
+    font-size                       : 28px;
+    color                           : #c0c8d2;
+}
+
+.naComponentEditor__GalleryThumb {
+    width                           : 100%;
+    height                          : 100%;
+    object-fit                      : contain;
+    display                         : block;
+}
+
+.naComponentEditor__GalleryCardInfo {
+    padding                         : 6px 8px;
+}
+
+.naComponentEditor__GalleryCardName {
+    font-size                       : 12px;
+    font-weight                     : 600;
+    overflow                        : hidden;
+    text-overflow                   : ellipsis;
+    white-space                     : nowrap;
+}
+
+.naComponentEditor__GalleryCardFolder {
+    font-size                       : 11px;
+    color                           : var(--naComponentEditor_MutedText);
+    overflow                        : hidden;
+    text-overflow                   : ellipsis;
+    white-space                     : nowrap;
+    margin-top                      : 2px;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Index Table
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__IndexToolbar {
+    display                         : flex;
+    gap                             : 8px;
+    align-items                     : center;
+    flex-wrap                       : wrap;
+}
+
+.naComponentEditor__IndexFilter {
+    flex                            : 1;
+    min-width                       : 140px;
+}
+
+.naComponentEditor__IndexTableWrap {
+    overflow-x                      : auto;
+    padding                         : 0 12px 12px;
+}
+
+.naComponentEditor__IndexTable {
+    width                           : 100%;
+    border-collapse                 : collapse;
+    font-size                       : 12px;
+}
+
+.naComponentEditor__IndexTh {
+    text-align                      : left;
+    padding                         : 7px 6px;
+    font-size                       : 12px;
+    color                           : var(--naComponentEditor_MutedText);
+    border-bottom                   : 2px solid var(--naComponentEditor_Border);
+    background                      : #f8f9fb;
+    white-space                     : nowrap;
+}
+
+.naComponentEditor__IndexTh--sortable {
+    user-select                     : none;
+}
+
+.naComponentEditor__IndexTh--sortable:hover {
+    color                           : var(--naComponentEditor_Accent);
+}
+
+.naComponentEditor__IndexTh--actions {
+    width                           : 110px;
+}
+
+.naComponentEditor__SortIndicator {
+    font-size                       : 10px;
+}
+
+.naComponentEditor__IndexRow {
+    transition                      : background 0.1s;
+}
+
+.naComponentEditor__IndexRow:hover {
+    background                      : #f2f6fc;
+}
+
+.naComponentEditor__IndexRow:hover .naComponentEditor__IndexBtn {
+    opacity                         : 1;
+}
+
+.naComponentEditor__IndexTd {
+    padding                         : 6px 6px;
+    border-bottom                   : 1px solid #edf0f3;
+    vertical-align                  : middle;
+    overflow-wrap                   : anywhere;
+}
+
+.naComponentEditor__IndexTd--desc {
+    color                           : var(--naComponentEditor_MutedText);
+    max-width                       : 180px;
+    overflow                        : hidden;
+    text-overflow                   : ellipsis;
+    white-space                     : nowrap;
+}
+
+.naComponentEditor__IndexTd--actions {
+    white-space                     : nowrap;
+}
+
+.naComponentEditor__IndexBtn {
+    padding                         : 4px 8px;
+    font-size                       : 11px;
+    margin-right                    : 4px;
+    opacity                         : 0.7;
+}
+
+.naComponentEditor__IndexEditRow {
+    background                      : #f8f9fb;
+}
+
+.naComponentEditor__IndexEditTd {
+    padding                         : 12px;
+    border-bottom                   : 1px solid var(--naComponentEditor_Border);
+}
+
+.naComponentEditor__IndexEditPanel {
+    border                          : 1px solid #c9d4e0;
+    border-radius                   : 6px;
+    padding                         : 12px;
+    background                      : #ffffff;
+}
+
+.naComponentEditor__IndexEditHeading {
+    margin                          : 0 0 10px;
+    font-size                       : 12px;
+    font-weight                     : 600;
+    color                           : var(--naComponentEditor_MutedText);
+}
+
+.naComponentEditor__IndexRenameRow {
+    display                         : flex;
+    align-items                     : center;
+    gap                             : 6px;
+    margin                          : 8px 0;
+    font-size                       : 12px;
+    color                           : var(--naComponentEditor_MutedText);
+}
+
+.naComponentEditor__IndexCheckbox {
+    accent-color                    : var(--naComponentEditor_Accent);
+}
+
+.naComponentEditor__IndexAttrSection {
+    margin                          : 10px 0 6px;
+}
+
+.naComponentEditor__IndexAttrToggle {
+    font-size                       : 11px;
+    padding                         : 4px 8px;
+    margin-bottom                   : 8px;
+}
+
+.naComponentEditor__IndexAttrWrap {
+    border                          : 1px solid #e2e8f0;
+    border-radius                   : 4px;
+    padding                         : 8px;
+    background                      : #fafbfd;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Index - Column Widths
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__IndexTh--code {
+    width                           : 90px;
+}
+
+.naComponentEditor__IndexTh--galleryName {
+    width                           : 130px;
+}
+
+.naComponentEditor__IndexTh--category {
+    width                           : 130px;
+}
+
+.naComponentEditor__IndexTh--type {
+    width                           : 130px;
+}
+
+.naComponentEditor__IndexTd--select {
+    padding                         : 2px 4px;
+}
+
+.naComponentEditor__IndexSelect {
+    display                         : block;
+    width                           : 100%;
+    box-sizing                      : border-box;
+    border                          : 1px solid #c5d0da;
+    border-radius                   : 3px;
+    background                      : #ffffff;
+    padding                         : 3px 4px;
+    font-family                     : inherit;
+    font-size                       : 11px;
+    color                           : var(--naComponentEditor_Text);
+    cursor                          : pointer;
+}
+
+.naComponentEditor__IndexSelect:focus {
+    border-color                    : var(--naComponentEditor_Accent);
+    outline                         : none;
+}
+
+.naComponentEditor__IndexSelect:disabled {
+    background                      : #f1f4f7;
+    color                           : #b8c4d0;
+    cursor                          : not-allowed;
+}
+
+.naComponentEditor__IndexTd--inline {
+    padding                         : 2px 4px;
+}
+
+.naComponentEditor__IndexTd--mono {
+    font-family                     : Consolas, Menlo, monospace;
+    font-size                       : 11px;
+    color                           : var(--naComponentEditor_MutedText);
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Index - Double-Click Editable Cells
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__IndexCell--editable {
+    cursor                          : text;
+}
+
+.naComponentEditor__IndexCell--editable:hover {
+    background                      : #eef4fc;
+    box-shadow                      : inset 0 0 0 1px #c5d0da;
+}
+
+.naComponentEditor__IndexCell--editing {
+    padding                         : 2px 4px;
+    background                      : #ffffff;
+    box-shadow                      : inset 0 0 0 1px var(--naComponentEditor_Accent);
+}
+
+.naComponentEditor__IndexCellText {
+    display                         : block;
+}
+
+.naComponentEditor__IndexTd--desc .naComponentEditor__IndexCellText {
+    overflow                        : hidden;
+    text-overflow                   : ellipsis;
+    white-space                     : nowrap;
+}
+
+.naComponentEditor__IndexCellText--empty {
+    color                           : #b8c4d0;
+    font-style                      : italic;
+}
+
+.naComponentEditor__IndexCellText--saving {
+    color                           : var(--naComponentEditor_Accent);
+    font-style                      : italic;
+}
+
+.naComponentEditor__IndexCellInput {
+    display                         : block;
+    width                           : 100%;
+    box-sizing                      : border-box;
+    border                          : 1px solid var(--naComponentEditor_Accent);
+    border-radius                   : 3px;
+    background                      : #ffffff;
+    padding                         : 3px 5px;
+    font-family                     : inherit;
+    font-size                       : 12px;
+    color                           : var(--naComponentEditor_Text);
+    outline                         : none;
+    resize                          : vertical;
+}
+
+.naComponentEditor__IndexCellInput::placeholder {
+    color                           : #b8c4d0;
+    font-style                      : italic;
+}
+
+.naComponentEditor__IndexCellInput--code {
+    font-family                     : Consolas, Menlo, monospace;
+    font-weight                     : 600;
+}
+
+.naComponentEditor__IndexCellInput--mono {
+    font-family                     : Consolas, Menlo, monospace;
+    font-size                       : 11px;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Index - Custom Fields Section
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__CustomFieldsSection {
+    margin                          : 10px 0 6px;
+}
+
+.naComponentEditor__CustomFieldsRows {
+    display                         : flex;
+    flex-direction                  : column;
+    gap                             : 4px;
+    margin-bottom                   : 6px;
+}
+
+.naComponentEditor__CustomFieldRow {
+    display                         : grid;
+    grid-template-columns           : 140px 1fr 28px;
+    gap                             : 6px;
+    align-items                     : center;
+}
+
+.naComponentEditor__CustomFieldKeyLabel {
+    font-family                     : Consolas, Menlo, monospace;
+    font-size                       : 12px;
+    color                           : var(--naComponentEditor_MutedText);
+    overflow                        : hidden;
+    text-overflow                   : ellipsis;
+    white-space                     : nowrap;
+}
+
+.naComponentEditor__CustomFieldValueInput {
+    font-size                       : 12px;
+}
+
+.naComponentEditor__CustomFieldDel {
+    padding                         : 2px 6px;
+    font-size                       : 13px;
+    line-height                     : 1;
+}
+
+.naComponentEditor__CustomFieldsAddRow {
+    display                         : grid;
+    grid-template-columns           : 140px 1fr auto;
+    gap                             : 6px;
+    align-items                     : center;
+    padding-top                     : 4px;
+    border-top                      : 1px dashed #d6dbe1;
+}
+
+.naComponentEditor__CustomFieldKey {
+    font-family                     : Consolas, Menlo, monospace;
+    font-size                       : 12px;
+}
+
+.naComponentEditor__CustomFieldValue {
+    font-size                       : 12px;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Gallery - Code Badge
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__GalleryCardMeta {
+    display                         : flex;
+    align-items                     : center;
+    gap                             : 4px;
+    margin-top                      : 2px;
+}
+
+.naComponentEditor__GalleryCardCode {
+    display                         : inline-block;
+    font-family                     : Consolas, Menlo, monospace;
+    font-size                       : 10px;
+    font-weight                     : 600;
+    color                           : var(--naComponentEditor_Accent);
+    background                      : #eef3fb;
+    border                          : 1px solid #c9d8f0;
+    border-radius                   : 3px;
+    padding                         : 1px 4px;
+    letter-spacing                  : 0.02em;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Gallery - Category & Type Filters
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__GalleryCategoryFilter,
+.naComponentEditor__GalleryTypeFilter,
+.naComponentEditor__GalleryFolderFilter {
+    min-width                       : 140px;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Settings - Category Taxonomy Manager
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__TaxonomyList {
+    display                         : flex;
+    flex-direction                  : column;
+    gap                             : 10px;
+    margin                          : 10px 0;
+}
+
+.naComponentEditor__TaxonomyCategory {
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 6px;
+    padding                         : 10px;
+    background                      : #fafbfd;
+}
+
+.naComponentEditor__TaxonomyCategoryHeader {
+    display                         : flex;
+    align-items                     : center;
+    justify-content                 : space-between;
+    gap                             : 8px;
+    margin-bottom                   : 8px;
+}
+
+.naComponentEditor__TaxonomyCategoryName {
+    font-size                       : 13px;
+    font-weight                     : 600;
+    color                           : var(--naComponentEditor_Text);
+}
+
+.naComponentEditor__TaxonomyCategoryRemove {
+    padding                         : 3px 8px;
+    font-size                       : 11px;
+}
+
+.naComponentEditor__TaxonomyTypeChips {
+    display                         : flex;
+    flex-wrap                       : wrap;
+    gap                             : 6px;
+    margin-bottom                   : 8px;
+}
+
+.naComponentEditor__TaxonomyTypeAddRow {
+    display                         : flex;
+    gap                             : 6px;
+    align-items                     : center;
+}
+
+.naComponentEditor__TaxonomyTypeInput {
+    flex                            : 1;
+    min-width                       : 140px;
 }
 
 /* #endregion ---------------------------------------------------------------- */
