@@ -839,7 +839,7 @@ body {
 }
 
 .naComponentEditor__IndexTh--actions {
-    width                           : 110px;
+    width                           : 160px;
 }
 
 .naComponentEditor__SortIndicator {
@@ -943,6 +943,56 @@ body {
 /* -----------------------------------------------------------------------------
    #region | Index - Column Widths
    ----------------------------------------------------------------------------- */
+
+.naComponentEditor__IndexTh--thumb {
+    width                           : 56px;
+    text-align                      : center;
+}
+
+.naComponentEditor__IndexTd--thumb {
+    width                           : 56px;
+    padding                         : 3px 4px;
+    text-align                      : center;
+    vertical-align                  : middle;
+}
+
+.naComponentEditor__IndexThumb {
+    display                         : block;
+    width                           : 44px;
+    height                          : 44px;
+    object-fit                      : contain;
+    border-radius                   : 3px;
+    background                      : #f0f2f5;
+    margin                          : 0 auto;
+}
+
+.naComponentEditor__IndexTd--thumbEmpty::before {
+    content                         : "\2014";
+    color                           : #c0c8d2;
+    font-size                       : 16px;
+}
+
+/* Medium (50% bigger) */
+[data-na-thumb-size="md"] .naComponentEditor__IndexTh--thumb,
+[data-na-thumb-size="md"] .naComponentEditor__IndexTd--thumb {
+    width                           : 78px;
+}
+
+[data-na-thumb-size="md"] .naComponentEditor__IndexThumb {
+    width                           : 66px;
+    height                          : 66px;
+}
+
+/* Large (100% bigger) */
+[data-na-thumb-size="lg"] .naComponentEditor__IndexTh--thumb,
+[data-na-thumb-size="lg"] .naComponentEditor__IndexTd--thumb {
+    width                           : 100px;
+}
+
+[data-na-thumb-size="lg"] .naComponentEditor__IndexThumb {
+    width                           : 88px;
+    height                          : 88px;
+}
 
 .naComponentEditor__IndexTh--code {
     width                           : 90px;
@@ -1229,6 +1279,38 @@ body {
 .naComponentEditor__TaxonomyTypeInput {
     flex                            : 1;
     min-width                       : 140px;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Gallery - Right-Click Context Menu
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__ContextMenu {
+    display                         : none;
+    position                        : fixed;
+    z-index                         : 9999;
+    background                      : var(--naComponentEditor_Panel);
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 6px;
+    box-shadow                      : 0 4px 12px rgba(0, 0, 0, 0.12);
+    min-width                       : 180px;
+    padding                         : 4px 0;
+}
+
+.naComponentEditor__ContextMenuItem {
+    padding                         : 8px 14px;
+    font-size                       : 12px;
+    cursor                          : pointer;
+    color                           : var(--naComponentEditor_Text);
+    user-select                     : none;
+}
+
+.naComponentEditor__ContextMenuItem:hover {
+    background                      : #eef4fc;
+    color                           : var(--naComponentEditor_Accent);
 }
 
 /* #endregion ---------------------------------------------------------------- */

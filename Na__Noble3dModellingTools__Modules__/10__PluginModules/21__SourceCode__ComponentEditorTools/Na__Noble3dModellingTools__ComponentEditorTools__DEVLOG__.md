@@ -26,6 +26,39 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 
 
 # Na Noble3d Modelling Tools — Component Editor Tools
+## Version 0.5.4 - 17-Jun-2026 - Copy Path & Folder Edit Bug Fix
+
+### Update 01 - Copy File Path: Index Tab Actions Button
+- New **Copy Path** button added as the 4th action in each Index row's Actions cell (after Open).
+- Clicking copies the full `.skp` file path (native Windows backslash format) to the clipboard and shows a `'File path copied to clipboard'` success toast in the status bar (auto-clears after 3 s).
+- Clipboard write uses a hidden `<textarea>` + `document.execCommand('copy')` for the HtmlDialog context, with a Ruby `IO.popen('clip')` / `pbcopy` fallback bridge call.
+- `Tab__Index__.js` — three new helpers in a *Clipboard & Toast Helpers* region: `na_extract_dir_from_path` (retained for future use), `na_copy_text_via_dom`, `na_show_copy_toast`. `na_build_actions_cell` extended with `copy_btn`.
+- `UiBridge__.js` — `Na__ComponentEditorTools__CopyComponentPath(component_path)` outgoing bridge fires `na_componenteditortools_copy_component_path`; exported on `window`.
+- `DialogManager__.rb` — `na_componenteditortools_copy_component_path` callback; private `Na__ComponentEditorTools__CopyPathToClipboard(path)` helper: normalises to native path, writes via `IO.popen('clip')` on Windows / `pbcopy` on macOS, `puts` on success, `UI.messagebox` on error.
+- `Styles__.css` — `.naComponentEditor__IndexTh--actions` widened from `110px` to `160px` to accommodate 4 buttons.
+
+### Update 02 - Copy File Path: Gallery Right-Click Context Menu
+- Right-clicking any Gallery card suppresses the native browser context menu and shows a custom floating menu with one item: **Copy File Path**.
+- Clicking the item copies the full `.skp` file path and shows the same toast as the Index button.
+- `Tab__Gallery__.js` — *Clipboard & Toast Helpers* region (same `na_copy_text_via_dom` / `na_show_copy_toast` pattern). *Context Menu* region: `na_context_menu_el` singleton, `na_get_context_menu` (lazy-creates a `<div id="na-gallery-context-menu">` appended to body), `na_show_context_menu` (positions menu at cursor, prevents overflow beyond viewport), `na_hide_context_menu`. `na_build_card` gains a `contextmenu` listener. `na_bind_events_once` registers a document-level `click` listener that dismisses the menu.
+- `Styles__.css` — new `#region | Gallery - Right-Click Context Menu`: `.naComponentEditor__ContextMenu` (fixed, z-index 9999, border + shadow, hidden by default), `.naComponentEditor__ContextMenuItem` (hover accent).
+
+### Update 03 - Bug Fix: relative_dir Edit Creates Duplicate Table Row
+- **Root cause:** `RefreshSingleCacheEntry` compared paths with a strict forward-slash exact match. On Windows, drive-letter case differences between `UI.select_directory` output (e.g. `c:/`) and `Dir.glob` output (`C:/`) caused the lookup to return `nil`, so the new entry was appended to `@na_library_cache['entries']` without removing the old one. A subsequent `HandleGetIndex` then pushed both entries to JS, rendering the component twice. A parallel exact-match failure in `ApplyEntryUpdate` also caused an immediate in-table duplicate.
+- `DialogManager__.rb` — `RefreshSingleCacheEntry`: after the exact-match `index` search fails, a second case-insensitive pass is attempted. If still `nil`, `entries.reject!` purges any stale entry matching either the old or new path (case-insensitive) before appending — guaranteeing no duplicate survives in the cache.
+- `Tab__Index__.js` — `ApplyEntryUpdate`: same two-stage lookup (exact then case-insensitive) before concluding `index === -1`. When genuinely not found, filters out stale old/new path variants before pushing. Also calls `na_populate_index_folder_filter()` before `na_rebuild_table()` so the folder filter dropdown updates immediately to reflect the post-move folder structure (removes emptied folders, adds the new one).
+
+### Validation Checklist
+- [x] Index tab: Copy Path button appears as 4th action; clicking copies full .skp path in backslash format; toast appears and auto-clears.
+- [x] Gallery tab: Right-click on card shows context menu; "Copy File Path" copies full path; toast appears; clicking outside dismisses menu.
+- [x] Both clipboard paths include filename (e.g. `D:\Library\Folder\Component.skp`), not just directory.
+- [x] Editing `relative_dir` inline moves file on disk and updates the single row in place — no duplicate row appears.
+- [x] Folder filter dropdown updates immediately after a `relative_dir` edit (emptied source folder drops; new folder appears).
+- [x] Other field edits (code, gallery_name, def_name, file_name, description) unaffected.
+
+---
+
+# Na Noble3d Modelling Tools — Component Editor Tools
 ## Version 0.5.3 - 17-Jun-2026 - Settings UX Refinements & Gallery Cleanup
 
 ### Update 01 - Settings Tab: Collapsible Library Exclusions Panel

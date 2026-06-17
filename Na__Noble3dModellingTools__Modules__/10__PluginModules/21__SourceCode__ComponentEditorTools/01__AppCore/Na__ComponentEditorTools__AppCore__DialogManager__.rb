@@ -270,6 +270,11 @@ module Na__ComponentEditorTools
                         }
                     end
                 },
+                'na_componenteditortools_copy_component_path' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    file_path    = (payload_hash['path'] || payload_hash[:path]).to_s
+                    self.Na__ComponentEditorTools__CopyPathToClipboard(file_path)
+                },
 
                 # ----- Index editing callbacks --------------------------------
 
@@ -529,17 +534,34 @@ module Na__ComponentEditorTools
             updated_entry = Na__LibraryExtractor.Na__ComponentEditorTools__ExtractFromFile(entry_meta)
             return nil unless updated_entry
 
-            norm_old = old_path.to_s.tr('\\', '/')
+            norm_old     = old_path.to_s.tr('\\', '/')
+            norm_old_lc  = norm_old.downcase
+            norm_new     = updated_entry['path'].to_s.tr('\\', '/')
+            norm_new_lc  = norm_new.downcase
 
             if @na_library_cache
                 entries = @na_library_cache['entries'] || @na_library_cache[:entries] || []
-                index   = entries.index do |existing|
+
+                index = entries.index do |existing|
                     (existing['path'] || existing[:path]).to_s.tr('\\', '/') == norm_old
+                end
+
+                # Fallback: case-insensitive match for Windows paths
+                if index.nil?
+                    index = entries.index do |existing|
+                        (existing['path'] || existing[:path]).to_s.tr('\\', '/').downcase == norm_old_lc
+                    end
                 end
 
                 if index
                     entries[index] = updated_entry
                 else
+                    # Old entry not found — purge any stale entries for either
+                    # the old path or the new path before inserting the fresh one.
+                    entries.reject! do |existing|
+                        ep = (existing['path'] || existing[:path]).to_s.tr('\\', '/').downcase
+                        ep == norm_old_lc || ep == norm_new_lc
+                    end
                     entries << updated_entry
                 end
 
@@ -581,6 +603,22 @@ module Na__ComponentEditorTools
 # -----------------------------------------------------------------------------
 # REGION | Internal Helpers
 # -----------------------------------------------------------------------------
+
+        def self.Na__ComponentEditorTools__CopyPathToClipboard(path)
+            return unless path && !path.empty?
+
+            native_path = Sketchup.platform == :platform_win ? path.tr('/', '\\') : path
+            begin
+                if Sketchup.platform == :platform_win
+                    IO.popen('clip', 'w') { |cb| cb.write(native_path) }
+                elsif system('which pbcopy > /dev/null 2>&1')
+                    IO.popen('pbcopy', 'w') { |cb| cb.write(native_path) }
+                end
+                puts "[Na__ComponentEditorTools] Copied path to clipboard: #{native_path}"
+            rescue => error
+                UI.messagebox("Copy to clipboard failed: #{error.message}")
+            end
+        end
 
         def self.Na__ComponentEditorTools__AttachSelectionObserverIfNeeded
             return if @na_selection_observer

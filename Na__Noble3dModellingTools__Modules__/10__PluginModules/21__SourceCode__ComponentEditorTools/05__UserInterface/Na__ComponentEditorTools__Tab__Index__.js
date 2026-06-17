@@ -26,6 +26,9 @@
     var na_expanded_rows = {};
     var na_editing_active = false;
     var na_taxonomy = { categories: [] };
+    var na_thumb_size    = 'sm';
+    var NA_THUMB_CYCLE   = ['sm', 'md', 'lg'];
+    var NA_THUMB_LABELS  = { sm: 'Thumb', md: 'Thumb \u25b8', lg: 'Thumb \u25b8\u25b8' };
 
     // Editable data columns, in table order. Each maps a header to the entry
     // field and how its inline editor renders. Saving routes through Ruby's
@@ -247,8 +250,62 @@
 
 
 // -----------------------------------------------------------------------------
+// REGION | Clipboard & Toast Helpers
+// -----------------------------------------------------------------------------
+
+    function na_extract_dir_from_path(file_path) {
+        return String(file_path || '').replace(/[\\\/][^\\\/]+$/, '');
+    }
+
+    function na_copy_text_via_dom(text) {
+        var ta = document.createElement('textarea');
+        ta.value = String(text || '');
+        ta.style.position = 'fixed';
+        ta.style.left     = '-9999px';
+        ta.style.top      = '0';
+        ta.setAttribute('readonly', 'readonly');
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) { /* noop */ }
+        document.body.removeChild(ta);
+    }
+
+    function na_show_copy_toast() {
+        if (typeof window.Na__ComponentEditorTools__ReceiveStatus === 'function') {
+            window.Na__ComponentEditorTools__ReceiveStatus({ message: 'File path copied to clipboard', variant: 'success' });
+            setTimeout(function () {
+                window.Na__ComponentEditorTools__ReceiveStatus({ message: '', variant: 'info' });
+            }, 3000);
+        }
+    }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
 // REGION | Main Row
 // -----------------------------------------------------------------------------
+
+    function na_build_thumbnail_cell(entry) {
+        var td = document.createElement('td');
+        td.className = 'naComponentEditor__IndexTd naComponentEditor__IndexTd--thumb';
+
+        if (entry.thumbnail_uri) {
+            var img = document.createElement('img');
+            img.className = 'naComponentEditor__IndexThumb';
+            img.src = entry.thumbnail_uri;
+            img.alt = '';
+            img.addEventListener('error', function () {
+                img.style.display = 'none';
+                td.classList.add('naComponentEditor__IndexTd--thumbEmpty');
+            });
+            td.appendChild(img);
+        } else {
+            td.classList.add('naComponentEditor__IndexTd--thumbEmpty');
+        }
+
+        return td;
+    }
 
     function na_column(field) {
         for (var i = 0; i < NA_EDITABLE_COLUMNS.length; i++) {
@@ -262,6 +319,7 @@
         tr.className = 'naComponentEditor__IndexRow';
         tr.setAttribute('data-entry-key', entry_key);
 
+        tr.appendChild(na_build_thumbnail_cell(entry));
         tr.appendChild(na_build_editable_cell(entry, na_column('code')));
         tr.appendChild(na_build_editable_cell(entry, na_column('gallery_name')));
         tr.appendChild(na_build_category_cell(entry));
@@ -307,9 +365,24 @@
             }
         });
 
+        var copy_btn = document.createElement('button');
+        copy_btn.type = 'button';
+        copy_btn.className = 'naComponentEditor__Button naComponentEditor__IndexBtn';
+        copy_btn.textContent = 'Copy Path';
+        copy_btn.title = 'Copy full file path to clipboard';
+        copy_btn.addEventListener('click', function () {
+            if (!entry.path) return;
+            na_copy_text_via_dom(entry.path.replace(/\//g, '\\'));
+            if (typeof window.Na__ComponentEditorTools__CopyComponentPath === 'function') {
+                window.Na__ComponentEditorTools__CopyComponentPath(entry.path);
+            }
+            na_show_copy_toast();
+        });
+
         actions_td.appendChild(edit_btn);
         actions_td.appendChild(insert_btn);
         actions_td.appendChild(open_btn);
+        actions_td.appendChild(copy_btn);
         return actions_td;
     }
 
@@ -556,7 +629,7 @@
         tr.setAttribute('data-edit-key', entry_key);
 
         var td = document.createElement('td');
-        td.colSpan = 9;
+        td.colSpan = 10;
         td.className = 'naComponentEditor__IndexEditTd';
         td.appendChild(na_build_edit_panel(entry));
         tr.appendChild(td);
@@ -901,6 +974,20 @@
         na_update_sort_indicators();
     }
 
+    function na_cycle_thumb_size() {
+        var idx = NA_THUMB_CYCLE.indexOf(na_thumb_size);
+        na_thumb_size = NA_THUMB_CYCLE[(idx + 1) % NA_THUMB_CYCLE.length];
+        na_apply_thumb_size();
+    }
+
+    function na_apply_thumb_size() {
+        var table = document.getElementById('na-index-table');
+        if (table) table.setAttribute('data-na-thumb-size', na_thumb_size);
+
+        var th = document.querySelector('.naComponentEditor__IndexTh--thumb');
+        if (th) th.textContent = NA_THUMB_LABELS[na_thumb_size];
+    }
+
     function na_update_sort_indicators() {
         var headers = document.querySelectorAll('.naComponentEditor__IndexTh--sortable');
         headers.forEach(function (th) {
@@ -999,6 +1086,13 @@
                 if (key) na_set_sort(key);
             });
         });
+
+        var thumb_th = document.querySelector('.naComponentEditor__IndexTh--thumb');
+        if (thumb_th) {
+            thumb_th.style.cursor = 'pointer';
+            thumb_th.title = 'Click to cycle thumbnail size: small \u2192 medium \u2192 large';
+            thumb_th.addEventListener('click', na_cycle_thumb_size);
+        }
     }
 
 // endregion -------------------------------------------------------------------
@@ -1018,8 +1112,10 @@
 
         na_editing_active = false;
 
-        var norm_old = String(old_path || '').replace(/\\/g, '/');
+        var norm_old    = String(old_path || '').replace(/\\/g, '/');
+        var norm_old_lc = norm_old.toLowerCase();
         var index = -1;
+
         for (var i = 0; i < na_all_entries.length; i++) {
             if (String(na_all_entries[i].path || '').replace(/\\/g, '/') === norm_old) {
                 index = i;
@@ -1027,7 +1123,23 @@
             }
         }
 
+        // Fallback: case-insensitive match for Windows paths
         if (index === -1) {
+            for (var j = 0; j < na_all_entries.length; j++) {
+                if (String(na_all_entries[j].path || '').replace(/\\/g, '/').toLowerCase() === norm_old_lc) {
+                    index = j;
+                    break;
+                }
+            }
+        }
+
+        if (index === -1) {
+            // Purge any stale entry that might match the new path before appending
+            var norm_new_lc = String(updated_entry.path || '').replace(/\\/g, '/').toLowerCase();
+            na_all_entries = na_all_entries.filter(function (e) {
+                return String(e.path || '').replace(/\\/g, '/').toLowerCase() !== norm_old_lc &&
+                       String(e.path || '').replace(/\\/g, '/').toLowerCase() !== norm_new_lc;
+            });
             na_all_entries.push(updated_entry);
         } else {
             var old_key = na_all_entries[index].path || na_all_entries[index].file_name;
@@ -1040,6 +1152,7 @@
             }
         }
 
+        na_populate_index_folder_filter();
         na_rebuild_table();
         na_update_sort_indicators();
     };

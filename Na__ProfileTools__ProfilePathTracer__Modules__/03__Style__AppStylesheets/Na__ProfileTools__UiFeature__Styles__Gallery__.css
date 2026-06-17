@@ -70,12 +70,48 @@
     grid-template-columns : repeat(auto-fill, minmax(110px, 1fr));
 }
 
-.na-gallery-grid--md {
-    grid-template-columns : repeat(auto-fill, minmax(160px, 1fr));
+
+.na-gallery-grid--idx {
+    grid-template-columns : 1fr;
+    gap                   : 5px;
+    padding               : 10px 14px;
 }
 
-.na-gallery-grid--lg {
-    grid-template-columns : repeat(auto-fill, minmax(220px, 1fr));
+/* ----------------------------------------------------------------- */
+/* REGION | Index Row Overrides */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-grid--idx .na-gallery-card {
+    display               : flex;
+    flex-direction        : row;
+    align-items           : stretch;
+}
+
+.na-gallery-grid--idx .na-gallery-card__thumb {
+    width                 : 54px;
+    min-width             : 54px;
+    aspect-ratio          : unset;
+    border-bottom         : none;
+    border-right          : 1px solid var(--na-border);
+    padding               : 6px;
+    flex-shrink           : 0;
+}
+
+.na-gallery-grid--idx .na-gallery-card__meta {
+    flex                  : 1;
+    display               : flex;
+    flex-direction        : column;
+    justify-content       : center;
+    padding               : 5px 10px;
+    min-width             : 0;
+}
+
+.na-gallery-grid--idx .na-gallery-card__name {
+    font-size             : 12px;
+}
+
+.na-gallery-grid--idx .na-gallery-card__chips {
+    margin-top            : 3px;
 }
 
 /* ----------------------------------------------------------------- */

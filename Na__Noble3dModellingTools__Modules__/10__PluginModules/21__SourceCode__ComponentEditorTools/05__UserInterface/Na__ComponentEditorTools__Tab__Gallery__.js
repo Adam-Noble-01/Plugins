@@ -52,6 +52,95 @@
 
 
 // -----------------------------------------------------------------------------
+// REGION | Clipboard & Toast Helpers
+// -----------------------------------------------------------------------------
+
+    function na_extract_dir_from_path(file_path) {
+        return String(file_path || '').replace(/[\\\/][^\\\/]+$/, '');
+    }
+
+    function na_copy_text_via_dom(text) {
+        var ta = document.createElement('textarea');
+        ta.value = String(text || '');
+        ta.style.position = 'fixed';
+        ta.style.left     = '-9999px';
+        ta.style.top      = '0';
+        ta.setAttribute('readonly', 'readonly');
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) { /* noop */ }
+        document.body.removeChild(ta);
+    }
+
+    function na_show_copy_toast() {
+        if (typeof window.Na__ComponentEditorTools__ReceiveStatus === 'function') {
+            window.Na__ComponentEditorTools__ReceiveStatus({ message: 'File path copied to clipboard', variant: 'success' });
+            setTimeout(function () {
+                window.Na__ComponentEditorTools__ReceiveStatus({ message: '', variant: 'info' });
+            }, 3000);
+        }
+    }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Context Menu
+// -----------------------------------------------------------------------------
+
+    var na_context_menu_el = null;
+
+    function na_get_context_menu() {
+        if (na_context_menu_el) return na_context_menu_el;
+
+        na_context_menu_el = document.createElement('div');
+        na_context_menu_el.id = 'na-gallery-context-menu';
+        na_context_menu_el.className = 'naComponentEditor__ContextMenu';
+        document.body.appendChild(na_context_menu_el);
+        return na_context_menu_el;
+    }
+
+    function na_show_context_menu(event, entry) {
+        var menu = na_get_context_menu();
+        menu.innerHTML = '';
+
+        var copy_item = document.createElement('div');
+        copy_item.className = 'naComponentEditor__ContextMenuItem';
+        copy_item.textContent = 'Copy File Path';
+        copy_item.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (!entry.path) return;
+            na_copy_text_via_dom(entry.path.replace(/\//g, '\\'));
+            if (typeof window.Na__ComponentEditorTools__CopyComponentPath === 'function') {
+                window.Na__ComponentEditorTools__CopyComponentPath(entry.path);
+            }
+            na_show_copy_toast();
+            na_hide_context_menu();
+        });
+
+        menu.appendChild(copy_item);
+
+        var vw = document.documentElement.clientWidth;
+        var vh = document.documentElement.clientHeight;
+        var menu_w = 190;
+        var menu_h = 40;
+        var left = Math.min(event.clientX, vw - menu_w - 4);
+        var top  = Math.min(event.clientY, vh - menu_h - 4);
+
+        menu.style.left    = left + 'px';
+        menu.style.top     = top  + 'px';
+        menu.style.display = 'block';
+    }
+
+    function na_hide_context_menu() {
+        var menu = na_get_context_menu();
+        menu.style.display = 'none';
+    }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
 // REGION | Render
 // -----------------------------------------------------------------------------
 
@@ -256,6 +345,11 @@
             }
         });
 
+        card.addEventListener('contextmenu', function (event) {
+            event.preventDefault();
+            na_show_context_menu(event, entry);
+        });
+
         return card;
     }
 
@@ -269,6 +363,8 @@
     function na_bind_events_once() {
         if (na_events_bound) return;
         na_events_bound = true;
+
+        document.addEventListener('click', na_hide_context_menu);
 
         var search_input = na_search_input();
         if (search_input) {

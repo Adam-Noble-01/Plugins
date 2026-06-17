@@ -317,6 +317,10 @@
         na_call_ruby('na_componenteditortools_open_component_file', { path: component_path || '' });
     }
 
+    function Na__ComponentEditorTools__CopyComponentPath(component_path) {
+        na_call_ruby('na_componenteditortools_copy_component_path', { path: component_path || '' });
+    }
+
     function Na__ComponentEditorTools__RenameLibraryComponent(payload) {
         na_call_ruby('na_componenteditortools_rename_library_component', payload || {});
     }
@@ -421,6 +425,7 @@
     window.Na__ComponentEditorTools__GetIndex                = Na__ComponentEditorTools__GetIndex;
     window.Na__ComponentEditorTools__InsertLibraryComponent  = Na__ComponentEditorTools__InsertLibraryComponent;
     window.Na__ComponentEditorTools__OpenComponentFile        = Na__ComponentEditorTools__OpenComponentFile;
+    window.Na__ComponentEditorTools__CopyComponentPath        = Na__ComponentEditorTools__CopyComponentPath;
     window.Na__ComponentEditorTools__RenameLibraryComponent  = Na__ComponentEditorTools__RenameLibraryComponent;
     window.Na__ComponentEditorTools__UpdateLibraryMetadata   = Na__ComponentEditorTools__UpdateLibraryMetadata;
     window.Na__ComponentEditorTools__UpdateLibraryData       = Na__ComponentEditorTools__UpdateLibraryData;

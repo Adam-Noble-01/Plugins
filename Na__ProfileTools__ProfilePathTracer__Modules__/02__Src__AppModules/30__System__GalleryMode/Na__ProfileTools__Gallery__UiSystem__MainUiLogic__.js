@@ -19,10 +19,10 @@
     var NA_GRID_ID        = 'na-gallery-grid';
     var NA_SEARCH_ID      = 'na-gallery-search';
     var NA_SIZE_BTN_ID    = 'na-gallery-size-btn';
-    var NA_SIZE_CLASSES   = ['na-gallery-grid--sm', 'na-gallery-grid--md', 'na-gallery-grid--lg'];
-    var NA_SIZE_LABELS    = ['Small', 'Medium', 'Large'];
+    var NA_SIZE_CLASSES   = ['na-gallery-grid--sm', 'na-gallery-grid--idx'];
+    var NA_SIZE_LABELS    = ['Small', 'Index'];
 
-    var na_size_index     = 1;
+    var na_size_index     = 0;
     var na_search_query   = '';
     var na_is_mounted     = false;
 
