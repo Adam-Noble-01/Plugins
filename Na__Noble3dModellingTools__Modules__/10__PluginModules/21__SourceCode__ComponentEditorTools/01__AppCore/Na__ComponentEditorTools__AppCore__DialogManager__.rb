@@ -254,6 +254,13 @@ module Na__ComponentEditorTools
                         self.Na__ComponentEditorTools__PushStatus(result[:message], 'error')
                     end
                 },
+                'na_componenteditortools_insert_at_axis' => proc { |raw_payload|
+                    payload_hash   = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    component_path = (payload_hash['path'] || payload_hash[:path]).to_s
+                    result         = Na__LibraryPlacementTool.Na__ComponentEditorTools__InsertAtAxis(component_path, @na_dialog)
+                    variant        = result[:ok] ? 'success' : 'error'
+                    self.Na__ComponentEditorTools__PushStatus(result[:message], variant)
+                },
                 'na_componenteditortools_open_component_file' => proc { |raw_payload|
                     payload_hash    = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
                     component_path  = (payload_hash['path'] || payload_hash[:path]).to_s.strip

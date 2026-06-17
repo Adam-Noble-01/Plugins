@@ -37,6 +37,27 @@ module Na__ComponentEditorTools
             { ok: false, message: "#{error.class}: #{error.message}" }
         end
 
+        def self.Na__ComponentEditorTools__InsertAtAxis(component_path, dialog_handle = nil)
+            return { ok: false, message: 'No library component path provided.' } if component_path.to_s.empty?
+            return { ok: false, message: 'File not found.' } unless File.exist?(component_path.to_s)
+
+            model      = Sketchup.active_model
+            definition = model.definitions.load(component_path.to_s)
+            return { ok: false, message: 'Could not load component definition.' } unless definition
+
+            axes      = model.axes
+            transform = Geom::Transformation.axes(axes.origin, axes.xaxis, axes.yaxis, axes.zaxis)
+
+            model.start_operation("Insert At Axis: #{definition.name}", true)
+            model.active_entities.add_instance(definition, transform)
+            model.commit_operation
+
+            { ok: true, message: "\"#{definition.name}\" placed at axes origin." }
+        rescue => error
+            model.abort_operation rescue nil
+            { ok: false, message: "#{error.class}: #{error.message}" }
+        end
+
 # endregion -------------------------------------------------------------------
 
     end

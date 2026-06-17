@@ -313,6 +313,10 @@
         na_call_ruby('na_componenteditortools_insert_library_component', { path: component_path || '' });
     }
 
+    function Na__ComponentEditorTools__InsertAtAxis(component_path) {
+        na_call_ruby('na_componenteditortools_insert_at_axis', { path: component_path || '' });
+    }
+
     function Na__ComponentEditorTools__OpenComponentFile(component_path) {
         na_call_ruby('na_componenteditortools_open_component_file', { path: component_path || '' });
     }
@@ -424,6 +428,7 @@
     window.Na__ComponentEditorTools__GetGallery              = Na__ComponentEditorTools__GetGallery;
     window.Na__ComponentEditorTools__GetIndex                = Na__ComponentEditorTools__GetIndex;
     window.Na__ComponentEditorTools__InsertLibraryComponent  = Na__ComponentEditorTools__InsertLibraryComponent;
+    window.Na__ComponentEditorTools__InsertAtAxis             = Na__ComponentEditorTools__InsertAtAxis;
     window.Na__ComponentEditorTools__OpenComponentFile        = Na__ComponentEditorTools__OpenComponentFile;
     window.Na__ComponentEditorTools__CopyComponentPath        = Na__ComponentEditorTools__CopyComponentPath;
     window.Na__ComponentEditorTools__RenameLibraryComponent  = Na__ComponentEditorTools__RenameLibraryComponent;
@@ -475,6 +480,42 @@
         Na__ComponentEditorTools__RequestSelection();
         Na__ComponentEditorTools__GetTaxonomy();
     });
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Chip Color Utility (shared by Gallery and Index)
+// -----------------------------------------------------------------------------
+
+    var NA_CHIP_PALETTE = [
+        { bg: '#e5f4ec', border: '#a3cfb6', text: '#1a6b3a' },
+        { bg: '#eef3fb', border: '#c9d8f0', text: '#2060b8' },
+        { bg: '#fef4e0', border: '#f0c878', text: '#7a4800' },
+        { bg: '#f2ecfb', border: '#c5a8e8', text: '#5a2a8a' },
+        { bg: '#e5f5f5', border: '#8ecece', text: '#1a6b6b' },
+        { bg: '#fce8ed', border: '#e8a0b0', text: '#8a2040' },
+        { bg: '#feebd8', border: '#f0aa70', text: '#7a3800' },
+        { bg: '#eceef8', border: '#a8b0e0', text: '#2a3880' },
+        { bg: '#f4ede5', border: '#c8a888', text: '#5a3810' },
+        { bg: '#edf0f4', border: '#b0bcc8', text: '#3a4858' }
+    ];
+
+    function na_chip_hash(name) {
+        var h = 0;
+        for (var i = 0; i < name.length; i++) {
+            h = (h * 31 + name.charCodeAt(i)) & 0xffff;
+        }
+        return h;
+    }
+
+    window.Na__ComponentEditorTools__ApplyChipColor = function (el, name) {
+        if (!el || !name) return;
+        var color = NA_CHIP_PALETTE[na_chip_hash(name) % NA_CHIP_PALETTE.length];
+        el.style.background  = color.bg;
+        el.style.borderColor = color.border;
+        el.style.color       = color.text;
+    };
 
 // endregion -------------------------------------------------------------------
 

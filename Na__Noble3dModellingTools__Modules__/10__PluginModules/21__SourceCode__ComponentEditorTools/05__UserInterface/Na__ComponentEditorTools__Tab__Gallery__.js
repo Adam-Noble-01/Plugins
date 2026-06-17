@@ -312,7 +312,7 @@
             ? entry.gallery_name.trim()
             : (entry.def_name || entry.file_name || '');
 
-        var code_prefix = entry.code ? entry.code.trim() : '';
+        var code_prefix = entry.code ? entry.code.trim().replace(/_+$/, '') : '';
 
         var name_el = document.createElement('div');
         name_el.className = 'naComponentEditor__GalleryCardName';
@@ -321,6 +321,22 @@
 
         var meta_el = document.createElement('div');
         meta_el.className = 'naComponentEditor__GalleryCardMeta';
+        if (entry.category) {
+            var cat_badge = document.createElement('span');
+            cat_badge.className = 'naComponentEditor__GalleryCardChip';
+            cat_badge.textContent = entry.category;
+            cat_badge.title = 'Category: ' + entry.category;
+            window.Na__ComponentEditorTools__ApplyChipColor(cat_badge, entry.category);
+            meta_el.appendChild(cat_badge);
+        }
+        if (entry.type) {
+            var type_badge = document.createElement('span');
+            type_badge.className = 'naComponentEditor__GalleryCardChip';
+            type_badge.textContent = entry.type;
+            type_badge.title = 'Type: ' + entry.type;
+            window.Na__ComponentEditorTools__ApplyChipColor(type_badge, entry.type);
+            meta_el.appendChild(type_badge);
+        }
         if (code_prefix) {
             var code_badge = document.createElement('span');
             code_badge.className = 'naComponentEditor__GalleryCardCode';
@@ -328,13 +344,8 @@
             meta_el.appendChild(code_badge);
         }
 
-        var folder_el = document.createElement('div');
-        folder_el.className = 'naComponentEditor__GalleryCardFolder';
-        folder_el.textContent = entry.relative_dir || '';
-
         info.appendChild(name_el);
         if (meta_el.children.length) info.appendChild(meta_el);
-        info.appendChild(folder_el);
 
         card.appendChild(thumb_wrap);
         card.appendChild(info);

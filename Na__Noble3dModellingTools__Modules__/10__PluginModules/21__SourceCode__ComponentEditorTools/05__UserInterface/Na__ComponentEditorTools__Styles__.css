@@ -510,6 +510,7 @@ body {
     display                         : none;
     align-items                     : center;
     gap                             : 6px;
+    flex                            : 1;
 }
 
 .naComponentEditor__TabBar--galleryActive .naComponentEditor__GalleryFilters {
@@ -517,14 +518,15 @@ body {
 }
 
 .naComponentEditor__GalleryFilters .naComponentEditor__Select {
-    min-width                       : 100px;
+    width                           : 115px;
+    flex-shrink                     : 0;
     font-size                       : 12px;
     padding                         : 5px 6px;
 }
 
 .naComponentEditor__GalleryFilters .naComponentEditor__GallerySearch {
-    width                           : 160px;
-    min-width                       : unset;
+    flex                            : 1;
+    min-width                       : 120px;
     font-size                       : 12px;
     padding                         : 5px 8px;
 }
@@ -540,6 +542,7 @@ body {
     display                         : none;
     align-items                     : center;
     gap                             : 6px;
+    flex                            : 1;
 }
 
 .naComponentEditor__TabBar--indexActive .naComponentEditor__IndexFilters {
@@ -547,14 +550,15 @@ body {
 }
 
 .naComponentEditor__IndexFilters .naComponentEditor__Select {
-    min-width                       : 100px;
+    width                           : 115px;
+    flex-shrink                     : 0;
     font-size                       : 12px;
     padding                         : 5px 6px;
 }
 
 .naComponentEditor__IndexFilters .naComponentEditor__IndexSearch {
-    width                           : 160px;
-    min-width                       : unset;
+    flex                            : 1;
+    min-width                       : 120px;
     font-size                       : 12px;
     padding                         : 5px 8px;
 }
@@ -562,7 +566,7 @@ body {
 .naComponentEditor__IndexFolderFilter,
 .naComponentEditor__IndexCategoryFilter,
 .naComponentEditor__IndexTypeFilter {
-    min-width                       : 140px;
+    width                           : 115px;
 }
 
 
@@ -721,7 +725,7 @@ body {
 
 .naComponentEditor__GalleryGrid {
     display                         : grid;
-    grid-template-columns           : repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns           : repeat(auto-fill, minmax(168px, 1fr));
     gap                             : 10px;
     padding                         : 0 12px 12px;
 }
@@ -782,12 +786,7 @@ body {
 }
 
 .naComponentEditor__GalleryCardFolder {
-    font-size                       : 11px;
-    color                           : var(--naComponentEditor_MutedText);
-    overflow                        : hidden;
-    text-overflow                   : ellipsis;
-    white-space                     : nowrap;
-    margin-top                      : 2px;
+    display                         : none;
 }
 
 /* #endregion ---------------------------------------------------------------- */
@@ -810,7 +809,8 @@ body {
 }
 
 .naComponentEditor__IndexTableWrap {
-    overflow-x                      : auto;
+    overflow                        : auto;
+    max-height                      : calc(100vh - 160px);
     padding                         : 0 12px 12px;
 }
 
@@ -828,6 +828,9 @@ body {
     border-bottom                   : 2px solid var(--naComponentEditor_Border);
     background                      : #f8f9fb;
     white-space                     : nowrap;
+    position                        : sticky;
+    top                             : 0;
+    z-index                         : 5;
 }
 
 .naComponentEditor__IndexTh--sortable {
@@ -1039,6 +1042,11 @@ body {
     cursor                          : not-allowed;
 }
 
+.naComponentEditor__IndexSelect--category,
+.naComponentEditor__IndexSelect--type {
+    font-weight                     : 600;
+}
+
 .naComponentEditor__IndexTd--inline {
     padding                         : 2px 4px;
 }
@@ -1192,22 +1200,31 @@ body {
 
 .naComponentEditor__GalleryCardMeta {
     display                         : flex;
-    align-items                     : center;
-    gap                             : 4px;
-    margin-top                      : 2px;
+    flex-direction                  : column;
+    align-items                     : stretch;
+    gap                             : 2px;
+    margin-top                      : 4px;
+}
+
+.naComponentEditor__GalleryCardCode,
+.naComponentEditor__GalleryCardChip {
+    display                         : block;
+    font-size                       : 10px;
+    font-weight                     : 600;
+    border-radius                   : 3px;
+    padding                         : 2px 5px;
+    letter-spacing                  : 0.02em;
+    white-space                     : nowrap;
+    overflow                        : hidden;
+    text-overflow                   : ellipsis;
+    border                          : 1px solid transparent;
 }
 
 .naComponentEditor__GalleryCardCode {
-    display                         : inline-block;
     font-family                     : Consolas, Menlo, monospace;
-    font-size                       : 10px;
-    font-weight                     : 600;
     color                           : var(--naComponentEditor_Accent);
     background                      : #eef3fb;
-    border                          : 1px solid #c9d8f0;
-    border-radius                   : 3px;
-    padding                         : 1px 4px;
-    letter-spacing                  : 0.02em;
+    border-color                    : #c9d8f0;
 }
 
 /* #endregion ---------------------------------------------------------------- */
@@ -1218,9 +1235,18 @@ body {
    ----------------------------------------------------------------------------- */
 
 .naComponentEditor__GalleryCategoryFilter,
+.naComponentEditor__IndexCategoryFilter {
+    width                           : 155px;
+}
+
 .naComponentEditor__GalleryTypeFilter,
-.naComponentEditor__GalleryFolderFilter {
-    min-width                       : 140px;
+.naComponentEditor__IndexTypeFilter {
+    width                           : 130px;
+}
+
+.naComponentEditor__GalleryFolderFilter,
+.naComponentEditor__IndexFolderFilter {
+    width                           : 115px;
 }
 
 /* #endregion ---------------------------------------------------------------- */

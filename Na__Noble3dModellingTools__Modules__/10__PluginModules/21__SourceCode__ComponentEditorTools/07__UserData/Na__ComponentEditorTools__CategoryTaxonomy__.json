@@ -52,32 +52,6 @@
       ]
     },
     {
-      "name": "Vale Orangery",
-      "types": [
-        "Window",
-        "Door",
-        "Door Handle",
-        "Ironmongery",
-        "Roof Lantern",
-        "Glazing Bar",
-        "Cresting",
-        "Finial"
-      ]
-    },
-    {
-      "name": "Vale Conservatory",
-      "types": [
-        "Window",
-        "Door",
-        "Door Handle",
-        "Ironmongery",
-        "Roof Vent",
-        "Glazing Bar",
-        "Ridge",
-        "Finial"
-      ]
-    },
-    {
       "name": "Environment",
       "types": [
         "Tree",
@@ -92,6 +66,18 @@
         "People",
         "Vegetation",
         "Scene Context"
+      ]
+    },
+    {
+      "name": "Vale Garden Houses",
+      "types": [
+        "Columns",
+        "Ironmongery",
+        "Rainwater Goods",
+        "Door Handle",
+        "Finial",
+        "Cresting",
+        "Moulding"
       ]
     }
   ]

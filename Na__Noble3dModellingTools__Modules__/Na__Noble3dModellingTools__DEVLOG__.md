@@ -3,6 +3,42 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.5.5 - 17-Jun-2026 - Component Editor Tools Gallery & Index Visual Polish
+
+### Update 01 - Gallery Card Taxonomy Chips
+- Added **Category** and **Type** chips to every Gallery card, rendered as a vertical stack below the component name (Category → Type → Code, each as a full-width block chip with ellipsis truncation).
+- Chips use a deterministic color hash (`na_chip_hash` in `UiBridge__.js`) mapping any name string to one of 10 distinct palette slots, so every unique category/type always renders in the same consistent color across both Gallery and Index.
+- Shared utility exposed as `window.Na__ComponentEditorTools__ApplyChipColor(el, name)` — applies inline `background`, `borderColor`, and `color` from the palette.
+- Folder/path line removed from gallery cards entirely (was wasting vertical space).
+
+### Update 02 - Gallery Card Size & Code Chip Cleanup
+- Gallery grid minimum card width widened from `140px` to `168px` (~20%) so thumbnails crop less and titles have more room before truncating.
+- Trailing `__` delimiter stripped from code chip display text via `.replace(/_+$/, '')` — stored value is unchanged; `10_2120__` now displays as `10_2120`.
+
+### Update 03 - Index Table Frozen Header
+- Index table header now sticks to the top of the table scroll container (Excel-style frozen row).
+- `naComponentEditor__IndexTableWrap` changed to `overflow: auto` with `max-height: calc(100vh - 160px)`, making it the definite vertical scroll container.
+- `position: sticky; top: 0; z-index: 5` added to `.naComponentEditor__IndexTh`; solid `background: #f8f9fb` ensures headers remain opaque when scrolled.
+
+### Update 04 - Index Category & Type Dropdowns Color-Coded
+- Category and Type `<select>` elements in the Index table now receive the same dynamic palette color as the Gallery chips via `ApplyChipColor`, updated live when the user changes a value.
+- Both selects carry `font-weight: 600` via CSS modifier classes; all color is applied as inline styles so every distinct category/type name gets a unique consistent color.
+
+### Update 05 - Filter Dropdown Widths
+- Category filter widened to `155px` (was `115px`) so long names like "Vale Garden Houses" are no longer clipped.
+- Type filter set to `130px`; Folder filter retained at `115px`.
+- Width rules now cover both Gallery (`GalleryCategoryFilter` etc.) and Index (`IndexCategoryFilter` etc.) filter dropdowns in a single paired rule.
+
+### Validation Checklist
+- [x] Gallery cards show Category chip (green or unique palette color), Type chip, Code chip stacked vertically.
+- [x] Same category name always maps to the same color in both Gallery chips and Index dropdowns.
+- [x] Code chips display without trailing `__`.
+- [x] Index table header stays visible and pinned when scrolling a long component list.
+- [x] Index category and type dropdowns update color live when a new value is selected.
+- [x] "Vale Garden Houses" (and other long names) visible in full in the category filter dropdown.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.5.4 - 17-Jun-2026 - Component Editor Tools Settings & Gallery UX
 
 ### Update 01 - Settings Tab Collapsible Sections

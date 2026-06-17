@@ -283,12 +283,83 @@
 
 
 // -----------------------------------------------------------------------------
+// REGION | Thumbnail Context Menu
+// -----------------------------------------------------------------------------
+
+    var na_index_context_menu_el = null;
+
+    function na_get_index_context_menu() {
+        if (na_index_context_menu_el) return na_index_context_menu_el;
+
+        na_index_context_menu_el = document.createElement('div');
+        na_index_context_menu_el.id = 'na-index-context-menu';
+        na_index_context_menu_el.className = 'naComponentEditor__ContextMenu';
+        document.body.appendChild(na_index_context_menu_el);
+        return na_index_context_menu_el;
+    }
+
+    function na_show_index_context_menu(event, entry) {
+        var menu = na_get_index_context_menu();
+        menu.innerHTML = '';
+
+        var copy_item = document.createElement('div');
+        copy_item.className = 'naComponentEditor__ContextMenuItem';
+        copy_item.textContent = 'Copy File Path';
+        copy_item.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (!entry.path) return;
+            na_copy_text_via_dom(entry.path.replace(/\//g, '\\'));
+            if (typeof window.Na__ComponentEditorTools__CopyComponentPath === 'function') {
+                window.Na__ComponentEditorTools__CopyComponentPath(entry.path);
+            }
+            na_show_copy_toast();
+            na_hide_index_context_menu();
+        });
+
+        var insert_axis_item = document.createElement('div');
+        insert_axis_item.className = 'naComponentEditor__ContextMenuItem';
+        insert_axis_item.textContent = 'Insert At Axis';
+        insert_axis_item.title = 'Place component origin at the current model axes origin';
+        insert_axis_item.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (entry.path && typeof window.Na__ComponentEditorTools__InsertAtAxis === 'function') {
+                window.Na__ComponentEditorTools__InsertAtAxis(entry.path);
+            }
+            na_hide_index_context_menu();
+        });
+
+        menu.appendChild(copy_item);
+        menu.appendChild(insert_axis_item);
+
+        var vw     = document.documentElement.clientWidth;
+        var vh     = document.documentElement.clientHeight;
+        var menu_w = 190;
+        var menu_h = 80;
+        var left   = Math.min(event.clientX, vw - menu_w - 4);
+        var top    = Math.min(event.clientY, vh - menu_h - 4);
+
+        menu.style.left    = left + 'px';
+        menu.style.top     = top  + 'px';
+        menu.style.display = 'block';
+    }
+
+    function na_hide_index_context_menu() {
+        var menu = na_get_index_context_menu();
+        menu.style.display = 'none';
+    }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
 // REGION | Main Row
 // -----------------------------------------------------------------------------
 
     function na_build_thumbnail_cell(entry) {
         var td = document.createElement('td');
         td.className = 'naComponentEditor__IndexTd naComponentEditor__IndexTd--thumb';
+        td.style.cursor = 'pointer';
+        td.title = 'Double-click to place | Right-click for options';
 
         if (entry.thumbnail_uri) {
             var img = document.createElement('img');
@@ -303,6 +374,17 @@
         } else {
             td.classList.add('naComponentEditor__IndexTd--thumbEmpty');
         }
+
+        td.addEventListener('dblclick', function () {
+            if (entry.path && typeof window.Na__ComponentEditorTools__InsertLibraryComponent === 'function') {
+                window.Na__ComponentEditorTools__InsertLibraryComponent(entry.path);
+            }
+        });
+
+        td.addEventListener('contextmenu', function (event) {
+            event.preventDefault();
+            na_show_index_context_menu(event, entry);
+        });
 
         return td;
     }
@@ -575,8 +657,9 @@
         td.className = 'naComponentEditor__IndexTd naComponentEditor__IndexTd--select';
 
         var select = document.createElement('select');
-        select.className = 'naComponentEditor__IndexSelect';
+        select.className = 'naComponentEditor__IndexSelect naComponentEditor__IndexSelect--category';
         na_fill_select_options(select, na_category_names(), entry.category || '');
+        window.Na__ComponentEditorTools__ApplyChipColor(select, entry.category || '');
 
         select.addEventListener('change', function () {
             var new_category = select.value;
@@ -586,6 +669,7 @@
             entry.category = new_category;
             if (clears_type) entry.type = '';
 
+            window.Na__ComponentEditorTools__ApplyChipColor(select, new_category);
             na_save_field(entry, 'category', new_category);
             if (clears_type) na_save_field(entry, 'type', '');
         });
@@ -599,8 +683,9 @@
         td.className = 'naComponentEditor__IndexTd naComponentEditor__IndexTd--select';
 
         var select = document.createElement('select');
-        select.className = 'naComponentEditor__IndexSelect';
+        select.className = 'naComponentEditor__IndexSelect naComponentEditor__IndexSelect--type';
         na_fill_select_options(select, na_types_for(entry.category || ''), entry.type || '');
+        window.Na__ComponentEditorTools__ApplyChipColor(select, entry.type || '');
 
         if (!(entry.category || '')) {
             select.disabled = true;
@@ -609,6 +694,7 @@
 
         select.addEventListener('change', function () {
             entry.type = select.value;
+            window.Na__ComponentEditorTools__ApplyChipColor(select, select.value);
             na_save_field(entry, 'type', select.value);
         });
 
@@ -1037,6 +1123,8 @@
     function na_bind_events_once() {
         if (na_events_bound) return;
         na_events_bound = true;
+
+        document.addEventListener('click', na_hide_index_context_menu);
 
         var load_btn = document.getElementById('na-index-btn-load');
         if (load_btn) {
