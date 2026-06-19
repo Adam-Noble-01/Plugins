@@ -1222,9 +1222,11 @@ body {
 
 .naComponentEditor__GalleryCardCode {
     font-family                     : Consolas, Menlo, monospace;
-    color                           : var(--naComponentEditor_Accent);
-    background                      : #eef3fb;
-    border-color                    : #c9d8f0;
+    color                           : #4a5568;
+    background                      : transparent;
+    border-color                    : transparent;
+    padding-left                    : 0;
+    padding-right                   : 0;
 }
 
 /* #endregion ---------------------------------------------------------------- */
@@ -1284,6 +1286,17 @@ body {
     color                           : var(--naComponentEditor_Text);
 }
 
+.naComponentEditor__TaxonomyColorSwatch {
+    width                           : 20px;
+    height                          : 20px;
+    padding                         : 0;
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 4px;
+    cursor                          : pointer;
+    background                      : none;
+    flex-shrink                     : 0;
+}
+
 .naComponentEditor__TaxonomyCategoryRemove {
     padding                         : 3px 8px;
     font-size                       : 11px;
@@ -1337,6 +1350,258 @@ body {
 .naComponentEditor__ContextMenuItem:hover {
     background                      : #eef4fc;
     color                           : var(--naComponentEditor_Accent);
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | Settings - Folder Aliases
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__FolderAliasList {
+    display                         : flex;
+    flex-direction                  : column;
+    gap                             : 6px;
+    margin-bottom                   : 10px;
+}
+
+.naComponentEditor__FolderAliasRow {
+    display                         : grid;
+    grid-template-columns           : minmax(160px, 1fr) minmax(140px, 1fr) 72px auto auto;
+    align-items                     : center;
+    gap                             : 6px;
+    padding                         : 6px 8px;
+    background                      : var(--naComponentEditor_InputBg, #f8f9fb);
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 5px;
+}
+
+.naComponentEditor__FolderAliasRawName {
+    font-size                       : 11px;
+    font-family                     : monospace;
+    color                           : var(--naComponentEditor_Muted);
+    white-space                     : nowrap;
+    overflow                        : hidden;
+    text-overflow                   : ellipsis;
+    padding                         : 0 4px;
+}
+
+.naComponentEditor__FolderAliasAddRow {
+    display                         : grid;
+    grid-template-columns           : minmax(160px, 1fr) minmax(140px, 1fr) 72px auto;
+    align-items                     : center;
+    gap                             : 6px;
+}
+
+.naComponentEditor__FolderAliasInput--order {
+    width                           : 100%;
+}
+
+.naComponentEditor__FolderAliasRowInput--label {
+    width                           : 100%;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* =============================================================================
+   REGION | Monitor Selection Toggle Button
+   ============================================================================= */
+
+.naComponentEditor__MonitorBtn {
+    font-weight                     : 600;
+    min-width                       : 160px;
+    transition                      : background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.18s;
+}
+
+.naComponentEditor__MonitorBtn--off {
+    background                      : var(--naComponentEditor_Bg);
+    color                           : var(--naComponentEditor_Muted);
+    border-color                    : var(--naComponentEditor_Border);
+}
+
+.naComponentEditor__MonitorBtn--off:hover {
+    background                      : var(--naComponentEditor_BgAlt);
+    color                           : var(--naComponentEditor_Text);
+    border-color                    : var(--naComponentEditor_BorderHover, var(--naComponentEditor_Border));
+}
+
+.naComponentEditor__MonitorBtn--on {
+    background                      : #1a8a3c;
+    color                           : #ffffff;
+    border-color                    : #156b30;
+    box-shadow                      : 0 0 0 3px rgba(26, 138, 60, 0.25);
+    animation                       : naComponentEditor__MonitorPulse 1.8s ease-in-out infinite;
+}
+
+.naComponentEditor__MonitorBtn--on:hover {
+    background                      : #156b30;
+    border-color                    : #0f5124;
+}
+
+@keyframes naComponentEditor__MonitorPulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(26, 138, 60, 0.25); }
+    50%       { box-shadow: 0 0 0 6px rgba(26, 138, 60, 0.10); }
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* =============================================================================
+   REGION | Capture Overlay
+   ============================================================================= */
+
+/* The tab panels that host an overlay need positioning context */
+#na-component-tab-overview,
+#na-component-tab-attributes,
+#na-component-tab-thumbnail {
+    position                        : relative;
+}
+
+.naComponentEditor__CaptureOverlay {
+    display                         : none;
+    position                        : sticky;
+    top                             : 0;
+    left                            : 0;
+    right                           : 0;
+    z-index                         : 50;
+    background                      : rgba(22, 22, 26, 0.82);
+    backdrop-filter                 : blur(4px);
+    -webkit-backdrop-filter         : blur(4px);
+    padding                         : 20px 16px;
+    margin-bottom                   : 12px;
+    border-radius                   : 6px;
+    border                          : 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Show overlays only when body carries the awaiting class and the tab is active */
+body.naComponentEditor--awaitingCapture #na-component-tab-overview.naComponentEditor__TabPanel--active .naComponentEditor__CaptureOverlay,
+body.naComponentEditor--awaitingCapture #na-component-tab-attributes.naComponentEditor__TabPanel--active .naComponentEditor__CaptureOverlay,
+body.naComponentEditor--awaitingCapture #na-component-tab-thumbnail.naComponentEditor__TabPanel--active .naComponentEditor__CaptureOverlay {
+    display                         : block;
+}
+
+.naComponentEditor__CaptureOverlayInner {
+    display                         : flex;
+    align-items                     : center;
+    gap                             : 14px;
+    flex-wrap                       : wrap;
+    justify-content                 : center;
+}
+
+.naComponentEditor__CaptureOverlayMessage {
+    margin                          : 0;
+    color                           : #e8e8ee;
+    font-size                       : 13px;
+    line-height                     : 1.5;
+    text-align                      : center;
+}
+
+.naComponentEditor__CaptureOverlayMessage strong {
+    color                           : #a0e8b8;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* =============================================================================
+   REGION | Component Geometry Panel
+   ============================================================================= */
+
+.naComponentEditor__GeomPanelHeader {
+    display                         : flex;
+    align-items                     : flex-start;
+    justify-content                 : space-between;
+    gap                             : 12px;
+    margin-bottom                   : 14px;
+}
+
+.naComponentEditor__GeomPanelHeader .naComponentEditor__PanelHeading {
+    margin-bottom                   : 2px;
+}
+
+.naComponentEditor__GeomPanelHeader .naComponentEditor__PanelSubheading {
+    margin                          : 0;
+}
+
+.naComponentEditor__GeomCopyBtn {
+    flex-shrink                     : 0;
+    white-space                     : nowrap;
+    font-size                       : 12px;
+    padding                         : 5px 12px;
+    align-self                      : flex-start;
+}
+
+.naComponentEditor__GeomCopyBtn--success {
+    background                      : #1a8a3c;
+    color                           : #ffffff;
+    border-color                    : #156b30;
+}
+
+.naComponentEditor__GeomCopyBtn--fail {
+    background                      : #b83232;
+    color                           : #ffffff;
+    border-color                    : #8a2020;
+}
+
+.naComponentEditor__GeomSubheading {
+    font-size                       : 11px;
+    font-weight                     : 700;
+    text-transform                  : uppercase;
+    letter-spacing                  : 0.06em;
+    color                           : var(--naComponentEditor_Muted);
+    margin                          : 0 0 6px 0;
+    padding-bottom                  : 4px;
+    border-bottom                   : 1px solid var(--naComponentEditor_Border);
+}
+
+.naComponentEditor__MetaValue--stat {
+    font-variant-numeric            : tabular-nums;
+    font-weight                     : 600;
+}
+
+.naComponentEditor__GeomList {
+    display                         : flex;
+    flex-wrap                       : wrap;
+    gap                             : 5px;
+    min-height                      : 24px;
+}
+
+.naComponentEditor__GeomChip {
+    display                         : inline-flex;
+    align-items                     : center;
+    padding                         : 2px 9px;
+    border-radius                   : 12px;
+    font-size                       : 11px;
+    font-weight                     : 500;
+    background                      : var(--naComponentEditor_BgAlt, #f0f0f4);
+    border                          : 1px solid var(--naComponentEditor_Border);
+    color                           : var(--naComponentEditor_Text);
+    white-space                     : nowrap;
+    max-width                       : 280px;
+    overflow                        : hidden;
+    text-overflow                   : ellipsis;
+}
+
+.naComponentEditor__GeomTagList {
+    display                         : flex;
+    flex-wrap                       : wrap;
+    gap                             : 5px;
+    min-height                      : 24px;
+}
+
+.naComponentEditor__GeomTagChip {
+    display                         : inline-flex;
+    align-items                     : center;
+    padding                         : 2px 9px;
+    border-radius                   : 12px;
+    font-size                       : 11px;
+    font-weight                     : 500;
+    background                      : #eef3fb;
+    border                          : 1px solid #c9d8f0;
+    color                           : #2060b8;
+    white-space                     : nowrap;
 }
 
 /* #endregion ---------------------------------------------------------------- */

@@ -23,6 +23,7 @@ module Na__ComponentEditorTools
         @na_active_tab_id = 'gallery'
         @na_current_selection_key = nil
         @na_library_cache = nil
+        @na_monitoring_enabled = false
 
 # endregion -------------------------------------------------------------------
 
@@ -56,6 +57,7 @@ module Na__ComponentEditorTools
             self.Na__ComponentEditorTools__PushUserConfig
             self.Na__ComponentEditorTools__PushTaxonomy
             self.Na__ComponentEditorTools__PushCachedLibraryDataIfAvailable
+            self.Na__ComponentEditorTools__PushMonitoringState
             @na_dialog
         rescue => error
             UI.messagebox("Na__ComponentEditorTools\n\n#{error.class}: #{error.message}")
@@ -67,11 +69,19 @@ module Na__ComponentEditorTools
         end
 
         def self.Na__ComponentEditorTools__HandleSelectionChanged
+            return unless @na_monitoring_enabled
+
             selected_key = Na__SelectionInspector.Na__ComponentEditorTools__SelectedInstanceKey
-            return if selected_key.nil? && @na_current_selection_key
+            return if selected_key.nil?
             return if selected_key == @na_current_selection_key
 
-            self.Na__ComponentEditorTools__BuildAndPushPayload
+            @na_current_selection_key = selected_key
+            @na_monitoring_enabled = false
+
+            self.Na__ComponentEditorTools__BuildAndPushPayload(include_geometry: true)
+            self.Na__ComponentEditorTools__PushMonitoringState
+        rescue => error
+            puts "[Na__ComponentEditorTools] HandleSelectionChanged error: #{error.class}: #{error.message}"
         end
 
 # endregion -------------------------------------------------------------------
@@ -79,6 +89,24 @@ module Na__ComponentEditorTools
 # -----------------------------------------------------------------------------
 # REGION | Public UI Sync
 # -----------------------------------------------------------------------------
+
+        def self.Na__ComponentEditorTools__SetMonitoring(enabled_flag)
+            @na_monitoring_enabled = !!enabled_flag
+
+            if @na_monitoring_enabled
+                self.Na__ComponentEditorTools__PushStatus('Click a component or group in the model to capture geometry.', 'info')
+            end
+
+            self.Na__ComponentEditorTools__PushMonitoringState
+        end
+
+        def self.Na__ComponentEditorTools__PushMonitoringState
+            Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
+                @na_dialog,
+                'Na__ComponentEditorTools__ReceiveMonitoringState',
+                { enabled: @na_monitoring_enabled }
+            )
+        end
 
         def self.Na__ComponentEditorTools__SetActiveTab(active_tab_id)
             return if active_tab_id.nil?
@@ -102,14 +130,15 @@ module Na__ComponentEditorTools
             )
         end
 
-        def self.Na__ComponentEditorTools__BuildAndPushPayload
+        def self.Na__ComponentEditorTools__BuildAndPushPayload(include_geometry: false)
             selected_key = Na__SelectionInspector.Na__ComponentEditorTools__SelectedInstanceKey
-            @na_current_selection_key = selected_key if selected_key
+            @na_current_selection_key = selected_key if selected_key && !include_geometry
 
             payload_hash = Na__SelectionInspector.Na__ComponentEditorTools__BuildPayload(
                 @na_status_message,
                 @na_status_variant,
-                @na_active_tab_id
+                @na_active_tab_id,
+                include_geometry: include_geometry
             )
 
             Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
@@ -127,6 +156,14 @@ module Na__ComponentEditorTools
 
         def self.Na__ComponentEditorTools__BindCallbacks(dialog)
             callback_registry = {
+
+                # ----- Monitoring toggle -------------------------------------
+
+                'na_componenteditortools_set_monitoring' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    enabled = payload_hash['enabled'] || payload_hash[:enabled]
+                    self.Na__ComponentEditorTools__SetMonitoring(enabled)
+                },
 
                 # ----- Existing selection/editor callbacks -------------------
 
@@ -282,6 +319,27 @@ module Na__ComponentEditorTools
                     file_path    = (payload_hash['path'] || payload_hash[:path]).to_s
                     self.Na__ComponentEditorTools__CopyPathToClipboard(file_path)
                 },
+                'na_componenteditortools_set_folder_alias' => proc { |raw_payload|
+                    payload_hash  = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    folder_name   = (payload_hash['folder_name']  || payload_hash[:folder_name]).to_s.strip
+                    alias_label   = (payload_hash['alias_label']  || payload_hash[:alias_label]).to_s.strip
+                    order_index   = (payload_hash['order_index']  || payload_hash[:order_index]).to_i
+                    Na__UserConfig.Na__ComponentEditorTools__SetFolderAlias(folder_name, alias_label, order_index)
+                    self.Na__ComponentEditorTools__PushUserConfig
+                    self.Na__ComponentEditorTools__PushStatus("Folder alias saved: \"#{folder_name}\"", 'success')
+                },
+                'na_componenteditortools_remove_folder_alias' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    folder_name  = (payload_hash['folder_name'] || payload_hash[:folder_name]).to_s.strip
+                    Na__UserConfig.Na__ComponentEditorTools__RemoveFolderAlias(folder_name)
+                    self.Na__ComponentEditorTools__PushUserConfig
+                    self.Na__ComponentEditorTools__PushStatus("Folder alias removed: \"#{folder_name}\"", 'success')
+                },
+                'na_componenteditortools_copy_directory_path' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    dir_path     = (payload_hash['path'] || payload_hash[:path]).to_s
+                    self.Na__ComponentEditorTools__CopyPathToClipboard(dir_path)
+                },
 
                 # ----- Index editing callbacks --------------------------------
 
@@ -348,9 +406,15 @@ module Na__ComponentEditorTools
                     self.Na__ComponentEditorTools__PushStatus("Type removed: #{category} \u2192 #{type_val}", 'success')
                     self.Na__ComponentEditorTools__PushTaxonomy
                 },
-                'na_componenteditortools_seed_taxonomy' => proc {
-                    Na__Taxonomy.Na__ComponentEditorTools__SeedFromStandards
-                    self.Na__ComponentEditorTools__PushStatus('Categories populated from SSOT standards.', 'success')
+                'na_componenteditortools_set_chip_color' => proc { |raw_payload|
+                    payload_hash = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    key          = (payload_hash['key']   || payload_hash[:key]).to_s.strip
+                    color        = (payload_hash['color'] || payload_hash[:color]).to_s.strip
+                    if Na__Taxonomy.Na__ComponentEditorTools__SetChipColor(key, color)
+                        self.Na__ComponentEditorTools__PushStatus("Color updated for: #{key}", 'success')
+                    else
+                        self.Na__ComponentEditorTools__PushStatus('Color not updated (empty key or value).', 'warning')
+                    end
                     self.Na__ComponentEditorTools__PushTaxonomy
                 }
 
@@ -366,6 +430,12 @@ module Na__ComponentEditorTools
 
             self.Na__ComponentEditorTools__PushStatus(message_text, status_variant)
             self.Na__ComponentEditorTools__PushRenderPreview(result_hash)
+
+            # Re-push payload with geometry so the geometry panel stays populated
+            # after an edit operation (keeps captured state alive).
+            if success_flag && @na_current_selection_key
+                self.Na__ComponentEditorTools__BuildAndPushPayload(include_geometry: true)
+            end
         end
 
         def self.Na__ComponentEditorTools__HandleReloadRequest

@@ -54,6 +54,22 @@
         return document.getElementById('na-settings-category-input');
     }
 
+    function na_folder_alias_list_el() {
+        return document.getElementById('na-settings-folder-alias-list');
+    }
+
+    function na_alias_folder_name_input_el() {
+        return document.getElementById('na-settings-alias-folder-name');
+    }
+
+    function na_alias_label_input_el() {
+        return document.getElementById('na-settings-alias-label');
+    }
+
+    function na_alias_order_input_el() {
+        return document.getElementById('na-settings-alias-order');
+    }
+
 // endregion -------------------------------------------------------------------
 
 
@@ -68,6 +84,8 @@
         if (path_input) {
             path_input.value = config.components_library_path || '';
         }
+
+        na_render_folder_aliases(config);
 
         na_render_exclusion_list(
             na_blocked_folder_list_el(),
@@ -134,6 +152,101 @@
 
 
 // -----------------------------------------------------------------------------
+// REGION | Folder Alias Rendering
+// -----------------------------------------------------------------------------
+
+    function na_render_folder_aliases(config) {
+        var list_el = na_folder_alias_list_el();
+        if (!list_el) return;
+
+        list_el.innerHTML = '';
+
+        var aliases = (config && config.folder_aliases && typeof config.folder_aliases === 'object')
+            ? config.folder_aliases
+            : {};
+
+        var folder_names = Object.keys(aliases);
+
+        if (!folder_names.length) {
+            var empty_msg = document.createElement('p');
+            empty_msg.className = 'naComponentEditor__MutedText';
+            empty_msg.textContent = 'No folder aliases configured yet. Add one below.';
+            list_el.appendChild(empty_msg);
+            return;
+        }
+
+        folder_names.sort(function (a, b) {
+            var oa = aliases[a].order || 0;
+            var ob = aliases[b].order || 0;
+            if (oa !== ob) return oa - ob;
+            return a.toLowerCase() < b.toLowerCase() ? -1 : 1;
+        });
+
+        folder_names.forEach(function (folder_name) {
+            list_el.appendChild(na_build_folder_alias_row(folder_name, aliases[folder_name]));
+        });
+    }
+
+    function na_build_folder_alias_row(folder_name, entry) {
+        var row = document.createElement('div');
+        row.className = 'naComponentEditor__FolderAliasRow';
+
+        var name_badge = document.createElement('span');
+        name_badge.className = 'naComponentEditor__FolderAliasRawName';
+        name_badge.textContent = folder_name;
+        name_badge.title = 'Raw folder name';
+
+        var label_input = document.createElement('input');
+        label_input.type = 'text';
+        label_input.className = 'naComponentEditor__Input naComponentEditor__FolderAliasRowInput--label';
+        label_input.value = entry.alias || '';
+        label_input.placeholder = 'Display label\u2026';
+
+        var order_input = document.createElement('input');
+        order_input.type = 'number';
+        order_input.className = 'naComponentEditor__Input naComponentEditor__FolderAliasInput--order';
+        order_input.value = (entry.order != null) ? String(entry.order) : '0';
+        order_input.min = '0';
+        order_input.placeholder = 'Order';
+
+        var save_btn = document.createElement('button');
+        save_btn.type = 'button';
+        save_btn.className = 'naComponentEditor__Button';
+        save_btn.textContent = 'Save';
+        save_btn.title = 'Save changes to this alias';
+        save_btn.addEventListener('click', function () {
+            if (typeof window.Na__ComponentEditorTools__SetFolderAlias === 'function') {
+                window.Na__ComponentEditorTools__SetFolderAlias(
+                    folder_name,
+                    label_input.value.trim(),
+                    parseInt(order_input.value, 10) || 0
+                );
+            }
+        });
+
+        var remove_btn = document.createElement('button');
+        remove_btn.type = 'button';
+        remove_btn.className = 'naComponentEditor__Button naComponentEditor__Button--danger';
+        remove_btn.textContent = '\u00d7';
+        remove_btn.title = 'Remove alias for ' + folder_name;
+        remove_btn.addEventListener('click', function () {
+            if (typeof window.Na__ComponentEditorTools__RemoveFolderAlias === 'function') {
+                window.Na__ComponentEditorTools__RemoveFolderAlias(folder_name);
+            }
+        });
+
+        row.appendChild(name_badge);
+        row.appendChild(label_input);
+        row.appendChild(order_input);
+        row.appendChild(save_btn);
+        row.appendChild(remove_btn);
+        return row;
+    }
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
 // REGION | Taxonomy Rendering
 // -----------------------------------------------------------------------------
 
@@ -143,30 +256,41 @@
 
         list_el.innerHTML = '';
 
-        var categories = (taxonomy && taxonomy.categories) || [];
+        var categories  = (taxonomy && taxonomy.categories)  || [];
+        var chip_colors = (taxonomy && taxonomy.chip_colors)  || {};
+
         if (!categories.length) {
             var empty = document.createElement('p');
             empty.className = 'naComponentEditor__MutedText';
-            empty.textContent = 'No categories yet. Click "Populate from Standards" or add one below.';
+            empty.textContent = 'No categories yet. Add a category below.';
             list_el.appendChild(empty);
             return;
         }
 
         categories.forEach(function (category) {
-            list_el.appendChild(na_build_category_block(category));
+            list_el.appendChild(na_build_category_block(category, chip_colors));
         });
     }
 
-    function na_build_category_block(category) {
+    function na_build_category_block(category, chip_colors) {
         var block = document.createElement('div');
         block.className = 'naComponentEditor__TaxonomyCategory';
 
         var header = document.createElement('div');
         header.className = 'naComponentEditor__TaxonomyCategoryHeader';
 
+        var name_wrap = document.createElement('span');
+        name_wrap.style.display    = 'flex';
+        name_wrap.style.alignItems = 'center';
+        name_wrap.style.gap        = '6px';
+
+        var color_swatch = na_build_color_swatch(category.name, chip_colors);
         var name_el = document.createElement('span');
         name_el.className = 'naComponentEditor__TaxonomyCategoryName';
         name_el.textContent = category.name;
+
+        name_wrap.appendChild(color_swatch);
+        name_wrap.appendChild(name_el);
 
         var remove_cat_btn = document.createElement('button');
         remove_cat_btn.type = 'button';
@@ -178,7 +302,7 @@
             }
         });
 
-        header.appendChild(name_el);
+        header.appendChild(name_wrap);
         header.appendChild(remove_cat_btn);
         block.appendChild(header);
 
@@ -186,7 +310,7 @@
         chips.className = 'naComponentEditor__TaxonomyTypeChips';
 
         (category.types || []).forEach(function (type_name) {
-            chips.appendChild(na_build_type_chip(category.name, type_name));
+            chips.appendChild(na_build_type_chip(category.name, type_name, chip_colors));
         });
 
         block.appendChild(chips);
@@ -194,9 +318,25 @@
         return block;
     }
 
-    function na_build_type_chip(category_name, type_name) {
+    function na_build_color_swatch(key, chip_colors) {
+        var swatch = document.createElement('input');
+        swatch.type = 'color';
+        swatch.className = 'naComponentEditor__TaxonomyColorSwatch';
+        swatch.title = 'Pick chip color for: ' + key;
+        swatch.value = (chip_colors && chip_colors[key]) ? chip_colors[key] : '#4a90d9';
+        swatch.addEventListener('change', function () {
+            if (typeof window.Na__ComponentEditorTools__SetChipColor === 'function') {
+                window.Na__ComponentEditorTools__SetChipColor(key, swatch.value);
+            }
+        });
+        return swatch;
+    }
+
+    function na_build_type_chip(category_name, type_name, chip_colors) {
         var chip = document.createElement('div');
         chip.className = 'naComponentEditor__BlockedChip';
+
+        var color_swatch = na_build_color_swatch(type_name, chip_colors);
 
         var label = document.createElement('span');
         label.className = 'naComponentEditor__BlockedChipLabel';
@@ -213,6 +353,7 @@
             }
         });
 
+        chip.appendChild(color_swatch);
         chip.appendChild(label);
         chip.appendChild(remove_btn);
         return chip;
@@ -317,15 +458,6 @@
             });
         }
 
-        var seed_taxonomy_btn = document.getElementById('na-settings-btn-seed-taxonomy');
-        if (seed_taxonomy_btn) {
-            seed_taxonomy_btn.addEventListener('click', function () {
-                if (typeof window.Na__ComponentEditorTools__SeedTaxonomy === 'function') {
-                    window.Na__ComponentEditorTools__SeedTaxonomy();
-                }
-            });
-        }
-
         var add_category_btn = document.getElementById('na-settings-btn-add-category');
         if (add_category_btn) {
             add_category_btn.addEventListener('click', na_add_category_from_input);
@@ -336,6 +468,11 @@
             category_input.addEventListener('keydown', function (evt) {
                 if (evt.key === 'Enter') na_add_category_from_input();
             });
+        }
+
+        var add_alias_btn = document.getElementById('na-settings-btn-add-folder-alias');
+        if (add_alias_btn) {
+            add_alias_btn.addEventListener('click', na_add_folder_alias_from_inputs);
         }
     }
 
@@ -376,6 +513,28 @@
             window.Na__ComponentEditorTools__AddBlockedFile(file_name);
         }
         input.value = '';
+    }
+
+    function na_add_folder_alias_from_inputs() {
+        var folder_input = na_alias_folder_name_input_el();
+        var label_input  = na_alias_label_input_el();
+        var order_input  = na_alias_order_input_el();
+
+        if (!folder_input) return;
+
+        var folder_name = folder_input.value.trim();
+        if (!folder_name) return;
+
+        var alias_label = label_input ? label_input.value.trim() : '';
+        var order_index = order_input ? (parseInt(order_input.value, 10) || 0) : 0;
+
+        if (typeof window.Na__ComponentEditorTools__SetFolderAlias === 'function') {
+            window.Na__ComponentEditorTools__SetFolderAlias(folder_name, alias_label, order_index);
+        }
+
+        folder_input.value = '';
+        if (label_input)  label_input.value  = '';
+        if (order_input)  order_input.value  = '';
     }
 
 // endregion -------------------------------------------------------------------

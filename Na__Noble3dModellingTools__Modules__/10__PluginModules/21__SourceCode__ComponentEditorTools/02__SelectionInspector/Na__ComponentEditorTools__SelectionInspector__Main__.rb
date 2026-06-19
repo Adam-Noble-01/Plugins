@@ -54,13 +54,14 @@ module Na__ComponentEditorTools
 # REGION | Payload Builder
 # -----------------------------------------------------------------------------
 
-        def self.Na__ComponentEditorTools__BuildPayload(status_message = 'Ready.', status_variant = 'info', active_tab_id = 'overview')
+        def self.Na__ComponentEditorTools__BuildPayload(status_message = 'Ready.', status_variant = 'info', active_tab_id = 'overview', include_geometry: false)
             model = Sketchup.active_model
             selected_instance = self.Na__ComponentEditorTools__SelectedInstance
 
             if !model || !selected_instance
                 return {
                     ok: false,
+                    captured: false,
                     message: 'Select one component instance or group to inspect and edit.',
                     selected_count: model ? model.selection.length : 0,
                     status: self.Na__ComponentEditorTools__StatusData(status_message, status_variant),
@@ -70,8 +71,9 @@ module Na__ComponentEditorTools
 
             selected_definition = selected_instance.definition
 
-            {
+            payload = {
                 ok: true,
+                captured: include_geometry,
                 message: 'Component loaded.',
                 selected_count: model.selection.length,
                 status: self.Na__ComponentEditorTools__StatusData(status_message, status_variant),
@@ -85,6 +87,12 @@ module Na__ComponentEditorTools
                 },
                 temp: self.Na__ComponentEditorTools__TempData(selected_definition, active_tab_id)
             }
+
+            if include_geometry && defined?(Na__GeometryAudit)
+                payload[:geometry] = Na__GeometryAudit.Na__ComponentEditorTools__BuildGeometryStats(selected_instance)
+            end
+
+            payload
         end
 
         def self.Na__ComponentEditorTools__StatusData(status_message, status_variant)

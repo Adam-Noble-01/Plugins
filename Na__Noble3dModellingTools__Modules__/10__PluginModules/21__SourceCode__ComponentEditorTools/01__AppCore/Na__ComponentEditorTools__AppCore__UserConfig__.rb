@@ -26,7 +26,8 @@ module Na__ComponentEditorTools
         NA_USER_CONFIG_DEFAULTS = {
             'components_library_path' => '',
             'blocked_folder_names'    => ['00__Archive'],
-            'blocked_file_names'      => []
+            'blocked_file_names'      => [],
+            'folder_aliases'          => {}
         }.freeze
 
 # endregion -------------------------------------------------------------------
@@ -83,6 +84,31 @@ module Na__ComponentEditorTools
             blocked = self.Na__ComponentEditorTools__BlockedFiles
             clean_name = file_name.to_s.strip
             self.Na__ComponentEditorTools__Set('blocked_file_names', blocked.reject { |name| name == clean_name })
+        end
+
+        def self.Na__ComponentEditorTools__FolderAliases
+            value = self.Na__ComponentEditorTools__Get('folder_aliases')
+            value.is_a?(Hash) ? value : {}
+        end
+
+        def self.Na__ComponentEditorTools__SetFolderAlias(folder_name, alias_label, order_index)
+            clean_name  = folder_name.to_s.strip
+            clean_label = alias_label.to_s.strip
+            return if clean_name.empty?
+
+            aliases = self.Na__ComponentEditorTools__FolderAliases
+            aliases[clean_name] = {
+                'alias' => clean_label,
+                'order' => order_index.to_i
+            }
+            self.Na__ComponentEditorTools__Set('folder_aliases', aliases)
+        end
+
+        def self.Na__ComponentEditorTools__RemoveFolderAlias(folder_name)
+            clean_name = folder_name.to_s.strip
+            aliases    = self.Na__ComponentEditorTools__FolderAliases
+            aliases.delete(clean_name)
+            self.Na__ComponentEditorTools__Set('folder_aliases', aliases)
         end
 
         def self.Na__ComponentEditorTools__GetAll

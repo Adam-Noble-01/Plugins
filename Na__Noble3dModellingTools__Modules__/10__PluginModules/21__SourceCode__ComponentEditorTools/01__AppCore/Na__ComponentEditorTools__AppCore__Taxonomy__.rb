@@ -13,7 +13,6 @@
 # CREATED    : 2026
 #
 # @delegate: ../07__UserData/Na__ComponentEditorTools__CategoryTaxonomy__.json
-# @delegate: ../../../../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json
 #
 # =============================================================================
 
@@ -132,70 +131,19 @@ module Na__ComponentEditorTools
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Seed From Standards (SSOT Tags)
+# REGION | Chip Colors
 # -----------------------------------------------------------------------------
 
-        # Rebuilds the taxonomy from the shared SSOT Tags file, merging the
-        # derived Building / Environment types with the baked bespoke
-        # categories. Falls back to the baked defaults if the SSOT is missing.
-        def self.Na__ComponentEditorTools__SeedFromStandards
-            seeded = self.Na__ComponentEditorTools__DeepDup(NA_TAXONOMY_DEFAULTS)
+        def self.Na__ComponentEditorTools__SetChipColor(key, color)
+            clean_key   = key.to_s.strip
+            clean_color = color.to_s.strip
+            return false if clean_key.empty? || clean_color.empty?
 
-            standards = self.Na__ComponentEditorTools__DeriveFromTagsSsot
-            if standards
-                self.Na__ComponentEditorTools__MergeDerivedTypes(seeded, 'Building',    standards[:building])
-                self.Na__ComponentEditorTools__MergeDerivedTypes(seeded, 'Environment', standards[:environment])
-            end
-
-            self.Na__ComponentEditorTools__SaveTaxonomy(seeded)
-            seeded
-        rescue => error
-            puts "[Na__ComponentEditorTools] SeedFromStandards warning: #{error.class}: #{error.message}"
-            fallback = self.Na__ComponentEditorTools__DeepDup(NA_TAXONOMY_DEFAULTS)
-            self.Na__ComponentEditorTools__SaveTaxonomy(fallback)
-            fallback
-        end
-
-        def self.Na__ComponentEditorTools__DeriveFromTagsSsot
-            tags_path = Na__PathResolver.Na__ComponentEditorTools__DataLibTagsFilePath
-            return nil unless File.exist?(tags_path)
-
-            parsed = JSON.parse(File.read(tags_path, encoding: 'UTF-8'))
-            index  = parsed['Na__DataLib__CoreIndex__Tags']
-            return nil unless index.is_a?(Hash)
-
-            building    = []
-            environment = []
-
-            index.each_value do |group|
-                next unless group.is_a?(Hash)
-
-                group.each do |tag_key, tag_value|
-                    next unless tag_value.is_a?(Hash)
-
-                    name = tag_value['Tag__SketchUpName'].to_s
-                    name = tag_key.to_s if name.empty?
-
-                    building_match = name.match(/\A\d+__(?:Existing|Proposed)Building__(\w+)/)
-                    if building_match
-                        building << self.Na__ComponentEditorTools__Humanise(building_match[1])
-                        next
-                    end
-
-                    environment_match = name.match(/\A\d+(?:_\d+)?__(?:Site__|Landscape|Vegetation|SceneContextual)/i)
-                    if environment_match || name =~ /(Landscape|Vegetation|Site__|SceneContextual)/i
-                        environment << self.Na__ComponentEditorTools__EnvironmentLabel(name)
-                    end
-                end
-            end
-
-            {
-                building:    building.uniq.reject(&:empty?),
-                environment: environment.uniq.reject(&:empty?)
-            }
-        rescue => error
-            puts "[Na__ComponentEditorTools] DeriveFromTagsSsot warning: #{error.class}: #{error.message}"
-            nil
+            taxonomy = self.Na__ComponentEditorTools__LoadTaxonomy
+            taxonomy['chip_colors'] ||= {}
+            taxonomy['chip_colors'][clean_key] = clean_color
+            self.Na__ComponentEditorTools__SaveTaxonomy(taxonomy)
+            true
         end
 
 # endregion -------------------------------------------------------------------
@@ -208,41 +156,6 @@ module Na__ComponentEditorTools
             taxonomy ||= self.Na__ComponentEditorTools__LoadTaxonomy
             clean = category_name.to_s.strip
             (taxonomy['categories'] || []).find { |category| category['name'].to_s == clean }
-        end
-
-        def self.Na__ComponentEditorTools__MergeDerivedTypes(taxonomy, category_name, derived_types)
-            return if derived_types.nil? || derived_types.empty?
-
-            category = self.Na__ComponentEditorTools__FindCategory(category_name, taxonomy)
-            unless category
-                category = { 'name' => category_name, 'types' => [] }
-                taxonomy['categories'] << category
-            end
-
-            category['types'] ||= []
-            derived_types.each do |type_name|
-                clean = type_name.to_s.strip
-                next if clean.empty?
-                next if category['types'].any? { |existing| existing.to_s.casecmp(clean) == 0 }
-
-                category['types'] << clean
-            end
-        end
-
-        def self.Na__ComponentEditorTools__Humanise(raw_segment)
-            text = raw_segment.to_s.gsub(/([a-z])([A-Z])/, '\1 \2').gsub('_', ' ').strip
-            # Singularise the common building plurals (Walls -> Wall, etc.)
-            text = text.sub(/s\z/, '') if text =~ /(Walls|Floors|Roofs|Windows|Doors|Fixtures)\z/
-            text
-        end
-
-        def self.Na__ComponentEditorTools__EnvironmentLabel(tag_name)
-            return 'Site Vegetation 2D' if tag_name =~ /Vegetation__2D/i
-            return 'Site Boundary'      if tag_name =~ /Site__Boundaries/i
-            return 'Landscape'          if tag_name =~ /Landscape/i
-            return 'Vegetation'         if tag_name =~ /Vegetation/i
-            return 'Scene Context'      if tag_name =~ /SceneContextual/i
-            ''
         end
 
         def self.Na__ComponentEditorTools__DeepDup(taxonomy_hash)

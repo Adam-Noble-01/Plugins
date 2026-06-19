@@ -7,5 +7,19 @@
   ],
   "blocked_file_names": [
 
-  ]
+  ],
+  "folder_aliases": {
+    "Na__CoreLib__3dAssets": {
+      "alias": "Noble Architecture",
+      "order": 2
+    },
+    "Va__CoreLib__3dAssets": {
+      "alias": "Vale Garden Houses",
+      "order": 1
+    },
+    "Ut__Notes__3dTextNotes__Standards": {
+      "alias": "Text & Notes",
+      "order": 3
+    }
+  }
 }

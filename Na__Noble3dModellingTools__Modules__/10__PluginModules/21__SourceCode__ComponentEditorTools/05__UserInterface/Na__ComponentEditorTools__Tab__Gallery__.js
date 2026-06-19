@@ -17,9 +17,10 @@
 // -----------------------------------------------------------------------------
 
     var Na__ComponentEditorTools__GalleryTab = {};
-    var na_events_bound = false;
-    var na_all_entries  = [];
-    var na_taxonomy     = { categories: [] };
+    var na_events_bound  = false;
+    var na_all_entries   = [];
+    var na_taxonomy      = { categories: [] };
+    var na_render_token  = '0';
 
 // endregion -------------------------------------------------------------------
 
@@ -72,9 +73,9 @@
         document.body.removeChild(ta);
     }
 
-    function na_show_copy_toast() {
+    function na_show_copy_toast(message) {
         if (typeof window.Na__ComponentEditorTools__ReceiveStatus === 'function') {
-            window.Na__ComponentEditorTools__ReceiveStatus({ message: 'File path copied to clipboard', variant: 'success' });
+            window.Na__ComponentEditorTools__ReceiveStatus({ message: message || 'File path copied to clipboard', variant: 'success' });
             setTimeout(function () {
                 window.Na__ComponentEditorTools__ReceiveStatus({ message: '', variant: 'info' });
             }, 3000);
@@ -100,43 +101,84 @@
         return na_context_menu_el;
     }
 
+    function na_build_context_menu_item(label, title, on_click) {
+        var item = document.createElement('div');
+        item.className = 'naComponentEditor__ContextMenuItem';
+        item.textContent = label;
+        if (title) item.title = title;
+        item.addEventListener('click', function (e) {
+            e.stopPropagation();
+            on_click();
+            na_hide_context_menu();
+        });
+        return item;
+    }
+
     function na_show_context_menu(event, entry) {
         var menu = na_get_context_menu();
         menu.innerHTML = '';
 
-        var copy_item = document.createElement('div');
-        copy_item.className = 'naComponentEditor__ContextMenuItem';
-        copy_item.textContent = 'Copy File Path';
-        copy_item.addEventListener('click', function (e) {
-            e.stopPropagation();
-            if (!entry.path) return;
-            na_copy_text_via_dom(entry.path.replace(/\//g, '\\'));
-            if (typeof window.Na__ComponentEditorTools__CopyComponentPath === 'function') {
-                window.Na__ComponentEditorTools__CopyComponentPath(entry.path);
+        menu.appendChild(na_build_context_menu_item(
+            'Insert At Axis',
+            'Place component origin at the current model axes origin',
+            function () {
+                if (entry.path && typeof window.Na__ComponentEditorTools__InsertAtAxis === 'function') {
+                    window.Na__ComponentEditorTools__InsertAtAxis(entry.path);
+                }
             }
-            na_show_copy_toast();
-            na_hide_context_menu();
-        });
+        ));
 
-        var insert_axis_item = document.createElement('div');
-        insert_axis_item.className = 'naComponentEditor__ContextMenuItem';
-        insert_axis_item.textContent = 'Insert At Axis';
-        insert_axis_item.title = 'Place component origin at the current model axes origin';
-        insert_axis_item.addEventListener('click', function (e) {
-            e.stopPropagation();
-            if (entry.path && typeof window.Na__ComponentEditorTools__InsertAtAxis === 'function') {
-                window.Na__ComponentEditorTools__InsertAtAxis(entry.path);
+        menu.appendChild(na_build_context_menu_item(
+            'Insert At Cursor',
+            'Load component and place it interactively with the cursor (same as clicking the card)',
+            function () {
+                if (entry.path && typeof window.Na__ComponentEditorTools__InsertLibraryComponent === 'function') {
+                    window.Na__ComponentEditorTools__InsertLibraryComponent(entry.path);
+                }
             }
-            na_hide_context_menu();
-        });
+        ));
 
-        menu.appendChild(copy_item);
-        menu.appendChild(insert_axis_item);
+        menu.appendChild(na_build_context_menu_item(
+            'Copy File Path',
+            'Copy the full file path to clipboard',
+            function () {
+                if (!entry.path) return;
+                na_copy_text_via_dom(entry.path.replace(/\//g, '\\'));
+                if (typeof window.Na__ComponentEditorTools__CopyComponentPath === 'function') {
+                    window.Na__ComponentEditorTools__CopyComponentPath(entry.path);
+                }
+                na_show_copy_toast('File path copied to clipboard');
+            }
+        ));
+
+        menu.appendChild(na_build_context_menu_item(
+            'Copy Directory Path',
+            'Copy the containing folder path to clipboard',
+            function () {
+                if (!entry.path) return;
+                var dir_path = na_extract_dir_from_path(entry.path);
+                na_copy_text_via_dom(dir_path.replace(/\//g, '\\'));
+                if (typeof window.Na__ComponentEditorTools__CopyDirectoryPath === 'function') {
+                    window.Na__ComponentEditorTools__CopyDirectoryPath(dir_path);
+                }
+                na_show_copy_toast('Directory path copied to clipboard');
+            }
+        ));
+
+        menu.appendChild(na_build_context_menu_item(
+            'Open File',
+            'Open the component file in a new SketchUp instance',
+            function () {
+                if (entry.path && typeof window.Na__ComponentEditorTools__OpenComponentFile === 'function') {
+                    window.Na__ComponentEditorTools__OpenComponentFile(entry.path);
+                }
+            }
+        ));
 
         var vw = document.documentElement.clientWidth;
         var vh = document.documentElement.clientHeight;
-        var menu_w = 190;
-        var menu_h = 80;
+        var menu_w = 210;
+        var menu_h = 210;
         var left = Math.min(event.clientX, vw - menu_w - 4);
         var top  = Math.min(event.clientY, vh - menu_h - 4);
 
@@ -160,7 +202,8 @@
     function na_render_gallery(gallery_payload) {
         if (!gallery_payload) return;
 
-        na_all_entries = gallery_payload.entries || [];
+        na_render_token = String(Date.now());
+        na_all_entries  = gallery_payload.entries || [];
 
         var folders = gallery_payload.folders || [];
         na_populate_folder_filter(folders);
@@ -233,22 +276,72 @@
         filter_el.value = (types.indexOf(current_val) !== -1) ? current_val : '';
     }
 
+    function na_first_level_folder(relative_dir) {
+        if (!relative_dir || relative_dir === '(root)') return relative_dir || '';
+        return relative_dir.split('/')[0];
+    }
+
+    function na_folder_matches(entry_dir, filter_value) {
+        if (!filter_value) return true;
+        if (!entry_dir) return false;
+        return entry_dir === filter_value || entry_dir.indexOf(filter_value + '/') === 0;
+    }
+
+    function na_folder_display_label(raw_name, aliases) {
+        var entry = aliases && aliases[raw_name];
+        return (entry && entry['alias']) ? entry['alias'] : raw_name;
+    }
+
+    function na_folder_sort_order(raw_name, aliases) {
+        var entry = aliases && aliases[raw_name];
+        return (entry && entry['order'] != null) ? entry['order'] : 9999;
+    }
+
     function na_populate_folder_filter(folders) {
         var filter_el = na_folder_filter();
         if (!filter_el) return;
 
         var current_val = filter_el.value;
-        filter_el.innerHTML = '<option value="">All Folders</option>';
+        var seen = {};
+        var top_level = [];
 
         folders.forEach(function (folder_name) {
+            var first = na_first_level_folder(folder_name);
+            if (!seen[first]) { seen[first] = true; top_level.push(first); }
+        });
+
+        var aliases = (typeof window.Na__ComponentEditorTools__CurrentFolderAliases === 'function')
+            ? window.Na__ComponentEditorTools__CurrentFolderAliases()
+            : {};
+
+        top_level.sort(function (a, b) {
+            var oa = na_folder_sort_order(a, aliases);
+            var ob = na_folder_sort_order(b, aliases);
+            if (oa !== ob) return oa - ob;
+            return na_folder_display_label(a, aliases).toLowerCase() < na_folder_display_label(b, aliases).toLowerCase() ? -1 : 1;
+        });
+
+        filter_el.innerHTML = '<option value="">All Folders</option>';
+        top_level.forEach(function (raw_name) {
             var opt = document.createElement('option');
-            opt.value = folder_name;
-            opt.textContent = folder_name;
+            opt.value = raw_name;
+            opt.textContent = na_folder_display_label(raw_name, aliases);
             filter_el.appendChild(opt);
         });
 
-        filter_el.value = current_val;
+        filter_el.value = (seen[current_val]) ? current_val : '';
     }
+
+    Na__ComponentEditorTools__GalleryTab.Na__ComponentEditorTools__RefreshFolderFilter = function () {
+        if (!na_all_entries || !na_all_entries.length) return;
+        var folders = [];
+        var seen = {};
+        na_all_entries.forEach(function (entry) {
+            var dir = entry.relative_dir || '';
+            if (!seen[dir]) { seen[dir] = true; folders.push(dir); }
+        });
+        na_populate_folder_filter(folders);
+    };
 
     function na_apply_filters() {
         var search_term    = ((na_search_input() && na_search_input().value) || '').toLowerCase().trim();
@@ -264,7 +357,7 @@
                 (entry.file_name    || '').toLowerCase().indexOf(search_term) !== -1 ||
                 (entry.description  || '').toLowerCase().indexOf(search_term) !== -1;
 
-            var folder_match   = !folder_value   || (entry.relative_dir || '') === folder_value;
+            var folder_match   = na_folder_matches(entry.relative_dir || '', folder_value);
             var category_match = !category_value || (entry.category || '') === category_value;
             var type_match     = !type_value     || (entry.type || '') === type_value;
 
@@ -306,7 +399,7 @@
         img.alt = entry.def_name || '';
 
         if (entry.thumbnail_uri) {
-            img.src = entry.thumbnail_uri;
+            img.src = entry.thumbnail_uri + '?v=' + na_render_token;
             img.onerror = function () {
                 img.style.display = 'none';
                 thumb_wrap.classList.add('naComponentEditor__GalleryThumbWrap--noImage');

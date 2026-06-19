@@ -26,6 +26,101 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 
 
 # Na Noble3d Modelling Tools — Component Editor Tools
+## Version 0.6.0 - 19-Jun-2026 - Component Geometry Audit Panel & Monitor Selection Toggle
+
+### Overview
+Added a full recursive **Component Geometry** audit panel to the Overview tab, a one-shot **Monitor Selection** toggle that gates the expensive geometry traversal, and per-panel capture overlays across the three selection-dependent auditing tabs. A new **Copy Stats** feature serialises all geometry stats to columnised plain text for quick reference.
+
+### Update 01 - Geometry Auditor (`Na__ComponentEditorTools__SelectionInspector__GeometryAudit__.rb`)
+- New module `Na__ComponentEditorTools::Na__GeometryAudit` in `02__SelectionInspector/`.
+- `Na__ComponentEditorTools__BuildGeometryStats(instance)` performs a single-pass `case/when is_a?` recursive traversal of the entire component/group hierarchy (`definition.entities`, descending into nested `Group` and `ComponentInstance`).
+- Collected stats: `faces`, `edges`, `triangles` (`face.mesh.count_polygons` flag 0), `quads` (4-vertex outer loop), `soft_edges`, `smooth_edges`, `hidden_edges`, `non_manifold_edges`, `nested_groups`, `nested_components`, `unique_definitions`, `construction_lines`, `construction_points`, `texts`, `dimensions`, `images`, `section_planes`, `attribute_dicts`, `attribute_keys`, `total_face_area`, `is_solid` (`definition.manifold?`).
+- Material lists (`face_materials`, `edge_materials`): unique entries deduped by display name, each carrying `{name, textured, texture_file}` from `Material#materialType` / `Material#texture`.
+- `tags`: unique `entity.layer.display_name` values collected at every level.
+- All entity classifiers wrapped in individual `rescue` so a corrupt entity never crashes the panel. Full entry-point also rescue-wrapped.
+- `AppCore__Main__.rb` — `require_relative` for the new file inserted before `SelectionInspector__Main__`.
+
+### Update 02 - SelectionInspector Payload: `include_geometry` / `captured`
+- `Na__ComponentEditorTools__BuildPayload` gains optional keyword arg `include_geometry: false`.
+- When `true` and `Na__GeometryAudit` is defined, `geometry:` key is added to the payload by calling `Na__GeometryAudit.Na__ComponentEditorTools__BuildGeometryStats`.
+- Payload always includes `captured: bool` (mirrors `include_geometry`). The JS uses this to toggle the `naComponentEditor--awaitingCapture` body class driving capture overlays.
+
+### Update 03 - DialogManager: Monitor Selection State & Gated Observer
+- Added `@na_monitoring_enabled = false` module-level state.
+- `Na__ComponentEditorTools__HandleSelectionChanged` now returns immediately unless monitoring is armed. When armed and a new valid instance is detected: builds full payload with `include_geometry: true`, pushes it, sets `@na_monitoring_enabled = false` (auto-disarm), updates selection key, pushes monitoring state to JS. Wrapped in `rescue` for observer robustness.
+- `Na__ComponentEditorTools__BuildAndPushPayload(include_geometry: false)` — default open/request stays geometry-free; edit result re-pushes pass `include_geometry: true` (via `HandleActionResult`) to keep the geometry panel alive after edits.
+- `Na__ComponentEditorTools__SetMonitoring(enabled)` + `Na__ComponentEditorTools__PushMonitoringState` — toggles state, pushes "Click a component in the model…" status when arming, calls JS `Na__ComponentEditorTools__ReceiveMonitoringState({enabled})`.
+- New callback `na_componenteditortools_set_monitoring` registered in `BindCallbacks`.
+- `ShowDialog` now calls `PushMonitoringState` to initialise the button on load.
+
+### Update 04 - HTML: Monitor Toggle, Moved Update Component, Geometry Panel, Capture Overlays
+- **Header:** "Update Component" replaced with `#na-component-btn-monitor-selection` (`naComponentEditor__MonitorBtn naComponentEditor__MonitorBtn--off`).
+- **Overview Editable Fields:** "Update Component" button added alongside "Apply Edits" (functionality unchanged via same `na_componenteditortools_update_component` callback).
+- **Overview tab:** New **Component Geometry** panel placed at the top (before Editable Fields), containing: a flex header row with title/subheading and a **Copy Stats** button (`#na-component-btn-copy-stats`), two 2-column grids (Polygon Stats / Edge Stats; Nested Entities / Misc & Topology), Face Materials list, Edge Materials list, Tags Used list.
+- **Capture overlays:** Semi-transparent sticky overlay with "Enable Monitor Selection" CTA button added inside Overview, Attributes, and Thumbnail tab panels — shown/hidden by CSS body-class gating.
+- New `<script src="Na__ComponentEditorTools__GeometryClipboard__.js">` added before the Overview tab script.
+
+### Update 05 - UiBridge JS: Monitoring Integration
+- `Na__ComponentEditorTools__State` gains `monitoringEnabled` field.
+- `Na__ComponentEditorTools__SetMonitoring(enabled)` — outgoing call to `na_componenteditortools_set_monitoring`.
+- `Na__ComponentEditorTools__ReceiveMonitoringState({enabled})` — updates button label + `--on`/`--off` classes.
+- `Na__ComponentEditorTools__ReceivePayload` — toggles `naComponentEditor--awaitingCapture` body class based on `payload.captured !== true`.
+- DOMContentLoaded: binds monitor toggle button click (toggle state → `SetMonitoring`); delegates all `naComponentEditor__CaptureOverlayBtn` clicks to `SetMonitoring(true)`.
+- Both new functions exported on `window`.
+
+### Update 06 - Overview Tab JS: Geometry Panel Renderer
+- New private helpers in `Tab__Overview__.js`: `na_geom_stat_row`, `na_material_chip`, `na_tag_chip`, `na_render_material_list`, `na_render_tag_list`.
+- New `na_render_geometry_panel(geometry)` function populates all six geometry sub-containers (counts, edges, nested, misc, face materials, edge materials, tags). Clears gracefully to prompt text when `geometry` is `null`.
+- `Na__ComponentEditorTools__Render` calls `na_render_geometry_panel(payload.geometry || null)` at end of both the ok and not-ok branches.
+
+### Update 07 - Geometry Clipboard (`Na__ComponentEditorTools__GeometryClipboard__.js`)
+- New standalone module for plain-text clipboard serialisation.
+- `na_build_plain_text(geometry, component_name)` formats all stats into `### Section\nKey                  =  Value` blocks, with a 20-character padded key column — matching the plain-text spec in the brief (see example below).
+- Each section: Polygon Stats, Edge Stats, Nested Entities, Misc & Topology, Face Materials, Edge Materials, Tags Used.
+- `Na__ComponentEditorTools__CopyGeometryStats()` reads `window.Na__ComponentEditorTools__CurrentPayload()`, builds the plain text, writes via `navigator.clipboard.writeText` with `document.execCommand('copy')` fallback for SketchUp's older WebView.
+- Button briefly shows green `✓ Copied!` or red `✗ Failed` then resets to original label.
+- DOMContentLoaded binds `#na-component-btn-copy-stats` → `CopyGeometryStats`.
+
+**Example clipboard output:**
+```
+Component: _Kreslas+Domo+prekyba
+---------------------------------
+
+### Polygon Stats
+Faces                =  312
+Triangles            =  628
+Quads                =  0
+Total Face Area      =  45231.2mm²
+Solid?               =  No
+
+### Edge Stats
+Edges                =  29436
+Soft                 =  28162
+Smooth               =  28162
+Hidden               =  0
+Non-manifold         =  0
+```
+
+### Update 08 - CSS Additions
+- **Monitor button:** `naComponentEditor__MonitorBtn--off` (muted grey) / `--on` (green accent with pulsing `box-shadow` keyframe animation).
+- **Capture overlay:** `naComponentEditor__CaptureOverlay` — sticky dark frosted-glass banner (`backdrop-filter: blur(4px)`); shown only when `body.naComponentEditor--awaitingCapture` is set AND the relevant tab panel carries `--active`. Message text with highlighted keyword.
+- **Geometry panel header:** `naComponentEditor__GeomPanelHeader` flex row (heading/subheading left, Copy Stats button right).
+- **Copy button states:** `naComponentEditor__GeomCopyBtn--success` (green) / `--fail` (red) transient feedback.
+- **Geometry chips:** `naComponentEditor__GeomSubheading`, `naComponentEditor__MetaValue--stat` (tabular-nums), `naComponentEditor__GeomChip`, `naComponentEditor__GeomTagChip`, `naComponentEditor__GeomList`, `naComponentEditor__GeomTagList`.
+
+### Validation Checklist
+- [ ] Dialog opens with Monitor Selection: Off and all three auditing tabs show capture overlays.
+- [ ] Clicking the header toggle arms monitoring (button turns green with pulse); status bar says "Click a component…".
+- [ ] Selecting a component fires geometry audit, populates all geometry sub-panels, hides overlays, auto-disarms toggle.
+- [ ] Clicking any overlay's "Enable Monitor Selection" button also arms monitoring.
+- [ ] After a monitored capture, Apply Edits / Update Component re-pushes payload with geometry (panel stays populated).
+- [ ] Copy Stats copies correctly columnified plain text; button flashes green "✓ Copied!".
+- [ ] Geometry panel is first visible section in Overview tab.
+- [ ] Monitor Selection: Off renders in muted grey; On renders in green with animation.
+
+---
+
+# Na Noble3d Modelling Tools — Component Editor Tools
 ## Version 0.5.4 - 17-Jun-2026 - Copy Path & Folder Edit Bug Fix
 
 ### Update 01 - Copy File Path: Index Tab Actions Button
@@ -276,9 +371,16 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 | `...__UiBridge__.rb` | Ruby ↔ JS JSON execute helpers, callback registration |
 | `...__UserConfig__.rb` | Persistent library path and exclusion lists |
 | `...__Taxonomy__.rb` | Category → Type hierarchy load/save/CRUD/SSOT seed |
-| `...__DialogManager__.rb` | HtmlDialog lifecycle, all JS callbacks, library cache push |
+| `...__DialogManager__.rb` | HtmlDialog lifecycle, all JS callbacks, monitoring toggle, library cache push |
 | `...__PluginReloader__.rb` | Hot reload all module `*.rb` files |
-| `...__SelectionObserver__.rb` | Selection-changed → payload push |
+| `...__SelectionObserver__.rb` | Selection-changed → payload push (gated by monitoring state) |
+
+#### Selection Inspector (`02__SelectionInspector/`)
+
+| File | Responsibility |
+|------|---------------|
+| `...__Main__.rb` | Selection queries, payload builder (`include_geometry` / `captured`) |
+| `...__GeometryAudit__.rb` | Recursive geometry stats traversal — faces, edges, materials, tags, solid |
 
 #### Library Manager (`08__LibraryManager/`)
 
@@ -295,10 +397,11 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 | File | Responsibility |
 |------|---------------|
 | `...__UiLayout__.html` | Tab shell: Overview, Attributes, Thumbnail, Settings \| Gallery, Index |
-| `...__Styles__.css` | Full dialog styling including index table, gallery grid, taxonomy manager |
-| `...__UiBridge__.js` | Global state, incoming handlers, outgoing SketchUp callbacks |
+| `...__Styles__.css` | Full dialog styling including index table, gallery grid, taxonomy manager, geometry panel |
+| `...__UiBridge__.js` | Global state, incoming handlers, outgoing SketchUp callbacks, monitoring toggle |
 | `...__TabRouter__.js` | Tab activation and Gallery/Index on-activate data fetch |
-| `...__Tab__Overview__.js` | Selection-based instance/definition field editor |
+| `...__Tab__Overview__.js` | Selection-based instance/definition field editor + geometry panel renderer |
+| `...__GeometryClipboard__.js` | Plain-text clipboard serialiser for geometry stats |
 | `...__Tab__Attributes__.js` | Attribute dictionary read/write UI |
 | `...__Tab__Thumbnail__.js` | Viewport render and thumbnail export |
 | `...__Tab__Settings__.js` | Library path, exclusions, taxonomy CRUD, plugin reload |

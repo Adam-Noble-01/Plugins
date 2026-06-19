@@ -17,12 +17,13 @@
 // -----------------------------------------------------------------------------
 
     var Na__ComponentEditorTools__State = {
-        payload:     null,
-        activeTab:   'overview',
-        userConfig:  null,
-        galleryData: null,
-        indexData:   null,
-        taxonomy:    null
+        payload:            null,
+        activeTab:          'overview',
+        userConfig:         null,
+        galleryData:        null,
+        indexData:          null,
+        taxonomy:           null,
+        monitoringEnabled:  false
     };
 
 // endregion -------------------------------------------------------------------
@@ -132,6 +133,10 @@
             Na__ComponentEditorTools__ReceiveStatus(payload.status);
         }
 
+        // Drive the capture overlay: show when not yet captured
+        var is_awaiting = payload.captured !== true;
+        document.body.classList.toggle('naComponentEditor--awaitingCapture', is_awaiting);
+
         na_render_tabs(payload);
 
         var active_tab = (payload.ui && payload.ui.active_tab) || Na__ComponentEditorTools__State.activeTab || 'overview';
@@ -164,6 +169,16 @@
         if (window.Na__ComponentEditorTools__SettingsTab &&
             typeof window.Na__ComponentEditorTools__SettingsTab.Na__ComponentEditorTools__RenderConfig === 'function') {
             window.Na__ComponentEditorTools__SettingsTab.Na__ComponentEditorTools__RenderConfig(config_payload);
+        }
+
+        if (window.Na__ComponentEditorTools__GalleryTab &&
+            typeof window.Na__ComponentEditorTools__GalleryTab.Na__ComponentEditorTools__RefreshFolderFilter === 'function') {
+            window.Na__ComponentEditorTools__GalleryTab.Na__ComponentEditorTools__RefreshFolderFilter();
+        }
+
+        if (window.Na__ComponentEditorTools__IndexTab &&
+            typeof window.Na__ComponentEditorTools__IndexTab.Na__ComponentEditorTools__RefreshFolderFilter === 'function') {
+            window.Na__ComponentEditorTools__IndexTab.Na__ComponentEditorTools__RefreshFolderFilter();
         }
     }
 
@@ -220,6 +235,19 @@
         }
     }
 
+    function Na__ComponentEditorTools__ReceiveMonitoringState(monitoring_payload) {
+        if (!monitoring_payload || typeof monitoring_payload !== 'object') return;
+
+        var enabled = !!monitoring_payload.enabled;
+        Na__ComponentEditorTools__State.monitoringEnabled = enabled;
+
+        var monitor_btn = document.getElementById('na-component-btn-monitor-selection');
+        if (monitor_btn) {
+            monitor_btn.classList.toggle('naComponentEditor__MonitorBtn--on',  enabled);
+            monitor_btn.classList.toggle('naComponentEditor__MonitorBtn--off', !enabled);
+            monitor_btn.textContent = enabled ? 'Monitor Selection: On' : 'Monitor Selection: Off';
+        }
+    }
 
 // endregion -------------------------------------------------------------------
 
@@ -227,6 +255,10 @@
 // -----------------------------------------------------------------------------
 // REGION | Outgoing Ruby Calls
 // -----------------------------------------------------------------------------
+
+    function Na__ComponentEditorTools__SetMonitoring(enabled_flag) {
+        na_call_ruby('na_componenteditortools_set_monitoring', { enabled: !!enabled_flag });
+    }
 
     function Na__ComponentEditorTools__NotifyActiveTab(active_tab_id) {
         Na__ComponentEditorTools__State.activeTab = String(active_tab_id || 'overview');
@@ -325,6 +357,22 @@
         na_call_ruby('na_componenteditortools_copy_component_path', { path: component_path || '' });
     }
 
+    function Na__ComponentEditorTools__CopyDirectoryPath(dir_path) {
+        na_call_ruby('na_componenteditortools_copy_directory_path', { path: dir_path || '' });
+    }
+
+    function Na__ComponentEditorTools__SetFolderAlias(folder_name, alias_label, order_index) {
+        na_call_ruby('na_componenteditortools_set_folder_alias', {
+            folder_name:  folder_name  || '',
+            alias_label:  alias_label  || '',
+            order_index:  order_index  || 0
+        });
+    }
+
+    function Na__ComponentEditorTools__RemoveFolderAlias(folder_name) {
+        na_call_ruby('na_componenteditortools_remove_folder_alias', { folder_name: folder_name || '' });
+    }
+
     function Na__ComponentEditorTools__RenameLibraryComponent(payload) {
         na_call_ruby('na_componenteditortools_rename_library_component', payload || {});
     }
@@ -361,9 +409,8 @@
         na_call_ruby('na_componenteditortools_remove_type', { category: category_name || '', type: type_name || '' });
     }
 
-    function Na__ComponentEditorTools__SeedTaxonomy() {
-        na_set_status('Populating categories from standards...', 'info');
-        na_call_ruby('na_componenteditortools_seed_taxonomy');
+    function Na__ComponentEditorTools__SetChipColor(key, hex_color) {
+        na_call_ruby('na_componenteditortools_set_chip_color', { key: key || '', color: hex_color || '' });
     }
 
 // endregion -------------------------------------------------------------------
@@ -393,6 +440,13 @@
         return Na__ComponentEditorTools__State.taxonomy;
     }
 
+    function Na__ComponentEditorTools__CurrentFolderAliases() {
+        var config = Na__ComponentEditorTools__State.userConfig;
+        return (config && config.folder_aliases && typeof config.folder_aliases === 'object')
+            ? config.folder_aliases
+            : {};
+    }
+
 // endregion -------------------------------------------------------------------
 
 
@@ -402,6 +456,8 @@
 
     window.Na__ComponentEditorTools__ReceiveStatus           = Na__ComponentEditorTools__ReceiveStatus;
     window.Na__ComponentEditorTools__ReceivePayload          = Na__ComponentEditorTools__ReceivePayload;
+    window.Na__ComponentEditorTools__ReceiveMonitoringState  = Na__ComponentEditorTools__ReceiveMonitoringState;
+    window.Na__ComponentEditorTools__SetMonitoring           = Na__ComponentEditorTools__SetMonitoring;
     window.Na__ComponentEditorTools__ReceiveUserConfig       = Na__ComponentEditorTools__ReceiveUserConfig;
     window.Na__ComponentEditorTools__ReceiveGallery          = Na__ComponentEditorTools__ReceiveGallery;
     window.Na__ComponentEditorTools__ReceiveIndex            = Na__ComponentEditorTools__ReceiveIndex;
@@ -431,6 +487,9 @@
     window.Na__ComponentEditorTools__InsertAtAxis             = Na__ComponentEditorTools__InsertAtAxis;
     window.Na__ComponentEditorTools__OpenComponentFile        = Na__ComponentEditorTools__OpenComponentFile;
     window.Na__ComponentEditorTools__CopyComponentPath        = Na__ComponentEditorTools__CopyComponentPath;
+    window.Na__ComponentEditorTools__CopyDirectoryPath        = Na__ComponentEditorTools__CopyDirectoryPath;
+    window.Na__ComponentEditorTools__SetFolderAlias            = Na__ComponentEditorTools__SetFolderAlias;
+    window.Na__ComponentEditorTools__RemoveFolderAlias         = Na__ComponentEditorTools__RemoveFolderAlias;
     window.Na__ComponentEditorTools__RenameLibraryComponent  = Na__ComponentEditorTools__RenameLibraryComponent;
     window.Na__ComponentEditorTools__UpdateLibraryMetadata   = Na__ComponentEditorTools__UpdateLibraryMetadata;
     window.Na__ComponentEditorTools__UpdateLibraryData       = Na__ComponentEditorTools__UpdateLibraryData;
@@ -440,12 +499,13 @@
     window.Na__ComponentEditorTools__RemoveCategory          = Na__ComponentEditorTools__RemoveCategory;
     window.Na__ComponentEditorTools__AddType                 = Na__ComponentEditorTools__AddType;
     window.Na__ComponentEditorTools__RemoveType              = Na__ComponentEditorTools__RemoveType;
-    window.Na__ComponentEditorTools__SeedTaxonomy            = Na__ComponentEditorTools__SeedTaxonomy;
+    window.Na__ComponentEditorTools__SetChipColor            = Na__ComponentEditorTools__SetChipColor;
     window.Na__ComponentEditorTools__CurrentPayload          = Na__ComponentEditorTools__CurrentPayload;
     window.Na__ComponentEditorTools__CurrentGalleryData      = Na__ComponentEditorTools__CurrentGalleryData;
     window.Na__ComponentEditorTools__CurrentIndexData        = Na__ComponentEditorTools__CurrentIndexData;
     window.Na__ComponentEditorTools__CurrentUserConfig       = Na__ComponentEditorTools__CurrentUserConfig;
     window.Na__ComponentEditorTools__CurrentTaxonomy         = Na__ComponentEditorTools__CurrentTaxonomy;
+    window.Na__ComponentEditorTools__CurrentFolderAliases    = Na__ComponentEditorTools__CurrentFolderAliases;
 
 // endregion -------------------------------------------------------------------
 
@@ -476,6 +536,23 @@
                 }
             });
         }
+
+        // Monitor Selection toggle button
+        var monitor_btn = document.getElementById('na-component-btn-monitor-selection');
+        if (monitor_btn) {
+            monitor_btn.addEventListener('click', function () {
+                var now_enabled = !Na__ComponentEditorTools__State.monitoringEnabled;
+                Na__ComponentEditorTools__SetMonitoring(now_enabled);
+            });
+        }
+
+        // Capture overlay buttons — delegate on document since overlays may be
+        // inside any auditing tab panel.
+        document.addEventListener('click', function (event) {
+            if (event.target && event.target.classList.contains('naComponentEditor__CaptureOverlayBtn')) {
+                Na__ComponentEditorTools__SetMonitoring(true);
+            }
+        });
 
         Na__ComponentEditorTools__RequestSelection();
         Na__ComponentEditorTools__GetTaxonomy();
@@ -509,9 +586,56 @@
         return h;
     }
 
+    function na_hex_to_rgb(hex) {
+        var clean = hex.replace('#', '');
+        if (clean.length === 3) {
+            clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+        }
+        return {
+            r: parseInt(clean.substring(0, 2), 16),
+            g: parseInt(clean.substring(2, 4), 16),
+            b: parseInt(clean.substring(4, 6), 16)
+        };
+    }
+
+    function na_rgb_to_hex(r, g, b) {
+        function na_pad(n) { var s = n.toString(16); return s.length === 1 ? '0' + s : s; }
+        return '#' + na_pad(r) + na_pad(g) + na_pad(b);
+    }
+
+    function na_clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function na_derive_chip_colors_from_hex(hex) {
+        var rgb = na_hex_to_rgb(hex);
+        var bg_r = na_clamp(Math.round(rgb.r * 0.15 + 255 * 0.85), 0, 255);
+        var bg_g = na_clamp(Math.round(rgb.g * 0.15 + 255 * 0.85), 0, 255);
+        var bg_b = na_clamp(Math.round(rgb.b * 0.15 + 255 * 0.85), 0, 255);
+        var bd_r = na_clamp(Math.round(rgb.r * 0.45 + 255 * 0.55), 0, 255);
+        var bd_g = na_clamp(Math.round(rgb.g * 0.45 + 255 * 0.55), 0, 255);
+        var bd_b = na_clamp(Math.round(rgb.b * 0.45 + 255 * 0.55), 0, 255);
+        var tx_r = na_clamp(Math.round(rgb.r * 0.55), 0, 255);
+        var tx_g = na_clamp(Math.round(rgb.g * 0.55), 0, 255);
+        var tx_b = na_clamp(Math.round(rgb.b * 0.55), 0, 255);
+        return {
+            bg:     na_rgb_to_hex(bg_r, bg_g, bg_b),
+            border: na_rgb_to_hex(bd_r, bd_g, bd_b),
+            text:   na_rgb_to_hex(tx_r, tx_g, tx_b)
+        };
+    }
+
     window.Na__ComponentEditorTools__ApplyChipColor = function (el, name) {
         if (!el || !name) return;
-        var color = NA_CHIP_PALETTE[na_chip_hash(name) % NA_CHIP_PALETTE.length];
+        var taxonomy      = Na__ComponentEditorTools__State.taxonomy;
+        var chip_colors   = (taxonomy && taxonomy.chip_colors) ? taxonomy.chip_colors : {};
+        var stored_hex    = chip_colors[name];
+        var color;
+        if (stored_hex && /^#[0-9a-fA-F]{3,6}$/.test(stored_hex)) {
+            color = na_derive_chip_colors_from_hex(stored_hex);
+        } else {
+            color = NA_CHIP_PALETTE[na_chip_hash(name) % NA_CHIP_PALETTE.length];
+        }
         el.style.background  = color.bg;
         el.style.borderColor = color.border;
         el.style.color       = color.text;

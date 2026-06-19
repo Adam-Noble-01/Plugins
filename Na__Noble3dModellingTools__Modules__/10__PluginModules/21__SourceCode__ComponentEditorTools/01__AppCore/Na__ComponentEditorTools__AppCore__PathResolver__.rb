@@ -86,14 +86,6 @@ module Na__ComponentEditorTools
             File.join(self.Na__ComponentEditorTools__SharedAssetsDirectory, 'IMG02__ICN__NaCompanyIcon.png')
         end
 
-        def self.Na__ComponentEditorTools__DataLibTagsFilePath
-            File.join(
-                self.Na__ComponentEditorTools__PluginRoot,
-                'Na__Common__DataLib__CoreSuEntityStandards',
-                'Na__DataLib__CoreIndex__Tags__.json'
-            )
-        end
-
 # endregion -------------------------------------------------------------------
 
     end

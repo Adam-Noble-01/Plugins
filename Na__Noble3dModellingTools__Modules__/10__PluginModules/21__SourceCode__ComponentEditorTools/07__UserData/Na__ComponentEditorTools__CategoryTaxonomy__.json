@@ -37,7 +37,8 @@
         "Office",
         "Outdoor Lounge",
         "Outdoor Dining",
-        "Storage"
+        "Storage",
+        "Home Bar"
       ]
     },
     {
@@ -74,11 +75,22 @@
         "Columns",
         "Ironmongery",
         "Rainwater Goods",
-        "Door Handle",
         "Finial",
         "Cresting",
         "Moulding"
       ]
+    },
+    {
+      "name": "Text & Notes",
+      "types": [
+        "Model Notes"
+      ]
     }
-  ]
+  ],
+  "chip_colors": {
+    "Site Boundary": "#8a4ad9",
+    "Model Notes": "#d94a4a",
+    "Home Bar": "#b3d94a",
+    "Ironmongery": "#d64ad9"
+  }
 }

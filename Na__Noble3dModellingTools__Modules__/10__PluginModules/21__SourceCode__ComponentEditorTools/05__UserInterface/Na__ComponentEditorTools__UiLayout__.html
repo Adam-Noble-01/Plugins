@@ -74,7 +74,7 @@
             </nav>
             <div class="naComponentEditor__HeaderActions">
                 <div class="naComponentEditor__AuditingActions">
-                    <button id="na-component-btn-update-component" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Update Component</button>
+                    <button id="na-component-btn-monitor-selection" class="naComponentEditor__Button naComponentEditor__MonitorBtn naComponentEditor__MonitorBtn--off" type="button">Monitor Selection: Off</button>
                     <button id="na-component-btn-header-refresh" class="naComponentEditor__Button" type="button">Reload Library</button>
                 </div>
                 <div class="naComponentEditor__IndexActions">
@@ -89,6 +89,63 @@
 
             <!-- REGION | Tab: Overview -------------------------------------- -->
             <section id="na-component-tab-overview" class="naComponentEditor__TabPanel" data-tab-id="overview">
+
+                <!-- Capture overlay (visible until a component has been captured) -->
+                <div class="naComponentEditor__CaptureOverlay naComponentEditor__CaptureOverlay--overview">
+                    <div class="naComponentEditor__CaptureOverlayInner">
+                        <p class="naComponentEditor__CaptureOverlayMessage">Enable <strong>Monitor Selection</strong> then click a component in the model to load all auditing data.</p>
+                        <button class="naComponentEditor__Button naComponentEditor__Button--primary naComponentEditor__CaptureOverlayBtn" type="button">Enable Monitor Selection</button>
+                    </div>
+                </div>
+
+                <!-- Component Geometry panel (top) -->
+                <section class="naComponentEditor__Panel">
+                    <div class="naComponentEditor__GeomPanelHeader">
+                        <div>
+                            <h2 class="naComponentEditor__PanelHeading">Component Geometry</h2>
+                            <p class="naComponentEditor__PanelSubheading">Recursive counts across all nested groups and components.</p>
+                        </div>
+                        <button id="na-component-btn-copy-stats" class="naComponentEditor__Button naComponentEditor__GeomCopyBtn" type="button" title="Copy all stats to clipboard as plain text">&#128203; Copy Stats</button>
+                    </div>
+
+                    <div class="naComponentEditor__Grid2">
+                        <div>
+                            <h3 class="naComponentEditor__GeomSubheading">Polygon Stats</h3>
+                            <div id="na-component-geometry-counts" class="naComponentEditor__MetaRows"></div>
+                        </div>
+                        <div>
+                            <h3 class="naComponentEditor__GeomSubheading">Edge Stats</h3>
+                            <div id="na-component-geometry-edges" class="naComponentEditor__MetaRows"></div>
+                        </div>
+                    </div>
+
+                    <div class="naComponentEditor__Grid2" style="margin-top:12px;">
+                        <div>
+                            <h3 class="naComponentEditor__GeomSubheading">Nested Entities</h3>
+                            <div id="na-component-geometry-nested" class="naComponentEditor__MetaRows"></div>
+                        </div>
+                        <div>
+                            <h3 class="naComponentEditor__GeomSubheading">Misc &amp; Topology</h3>
+                            <div id="na-component-geometry-misc" class="naComponentEditor__MetaRows"></div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:12px;">
+                        <h3 class="naComponentEditor__GeomSubheading">Face Materials</h3>
+                        <div id="na-component-geometry-face-materials" class="naComponentEditor__GeomList"></div>
+                    </div>
+
+                    <div style="margin-top:10px;">
+                        <h3 class="naComponentEditor__GeomSubheading">Edge Materials</h3>
+                        <div id="na-component-geometry-edge-materials" class="naComponentEditor__GeomList"></div>
+                    </div>
+
+                    <div style="margin-top:10px;">
+                        <h3 class="naComponentEditor__GeomSubheading">Tags Used</h3>
+                        <div id="na-component-geometry-tags" class="naComponentEditor__GeomTagList"></div>
+                    </div>
+                </section>
+
                 <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">Editable Fields</h2>
                     <p id="na-component-overview-message" class="naComponentEditor__PanelSubheading">Select one component instance or group to begin.</p>
@@ -110,6 +167,7 @@
                     <div style="height:10px;"></div>
                     <div class="naComponentEditor__ButtonRow">
                         <button id="na-component-btn-apply-fields" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Apply Edits</button>
+                        <button id="na-component-btn-update-component" class="naComponentEditor__Button" type="button">Update Component</button>
                     </div>
                 </section>
 
@@ -128,11 +186,20 @@
                     <h2 class="naComponentEditor__PanelHeading">Behavior</h2>
                     <div id="na-component-overview-behavior-data" class="naComponentEditor__MetaRows"></div>
                 </section>
+
             </section>
             <!-- endregion --------------------------------------------------- -->
 
             <!-- REGION | Tab: Attributes ------------------------------------ -->
             <section id="na-component-tab-attributes" class="naComponentEditor__TabPanel" data-tab-id="attributes">
+
+                <!-- Capture overlay -->
+                <div class="naComponentEditor__CaptureOverlay naComponentEditor__CaptureOverlay--attributes">
+                    <div class="naComponentEditor__CaptureOverlayInner">
+                        <p class="naComponentEditor__CaptureOverlayMessage">Enable <strong>Monitor Selection</strong> then click a component in the model to load attribute data.</p>
+                        <button class="naComponentEditor__Button naComponentEditor__Button--primary naComponentEditor__CaptureOverlayBtn" type="button">Enable Monitor Selection</button>
+                    </div>
+                </div>
                 <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">Add / Update Attribute</h2>
                     <p id="na-component-attributes-message" class="naComponentEditor__PanelSubheading">Use this form to write attributes to either instance or definition scope.</p>
@@ -190,6 +257,15 @@
 
             <!-- REGION | Tab: Thumbnail ------------------------------------- -->
             <section id="na-component-tab-thumbnail" class="naComponentEditor__TabPanel" data-tab-id="thumbnail">
+
+                <!-- Capture overlay -->
+                <div class="naComponentEditor__CaptureOverlay naComponentEditor__CaptureOverlay--thumbnail">
+                    <div class="naComponentEditor__CaptureOverlayInner">
+                        <p class="naComponentEditor__CaptureOverlayMessage">Enable <strong>Monitor Selection</strong> then click a component in the model to load thumbnail data.</p>
+                        <button class="naComponentEditor__Button naComponentEditor__Button--primary naComponentEditor__CaptureOverlayBtn" type="button">Enable Monitor Selection</button>
+                    </div>
+                </div>
+
                 <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">Visible View Render And Thumbnail</h2>
                     <p id="na-component-thumbnail-message" class="naComponentEditor__PanelSubheading">Save the literal active viewport render, including visible dimensions, style effects, and watermark overlays.</p>
@@ -248,14 +324,23 @@
 
                 <section class="naComponentEditor__Panel">
                     <h2 class="naComponentEditor__PanelHeading">Component Categories &amp; Types</h2>
-                    <p class="naComponentEditor__PanelSubheading">Define the broad categories and their contextual types used to classify components in the Index and filter the Gallery. Populate from the shared SSOT standards, then tailor as needed.</p>
-                    <div class="naComponentEditor__ButtonRow">
-                        <button id="na-settings-btn-seed-taxonomy" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Populate from Standards</button>
-                    </div>
+                    <p class="naComponentEditor__PanelSubheading">Define the broad categories and their contextual types used to classify components in the Index and filter the Gallery.</p>
                     <div id="na-settings-taxonomy-list" class="naComponentEditor__TaxonomyList"></div>
                     <div class="naComponentEditor__BlockedAddRow">
                         <input id="na-settings-category-input" class="naComponentEditor__Input naComponentEditor__BlockedInput" type="text" placeholder="New category name&hellip;">
                         <button id="na-settings-btn-add-category" class="naComponentEditor__Button" type="button">Add Category</button>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Folder Display Names &amp; Order</h2>
+                    <p class="naComponentEditor__PanelSubheading">Assign a custom display label and sort order to any top-level library folder. The raw folder name is used internally; only the label appears in the Gallery and Index dropdowns.</p>
+                    <div id="na-settings-folder-alias-list" class="naComponentEditor__FolderAliasList"></div>
+                    <div class="naComponentEditor__FolderAliasAddRow">
+                        <input id="na-settings-alias-folder-name"  class="naComponentEditor__Input naComponentEditor__FolderAliasInput--folder"  type="text"   placeholder="Raw folder name (e.g. Na__CoreLib__3dAssets)&hellip;">
+                        <input id="na-settings-alias-label"        class="naComponentEditor__Input naComponentEditor__FolderAliasInput--label"   type="text"   placeholder="Display label&hellip;">
+                        <input id="na-settings-alias-order"        class="naComponentEditor__Input naComponentEditor__FolderAliasInput--order"   type="number" placeholder="Order" min="0">
+                        <button id="na-settings-btn-add-folder-alias" class="naComponentEditor__Button" type="button">Add / Update</button>
                     </div>
                 </section>
 
@@ -340,6 +425,7 @@
 
     <!-- REGION | Scripts ---------------------------------------------------- -->
     <script src="Na__ComponentEditorTools__UiBridge__.js"></script>
+    <script src="Na__ComponentEditorTools__GeometryClipboard__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Overview__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Attributes__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Thumbnail__.js"></script>
