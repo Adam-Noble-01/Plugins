@@ -160,6 +160,7 @@
 
         if (counts_el) {
             counts_el.innerHTML =
+                na_geom_stat_row('File Size',       geometry.file_size || '') +
                 na_geom_stat_row('Faces',           geometry.faces) +
                 na_geom_stat_row('Triangles',       geometry.triangles) +
                 na_geom_stat_row('Quads',           geometry.quads) +

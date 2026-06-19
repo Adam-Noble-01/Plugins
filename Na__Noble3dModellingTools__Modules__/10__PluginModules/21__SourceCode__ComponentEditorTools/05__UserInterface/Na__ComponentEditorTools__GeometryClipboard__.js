@@ -68,6 +68,10 @@
         var sections = [
             header,
             '',
+            na_format_section('File', [
+                ['File Size', geometry.file_size || '']
+            ]),
+            '',
             na_format_section('Polygon Stats', [
                 ['Faces',           geometry.faces],
                 ['Triangles',       geometry.triangles],

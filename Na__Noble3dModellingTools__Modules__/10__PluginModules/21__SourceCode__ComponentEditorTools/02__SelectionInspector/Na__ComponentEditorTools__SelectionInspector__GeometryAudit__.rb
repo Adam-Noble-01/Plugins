@@ -202,6 +202,7 @@ module Na__ComponentEditorTools
             edge_mats = accum[:edge_materials].to_a
 
             {
+                file_size:           self.Na__ComponentEditorTools__FormattedFileSize(definition.path),
                 faces:               accum[:faces],
                 edges:               accum[:edges],
                 triangles:           accum[:triangles],
@@ -233,7 +234,7 @@ module Na__ComponentEditorTools
 
         def self.Na__ComponentEditorTools__EmptyStats
             {
-                faces: 0, edges: 0, triangles: 0, quads: 0,
+                file_size: '', faces: 0, edges: 0, triangles: 0, quads: 0,
                 soft_edges: 0, smooth_edges: 0, hidden_edges: 0,
                 non_manifold_edges: 0, nested_groups: 0, nested_components: 0,
                 unique_definitions: 0, construction_lines: 0, construction_points: 0,
@@ -242,6 +243,23 @@ module Na__ComponentEditorTools
                 total_face_area: '0', is_solid: false,
                 face_materials: [], edge_materials: [], tags: []
             }
+        end
+
+        def self.Na__ComponentEditorTools__FormattedFileSize(file_path)
+            path = file_path.to_s
+            return '(no source file)' if path.empty?
+            return '(file not found)' unless File.exist?(path)
+
+            bytes = File.size(path)
+            if bytes >= 1_048_576
+                format('%.2f MB', bytes / 1_048_576.0)
+            elsif bytes >= 1_024
+                format('%.1f KB', bytes / 1_024.0)
+            else
+                "#{bytes} B"
+            end
+        rescue => error
+            "(size unavailable: #{error.message})"
         end
 
 # endregion -------------------------------------------------------------------
