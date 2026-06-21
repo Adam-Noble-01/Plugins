@@ -143,15 +143,19 @@ module Na__InteriorDoorSystem
         #
         # @param config [Hash] Na__DoorConfiguration block
         # @param mod_entities [Sketchup::Entities] Target MOD group entities
+        # @param leaf [Hash, nil] Optional leaf descriptor
+        #   (GeometryHelpers.na_compute_leaves). When supplied the design is
+        #   laid out on that leaf's half-width face; when nil it spans the
+        #   full inner opening (single-door fallback).
         # @return [Sketchup::Group, nil] The container group (or nil when skipped)
-        def self.na_build_panel_design(config, mod_entities)
+        def self.na_build_panel_design(config, mod_entities, leaf = nil)
             return nil unless mod_entities
             return nil unless na_design_enabled?(config)
 
             style_key = na_resolve_style_key(config)
             return nil if style_key == NA_STYLE_NONE
 
-            geometry = na_compute_panel_geometry(config)
+            geometry = na_compute_panel_geometry(config, leaf)
             return nil if geometry[:panel_w_mm] <= 0 || geometry[:panel_h_mm] <= 0
 
             layout = na_build_layout(config, geometry)
@@ -193,14 +197,15 @@ module Na__InteriorDoorSystem
         # the same six panel faces. Returns the panel origin (X, Z)
         # plus the panel size (W, H) plus the front/back Y planes
         # (offset slightly outwards to avoid Z-fighting).
-        def self.na_compute_panel_geometry(config)
+        def self.na_compute_panel_geometry(config, leaf = nil)
             opening_w_mm   = config["Na__DoorConfig__OpeningWidth_mm"].to_f
             opening_h_mm   = config["Na__DoorConfig__OpeningHeight_mm"].to_f
             lining_t_mm    = config["Na__DoorConfig__LiningThickness_mm"].to_f
             panel_t_mm     = config["Na__DoorConfig__PanelThickness_mm"].to_f
             floor_clear_mm = config["Na__DoorConfig__PanelFloorClearance_mm"].to_f
 
-            panel_w_mm     = opening_w_mm - 2 * lining_t_mm
+            panel_w_mm     = leaf ? leaf[:leaf_w_mm].to_f   : (opening_w_mm - 2 * lining_t_mm)   # <-- Per-leaf width (double) or full inner opening (single)
+            origin_x_mm    = leaf ? leaf[:origin_x_mm].to_f : lining_t_mm                        # <-- Per-leaf left edge or left jamb inner face
             panel_h_mm     = (opening_h_mm - lining_t_mm) - floor_clear_mm
 
             panel_y_mm     = GeometryHelpers.na_panel_y_origin_mm(config)       # <-- Panel front face Y
@@ -208,7 +213,7 @@ module Na__InteriorDoorSystem
             back_y_mm      = panel_y_mm + panel_t_mm + NA_FACE_PROJECTION_OFFSET_MM
 
             {
-                :panel_origin_x_mm => lining_t_mm,
+                :panel_origin_x_mm => origin_x_mm,
                 :panel_origin_z_mm => floor_clear_mm,
                 :panel_w_mm        => panel_w_mm,
                 :panel_h_mm        => panel_h_mm,

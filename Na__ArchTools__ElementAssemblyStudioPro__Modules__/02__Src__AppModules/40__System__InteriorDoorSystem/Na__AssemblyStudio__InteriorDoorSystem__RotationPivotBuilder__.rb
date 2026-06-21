@@ -111,8 +111,10 @@ module Na__InteriorDoorSystem
         #
         # @param rot_group [Sketchup::Group] The empty ROT marker group
         # @param config [Hash] Na__DoorConfiguration block
+        # @param leaf [Hash, nil] Optional leaf descriptor; its forced hinge
+        #   side drives the swing-direction arrow for double-door leaves.
         # @return [Boolean] True on success, false otherwise
-        def self.na_build_pivot_helper(rot_group, config)
+        def self.na_build_pivot_helper(rot_group, config, leaf = nil)
             return false unless rot_group && rot_group.valid?
 
             opening_h_mm  = config["Na__DoorConfig__OpeningHeight_mm"].to_f
@@ -127,7 +129,7 @@ module Na__InteriorDoorSystem
             na_draw_vertical_axis_line(entities, bottom_z_mm, top_z_mm)
             na_draw_crosshair_at(entities, bottom_z_mm)
             na_draw_crosshair_at(entities, top_z_mm)
-            na_draw_swing_direction_arrow(entities, top_z_mm, config)
+            na_draw_swing_direction_arrow(entities, top_z_mm, config, leaf)
 
             na_paint_helper_edges_red(rot_group)
 
@@ -180,8 +182,8 @@ module Na__InteriorDoorSystem
         # Quarter-circle arc on the XY plane from the closed-latch direction
         # to the open-latch direction, with a 'V' arrowhead at the open end
         # that points tangent to the arc (i.e. in the direction of rotation).
-        def self.na_draw_swing_direction_arrow(entities, z_mm, config)
-            angles = na_resolve_swing_angles(config)
+        def self.na_draw_swing_direction_arrow(entities, z_mm, config, leaf = nil)
+            angles = na_resolve_swing_angles(config, leaf)
             return unless angles
 
             arc_pts_in = na_compute_arrow_arc_points(angles[:start_deg], angles[:sweep_deg], z_mm)
@@ -276,8 +278,8 @@ module Na__InteriorDoorSystem
         #   * Outward swing   -> open latch on +Y (angle +90 deg).
         # The arc is drawn START=closed_angle, END=open_angle so the arrow
         # tip naturally lands on the open-latch direction.
-        def self.na_resolve_swing_angles(config)
-            swing_side      = (config["Na__DoorConfig__SwingSide"]      || "Left").to_s.downcase.to_sym
+        def self.na_resolve_swing_angles(config, leaf = nil)
+            swing_side      = ((leaf && leaf[:swing_side]) ? leaf[:swing_side] : (config["Na__DoorConfig__SwingSide"] || "Left")).to_s.downcase.to_sym
             swing_direction = (config["Na__DoorConfig__SwingDirection"] || "Inward").to_s.downcase.to_sym
 
             closed_deg      = (swing_side == :left)     ?   0.0 : 180.0

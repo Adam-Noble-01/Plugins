@@ -38,6 +38,10 @@
 
     var NA_LIVE_UPDATE_DEBOUNCE_MS = 150;                                     // <-- Mirrors window-tool live-update cadence
     var NA_DOOR_OBSOLETE_CONFIG_KEYS = ['Na__DoorConfig__HandleSide'];        // <-- Removed for Interior single-door workflow
+    var NA_DOOR_DERIVED_UI_KEYS = [                                          // <-- UI-only leaf-size sliders; derived from structural opening + lining, never sent to Ruby
+        'Na__DoorConfig__LeafWidth_mm',
+        'Na__DoorConfig__LeafHeight_mm'
+    ];
     var NA_DOOR_ARCHITRAVE_DEFAULT_PROFILE_KEY = 'Na__Asset__Plan2D__Architrave__Default__w70mm_x_d20mm';
     var NA_DOOR_ARCHITRAVE_LEGACY_DEFAULT_KEY = 'Na__InteriorDoor__Architrave__Default';
 
@@ -100,6 +104,21 @@
     function na_prune_obsolete_config_keys(configMap) {
         if (!configMap) return;
         (NA_DOOR_OBSOLETE_CONFIG_KEYS || []).forEach(function (key) {
+            if (Object.prototype.hasOwnProperty.call(configMap, key)) {
+                delete configMap[key];
+            }
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Strip Derived UI-Only Keys From a Config Map
+    // ------------------------------------------------------------
+    // The leaf-size sliders are pure UI conveniences derived from the
+    // structural opening + lining thickness. They are never persisted or
+    // sent to Ruby, so they are removed from the outgoing payload snapshot.
+    function na_prune_derived_ui_keys(configMap) {
+        if (!configMap) return;
+        NA_DOOR_DERIVED_UI_KEYS.forEach(function (key) {
             if (Object.prototype.hasOwnProperty.call(configMap, key)) {
                 delete configMap[key];
             }
@@ -447,6 +466,11 @@
     // SUB FUNCTION | Apply a Control Change to the Working Config
     // ------------------------------------------------------------
     function na_handle_control_change(id, value) {
+        // Derived leaf-size sliders drive the structural opening (and never
+        // the reverse), so they are handled before the generic path.
+        if (id === 'Na__DoorConfig__LeafWidth_mm')  { na_apply_leaf_width_change(value);  return; }
+        if (id === 'Na__DoorConfig__LeafHeight_mm') { na_apply_leaf_height_change(value); return; }
+
         na_active_config[id] = value;
         na_normalize_architrave_config_keys(na_active_config, { stripLegacyKeys: false });
         if (id === 'Na__DoorConfig__HandleAssetKey') {
@@ -457,10 +481,221 @@
             id === 'Na__DoorConfig__PanelDesignEnabled') {
             na_sync_panel_design_visibility();
         }
+        if (id === 'Na__DoorConfig__DoorType') {
+            na_sync_door_type_visibility();
+        }
+        // Structural opening, lining thickness and door type all change the
+        // derived leaf size, so refresh the leaf sliders to match.
+        if (id === 'Na__DoorConfig__OpeningWidth_mm'  ||
+            id === 'Na__DoorConfig__OpeningHeight_mm' ||
+            id === 'Na__DoorConfig__LiningThickness_mm' ||
+            id === 'Na__DoorConfig__DoorType') {
+            na_sync_leaf_size_controls();
+        }
         na_schedule_rerender();
         na_schedule_live_update();
     }
     // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Apply a Door Leaf Width Change to the Structural Opening
+    // ------------------------------------------------------------
+    // Back-computes the structural opening width from the requested leaf
+    // width (accounting for leaf count + both jamb linings), clamps it to
+    // the structural slider's range, writes it to the config + the
+    // structural slider UI, then re-derives both leaf sliders so the two
+    // stay consistent (e.g. after clamping).
+    function na_apply_leaf_width_change(leafWidth) {
+        var structuralWidth = na_compute_structural_width_from_leaf(leafWidth);
+        structuralWidth     = na_clamp_to_descriptor('Na__DoorConfig__OpeningWidth_mm', structuralWidth);
+
+        na_active_config['Na__DoorConfig__OpeningWidth_mm'] = Math.round(structuralWidth);
+        na_set_slider_control_value('Na__DoorConfig__OpeningWidth_mm', structuralWidth);
+        na_sync_leaf_size_controls();
+
+        na_schedule_rerender();
+        na_schedule_live_update();
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Apply a Door Leaf Height Change to the Structural Opening
+    // ------------------------------------------------------------
+    // Back-computes the structural opening height from the requested leaf
+    // height (head lining only), clamps + writes it, then re-derives both
+    // leaf sliders.
+    function na_apply_leaf_height_change(leafHeight) {
+        var structuralHeight = na_compute_structural_height_from_leaf(leafHeight);
+        structuralHeight     = na_clamp_to_descriptor('Na__DoorConfig__OpeningHeight_mm', structuralHeight);
+
+        na_active_config['Na__DoorConfig__OpeningHeight_mm'] = Math.round(structuralHeight);
+        na_set_slider_control_value('Na__DoorConfig__OpeningHeight_mm', structuralHeight);
+        na_sync_leaf_size_controls();
+
+        na_schedule_rerender();
+        na_schedule_live_update();
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Grey Out the Swing Side Control for Double Doors
+    // ------------------------------------------------------------
+    // A double door's two leaves are always hinged on their own outer
+    // jambs (left leaf left, right leaf right), so the user-facing Swing
+    // Side (Left/Right) hand choice has no meaning. We disable - rather
+    // than remove - the control so its value persists when switching back
+    // to a single door, and add a tooltip explaining why it is inactive.
+    var NA_SWING_SIDE_DISABLED_TOOLTIP = 'Swing Side is only available for single doors';
+
+    function na_sync_door_type_visibility() {
+        var isDouble = String(na_active_config['Na__DoorConfig__DoorType'] || 'Single').toLowerCase() === 'double';
+        var wrapper  = document.querySelector('[data-control-id="Na__DoorConfig__SwingSide"]');
+        if (!wrapper) return;
+
+        if (isDouble) {
+            wrapper.style.opacity       = '0.4';
+            wrapper.style.pointerEvents = 'none';
+            wrapper.setAttribute('title', NA_SWING_SIDE_DISABLED_TOOLTIP);
+        } else {
+            wrapper.style.opacity       = '';
+            wrapper.style.pointerEvents = '';
+            wrapper.removeAttribute('title');
+        }
+    }
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Leaf Size <-> Structural Opening Linking
+// -----------------------------------------------------------------------------
+// The "Door Leaf Width/Height" sliders are derived, two-way-linked views of
+// the structural opening. The structural opening is what the measurement tool
+// populates (raw wall opening); the leaf sliders expose the resulting door
+// leaf size so the user can dial in standardised sizes (e.g. 762 x 1985).
+//   * Leaf width  = (structural_w - 2 x lining) / leaf_count
+//   * Leaf height =  structural_h - lining           (head lining only)
+// Single door -> one leaf fills the clear opening; double door -> each of two.
+// -----------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Read a Numeric Config Value With Fallback
+    // ------------------------------------------------------------
+    function na_config_number(key, fallback) {
+        var value = Number(na_active_config[key]);
+        return Number.isFinite(value) ? value : fallback;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve the Active Leaf Count (Single = 1, Double = 2)
+    // ------------------------------------------------------------
+    function na_active_leaf_count() {
+        return String(na_active_config['Na__DoorConfig__DoorType'] || 'Single').toLowerCase() === 'double' ? 2 : 1;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Derive a Single Leaf Width From the Structural Opening
+    // ------------------------------------------------------------
+    function na_compute_leaf_width_from_structural() {
+        var structuralWidth = na_config_number('Na__DoorConfig__OpeningWidth_mm', 850);
+        var liningThickness = na_config_number('Na__DoorConfig__LiningThickness_mm', 35);
+        var clearWidth      = structuralWidth - (liningThickness * 2);
+        return clearWidth / na_active_leaf_count();
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Derive the Leaf Height From the Structural Opening
+    // ------------------------------------------------------------
+    function na_compute_leaf_height_from_structural() {
+        var structuralHeight = na_config_number('Na__DoorConfig__OpeningHeight_mm', 2100);
+        var liningThickness  = na_config_number('Na__DoorConfig__LiningThickness_mm', 35);
+        return structuralHeight - liningThickness;                            // <-- Head lining only; opening is open at the floor
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Back-Compute the Structural Width From a Leaf Width
+    // ------------------------------------------------------------
+    function na_compute_structural_width_from_leaf(leafWidth) {
+        var liningThickness = na_config_number('Na__DoorConfig__LiningThickness_mm', 35);
+        return (leafWidth * na_active_leaf_count()) + (liningThickness * 2);
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Back-Compute the Structural Height From a Leaf Height
+    // ------------------------------------------------------------
+    function na_compute_structural_height_from_leaf(leafHeight) {
+        var liningThickness = na_config_number('Na__DoorConfig__LiningThickness_mm', 35);
+        return leafHeight + liningThickness;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Find a Control Descriptor by ID Across All Sections
+    // ------------------------------------------------------------
+    function na_find_descriptor(controlId) {
+        var arrays = na_collect_descriptor_arrays();
+        for (var a = 0; a < arrays.length; a++) {
+            var arr = arrays[a] || [];
+            for (var i = 0; i < arr.length; i++) {
+                if (arr[i] && arr[i].id === controlId) return arr[i];
+            }
+        }
+        return null;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Clamp a Value to a Control Descriptor's Min/Max
+    // ------------------------------------------------------------
+    function na_clamp_to_descriptor(controlId, value) {
+        var descriptor = na_find_descriptor(controlId);
+        var clamped    = value;
+        if (descriptor) {
+            if (typeof descriptor.min === 'number') clamped = Math.max(descriptor.min, clamped);
+            if (typeof descriptor.max === 'number') clamped = Math.min(descriptor.max, clamped);
+        }
+        return clamped;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Programmatically Set a Slider Control's UI + Value
+    // ------------------------------------------------------------
+    // Updates the range input, number input and value display for a slider
+    // WITHOUT firing its change handlers, so it can be driven by a linked
+    // control. No-ops gracefully when the control is not currently mounted.
+    function na_set_slider_control_value(controlId, value) {
+        var descriptor = na_find_descriptor(controlId);
+        var unit       = (descriptor && descriptor.unit) || 'mm';
+        var rounded    = Math.round(value);
+
+        var range   = document.getElementById(controlId + '-slider');
+        var number  = document.getElementById(controlId + '-input');
+        var display = document.getElementById(controlId + '-display');
+
+        if (range)   range.value         = rounded;
+        if (number)  number.value         = rounded;
+        if (display) display.textContent  = rounded + unit;
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Refresh the Leaf-Size Sliders From the Structural Opening
+    // ------------------------------------------------------------
+    // Writes the derived leaf width/height into the working config and pushes
+    // them to the slider UI. Called on mount, on config load, and whenever a
+    // structural / lining / door-type control changes.
+    function na_sync_leaf_size_controls() {
+        var leafWidth  = na_compute_leaf_width_from_structural();
+        var leafHeight = na_compute_leaf_height_from_structural();
+
+        na_active_config['Na__DoorConfig__LeafWidth_mm']  = Math.round(leafWidth);
+        na_active_config['Na__DoorConfig__LeafHeight_mm'] = Math.round(leafHeight);
+
+        na_set_slider_control_value('Na__DoorConfig__LeafWidth_mm',  leafWidth);
+        na_set_slider_control_value('Na__DoorConfig__LeafHeight_mm', leafHeight);
+    }
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Change Handling (continued)
+// -----------------------------------------------------------------------------
 
     // SUB FUNCTION | Sync Conditional Visibility of Panel Design Controls
     // ------------------------------------------------------------
@@ -642,6 +877,8 @@
         }
 
         na_sync_panel_design_visibility();
+        na_sync_door_type_visibility();
+        na_sync_leaf_size_controls();
         Na_DoorUI.na_render(na_active_config);
     };
     // ---------------------------------------------------------------
@@ -770,6 +1007,8 @@
         na_normalize_architrave_config_keys(na_active_config, { stripLegacyKeys: false });
         na_request_handle_preview_if_needed('set-active-config');
         na_sync_panel_design_visibility();
+        na_sync_door_type_visibility();
+        na_sync_leaf_size_controls();
 
         if (window.Na_FrameFinishCards && typeof window.Na_FrameFinishCards.na_sync_selection === 'function') {
             window.Na_FrameFinishCards.na_sync_selection(na_active_config);
@@ -829,6 +1068,7 @@
     function na_build_full_config_payload() {
         var na_config_snapshot = Object.assign({}, na_active_config);
         na_prune_obsolete_config_keys(na_config_snapshot);
+        na_prune_derived_ui_keys(na_config_snapshot);                         // <-- Strip the leaf-size sliders (derived from structural opening + lining)
         na_normalize_architrave_config_keys(na_config_snapshot, { stripLegacyKeys: true });
         return {
             'Na__DoorMetadata'      : [na_active_metadata],

@@ -128,36 +128,76 @@ module Na__InteriorDoorSystem
         # definition root level but are tag-controlled and remain shared
         # between the closed MOD and the open-state MOD duplicate.
         #
+        # For a single door this builds one MOD + one ROT. For a double
+        # door it builds TWO MOD + TWO ROT pairs (one per leaf) in leaf
+        # order - MOD001/ROT001 then MOD002/ROT002 - so the downstream
+        # TrueVision3D scanner pairs each rotating MOD with its own hinge
+        # pivot by sibling index (mirrors the bifold multi-panel contract).
+        #
         # @param config [Hash] Door configuration block
         # @param entities [Sketchup::Entities] Definition-level entities
         # @param panel_material [Sketchup::Material, nil]
         # @param handle_material [Sketchup::Material, nil]
-        # @return [Hash] { :mod => Group, :rot => Group, :adr => Group }
-        #                (`:adr` aliases `:mod` for legacy callers; the
-        #                door no longer has a separate ADR wrapper group)
+        # @return [Hash] { :leaves => [{:mod, :rot, :leaf}, ...],
+        #                   :mod => Group, :rot => Group, :adr => Group }
+        #                (`:mod`/`:rot`/`:adr` alias the FIRST leaf for
+        #                legacy callers; the door no longer has a separate
+        #                ADR wrapper group)
         def self.na_compose_closed_assembly(config, entities, panel_material, handle_material)
+            leaves = GeometryHelpers.na_compute_leaves(config)
+            built  = leaves.map do |leaf|
+                na_compose_closed_leaf(config, entities, panel_material, handle_material, leaf)
+            end
+
+            DebugTools.na_debug_geometry("Composed closed assembly: #{built.length} leaf MOD+ROT pair(s) at definition root")
+
+            first = built.first || {}
+            {
+                :leaves => built,
+                :mod    => first[:mod],
+                :rot    => first[:rot],
+                :adr    => first[:mod]
+            }
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Compose a Single Closed Leaf (MOD + ROT Pair)
+        # ------------------------------------------------------------
+        # Builds one moving MOD group (panel + handles + panel design) and
+        # its sibling ROT pivot marker for the supplied leaf. Both are added
+        # as direct children of the definition entities, MOD first then ROT,
+        # so positional index pairing holds for the GLB animation scanner.
+        #
+        # @param config [Hash] Door configuration block
+        # @param entities [Sketchup::Entities] Definition-level entities
+        # @param panel_material [Sketchup::Material, nil]
+        # @param handle_material [Sketchup::Material, nil]
+        # @param leaf [Hash] Leaf descriptor (GeometryHelpers.na_compute_leaves)
+        # @return [Hash] { :mod => Group, :rot => Group, :leaf => Hash }
+        def self.na_compose_closed_leaf(config, entities, panel_material, handle_material, leaf)
             mod_group       = entities.add_group
-            mod_group.name  = na_resolve_mod_panel_name(config)
+            mod_group.name  = na_resolve_mod_panel_name(config, leaf)
             mod_ents        = mod_group.entities
 
-            GeometryBuilders.na_build_panel(config, mod_ents, panel_material)
-            HandleBuilder3D.na_build_handles(config, mod_ents, handle_material)
-            PanelDesignBuilder.na_build_panel_design(config, mod_ents)
+            GeometryBuilders.na_build_panel(config, mod_ents, panel_material, leaf)
+            HandleBuilder3D.na_build_handles(config, mod_ents, handle_material, leaf)
+            PanelDesignBuilder.na_build_panel_design(config, mod_ents, leaf)
 
             # ROT lives at the ComponentDefinition root level (sibling of
             # the MOD group) so the SketchUp author can grab the pivot
-            # helper without drilling into the door panel hierarchy. A
-            # single ROT is shared between the closed and open MOD copies.
+            # helper without drilling into the door panel hierarchy. One ROT
+            # per leaf is shared between that leaf's closed and open copies.
             rot_group       = entities.add_group
-            rot_group.name  = NA_GROUP_NAME_ROT_HINGE
-            na_translate_rot_marker_to_hinge(rot_group, config)
-            RotationPivotBuilder.na_build_pivot_helper(rot_group, config)
+            rot_group.name  = na_resolve_rot_marker_name(leaf)
+            na_translate_rot_marker_to_hinge(rot_group, config, leaf)
+            RotationPivotBuilder.na_build_pivot_helper(rot_group, config, leaf)
 
             TagManager.na_apply_tag_to_entity(mod_group, :door_closed)
-            DebugTools.na_debug_geometry("Composed closed assembly: MOD + ROT at definition root (no inner ADR wrapper)")
+            DebugTools.na_debug_geometry("Composed closed leaf #{leaf[:index]}: #{mod_group.name} + #{rot_group.name}")
 
-            { :mod => mod_group, :rot => rot_group, :adr => mod_group }
+            { :mod => mod_group, :rot => rot_group, :leaf => leaf }
         end
+        private_class_method :na_compose_closed_leaf
         # ---------------------------------------------------------------
 
         # FUNCTION | Compose the Open-State Copy of the Closed MOD
@@ -170,22 +210,32 @@ module Na__InteriorDoorSystem
         # marker is shared - it never moves and never duplicates, so both
         # MODs rotate around the same authored hinge centre.
         #
+        # Each leaf MOD is duplicated and rotated about ITS OWN hinge so a
+        # double door reads as both leaves swung open. The matching ROT
+        # markers never move or duplicate, so every MOD copy pivots around
+        # the same authored hinge centre as its closed counterpart.
+        #
         # @param config [Hash] Door configuration
         # @param closed_assembly [Hash] Result of na_compose_closed_assembly
         # @param entities [Sketchup::Entities] Same definition entities used above
-        # @return [Sketchup::Group, nil] The open-state MOD group
+        # @return [Array<Sketchup::Group>] The open-state MOD group(s)
         def self.na_compose_open_state_copy(config, closed_assembly, entities)
-            return nil unless closed_assembly[:mod] && closed_assembly[:mod].valid?
+            built = closed_assembly[:leaves] || []
+            opened = built.map do |leaf_record|
+                mod_closed = leaf_record[:mod]
+                next nil unless mod_closed && mod_closed.valid?
 
-            mod_open                  = na_duplicate_group(closed_assembly[:mod], entities)
-            return nil unless mod_open
+                mod_open = na_duplicate_group(mod_closed, entities)
+                next nil unless mod_open
 
-            rotation_transform        = na_compute_open_rotation_transform(config)
-            mod_open.transform!(rotation_transform)
+                rotation_transform = na_compute_open_rotation_transform(config, leaf_record[:leaf])
+                mod_open.transform!(rotation_transform)
 
-            TagManager.na_apply_tag_to_entity(mod_open, :door_open)
-            DebugTools.na_debug_geometry("Composed open-state MOD copy with 90deg rotation around hinge")
-            mod_open
+                TagManager.na_apply_tag_to_entity(mod_open, :door_open)
+                DebugTools.na_debug_geometry("Composed open-state MOD copy for leaf #{leaf_record[:leaf][:index]} (90deg rotation around its hinge)")
+                mod_open
+            end
+            opened.compact
         end
         # ---------------------------------------------------------------
 
@@ -216,17 +266,55 @@ module Na__InteriorDoorSystem
         #   Right + Inward  → +90   ← panel swings into room on right hinge
         #   Left  + Outward → +90   ← panel swings toward exterior on left hinge
         #   Right + Outward → -90   ← panel swings toward exterior on right hinge
-        def self.na_resolve_mod_panel_name(config)
+        def self.na_resolve_mod_panel_name(config, leaf = nil)
             swing_direction = (config["Na__DoorConfig__SwingDirection"] || "Inward").to_s.downcase
-            swing_side      = (config["Na__DoorConfig__SwingSide"]      || "Left").to_s.downcase
+            swing_side      = na_leaf_swing_side(config, leaf)
 
             base_angle = (swing_side == "left") ? 90 : -90
             sign       = (swing_direction == "inward") ? -1 : 1
             angle      = base_angle * sign
 
-            "MOD001__ROT__#{angle}-Deg__DoorPanel"
+            index      = leaf ? leaf[:index].to_i : 1
+            "MOD%03d__ROT__%d-Deg__DoorPanel" % [index, angle]
         end
         private_class_method :na_resolve_mod_panel_name
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Resolve the ROT Marker Group Name for a Leaf
+        # ------------------------------------------------------------
+        # Index-matched to the MOD panel name so the GLB animation scanner
+        # pairs MOD001<->ROT001, MOD002<->ROT002 by sibling position. A
+        # nil/single leaf resolves to ROT001 (unchanged single-door name).
+        def self.na_resolve_rot_marker_name(leaf = nil)
+            index = leaf ? leaf[:index].to_i : 1
+            "ROT%03d__RotationPoint__DoorHingeCentre" % index
+        end
+        private_class_method :na_resolve_rot_marker_name
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Resolve the Effective Hinge Side for a Leaf
+        # ------------------------------------------------------------
+        # A leaf descriptor carries its own forced hinge side (left leaf of
+        # a double door is always "left", right leaf always "right"). When
+        # no leaf is supplied the single-door config SwingSide is used.
+        def self.na_leaf_swing_side(config, leaf)
+            return leaf[:swing_side].to_s.downcase if leaf && leaf[:swing_side]
+            (config["Na__DoorConfig__SwingSide"] || "Left").to_s.downcase
+        end
+        private_class_method :na_leaf_swing_side
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Resolve the Hinge Pivot X (mm) for a Leaf
+        # ------------------------------------------------------------
+        def self.na_leaf_hinge_x_mm(config, leaf)
+            return leaf[:hinge_x_mm].to_f if leaf && leaf[:hinge_x_mm]
+
+            opening_w_mm = config["Na__DoorConfig__OpeningWidth_mm"].to_f
+            lining_t_mm  = config["Na__DoorConfig__LiningThickness_mm"].to_f
+            swing_side   = na_leaf_swing_side(config, leaf)
+            (swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm)
+        end
+        private_class_method :na_leaf_hinge_x_mm
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Move the Empty ROT Marker Group to the Hinge Axis
@@ -234,12 +322,8 @@ module Na__InteriorDoorSystem
         # The ROT marker is an empty group whose origin matches the hinge
         # axis of the door panel. The TrueVision GLB Builder reads the
         # group's transformation to derive the rotation pivot.
-        def self.na_translate_rot_marker_to_hinge(rot_group, config)
-            opening_w_mm    = config["Na__DoorConfig__OpeningWidth_mm"].to_f
-            lining_t_mm     = config["Na__DoorConfig__LiningThickness_mm"].to_f
-            swing_side      = (config["Na__DoorConfig__SwingSide"] || "Left").downcase
-
-            hinge_x_mm      = (swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm)
+        def self.na_translate_rot_marker_to_hinge(rot_group, config, leaf = nil)
+            hinge_x_mm      = na_leaf_hinge_x_mm(config, leaf)
             hinge_y_mm      = GeometryHelpers.na_hinge_y_origin_mm(config)    # <-- Hinge-face wall (near for inward, far for outward)
 
             translation     = Geom::Transformation.new(Geom::Point3d.new(
@@ -260,13 +344,11 @@ module Na__InteriorDoorSystem
         # vector to -Y, and an Outward swing must rotate it to +Y. This
         # matches the dialog's JS plan view, which always draws the open
         # latch on the room side.
-        def self.na_compute_open_rotation_transform(config)
-            opening_w_mm    = config["Na__DoorConfig__OpeningWidth_mm"].to_f
-            lining_t_mm     = config["Na__DoorConfig__LiningThickness_mm"].to_f
-            swing_side      = (config["Na__DoorConfig__SwingSide"]      || "Left").downcase
+        def self.na_compute_open_rotation_transform(config, leaf = nil)
+            swing_side      = na_leaf_swing_side(config, leaf)
             swing_direction = (config["Na__DoorConfig__SwingDirection"] || "Inward").downcase
 
-            hinge_x_mm      = (swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm)
+            hinge_x_mm      = na_leaf_hinge_x_mm(config, leaf)
             hinge_y_mm      = GeometryHelpers.na_hinge_y_origin_mm(config)    # <-- Hinge-face wall (near for inward, far for outward)
 
             pivot           = Geom::Point3d.new(

@@ -3,6 +3,101 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V0.9.5b - 21-Jun-2026 - Linked door-leaf-size sliders (Interior Doors)
+
+### Context
+The Interior Doors tab only exposed the raw structural opening (the dimension the measurement tool reads off the wall). There was no easy way to see the resulting door leaf size, so checking whether an opening produced a standardised door leaf (e.g. 762 x 1985) meant doing the lining arithmetic by hand. The user asked for a secondary, two-way-linked pair of sliders that shows the actual leaf size and adapts to single vs double doors, to make it easy to dial in standard sizes and to lay the groundwork for size presets.
+
+### Feature Summary
+- Renamed the two existing opening sliders to **"Structural Opening Width"** and **"Structural Opening Height"** to make explicit that these are the raw wall-opening dimensions (what the measurement tool populates).
+- Added two new derived sliders to the Opening & Lining section: **"Door Leaf Width"** and **"Door Leaf Height"**, showing the actual door leaf size.
+- The leaf sliders are **two-way linked** to the structural opening + lining thickness. Moving or typing into either a leaf slider or a structural slider updates the other:
+  - Leaf width  = `(structural_w - 2 x lining) / leaf_count` (single door = the one leaf; double door = each of two flush-meeting leaves).
+  - Leaf height = `structural_h - lining` (head lining only; the opening is open at the floor).
+  - Reverse: `structural_w = (leaf_w x leaf_count) + 2 x lining`, `structural_h = leaf_h + lining`.
+- The leaf size adapts to door type: a single door shows the one full leaf; a double door shows the per-leaf size (so a 1600 mm opening with 35 mm lining reads ~765 mm per leaf).
+- Back-computed structural values are clamped to the structural slider's (runtime-widened) range, then both leaf sliders are re-derived so the pair always stays consistent (e.g. after clamping).
+
+### Implementation
+- `Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Config__.js`
+  - Relabelled `Na__DoorConfig__OpeningWidth_mm` / `Na__DoorConfig__OpeningHeight_mm` to the "Structural Opening ..." labels.
+  - Added derived slider descriptors `Na__DoorConfig__LeafWidth_mm` and `Na__DoorConfig__LeafHeight_mm`.
+- `Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js`
+  - New "Leaf Size <-> Structural Opening Linking" region: `na_compute_leaf_width_from_structural`, `na_compute_leaf_height_from_structural`, `na_compute_structural_width_from_leaf`, `na_compute_structural_height_from_leaf`, `na_active_leaf_count`, `na_find_descriptor`, `na_clamp_to_descriptor`, `na_set_slider_control_value`, and `na_sync_leaf_size_controls`.
+  - `na_handle_control_change` now intercepts the two leaf keys (driving the structural opening via `na_apply_leaf_width_change` / `na_apply_leaf_height_change`) and refreshes the leaf sliders whenever Structural Width/Height, Lining Thickness, or Door Type changes.
+  - `na_sync_leaf_size_controls()` is called on mount and on config load so the leaf sliders are always correct (including after a measurement, which remounts the tab).
+  - The leaf keys are UI-only: a new `NA_DOOR_DERIVED_UI_KEYS` list + `na_prune_derived_ui_keys()` strips them from the payload so they are never sent to or persisted by Ruby (they are always recomputable from the structural opening + lining).
+
+### Files Changed (V1.10.1)
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Config__.js`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js`
+
+### How to Test
+1. Reload SketchUp, open Element Assembly Studio Pro, switch to the Interior Doors tab.
+2. Confirm the first two sliders now read "Structural Opening Width/Height" and that two new "Door Leaf Width/Height" sliders sit beneath them.
+3. With a single door, 850 mm structural width, 35 mm lining: Door Leaf Width should read 780 mm. Drag the leaf width to 762 -> structural width follows to 832 mm; drag structural back and the leaf follows.
+4. Switch Door Type to Double: the leaf width should halve (each leaf), and editing the leaf width should set structural = 2 x leaf + 2 x lining.
+5. Change Lining Thickness and confirm both leaf sliders re-derive.
+6. Use the Measure Opening tool -> confirm structural sliders populate and the leaf sliders update to match after the tab refreshes.
+7. Create a door and confirm the geometry matches the displayed leaf size; confirm no `Na__DoorConfig__LeafWidth_mm` / `LeafHeight_mm` keys are written to the component's saved configuration.
+
+### Backward Compatibility
+- The structural opening keys (`Na__DoorConfig__OpeningWidth_mm` / `Na__DoorConfig__OpeningHeight_mm`) remain the single source of truth consumed by Ruby; only their UI labels changed.
+- The leaf sliders are purely additive and UI-only, so existing saved doors load unchanged.
+
+# =============================================================================
+## Element Assembly Studio Pro | V0.9.5a - 21-Jun-2026 - Interior double doors (two mirrored leaves)
+
+### Context
+The Interior Doors system only produced single-leaf doors. The user needed double (French) doors: two mirrored leaves, each half the clear opening, meeting flush at the centre and swinging the same direction (inward or outward). Both the 2D dialog preview and the 3D SketchUp reconstruction had to stay in sync, and the existing Left/Right Swing Side toggle is meaningless for a double door (each leaf hinges on its own outer jamb).
+
+### Feature Summary
+- New `Na__DoorConfig__DoorType` Single/Double toggle on the Panel & Swing section.
+- Double door = two flush-meeting half-width leaves: left leaf hinged on the left jamb, right leaf on the right jamb, both sharing the parent Swing Direction; latch edges + handles meet at the opening centre.
+- The Swing Side (Left/Right) toggle is greyed out (opacity + no pointer events) with the tooltip "Swing Side is only available for single doors" when Double is selected, and restored for Single. Its value persists across the switch.
+- Per-leaf handles and per-leaf panel design; lining and architrave remain opening-sized (unchanged).
+- Single-door output is byte-for-byte unchanged (the single-leaf path is the default branch of the new leaf model).
+
+### Implementation
+- Single source of truth: `Na__GeometryHelpers.na_compute_leaves(config)` returns one full-width leaf (single) or two mirrored half-width leaves (double). Every leaf-specific builder - in both Ruby and JS - consumes this so the preview and the model cannot drift. Leaf hash: `{ index, swing_side, origin_x_mm, leaf_w_mm, hinge_x_mm }`.
+- 3D (Ruby):
+  - `Na__GeometryBuilders.na_build_panel` takes an optional leaf (per-leaf width/origin); `na_build_swing` loops the leaves (one swing arc per leaf, radius = leaf width).
+  - `Na__DoorAssemblyComposer` builds one MOD + one ROT pivot per leaf in leaf order (`MOD001/ROT001` then `MOD002/ROT002`) so the downstream TrueVision3D scanner pairs each rotating MOD with its own hinge by sibling index. Per-leaf MOD rotation angle, hinge pivot, and open-state copy (each leaf duplicated + rotated about its own hinge), with `:door_closed` / `:door_open` tags on both leaves.
+  - `Na__HandleBuilder3D` places each leaf's handle on its latch (meeting) edge; `Na__PanelDesignBuilder` lays the design out per half-leaf; `Na__RotationPivotBuilder` draws each leaf's swing-direction arrow.
+  - `Na__DoorConfig__DoorType` default "Single" added to `NA_DEFAULT_DOOR_CONFIG`.
+- 2D preview (JS):
+  - `Na__...Viewport__PlanGenerator__.js` and `...ElevationGenerator__.js` build a per-leaf layout array and loop the existing draw functions - two mirrored swing arcs / panels meeting at centre, per-leaf handles, and per-leaf panel design.
+  - `Na__...UiSystem__Config__.js` Door Type toggle; `...MainUiLogic__.js` `na_sync_door_type_visibility()` handles the Swing Side grey-out.
+
+### TrueVision3D downstream (verified, no changes required)
+The viewer already supports multiple MOD/ROT pairs per ADR (this is how bifold doors work). Confirmed in `30__TrueVision__CoreAppCode`: the scanner collects every MOD and pairs the Nth rotating MOD with the Nth ROT sibling; two `ROT_ONLY` leaves do not trigger the bifold duration multiplier; clicking either leaf opens both in lockstep. The GLB builder's door handler excludes the `Na__Door__Open` preview copy from export, so the exported GLB carries exactly one rotating MOD per leaf for clean positional pairing. The `__InteriorDoor__` definition name is preserved so the interior rotation-inversion sign still applies to both leaves.
+
+### Files Changed (V1.10.0)
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Init__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__GeometryHelpers__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__GeometryBuilders__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__PanelDesignBuilder__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__RotationPivotBuilder__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__PlanGenerator__.js`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__ElevationGenerator__.js`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Config__.js`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js`
+
+### How to Test
+1. Reload SketchUp, open Element Assembly Studio Pro, Interior Doors tab.
+2. Set Door Type = Double. Confirm: the 2D plan shows two mirrored swing arcs meeting at centre; the elevation shows two half-width leaves with per-leaf panel design and centre handles; the Swing Side toggle is greyed with the tooltip.
+3. Create the door and confirm the 3D model builds two leaves + two hinge pivots, with matching open-state copies. Toggle the `Na__Door__Open` / `Na__Door__Closed` tags to verify both leaves swing.
+4. Test inward and outward Swing Direction for double doors.
+5. Switch back to Single and confirm the Swing Side toggle re-enables and the single-door output is unchanged.
+6. (Optional) Export GLBs and confirm in TrueVision3D that the double door registers as `panels=[ROT_ONLY+ROT_ONLY]` (not BIFOLD), each leaf pivots about its own hinge, and clicking either leaf opens both.
+
+### Backward Compatibility
+- `Na__DoorConfig__DoorType` defaults to "Single"; existing saved doors (no DoorType key) take the single-leaf path and are byte-for-byte unchanged (`MOD001` / `ROT001`, full-width panel, one arc, one handle pair).
+- No changes required to the TrueVision3D viewer or GLB builder.
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.9.4 - 27-May-2026 - Single Gothic lancet arch (Amount Of Arches = 1)
 
 ### Context

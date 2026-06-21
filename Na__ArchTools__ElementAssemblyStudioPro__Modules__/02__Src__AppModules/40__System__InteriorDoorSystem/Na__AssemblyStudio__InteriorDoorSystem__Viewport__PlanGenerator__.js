@@ -479,6 +479,48 @@
 // REGION | Layout Calculation
 // -----------------------------------------------------------------------------
 
+    // SUB FUNCTION | Build a Per-Leaf Layout Clone
+    // ------------------------------------------------------------
+    // Returns a shallow clone of the shared base layout with the per-leaf
+    // fields overridden (hinge side, leaf width, handle position + handing).
+    // The existing layer builders read swingSide + panelClearWidth inline,
+    // so passing a leaf clone makes them draw that single leaf correctly -
+    // a full-width leaf for single doors, a half-width leaf for double.
+    function na_build_leaf_layout(base, swingSide, leafWidth, panelX) {
+        var leaf = Object.assign({}, base);
+        leaf.swingSide       = swingSide;
+        leaf.panelClearWidth = leafWidth;
+        leaf.panelX          = panelX;
+        leaf.handleX         = (swingSide === 'Left') ? panelX + leafWidth - 60 : panelX + 60;
+        leaf.handleMirrorX   = (swingSide === 'Left');                         // <-- Lever points out of the handed side
+        return leaf;
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Resolve the Door Leaves to Draw (Single or Double)
+    // ------------------------------------------------------------
+    // Mirrors the Ruby single source of truth
+    // (GeometryHelpers.na_compute_leaves) so the 2D preview and the 3D
+    // model stay in lockstep: one full-width leaf for single doors, two
+    // flush-meeting half-width leaves (left hinged left, right hinged
+    // right) for double doors.
+    function na_compute_plan_leaves(base, config) {
+        var doorType = String((config && config['Na__DoorConfig__DoorType']) || 'Single').toLowerCase();
+
+        if (doorType === 'double') {
+            var leafWidth   = base.panelClearWidth / 2;
+            var leftPanelX  = base.openingX + base.liningThickness;
+            var rightPanelX = base.openingX + base.openingWidth - base.liningThickness - leafWidth;
+            return [
+                na_build_leaf_layout(base, 'Left',  leafWidth, leftPanelX),
+                na_build_leaf_layout(base, 'Right', leafWidth, rightPanelX)
+            ];
+        }
+
+        return [na_build_leaf_layout(base, base.swingSide, base.panelClearWidth, base.panelX)];
+    }
+    // ---------------------------------------------------------------
+
     // SUB FUNCTION | Compute the Plan View's Geometry Layout in mm
     // ------------------------------------------------------------
     function na_compute_layout(config) {
@@ -547,7 +589,7 @@
         }
         var handleMirrorX    = (swingSide === 'Left');                         // <-- Mirror local X so the lever points out of the handed side
 
-        return {
+        var layout = {
             openingWidth     : openingWidth,
             wallDepth        : wallDepth,
             liningThickness  : liningThickness,
@@ -568,6 +610,9 @@
             handleX          : handleX,
             handleY          : handleY
         };
+
+        layout.leaves = na_compute_plan_leaves(layout, config);               // <-- One leaf (single) or two mirrored leaves (double)
+        return layout;
     }
     // ---------------------------------------------------------------
 
@@ -588,15 +633,22 @@
         var layout  = na_compute_layout(config);
         var palette = na_resolve_door_finish_palette(config);                 // <-- Live finish hex from JSON-sourced swatches
 
+        var showSwingArc = na_bool(config, 'Na__DoorConfig__ShowSwingArc', true);
+
         na_build_wall_layers(svgElement, layout);
         na_build_lining_layers(svgElement, layout, palette);
-        na_build_closed_panel(svgElement, layout, palette);
-        na_build_handle_preview(svgElement, layout, palette, config);
 
-        if (na_bool(config, 'Na__DoorConfig__ShowSwingArc', true)) {
-            na_build_open_panel_outline(svgElement, layout);
-            na_build_swing_arc(svgElement, layout);
-        }
+        // One pass per leaf: single door = one full-width leaf; double door
+        // = two mirrored half-width leaves drawn from layout.leaves.
+        layout.leaves.forEach(function (leaf) {
+            na_build_closed_panel(svgElement, leaf, palette);
+            na_build_handle_preview(svgElement, leaf, palette, config);
+
+            if (showSwingArc) {
+                na_build_open_panel_outline(svgElement, leaf);
+                na_build_swing_arc(svgElement, leaf);
+            }
+        });
 
         na_build_dimension_labels(svgElement, layout, layout.openingWidth, layout.wallDepth);
     };

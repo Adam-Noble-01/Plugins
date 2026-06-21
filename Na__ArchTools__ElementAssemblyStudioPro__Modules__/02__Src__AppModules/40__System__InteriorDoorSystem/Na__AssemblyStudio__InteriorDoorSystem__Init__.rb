@@ -189,6 +189,7 @@ module Na__InteriorDoorSystem
             "Na__DoorConfig__ArchitraveOffset_mm"    => 5,
             "Na__DoorConfig__ArchitraveFrontEnabled" => true,
             "Na__DoorConfig__ArchitraveBackEnabled"  => true,
+            "Na__DoorConfig__DoorType"               => "Single",
             "Na__DoorConfig__SwingSide"              => "Left",
             "Na__DoorConfig__SwingDirection"         => "Inward",
             "Na__DoorConfig__HandleAssetKey"         => "Na__InteriorDoor__Handle__Default",

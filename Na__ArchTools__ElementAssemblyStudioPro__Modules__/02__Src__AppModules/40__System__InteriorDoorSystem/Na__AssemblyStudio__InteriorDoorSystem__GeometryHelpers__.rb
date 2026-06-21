@@ -70,6 +70,77 @@ module Na__InteriorDoorSystem
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
+# REGION | Leaf Composition (Single vs Double Door)
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | Resolve the Door Leaves to Build (Single or Double)
+        # ------------------------------------------------------------
+        # SINGLE SOURCE OF TRUTH for how many door leaves an opening
+        # contains and where each one sits. Every leaf-specific builder
+        # (panel, swing, handles, panel design, MOD/ROT composition)
+        # consumes the leaf hashes returned here so the 3D model and the
+        # 2D preview stay in lockstep.
+        #
+        #   * Single door -> one full-width leaf hinged on SwingSide.
+        #   * Double door -> two flush-meeting half-width leaves; the
+        #     left leaf hinges on the left jamb, the right leaf on the
+        #     right jamb, both swinging the same SwingDirection. The
+        #     latch edges meet at the opening centre (no gap).
+        #
+        # Leaf hash shape (all distances in millimetres):
+        #   {
+        #     :index       => 1-based leaf number (drives MOD/ROT names),
+        #     :swing_side  => "left" | "right" (effective hinge side),
+        #     :origin_x_mm => panel lower-front-left X,
+        #     :leaf_w_mm   => leaf width,
+        #     :hinge_x_mm  => hinge pivot X
+        #   }
+        #
+        # @param config [Hash] Na__DoorConfiguration block
+        # @return [Array<Hash>] one or two leaf descriptors
+        def self.na_compute_leaves(config)
+            opening_w_mm = config["Na__DoorConfig__OpeningWidth_mm"].to_f
+            lining_t_mm  = config["Na__DoorConfig__LiningThickness_mm"].to_f
+            inner_w_mm   = opening_w_mm - 2 * lining_t_mm
+            door_type    = (config["Na__DoorConfig__DoorType"] || "Single").to_s.downcase
+
+            if door_type == "double"
+                leaf_w_mm = inner_w_mm / 2.0                                # <-- Flush meeting leaves, no centre gap
+                [
+                    {
+                        :index       => 1,
+                        :swing_side  => "left",
+                        :origin_x_mm => lining_t_mm,
+                        :leaf_w_mm   => leaf_w_mm,
+                        :hinge_x_mm  => lining_t_mm
+                    },
+                    {
+                        :index       => 2,
+                        :swing_side  => "right",
+                        :origin_x_mm => lining_t_mm + leaf_w_mm,
+                        :leaf_w_mm   => leaf_w_mm,
+                        :hinge_x_mm  => opening_w_mm - lining_t_mm
+                    }
+                ]
+            else
+                swing_side = (config["Na__DoorConfig__SwingSide"] || "Left").to_s.downcase
+                hinge_x_mm = (swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm)
+                [
+                    {
+                        :index       => 1,
+                        :swing_side  => swing_side,
+                        :origin_x_mm => lining_t_mm,
+                        :leaf_w_mm   => inner_w_mm,
+                        :hinge_x_mm  => hinge_x_mm
+                    }
+                ]
+            end
+        end
+        # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
 # REGION | Generic Box Helper
 # -----------------------------------------------------------------------------
 

@@ -30,7 +30,7 @@
 window.NA_DOOR_OPENING_CONFIG = [
     {
         id          : 'Na__DoorConfig__OpeningWidth_mm',
-        label       : 'Opening Width',
+        label       : 'Structural Opening Width',
         type        : 'slider',
         min         : 600,
         max         : 1500,
@@ -40,12 +40,45 @@ window.NA_DOOR_OPENING_CONFIG = [
     },
     {
         id          : 'Na__DoorConfig__OpeningHeight_mm',
-        label       : 'Opening Height',
+        label       : 'Structural Opening Height',
         type        : 'slider',
         min         : 1800,
         max         : 2400,
         step        : 5,
         default     : 2100,
+        unit        : 'mm'
+    },
+
+    // -------------------------------------------------------------------------
+    // Door Leaf Size (derived, two-way linked to the structural opening)
+    // -------------------------------------------------------------------------
+    // These two sliders show the actual door leaf size and are bound to the
+    // structural opening + lining thickness by MainUiLogic:
+    //   * Width  : leaf = (structural_w - 2 x lining) / leaf_count
+    //              (single door = the one leaf; double door = each of two)
+    //   * Height : leaf = structural_h - lining          (head lining only)
+    // Moving / typing either a leaf slider or a structural slider updates the
+    // other so the user can dial in standard door sizes (e.g. 762 x 1985).
+    // They are UI-only: pruned from the payload before it reaches Ruby.
+    // -------------------------------------------------------------------------
+    {
+        id          : 'Na__DoorConfig__LeafWidth_mm',
+        label       : 'Door Leaf Width',
+        type        : 'slider',
+        min         : 250,
+        max         : 1600,
+        step        : 1,
+        default     : 780,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__DoorConfig__LeafHeight_mm',
+        label       : 'Door Leaf Height',
+        type        : 'slider',
+        min         : 1750,
+        max         : 2400,
+        step        : 1,
+        default     : 2065,
         unit        : 'mm'
     },
     {
@@ -78,6 +111,16 @@ window.NA_DOOR_OPENING_CONFIG = [
 // -----------------------------------------------------------------------------
 
 window.NA_DOOR_PANEL_TAB_CONFIG = [
+    {
+        id          : 'Na__DoorConfig__DoorType',
+        label       : 'Door Type',
+        type        : 'binary_toggle',
+        default     : 'Single',
+        options     : [
+            { value: 'Single', label: 'Single' },
+            { value: 'Double', label: 'Double' }
+        ]
+    },
     {
         id          : 'Na__DoorConfig__PanelThickness_mm',
         label       : 'Panel Thickness',

@@ -172,7 +172,7 @@
         var handleY = panelBottomY - handleHeight;
         var handleMirrorX = (swingSide === 'Left');                             // <-- Mirror local X so the asset lever + rose swap to the handed side
 
-        return {
+        var layout = {
             totalWidth       : totalWidth,
             totalHeight      : totalHeight,
             openingX         : openingX,
@@ -190,6 +190,43 @@
             handleY          : handleY,
             handleMirrorX    : handleMirrorX
         };
+
+        layout.leaves = na_compute_elevation_leaves(layout, config);            // <-- One leaf (single) or two half-width leaves (double)
+        return layout;
+    }
+
+    // SUB FUNCTION | Build a Per-Leaf Elevation Layout Clone
+    // ------------------------------------------------------------
+    // Clones the shared layout, overriding the per-leaf panel X + width and
+    // the per-leaf handle position/handing so the panel, panel design and
+    // handle builders draw a single leaf each.
+    function na_build_elevation_leaf(base, swingSide, panelX, leafWidth) {
+        var leaf = Object.assign({}, base);
+        leaf.swingSide       = swingSide;
+        leaf.panelX          = panelX;
+        leaf.panelClearWidth = leafWidth;
+        leaf.handleX         = (swingSide === 'Left') ? panelX + leafWidth - 60 : panelX + 60;
+        leaf.handleMirrorX   = (swingSide === 'Left');
+        return leaf;
+    }
+
+    // SUB FUNCTION | Resolve the Door Leaves to Draw (Single or Double)
+    // ------------------------------------------------------------
+    // Mirrors the Ruby single source of truth so the elevation tracks the
+    // 3D model: one full-width leaf for single doors, two flush-meeting
+    // half-width leaves (meeting at the opening centre) for double doors.
+    function na_compute_elevation_leaves(base, config) {
+        var doorType = String((config && config['Na__DoorConfig__DoorType']) || 'Single').toLowerCase();
+
+        if (doorType === 'double') {
+            var leafWidth = base.panelClearWidth / 2;
+            return [
+                na_build_elevation_leaf(base, 'Left',  base.panelX,             leafWidth),
+                na_build_elevation_leaf(base, 'Right', base.panelX + leafWidth, leafWidth)
+            ];
+        }
+
+        return [na_build_elevation_leaf(base, base.swingSide, base.panelX, base.panelClearWidth)];
     }
 
 // endregion -------------------------------------------------------------------
@@ -449,9 +486,16 @@
 
         if (layout.archEnabled) na_build_architrave_outline(svgElement, layout);
         na_build_lining_u_shape(svgElement, layout, palette);
-        na_build_panel(svgElement, layout, palette);
-        na_build_panel_design(svgElement, layout, config);
-        na_build_handle_preview(svgElement, layout, palette, config);
+
+        // One pass per leaf: single door = one full-width leaf; double door
+        // = two half-width leaves meeting at the opening centre. Each leaf
+        // gets its own panel rect, panel design and handle.
+        layout.leaves.forEach(function (leaf) {
+            na_build_panel(svgElement, leaf, palette);
+            na_build_panel_design(svgElement, leaf, config);
+            na_build_handle_preview(svgElement, leaf, palette, config);
+        });
+
         na_build_dimension_labels(svgElement, layout);
     };
     // ---------------------------------------------------------------

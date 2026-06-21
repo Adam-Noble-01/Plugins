@@ -77,8 +77,12 @@ module Na__InteriorDoorSystem
         # @param config [Hash] Door configuration block
         # @param entities [Sketchup::Entities] Target entities (e.g. MOD group)
         # @param material [Sketchup::Material, nil] Optional handle material
+        # @param leaf [Hash, nil] Optional leaf descriptor
+        #   (GeometryHelpers.na_compute_leaves). When supplied the handle is
+        #   placed on that leaf's latch (meeting) edge; when nil it falls
+        #   back to the single-door full-width latch edge.
         # @return [Hash] { :interior => ComponentInstance, :exterior => ComponentInstance }
-        def self.na_build_handles(config, entities, material = nil)
+        def self.na_build_handles(config, entities, material = nil, leaf = nil)
             asset_key = na_resolve_handle_asset_key(config)
             asset     = AssetLibrary.na_load_handle_asset(asset_key)
 
@@ -96,8 +100,8 @@ module Na__InteriorDoorSystem
             handle_def = na_get_or_build_handle_definition(asset_key, validation[:mesh_block])
             return { :interior => nil, :exterior => nil } unless handle_def
 
-            interior_inst = na_place_handle_instance(entities, handle_def, asset, config, :interior, material)
-            exterior_inst = na_place_handle_instance(entities, handle_def, asset, config, :exterior, material)
+            interior_inst = na_place_handle_instance(entities, handle_def, asset, config, :interior, material, leaf)
+            exterior_inst = na_place_handle_instance(entities, handle_def, asset, config, :exterior, material, leaf)
             na_apply_standard_dark_grey_edge_colour(interior_inst || exterior_inst)
 
             { :interior => interior_inst, :exterior => exterior_inst }
@@ -492,9 +496,10 @@ module Na__InteriorDoorSystem
         # @param config [Hash] Door configuration
         # @param face [Symbol] :interior or :exterior
         # @param material [Sketchup::Material, nil]
+        # @param leaf [Hash, nil] Optional leaf descriptor
         # @return [Sketchup::ComponentInstance, nil]
-        def self.na_place_handle_instance(entities, definition, asset, config, face, material)
-            transform = na_compute_handle_transform(asset, config, face)
+        def self.na_place_handle_instance(entities, definition, asset, config, face, material, leaf = nil)
+            transform = na_compute_handle_transform(asset, config, face, leaf)
             instance  = entities.add_instance(definition, transform)
             return nil unless instance && instance.valid?
 
@@ -539,7 +544,7 @@ module Na__InteriorDoorSystem
         #   2. Optional X mirror for left-hand handing (ScaleX = -1)
         #   3. Translation to the panel face (interior or exterior side)
         #   4. Translation along X to the hinge offset and along Z to handle height
-        def self.na_compute_handle_transform(asset, config, face)
+        def self.na_compute_handle_transform(asset, config, face, leaf = nil)
             metadata             = asset["Na__Asset__Metadata"] || {}
             handle_height_mm     = config["Na__DoorConfig__HandleHeight_mm"].to_f
             handle_height_mm     = metadata["Na__PanelPlacement__DefaultHeight_mm"].to_f if handle_height_mm <= 0
@@ -548,7 +553,9 @@ module Na__InteriorDoorSystem
             opening_w_mm         = config["Na__DoorConfig__OpeningWidth_mm"].to_f
             lining_t_mm          = config["Na__DoorConfig__LiningThickness_mm"].to_f
             panel_t_mm           = config["Na__DoorConfig__PanelThickness_mm"].to_f
-            swing_side           = (config["Na__DoorConfig__SwingSide"] || "Left").downcase
+            swing_side           = (leaf && leaf[:swing_side]) ?
+                                       leaf[:swing_side].to_s.downcase :
+                                       (config["Na__DoorConfig__SwingSide"] || "Left").downcase
 
             placement_block      = (swing_side == "left") ? "Na__PanelPlacement__LeftHand" : "Na__PanelPlacement__RightHand"
             placement            = metadata[placement_block] || {}
@@ -557,11 +564,14 @@ module Na__InteriorDoorSystem
             scale_x              = placement["Na__PanelPlacement__ScaleX"]
             scale_x              = (swing_side == "left") ? -1.0 : 1.0 if scale_x.nil?
 
-            inner_w_mm           = opening_w_mm - 2 * lining_t_mm
-            hinge_x_mm           = (swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm)
+            # Leaf width + hinge X: per-leaf for double doors (handle lands on
+            # the meeting/centre edge), full inner opening for single doors.
+            leaf_w_mm            = leaf ? leaf[:leaf_w_mm].to_f : (opening_w_mm - 2 * lining_t_mm)
+            hinge_x_mm           = leaf ? leaf[:hinge_x_mm].to_f :
+                                       ((swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm))
             handle_x_mm          = (swing_side == "left") ?
-                                       (hinge_x_mm + inner_w_mm + offset_x_mm) :
-                                       (hinge_x_mm - inner_w_mm + offset_x_mm * scale_x)
+                                       (hinge_x_mm + leaf_w_mm + offset_x_mm) :
+                                       (hinge_x_mm - leaf_w_mm + offset_x_mm * scale_x)
 
             panel_centre_y_mm    = GeometryHelpers.na_panel_centre_y_mm(config)        # <-- Swing-direction-aware panel centre
             handle_y_mm          = if face == :interior

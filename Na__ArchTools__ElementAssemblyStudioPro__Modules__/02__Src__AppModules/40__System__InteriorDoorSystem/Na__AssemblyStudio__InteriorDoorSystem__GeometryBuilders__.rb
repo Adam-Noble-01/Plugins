@@ -129,24 +129,29 @@ module Na__InteriorDoorSystem
         # @param config [Hash] Door configuration
         # @param entities [Sketchup::Entities] Target entities (e.g. MOD group)
         # @param material [Sketchup::Material, nil] Optional panel material
+        # @param leaf [Hash, nil] Optional leaf descriptor from
+        #   GeometryHelpers.na_compute_leaves. When supplied, the panel is
+        #   sized + positioned for that leaf (half width for double doors);
+        #   when nil it spans the full inner opening (single-door fallback).
         # @return [Sketchup::Group, nil] The panel group
-        def self.na_build_panel(config, entities, material = nil)
+        def self.na_build_panel(config, entities, material = nil, leaf = nil)
             opening_w_mm     = config["Na__DoorConfig__OpeningWidth_mm"].to_f
             opening_h_mm     = config["Na__DoorConfig__OpeningHeight_mm"].to_f
             lining_t_mm      = config["Na__DoorConfig__LiningThickness_mm"].to_f
             panel_t_mm       = config["Na__DoorConfig__PanelThickness_mm"].to_f
             floor_clear_mm   = config["Na__DoorConfig__PanelFloorClearance_mm"].to_f
 
-            panel_w_mm       = opening_w_mm - 2 * lining_t_mm                    # <-- Inner opening width
-            panel_h_mm       = (opening_h_mm - lining_t_mm) - floor_clear_mm     # <-- Inner opening height minus clearance
+            panel_w_mm       = leaf ? leaf[:leaf_w_mm].to_f   : (opening_w_mm - 2 * lining_t_mm)   # <-- Per-leaf width (double) or full inner opening (single)
+            origin_x_mm      = leaf ? leaf[:origin_x_mm].to_f : lining_t_mm                        # <-- Per-leaf left edge or left jamb inner face
+            panel_h_mm       = (opening_h_mm - lining_t_mm) - floor_clear_mm                       # <-- Inner opening height minus clearance
 
             return nil if panel_w_mm <= 0 || panel_h_mm <= 0
 
             panel_y_mm       = GeometryHelpers.na_panel_y_origin_mm(config)      # <-- Swing-direction-aware panel front-face Y
-            origin_mm        = [lining_t_mm, panel_y_mm, floor_clear_mm]
+            origin_mm        = [origin_x_mm, panel_y_mm, floor_clear_mm]
             size_mm          = [panel_w_mm, panel_t_mm, panel_h_mm]
 
-            DebugTools.na_debug_geometry("Build panel: w=#{panel_w_mm}mm h=#{panel_h_mm}mm t=#{panel_t_mm}mm y=#{panel_y_mm}mm")
+            DebugTools.na_debug_geometry("Build panel: w=#{panel_w_mm}mm h=#{panel_h_mm}mm t=#{panel_t_mm}mm y=#{panel_y_mm}mm x=#{origin_x_mm}mm")
             GeometryHelpers.na_create_door_panel_solid(entities, origin_mm, size_mm, material)
         end
         # ---------------------------------------------------------------
@@ -163,25 +168,31 @@ module Na__InteriorDoorSystem
         # arcs to the open position. Rendered as 2D linework on the
         # :door_swing tag (DataLib: 02__Linetype__DoorSwings).
         #
+        # One arc is drawn per leaf (single door = one arc; double door =
+        # two mirrored arcs, each radius = half leaf width, meeting at the
+        # opening centre). Leaf geometry comes from the single source of
+        # truth GeometryHelpers.na_compute_leaves.
+        #
         # @param config [Hash] Door configuration
         # @param entities [Sketchup::Entities] Target entities (e.g. MOD group)
-        # @return [Sketchup::Group, nil]
+        # @return [Sketchup::Group, nil] The first arc group (compat return)
         def self.na_build_swing(config, entities)
-            opening_w_mm    = config["Na__DoorConfig__OpeningWidth_mm"].to_f
-            lining_t_mm     = config["Na__DoorConfig__LiningThickness_mm"].to_f
-            swing_side      = (config["Na__DoorConfig__SwingSide"] || "Left").downcase.to_sym
             swing_direction = (config["Na__DoorConfig__SwingDirection"] || "Inward").downcase.to_sym
-
-            inner_w_mm      = opening_w_mm - 2 * lining_t_mm
-            radius_mm       = inner_w_mm                                          # <-- Swing radius = panel width
-            return nil if radius_mm <= 0
-
-            hinge_x_mm      = (swing_side == :left) ? lining_t_mm : (opening_w_mm - lining_t_mm)
             hinge_y_mm      = GeometryHelpers.na_hinge_y_origin_mm(config)        # <-- Hinge-face wall (near for inward, far for outward)
-            hinge_pt_mm     = [hinge_x_mm, hinge_y_mm]
+            leaves          = GeometryHelpers.na_compute_leaves(config)
 
-            DebugTools.na_debug_geometry("Build swing: side=#{swing_side} dir=#{swing_direction} r=#{radius_mm}mm")
-            GeometryHelpers.na_build_2d_swing_arc(entities, hinge_pt_mm, radius_mm, swing_side, swing_direction)
+            built = leaves.map do |leaf|
+                radius_mm = leaf[:leaf_w_mm].to_f                                 # <-- Swing radius = leaf width
+                next nil if radius_mm <= 0
+
+                side        = leaf[:swing_side].to_s.downcase.to_sym
+                hinge_pt_mm = [leaf[:hinge_x_mm].to_f, hinge_y_mm]
+
+                DebugTools.na_debug_geometry("Build swing leaf #{leaf[:index]}: side=#{side} dir=#{swing_direction} r=#{radius_mm}mm")
+                GeometryHelpers.na_build_2d_swing_arc(entities, hinge_pt_mm, radius_mm, side, swing_direction)
+            end
+
+            built.compact.first
         end
         # ---------------------------------------------------------------
 
