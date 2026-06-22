@@ -80,14 +80,17 @@ module TrueVision3D
         # face.back_material are used. Group/component container
         # materials are intentionally NOT inherited.
         #
-        # @param entities         [Sketchup::Entities]      Children to process
-        # @param parent_transform [Geom::Transformation]    Accumulated world matrix
-        # @param parent_layer     [Sketchup::Layer]         Inherited layer context
-        # @param buckets          [Hash]                    BucketManager geometry store
-        # @param door_assemblies  [Array|nil]               Collected door records (nil = disabled)
-        # @param instanced_skip_set [Hash|nil]              Object IDs to skip (instancing)
+        # @param entities             [Sketchup::Entities]      Children to process
+        # @param parent_transform    [Geom::Transformation]    Accumulated world matrix
+        # @param parent_layer        [Sketchup::Layer]         Inherited layer context
+        # @param buckets             [Hash]                    BucketManager geometry store
+        # @param door_assemblies     [Array|nil]               Collected door records (nil = disabled)
+        # @param instanced_skip_set  [Hash|nil]                Object IDs to skip (instancing)
+        # @param camera_follow_assemblies [Array|nil]          Collected billboard records
+        # @param inherited_material  [Sketchup::Material|nil]  Container material propagated from an
+        #                                                       ancestor with PropagateToChildFaces == true
         # ---------------------------------------------------------------
-        def self.Na__GlbEngine__TraverseEntities(entities, parent_transform, parent_layer, buckets, door_assemblies = nil, instanced_skip_set = nil, camera_follow_assemblies = nil)
+        def self.Na__GlbEngine__TraverseEntities(entities, parent_transform, parent_layer, buckets, door_assemblies = nil, instanced_skip_set = nil, camera_follow_assemblies = nil, inherited_material = nil)
             is_mirrored   = Na__GlbEngine__CalcDeterminant3x3(parent_transform) < 0
             normal_matrix = Na__GlbEngine__CalcNormalMatrix(parent_transform)
 
@@ -97,7 +100,7 @@ module TrueVision3D
                 if entity.is_a?(Sketchup::Face)
                     raw_layer = entity.layer.name
                     layer_name = (raw_layer == "Layer0" || Na__Helpers__LayerTreatedAsUntagged?(raw_layer)) ? parent_layer.name : raw_layer
-                    Na__GlbEngine__AddFaceToBucket(entity, parent_transform, normal_matrix, is_mirrored, layer_name, buckets)
+                    Na__GlbEngine__AddFaceToBucket(entity, parent_transform, normal_matrix, is_mirrored, layer_name, buckets, inherited_material)
 
                 elsif entity.is_a?(Sketchup::Edge) && MESH_MODEL_INCLUDE_EDGES
                     if !entity.soft? && !entity.smooth?
@@ -134,7 +137,21 @@ module TrueVision3D
 
                     next if instanced_skip_set && instanced_skip_set.key?(entity.object_id)
 
-                    Na__GlbEngine__TraverseEntities(entity.definition.entities, child_transform, child_layer, buckets, door_assemblies, instanced_skip_set, camera_follow_assemblies)
+                    # PROPAGATING MATERIAL INHERITANCE
+                    # If this container is painted with a material whose DataLib entry has
+                    # PropagateToChildFaces == true, adopt it as the inherited material for
+                    # the entire subtree. An explicitly painted face.material still wins
+                    # (resolved in ResolveEffectiveFaceMaterial). If the entity has no
+                    # propagating paint, continue with whatever was already inherited.
+                    child_inherited = inherited_material
+                    if entity.material
+                        entity_material_name = entity.material.respond_to?(:display_name) ? entity.material.display_name : ""
+                        if Na__MaterialLookup__IsPropagatingName?(entity_material_name)
+                            child_inherited = entity.material                 # <-- Propagate this material into the subtree
+                        end
+                    end
+
+                    Na__GlbEngine__TraverseEntities(entity.definition.entities, child_transform, child_layer, buckets, door_assemblies, instanced_skip_set, camera_follow_assemblies, child_inherited)
                 end
             end
         end
@@ -260,17 +277,21 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Resolve Effective Face Material (Face-Only)
+        # FUNCTION | Resolve Effective Face Material
         # ---------------------------------------------------------------
-        # Returns the face's own front material, or back material as
-        # fallback. Does NOT inherit from parent groups/components --
-        # unpainted faces resolve to nil (Default whitecard).
+        # Returns the face's own front material (highest priority), then
+        # the inherited container material propagated from an ancestor
+        # group/component whose DataLib entry has PropagateToChildFaces
+        # set to true, then the face's back material as a final fallback.
+        # Unpainted faces with no inherited context resolve to nil
+        # (Default whitecard).
         #
-        # @param face [Sketchup::Face]
-        # @return     [Sketchup::Material|nil]
+        # @param face               [Sketchup::Face]
+        # @param inherited_material [Sketchup::Material|nil]  Propagated from parent
+        # @return                   [Sketchup::Material|nil]
         # ---------------------------------------------------------------
-        def self.Na__GlbEngine__ResolveEffectiveFaceMaterial(face)
-            face.material || face.back_material
+        def self.Na__GlbEngine__ResolveEffectiveFaceMaterial(face, inherited_material = nil)
+            face.material || inherited_material || face.back_material
         end
         # ---------------------------------------------------------------
 
@@ -282,17 +303,20 @@ module TrueVision3D
         # deduplicates vertices, and corrects winding order for mirrored
         # geometry (det < 0 → swap 2nd and 3rd triangle indices).
         #
-        # Material resolution is face-only (face.material || face.back_material).
+        # Material resolution: face.material || inherited_material || face.back_material.
+        # inherited_material is non-nil when a propagating ancestor group/component
+        # (PropagateToChildFaces == true in DataLib) provides its container material.
         #
-        # @param face           [Sketchup::Face]
-        # @param transform      [Geom::Transformation] Accumulated world transform
-        # @param normal_matrix  [Array<Float>]          9-element cofactor matrix
-        # @param is_mirrored    [Boolean]               true if det(M) < 0
-        # @param layer_name     [String]                Resolved layer name
-        # @param buckets        [Hash]                  BucketManager store
+        # @param face               [Sketchup::Face]
+        # @param transform          [Geom::Transformation] Accumulated world transform
+        # @param normal_matrix      [Array<Float>]          9-element cofactor matrix
+        # @param is_mirrored        [Boolean]               true if det(M) < 0
+        # @param layer_name         [String]                Resolved layer name
+        # @param buckets            [Hash]                  BucketManager store
+        # @param inherited_material [Sketchup::Material|nil] Propagated container material
         # ---------------------------------------------------------------
-        def self.Na__GlbEngine__AddFaceToBucket(face, transform, normal_matrix, is_mirrored, layer_name, buckets)
-            material = Na__GlbEngine__ResolveEffectiveFaceMaterial(face)
+        def self.Na__GlbEngine__AddFaceToBucket(face, transform, normal_matrix, is_mirrored, layer_name, buckets, inherited_material = nil)
+            material = Na__GlbEngine__ResolveEffectiveFaceMaterial(face, inherited_material)
             material_name = material ? material.display_name : "Default"
             bucket_key = "#{layer_name}::#{material_name}"
             bucket = Na__GlbEngine__GetOrCreateBucket(buckets, bucket_key, material)

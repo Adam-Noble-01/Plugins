@@ -50,10 +50,20 @@ module TrueVision3D
                 root_transform   = parent_transform ? Z_UP_TO_Y_UP_MATRIX * parent_transform : Z_UP_TO_Y_UP_MATRIX  # <-- Include parent (e.g. storey) transform when present
                 entity_count     = 0
 
-                # Phase 1b: Recursive pre-scan for instanced ComponentDefinitions
+                # Phase 1b: Pre-warm the propagating material name set.
+                # Ensures the DataLib is fetched and the set of SketchUpNames that have
+                # PropagateToChildFaces == true is cached before the instancing scan
+                # and traversal loop, so IsPropagatingName? lookups are O(1) with no
+                # repeated I/O. Must run before Phase 1c (instancing scan) because
+                # RecursiveScan calls IsPropagatingName? to exclude propagating instances.
+                Na__MaterialLookup__BuildPropagatingNameSet
+
+                # Phase 1c: Recursive pre-scan for instanced ComponentDefinitions
                 # Walks the full entity tree (including inside Groups) to find
                 # ComponentDefinitions with 2+ instances. Returns a skip_set of
                 # object_ids so the flat traversal skips instanced entities.
+                # ComponentInstances painted with a propagating material are excluded
+                # from this scan so they are handled by the flat traversal path.
                 instanced_groups, instanced_skip_set = Na__Instancing__ScanForInstancedDefinitions(entities, root_transform)
 
                 # Phase 2: Traverse each top-level entity into the bucket store
@@ -101,6 +111,16 @@ module TrueVision3D
                         entity_name = Na__GlbEngine__SanitizeEntityName(entity)
                         Na__Log__Puts "    Traversing: #{entity_name}..."
 
+                        # Compute top-level inherited material for group-paint propagation.
+                        # When this top-level container is painted with a material whose DataLib
+                        # entry has PropagateToChildFaces == true, that material is passed into
+                        # the subtree so unpainted child faces adopt it during bucket assignment.
+                        top_level_inherited = nil
+                        if entity.material
+                            top_level_name = entity.material.respond_to?(:display_name) ? entity.material.display_name : ""
+                            top_level_inherited = entity.material if Na__MaterialLookup__IsPropagatingName?(top_level_name)
+                        end
+
                         # Normal traversal for non-door entities
                         Na__GlbEngine__TraverseEntities(
                             entity.definition.entities,
@@ -109,7 +129,8 @@ module TrueVision3D
                             buckets,
                             door_assemblies,                                  # <-- Pass door collector for nested ADR detection
                             instanced_skip_set,                               # <-- Skip nested instanced components
-                            camera_follow_assemblies                          # <-- Pass camera-follow collector
+                            camera_follow_assemblies,                         # <-- Pass camera-follow collector
+                            top_level_inherited                               # <-- Propagate group-paint material into subtree
                         )
 
                     elsif entity.is_a?(Sketchup::Face)

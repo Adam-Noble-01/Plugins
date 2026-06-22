@@ -57,6 +57,7 @@ module TrueVision3D
         # ------------------------------------------------------------
         @material_library_data  = nil                                         # <-- Raw parsed JSON hash
         @material_lookup_index  = nil                                         # <-- { SketchUpName => config_hash }
+        @propagating_name_set   = nil                                         # <-- Set of SketchUpNames with PropagateToChildFaces == true
         # ------------------------------------------------------------
 
     # endregion -------------------------------------------------------------------
@@ -200,6 +201,53 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+
+        # FUNCTION | Build Cached Set of Propagating Material Names
+        # ---------------------------------------------------------------
+        # Collects every SketchUpName whose DataLib config has
+        # PropagateToChildFaces == true into a Ruby Set for O(1)
+        # membership tests. Ensures the library and index are loaded
+        # before scanning. Caches the result for the session.
+        # ---------------------------------------------------------------
+        def self.Na__MaterialLookup__BuildPropagatingNameSet(force_rebuild = false)
+            return @propagating_name_set if @propagating_name_set && !force_rebuild
+
+            Na__MaterialLookup__FetchLibrary
+            Na__MaterialLookup__BuildIndex
+
+            propagating = {}
+
+            if @material_lookup_index
+                @material_lookup_index.each do |sketchup_name, config|
+                    next unless config.is_a?(Hash)
+                    if config.key?("PropagateToChildFaces") && (config["PropagateToChildFaces"] == true)
+                        propagating[sketchup_name] = true                     # <-- Flag this name for group-paint propagation
+                    end
+                end
+            end
+
+            @propagating_name_set = propagating
+            count = propagating.length
+            Na__Log__Puts "    [MaterialLookup] Propagating names built: #{count} material(s) with PropagateToChildFaces"
+            @propagating_name_set
+        end
+        # ---------------------------------------------------------------
+
+
+        # HELPER FUNCTION | Check If a Material Name Propagates to Child Faces
+        # ---------------------------------------------------------------
+        # Returns true when the named material has PropagateToChildFaces
+        # set to true in the DataLib. Safe to call before the library
+        # has loaded — returns false if the set is unavailable.
+        # ---------------------------------------------------------------
+        def self.Na__MaterialLookup__IsPropagatingName?(material_name)
+            return false unless material_name.is_a?(String) && !material_name.empty?
+            set = @propagating_name_set || Na__MaterialLookup__BuildPropagatingNameSet
+            return false unless set
+            set.key?(material_name)                                           # <-- O(1) hash key check
+        end
+        # ---------------------------------------------------------------
+
     # endregion -------------------------------------------------------------------
 
 
@@ -294,6 +342,7 @@ module TrueVision3D
         def self.Na__MaterialLookup__ClearCache
             @material_library_data  = nil
             @material_lookup_index  = nil
+            @propagating_name_set   = nil                                     # <-- Clear propagation set alongside library cache
             Na__Log__Puts "    [MaterialLookup] Cache cleared"
         end
         # ---------------------------------------------------------------

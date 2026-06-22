@@ -2,7 +2,7 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
-        "version"           : "1.4.0",
+        "version"           : "1.5.0",
         "lastUpdated"       : "22-Jun-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
@@ -50,6 +50,9 @@
                 "EnvMapIntensity"   : "Metadata only for downstream renderer translation.",
                 "EmissiveFactor"    : "Metadata only for downstream renderer translation.",
                 "EmissiveIntensity" : "Metadata only for downstream renderer translation."
+            },
+            "Na__DataLib__SketchUpApiMapping__GlbExporterFields": {
+                "PropagateToChildFaces" : "GLB exporter exemption flag. When true, a SketchUp group or component instance painted with this material has that material propagated down to all unpainted child faces through the full entity hierarchy at export time. This allows quick group-level paint (e.g. discussion marker boxes) to export correctly without requiring by-face painting. Metadata only — no direct Sketchup::Material Ruby API property. Consumed by Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__.rb and Na__TrueVision__GlbBuilder__EngineCore__GeometryHandling__.rb."
             }
         },
 
@@ -115,7 +118,8 @@
                 "AlphaTest"         : 0.0,
                 "DepthWrite"        : true,
                 "EnvMapIntensity"   : 0.0,
-                "AoExclude"         : false,
+                "AoExclude"             : false,
+                "PropagateToChildFaces" : false,
                 "TextureMaps": {
                     "BaseColorUrl"  : null,
                     "NormalUrl"     : null,
@@ -147,48 +151,51 @@
             },
 
             "MAT012__Discussion__Red": {
-                "SketchUpName"       : "MAT012__ForDiscussion__Red",
-                "Description"        : "Discussion marker - red. Semi-transparent matte overlay for concept-phase elements under discussion. Non-reflective, double-sided, AO-excluded. Use interchangeably with yellow and green variants to flag placeholder or undecided elements.",
-                "BaseColor"          : "rgb(220, 50, 50)",
-                "Opacity"            : 0.25,
-                "Transparent"        : true,
-                "IsDoubleSided"      : true,
-                "DepthWrite"         : false,
-                "PbrRoughness"       : 1.0,
-                "PbrMetallic"        : 0.0,
-                "EnvMapIntensity"    : 0.0,
-                "AoExclude"          : true,
-                "ProfileLineExclude" : true
+                "SketchUpName"          : "MAT012__ForDiscussion__Red",
+                "Description"           : "Discussion marker - red. Semi-transparent matte overlay for concept-phase elements under discussion. Non-reflective, double-sided, AO-excluded. Use interchangeably with yellow and green variants to flag placeholder or undecided elements.",
+                "BaseColor"             : "rgb(220, 50, 50)",
+                "Opacity"               : 0.25,
+                "Transparent"           : true,
+                "IsDoubleSided"         : true,
+                "DepthWrite"            : false,
+                "PbrRoughness"          : 1.0,
+                "PbrMetallic"           : 0.0,
+                "EnvMapIntensity"       : 0.0,
+                "AoExclude"             : true,
+                "ProfileLineExclude"    : true,
+                "PropagateToChildFaces" : true
             },
 
             "MAT013__Discussion__Yellow": {
-                "SketchUpName"       : "MAT013__ForDiscussion__Yellow",
-                "Description"        : "Discussion marker - yellow. Semi-transparent matte overlay for concept-phase elements under discussion. Non-reflective, double-sided, AO-excluded. Use interchangeably with red and green variants to flag placeholder or undecided elements.",
-                "BaseColor"          : "rgb(230, 195, 0)",
-                "Opacity"            : 0.25,
-                "Transparent"        : true,
-                "IsDoubleSided"      : true,
-                "DepthWrite"         : false,
-                "PbrRoughness"       : 1.0,
-                "PbrMetallic"        : 0.0,
-                "EnvMapIntensity"    : 0.0,
-                "AoExclude"          : true,
-                "ProfileLineExclude" : true
+                "SketchUpName"          : "MAT013__ForDiscussion__Yellow",
+                "Description"           : "Discussion marker - yellow. Semi-transparent matte overlay for concept-phase elements under discussion. Non-reflective, double-sided, AO-excluded. Use interchangeably with red and green variants to flag placeholder or undecided elements.",
+                "BaseColor"             : "rgb(230, 195, 0)",
+                "Opacity"               : 0.25,
+                "Transparent"           : true,
+                "IsDoubleSided"         : true,
+                "DepthWrite"            : false,
+                "PbrRoughness"          : 1.0,
+                "PbrMetallic"           : 0.0,
+                "EnvMapIntensity"       : 0.0,
+                "AoExclude"             : true,
+                "ProfileLineExclude"    : true,
+                "PropagateToChildFaces" : true
             },
 
             "MAT014__Discussion__Green": {
-                "SketchUpName"       : "MAT014__ForDiscussion__Green",
-                "Description"        : "Discussion marker - green. Semi-transparent matte overlay for concept-phase elements under discussion. Non-reflective, double-sided, AO-excluded. Use interchangeably with red and yellow variants to flag placeholder or undecided elements.",
-                "BaseColor"          : "rgb(50, 180, 50)",
-                "Opacity"            : 0.25,
-                "Transparent"        : true,
-                "IsDoubleSided"      : true,
-                "DepthWrite"         : false,
-                "PbrRoughness"       : 1.0,
-                "PbrMetallic"        : 0.0,
-                "EnvMapIntensity"    : 0.0,
-                "AoExclude"          : true,
-                "ProfileLineExclude" : true
+                "SketchUpName"          : "MAT014__ForDiscussion__Green",
+                "Description"           : "Discussion marker - green. Semi-transparent matte overlay for concept-phase elements under discussion. Non-reflective, double-sided, AO-excluded. Use interchangeably with red and yellow variants to flag placeholder or undecided elements.",
+                "BaseColor"             : "rgb(50, 180, 50)",
+                "Opacity"               : 0.25,
+                "Transparent"           : true,
+                "IsDoubleSided"         : true,
+                "DepthWrite"            : false,
+                "PbrRoughness"          : 1.0,
+                "PbrMetallic"           : 0.0,
+                "EnvMapIntensity"       : 0.0,
+                "AoExclude"             : true,
+                "ProfileLineExclude"    : true,
+                "PropagateToChildFaces" : true
             }
         },
 
