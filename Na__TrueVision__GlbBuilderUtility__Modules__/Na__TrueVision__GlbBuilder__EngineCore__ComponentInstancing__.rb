@@ -136,15 +136,13 @@ module TrueVision3D
         # transforms at each level so each discovered instance carries
         # its full world-space transform.
         #
-        # ComponentInstances painted with a material that has PropagateToChildFaces
-        # == true in the DataLib are excluded from instancing. Instancing builds the
-        # mesh from the shared definition and cannot encode per-instance paint.
-        # Excluded instances fall through to the flat TraverseEntities path, where
-        # the inherited_material context correctly applies the group paint to faces.
+        # Material resolution is face-only so container materials are not
+        # tracked. All ComponentInstances are eligible for instancing
+        # regardless of whether their parent has a material.
         #
-        # @param entities         [Sketchup::Entities|Array] Entities to scan
+        # @param entities        [Sketchup::Entities|Array] Entities to scan
         # @param parent_transform [Geom::Transformation]    Accumulated transform
-        # @param definition_map   [Hash] Shared collector across recursion
+        # @param definition_map  [Hash] Shared collector across recursion
         # ---------------------------------------------------------------
         def self.Na__Instancing__RecursiveScan(entities, parent_transform, definition_map)
             entities.each do |entity|
@@ -158,17 +156,6 @@ module TrueVision3D
                 if entity.is_a?(Sketchup::Group)
                     Na__Instancing__RecursiveScan(entity.definition.entities, accumulated_transform, definition_map)
                 else
-                    # Exclude instances painted with a propagating material.
-                    # The flat TraverseEntities path handles these with inherited_material
-                    # context so each instance's faces receive the correct container paint.
-                    if entity.material
-                        instance_mat_name = entity.material.respond_to?(:display_name) ? entity.material.display_name : ""
-                        if Na__MaterialLookup__IsPropagatingName?(instance_mat_name)
-                            Na__Log__Puts "      [Instancing] Skipping propagating-painted instance from instancing: #{instance_mat_name}"
-                            next                                              # <-- Fall through to flat traversal for propagation
-                        end
-                    end
-
                     definition = entity.definition
                     is_mirrored = Na__Instancing__TransformIsMirrored?(accumulated_transform)
 
