@@ -27,7 +27,7 @@ module Na__ComponentEditorTools
 # -----------------------------------------------------------------------------
 
         NA_LIBRARY_DICT = 'Na__ComponentLibrary'.freeze
-        NA_CORE_KEYS    = %w[code gallery_name notes category type].freeze
+        NA_CORE_KEYS    = %w[code gallery_name notes category type truevision_valid].freeze
 
 # endregion -------------------------------------------------------------------
 
@@ -70,11 +70,12 @@ module Na__ComponentEditorTools
         def self.Na__ComponentEditorTools__ReadFromDefinition(definition)
             dict = definition.attribute_dictionary(NA_LIBRARY_DICT)
 
-            stored_code  = dict ? dict['code'].to_s         : ''
-            gallery_name = dict ? dict['gallery_name'].to_s : ''
-            notes        = dict ? dict['notes'].to_s        : ''
-            category     = dict ? dict['category'].to_s     : ''
-            type_value   = dict ? dict['type'].to_s         : ''
+            stored_code      = dict ? dict['code'].to_s              : ''
+            gallery_name     = dict ? dict['gallery_name'].to_s      : ''
+            notes            = dict ? dict['notes'].to_s             : ''
+            category         = dict ? dict['category'].to_s          : ''
+            type_value       = dict ? dict['type'].to_s              : ''
+            truevision_valid = dict ? dict['truevision_valid'].to_s  : ''
 
             derived_code = self.Na__ComponentEditorTools__DeriveCode(definition.name.to_s)
             display_code = stored_code.empty? ? derived_code : stored_code
@@ -89,26 +90,28 @@ module Na__ComponentEditorTools
             end
 
             {
-                'code'         => display_code,
-                'code_stored'  => stored_code,
-                'code_derived' => derived_code,
-                'gallery_name' => gallery_name,
-                'notes'        => notes,
-                'category'     => category,
-                'type'         => type_value,
-                'custom'       => custom
+                'code'             => display_code,
+                'code_stored'      => stored_code,
+                'code_derived'     => derived_code,
+                'gallery_name'     => gallery_name,
+                'notes'            => notes,
+                'category'         => category,
+                'type'             => type_value,
+                'truevision_valid' => truevision_valid,
+                'custom'           => custom
             }
         rescue => error
             puts "[Na__ComponentEditorTools] Serializer read warning: #{error.class}: #{error.message}"
             {
-                'code'         => '',
-                'code_stored'  => '',
-                'code_derived' => '',
-                'gallery_name' => '',
-                'notes'        => '',
-                'category'     => '',
-                'type'         => '',
-                'custom'       => {}
+                'code'             => '',
+                'code_stored'      => '',
+                'code_derived'     => '',
+                'gallery_name'     => '',
+                'notes'            => '',
+                'category'         => '',
+                'type'             => '',
+                'truevision_valid' => '',
+                'custom'           => {}
             }
         end
 
@@ -122,17 +125,19 @@ module Na__ComponentEditorTools
             dict = definition.attribute_dictionary(NA_LIBRARY_DICT, true)
             raise 'Could not create Na__ComponentLibrary dictionary.' unless dict
 
-            code_value     = data_hash['code'].to_s.strip
-            gallery_value  = data_hash['gallery_name'].to_s
-            notes_value    = data_hash['notes'].to_s
-            category_value = data_hash['category'].to_s
-            type_value     = data_hash['type'].to_s
+            code_value       = data_hash['code'].to_s.strip
+            gallery_value    = data_hash['gallery_name'].to_s
+            notes_value      = data_hash['notes'].to_s
+            category_value   = data_hash['category'].to_s
+            type_value       = data_hash['type'].to_s
+            tv_valid_value   = data_hash['truevision_valid'].to_s
 
-            dict['code']         = code_value   unless code_value.empty?
-            dict['gallery_name'] = gallery_value
-            dict['notes']        = notes_value
-            dict['category']     = category_value
-            dict['type']         = type_value
+            dict['code']             = code_value   unless code_value.empty?
+            dict['gallery_name']     = gallery_value
+            dict['notes']            = notes_value
+            dict['category']         = category_value
+            dict['type']             = type_value
+            dict['truevision_valid'] = tv_valid_value
 
             custom_keys = data_hash['custom']
             if custom_keys.is_a?(Hash)

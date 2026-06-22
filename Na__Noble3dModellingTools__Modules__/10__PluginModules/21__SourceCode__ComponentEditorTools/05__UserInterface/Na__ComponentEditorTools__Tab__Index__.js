@@ -434,6 +434,14 @@
 // REGION | Main Row
 // -----------------------------------------------------------------------------
 
+    function na_build_tv_badge() {
+        var badge = document.createElement('span');
+        badge.className = 'naComponentEditor__TvValidBadge';
+        badge.title = 'TrueVision Validated';
+        badge.textContent = '\u2713';
+        return badge;
+    }
+
     function na_build_thumbnail_cell(entry) {
         var td = document.createElement('td');
         td.className = 'naComponentEditor__IndexTd naComponentEditor__IndexTd--thumb';
@@ -454,6 +462,10 @@
             td.classList.add('naComponentEditor__IndexTd--thumbEmpty');
         }
 
+        if (entry.truevision_valid === 'true') {
+            td.appendChild(na_build_tv_badge());
+        }
+
         td.addEventListener('dblclick', function () {
             if (entry.path && typeof window.Na__ComponentEditorTools__InsertLibraryComponent === 'function') {
                 window.Na__ComponentEditorTools__InsertLibraryComponent(entry.path);
@@ -465,6 +477,27 @@
             na_show_index_context_menu(event, entry);
         });
 
+        return td;
+    }
+
+    function na_build_truevision_cell(entry) {
+        var td = document.createElement('td');
+        td.className = 'naComponentEditor__IndexTd naComponentEditor__IndexTd--tvValid';
+
+        var checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'naComponentEditor__IndexTvCheckbox';
+        checkbox.checked = entry.truevision_valid === 'true';
+        checkbox.title = checkbox.checked ? 'TrueVision Validated — click to unmark' : 'Click to mark as TrueVision Valid';
+
+        checkbox.addEventListener('change', function () {
+            var new_value = checkbox.checked ? 'true' : 'false';
+            entry.truevision_valid = new_value;
+            checkbox.title = checkbox.checked ? 'TrueVision Validated — click to unmark' : 'Click to mark as TrueVision Valid';
+            na_save_field(entry, 'truevision_valid', new_value);
+        });
+
+        td.appendChild(checkbox);
         return td;
     }
 
@@ -489,7 +522,7 @@
         tr.appendChild(na_build_editable_cell(entry, na_column('file_name')));
         tr.appendChild(na_build_editable_cell(entry, na_column('relative_dir')));
         tr.appendChild(na_build_editable_cell(entry, na_column('description')));
-
+        tr.appendChild(na_build_truevision_cell(entry));
         tr.appendChild(na_build_actions_cell(entry, entry_key));
         return tr;
     }
@@ -794,7 +827,7 @@
         tr.setAttribute('data-edit-key', entry_key);
 
         var td = document.createElement('td');
-        td.colSpan = 10;
+        td.colSpan = 11;
         td.className = 'naComponentEditor__IndexEditTd';
         td.appendChild(na_build_edit_panel(entry));
         tr.appendChild(td);
@@ -1074,6 +1107,7 @@
             notes:               notes_val,
             category:            entry.category || '',
             type:                entry.type || '',
+            truevision_valid:    entry.truevision_valid || '',
             custom:              custom,
             deleted_custom_keys: deleted
         };

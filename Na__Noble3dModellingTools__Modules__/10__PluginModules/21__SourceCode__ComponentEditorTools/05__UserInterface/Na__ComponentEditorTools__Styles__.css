@@ -751,6 +751,7 @@ body {
 }
 
 .naComponentEditor__GalleryThumbWrap {
+    position                        : relative;
     width                           : 100%;
     aspect-ratio                    : 1 / 1;
     display                         : flex;
@@ -787,6 +788,34 @@ body {
 
 .naComponentEditor__GalleryCardFolder {
     display                         : none;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+   #region | TrueVision Valid Badge
+   ----------------------------------------------------------------------------- */
+
+.naComponentEditor__TvValidBadge {
+    position                        : absolute;
+    top                             : 4px;
+    right                           : 4px;
+    z-index                         : 10;
+    width                           : 18px;
+    height                          : 18px;
+    border-radius                   : 50%;
+    background                      : rgba(255, 255, 255, 0.88);
+    display                         : flex;
+    align-items                     : center;
+    justify-content                 : center;
+    pointer-events                  : none;
+    color                           : #1f7a42;
+    font-size                       : 12px;
+    font-weight                     : 700;
+    line-height                     : 1;
+    box-shadow                      : 0 1px 3px rgba(0, 0, 0, 0.18);
+    user-select                     : none;
 }
 
 /* #endregion ---------------------------------------------------------------- */
@@ -843,6 +872,26 @@ body {
 
 .naComponentEditor__IndexTh--actions {
     width                           : 160px;
+}
+
+.naComponentEditor__IndexTh--tvValid {
+    width                           : 90px;
+    text-align                      : center;
+    white-space                     : nowrap;
+}
+
+.naComponentEditor__IndexTd--tvValid {
+    width                           : 90px;
+    text-align                      : center;
+    vertical-align                  : middle;
+    padding                         : 4px 6px;
+}
+
+.naComponentEditor__IndexTvCheckbox {
+    width                           : 16px;
+    height                          : 16px;
+    cursor                          : pointer;
+    accent-color                    : #1f7a42;
 }
 
 .naComponentEditor__SortIndicator {
@@ -953,6 +1002,7 @@ body {
 }
 
 .naComponentEditor__IndexTd--thumb {
+    position                        : relative;
     width                           : 56px;
     padding                         : 3px 4px;
     text-align                      : center;

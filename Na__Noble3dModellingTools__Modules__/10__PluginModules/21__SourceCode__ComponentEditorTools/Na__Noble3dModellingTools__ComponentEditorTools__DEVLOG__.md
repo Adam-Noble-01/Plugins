@@ -1,4 +1,4 @@
-# Na Noble3d - Component Editor Tools - Development Log
+﻿# Na Noble3d - Component Editor Tools - Development Log
 # =============================================================================
 # Module : 21__SourceCode__ComponentEditorTools
 # Plugin : Na Noble3d Modelling Tools
@@ -24,6 +24,61 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 # VERSION HISTORY
 # =============================================================================
 
+
+# Na Noble3d Modelling Tools — Component Editor Tools
+## Version 0.6.1 - 22-Jun-2026 - TrueVision Valid Flag
+
+### Overview
+Added a persistent **TrueVision Valid** boolean flag to every component in the library. The flag is stored in the `Na__ComponentLibrary` attribute dictionary on the `.skp` file — alongside the existing `code`, `gallery_name`, `notes`, `category`, and `type` core keys — and survives the full load → edit → save_as → re-extract round-trip. A toggle checkbox column in the Index table and a white-circle `✓` badge overlaid on thumbnails in both the Gallery and Index provide the visual interface.
+
+### Update 01 - Serializer: `truevision_valid` Core Key
+- `Na__ComponentLibrary` core-keys constant extended: `NA_CORE_KEYS = %w[code gallery_name notes category type truevision_valid]`.
+- `ReadFromDefinition` — reads `dict['truevision_valid'].to_s` (yields `'true'`, `'false'`, or `''`); included in returned hash as `'truevision_valid'`.
+- `WriteToDefinition` — writes `data_hash['truevision_valid'].to_s` to `dict['truevision_valid']`.
+- `WriteSingleField` — already handles any non-`code` key generically; no change required.
+- Error-fallback hash updated with `'truevision_valid' => ''`.
+
+### Update 02 - Extractor: Forward Flag into Result Hash
+- **Root cause fix:** `ExtractFromFile` assembled the result hash from `library_data` but never included `'truevision_valid'`. After a single-field save the component was re-extracted and the `updated_entry` pushed to JS lacked the key, so `entry.truevision_valid` was `undefined` and the checkbox re-rendered unchecked.
+- `'truevision_valid' => library_data['truevision_valid']` added to the `ExtractFromFile` result hash.
+- `ErrorResult` fallback hash also gets `'truevision_valid' => ''` for consistency.
+
+### Update 03 - Editor: Route `truevision_valid` Through `UpdateField`
+- `NA_FIELD_LABELS` extended: `'truevision_valid' => 'TrueVision Valid'`.
+- `UpdateField` `when` clause extended: `when 'code', 'gallery_name', 'notes', 'category', 'type', 'truevision_valid'` — routes single-field checkbox saves through the existing `WriteSingleField` → `LoadEditSaveRemove` → `save_as` path.
+
+### Update 04 - Index Tab: TrueVision Valid Column & Thumbnail Badge
+- New `na_build_tv_badge()` helper — creates a `.naComponentEditor__TvValidBadge` `<span>` containing `✓`.
+- `na_build_thumbnail_cell` — appends the badge when `entry.truevision_valid === 'true'`.
+- New `na_build_truevision_cell(entry)` — builds a `<td class="naComponentEditor__IndexTd--tvValid">` containing a 16 px checkbox (`accent-color: #1f7a42`). `change` event: immediately updates `entry.truevision_valid` in memory, updates `checkbox.title`, and calls `na_save_field(entry, 'truevision_valid', 'true'/'false')` → `UpdateField` → disk write → re-extract → `ReceiveEntryUpdate`.
+- `na_build_main_row` — new cell inserted between Description and Actions.
+- Edit-row `colSpan` updated from `10` → `11`.
+- `na_save_library_data` payload extended with `truevision_valid: entry.truevision_valid || ''` so the drill-down **Save Library Data** button also persists the flag.
+
+### Update 05 - Gallery Tab: TrueVision Thumbnail Badge
+- `na_build_card` — after appending the `<img>` to `thumb_wrap`, if `entry.truevision_valid === 'true'` a `.naComponentEditor__TvValidBadge` `<span>` is appended to `thumb_wrap` as an absolute overlay.
+
+### Update 06 - HTML: TrueVision Valid Column Header
+- New `<th class="naComponentEditor__IndexTh naComponentEditor__IndexTh--tvValid">TrueVision Valid</th>` inserted between Description and Actions in the Index `<thead>`.
+
+### Update 07 - CSS: Badge & Column Styles
+- `position: relative` added to `.naComponentEditor__GalleryThumbWrap` — enables absolute badge placement over gallery thumbnails.
+- `position: relative` added to `.naComponentEditor__IndexTd--thumb` — same for index thumbnail cells.
+- New `#region | TrueVision Valid Badge`:
+  - `.naComponentEditor__TvValidBadge` — `position: absolute; top: 4px; right: 4px; z-index: 10; width/height: 18px; border-radius: 50%; background: rgba(255,255,255,0.88); color: #1f7a42; font-size: 12px; font-weight: 700; pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,0.18)`.
+- `.naComponentEditor__IndexTh--tvValid` — 90 px wide, centred.
+- `.naComponentEditor__IndexTd--tvValid` — 90 px wide, centred, `padding: 4px 6px`.
+- `.naComponentEditor__IndexTvCheckbox` — 16 px checkbox, `accent-color: #1f7a42`.
+
+### Validation Checklist
+- [ ] Checking a TrueVision Valid checkbox persists across a library reload (the `.skp` dict is written correctly).
+- [ ] Unchecking removes the badge from both thumbnail and gallery card on next render.
+- [ ] Badge appears top-right on gallery card thumbnails when `truevision_valid: 'true'`.
+- [ ] Badge appears top-right on index table thumbnail cells when `truevision_valid: 'true'`.
+- [ ] Components with no prior `Na__ComponentLibrary` dict show the checkbox unchecked (no crash).
+- [ ] "Save Library Data" in the drill-down panel also persists the current checkbox state.
+
+---
 
 # Na Noble3d Modelling Tools — Component Editor Tools
 ## Version 0.6.0 - 19-Jun-2026 - Component Geometry Audit Panel & Monitor Selection Toggle
@@ -397,7 +452,7 @@ Non-manifold         =  0
 | File | Responsibility |
 |------|---------------|
 | `...__UiLayout__.html` | Tab shell: Overview, Attributes, Thumbnail, Settings \| Gallery, Index |
-| `...__Styles__.css` | Full dialog styling including index table, gallery grid, taxonomy manager, geometry panel |
+| `...__Styles__.css` | Full dialog styling including index table, gallery grid, taxonomy manager, geometry panel, TrueVision badge |
 | `...__UiBridge__.js` | Global state, incoming handlers, outgoing SketchUp callbacks, monitoring toggle |
 | `...__TabRouter__.js` | Tab activation and Gallery/Index on-activate data fetch |
 | `...__Tab__Overview__.js` | Selection-based instance/definition field editor + geometry panel renderer |
@@ -405,8 +460,8 @@ Non-manifold         =  0
 | `...__Tab__Attributes__.js` | Attribute dictionary read/write UI |
 | `...__Tab__Thumbnail__.js` | Viewport render and thumbnail export |
 | `...__Tab__Settings__.js` | Library path, exclusions, taxonomy CRUD, plugin reload |
-| `...__Tab__Gallery__.js` | Thumbnail grid with search + category/type/folder filters |
-| `...__Tab__Index__.js` | Sortable table, double-click edit, category/type dropdowns |
+| `...__Tab__Gallery__.js` | Thumbnail grid with search + category/type/folder filters + TrueVision badge overlay |
+| `...__Tab__Index__.js` | Sortable table, double-click edit, category/type dropdowns, TrueVision Valid checkbox column + thumbnail badge |
 
 #### User Data (`07__UserData/`)
 

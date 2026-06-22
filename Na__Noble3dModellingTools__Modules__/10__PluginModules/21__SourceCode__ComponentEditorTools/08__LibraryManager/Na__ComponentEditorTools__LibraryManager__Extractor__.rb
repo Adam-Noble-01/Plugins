@@ -108,25 +108,26 @@ module Na__ComponentEditorTools
             model.definitions.remove(definition) rescue nil
 
             result = {
-                'cache_key'     => cache_key,
-                'path'          => file_path,
-                'file_name'     => file_name,
-                'relative_dir'  => relative_dir,
-                'relative_path' => relative_path,
-                'mtime'         => mtime,
-                'def_name'      => def_name,
-                'description'   => def_description,
-                'attributes'    => attribute_data,
-                'thumbnail_uri' => thumbnail_uri,
-                'code'          => library_data['code'],
-                'code_stored'   => library_data['code_stored'],
-                'code_derived'  => library_data['code_derived'],
-                'gallery_name'  => library_data['gallery_name'],
-                'notes'         => library_data['notes'],
-                'category'      => library_data['category'],
-                'type'          => library_data['type'],
-                'custom'        => library_data['custom'],
-                'ok'            => true
+                'cache_key'        => cache_key,
+                'path'             => file_path,
+                'file_name'        => file_name,
+                'relative_dir'     => relative_dir,
+                'relative_path'    => relative_path,
+                'mtime'            => mtime,
+                'def_name'         => def_name,
+                'description'      => def_description,
+                'attributes'       => attribute_data,
+                'thumbnail_uri'    => thumbnail_uri,
+                'code'             => library_data['code'],
+                'code_stored'      => library_data['code_stored'],
+                'code_derived'     => library_data['code_derived'],
+                'gallery_name'     => library_data['gallery_name'],
+                'notes'            => library_data['notes'],
+                'category'         => library_data['category'],
+                'type'             => library_data['type'],
+                'truevision_valid' => library_data['truevision_valid'],
+                'custom'           => library_data['custom'],
+                'ok'               => true
             }
 
             self.Na__ComponentEditorTools__StoreInCache(cache_key, result)
@@ -169,26 +170,27 @@ module Na__ComponentEditorTools
 
         def self.Na__ComponentEditorTools__ErrorResult(entry, message_text)
             {
-                'cache_key'     => (entry[:cache_key] || entry['cache_key'] || ''),
-                'path'          => (entry[:path] || entry['path'] || ''),
-                'file_name'     => (entry[:file_name] || entry['file_name'] || ''),
-                'relative_dir'  => (entry[:relative_dir] || entry['relative_dir'] || ''),
-                'relative_path' => (entry[:relative_path] || entry['relative_path'] || ''),
-                'mtime'         => (entry[:mtime] || entry['mtime'] || 0),
-                'def_name'      => '',
-                'description'   => '',
-                'attributes'    => {},
-                'thumbnail_uri' => '',
-                'code'          => '',
-                'code_stored'   => '',
-                'code_derived'  => '',
-                'gallery_name'  => '',
-                'notes'         => '',
-                'category'      => '',
-                'type'          => '',
-                'custom'        => {},
-                'ok'            => false,
-                'error'         => message_text
+                'cache_key'        => (entry[:cache_key] || entry['cache_key'] || ''),
+                'path'             => (entry[:path] || entry['path'] || ''),
+                'file_name'        => (entry[:file_name] || entry['file_name'] || ''),
+                'relative_dir'     => (entry[:relative_dir] || entry['relative_dir'] || ''),
+                'relative_path'    => (entry[:relative_path] || entry['relative_path'] || ''),
+                'mtime'            => (entry[:mtime] || entry['mtime'] || 0),
+                'def_name'         => '',
+                'description'      => '',
+                'attributes'       => {},
+                'thumbnail_uri'    => '',
+                'code'             => '',
+                'code_stored'      => '',
+                'code_derived'     => '',
+                'gallery_name'     => '',
+                'notes'            => '',
+                'category'         => '',
+                'type'             => '',
+                'truevision_valid' => '',
+                'custom'           => {},
+                'ok'               => false,
+                'error'            => message_text
             }
         end
 

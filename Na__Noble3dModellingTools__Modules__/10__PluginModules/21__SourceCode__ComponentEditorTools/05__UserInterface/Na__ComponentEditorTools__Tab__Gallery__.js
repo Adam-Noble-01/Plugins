@@ -411,6 +411,14 @@
 
         thumb_wrap.appendChild(img);
 
+        if (entry.truevision_valid === 'true') {
+            var tv_badge = document.createElement('span');
+            tv_badge.className = 'naComponentEditor__TvValidBadge';
+            tv_badge.title = 'TrueVision Validated';
+            tv_badge.textContent = '\u2713';
+            thumb_wrap.appendChild(tv_badge);
+        }
+
         var info = document.createElement('div');
         info.className = 'naComponentEditor__GalleryCardInfo';
 

@@ -23,15 +23,16 @@ module Na__ComponentEditorTools
 # -----------------------------------------------------------------------------
 
         NA_FIELD_LABELS = {
-            'code'         => 'Code',
-            'gallery_name' => 'Gallery Name',
-            'category'     => 'Category',
-            'type'         => 'Type',
-            'def_name'     => 'Definition Name',
-            'description'  => 'Description',
-            'notes'        => 'Notes',
-            'file_name'    => 'File Name',
-            'relative_dir' => 'Folder'
+            'code'             => 'Code',
+            'gallery_name'     => 'Gallery Name',
+            'category'         => 'Category',
+            'type'             => 'Type',
+            'def_name'         => 'Definition Name',
+            'description'      => 'Description',
+            'notes'            => 'Notes',
+            'file_name'        => 'File Name',
+            'relative_dir'     => 'Folder',
+            'truevision_valid' => 'TrueVision Valid'
         }.freeze
 
 # endregion -------------------------------------------------------------------
@@ -111,7 +112,7 @@ module Na__ComponentEditorTools
             new_path = file_path
 
             case field
-            when 'code', 'gallery_name', 'notes', 'category', 'type'
+            when 'code', 'gallery_name', 'notes', 'category', 'type', 'truevision_valid'
                 self.Na__ComponentEditorTools__LoadEditSaveRemove(file_path) do |definition|
                     raise 'Live Components should not be modified through this utility.' if self.Na__ComponentEditorTools__LiveComponent?(definition)
                     Na__LibrarySerializer.Na__ComponentEditorTools__WriteSingleField(definition, field, value)
