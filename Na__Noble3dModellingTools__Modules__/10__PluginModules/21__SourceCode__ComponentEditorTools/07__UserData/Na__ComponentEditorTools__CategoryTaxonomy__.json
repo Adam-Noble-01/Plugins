@@ -21,7 +21,6 @@
       "types": [
         "Kitchen Fixtures",
         "Bathroom Fixtures",
-        "Sanitaryware",
         "Heating",
         "Electrical",
         "Lighting"
@@ -91,6 +90,7 @@
     "Site Boundary": "#8a4ad9",
     "Model Notes": "#d94a4a",
     "Home Bar": "#b3d94a",
-    "Ironmongery": "#d64ad9"
+    "Ironmongery": "#d64ad9",
+    "Bathroom Fixtures": "#4abcd9"
   }
 }
