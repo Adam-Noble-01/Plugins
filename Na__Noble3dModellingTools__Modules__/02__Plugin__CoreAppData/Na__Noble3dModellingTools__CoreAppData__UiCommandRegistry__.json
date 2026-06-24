@@ -361,6 +361,15 @@
             "menu_text"         : "Untag Specific In Selection",
             "handler_key"       : "untag_specific_in_selection",
             "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "material_swap_in_selection",
+            "command_name"      : "Na Noble3d - Material Swap In Selection",
+            "tooltip"           : "Selectively swap specific materials in the current selection with any other model material",
+            "status_bar_text"   : "Swap specific materials in selected entities while preserving all other material assignments",
+            "menu_text"         : "Material Swap In Selection",
+            "handler_key"       : "material_swap_in_selection",
+            "expose_to_hotkeys" : true
         }
     ],
     "buttons"                : [
@@ -539,6 +548,17 @@
             "button_label"           : "Load All Noble Architecture Materials",
             "command_id"             : "load_all_noble_architecture_materials",
             "description"            : "Loads all indexed Noble Architecture materials from MAT010 onward."
+        },
+        {
+            "button_id"              : "btn_material_swap_in_selection",
+            "tab_name"               : "Material Utils",
+            "tool_group_name"        : "Material Operations",
+            "tool_group_description" : "Tools for modifying or replacing material assignments on selected entities in the model.",
+            "tool_group_order"       : 20,
+            "button_order"           : 10,
+            "button_label"           : "Material Swap In Selection",
+            "command_id"             : "material_swap_in_selection",
+            "description"            : "Recursively scans the current selection for materials, presents a two-step wizard to choose which materials to replace and what to replace them with, then swaps all matching assignments in one undoable step."
         },
         {
             "button_id"              : "btn_load_all_tags",
@@ -867,6 +887,10 @@
         },
         {
             "command_id"        : "untag_specific_in_selection",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "material_swap_in_selection",
             "expose_to_hotkeys" : true
         }
     ]

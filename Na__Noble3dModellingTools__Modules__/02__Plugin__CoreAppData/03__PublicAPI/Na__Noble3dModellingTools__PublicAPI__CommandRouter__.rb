@@ -150,6 +150,9 @@ module Na__Noble3dModellingTools
             when 'untag_specific_in_selection'
                 proc { Na__UntagSpecificInSelection.Na__UntagSpecificInSelection__Run }
 
+            when 'material_swap_in_selection'
+                proc { Na__MaterialSwapInSelection.Na__MaterialSwapInSelection__Run }
+
             else
                 nil
             end
