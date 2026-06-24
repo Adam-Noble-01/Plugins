@@ -3,6 +3,56 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.5.6 - 24-Jun-2026 - Untag Specific In Selection (Tag Utils)
+
+### Update 01 - Migration of Standalone Plugin to Noble 3D Tools Module
+- Migrated standalone `Na__UntagSpecificInSelection__Main__.rb` (487-line monolith in Plugins root) into Noble 3D Modelling Tools as a fully modularised Pattern B sub-dialog tool at `10__PluginModules/22__SourceCode__UntagSpecificInSelection/`.
+- New module folder created with 6 files following the SelectedHierarchyTagReporter split-file pattern:
+  - `Na__Noble3dModellingTools__UntagSpecificInSelection__Loader__.rb`
+  - `Na__Noble3dModellingTools__UntagSpecificInSelection__TagCollector__.rb`
+  - `Na__Noble3dModellingTools__UntagSpecificInSelection__Untagger__.rb`
+  - `Na__Noble3dModellingTools__UntagSpecificInSelection__SelectionObserver__.rb`
+  - `Na__Noble3dModellingTools__UntagSpecificInSelection__DialogManager__.rb`
+  - `Na__Noble3dModellingTools__UntagSpecificInSelection__Run__.rb`
+- Sub-devlog: `10__PluginModules/22__SourceCode__UntagSpecificInSelection/Na__Noble3dModellingTools__UntagSpecificInSelection__DEVLOG__.md`
+
+### Update 02 - Layer0 Hardcode Fix
+- Replaced the hardcoded `"Layer0"` string comparison in the tag collector with an object-identity check against `model.layers[0]`. In SketchUp 2020+ the default untagged layer is named `"Untagged"`, not `"Layer0"`, meaning the original plugin was incorrectly offering `"Untagged"` as a removable tag.
+
+### Update 03 - Recursive Tag Scan Fix
+- Fixed a logical error in `TagCollector` where `na_recurse_into_container` was placed after the `next if layer == untagged_layer` guard, causing any group or component sitting on the Untagged layer to be skipped entirely — including all of its tagged children and grandchildren. Tag recording and recursion are now two independent unconditional steps per entity in the main loop.
+
+### Update 04 - HtmlDialog Bridge Modernisation
+- Replaced the legacy `window.location = 'skp:callback@'` URL scheme with the modern `window.sketchup.callback()` API throughout the dialog JavaScript.
+
+### Update 05 - Live Selection Observer
+- Added `Na__UntagSpecificInSelection__SelectionObserver` (`Sketchup::SelectionObserver` subclass) watching all four selection-change events: `onSelectionAdded`, `onSelectionBulkChange`, `onSelectionCleared`, `onSelectionRemoved`.
+- Observer is attached to `model.selection` when the dialog opens and explicitly detached via `set_on_closed` to prevent stale callbacks after close.
+- `HandleSelectionChanged` re-collects tags from the new selection and pushes one of three states to the dialog via `execute_script`: rebuilt checklist (`normal`), empty-selection notice, or no-tags notice — all without closing or reloading the dialog.
+
+### Update 06 - Registry, Router, and Loader Wiring
+- Registered command, button (`Tag Utils > Tag Operations`, tool_group_order 20), and hotkey binding in the JSON-driven UI command registry:
+  - `untag_specific_in_selection` / `Untag Specific In Selection`
+  - `02__Plugin__CoreAppData/Na__Noble3dModellingTools__CoreAppData__UiCommandRegistry__.json`
+- Wired handler and module load paths through:
+  - `02__Plugin__CoreAppData/03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb`
+  - `02__Plugin__CoreAppData/02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`
+
+### Update 07 - Standalone Plugin Cleanup
+- Deleted `Na__UntagSpecificInSelection__Main__.rb` from the Plugins root following successful testing of the migrated module. No companion loader or modules folder existed for the old plugin (it was a self-contained single file).
+
+### Validation Checklist
+- [x] Tool appears in Noble 3D Tools dialog under Tag Utils > Tag Operations.
+- [x] Tool appears in Extensions > Na__Noble3dModellingTools menu and is hotkey-bindable.
+- [x] Tag collector correctly finds tags at all nesting levels, including inside untagged containers.
+- [x] Default untagged layer (model.layers[0]) is never shown in the checklist regardless of SketchUp version.
+- [x] Dialog checklist updates live when the SketchUp selection changes while the dialog is open.
+- [x] Empty selection and no-tags states show informative status banners in the dialog header.
+- [x] Untag operation wraps in a single undoable step; abort fires cleanly on error.
+- [x] Standalone `Na__UntagSpecificInSelection__Main__.rb` removed from Plugins root.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.5.5 - 17-Jun-2026 - Component Editor Tools Gallery & Index Visual Polish
 
 ### Update 01 - Gallery Card Taxonomy Chips

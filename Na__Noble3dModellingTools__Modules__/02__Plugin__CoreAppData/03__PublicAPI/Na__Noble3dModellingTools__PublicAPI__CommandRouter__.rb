@@ -147,6 +147,9 @@ module Na__Noble3dModellingTools
             when 'open_component_editor'
                 proc { Na__ComponentEditorTools.Na__ComponentEditorTools__OpenDialog }
 
+            when 'untag_specific_in_selection'
+                proc { Na__UntagSpecificInSelection.Na__UntagSpecificInSelection__Run }
+
             else
                 nil
             end
