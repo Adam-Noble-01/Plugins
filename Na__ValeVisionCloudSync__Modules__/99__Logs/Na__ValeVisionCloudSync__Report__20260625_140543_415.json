@@ -1,0 +1,57 @@
+{
+  "success": true,
+  "message": "Sync complete (all).",
+  "project": "63578__Yates__Orangery__Whitecard",
+  "action": "all",
+  "started_at": "25-Jun-2026 at 14:05",
+  "elapsed_ms": 2706,
+  "uploaded": 4,
+  "mirrored": 1,
+  "steps": [
+    {
+      "label": "Resolve Project Root",
+      "success": true,
+      "message": "Found project at C:\\01__ValeProjects\\ValeProjects__2026\\63578__Yates__Orangery__Whitecard."
+    },
+    {
+      "label": "Clone Images",
+      "success": true,
+      "message": "Cloned 1 image(s) from VisDpt__Whitecard__SecondEdition__25-Jun-2026 (purged 3 stale)."
+    },
+    {
+      "label": "Update Image List",
+      "success": true,
+      "message": "project.json images unchanged \u2014 1 scene(s): IMG01__3dView__ReartElevation__OrangeryView____WhitecardImage__25-Jun-2026.png."
+    },
+    {
+      "label": "Generate Thumbnails",
+      "success": true,
+      "message": "Thumbnail generation complete."
+    },
+    {
+      "label": "Upload Images to R2",
+      "success": true,
+      "message": "Uploaded 3 file(s) to R2 under VaApps/Projects/2026/63578__Yates__Orangery/."
+    },
+    {
+      "label": "Upload project.json to R2",
+      "success": true,
+      "message": "Uploaded project.json to R2 key: VaApps/Projects/2026/63578__Yates__Orangery/project.json"
+    },
+    {
+      "label": "Merge Camera Data into project.json (local)",
+      "success": true,
+      "message": "Merged ValeVison3D__SketchUpCameraData into project.json."
+    },
+    {
+      "label": "Merge Camera Data into R2 project.json",
+      "success": true,
+      "message": "Merged ValeVison3D__SketchUpCameraData into R2 project.json."
+    },
+    {
+      "label": "Update Master Index",
+      "success": true,
+      "message": "Index entry upserted for 2026/63578__Yates__Orangery (home=r2, R2:OK GH:OK)."
+    }
+  ]
+}

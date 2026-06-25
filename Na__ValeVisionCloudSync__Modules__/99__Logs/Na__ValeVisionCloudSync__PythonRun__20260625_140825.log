@@ -1,0 +1,46 @@
+=============================================================================
+ ValeVision Cloud Sync  -  Python Subprocess Run Log
+=============================================================================
+ The plugin shells out to a Python orchestrator to mirror this project to
+ Cloudflare R2 + Whitecardopedia. This log records that single launch so any
+ dialog error can be traced to exactly what ran and what came back.
+
+ Result      : OK  - report parsed
+ Channel     : report FILE (preferred channel)
+ Exit code   : 1
+ Time        : 25-Jun-2026 at 14:08:25
+
+ Command:
+   C:/Users/adamw/AppData/Local/Programs/Python/Python312/python.exe D:/10_CoreLib__ValeCodebase/WebApps/Whitecardopedia/Tools__DevUtils/AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py --project ValeProjects__2026 --year 2026 --action all --json --report-file C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__ValeVisionCloudSync__Modules__/99__Logs/Na__ValeVisionCloudSync__Report__20260625_140824_576.json
+
+ Report file (preferred hand-off channel):
+   Path   : C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__ValeVisionCloudSync__Modules__/99__Logs/Na__ValeVisionCloudSync__Report__20260625_140824_576.json
+   Status : written by Python
+   ----- report JSON -----
+   {
+     "success": false,
+     "message": "Sync completed with errors \u2014 see step details.",
+     "project": "ValeProjects__2026",
+     "action": "all",
+     "started_at": "25-Jun-2026 at 14:08",
+     "elapsed_ms": 0,
+     "uploaded": 0,
+     "mirrored": 0,
+     "steps": [
+       {
+         "label": "Resolve Project Root",
+         "success": false,
+         "message": "Project folder not found under C:\\01__ValeProjects/2026/."
+       }
+     ]
+   }
+
+ Captured stdout (fallback channel):
+   (empty - normal when the report file was used)
+
+ Captured stderr:
+   (empty)
+
+ Inherited PYTHON* env (stripped before launch):
+   (none)
+=============================================================================

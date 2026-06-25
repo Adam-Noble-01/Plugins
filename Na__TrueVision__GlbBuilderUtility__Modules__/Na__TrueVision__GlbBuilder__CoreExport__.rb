@@ -695,7 +695,7 @@ module TrueVision3D
     
         # FUNCTION | Perform GLB Export with Configuration
         # ---------------------------------------------------------------
-        def self.Na__ExportCore__PerformExport(export_dir)
+        def self.Na__ExportCore__PerformExport(export_dir, quiet: false)
             model = Sketchup.active_model
 
             self.Na__ExportCore__ResetState
@@ -828,20 +828,22 @@ module TrueVision3D
                 self.Na__Helpers__CleanupTextureCache
 
                 if success_count > 0
-                    self.Na__Helpers__OpenFolder(export_dir)
                     storey_msg = has_storeys ? " (includes storey-based exports)" : ""
                     log_path   = self.Na__Log__CloseSession
-                    log_notice = log_path ? "\n\nExport log: #{File.basename(log_path)}" : ""
-                    UI.messagebox("GLB export completed!#{storey_msg}\n\n#{success_count} files (#{mesh_success} mesh + #{linework_success} linework) exported to:\n#{export_dir}#{log_notice}")
+                    unless quiet                                                       # <-- Programmatic callers skip GUI side-effects
+                        self.Na__Helpers__OpenFolder(export_dir)                       # <-- Reveal folder (interactive use only)
+                        log_notice = log_path ? "\n\nExport log: #{File.basename(log_path)}" : ""
+                        UI.messagebox("GLB export completed!#{storey_msg}\n\n#{success_count} files (#{mesh_success} mesh + #{linework_success} linework) exported to:\n#{export_dir}#{log_notice}")
+                    end
                 else
                     log_path = self.Na__Log__CloseSession
-                    UI.messagebox("Export failed. Please check the Ruby Console for errors.")
+                    UI.messagebox("Export failed. Please check the Ruby Console for errors.") unless quiet  # <-- Suppress modal when programmatic
                 end
 
             rescue => e
                 Na__Log__Warn "GLB Export Error: #{e.message}\n#{e.backtrace.join("\n")}"
                 log_path = self.Na__Log__CloseSession
-                UI.messagebox("Export error: #{e.message}\n\nCheck the Ruby Console for details.")
+                UI.messagebox("Export error: #{e.message}\n\nCheck the Ruby Console for details.") unless quiet  # <-- Suppress modal when programmatic
                 false
             ensure
                 log_path ||= self.Na__Log__CloseSession

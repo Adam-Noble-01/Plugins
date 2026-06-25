@@ -108,7 +108,9 @@ module Na__ValeVisionCloudSync
             export_started_at = Time.now - 2  # <-- 2s tolerance for clock/filesystem granularity
 
             begin
-                TrueVision3D::GlbBuilderUtility.Na__PublicApi__PerformExport(glb_sync_dir)
+                TrueVision3D::GlbBuilderUtility.Na__PublicApi__PerformExport(glb_sync_dir, quiet: true)  # <-- No Explorer reveal / modal dialog mid-sync
+            rescue ArgumentError
+                TrueVision3D::GlbBuilderUtility.Na__PublicApi__PerformExport(glb_sync_dir)                # <-- Fallback for older builder without quiet kwarg
             rescue => error
                 return na_error_result("GLB export raised an error: #{error.message}")
             end

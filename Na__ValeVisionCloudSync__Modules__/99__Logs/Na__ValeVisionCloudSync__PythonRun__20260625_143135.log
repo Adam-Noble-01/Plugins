@@ -1,0 +1,33 @@
+=============================================================================
+ ValeVision Cloud Sync  -  Python Subprocess Run Log
+=============================================================================
+ The plugin shells out to a Python orchestrator to mirror this project to
+ Cloudflare R2 + Whitecardopedia. This log records that single launch so any
+ dialog error can be traced to exactly what ran and what came back.
+
+ Result      : FAIL - no report parsed
+ Channel     : NONE — no readable report (see Diagnosis)
+ Exit code   : unknown
+ Time        : 25-Jun-2026 at 14:31:35
+
+ Command:
+   C:/Users/adamw/AppData/Local/Programs/Python/Python312/python.exe D:/10_CoreLib__ValeCodebase/WebApps/Whitecardopedia/Tools__DevUtils/AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py --project 63592__Bressard-Kayode__Whitecard --year 2026 --action all --json --report-file C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__ValeVisionCloudSync__Modules__/99__Logs/Na__ValeVisionCloudSync__Report__20260625_143133_572.json
+
+ Report file (preferred hand-off channel):
+   Path   : C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__ValeVisionCloudSync__Modules__/99__Logs/Na__ValeVisionCloudSync__Report__20260625_143133_572.json
+   Status : NOT created by Python
+   ----- report JSON -----
+   (none)
+
+ Captured stdout (fallback channel):
+   (empty - normal when the report file was used)
+
+ Captured stderr:
+   (empty)
+
+ Inherited PYTHON* env (stripped before launch):
+   (none)
+
+ Diagnosis:
+   See stderr above for the Python traceback.
+=============================================================================

@@ -1,0 +1,66 @@
+=============================================================================
+ ValeVision Cloud Sync  -  Python Subprocess Run Log
+=============================================================================
+ The plugin shells out to a Python orchestrator to mirror this project to
+ Cloudflare R2 + Whitecardopedia. This log records that single launch so any
+ dialog error can be traced to exactly what ran and what came back.
+
+ Result      : OK  - report parsed
+ Channel     : report FILE (preferred channel)
+ Exit code   : 0
+ Time        : 25-Jun-2026 at 15:18:07
+
+ Command:
+   C:/Users/adamw/AppData/Local/Programs/Python/Python312/python.exe D:/10_CoreLib__ValeCodebase/WebApps/Whitecardopedia/Tools__DevUtils/AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py --project 63592__Bressard-Kayode__Whitecard --year 2026 --action cameras --json --report-file C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__ValeVisionCloudSync__Modules__/99__Logs/Na__ValeVisionCloudSync__Report__20260625_151800_735.json
+
+ Report file (preferred hand-off channel):
+   Path   : C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__ValeVisionCloudSync__Modules__/99__Logs/Na__ValeVisionCloudSync__Report__20260625_151800_735.json
+   Status : written by Python
+   ----- report JSON -----
+   {
+     "success": true,
+     "message": "Sync complete (cameras).",
+     "project": "63592__Bressard-Kayode__Whitecard",
+     "action": "cameras",
+     "started_at": "25-Jun-2026 at 15:18",
+     "elapsed_ms": 1452,
+     "uploaded": 0,
+     "mirrored": 0,
+     "steps": [
+       {
+         "label": "Resolve Project Root",
+         "success": true,
+         "message": "Found project at C:\\01__ValeProjects\\ValeProjects__2026\\63592__Bressard-Kayode__Whitecard."
+       },
+       {
+         "label": "Read Camera Data",
+         "success": true,
+         "message": "Read 3 scene(s) from ProjectData."
+       },
+       {
+         "label": "Merge Camera Data into project.json (local)",
+         "success": true,
+         "message": "Merged ValeVison3D__SketchUpCameraData into project.json."
+       },
+       {
+         "label": "Merge Camera Data into R2 project.json",
+         "success": true,
+         "message": "Merged ValeVison3D__SketchUpCameraData into R2 project.json."
+       },
+       {
+         "label": "Update Master Index",
+         "success": true,
+         "message": "Index entry upserted for 2026/63592__Bressard-Kayode (home=r2, R2:OK GH:OK)."
+       }
+     ]
+   }
+
+ Captured stdout (fallback channel):
+   (empty - normal when the report file was used)
+
+ Captured stderr:
+   (empty)
+
+ Inherited PYTHON* env (stripped before launch):
+   (none)
+=============================================================================

@@ -1,0 +1,37 @@
+{
+  "success": true,
+  "message": "Sync complete (cameras).",
+  "project": "63592__Bressard-Kayode__Whitecard",
+  "action": "cameras",
+  "started_at": "25-Jun-2026 at 15:18",
+  "elapsed_ms": 1452,
+  "uploaded": 0,
+  "mirrored": 0,
+  "steps": [
+    {
+      "label": "Resolve Project Root",
+      "success": true,
+      "message": "Found project at C:\\01__ValeProjects\\ValeProjects__2026\\63592__Bressard-Kayode__Whitecard."
+    },
+    {
+      "label": "Read Camera Data",
+      "success": true,
+      "message": "Read 3 scene(s) from ProjectData."
+    },
+    {
+      "label": "Merge Camera Data into project.json (local)",
+      "success": true,
+      "message": "Merged ValeVison3D__SketchUpCameraData into project.json."
+    },
+    {
+      "label": "Merge Camera Data into R2 project.json",
+      "success": true,
+      "message": "Merged ValeVison3D__SketchUpCameraData into R2 project.json."
+    },
+    {
+      "label": "Update Master Index",
+      "success": true,
+      "message": "Index entry upserted for 2026/63592__Bressard-Kayode (home=r2, R2:OK GH:OK)."
+    }
+  ]
+}

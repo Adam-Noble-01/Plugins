@@ -1,0 +1,17 @@
+{
+  "success": false,
+  "message": "Sync completed with errors \u2014 see step details.",
+  "project": "ValeProjects__2026",
+  "action": "all",
+  "started_at": "25-Jun-2026 at 14:08",
+  "elapsed_ms": 0,
+  "uploaded": 0,
+  "mirrored": 0,
+  "steps": [
+    {
+      "label": "Resolve Project Root",
+      "success": false,
+      "message": "Project folder not found under C:\\01__ValeProjects/2026/."
+    }
+  ]
+}

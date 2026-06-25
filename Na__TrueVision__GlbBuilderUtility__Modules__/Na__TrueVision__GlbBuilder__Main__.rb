@@ -560,10 +560,15 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
         
-        # FUNCTION | Perform Export (called from UI callback)
+        # FUNCTION | Perform Export (called from UI callback or programmatically)
         # ---------------------------------------------------------------
-        def self.Na__PublicApi__PerformExport(export_dir)
-            self.Na__ExportCore__PerformExport(export_dir)
+        # quiet: true  -> suppress the Explorer/Finder reveal and the modal
+        #                 message boxes (used by programmatic callers such as
+        #                 the ValeVision Cloud Sync plugin so SketchUp menus and
+        #                 focus are not disturbed mid-sync).
+        # ---------------------------------------------------------------
+        def self.Na__PublicApi__PerformExport(export_dir, quiet: false)
+            self.Na__ExportCore__PerformExport(export_dir, quiet: quiet)
         end
         # ---------------------------------------------------------------
 

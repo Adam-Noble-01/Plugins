@@ -1,0 +1,86 @@
+=============================================================================
+ ValeVision Cloud Sync  -  Python Subprocess Run Log
+=============================================================================
+ The plugin shells out to a Python orchestrator to mirror this project to
+ Cloudflare R2 + Whitecardopedia. This log records that single launch so any
+ dialog error can be traced to exactly what ran and what came back.
+
+ Result      : OK  - report parsed
+ Channel     : report FILE (preferred channel)
+ Exit code   : 0
+ Time        : 25-Jun-2026 at 14:11:22
+
+ Command:
+   C:/Users/adamw/AppData/Local/Programs/Python/Python312/python.exe D:/10_CoreLib__ValeCodebase/WebApps/Whitecardopedia/Tools__DevUtils/AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py --project 63592__Bressard-Kayode__Whitecard --year 2026 --action all --json --report-file C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__ValeVisionCloudSync__Modules__/99__Logs/Na__ValeVisionCloudSync__Report__20260625_141112_694.json
+
+ Report file (preferred hand-off channel):
+   Path   : C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__ValeVisionCloudSync__Modules__/99__Logs/Na__ValeVisionCloudSync__Report__20260625_141112_694.json
+   Status : written by Python
+   ----- report JSON -----
+   {
+     "success": true,
+     "message": "Sync complete (all).",
+     "project": "63592__Bressard-Kayode__Whitecard",
+     "action": "all",
+     "started_at": "25-Jun-2026 at 14:11",
+     "elapsed_ms": 3801,
+     "uploaded": 7,
+     "mirrored": 2,
+     "steps": [
+       {
+         "label": "Resolve Project Root",
+         "success": true,
+         "message": "Found project at C:\\01__ValeProjects\\ValeProjects__2026\\63592__Bressard-Kayode__Whitecard."
+       },
+       {
+         "label": "Clone Images",
+         "success": true,
+         "message": "Cloned 2 image(s) from VisDpt__Whitecard__SecondEdition__25-Jun-2026 (purged 6 stale)."
+       },
+       {
+         "label": "Update Image List",
+         "success": true,
+         "message": "project.json images unchanged \u2014 2 scene(s): IMG01__3dView__ViewOption-01____WhitecardImage__25-Jun-2026.png, IMG02__3dView__ViewOption-02____WhitecardImage__25-Jun-2026.png."
+       },
+       {
+         "label": "Generate Thumbnails",
+         "success": true,
+         "message": "Thumbnail generation complete."
+       },
+       {
+         "label": "Upload Images to R2",
+         "success": true,
+         "message": "Uploaded 6 file(s) to R2 under VaApps/Projects/2026/63592__Bressard-Kayode/."
+       },
+       {
+         "label": "Upload project.json to R2",
+         "success": true,
+         "message": "Uploaded project.json to R2 key: VaApps/Projects/2026/63592__Bressard-Kayode/project.json"
+       },
+       {
+         "label": "Merge Camera Data into project.json (local)",
+         "success": true,
+         "message": "Merged ValeVison3D__SketchUpCameraData into project.json."
+       },
+       {
+         "label": "Merge Camera Data into R2 project.json",
+         "success": true,
+         "message": "Merged ValeVison3D__SketchUpCameraData into R2 project.json."
+       },
+       {
+         "label": "Update Master Index",
+         "success": true,
+         "message": "Index entry upserted for 2026/63592__Bressard-Kayode (home=r2, R2:OK GH:OK)."
+       }
+     ]
+   }
+
+ Captured stdout (fallback channel):
+   (empty - normal when the report file was used)
+
+ Captured stderr:
+   (empty)
+
+ Inherited PYTHON* env (stripped before launch):
+   (none)
+=============================================================================

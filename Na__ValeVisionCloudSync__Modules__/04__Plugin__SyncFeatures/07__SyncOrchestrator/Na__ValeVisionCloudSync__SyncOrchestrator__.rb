@@ -13,7 +13,7 @@
 # - Maps the 4 UI buttons to step scopes (IDs match UiLayout onclick calls):
 #     sync_project       -> images + camera + GLB + python sync
 #     update_images      -> images only + python sync (images)
-#     update_glb_models  -> GLB archive + GLB export only (no python)
+#     update_glb_models  -> GLB archive + GLB export + python GLB upload to R2
 #     update_camera_data -> camera capture + python sync (cameras)
 # - Shells out to the Python single-project orchestrator when R2 upload is
 #   required; parses its JSON stdout for the final dialog report.
@@ -132,12 +132,17 @@ module Na__ValeVisionCloudSync
             na_finalise_report(report)
         end
 
-        # FUNCTION | GLB Export Only (no Python/R2 step)
+        # FUNCTION | GLB Export + R2 Upload
         # ------------------------------------------------------------
         def self.na_run_glb_export(paths, project_name, dialog_manager, report)
-            dialog_manager.na_push_status('running', 'Archiving existing GLBs and exporting…')
+            dialog_manager.na_push_status('running', 'Step 1/2 — Archiving existing GLBs and exporting…')
             glb_result = Na__GlbExportBridge.Na__ValeVisionCloudSync__ExportGlbs(paths, project_name)
             report[:steps] << na_step_entry('Export GLB Models', glb_result)
+
+            dialog_manager.na_push_status('running', 'Step 2/2 — Uploading GLBs to Cloudflare R2…')
+            python_result = na_run_python_orchestrator(paths, 'glb')   # <-- Mirror fresh GLBs to R2 + refresh index
+            na_append_python_steps(report, python_result)
+
             na_finalise_report(report)
         end
 
@@ -185,17 +190,30 @@ module Na__ValeVisionCloudSync
             year_folder  = na_derive_year_folder(project_root)
 
             resolution  = na_resolve_python_executable(py_config)           # <-- {command:, note:, trusted:}
+            report_file = na_build_report_file_path                         # <-- Robust file channel (GUI host can't reliably capture stdout)
             script_args = [
-                '--project', project_dir,
-                '--year',    year_folder,
-                '--action',  action,
-                '--json'
+                '--project',     project_dir,
+                '--year',        year_folder,
+                '--action',      action,
+                '--json',
+                '--report-file', report_file
             ]
 
-            result = na_execute_python(resolution[:command], script_path, script_args)
+            result = na_execute_python(resolution[:command], script_path, script_args, report_file)
             result[:interpreter_note] = resolution[:note]                   # <-- Surfaced as its own report line
             result[:interpreter_ok]   = resolution[:trusted]
             result
+        end
+
+        # HELPER FUNCTION | Build A Per-Run JSON Report File Path
+        # ---------------------------------------------------------------
+        # The Python orchestrator writes its final report here. Reading a file
+        # avoids the SketchUp GUI-host pipe-capture problem where Open3 returns
+        # empty stdout/stderr even though the child process printed normally.
+        # ---------------------------------------------------------------
+        def self.na_build_report_file_path
+            dir = na_python_log_dir || Dir.tmpdir
+            File.join(dir, "Na__ValeVisionCloudSync__Report__#{Time.now.strftime('%Y%m%d_%H%M%S_%L')}.json").tr('\\', '/')
         end
 
         # HELPER FUNCTION | Resolve A Real Python Interpreter
@@ -285,7 +303,7 @@ module Na__ValeVisionCloudSync
         # returns a multi-line diagnostic so the dialog explains exactly what
         # happened (interpreter, command, exit code, stdout/stderr tails, log).
         # ---------------------------------------------------------------
-        def self.na_execute_python(interpreter, script_path, script_args)
+        def self.na_execute_python(interpreter, script_path, script_args, report_file = nil)
             cmd         = interpreter + [script_path] + script_args
             cmd_display = cmd.join(' ')
 
@@ -295,9 +313,14 @@ module Na__ValeVisionCloudSync
             stdout_str, stderr_str, status = Open3.capture3(child_env, *cmd, chdir: File.dirname(script_path))
             exit_code   = status.respond_to?(:exitstatus) ? status.exitstatus : nil
 
-            debug_log   = na_write_python_debug_log(cmd_display, exit_code, stdout_str, stderr_str, inherited)
+            report_json = na_read_report_file_raw(report_file)                   # <-- Preferred channel (survives empty stdout)
+            parsed      = na_read_report_file(report_file) ||                     # <-- 1) file channel
+                          na_parse_python_json_report(stdout_str)                 # <-- 2) stdout fallback
 
-            parsed = na_parse_python_json_report(stdout_str)
+            debug_log   = na_write_python_debug_log(
+                cmd_display, exit_code, stdout_str, stderr_str, inherited, report_file, report_json, !parsed.nil?
+            )
+
             if parsed
                 parsed[:debug_log] = debug_log
                 return parsed
@@ -305,7 +328,7 @@ module Na__ValeVisionCloudSync
 
             {
                 success:   false,
-                message:   na_build_python_failure_message(cmd_display, exit_code, stdout_str, stderr_str, debug_log),
+                message:   na_build_python_failure_message(cmd_display, exit_code, stdout_str, stderr_str, report_file, debug_log),
                 debug_log: debug_log
             }
         rescue => error
@@ -313,6 +336,26 @@ module Na__ValeVisionCloudSync
                 success: false,
                 message: "Failed to launch Python (#{error.class}): #{error.message}\nCommand: #{(interpreter + [script_path] + script_args).join(' ')}"
             }
+        end
+
+        # HELPER FUNCTION | Read The Raw JSON Report File Written By Python
+        # ---------------------------------------------------------------
+        def self.na_read_report_file_raw(report_file)
+            return nil if report_file.nil? || report_file.to_s.empty?
+            return nil unless File.exist?(report_file)
+            File.read(report_file)
+        rescue
+            nil
+        end
+
+        # HELPER FUNCTION | Parse The Python Report File (nil When Absent/Invalid)
+        # ---------------------------------------------------------------
+        def self.na_read_report_file(report_file)
+            raw = na_read_report_file_raw(report_file)
+            return nil if raw.nil? || raw.strip.empty?
+            na_normalise_python_report(JSON.parse(raw))
+        rescue JSON::ParserError
+            nil
         end
 
         # HELPER FUNCTION | Build A Sanitized Environment For The External Python
@@ -351,8 +394,17 @@ module Na__ValeVisionCloudSync
         def self.na_parse_python_json_report(stdout_str)
             last_json_line = stdout_str.to_s.lines.reverse.find { |line| line.strip.start_with?('{') }
             return nil unless last_json_line
+            na_normalise_python_report(JSON.parse(last_json_line.strip))
+        rescue JSON::ParserError
+            nil  # <-- Caller builds a rich diagnostic instead
+        end
 
-            parsed = JSON.parse(last_json_line.strip)
+        # HELPER FUNCTION | Normalise A Parsed Python Report Hash
+        # ---------------------------------------------------------------
+        # Shared by the file channel and the stdout fallback so both produce an
+        # identical result shape for the dialog.
+        # ---------------------------------------------------------------
+        def self.na_normalise_python_report(parsed)
             {
                 success:        parsed['success'] == true,
                 message:        parsed['message']  || 'Python sync complete.',
@@ -361,54 +413,104 @@ module Na__ValeVisionCloudSync
                 elapsed_ms:     parsed['elapsed_ms'],
                 sub_steps:      parsed['steps'].is_a?(Array) ? parsed['steps'] : []  # <-- Per-step trail from Python
             }
-        rescue JSON::ParserError
-            nil  # <-- Caller builds a rich diagnostic instead
         end
 
         # HELPER FUNCTION | Build A Multi-Line Python Failure Diagnostic
         # ---------------------------------------------------------------
-        def self.na_build_python_failure_message(cmd_display, exit_code, stdout_str, stderr_str, debug_log)
+        def self.na_build_python_failure_message(cmd_display, exit_code, stdout_str, stderr_str, report_file, debug_log)
             out_tail = na_tail_text(stdout_str, 400)
             err_tail = na_tail_text(stderr_str, 400)
 
             lines = []
-            lines << "Python produced no JSON report (exit code: #{exit_code.nil? ? 'unknown' : exit_code})."
-            lines << "Command: #{cmd_display}"
+            lines << "Python finished (exit code: #{exit_code.nil? ? 'unknown' : exit_code}) but no readable report was found."
+            lines << "Report file expected at: #{report_file}" if report_file
+            lines << "Report file status: #{File.exist?(report_file.to_s) ? 'present but unparseable' : 'NOT created by Python'}" if report_file
             lines << "stdout: #{out_tail.empty? ? '(empty)' : out_tail}"
             lines << "stderr: #{err_tail.empty? ? '(empty)' : err_tail}"
             lines << "Full run log: #{debug_log}" if debug_log
 
-            if stdout_str.to_s.strip.empty? && stderr_str.to_s.strip.empty?
-                lines << 'Empty output almost always means the Windows Store Python stub ran. Fix: set "python_executable" in the plugin AppConfig (python block) to a real python.exe path, then Reload Plugin.'
+            if exit_code == 0 && stdout_str.to_s.strip.empty? && stderr_str.to_s.strip.empty? &&
+               !(report_file && File.exist?(report_file.to_s))
+                lines << 'No report file AND empty output usually means the launched interpreter was the Windows Store stub (it exits 0 silently). Fix: set "python_executable" in the plugin AppConfig (python block) to a full python.exe path, then Reload Plugin.'
             end
             lines.join("\n")
         end
 
-        # HELPER FUNCTION | Write A Full Python Run Log To Disk
+        # HELPER FUNCTION | Write A Full, Human-Readable Python Run Log To Disk
         # ---------------------------------------------------------------
-        def self.na_write_python_debug_log(cmd_display, exit_code, stdout_str, stderr_str, inherited_env = '(not captured)')
+        # This log is the forensic record of one Python sync launch. It explains
+        # what was run, which hand-off channel produced the report (file vs
+        # stdout), and the raw report JSON, so a failed dialog can be diagnosed
+        # without re-running anything.
+        # ---------------------------------------------------------------
+        def self.na_write_python_debug_log(cmd_display, exit_code, stdout_str, stderr_str,
+                                           inherited_env, report_file, report_json, report_ok)
             dir = na_python_log_dir
             return nil unless dir
 
-            path    = File.join(dir, "Na__ValeVisionCloudSync__PythonRun__#{Time.now.strftime('%Y%m%d_%H%M%S')}.log")
-            content = [
-                "Command  : #{cmd_display}",
-                "Exit code: #{exit_code.nil? ? 'unknown' : exit_code}",
-                "Time     : #{Time.now.strftime('%d-%b-%Y at %H:%M:%S')}",
-                '',
-                '----- INHERITED PYTHON* ENV (sanitized before launch) -----',
-                inherited_env.to_s,
-                '',
-                '----- STDOUT -----',
-                stdout_str.to_s,
-                '',
-                '----- STDERR -----',
-                stderr_str.to_s
-            ].join("\n")
-            File.write(path, content)
+            path        = File.join(dir, "Na__ValeVisionCloudSync__PythonRun__#{Time.now.strftime('%Y%m%d_%H%M%S')}.log")
+            file_exists = report_file && File.exist?(report_file.to_s)
+            channel     = if report_ok && file_exists then 'report FILE (preferred channel)'
+                          elsif report_ok            then 'STDOUT (fallback channel)'
+                          else                             'NONE — no readable report (see Diagnosis)'
+                          end
+
+            content = []
+            content << '============================================================================='
+            content << ' ValeVision Cloud Sync  -  Python Subprocess Run Log'
+            content << '============================================================================='
+            content << ' The plugin shells out to a Python orchestrator to mirror this project to'
+            content << ' Cloudflare R2 + Whitecardopedia. This log records that single launch so any'
+            content << ' dialog error can be traced to exactly what ran and what came back.'
+            content << ''
+            content << " Result      : #{report_ok ? 'OK  - report parsed' : 'FAIL - no report parsed'}"
+            content << " Channel     : #{channel}"
+            content << " Exit code   : #{exit_code.nil? ? 'unknown' : exit_code}"
+            content << " Time        : #{Time.now.strftime('%d-%b-%Y at %H:%M:%S')}"
+            content << ''
+            content << ' Command:'
+            content << "   #{cmd_display}"
+            content << ''
+            content << ' Report file (preferred hand-off channel):'
+            content << "   Path   : #{report_file || '(none requested)'}"
+            content << "   Status : #{file_exists ? 'written by Python' : 'NOT created by Python'}"
+            content << '   ----- report JSON -----'
+            content << (report_json && !report_json.strip.empty? ? na_indent_block(report_json, '   ') : '   (none)')
+            content << ''
+            content << ' Captured stdout (fallback channel):'
+            content << (stdout_str.to_s.strip.empty? ? '   (empty - normal when the report file was used)' : na_indent_block(stdout_str, '   '))
+            content << ''
+            content << ' Captured stderr:'
+            content << (stderr_str.to_s.strip.empty? ? '   (empty)' : na_indent_block(stderr_str, '   '))
+            content << ''
+            content << ' Inherited PYTHON* env (stripped before launch):'
+            content << na_indent_block(inherited_env.to_s, '   ')
+
+            unless report_ok
+                content << ''
+                content << ' Diagnosis:'
+                if exit_code == 0 && !file_exists && stdout_str.to_s.strip.empty?
+                    content << '   Exit 0, no report file, empty stdout. The launched interpreter likely'
+                    content << '   did not actually run the script (commonly the Windows Store python stub).'
+                    content << '   Set "python_executable" in the plugin AppConfig to a real python.exe.'
+                elsif file_exists
+                    content << '   A report file exists but could not be parsed as JSON - inspect it above.'
+                else
+                    content << '   See stderr above for the Python traceback.'
+                end
+            end
+
+            content << '============================================================================='
+            File.write(path, content.join("\n"))
             path.tr('\\', '/')
         rescue
             nil
+        end
+
+        # HELPER FUNCTION | Indent A Multi-Line Text Block For The Log
+        # ---------------------------------------------------------------
+        def self.na_indent_block(text, prefix)
+            text.to_s.split("\n", -1).map { |line| "#{prefix}#{line}" }.join("\n")
         end
 
         # HELPER FUNCTION | Resolve A Writable Logs Directory
