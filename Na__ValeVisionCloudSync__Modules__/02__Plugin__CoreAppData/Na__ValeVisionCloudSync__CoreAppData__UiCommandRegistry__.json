@@ -1,0 +1,85 @@
+{
+    "extension_name"        : "ValeVision Cloud Sync",
+    "dialog_title"          : "ValeVision Cloud Sync",
+    "dialog_preferences_key": "Na__ValeVisionCloudSync",
+    "dialog_width"          : 560,
+    "dialog_height"         : 660,
+    "dialog_resizable"      : true,
+
+    "tabs": [
+        {
+            "tab_id"          : "export",
+            "tab_name"        : "Export",
+            "tab_order"       : 10,
+            "tab_description" : "Sync images, GLB models, and camera data from this SketchUp model to ValeVision 3D."
+        },
+        {
+            "tab_id"          : "settings",
+            "tab_name"        : "Settings",
+            "tab_order"       : 90,
+            "tab_description" : "Project path override, plugin maintenance, and hot reload."
+        }
+    ],
+
+    "commands": [
+        {
+            "command_id"     : "open_main_dialog",
+            "command_name"   : "ValeVision Cloud Sync - Open Dialog",
+            "tooltip"        : "Open the ValeVision Cloud Sync panel",
+            "status_bar_text": "Open ValeVision Cloud Sync",
+            "menu_text"      : "Open ValeVision Cloud Sync",
+            "handler_key"    : "open_main_dialog",
+            "expose_to_hotkeys": true
+        },
+        {
+            "command_id"     : "sync_project",
+            "command_name"   : "ValeVision Cloud Sync - Sync Full Project",
+            "tooltip"        : "Export images, camera data and GLBs then sync to R2 and Whitecardopedia",
+            "status_bar_text": "Sync full project to ValeVision 3D",
+            "menu_text"      : "Sync Project To ValeVision 3D",
+            "handler_key"    : "sync_project",
+            "expose_to_hotkeys": true
+        },
+        {
+            "command_id"     : "update_images",
+            "command_name"   : "ValeVision Cloud Sync - Update Images",
+            "tooltip"        : "Re-export whitecard scene images and sync thumbnails to R2",
+            "status_bar_text": "Update images for ValeVision 3D",
+            "menu_text"      : "Update Images For ValeVision 3D",
+            "handler_key"    : "update_images",
+            "expose_to_hotkeys": false
+        },
+        {
+            "command_id"     : "update_glb_models",
+            "command_name"   : "ValeVision Cloud Sync - Update GLB Models",
+            "tooltip"        : "Archive existing GLBs and export fresh GLB models via TrueVision3D",
+            "status_bar_text": "Update GLB models for ValeVision 3D",
+            "menu_text"      : "Update GLB Models For ValeVision 3D",
+            "handler_key"    : "update_glb_models",
+            "expose_to_hotkeys": false
+        },
+        {
+            "command_id"     : "update_camera_data",
+            "command_name"   : "ValeVision Cloud Sync - Update Camera Data",
+            "tooltip"        : "Capture IMG## scene cameras and merge into project.json",
+            "status_bar_text": "Update camera data for ValeVision 3D",
+            "menu_text"      : "Update Camera Data For ValeVision 3D",
+            "handler_key"    : "update_camera_data",
+            "expose_to_hotkeys": false
+        },
+        {
+            "command_id"     : "reload_plugin",
+            "command_name"   : "ValeVision Cloud Sync - Reload Plugin",
+            "tooltip"        : "Hot reload all Ruby files and refresh the dialog",
+            "status_bar_text": "Reload ValeVision Cloud Sync plugin",
+            "menu_text"      : "Reload Plugin",
+            "handler_key"    : "reload_plugin",
+            "expose_to_hotkeys": false
+        }
+    ],
+
+    "settings": {
+        "model_dictionary_name": "ValeVision__CloudExport",
+        "status_element_id"    : "naVvcsStatus"
+    }
+}

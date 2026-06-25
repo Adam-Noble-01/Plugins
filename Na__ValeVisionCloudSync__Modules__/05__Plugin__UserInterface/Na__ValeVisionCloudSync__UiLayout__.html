@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<!--
+=============================================================================
+VALEDESIGNSUITE - VALEVISION CLOUD SYNC HTMLDIALOG UI LAYOUT
+
+FILE       : Na__ValeVisionCloudSync__UiLayout__.html
+PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Export + Settings
+             tabs rendered in HTML (purpose-built sync plugin, not a generic
+             tool launcher, so tabs are defined in markup not generated from JSON)
+=============================================================================
+-->
+<html lang="en">
+<head>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Document Head -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <meta charset="utf-8">
+    <title>{{DIALOG_TITLE}}</title>
+    <style>
+    {{STYLESHEET_CONTENT}}
+    </style>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+</head>
+<body>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Application Shell                                           -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <div class="naVvcs__Shell">
+
+        <!-- UI HEADER | Brand header — logo left, plugin title right -->
+
+        <header class="naVvcs__BrandHeader">
+            <div class="naVvcs__BrandHeader__Left">
+                <img src="{{LOGO_FILE_URI}}"
+                     class="naVvcs__BrandHeader__Logo"
+                     alt="Noble Architecture"
+                     onerror="this.style.display='none'">
+            </div>
+            <div class="naVvcs__BrandHeader__Right">
+                <span class="naVvcs__BrandHeader__Title">ValeVision Cloud Sync</span>
+                <span class="naVvcs__BrandHeader__Subtitle">SketchUp &rarr; ValeVision 3D</span>
+            </div>
+        </header>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+
+        <!-- UI NAVIGATION | Horizontal tab bar -->
+
+        <nav class="naVvcs__TabBar">
+            <button class="naVvcs__TabButton naVvcs__TabButton--active"
+                    onclick="Na__Vvcs__ShowTab('export', this)">Export</button>
+            <button class="naVvcs__TabButton"
+                    onclick="Na__Vvcs__ShowTab('settings', this)">Settings</button>
+        </nav>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+
+        <!-- UI MAIN CONTENT | Scrollable tab panels -->
+
+        <main class="naVvcs__MainContent">
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Export Tab -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-export" class="naVvcs__TabPanel naVvcs__TabPanel--active">
+
+                <!-- Project status summary -->
+                <div class="naVvcs__ProjectStatus" id="naVvcsProjectStatus">
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Model</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsModelName">&mdash;</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Project Root</span>
+                        <span class="naVvcs__ProjectStatus__Value naVvcs__ProjectStatus__Value--path"
+                              id="naVvcsProjectRoot">&mdash;</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">IMG## Scenes</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsImgSceneCount">&mdash;</span>
+                    </div>
+                </div>
+
+                <!-- Sync action buttons -->
+                <div class="naVvcs__ActionGroup">
+                    <h3 class="naVvcs__ActionGroup__Title">Sync Actions</h3>
+
+                    <button type="button" class="naVvcs__ActionCard naVvcs__ActionCard--primary"
+                            onclick="Na__Vvcs__RunSyncAction('sync_project')">
+                        <span class="naVvcs__ActionCard__Icon">&#9654;</span>
+                        <span class="naVvcs__ActionCard__Body">
+                            <span class="naVvcs__ActionCard__Label">Sync Project To ValeVision 3D</span>
+                            <span class="naVvcs__ActionCard__Desc">Full sync: export images, capture cameras, export GLBs, upload to R2 and Whitecardopedia.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naVvcs__ActionCard"
+                            onclick="Na__Vvcs__RunSyncAction('update_images')">
+                        <span class="naVvcs__ActionCard__Icon">&#128247;</span>
+                        <span class="naVvcs__ActionCard__Body">
+                            <span class="naVvcs__ActionCard__Label">Update Images For ValeVision 3D</span>
+                            <span class="naVvcs__ActionCard__Desc">Re-export IMG## whitecard scenes and sync new images + thumbnails to R2.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naVvcs__ActionCard"
+                            onclick="Na__Vvcs__RunSyncAction('update_glb_models')">
+                        <span class="naVvcs__ActionCard__Icon">&#128194;</span>
+                        <span class="naVvcs__ActionCard__Body">
+                            <span class="naVvcs__ActionCard__Label">Update GLB Models For ValeVision 3D</span>
+                            <span class="naVvcs__ActionCard__Desc">Archive existing GLBs, export fresh models via TrueVision3D, upload to R2.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naVvcs__ActionCard"
+                            onclick="Na__Vvcs__RunSyncAction('update_camera_data')">
+                        <span class="naVvcs__ActionCard__Icon">&#127910;</span>
+                        <span class="naVvcs__ActionCard__Body">
+                            <span class="naVvcs__ActionCard__Label">Update Camera Data For ValeVision 3D</span>
+                            <span class="naVvcs__ActionCard__Desc">Capture IMG## scene cameras, merge into local ProjectData JSON and R2 project.json.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Last sync report (hidden until a sync runs) -->
+                <div class="naVvcs__Report" id="naVvcsReport" style="display:none;">
+                    <h3 class="naVvcs__Report__Title">Last Sync Report</h3>
+                    <div class="naVvcs__Report__Steps" id="naVvcsReportSteps"></div>
+                    <div class="naVvcs__Report__Summary" id="naVvcsReportSummary"></div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Settings Tab -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-settings" class="naVvcs__TabPanel">
+
+                <!-- Project path override -->
+                <div class="naVvcs__SettingsGroup">
+                    <h3 class="naVvcs__SettingsGroup__Title">Project Path Override</h3>
+                    <p class="naVvcs__SettingsGroup__Desc">
+                        By default the plugin derives the project root from the SketchUp model path
+                        (<code>02__SketchUp/01__MainModel</code> &rarr; two levels up). Override below if
+                        your model lives elsewhere. Saved into the model's attribute dictionary.
+                    </p>
+
+                    <div class="naVvcs__FieldRow">
+                        <label class="naVvcs__FieldRow__Label" for="naVvcsPathInput">Derived Root</label>
+                        <span class="naVvcs__FieldRow__ReadOnly" id="naVvcsDerivedRoot">&mdash;</span>
+                    </div>
+
+                    <div class="naVvcs__FieldRow">
+                        <label class="naVvcs__FieldRow__Label" for="naVvcsPathInput">Override Path</label>
+                        <input type="text"
+                               id="naVvcsPathInput"
+                               class="naVvcs__TextInput"
+                               placeholder="C:\01__ValeProjects\ProjectName..."
+                               autocomplete="off" spellcheck="false">
+                    </div>
+
+                    <div class="naVvcs__ButtonRow">
+                        <button type="button" class="naVvcs__Btn naVvcs__Btn--primary"
+                                onclick="Na__Vvcs__SavePathOverride()">Save Override</button>
+                        <button type="button" class="naVvcs__Btn"
+                                onclick="Na__Vvcs__ClearPathOverride()">Clear Override</button>
+                    </div>
+                </div>
+
+                <!-- Plugin maintenance -->
+                <div class="naVvcs__SettingsGroup">
+                    <h3 class="naVvcs__SettingsGroup__Title">Plugin Maintenance</h3>
+                    <p class="naVvcs__SettingsGroup__Desc">
+                        Hot reload all Ruby files and refresh the dialog during development without
+                        restarting SketchUp.
+                    </p>
+                    <button type="button" class="naVvcs__ActionCard"
+                            onclick="Na__Vvcs__RunCommand('reload_plugin')">
+                        <span class="naVvcs__ActionCard__Icon">&#8635;</span>
+                        <span class="naVvcs__ActionCard__Body">
+                            <span class="naVvcs__ActionCard__Label">Reload Plugin</span>
+                            <span class="naVvcs__ActionCard__Desc">Reloads Ruby files and refreshes the UI without restarting SketchUp.</span>
+                        </span>
+                    </button>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+        </main>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+
+        <!-- UI FOOTER | Status line -->
+
+        <footer class="naVvcs__Footer">
+            <p id="naVvcsStatus" class="naVvcs__Status naVvcs__Status--info">Ready.</p>
+        </footer>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+    </div>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Inlined Behaviour Script -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <script>
+    {{UI_BRIDGE_SCRIPT}}
+    </script>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+</body>
+</html>

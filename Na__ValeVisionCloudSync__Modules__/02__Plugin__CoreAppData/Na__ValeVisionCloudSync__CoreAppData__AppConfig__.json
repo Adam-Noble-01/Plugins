@@ -1,0 +1,32 @@
+{
+    "image_export": {
+        "width"            : 6000,
+        "height"           : 4000,
+        "antialias"        : true,
+        "compression"      : 0.9,
+        "transparent"      : false,
+        "scale_factor"     : 2.0,
+        "scene_prefix_regex": "^IMG\\d{2,3}"
+    },
+
+    "project_subfolders": {
+        "project_data"     : "00__ProjectData",
+        "reference_files"  : "01__ReferenceFiles",
+        "sketchup"         : "02__SketchUp",
+        "content_delivered": "10__ContentDelivered__Local",
+        "glb_sync"         : "10__ContentDelivered__Local/ValeVision__GlbFileSync",
+        "glb_archives"     : "10__ContentDelivered__Local/ValeVision__GlbFileSync/00__ArchivedModels"
+    },
+
+    "edition_folder_prefix": "VisDpt__Whitecard__",
+
+    "python": {
+        "orchestrator_script": "Tools__DevUtils/AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py",
+        "whitecardopedia_root": "D:/10_CoreLib__ValeCodebase/WebApps/Whitecardopedia"
+    },
+
+    "cdn": {
+        "r2_base_url"       : "https://cdn.noble-architecture.com/VaApps/Projects",
+        "github_base_url"   : "https://raw.githubusercontent.com/noble-architecture/noble-architecture.github.io/main/na-project-portal"
+    }
+}

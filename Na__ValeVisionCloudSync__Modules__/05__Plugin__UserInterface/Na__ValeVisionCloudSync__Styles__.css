@@ -1,0 +1,550 @@
+/* ============================================================================= */
+/* VALEDESIGNSUITE - VALEVISION CLOUD SYNC PLUGIN UI STYLES                      */
+/*                                                                                */
+/* FILE       : Na__ValeVisionCloudSync__Styles__.css                            */
+/* PURPOSE    : Stylesheet content inlined into HtmlDialog layout template        */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens (:root Variables)
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    --naVvcs_Navy         : #102b39;
+    --naVvcs_NavyMid      : #1a4a5e;
+    --naVvcs_NavyHover    : #2a6a8e;
+    --naVvcs_Bg           : #f5f7f9;
+    --naVvcs_PanelBg      : #ffffff;
+    --naVvcs_Text         : #1b1f24;
+    --naVvcs_MutedText    : #5b636d;
+    --naVvcs_Border       : #d6dbe1;
+    --naVvcs_Success      : #1f7a42;
+    --naVvcs_Error        : #b32d2d;
+    --naVvcs_Warning      : #7a5400;
+    --naVvcs_InfoText     : #1a4a5e;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing              : border-box;
+}
+
+html,
+body {
+    margin                  : 0;
+    padding                 : 0;
+    width                   : 100%;
+    height                  : 100%;
+    font-family             : "Segoe UI", Arial, sans-serif;
+    font-size               : 13px;
+    background              : var(--naVvcs_Bg);
+    color                   : var(--naVvcs_Text);
+}
+
+.naVvcs__Shell {
+    display                 : flex;
+    flex-direction          : column;
+    width                   : 100%;
+    height                  : 100%;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Brand Header
+ * ----------------------------------------------------------------------------- */
+
+.naVvcs__BrandHeader {
+    display                 : flex;
+    align-items             : center;
+    justify-content         : space-between;
+    padding                 : 10px 14px;
+    border-bottom           : 1px solid var(--naVvcs_Border);
+    background              : var(--naVvcs_Navy);
+}
+
+.naVvcs__BrandHeader__Left {
+    display                 : flex;
+    align-items             : center;
+}
+
+.naVvcs__BrandHeader__Logo {
+    height                  : 30px;
+    width                   : auto;
+    display                 : block;
+    filter                  : brightness(0) invert(1);
+}
+
+.naVvcs__BrandHeader__Right {
+    display                 : flex;
+    flex-direction          : column;
+    align-items             : flex-end;
+    gap                     : 2px;
+}
+
+.naVvcs__BrandHeader__Title {
+    font-size               : 15px;
+    font-weight             : 700;
+    color                   : #ffffff;
+    line-height             : 1;
+    letter-spacing          : 0.3px;
+}
+
+.naVvcs__BrandHeader__Subtitle {
+    font-size               : 10px;
+    color                   : rgba(255,255,255,0.65);
+    letter-spacing          : 0.5px;
+    text-transform          : uppercase;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Tab Bar
+ * ----------------------------------------------------------------------------- */
+
+.naVvcs__TabBar {
+    display                 : flex;
+    gap                     : 4px;
+    padding                 : 8px 12px;
+    border-bottom           : 1px solid var(--naVvcs_Border);
+    background              : var(--naVvcs_PanelBg);
+}
+
+.naVvcs__TabButton {
+    border                  : 1px solid var(--naVvcs_Border);
+    border-radius           : 4px;
+    background              : #fdfdfd;
+    padding                 : 6px 14px;
+    font-size               : 12px;
+    font-family             : inherit;
+    cursor                  : pointer;
+    color                   : var(--naVvcs_Text);
+    transition              : background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.naVvcs__TabButton:hover {
+    border-color            : var(--naVvcs_NavyMid);
+    color                   : var(--naVvcs_NavyMid);
+}
+
+.naVvcs__TabButton--active {
+    color                   : #ffffff;
+    background              : var(--naVvcs_Navy);
+    border-color            : var(--naVvcs_Navy);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Main Content — Scroll Area and Tab Panels
+ * ----------------------------------------------------------------------------- */
+
+.naVvcs__MainContent {
+    flex                    : 1;
+    overflow                : auto;
+    padding                 : 12px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 10px;
+}
+
+.naVvcs__TabPanel {
+    display                 : none;
+}
+
+.naVvcs__TabPanel--active {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 10px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Project Status Card
+ * ----------------------------------------------------------------------------- */
+
+.naVvcs__ProjectStatus {
+    background              : var(--naVvcs_PanelBg);
+    border                  : 1px solid var(--naVvcs_Border);
+    border-radius           : 6px;
+    padding                 : 10px 12px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 5px;
+}
+
+.naVvcs__ProjectStatus__Row {
+    display                 : flex;
+    align-items             : baseline;
+    gap                     : 8px;
+}
+
+.naVvcs__ProjectStatus__Label {
+    font-size               : 10px;
+    font-weight             : 600;
+    text-transform          : uppercase;
+    letter-spacing          : 0.4px;
+    color                   : var(--naVvcs_MutedText);
+    min-width               : 80px;
+    flex-shrink             : 0;
+}
+
+.naVvcs__ProjectStatus__Value {
+    font-size               : 12px;
+    color                   : var(--naVvcs_Text);
+    word-break              : break-all;
+}
+
+.naVvcs__ProjectStatus__Value--path {
+    font-family             : "Consolas", "Courier New", monospace;
+    font-size               : 11px;
+    color                   : var(--naVvcs_InfoText);
+}
+
+.naVvcs__ProjectStatus__Value--override {
+    color                   : var(--naVvcs_Warning);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Action Cards (Export Tab)
+ * ----------------------------------------------------------------------------- */
+
+.naVvcs__ActionGroup {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 8px;
+}
+
+.naVvcs__ActionGroup__Title {
+    margin                  : 0 0 2px;
+    font-size               : 11px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.5px;
+    color                   : var(--naVvcs_MutedText);
+}
+
+.naVvcs__ActionCard {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 12px;
+    width                   : 100%;
+    padding                 : 12px;
+    background              : var(--naVvcs_PanelBg);
+    border                  : 1px solid var(--naVvcs_Border);
+    border-radius           : 6px;
+    cursor                  : pointer;
+    font-family             : inherit;
+    font-size               : inherit;
+    color                   : inherit;
+    text-align              : left;
+    appearance              : none;
+    transition              : transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease, background 130ms ease;
+}
+
+.naVvcs__ActionCard:hover {
+    border-color            : var(--naVvcs_NavyMid);
+    background              : #f8fbfd;
+    box-shadow              : 0 3px 10px rgba(16, 43, 57, 0.12);
+    transform               : translateY(-1px);
+}
+
+.naVvcs__ActionCard:active {
+    transform               : translateY(0) scale(0.988);
+    box-shadow              : none;
+}
+
+.naVvcs__ActionCard--primary {
+    border-color            : var(--naVvcs_Navy);
+    background              : #f0f6fa;
+}
+
+.naVvcs__ActionCard--primary:hover {
+    background              : #e6f0f7;
+    border-color            : var(--naVvcs_NavyMid);
+}
+
+.naVvcs__ActionCard:disabled {
+    opacity                 : 0.5;
+    cursor                  : not-allowed;
+    transform               : none;
+}
+
+.naVvcs__ActionCard__Icon {
+    font-size               : 20px;
+    line-height             : 1;
+    flex-shrink             : 0;
+    width                   : 28px;
+    text-align              : center;
+}
+
+.naVvcs__ActionCard__Body {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 3px;
+    flex                    : 1;
+}
+
+.naVvcs__ActionCard__Label {
+    font-size               : 13px;
+    font-weight             : 600;
+    color                   : var(--naVvcs_Text);
+    line-height             : 1.2;
+}
+
+.naVvcs__ActionCard__Desc {
+    font-size               : 11px;
+    color                   : var(--naVvcs_MutedText);
+    line-height             : 1.35;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Sync Report Panel
+ * ----------------------------------------------------------------------------- */
+
+.naVvcs__Report {
+    background              : var(--naVvcs_PanelBg);
+    border                  : 1px solid var(--naVvcs_Border);
+    border-radius           : 6px;
+    padding                 : 12px;
+}
+
+.naVvcs__Report__Title {
+    margin                  : 0 0 8px;
+    font-size               : 11px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.5px;
+    color                   : var(--naVvcs_MutedText);
+}
+
+.naVvcs__Report__Steps {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 4px;
+    margin-bottom           : 8px;
+}
+
+.naVvcs__ReportStep {
+    display                 : flex;
+    align-items             : baseline;
+    gap                     : 8px;
+    font-size               : 12px;
+    padding                 : 3px 0;
+    border-bottom           : 1px solid #f0f0f0;
+}
+
+.naVvcs__ReportStep__Badge {
+    font-size               : 10px;
+    font-weight             : 700;
+    border-radius           : 3px;
+    padding                 : 1px 5px;
+    flex-shrink             : 0;
+    min-width               : 40px;
+    text-align              : center;
+}
+
+.naVvcs__ReportStep__Badge--ok {
+    background              : #d4edda;
+    color                   : var(--naVvcs_Success);
+}
+
+.naVvcs__ReportStep__Badge--error {
+    background              : #f8d7da;
+    color                   : var(--naVvcs_Error);
+}
+
+.naVvcs__ReportStep__Badge--skip {
+    background              : #e2e8ed;
+    color                   : var(--naVvcs_MutedText);
+}
+
+.naVvcs__ReportStep__Badge--running {
+    background              : #cde8f7;
+    color                   : var(--naVvcs_NavyMid);
+}
+
+.naVvcs__ReportStep__Name {
+    font-weight             : 600;
+    flex-shrink             : 0;
+    min-width               : 120px;
+}
+
+.naVvcs__ReportStep__Detail {
+    color                   : var(--naVvcs_MutedText);
+    flex                    : 1;
+}
+
+.naVvcs__Report__Summary {
+    font-size               : 12px;
+    font-weight             : 600;
+    padding-top             : 6px;
+    border-top              : 1px solid var(--naVvcs_Border);
+    color                   : var(--naVvcs_Text);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Settings Tab Groups
+ * ----------------------------------------------------------------------------- */
+
+.naVvcs__SettingsGroup {
+    background              : var(--naVvcs_PanelBg);
+    border                  : 1px solid var(--naVvcs_Border);
+    border-radius           : 6px;
+    padding                 : 12px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 8px;
+}
+
+.naVvcs__SettingsGroup__Title {
+    margin                  : 0;
+    font-size               : 13px;
+    font-weight             : 700;
+    color                   : var(--naVvcs_Text);
+    border-bottom           : 1px solid var(--naVvcs_Border);
+    padding-bottom          : 6px;
+}
+
+.naVvcs__SettingsGroup__Desc {
+    margin                  : 0;
+    font-size               : 11px;
+    color                   : var(--naVvcs_MutedText);
+    line-height             : 1.5;
+}
+
+.naVvcs__FieldRow {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 10px;
+}
+
+.naVvcs__FieldRow__Label {
+    font-size               : 11px;
+    font-weight             : 600;
+    color                   : var(--naVvcs_MutedText);
+    min-width               : 90px;
+    flex-shrink             : 0;
+}
+
+.naVvcs__FieldRow__ReadOnly {
+    font-family             : "Consolas", "Courier New", monospace;
+    font-size               : 11px;
+    color                   : var(--naVvcs_InfoText);
+    word-break              : break-all;
+}
+
+.naVvcs__TextInput {
+    flex                    : 1;
+    padding                 : 6px 8px;
+    font-size               : 12px;
+    font-family             : "Consolas", "Courier New", monospace;
+    border                  : 1px solid var(--naVvcs_Border);
+    border-radius           : 4px;
+    background              : var(--naVvcs_Bg);
+    color                   : var(--naVvcs_Text);
+    outline                 : none;
+    transition              : border-color 120ms ease;
+}
+
+.naVvcs__TextInput:focus {
+    border-color            : var(--naVvcs_NavyMid);
+}
+
+.naVvcs__ButtonRow {
+    display                 : flex;
+    gap                     : 8px;
+}
+
+.naVvcs__Btn {
+    padding                 : 7px 14px;
+    font-size               : 12px;
+    font-family             : inherit;
+    border                  : 1px solid var(--naVvcs_Border);
+    border-radius           : 4px;
+    background              : #fdfdfd;
+    color                   : var(--naVvcs_Text);
+    cursor                  : pointer;
+    transition              : background 120ms ease, border-color 120ms ease;
+}
+
+.naVvcs__Btn:hover {
+    border-color            : var(--naVvcs_NavyMid);
+    background              : #f0f6fa;
+}
+
+.naVvcs__Btn--primary {
+    background              : var(--naVvcs_Navy);
+    color                   : #ffffff;
+    border-color            : var(--naVvcs_Navy);
+}
+
+.naVvcs__Btn--primary:hover {
+    background              : var(--naVvcs_NavyMid);
+    border-color            : var(--naVvcs_NavyMid);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Footer — Status Line
+ * ----------------------------------------------------------------------------- */
+
+.naVvcs__Footer {
+    border-top              : 1px solid var(--naVvcs_Border);
+    background              : var(--naVvcs_PanelBg);
+    padding                 : 8px 12px;
+    flex-shrink             : 0;
+}
+
+.naVvcs__Status {
+    margin                  : 0;
+    font-size               : 12px;
+    line-height             : 1;
+}
+
+.naVvcs__Status--info {
+    color                   : var(--naVvcs_MutedText);
+}
+
+.naVvcs__Status--success {
+    color                   : var(--naVvcs_Success);
+}
+
+.naVvcs__Status--error {
+    color                   : var(--naVvcs_Error);
+}
+
+.naVvcs__Status--warning {
+    color                   : var(--naVvcs_Warning);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* ============================================================================= */
+/* END OF FILE                                                                   */
+/* ============================================================================= */
