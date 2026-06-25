@@ -84,7 +84,7 @@ module Na__ValeVisionCloudSync
         end
 
         def self.na_resolve_logo_file_uri
-            path = Na__PathResolver.Na__ValeVisionCloudSync__NaLogoFilePath
+            path = Na__PathResolver.Na__ValeVisionCloudSync__BrandLogoFilePath
             return '' unless File.exist?(path)
 
             forward_path = path.tr('\\', '/').gsub(/^\//, '')

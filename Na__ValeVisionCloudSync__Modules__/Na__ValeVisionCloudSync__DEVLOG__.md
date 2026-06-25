@@ -1,5 +1,55 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.2.0 — 25-Jun-2026 — End-to-End Cloud Sync Production Release
+
+### Overview
+Milestone release completing the SketchUp → local Vale project → Whitecardopedia working copy → Cloudflare R2 → ValeVision3D pipeline. All sync features listed as pending in v0.1.0 are now implemented and stable. Python orchestration, R2 GLB upload, and robust reporting round out the production workflow. See also Whitecardopedia v0.5.0 and ValeVision3D v2.8.0 for the web-side consumers of this pipeline.
+
+### Added
+- **`04__Plugin__SyncFeatures/05__ProjectPathMapper`** — derives project root from active model path (`C:\01__ValeProjects\...`); forward-slash path normalisation for reliable `Dir.glob` on Windows.
+- **`04__Plugin__SyncFeatures/01__SceneImageExporter`** — exports IMG## scene images via `view.write_image` into the edition content folder.
+- **`04__Plugin__SyncFeatures/02__CameraDataCapture`** — captures `page.description` as `scene_description` and SketchUp camera data (mm, Z-up) into `ValeVison3D__SketchUpCameraData` via ProjectDataWriter merge.
+- **`04__Plugin__SyncFeatures/03__GlbExportBridge`** + **`04__GlbArchiver`** — GLB export bridge to GlbBuilderUtility (`quiet: true` suppresses Explorer reveal and modal dialog); archives stale GLBs before refresh.
+- **`04__Plugin__SyncFeatures/06__ProjectDataWriter`** — key-scoped merge into local `*__ProjectData__.json` array (no full overwrite).
+- **`04__Plugin__SyncFeatures/07__SyncOrchestrator`** — shells out to `AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py` with `--report-file` JSON channel.
+- **Python orchestrator integration** — clone images, generate 524p thumbnails, upload R2, rebuild `project.json.images[]`, merge camera key, upsert master index (Whitecardopedia `Tools__DevUtils/`).
+- **R2 GLB upload** — Python uploads top-level `*.glb` files and purges stale R2 GLBs so CDN mirrors local export set.
+- **Report file channel** — `--report-file` writes JSON report to disk (stdout unreliable in SketchUp GUI host); orchestrator reads file first, stdout second.
+- **Full run logs** — `99__Logs/Na__ValeVisionCloudSync__PythonRun__<timestamp>.log` and structured JSON reports per sync.
+
+### Fixed
+- **Thumbnail generation** — corrected Pillow CLI arguments for multi-image 524p thumbnail batch.
+- **GLB export UX** — `quiet: true` on GlbBuilderUtility bridge prevents Explorer auto-open and blocking message boxes mid-sync (TrueVision `GlbBuilder__Main/CoreExport` updated).
+- **Unicode console output** — Python orchestrator forces UTF-8 streams (`na_force_utf8_streams`) to avoid Windows cp1252 encode errors on special characters.
+
+### Changed
+- Sync workflow now produces a per-step trail in the dialog report panel (OK/ERR per step with descriptive messages).
+- `update_glb_models` scope chains local GLB export + Python R2 GLB upload in one action.
+
+### Files Changed
+- `04__Plugin__SyncFeatures/01__SceneImageExporter/Na__ValeVisionCloudSync__SceneImageExporter__.rb`
+- `04__Plugin__SyncFeatures/02__CameraDataCapture/Na__ValeVisionCloudSync__CameraDataCapture__.rb`
+- `04__Plugin__SyncFeatures/03__GlbExportBridge/Na__ValeVisionCloudSync__GlbExportBridge__.rb`
+- `04__Plugin__SyncFeatures/04__GlbArchiver/Na__ValeVisionCloudSync__GlbArchiver__.rb`
+- `04__Plugin__SyncFeatures/05__ProjectPathMapper/Na__ValeVisionCloudSync__ProjectPathMapper__.rb`
+- `04__Plugin__SyncFeatures/06__ProjectDataWriter/Na__ValeVisionCloudSync__ProjectDataWriter__.rb`
+- `04__Plugin__SyncFeatures/07__SyncOrchestrator/Na__ValeVisionCloudSync__SyncOrchestrator__.rb`
+- `Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__Main__.rb` (quiet API)
+- `Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__CoreExport__.rb` (quiet API)
+- `Whitecardopedia/Tools__DevUtils/AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py`
+
+# =============================================================================
+
+
+## Version 0.1.6 — 25-Jun-2026
+
+### Changed
+- Dialog brand header now uses the Vale Garden Houses logo (copied from ValeDesignSuite into `06__Assets/Na__ValeVisionCloudSync__BrandLogo__Horizontal__.png`) instead of the Noble Architecture logo.
+- Top bar styling aligned with Noble 3D Modelling Tools: white background, 36px logo, 18px/600 title — removed navy background, logo invert filter, and "SketchUp → ValeVision 3D" subtitle.
+
+# =============================================================================
+
+
 ## Version 0.1.5 — 25-Jun-2026
 
 ### Fixed
@@ -66,12 +116,4 @@
 - Model dictionary persistence via `ValeVision__CloudExport` attribute dictionary.
 - `Na__ModuleLoaders` safe-requires all 04__Plugin__SyncFeatures sub-modules; missing files warn and continue.
 
-### Pending (subsequent todos)
-- `04__Plugin__SyncFeatures/05__ProjectPathMapper` — derive project root from model path.
-- `04__Plugin__SyncFeatures/01__SceneImageExporter` — port from ValeDesignSuite.
-- `04__Plugin__SyncFeatures/02__CameraDataCapture` — IMG## page camera extraction.
-- `04__Plugin__SyncFeatures/03__GlbExportBridge` + `04__GlbArchiver` — GLB export bridge.
-- `04__Plugin__SyncFeatures/07__SyncOrchestrator` — shell out to Python orchestrator.
-- Python `AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py`.
-- ValeVision3D R2-first loading + `69__System` camera conversion utilities.
-- Whitecardopedia R2-first loading.
+# =============================================================================

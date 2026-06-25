@@ -87,8 +87,12 @@ module Na__ValeVisionCloudSync
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Icon Asset Paths
+# REGION | Brand and Icon Asset Paths
 # -----------------------------------------------------------------------------
+
+        def self.Na__ValeVisionCloudSync__BrandLogoFilePath
+            File.join(self.Na__ValeVisionCloudSync__AssetsDirectory, 'Na__ValeVisionCloudSync__BrandLogo__Horizontal__.png')
+        end
 
         def self.Na__ValeVisionCloudSync__Icon16FilePath
             File.join(self.Na__ValeVisionCloudSync__AssetsDirectory, 'Vale_Icon16px.png')
@@ -96,20 +100,6 @@ module Na__ValeVisionCloudSync
 
         def self.Na__ValeVisionCloudSync__Icon32FilePath
             File.join(self.Na__ValeVisionCloudSync__AssetsDirectory, 'Vale_Icon32px.png')
-        end
-
-# endregion -------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# REGION | Shared Common Assets (Na__Common__PluginDependencies)
-# -----------------------------------------------------------------------------
-
-        def self.Na__ValeVisionCloudSync__SharedAssetsDirectory
-            File.expand_path(File.join(self.Na__ValeVisionCloudSync__PluginRoot, 'Na__Common__PluginDependencies'))
-        end
-
-        def self.Na__ValeVisionCloudSync__NaLogoFilePath
-            File.join(self.Na__ValeVisionCloudSync__SharedAssetsDirectory, 'IMG01__PNG__NaCompanyLogo.png')
         end
 
 # endregion -------------------------------------------------------------------

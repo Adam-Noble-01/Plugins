@@ -66,21 +66,21 @@ body {
     display                 : flex;
     align-items             : center;
     justify-content         : space-between;
-    padding                 : 10px 14px;
+    padding                 : 12px 16px;
     border-bottom           : 1px solid var(--naVvcs_Border);
-    background              : var(--naVvcs_Navy);
+    background              : var(--naVvcs_PanelBg);
 }
 
 .naVvcs__BrandHeader__Left {
     display                 : flex;
     align-items             : center;
+    gap                     : 12px;
 }
 
 .naVvcs__BrandHeader__Logo {
-    height                  : 30px;
+    height                  : 36px;
     width                   : auto;
     display                 : block;
-    filter                  : brightness(0) invert(1);
 }
 
 .naVvcs__BrandHeader__Right {
@@ -91,18 +91,11 @@ body {
 }
 
 .naVvcs__BrandHeader__Title {
-    font-size               : 15px;
-    font-weight             : 700;
-    color                   : #ffffff;
+    font-size               : 18px;
+    font-weight             : 600;
+    color                   : #1a1a1a;
     line-height             : 1;
-    letter-spacing          : 0.3px;
-}
-
-.naVvcs__BrandHeader__Subtitle {
-    font-size               : 10px;
-    color                   : rgba(255,255,255,0.65);
-    letter-spacing          : 0.5px;
-    text-transform          : uppercase;
+    letter-spacing          : 0.2px;
 }
 
 /* endregion ------------------------------------------------------------------- */
