@@ -392,6 +392,9 @@ body {
 .naVvcs__ReportStep__Detail {
     color                   : var(--naVvcs_MutedText);
     flex                    : 1;
+    min-width               : 0;
+    overflow-wrap           : anywhere;     /* <-- Long paths / commands wrap instead of overflowing */
+    word-break              : break-word;
 }
 
 .naVvcs__Report__Summary {

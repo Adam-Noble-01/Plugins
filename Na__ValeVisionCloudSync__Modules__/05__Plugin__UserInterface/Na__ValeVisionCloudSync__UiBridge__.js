@@ -213,9 +213,9 @@
         }
 
         stepsEl.innerHTML = steps.map(function(step) {
-            var badge    = na__vvcs__stepBadgeHtml(step.status);
-            var name     = na__vvcs__escHtml(step.name    || '');
-            var detail   = na__vvcs__escHtml(step.detail  || '');
+            var badge    = na__vvcs__stepBadgeHtml(step);                       // <-- Derive badge from success flag
+            var name     = na__vvcs__escHtml(step.label || step.name || '');    // <-- Ruby/Python use 'label'
+            var detail   = na__vvcs__escHtml(step.message || step.detail || '').replace(/\n/g, '<br>'); // <-- Multi-line diagnostics render as line breaks
             return '<div class="naVvcs__ReportStep">'
                 + badge
                 + '<span class="naVvcs__ReportStep__Name">'  + name   + '</span>'
@@ -227,20 +227,20 @@
         reportEl.style.display = '';
     }
 
-    function na__vvcs__stepBadgeHtml(status) {
+    function na__vvcs__stepBadgeHtml(step) {
+        // Accept a boolean success flag (Ruby/Python format) or a status string.
         var cls, label;
-        switch (String(status || '').toLowerCase()) {
-            case 'ok':
-            case 'success':
-                cls = 'ok'; label = 'OK'; break;
-            case 'error':
-            case 'fail':
-                cls = 'error'; label = 'ERR'; break;
-            case 'skip':
-            case 'skipped':
-                cls = 'skip'; label = 'SKIP'; break;
-            default:
-                cls = 'running'; label = '...';
+        var success = (step && typeof step.success === 'boolean') ? step.success : undefined;
+        var status  = (step && step.status) ? String(step.status).toLowerCase() : '';
+
+        if (success === true || status === 'ok' || status === 'success') {
+            cls = 'ok'; label = 'OK';
+        } else if (success === false || status === 'error' || status === 'fail') {
+            cls = 'error'; label = 'ERR';
+        } else if (status === 'skip' || status === 'skipped') {
+            cls = 'skip'; label = 'SKIP';
+        } else {
+            cls = 'running'; label = '...';
         }
         return '<span class="naVvcs__ReportStep__Badge naVvcs__ReportStep__Badge--' + cls + '">' + label + '</span>';
     }

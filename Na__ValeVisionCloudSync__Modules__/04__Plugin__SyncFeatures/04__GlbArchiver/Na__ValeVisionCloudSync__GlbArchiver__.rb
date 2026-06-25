@@ -30,7 +30,8 @@ module Na__ValeVisionCloudSync
         # Returns { success:, message:, archived_count:, archive_path: }
         # ---------------------------------------------------------------
         def self.Na__ValeVisionCloudSync__ArchiveExistingGlbs(glb_sync_dir, project_name)
-            glb_files = Dir.glob(File.join(glb_sync_dir, '*.glb'))
+            glb_sync_dir = glb_sync_dir.to_s.tr('\\', '/')                    # <-- Dir.glob treats '\' as escape on Windows
+            glb_files    = Dir.glob(File.join(glb_sync_dir, '*.glb'))
 
             if glb_files.empty?
                 return {

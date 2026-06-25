@@ -68,7 +68,7 @@ module Na__ValeVisionCloudSync
 # -----------------------------------------------------------------------------
 
         def self.na_module_rb_files
-            modules_root = Na__PathResolver.Na__ValeVisionCloudSync__ModulesRoot
+            modules_root = Na__PathResolver.Na__ValeVisionCloudSync__ModulesRoot.to_s.tr('\\', '/')  # <-- Dir.glob '\' escape guard
             Dir.glob(File.join(modules_root, '**', '*.rb')).sort
         end
 

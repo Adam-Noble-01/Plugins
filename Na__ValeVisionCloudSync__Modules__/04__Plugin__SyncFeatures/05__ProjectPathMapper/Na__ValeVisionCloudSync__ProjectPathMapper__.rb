@@ -52,11 +52,26 @@ module Na__ValeVisionCloudSync
             sketchup_dir = File.dirname(model_dir)       # <-- .../02__SketchUp
             project_root = File.dirname(sketchup_dir)    # <-- .../ProjectRoot
 
-            return project_root if File.directory?(project_root)
+            return na_normalize_path(project_root) if File.directory?(project_root)
 
             # <-- Fallback: model may be one level shallower (directly in 02__SketchUp)
             fallback_root = File.dirname(model_dir)
-            File.directory?(fallback_root) ? fallback_root : nil
+            File.directory?(fallback_root) ? na_normalize_path(fallback_root) : nil
+        end
+
+        # FUNCTION | Resolve root + all subfolders as a single paths hash
+        # ------------------------------------------------------------
+        # Composes ResolveProjectRoot and MapProjectSubfolders into the single
+        # paths hash consumed by Na__SyncOrchestrator (:project_root) and
+        # Na__GlbExportBridge (:glb_sync), plus all other mapped subfolders.
+        # ---------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__GetProjectPaths(model = nil)
+            model ||= Sketchup.active_model                                      # <-- Default to active model
+            root    = self.Na__ValeVisionCloudSync__ResolveProjectRoot(model)    # <-- Override-aware root
+            return { project_root: nil } if root.to_s.empty?                     # <-- Bail if unresolved
+
+            subfolders = self.Na__ValeVisionCloudSync__MapProjectSubfolders(root) # <-- Map fixed subfolders
+            { project_root: root }.merge(subfolders)                             # <-- Combine into one hash
         end
 
         # FUNCTION | Return hash of all mapped subfolder absolute paths
@@ -65,9 +80,10 @@ module Na__ValeVisionCloudSync
             return {} unless project_root && File.directory?(project_root)
 
             subfolder_config = Na__ConfigLoader.Na__ValeVisionCloudSync__ProjectSubfolders
+            root_normalised  = na_normalize_path(project_root)               # <-- Forward slashes so Dir.glob works on Windows
 
             subfolder_config.each_with_object({}) do |(key, relative_path), paths|
-                full_path = File.join(project_root, relative_path.tr('/', File::SEPARATOR))
+                full_path = na_normalize_path(File.join(root_normalised, relative_path))  # <-- Keep slashes consistent
                 paths[key.to_sym] = full_path
             end
         end
@@ -154,6 +170,7 @@ module Na__ValeVisionCloudSync
         def self.Na__ValeVisionCloudSync__ResolveEditionFolder(content_delivered_path)
             return nil unless content_delivered_path && File.directory?(content_delivered_path)
 
+            content_delivered_path = na_normalize_path(content_delivered_path)  # <-- Forward slashes for Dir.glob
             prefix   = Na__ConfigLoader.Na__ValeVisionCloudSync__EditionFolderPrefix
             date_str = na_today_date_string
 
@@ -185,7 +202,19 @@ module Na__ValeVisionCloudSync
             )
             return '' unless dict
 
-            dict['project_path_override'].to_s
+            raw = dict['project_path_override'].to_s
+            raw.empty? ? '' : na_normalize_path(raw)   # <-- Normalise so Dir.glob does not treat '\' as escape
+        end
+
+        # HELPER FUNCTION | Normalise A Filesystem Path To Forward Slashes
+        # ---------------------------------------------------------------
+        # Ruby's Dir.glob treats '\' as an escape character, so backslash
+        # Windows paths silently match nothing. Forward slashes work for
+        # File.*, Dir.glob and FileUtils on Windows, so we normalise once
+        # at the source and keep all downstream paths consistent.
+        # ---------------------------------------------------------------
+        def self.na_normalize_path(path_value)
+            path_value.to_s.tr('\\', '/')
         end
 
         def self.na_count_img_scenes(model, prefix_regex)

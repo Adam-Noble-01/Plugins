@@ -84,7 +84,8 @@ module Na__ValeVisionCloudSync
 
         def self.na_resolve_edition_folder(project_root)
             subfolders         = Na__ConfigLoader.Na__ValeVisionCloudSync__ProjectSubfolders
-            content_delivered  = File.join(project_root, subfolders['content_delivered'].tr('/', File::SEPARATOR))
+            root_normalised    = project_root.to_s.tr('\\', '/')             # <-- Forward slashes so Dir.glob works on Windows
+            content_delivered  = File.join(root_normalised, subfolders['content_delivered'])
             prefix             = Na__ConfigLoader.Na__ValeVisionCloudSync__EditionFolderPrefix
             date_str           = na_today_date_string
 

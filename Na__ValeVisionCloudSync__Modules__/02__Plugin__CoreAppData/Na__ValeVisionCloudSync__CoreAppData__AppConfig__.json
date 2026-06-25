@@ -22,7 +22,8 @@
 
     "python": {
         "orchestrator_script": "Tools__DevUtils/AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py",
-        "whitecardopedia_root": "D:/10_CoreLib__ValeCodebase/WebApps/Whitecardopedia"
+        "whitecardopedia_root": "D:/10_CoreLib__ValeCodebase/WebApps/Whitecardopedia",
+        "python_executable": ""
     },
 
     "cdn": {

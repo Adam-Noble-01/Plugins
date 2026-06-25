@@ -32,7 +32,8 @@ module Na__ValeVisionCloudSync
         def self.Na__ValeVisionCloudSync__FindProjectDataFile(project_root)
             return nil unless project_root && File.directory?(project_root)
 
-            data_dir = File.join(project_root, '00__ProjectData')
+            root_normalised = project_root.to_s.tr('\\', '/')                  # <-- Dir.glob treats '\' as escape on Windows
+            data_dir        = File.join(root_normalised, '00__ProjectData')
             return nil unless File.directory?(data_dir)
 
             json_files = Dir.glob(File.join(data_dir, '*__ProjectData__.json'))

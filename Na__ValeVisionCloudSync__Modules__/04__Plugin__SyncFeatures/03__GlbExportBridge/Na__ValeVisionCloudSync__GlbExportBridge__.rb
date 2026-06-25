@@ -40,8 +40,8 @@ module Na__ValeVisionCloudSync
         # Returns { success:, message:, glb_count:, archived_count:, log_path: }
         # ---------------------------------------------------------------
         def self.Na__ValeVisionCloudSync__ExportGlbs(paths, project_name)
-            glb_sync_dir = paths[:glb_sync]
-            return na_error_result('GLB sync folder path not configured.') unless glb_sync_dir
+            glb_sync_dir = paths[:glb_sync].to_s.tr('\\', '/')               # <-- Forward slashes so Dir.glob works on Windows
+            return na_error_result('GLB sync folder path not configured.') if glb_sync_dir.empty?
 
             FileUtils.mkdir_p(glb_sync_dir)
 
@@ -52,14 +52,12 @@ module Na__ValeVisionCloudSync
                 return na_error_result("Archive step failed: #{archive_result[:message]}")
             end
 
-            glb_count_before = Dir.glob(File.join(glb_sync_dir, '*.glb')).size
-
             builder_loaded = na_ensure_glb_builder_loaded
             unless builder_loaded
                 return na_error_result('Could not load TrueVision3D::GlbBuilderUtility. Is the plugin installed?')
             end
 
-            na_perform_glb_export(glb_sync_dir, glb_count_before, archive_result, project_name)
+            na_perform_glb_export(glb_sync_dir, archive_result, project_name)
         end
 
 # endregion -------------------------------------------------------------------
@@ -102,34 +100,50 @@ module Na__ValeVisionCloudSync
 
         # SUB FUNCTION | Perform The Export And Detect Success
         # ---------------------------------------------------------------
-        def self.na_perform_glb_export(glb_sync_dir, glb_count_before, archive_result, project_name)
+        # The GLB builder overwrites files in place, so a simple before/after
+        # count is unreliable. We instead treat any *.glb (or export log)
+        # written at/after the export start as proof of a fresh export.
+        # ---------------------------------------------------------------
+        def self.na_perform_glb_export(glb_sync_dir, archive_result, project_name)
+            export_started_at = Time.now - 2  # <-- 2s tolerance for clock/filesystem granularity
+
             begin
                 TrueVision3D::GlbBuilderUtility.Na__PublicApi__PerformExport(glb_sync_dir)
             rescue => error
                 return na_error_result("GLB export raised an error: #{error.message}")
             end
 
-            glb_count_after = Dir.glob(File.join(glb_sync_dir, '*.glb')).size
-            new_glb_count   = glb_count_after - glb_count_before
+            fresh_glb_count = na_count_fresh_files(glb_sync_dir, '*.glb', export_started_at)
             log_path        = na_find_export_log(glb_sync_dir)
+            fresh_log       = log_path && File.mtime(log_path) >= export_started_at
 
-            success = new_glb_count > 0
+            success = fresh_glb_count > 0 || fresh_log
 
             {
                 success:        success,
                 message:        success ?
-                    "GLB export complete — #{new_glb_count} new GLB file(s) written." :
-                    "GLB export may have failed — no new GLB files detected. Check the export log.",
-                glb_count:      new_glb_count,
+                    "GLB export complete — #{fresh_glb_count} GLB file(s) written/updated." :
+                    "GLB export may have failed — no GLB files written. Check the export log.",
+                glb_count:      fresh_glb_count,
                 archived_count: archive_result[:archived_count],
                 log_path:       log_path
             }
         end
 
+        # HELPER FUNCTION | Count Files Matching A Glob Modified At/After A Time
+        # ---------------------------------------------------------------
+        def self.na_count_fresh_files(dir, pattern, since_time)
+            Dir.glob(File.join(dir.to_s.tr('\\', '/'), pattern)).count do |file|
+                File.mtime(file) >= since_time
+            end
+        rescue
+            0
+        end
+
         # HELPER FUNCTION | Find The Most Recent GlbBuilder Export Log
         # ---------------------------------------------------------------
         def self.na_find_export_log(glb_sync_dir)
-            log_files = Dir.glob(File.join(glb_sync_dir, 'GlbBuilder__ExportLog__*.txt'))
+            log_files = Dir.glob(File.join(glb_sync_dir.to_s.tr('\\', '/'), 'GlbBuilder__ExportLog__*.txt'))
             return nil if log_files.empty?
 
             log_files.max_by { |f| File.mtime(f) }
