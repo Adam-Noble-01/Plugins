@@ -1,5 +1,21 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.2.2 — 26-Jun-2026 — Auto-Init ProjectData Directory
+
+### Fixed
+- Camera capture "ProjectData JSON not found" on projects that pre-date the plugin:
+  `FindProjectDataFile` now calls `FileUtils.mkdir_p` to create the `00__ProjectData/`
+  directory when absent and returns a derived filename (`{ProjectFolder}__ProjectData__.json`)
+  when no `*__ProjectData__.json` exists yet. The file is created on first write by the
+  existing `WriteProjectDataArray` logic. Projects that already have an initialised
+  `00__ProjectData/` folder are completely unaffected.
+
+### Files Changed
+- `04__Plugin__SyncFeatures/06__ProjectDataWriter/Na__ValeVisionCloudSync__ProjectDataWriter__.rb`
+
+# =============================================================================
+
+
 ## Version 0.2.1 — 25-Jun-2026 — First-Sync Scaffold + Context-Aware Update Buttons
 
 ### Overview

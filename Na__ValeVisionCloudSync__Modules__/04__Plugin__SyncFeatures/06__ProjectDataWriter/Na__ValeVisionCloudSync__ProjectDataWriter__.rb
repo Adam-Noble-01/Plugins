@@ -27,17 +27,37 @@ module Na__ValeVisionCloudSync
 # REGION | Public API
 # -----------------------------------------------------------------------------
 
-        # FUNCTION | Find the ProjectData JSON file under 00__ProjectData
+        # FUNCTION | Find or initialise the ProjectData JSON file under 00__ProjectData
         # ------------------------------------------------------------
+        # Creates the 00__ProjectData directory when absent (first use on projects
+        # that pre-date the plugin). If no *__ProjectData__.json exists yet, a path
+        # is derived from the project folder name — the file itself is created on
+        # the first write by WriteProjectDataArray (which already calls mkdir_p).
+        # ---------------------------------------------------------------
         def self.Na__ValeVisionCloudSync__FindProjectDataFile(project_root)
             return nil unless project_root && File.directory?(project_root)
 
             root_normalised = project_root.to_s.tr('\\', '/')                  # <-- Dir.glob treats '\' as escape on Windows
             data_dir        = File.join(root_normalised, '00__ProjectData')
-            return nil unless File.directory?(data_dir)
+
+            begin
+                FileUtils.mkdir_p(data_dir)                                     # <-- Create if absent; no-op when it already exists
+            rescue => err
+                puts "[Na__ValeVisionCloudSync] Could not create ProjectData dir: #{err.message}"
+                return nil
+            end
 
             json_files = Dir.glob(File.join(data_dir, '*__ProjectData__.json'))
-            json_files.first
+            return json_files.first unless json_files.empty?
+
+            # No file yet — derive a filename from the project root folder name,
+            # stripping the model-type suffix so the file is named after the project.
+            folder_name = File.basename(root_normalised)
+            project_id  = folder_name
+                            .sub(/__Whitecard$/i, '')
+                            .sub(/__Blockout$/i,  '')
+                            .sub(/__MaxModel$/i,  '')
+            File.join(data_dir, "#{project_id}__ProjectData__.json")            # <-- Path only; file is created on first write
         end
 
         # FUNCTION | Read the ProjectData JSON array from disk
