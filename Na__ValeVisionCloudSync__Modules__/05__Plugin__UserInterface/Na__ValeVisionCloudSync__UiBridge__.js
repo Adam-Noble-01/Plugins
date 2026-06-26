@@ -7,6 +7,17 @@
     // FILE       : Na__ValeVisionCloudSync__UiBridge__.js
     // PURPOSE    : Tab switching, Ruby bridge callbacks, status line, report
     //              rendering, and project path display.
+    //
+    // -----------------------------------------------------------------------------
+    //
+    // DEVELOPMENT LOG:
+    // 25-Jun-2026 - Version 1.0.0
+    // - Initial HtmlDialog UI bridge for sync actions and report rendering.
+    //
+    // 25-Jun-2026 - Version 1.1.0
+    // - firstSyncComplete state + na__vvcs__applyButtonLockState(): greys out Update
+    //   cards until first successful sync; guards Update actions when locked.
+    //
     // =============================================================================
 
 
@@ -15,9 +26,12 @@
     // -----------------------------------------------------------------------------
 
     var naVvcsState = {
-        isRunning    : false,   // <-- true while a sync action is in progress
-        activeTabId  : 'export' // <-- tracks which tab is visible
+        isRunning         : false,   // <-- true while a sync action is in progress
+        activeTabId       : 'export',// <-- tracks which tab is visible
+        firstSyncComplete : false    // <-- true once a full sync has succeeded for this model (unlocks Update cards)
     };
+
+    var NA_VVCS_REQUIRES_SYNC_SELECTOR = '.naVvcs__ActionCard[data-na-requires-sync="true"]'; // <-- The three Update cards
 
     // endregion -------------------------------------------------------------------
 
@@ -90,13 +104,18 @@
             na__vvcs__setStatus('A sync action is already in progress.', 'warning');
             return;
         }
+        // <-- Update actions are locked until a full Sync Project has succeeded once
+        if (actionId !== 'sync_project' && !naVvcsState.firstSyncComplete) {
+            na__vvcs__setStatus('Run a full Sync Project To ValeVision 3D first.', 'warning');
+            return;
+        }
         if (!window.sketchup || !window.sketchup.na_vvcs_run_sync_action) {
             na__vvcs__setStatus('SketchUp bridge unavailable.', 'error');
             return;
         }
 
         naVvcsState.isRunning = true;
-        na__vvcs__setActionButtonsDisabled(true);
+        na__vvcs__applyButtonLockState();   // <-- Disables all cards while running
         na__vvcs__setStatus('Running sync action: ' + actionId + '...', 'info');
 
         window.sketchup.na_vvcs_run_sync_action(String(actionId));
@@ -146,7 +165,7 @@
         // <-- Re-enable buttons when sync completes (running=false or missing)
         if (!report.running) {
             naVvcsState.isRunning = false;
-            na__vvcs__setActionButtonsDisabled(false);
+            na__vvcs__applyButtonLockState();   // <-- Restore lock-aware state (Update cards stay locked until first sync)
         }
 
         na__vvcs__renderReport(report);
@@ -154,6 +173,9 @@
 
     function Na__Vvcs__ReceivePathStatus(pathData) {
         if (!pathData) { return; }
+
+        naVvcsState.firstSyncComplete = !!pathData.first_sync_complete;   // <-- Drives the Update-card lock
+        na__vvcs__applyButtonLockState();
 
         var modelNameEl  = document.getElementById('naVvcsModelName');
         var projectRootEl = document.getElementById('naVvcsProjectRoot');
@@ -266,6 +288,28 @@
         }
     }
 
+    // FUNCTION | Apply Lock-Aware Action Button State
+    // ------------------------------------------------------------
+    // While a sync runs every card is disabled. Otherwise the primary "Sync
+    // Project" card is always enabled, and the three Update cards (tagged with
+    // data-na-requires-sync) stay greyed out until a first sync has succeeded.
+    // ------------------------------------------------------------
+    function na__vvcs__applyButtonLockState() {
+        if (naVvcsState.isRunning) {
+            na__vvcs__setActionButtonsDisabled(true);   // <-- Everything locked mid-run
+            return;
+        }
+
+        na__vvcs__setActionButtonsDisabled(false);      // <-- Baseline: all enabled
+
+        var lockUpdates = !naVvcsState.firstSyncComplete;
+        var updateCards = document.querySelectorAll(NA_VVCS_REQUIRES_SYNC_SELECTOR);
+        for (var i = 0; i < updateCards.length; i += 1) {
+            updateCards[i].disabled = lockUpdates;       // <-- Greyed via .naVvcs__ActionCard:disabled
+            updateCards[i].title    = lockUpdates ? 'Run a full Sync Project To ValeVision 3D first.' : '';
+        }
+    }
+
     // endregion -------------------------------------------------------------------
 
 
@@ -274,6 +318,7 @@
     // -----------------------------------------------------------------------------
 
     document.addEventListener('DOMContentLoaded', function() {
+        na__vvcs__applyButtonLockState();   // <-- Start with Update cards locked until Ruby pushes the real state
         // <-- Signal Ruby that dialog DOM is ready so it can push initial state
         if (window.sketchup && window.sketchup.na_vvcs_dialog_ready) {
             window.sketchup.na_vvcs_dialog_ready();

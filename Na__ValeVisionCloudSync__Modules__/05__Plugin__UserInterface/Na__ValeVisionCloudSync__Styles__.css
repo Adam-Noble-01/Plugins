@@ -279,6 +279,15 @@ body {
     transform               : none;
 }
 
+/* Locked / disabled cards must not react to hover or click */
+.naVvcs__ActionCard:disabled:hover,
+.naVvcs__ActionCard:disabled:active {
+    border-color            : var(--naVvcs_Border);
+    background              : #ffffff;
+    box-shadow              : none;
+    transform               : none;
+}
+
 .naVvcs__ActionCard__Icon {
     font-size               : 20px;
     line-height             : 1;

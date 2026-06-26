@@ -1,5 +1,31 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.2.1 — 25-Jun-2026 — First-Sync Scaffold + Context-Aware Update Buttons
+
+### Overview
+A brand-new Vale project can now be synced to Whitecardopedia and R2 on the first button press without a pre-existing web folder or `project.json`. The dialog greys out the three Update action cards until a full sync has succeeded at least once for the active model, giving immediate feedback that the project has (or has not) been pushed live.
+
+### Added
+- **`Na__ValeVisionCloudSync__ReadFirstSyncComplete(model)`** / **`Na__ValeVisionCloudSync__MarkFirstSyncComplete(model)`** in ProjectPathMapper — persists `first_sync_complete` in the model attribute dictionary (`ValeVision__CloudExport` dict).
+- **`first_sync_complete` in path display payload** — DialogManager pushes the flag to the HtmlDialog on open and after every successful sync.
+- **Update card lock state (UiBridge)** — `data-na-requires-sync="true"` on the three Update cards; `na__vvcs__applyButtonLockState()` disables them when `firstSyncComplete` is false; `Na__Vvcs__RunSyncAction` blocks Update actions until unlocked.
+- **Python scaffold gate** — orchestrator `na_ensure_wcp_project_scaffold()` (see Whitecardopedia v0.6.2) creates folder + `project.json` + masterConfig entry before image/R2 stages when missing.
+
+### Changed
+- Successful full sync marks `first_sync_complete` and re-pushes path status so Update cards unlock immediately.
+- Disabled Update cards use matching hover/active suppression in Styles CSS.
+
+### Files Changed
+- `04__Plugin__SyncFeatures/05__ProjectPathMapper/Na__ValeVisionCloudSync__ProjectPathMapper__.rb`
+- `03__Plugin__CoreAppLogic/Na__ValeVisionCloudSync__CoreAppLogic__DialogManager__.rb`
+- `05__Plugin__UserInterface/Na__ValeVisionCloudSync__UiLayout__.html`
+- `05__Plugin__UserInterface/Na__ValeVisionCloudSync__UiBridge__.js`
+- `05__Plugin__UserInterface/Na__ValeVisionCloudSync__Styles__.css`
+- `Whitecardopedia/Tools__DevUtils/AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py`
+
+# =============================================================================
+
+
 ## Version 0.2.0 — 25-Jun-2026 — End-to-End Cloud Sync Production Release
 
 ### Overview

@@ -13,6 +13,16 @@
 # - Exposes push methods so other modules can update the UI without holding
 #   a dialog reference themselves.
 #
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG:
+# 25-Jun-2026 - Version 1.0.0
+# - Initial HtmlDialog lifecycle and Ruby ↔ JS bridge.
+#
+# 25-Jun-2026 - Version 1.1.0
+# - Marks first_sync_complete on successful sync; re-pushes path status so Update
+#   cards unlock immediately after the first successful full sync.
+#
 # =============================================================================
 
 require 'json'
@@ -177,9 +187,17 @@ module Na__ValeVisionCloudSync
                 { success: false, message: 'Sync orchestrator not yet loaded.', steps: [] }
             end
 
+            # FIRST SYNC STATE | Record success so the Update cards unlock + stay unlocked
+            if result.fetch(:success, false) &&
+               defined?(Na__ProjectPathMapper) &&
+               Na__ProjectPathMapper.respond_to?(:Na__ValeVisionCloudSync__MarkFirstSyncComplete)
+                Na__ProjectPathMapper.Na__ValeVisionCloudSync__MarkFirstSyncComplete(Sketchup.active_model)
+            end
+
             variant = result.fetch(:success, false) ? 'success' : 'error'
             na_update_status_element(dialog, result.fetch(:message, 'Done.'), variant)
             na_push_report_to_dialog(dialog, result)
+            na_push_project_path_status(dialog)   # <-- Carries first_sync_complete; re-applies lock state last
             @na_active_dialog = nil
         end
 
@@ -302,13 +320,14 @@ module Na__ValeVisionCloudSync
             model = Sketchup.active_model
             unless model
                 return {
-                    model_name:        '(No active model)',
-                    model_path:        '',
-                    derived_root:      '',
-                    override_path:     '',
-                    active_path:       '',
-                    has_override:      false,
-                    img_scene_count:   0
+                    model_name:          '(No active model)',
+                    model_path:          '',
+                    derived_root:        '',
+                    override_path:       '',
+                    active_path:         '',
+                    has_override:        false,
+                    img_scene_count:     0,
+                    first_sync_complete: false
                 }
             end
 
@@ -326,14 +345,22 @@ module Na__ValeVisionCloudSync
             active_path   = has_override ? override_path : derived_root
             img_count     = na_count_img_scenes(model)
 
+            first_sync_complete = if defined?(Na__ProjectPathMapper) &&
+                                     Na__ProjectPathMapper.respond_to?(:Na__ValeVisionCloudSync__ReadFirstSyncComplete)
+                Na__ProjectPathMapper.Na__ValeVisionCloudSync__ReadFirstSyncComplete(model)
+            else
+                false
+            end
+
             {
-                model_name:       File.basename(model.path.to_s, '.skp'),
-                model_path:       model.path.to_s,
-                derived_root:     derived_root,
-                override_path:    override_path,
-                active_path:      active_path,
-                has_override:     has_override,
-                img_scene_count:  img_count
+                model_name:          File.basename(model.path.to_s, '.skp'),
+                model_path:          model.path.to_s,
+                derived_root:        derived_root,
+                override_path:       override_path,
+                active_path:         active_path,
+                has_override:        has_override,
+                img_scene_count:     img_count,
+                first_sync_complete: first_sync_complete
             }
         end
 

@@ -16,6 +16,17 @@
 #   path so models stored elsewhere can still be synced.
 # - All fixed subfolder paths are derived once from the resolved root.
 #
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG:
+# 25-Jun-2026 - Version 1.0.0
+# - Initial project root derivation and path override from model dictionary.
+#
+# 25-Jun-2026 - Version 1.1.0
+# - Na__ValeVisionCloudSync__ReadFirstSyncComplete / MarkFirstSyncComplete:
+#   persists first_sync_complete in model dictionary for Update-button lock state.
+# - BuildPathDisplayData now includes first_sync_complete for HtmlDialog bridge.
+#
 # =============================================================================
 
 module Na__ValeVisionCloudSync
@@ -100,10 +111,11 @@ module Na__ValeVisionCloudSync
                     derived_root:     '',
                     override_path:    '',
                     active_path:      '',
-                    has_override:     false,
-                    img_scene_count:  0,
-                    subfolders:       {},
-                    subfolders_exist: {}
+                    has_override:        false,
+                    img_scene_count:     0,
+                    first_sync_complete: false,
+                    subfolders:          {},
+                    subfolders_exist:    {}
                 }
             end
 
@@ -121,11 +133,12 @@ module Na__ValeVisionCloudSync
                 model_path:       model.path.to_s,
                 derived_root:     derived_root,
                 override_path:    override_path.to_s,
-                active_path:      active_root,
-                has_override:     has_override,
-                img_scene_count:  img_count,
-                subfolders:       subfolders,
-                subfolders_exist: na_check_subfolders_exist(subfolders)
+                active_path:         active_root,
+                has_override:        has_override,
+                img_scene_count:     img_count,
+                first_sync_complete: self.Na__ValeVisionCloudSync__ReadFirstSyncComplete(model),
+                subfolders:          subfolders,
+                subfolders_exist:    na_check_subfolders_exist(subfolders)
             }
         end
 
@@ -157,6 +170,34 @@ module Na__ValeVisionCloudSync
 
         def self.Na__ValeVisionCloudSync__ReadPathOverride(model)
             na_read_path_override(model)
+        end
+
+        # FUNCTION | Read Whether This Model Has Completed A First Successful Sync
+        # ------------------------------------------------------------
+        # Drives the dialog's update-button lock: the three "Update ..." cards stay
+        # greyed out until a full sync has succeeded at least once for this model.
+        # ---------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__ReadFirstSyncComplete(model)
+            return false unless model
+
+            dict = model.attribute_dictionary(
+                Na__ConfigLoader.Na__ValeVisionCloudSync__ModelDictionaryName, false
+            )
+            return false unless dict
+
+            dict['na_first_sync_complete'] == true              # <-- Strict true; absent/false stays locked
+        end
+
+        # FUNCTION | Mark This Model As Having Completed A First Successful Sync
+        # ------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__MarkFirstSyncComplete(model)
+            return { success: false, message: 'No active model.' } unless model
+
+            dict = model.attribute_dictionary(
+                Na__ConfigLoader.Na__ValeVisionCloudSync__ModelDictionaryName, true
+            )
+            dict['na_first_sync_complete'] = true               # <-- Persisted with the .skp file
+            { success: true, message: 'First sync state recorded.' }
         end
 
 # endregion -------------------------------------------------------------------
