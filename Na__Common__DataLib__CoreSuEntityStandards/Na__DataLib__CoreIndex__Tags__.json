@@ -65,71 +65,81 @@
 
         "00__SystemAndUtilityTags__": {
             "01__OrbitHelperCube": {
-                "Tag__SketchUpName"          : "01__OrbitHelperCube",
-                "Tag__Description"           : "Camera orbit pivot point for the Web 3D Viewer App. A small cube component placed at the desired camera rotation centre.",
-                "Glb__ExportRangeNumbers"    : [1],
-                "Glb__FullyExcluded"         : false,
-                "Glb__ExportFileNameStem"    : "01__OrbitHelperCube"
+                "Tag__SketchUpName"            : "01__OrbitHelperCube",
+                "Tag__Description"             : "Camera orbit pivot point for the Web 3D Viewer App. A small cube component placed at the desired camera rotation centre.",
+                "Glb__ExportRangeNumbers"      : [1],
+                "Glb__FullyExcluded"           : false,
+                "Glb__ExportFileNameStem"      : "01__OrbitHelperCube",
+                "EdgePainting__AdvancedSwapOff": true
             },
             "02__Linetype__DoorSwings": {
-                "Tag__SketchUpName"          : "02__Linetype__DoorSwings",
-                "Tag__Description"           : "2D door swing arc linework. Always excluded from GLB export at any nesting depth.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true
+                "Tag__SketchUpName"            : "02__Linetype__DoorSwings",
+                "Tag__Description"             : "2D door swing arc linework. Always excluded from GLB export at any nesting depth.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
             },
-            "02__ClearanceLines": {
-                "Tag__SketchUpName"          : "02__ClearanceLines",
-                "Tag__LineStyle__Config"     : "Short dash",
-                "Tag__EdgeMaterial__Config"  : "MTE104__LineColour__MidGrey__L60",
-                "Tag__Description"           : "Clearance zone linework (e.g. furniture clearances, accessibility zones). Always excluded from GLB export.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true
+            "02__ClearanceLines__IndicatorLines": {
+                "Tag__SketchUpName"            : "02__ClearanceLines__IndicatorLines",
+                "Tag__LineStyle__Config"       : "Short dash",
+                "Tag__EdgeMaterial__Config"    : "MTE104__LineColour__MidGrey__L60",
+                "Tag__Description"             : "Clearance zone linework (e.g. furniture clearances, accessibility zones). Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
             },
             "02__ProfilePathTracer_Helpers": {
-                "Tag__SketchUpName"          : "02__ProfilePathTracer_Helpers",
-                "Tag__LineStyle__Config"     : "Short dash",
-                "Tag__EdgeMaterial__Config"  : "MTE201__LineColour__Red",
-                "Tag__Description"           : "Helpers for the Profile Path Tracer tool. These are used to help the user to create a profile path for the Profile Path Tracer tool. Always excluded from GLB export.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true
+                "Tag__SketchUpName"            : "02__ProfilePathTracer_Helpers",
+                "Tag__LineStyle__Config"       : "Short dash",
+                "Tag__EdgeMaterial__Config"    : "MTE201__LineColour__Red",
+                "Tag__Description"             : "Helpers for the Profile Path Tracer tool. These are used to help the user to create a profile path for the Profile Path Tracer tool. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
             },
             "02__DoorHelpers__RotationPivots": {
-                "Tag__SketchUpName"          : "02__DoorHelpers__RotationPivots",
-                "Tag__Description"           : "Visible debug helpers showing the door rotation pivot consumed by TrueVision3D (ROT group inside each ADR door assembly). Drawn as red dashed lines (vertical hinge axis line + crosshairs at both ends + swing direction arc). Toggle this tag off in production - the helper geometry sits inside the ROT group whose origin is the pivot point read by the downstream Three.js animation system. Always excluded from GLB export.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true,
-                "Layout__LineStyleName"      : "Dash",
-                "Layout__EdgeColourRGB"      : [255, 0, 0]
+                "Tag__SketchUpName"            : "02__DoorHelpers__RotationPivots",
+                "Tag__Description"             : "Visible debug helpers showing the door rotation pivot consumed by TrueVision3D (ROT group inside each ADR door assembly). Drawn as red dashed lines (vertical hinge axis line + crosshairs at both ends + swing direction arc). Toggle this tag off in production - the helper geometry sits inside the ROT group whose origin is the pivot point read by the downstream Three.js animation system. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__LineStyleName"        : "Dash",
+                "Layout__EdgeColourRGB"        : [255, 0, 0]
             },
             "02__Reference__CadLines__NotUsed": {
-                "Tag__SketchUpName"          : "02__Reference__CadLines__NotUsed",
-                "Tag__Description"           : "Cad lines that are not used in the model. Always excluded from GLB export.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true
+                "Tag__SketchUpName"            : "02__Reference__CadLines__NotUsed",
+                "Tag__Description"             : "Cad lines that are not used in the model. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
             },
             "05__3dModelingUtil__MirrorPlanes": {
-                "Tag__SketchUpName"          : "05__3dModelingUtil__MirrorPlanes",
-                "Tag__Description"           : "Temporary mirror plane faces used as construction aids for symmetrical modeling. Always excluded from GLB export.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true
+                "Tag__SketchUpName"            : "05__3dModelingUtil__MirrorPlanes",
+                "Tag__Description"             : "Temporary mirror plane faces used as construction aids for symmetrical modeling. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
             },
             "05__3dModelingUtil__BoundingBoxes": {
-                "Tag__SketchUpName"          : "05__3dModelingUtil__BoundingBoxes",
-                "Tag__Description"           : "Temporary bounding box helpers to visualize object extents or aid boolean operations. Always excluded from GLB export.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true
+                "Tag__SketchUpName"            : "05__3dModelingUtil__BoundingBoxes",
+                "Tag__Description"             : "Temporary bounding box helpers to visualize object extents or aid boolean operations. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
             },
             "05__3dModelingUtil__BoundingBoxes": {
-                "Tag__SketchUpName"          : "05__3dModelingUtil__AssetDimensions",
-                "Tag__Description"           : "Temporary asset dimensions used for thumbnail images for Components, Always excluded from GLB export.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true
+                "Tag__SketchUpName"            : "05__3dModelingUtil__AssetDimensions",
+                "Tag__Description"             : "Temporary asset dimensions used for thumbnail images for Components, Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
             },
             "06__Reference__CadData__General": {
-                "Tag__SketchUpName"          : "06__Reference__CadData__General",
-                "Tag__Description"           : "Imported 2D or 3D CAD reference data. Leave this tag off for final exports. Always excluded from GLB export.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true
+                "Tag__SketchUpName"            : "06__Reference__CadData__General",
+                "Tag__Description"             : "Imported 2D or 3D CAD reference data. Leave this tag off for final exports. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
             },
             "06__Reference__Drawings__General": {
                 "Tag__SketchUpName"          : "06__Reference__Drawings__General",
@@ -138,10 +148,46 @@
                 "Glb__FullyExcluded"         : true
             },
             "00__OriginPoint": {
-                "Tag__SketchUpName"          : "00__OriginPoint",
-                "Tag__Description"           : "Failsafe local-origin and rotation-pivot marker group inside camera-follow billboard components. Geometry on this tag is never exported; the group centre position is captured by the GlbBuilder and baked into glTF node extras as pivotLocal for downstream ValeVision and TrueVision camera-follow behaviour.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true
+                "Tag__SketchUpName"            : "00__OriginPoint",
+                "Tag__Description"             : "Failsafe local-origin and rotation-pivot marker group inside camera-follow billboard components. Geometry on this tag is never exported; the group centre position is captured by the GlbBuilder and baked into glTF node extras as pivotLocal for downstream ValeVision and TrueVision camera-follow behaviour.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
+            },
+            "Na__Door__Open": {
+                "Tag__SketchUpName"            : "Na__Door__Open",
+                "Tag__Description"             : "Internal component sub-tag marking door panel geometry in its open-state position. Used by TrueVision3D animation system. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
+            },
+            "Na__Door__Closed": {
+                "Tag__SketchUpName"            : "Na__Door__Closed",
+                "Tag__Description"             : "Internal component sub-tag marking door panel geometry in its closed-state position. Used by TrueVision3D animation system. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
+            },
+            "Na__DoorPanel": {
+                "Tag__SketchUpName"            : "Na__DoorPanel",
+                "Tag__Description"             : "Internal component sub-tag for the door panel leaf geometry within an ADR door assembly. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
+            },
+            "Na__DoorHandle": {
+                "Tag__SketchUpName"            : "Na__DoorHandle",
+                "Tag__Description"             : "Internal component sub-tag for door handle and hardware geometry within an ADR door assembly. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
+            },
+            "Na__Architrave": {
+                "Tag__SketchUpName"            : "Na__Architrave",
+                "Tag__Description"             : "Internal component sub-tag for door architrave (trim) geometry within an ADR door assembly. Always excluded from GLB export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true
             }
         },
 
@@ -511,7 +557,6 @@
             "Na__Door__Open",
             "01__ModelFlag__ElementsForRemoval",
             "00__OriginPoint"
-    
         ],
         "FullyExcludedNote"        : "Entities on these tags are completely skipped during GLB export at any nesting depth.",
         "LineworkHiddenTagNames"   : [
@@ -528,7 +573,18 @@
             "01__ModelFlag__FloorLevelLines",
             "01__ModelFlag__BuildingJoins__IndicatorLines",
             "01__ModelFlag__BuildingJoinLines",
-            "01__ModelFlag__OverheadObjects__IndicatorLines"
+            "01__ModelFlag__OverheadObjects__IndicatorLines",
+            "00__OriginPoint",
+            "01__OrbitHelperCube",
+            "02__ClearanceLines__IndicatorLines",
+            "02__ClearanceLines",
+            "02__DoorHelpers__RotationPivots",
+            "02__Linetype__DoorSwings",
+            "Na__Door__Open",
+            "Na__Door__Closed",
+            "Na__DoorPanel",
+            "Na__DoorHandle",
+            "Na__Architrave"
         ],
         "AdvancedSwapOffNote"      : "Edges already assigned to one of these tags are not reassigned during Advanced mode tag application in the Edge Paint plugin. Both canonical and legacy names are listed for backward compatibility with existing models.",
         "TreatAsUntaggedTagNames"  : [
