@@ -370,6 +370,42 @@
             "menu_text"         : "Material Swap In Selection",
             "handler_key"       : "material_swap_in_selection",
             "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "dimension_utils_tag_dimensions",
+            "command_name"      : "Na Noble3d - Tag All Linear Dimensions",
+            "tooltip"           : "Assign all linear dimension entities to the 90__Dimensions tag.",
+            "status_bar_text"   : "Tags all linear dimensions as 90__Dimensions.",
+            "menu_text"         : "Tag All Linear Dimensions",
+            "handler_key"       : "dimension_utils_tag_dimensions",
+            "expose_to_hotkeys" : false
+        },
+        {
+            "command_id"        : "dimension_utils_delete_dimensions",
+            "command_name"      : "Na Noble3d - Delete All Dimensions",
+            "tooltip"           : "Count and optionally delete all dimension entities in the model.",
+            "status_bar_text"   : "Counts and deletes all dimension entities from the model.",
+            "menu_text"         : "Delete All Dimensions",
+            "handler_key"       : "dimension_utils_delete_dimensions",
+            "expose_to_hotkeys" : false
+        },
+        {
+            "command_id"        : "dimension_utils_tag_text_entities",
+            "command_name"      : "Na Noble3d - Tag All Text and Leaders",
+            "tooltip"           : "Assign all Sketchup::Text entities (screen text and leader lines) to the 90__Text tag.",
+            "status_bar_text"   : "Tags all text and leader entities as 90__Text.",
+            "menu_text"         : "Tag All Text and Leaders",
+            "handler_key"       : "dimension_utils_tag_text_entities",
+            "expose_to_hotkeys" : false
+        },
+        {
+            "command_id"        : "dimension_utils_delete_text_entities",
+            "command_name"      : "Na Noble3d - Delete All Text and Leaders",
+            "tooltip"           : "Count and optionally delete all Sketchup::Text entities (screen text and leader lines) in the model.",
+            "status_bar_text"   : "Counts and deletes all text and leader entities from the model.",
+            "menu_text"         : "Delete All Text and Leaders",
+            "handler_key"       : "dimension_utils_delete_text_entities",
+            "expose_to_hotkeys" : false
         }
     ],
     "buttons"                : [
@@ -682,6 +718,50 @@
             "description"            : "Projects the selected groups/components onto a camera-facing front plane and keeps only the outline perimeter (interior holes preserved) as one new flat 2D group. Great for outlines and stencils. Requires Parallel Projection."
         },
         {
+            "button_id"              : "btn_dimension_utils_tag_dimensions",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Dimension Utilities",
+            "tool_group_description" : "Tools for managing SketchUp dimension entities across the full model hierarchy.",
+            "tool_group_order"       : 20,
+            "button_order"           : 10,
+            "button_label"           : "Tag All Linear Dimensions",
+            "command_id"             : "dimension_utils_tag_dimensions",
+            "description"            : "Recursively assigns all linear dimension entities to the 90__Dimensions tag."
+        },
+        {
+            "button_id"              : "btn_dimension_utils_delete_dimensions",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Dimension Utilities",
+            "tool_group_description" : "Tools for managing SketchUp dimension entities across the full model hierarchy.",
+            "tool_group_order"       : 20,
+            "button_order"           : 20,
+            "button_label"           : "Delete All Dimensions",
+            "command_id"             : "dimension_utils_delete_dimensions",
+            "description"            : "Reports the total count of dimension entities and offers a delete-all confirmation."
+        },
+        {
+            "button_id"              : "btn_dimension_utils_tag_text_entities",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Dimension Utilities",
+            "tool_group_description" : "Tools for managing SketchUp dimension entities across the full model hierarchy.",
+            "tool_group_order"       : 20,
+            "button_order"           : 30,
+            "button_label"           : "Tag All Text and Leaders",
+            "command_id"             : "dimension_utils_tag_text_entities",
+            "description"            : "Recursively assigns all Sketchup::Text entities (screen text and leader lines) to the 90__Text tag."
+        },
+        {
+            "button_id"              : "btn_dimension_utils_delete_text_entities",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Dimension Utilities",
+            "tool_group_description" : "Tools for managing SketchUp dimension entities across the full model hierarchy.",
+            "tool_group_order"       : 20,
+            "button_order"           : 40,
+            "button_label"           : "Delete All Text and Leaders",
+            "command_id"             : "dimension_utils_delete_text_entities",
+            "description"            : "Reports a breakdown of screen text vs leader count, then offers a delete-all confirmation."
+        },
+        {
             "button_id"              : "btn_image_carousel",
             "tab_name"               : "Misc Utils",
             "tool_group_name"        : "Image Tools",
@@ -892,6 +972,22 @@
         {
             "command_id"        : "material_swap_in_selection",
             "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "dimension_utils_tag_dimensions",
+            "expose_to_hotkeys" : false
+        },
+        {
+            "command_id"        : "dimension_utils_delete_dimensions",
+            "expose_to_hotkeys" : false
+        },
+        {
+            "command_id"        : "dimension_utils_tag_text_entities",
+            "expose_to_hotkeys" : false
+        },
+        {
+            "command_id"        : "dimension_utils_delete_text_entities",
+            "expose_to_hotkeys" : false
         }
     ]
 }

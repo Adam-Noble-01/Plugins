@@ -47,6 +47,7 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__Loader__'
             require_relative '../../10__PluginModules/22__SourceCode__UntagSpecificInSelection/Na__Noble3dModellingTools__UntagSpecificInSelection__Loader__'
             require_relative '../../10__PluginModules/23__SourceCode__MaterialSwapInSelection/Na__Noble3dModellingTools__MaterialSwapInSelection__Loader__'
+            require_relative '../../10__PluginModules/24__SourceCode__DimensionUtils/Na__Noble3dModellingTools__DimensionUtils__Loader__'
 
             @na_feature_modules_loaded = true
             true

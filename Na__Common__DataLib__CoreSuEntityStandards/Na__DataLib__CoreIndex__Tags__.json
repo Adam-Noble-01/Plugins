@@ -21,32 +21,45 @@
 
         "00__ModelFlagTags__": {
             "Tag__Description" : "Model-flag tags that control GLB export behaviour for specific geometry categories. Linework-hidden tags keep mesh geometry but suppress edges in the linework GLB at any nesting depth. Fully-excluded tags are stripped from both mesh and linework GLBs.",
-            "01__ModelFlag__FloorLevelLines": {
-                "Tag__SketchUpName"          : "01__ModelFlag__FloorLevelLines",
-                "Tag__Description"           : "Floor level reference lines drawn as construction aids. Mesh geometry on this tag is exported normally; edges are suppressed in the linework GLB at any nesting depth so they do not appear as visible lines in TrueVision3D.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : false,
-                "Glb__LineworkHidden"        : true,
-                "Layout__LineStyleName"      : "Dash",
-                "Layout__EdgeColourRGB"      : [200, 50, 50]
+            "01__ModelFlag__FloorLevel__IndicatorLines": {
+                "Tag__SketchUpName"            : "01__ModelFlag__FloorLevel__IndicatorLines",
+                "Tag__Description"             : "Floor level reference lines drawn as construction aids. Mesh geometry on this tag is exported normally; edges are suppressed in the linework GLB at any nesting depth so they do not appear as visible lines in TrueVision3D.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : false,
+                "Glb__LineworkHidden"          : true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__LineStyleName"        : "Dash",
+                "Layout__EdgeColourRGB"        : [200, 50, 50]
             },
-            "01__ModelFlag__BuildingJoinLines": {
-                "Tag__SketchUpName"          : "01__ModelFlag__BuildingJoinLines",
-                "Tag__Description"           : "Building join / party wall reference lines used to mark interfaces between existing and proposed elements. Mesh geometry is exported normally; edges are suppressed in the linework GLB at any nesting depth.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : false,
-                "Glb__LineworkHidden"        : true,
-                "Layout__LineStyleName"      : "Dash dot",
-                "Layout__EdgeColourRGB"      : [200, 50, 50]
+            "01__ModelFlag__BuildingJoins__IndicatorLines": {
+                "Tag__SketchUpName"            : "01__ModelFlag__BuildingJoins__IndicatorLines",
+                "Tag__Description"             : "Building join / party wall reference lines used to mark interfaces between existing and proposed elements. Mesh geometry is exported normally; edges are suppressed in the linework GLB at any nesting depth.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : false,
+                "Glb__LineworkHidden"          : true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__LineStyleName"        : "Dash dot",
+                "Layout__EdgeColourRGB"        : [200, 50, 50]
             },
             "01__ModelFlag__ElementsForRemoval": {
-                "Tag__SketchUpName"          : "01__ModelFlag__ElementsForRemoval",
-                "Tag__Description"           : "Geometry earmarked for demolition or removal in the proposed scheme. Completely excluded from GLB export — neither mesh nor linework is written to any GLB file.",
-                "Glb__ExportRangeNumbers"    : null,
-                "Glb__FullyExcluded"         : true,
-                "Glb__LineworkHidden"        : false,
-                "Layout__LineStyleName"      : "Long-dash dash",
-                "Layout__EdgeColourRGB"      : [180, 0, 180]
+                "Tag__SketchUpName"            : "01__ModelFlag__ElementsForRemoval",
+                "Tag__Description"             : "Geometry earmarked for demolition or removal in the proposed scheme. Completely excluded from GLB export — neither mesh nor linework is written to any GLB file.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "Glb__LineworkHidden"          : false,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__LineStyleName"        : "Long-dash dash",
+                "Layout__EdgeColourRGB"        : [180, 0, 180]
+            },
+            "01__ModelFlag__OverheadObjects__IndicatorLines": {
+                "Tag__SketchUpName"            : "01__ModelFlag__OverheadObjects__IndicatorLines",
+                "Tag__Description"             : "Overhead objects visible in plan view as dashed linework (e.g. roof overhangs, high-level shelving, overhead beams). Mesh geometry is exported normally; edges are suppressed in the linework GLB at any nesting depth so they do not appear as visible lines in TrueVision3D.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : false,
+                "Glb__LineworkHidden"          : true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__LineStyleName"        : "Dash dot dot",
+                "Layout__EdgeColourRGB"        : [100, 100, 200]
             }
         },
 
@@ -502,10 +515,22 @@
         ],
         "FullyExcludedNote"        : "Entities on these tags are completely skipped during GLB export at any nesting depth.",
         "LineworkHiddenTagNames"   : [
+            "01__ModelFlag__FloorLevel__IndicatorLines",
             "01__ModelFlag__FloorLevelLines",
-            "01__ModelFlag__BuildingJoinLines"
+            "01__ModelFlag__BuildingJoins__IndicatorLines",
+            "01__ModelFlag__BuildingJoinLines",
+            "01__ModelFlag__OverheadObjects__IndicatorLines"
         ],
-        "LineworkHiddenNote"       : "Entities on these tags export mesh geometry normally but all edges are suppressed in the linework GLB at any nesting depth. A group or component tagged with one of these names short-circuits the entire subtree from edge collection.",
+        "LineworkHiddenNote"       : "Entities on these tags export mesh geometry normally but all edges are suppressed in the linework GLB at any nesting depth. A group or component tagged with one of these names short-circuits the entire subtree from edge collection. Both canonical and legacy names are listed for backward compatibility with existing models.",
+        "AdvancedSwapOffTagNames"  : [
+            "01__ModelFlag__ElementsForRemoval",
+            "01__ModelFlag__FloorLevel__IndicatorLines",
+            "01__ModelFlag__FloorLevelLines",
+            "01__ModelFlag__BuildingJoins__IndicatorLines",
+            "01__ModelFlag__BuildingJoinLines",
+            "01__ModelFlag__OverheadObjects__IndicatorLines"
+        ],
+        "AdvancedSwapOffNote"      : "Edges already assigned to one of these tags are not reassigned during Advanced mode tag application in the Edge Paint plugin. Both canonical and legacy names are listed for backward compatibility with existing models.",
         "TreatAsUntaggedTagNames"  : [
             "03__LineThickness__01.00pt",
             "03__LineThickness__00.80pt",

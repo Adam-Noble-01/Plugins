@@ -153,6 +153,18 @@ module Na__Noble3dModellingTools
             when 'material_swap_in_selection'
                 proc { Na__MaterialSwapInSelection.Na__MaterialSwapInSelection__Run }
 
+            when 'dimension_utils_tag_dimensions'
+                proc { Na__DimensionUtils.Na__DimensionUtils__RunTagDimensions }
+
+            when 'dimension_utils_delete_dimensions'
+                proc { Na__DimensionUtils.Na__DimensionUtils__RunDeleteDimensions }
+
+            when 'dimension_utils_tag_text_entities'
+                proc { Na__DimensionUtils.Na__DimensionUtils__RunTagTextEntities }
+
+            when 'dimension_utils_delete_text_entities'
+                proc { Na__DimensionUtils.Na__DimensionUtils__RunDeleteTextEntities }
+
             else
                 nil
             end

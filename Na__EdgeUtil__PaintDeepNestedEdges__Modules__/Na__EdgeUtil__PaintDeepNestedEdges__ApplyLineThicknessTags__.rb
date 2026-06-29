@@ -37,6 +37,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
 
         @na_colour_to_tag_lookup = nil                                        # <-- { MTE colour ID => tag name }
         @na_tag_entries          = nil                                        # <-- Array of { colour_id, tag_name, description } for UI
+        @na_protected_tag_names  = nil                                        # <-- Hash of tag names that block Advanced-mode override
 
     # endregion ----------------------------------------------------------------
 
@@ -103,6 +104,57 @@ module Na__EdgeUtil__PaintDeepNestedEdges
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Load and Cache the Set of Protected Tag Names
+        # ------------------------------------------------------------
+        # Reads ExportExclusions.AdvancedSwapOffTagNames from Tags JSON as the
+        # fast path. Falls back to iterating all tag entries for the per-tag
+        # EdgePainting__AdvancedSwapOff field if the curated list is absent.
+        # Returns a Hash keyed by tag name for O(1) membership checks.
+        def self.Na__LineTags__LoadProtectedTagNames
+            return @na_protected_tag_names if @na_protected_tag_names
+
+            tags_data = Na__DataLib__CacheData.Na__Cache__LoadData(:tags)
+            unless tags_data
+                puts "    [LineTags] WARNING: Tags data unavailable for protected tag names"
+                @na_protected_tag_names = {}
+                return @na_protected_tag_names
+            end
+
+            protected_names = {}
+
+            export_exclusions = tags_data["ExportExclusions"]
+            curated_list      = export_exclusions && export_exclusions["AdvancedSwapOffTagNames"]
+
+            if curated_list.is_a?(Array) && !curated_list.empty?
+                curated_list.each { |name| protected_names[name] = true }    # <-- Use curated fast-path list
+                puts "    [LineTags] Loaded #{protected_names.size} protected tag(s) from AdvancedSwapOffTagNames"
+            else
+                tags_library = tags_data["Na__DataLib__CoreIndex__Tags"] || {}
+                tags_library.each_value do |section|
+                    next unless section.is_a?(Hash)
+                    section.each_value do |entry|
+                        next unless entry.is_a?(Hash)
+                        next unless entry["EdgePainting__AdvancedSwapOff"] == true
+                        next unless entry["Tag__SketchUpName"].is_a?(String)
+
+                        protected_names[entry["Tag__SketchUpName"]] = true   # <-- Fallback: iterate per-tag flags
+                    end
+                end
+                puts "    [LineTags] Loaded #{protected_names.size} protected tag(s) via per-tag fallback scan"
+            end
+
+            @na_protected_tag_names = protected_names
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Return Cached Protected Tag Names Hash
+        # ---------------------------------------------------------------
+        def self.Na__LineTags__ProtectedTagNames
+            self.Na__LineTags__LoadProtectedTagNames unless @na_protected_tag_names
+            @na_protected_tag_names || {}
+        end
+        # ---------------------------------------------------------------
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -161,16 +213,23 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             model.start_operation("Apply Line Thickness Tags", true)
 
             begin
-                created_tags = self.Na__LineTags__EnsureTagsExist(model)
-                edges        = self.Na__LineTags__CollectAllModelEdges(model)
-                applied      = 0
-                skipped      = 0
-                errors       = []
+                created_tags    = self.Na__LineTags__EnsureTagsExist(model)
+                edges           = self.Na__LineTags__CollectAllModelEdges(model)
+                protected_names = self.Na__LineTags__ProtectedTagNames            # <-- Load protected tag set
+                applied         = 0
+                skipped         = 0
+                preserved       = 0                                               # <-- Edges on protected tags — left untouched
+                errors          = []
 
                 untagged_layer = model.layers["Layer0"] || model.layers["Untagged"]
                 untagged_count = 0
 
                 edges.each do |edge|
+                    if protected_names.key?(edge.layer.name)                      # <-- Skip if already on a protected tag
+                        preserved += 1
+                        next
+                    end
+
                     mat_name = edge.material ? edge.material.display_name : nil
                     tag_name = mat_name ? lookup[mat_name] : nil
 
@@ -199,13 +258,14 @@ module Na__EdgeUtil__PaintDeepNestedEdges
                 summary = {
                     applied:      applied,
                     untagged:     untagged_count,
+                    preserved:    preserved,
                     skipped:      skipped,
                     tags_created: created_tags.length,
                     total_edges:  edges.length,
                     errors:       errors
                 }
 
-                puts "    [LineTags] Complete: #{applied} tagged, #{untagged_count} moved to Untagged, #{skipped} skipped, #{created_tags.length} tags created (#{edges.length} total)"
+                puts "    [LineTags] Complete: #{applied} tagged, #{untagged_count} moved to Untagged, #{preserved} preserved, #{skipped} skipped, #{created_tags.length} tags created (#{edges.length} total)"
                 summary
 
             rescue => e

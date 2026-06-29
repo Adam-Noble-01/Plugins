@@ -58,6 +58,11 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             Na__EdgeUtil__PaintDeepNestedEdges.instance_variable_set(:@na_mte_colours,  nil) # <-- Reset flattened colours
             Na__EdgeUtil__PaintDeepNestedEdges.instance_variable_set(:@na_mte_swatches, nil) # <-- Reset swatch array
             Na__EdgeUtil__PaintDeepNestedEdges.instance_variable_set(:@na_mte_meta,     nil) # <-- Reset meta block
+
+            Na__ApplyLineThicknessTags.instance_variable_set(:@na_colour_to_tag_lookup, nil) # <-- Reset tag lookup cache
+            Na__ApplyLineThicknessTags.instance_variable_set(:@na_tag_entries,          nil) # <-- Reset tag entries cache
+            Na__ApplyLineThicknessTags.instance_variable_set(:@na_protected_tag_names,  nil) # <-- Reset protected tag names cache
+
             puts "  [RefreshPluginData] In-memory MTE state cleared"
         end
         # ---------------------------------------------------------------
