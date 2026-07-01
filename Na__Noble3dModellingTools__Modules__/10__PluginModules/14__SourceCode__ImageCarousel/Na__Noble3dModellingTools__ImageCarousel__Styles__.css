@@ -246,6 +246,129 @@ body {
 
 /* endregion ------------------------------------------------------------------- */
 
+
+/* -----------------------------------------------------------------------------
+ * REGION | Measurement Tools
+ * ----------------------------------------------------------------------------- */
+
+.naImageViewer__ToolbarDivider {
+    width                               : 1px;
+    align-self                          : stretch;
+    margin                              : 2px 4px;
+    background                          : var(--naImageViewer__Border);
+}
+
+.naImageViewer__Btn--active {
+    background                          : var(--naImageViewer__Accent);
+    border-color                        : var(--naImageViewer__Accent);
+    color                               : #ffffff;
+}
+
+.naImageViewer__Btn--active:hover {
+    background                          : var(--naImageViewer__AccentHover);
+    border-color                        : var(--naImageViewer__AccentHover);
+}
+
+.naImageViewer__Btn--hasScale {
+    border-color                        : #1f9d55;
+    box-shadow                          : inset 0 0 0 1px #1f9d55;
+}
+
+/* Transient guidance banner over the canvas */
+.naImageViewer__MeasureHint {
+    position                            : absolute;
+    left                                : 50%;
+    top                                 : 10px;
+    transform                           : translateX(-50%);
+    max-width                           : 90%;
+    padding                             : 5px 12px;
+    border-radius                       : 4px;
+    background                          : rgba(27, 31, 36, 0.86);
+    color                               : #ffffff;
+    font-size                           : 12px;
+    white-space                         : nowrap;
+    overflow                            : hidden;
+    text-overflow                       : ellipsis;
+    pointer-events                      : none;
+    opacity                             : 0;
+    transition                          : opacity 140ms ease;
+    z-index                             : 5;
+}
+
+.naImageViewer__MeasureHint--visible {
+    opacity                             : 1;
+}
+
+/* Reference length input overlay */
+.naImageViewer__RefOverlay {
+    position                            : absolute;
+    inset                               : 0;
+    display                             : none;
+    align-items                         : center;
+    justify-content                     : center;
+    background                          : rgba(27, 31, 36, 0.28);
+    z-index                             : 10;
+}
+
+.naImageViewer__RefOverlay--visible {
+    display                             : flex;
+}
+
+.naImageViewer__RefCard {
+    width                               : 300px;
+    max-width                           : 82%;
+    background                          : var(--naImageViewer__PanelBg);
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 7px;
+    box-shadow                          : 0 8px 26px rgba(0, 0, 0, 0.22);
+    padding                             : 16px;
+}
+
+.naImageViewer__RefTitle {
+    font-weight                         : 600;
+    font-size                           : 13px;
+    margin-bottom                       : 10px;
+    color                               : var(--naImageViewer__Text);
+}
+
+.naImageViewer__RefInput {
+    width                               : 100%;
+    box-sizing                          : border-box;
+    padding                             : 8px 10px;
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 14px;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 4px;
+    color                               : var(--naImageViewer__Text);
+    background                          : #ffffff;
+}
+
+.naImageViewer__RefInput:focus {
+    outline                             : none;
+    border-color                        : var(--naImageViewer__Accent);
+    box-shadow                          : 0 0 0 2px rgba(47, 119, 213, 0.18);
+}
+
+.naImageViewer__RefInput--error {
+    border-color                        : #e23b2e;
+    box-shadow                          : 0 0 0 2px rgba(226, 59, 46, 0.18);
+}
+
+.naImageViewer__RefButtons {
+    display                             : flex;
+    justify-content                     : flex-end;
+    gap                                 : 8px;
+    margin-top                          : 12px;
+}
+
+.naImageViewer__RefNote {
+    margin-top                          : 10px;
+    font-size                           : 11px;
+    color                               : var(--naImageViewer__MutedText);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
 /* ============================================================================= */
 /* END OF FILE                                                                   */
 /* ============================================================================= */

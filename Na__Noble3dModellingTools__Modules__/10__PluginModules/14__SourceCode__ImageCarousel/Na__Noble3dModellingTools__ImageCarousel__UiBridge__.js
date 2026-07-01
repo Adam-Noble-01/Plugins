@@ -35,6 +35,11 @@
     var na_thumbsEl = null;
     var na_metaEl   = null;
 
+    // Extension hooks consumed by separate feature files (e.g. Measurement).
+    var na_panEnabled       = true;   // gate for pan; features may suppress it
+    var na_overlayRenderers = [];     // fn(ctx) called after the image is drawn
+    var na_imageChangedCbs  = [];     // fn(index) called after a new image loads
+
     // endregion ---------------------------------------------------------------
 
 
@@ -92,6 +97,50 @@
         na_ctx.scale(na_viewer.zoom, na_viewer.zoom);
         na_ctx.drawImage(na_viewer.img, -na_viewer.imgW / 2, -na_viewer.imgH / 2);
         na_ctx.restore();
+
+        Na__ImageViewer__RunOverlayRenderers();
+    }
+
+    function Na__ImageViewer__RunOverlayRenderers() {
+        for (var i = 0; i < na_overlayRenderers.length; i++) {
+            try { na_overlayRenderers[i](na_ctx); }
+            catch (e) { /* a feature overlay must never break the base draw */ }
+        }
+    }
+
+    // endregion ---------------------------------------------------------------
+
+
+    // -------------------------------------------------------------------------
+    // REGION | Coordinate Transforms (image-space <-> canvas pixels)
+    // -------------------------------------------------------------------------
+
+    function Na__ImageViewer__ImgToScreen(pt) {
+        if (!na_canvas) return { x: 0, y: 0 };
+        var w   = na_canvas.width;
+        var h   = na_canvas.height;
+        var cos = Math.cos(na_viewer.rotation);
+        var sin = Math.sin(na_viewer.rotation);
+        var sx  = pt.x * na_viewer.zoom;
+        var sy  = pt.y * na_viewer.zoom;
+        return {
+            x: (w / 2 + na_viewer.offX) + (sx * cos - sy * sin),
+            y: (h / 2 + na_viewer.offY) + (sx * sin + sy * cos)
+        };
+    }
+
+    function Na__ImageViewer__ScreenToImg(cx, cy) {
+        if (!na_canvas) return { x: 0, y: 0 };
+        var w   = na_canvas.width;
+        var h   = na_canvas.height;
+        var x   = cx - (w / 2 + na_viewer.offX);
+        var y   = cy - (h / 2 + na_viewer.offY);
+        var cos = Math.cos(-na_viewer.rotation);
+        var sin = Math.sin(-na_viewer.rotation);
+        return {
+            x: (x * cos - y * sin) / na_viewer.zoom,
+            y: (x * sin + y * cos) / na_viewer.zoom
+        };
     }
 
     // endregion ---------------------------------------------------------------
@@ -149,13 +198,12 @@
         var y   = cy - (h / 2 + na_viewer.offY);
         var cos = Math.cos(-na_viewer.rotation);
         var sin = Math.sin(-na_viewer.rotation);
-        var ix  = (x * cos - y * sin) / na_viewer.zoom;
-        var iy  = (x * sin + y * cos) / na_viewer.zoom;
+        var img = Na__ImageViewer__ScreenToImg(cx, cy);
 
         na_viewer.zoom = Math.max(0.05, Math.min(40, na_viewer.zoom * factor));
 
-        var nx = ix * na_viewer.zoom;
-        var ny = iy * na_viewer.zoom;
+        var nx = img.x * na_viewer.zoom;
+        var ny = img.y * na_viewer.zoom;
         na_viewer.offX -= (nx - (x * cos - y * sin));
         na_viewer.offY -= (ny - (x * sin + y * cos));
         Na__ImageViewer__Draw();
@@ -182,6 +230,7 @@
             Na__ImageViewer__Fit();
             Na__ImageViewer__UpdateStatus();
             Na__ImageViewer__HighlightThumb();
+            Na__ImageViewer__FireImageChanged();
         };
 
         na_viewer.img.onerror = function() {
@@ -354,6 +403,7 @@
             }, { passive: false });
 
             na_canvas.addEventListener('mousedown', function(e) {
+                if (!na_panEnabled) return;
                 na_viewer.isPanning = true;
                 na_viewer.startX    = e.clientX;
                 na_viewer.startY    = e.clientY;
@@ -422,6 +472,37 @@
     window.SKP_onFolderChosen = function(list) {
         window.Na__ImageViewer__PendingFolderList = list;
         Na__ImageViewer__OnFolderChosen(list);
+    };
+
+    // endregion ---------------------------------------------------------------
+
+
+    // -------------------------------------------------------------------------
+    // REGION | Core API For Feature Files
+    // -------------------------------------------------------------------------
+    // A minimal, generic surface so separate feature files (e.g. the Measurement
+    // overlay) can hook into the viewer without the base bridge knowing about
+    // them. Registered overlays draw after the image; features toggle pan and
+    // request redraws through here so the transform math stays single-sourced.
+
+    function Na__ImageViewer__FireImageChanged() {
+        for (var i = 0; i < na_imageChangedCbs.length; i++) {
+            try { na_imageChangedCbs[i](na_index); }
+            catch (e) { /* a feature callback must never break navigation */ }
+        }
+    }
+
+    window.Na__ImageViewer__Core = {
+        getCanvas       : function() { return na_canvas; },
+        getCtx          : function() { return na_ctx; },
+        getIndex        : function() { return na_index; },
+        getRatio        : function() { return window.devicePixelRatio || 1; },
+        imgToScreen     : Na__ImageViewer__ImgToScreen,
+        screenToImg     : Na__ImageViewer__ScreenToImg,
+        requestDraw     : Na__ImageViewer__Draw,
+        setPanEnabled   : function(b) { na_panEnabled = !!b; },
+        registerOverlay : function(fn) { if (typeof fn === 'function') na_overlayRenderers.push(fn); },
+        onImageChanged  : function(fn) { if (typeof fn === 'function') na_imageChangedCbs.push(fn); }
     };
 
     // endregion ---------------------------------------------------------------

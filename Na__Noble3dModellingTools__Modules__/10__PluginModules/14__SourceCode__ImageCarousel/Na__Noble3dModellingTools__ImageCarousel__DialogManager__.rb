@@ -86,14 +86,16 @@ module Na__Noble3dModellingTools
         end
 
         def self.na_render_html
-            layout_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__UiLayout__.html')
-            style_path  = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__Styles__.css')
-            script_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__UiBridge__.js')
+            layout_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__UiLayout__.html')
+            style_path       = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__Styles__.css')
+            script_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__UiBridge__.js')
+            measurement_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__Measurement__.js')
 
             template = File.read(layout_path)
             template
                 .gsub('{{STYLESHEET_CONTENT}}', File.read(style_path))
                 .gsub('{{UI_BRIDGE_SCRIPT}}',   File.read(script_path))
+                .gsub('{{MEASUREMENT_SCRIPT}}', File.read(measurement_path))
         end
 
 # endregion -------------------------------------------------------------------

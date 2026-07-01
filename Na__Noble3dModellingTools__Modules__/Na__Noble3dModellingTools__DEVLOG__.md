@@ -3,6 +3,39 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.5.7 - 01-Jul-2026 - Image Viewer Measurement Tools
+
+### Update 01 - Canvas Measurement Overlay (Reference Scale + Dimensions)
+- Added a fully self-contained measurement feature to the Image Viewer (`10__PluginModules/14__SourceCode__ImageCarousel/`) as a new dedicated file, `Na__Noble3dModellingTools__ImageCarousel__Measurement__.js`, kept deliberately separate from the base viewer logic.
+- `Na__Noble3dModellingTools__ImageCarousel__UiBridge__.js` gained a small generic `window.Na__ImageViewer__Core` hook (`getCanvas`, `getCtx`, `getIndex`, `getRatio`, `imgToScreen`, `screenToImg`, `requestDraw`, `setPanEnabled`, `registerOverlay`, `onImageChanged`) so feature files can extend the viewer without touching its internals.
+- Dimension endpoints are stored in image-space coordinates and projected to screen space through the shared `imgToScreen`/`screenToImg` transform (single-sourced from the existing pan/zoom/rotate math), so dimensions automatically pan, zoom, and rotate in lock-step with the image.
+- `Measure` toolbar toggle: click two points to place a dimension line, with a live dashed rubber-band preview between clicks; `Esc` cancels the pending point or exits the mode.
+- `Set Reference` toolbar toggle: draw a line of known real-world length, then type its value in a small overlay card. Parser (`Na__ImageViewerMeasure__ParseReference`) treats a bare number as millimetres and recognises `mm` / `cm` / `m` suffixes (e.g. `1345`, `1.35m`, `135cm`).
+- Before a reference is set, dimension labels read as `#### units` (raw image-space pixel distance) to make clear the value is arbitrary; once a scale is set, all dimensions on that image relabel live in the reference's unit.
+- Dimensions and scale are tracked per image index in memory for the session, so switching images preserves each image's own measurements independently.
+- `Clear Dims` toolbar button wipes dimensions and the reference scale for the currently displayed image only.
+- New CSS in `Na__Noble3dModellingTools__ImageCarousel__Styles__.css`: active-toggle button state, "has scale" indicator, transient hint banner over the canvas, and the reference-value input card.
+- `Na__Noble3dModellingTools__ImageCarousel__DialogManager__.rb` now injects the new script via a `{{MEASUREMENT_SCRIPT}}` placeholder in `na_render_html`, alongside the existing stylesheet/bridge injection — no other Ruby changes were required since folder scanning and path handling were already decoupled from viewer rendering.
+
+### Update 02 - Undo/Redo and Select/Delete for Dimensions
+- Added snapshot-based undo/redo history to the Measurement feature, kept per image index (`na_undoByIndex` / `na_redoByIndex`, capped at 50 entries per image). Every mutating action (add, delete, clear, set-reference) pushes a full dims+scale snapshot before mutating and clears the redo stack.
+- `Ctrl+Z` undoes and `Ctrl+Y` (or `Ctrl+Shift+Z`) redoes, guarded so the shortcuts do not fire while typing in the reference-value input. New `Undo`/`Redo` toolbar buttons mirror the shortcuts and auto-disable when their stack is empty.
+- New `Select` toggle mode: clicking near a dimension line hit-tests screen-space distance to each line segment (`Na__ImageViewerMeasure__FindDimAt`) and selects the closest one within tolerance; the selected dimension renders in a distinct amber highlight with thicker strokes and endpoint handles.
+- Selected dimension can be removed via the new `Delete` toolbar button or the `Delete`/`Backspace` key; `Esc` deselects first, then exits Select mode. Deletion pushes an undo snapshot, so it is itself undoable.
+- Toolbar order finalised as: `Measure | Set Reference | Select | Delete | Undo | Redo | Clear Dims`.
+
+### Validation Checklist
+- [x] Dimension lines pan, zoom, and rotate together with the image via the shared image-space/screen-space transform.
+- [x] Labels show `#### units` before a reference scale is set, and relabel into the reference's unit (mm/cm/m) once set.
+- [x] Reference parser correctly reads bare numbers as mm and honours mm/cm/m suffixes.
+- [x] Each image keeps its own dimensions and reference scale independently for the session.
+- [x] Clear Dims only affects the currently displayed image.
+- [x] Ctrl+Z / Ctrl+Y undo and redo add, delete, clear, and set-reference actions per image.
+- [x] Individual dimensions can be selected by clicking their line and deleted via button or Delete/Backspace key.
+- [x] No changes required to `FolderScanner`, `Run`, or `Loader` — feature is fully additive and isolated to its own file.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.5.6 - 24-Jun-2026 - Untag Specific In Selection (Tag Utils)
 
 ### Update 01 - Migration of Standalone Plugin to Noble 3D Tools Module

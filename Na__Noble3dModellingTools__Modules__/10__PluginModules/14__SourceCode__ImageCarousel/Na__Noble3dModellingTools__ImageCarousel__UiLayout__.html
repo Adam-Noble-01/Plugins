@@ -32,6 +32,15 @@
       <button id="naImageViewer_btnRotateL" class="naImageViewer__Btn" title="Rotate left (R)">&#10226;</button>
       <button id="naImageViewer_btnRotateR" class="naImageViewer__Btn" title="Rotate right (Shift+R)">&#10227;</button>
       <button id="naImageViewer_btnFull"    class="naImageViewer__Btn" title="Fullscreen (F)">&#9974;</button>
+
+      <span class="naImageViewer__ToolbarDivider"></span>
+      <button id="naImageViewer_btnMeasure"        class="naImageViewer__Btn" title="Measure (click two points, Esc to stop)">Measure</button>
+      <button id="naImageViewer_btnSetRef"         class="naImageViewer__Btn" title="Set a reference length to scale measurements">Set Reference</button>
+      <button id="naImageViewer_btnSelect"         class="naImageViewer__Btn" title="Select a dimension (click a line, Esc to stop)">Select</button>
+      <button id="naImageViewer_btnDeleteSelected" class="naImageViewer__Btn" title="Delete selected dimension (Delete)" disabled>Delete</button>
+      <button id="naImageViewer_btnUndo"           class="naImageViewer__Btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
+      <button id="naImageViewer_btnRedo"           class="naImageViewer__Btn" title="Redo (Ctrl+Y)" disabled>Redo</button>
+      <button id="naImageViewer_btnClearDims"      class="naImageViewer__Btn" title="Clear all dimensions on this image">Clear Dims</button>
     </div>
 
     <!-- Main: thumbnails + canvas viewer -->
@@ -42,6 +51,28 @@
       <div class="naImageViewer__ViewerPane">
         <div class="naImageViewer__CanvasWrap">
           <canvas class="naImageViewer__Canvas" id="naImageViewer_canvas"></canvas>
+
+          <!-- Measurement hint (transient guidance) -->
+          <div class="naImageViewer__MeasureHint" id="naImageViewer_measureHint"></div>
+
+          <!-- Reference length input overlay -->
+          <div class="naImageViewer__RefOverlay" id="naImageViewer_refOverlay">
+            <div class="naImageViewer__RefCard">
+              <div class="naImageViewer__RefTitle">Known length of this line</div>
+              <input
+                type="text"
+                id="naImageViewer_refInput"
+                class="naImageViewer__RefInput"
+                placeholder="e.g. 1345, 1.35m, 135cm"
+                autocomplete="off"
+              />
+              <div class="naImageViewer__RefButtons">
+                <button id="naImageViewer_refCancel" class="naImageViewer__Btn">Cancel</button>
+                <button id="naImageViewer_refOk" class="naImageViewer__Btn naImageViewer__Btn--primary">Set Scale</button>
+              </div>
+              <div class="naImageViewer__RefNote">Plain number = millimetres. Add mm, cm or m to override.</div>
+            </div>
+          </div>
         </div>
 
         <!-- Status bar -->
@@ -72,6 +103,10 @@
 
   <script>
     {{UI_BRIDGE_SCRIPT}}
+  </script>
+
+  <script>
+    {{MEASUREMENT_SCRIPT}}
   </script>
 
 </body>
