@@ -87,6 +87,26 @@ module Na__ValeVisionCloudSync
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
+# REGION | Shared DataLib Paths (Cross-Plugin SSOT)
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | Resolve The Shared SketchUp Tags SSOT JSON Path
+        # ------------------------------------------------------------
+        # Lives outside this plugin, in the shared DataLib folder used by
+        # TrueVision3D::GlbBuilderUtility and other Noble Architecture plugins.
+        # Sits directly under the SketchUp Plugins root, alongside this plugin.
+        # ---------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__TagsDataLibFilePath
+            File.join(
+                self.Na__ValeVisionCloudSync__PluginRoot,
+                'Na__Common__DataLib__CoreSuEntityStandards',
+                'Na__DataLib__CoreIndex__Tags__.json'
+            )
+        end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
 # REGION | Brand and Icon Asset Paths
 # -----------------------------------------------------------------------------
 

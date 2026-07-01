@@ -1,5 +1,28 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.2.3 — 01-Jul-2026 — Per-Scene Tag/Layer Visibility Capture
+
+### Overview
+Each captured IMG## scene now also records which of the toggle-relevant SketchUp tags (Existing Building, Design Proposal, Site Boundaries, Landscape, etc.) are visible on that scene, so ValeVision3D can automatically show/hide the matching "Model Parts List" categories when the camera tour switches scenes — e.g. hiding Site Boundaries for a shot framed inside a hedge.
+
+### Added
+- **`Na__TagVisibilityCapture`** (`04__Plugin__SyncFeatures/02__CameraDataCapture/Na__ValeVisionCloudSync__TagVisibilityCapture__.rb`) — reads the shared `Na__DataLib__CoreIndex__Tags__.json` SSOT (same file `TrueVision3D::GlbBuilderUtility` uses), flattens it into `{ Tag__SketchUpName => Glb__ExportFileNameStem }`, and for a given scene computes true per-tag visibility without switching pages, using the confirmed `page.layers` override-XOR algorithm (see module header for the SketchUp API source citations). Groups results into `{ "ValeVision__<Category>" => true/false }`, matching ValeVision3D's model-toggle category keys 1:1.
+- **`Na__PathResolver.Na__ValeVisionCloudSync__TagsDataLibFilePath`** — resolves the shared DataLib Tags JSON path.
+- `na_extract_scene_camera` in `Na__CameraDataCapture` now adds a `model_layer_visibility` key alongside `camera` for every captured scene.
+
+### Notes
+- No changes were needed to `Na__ProjectDataWriter`, `Na__SyncOrchestrator`, or the Python sync orchestrator — `model_layer_visibility` rides inside the existing `ValeVison3D__SketchUpCameraData` object, which both "Full Sync" and "Update Camera Data" already merge into local `project.json` and R2 wholesale.
+- Fails soft: a missing/invalid Tags DataLib JSON yields `{}` per scene rather than aborting camera capture.
+
+### Files Changed
+- `04__Plugin__SyncFeatures/02__CameraDataCapture/Na__ValeVisionCloudSync__TagVisibilityCapture__.rb` (new)
+- `04__Plugin__SyncFeatures/02__CameraDataCapture/Na__ValeVisionCloudSync__CameraDataCapture__.rb`
+- `03__Plugin__CoreAppLogic/Na__ValeVisionCloudSync__CoreAppLogic__PathResolver__.rb`
+- `02__Plugin__CoreAppData/02__ModuleLoaders/Na__ValeVisionCloudSync__ModuleLoaders__Main__.rb`
+
+# =============================================================================
+
+
 ## Version 0.2.2 — 26-Jun-2026 — Auto-Init ProjectData Directory
 
 ### Fixed

@@ -30,6 +30,7 @@ module Na__ValeVisionCloudSync
             na_safe_require(sync_dir, '05__ProjectPathMapper/Na__ValeVisionCloudSync__ProjectPathMapper__')
             na_safe_require(sync_dir, '06__ProjectDataWriter/Na__ValeVisionCloudSync__ProjectDataWriter__')
             na_safe_require(sync_dir, '01__SceneImageExporter/Na__ValeVisionCloudSync__SceneImageExporter__')
+            na_safe_require(sync_dir, '02__CameraDataCapture/Na__ValeVisionCloudSync__TagVisibilityCapture__')
             na_safe_require(sync_dir, '02__CameraDataCapture/Na__ValeVisionCloudSync__CameraDataCapture__')
             na_safe_require(sync_dir, '03__GlbExportBridge/Na__ValeVisionCloudSync__GlbExportBridge__')
             na_safe_require(sync_dir, '04__GlbArchiver/Na__ValeVisionCloudSync__GlbArchiver__')

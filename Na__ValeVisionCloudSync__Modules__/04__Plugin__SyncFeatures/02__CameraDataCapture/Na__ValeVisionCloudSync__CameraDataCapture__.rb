@@ -14,10 +14,21 @@
 # - Converts SketchUp's native inches to millimetres (x 25.4) for all
 #   position/vector values, keeping the Z-up axis convention.
 # - The ValeVision3D web app is responsible for the Z-up -> Y-up axis swap.
+# - Each scene also carries a "model_layer_visibility" hash (via
+#   Na__TagVisibilityCapture) so TrueVision3D can show/hide the same
+#   Model Parts List categories automatically per tour scene.
 # - Writes the result as the ValeVison3D__SketchUpCameraData object into
 #   the local *__ProjectData__.json array (merges, does not overwrite).
 # - Note: the key name "ValeVison3D" (one 'i') matches the existing web
 #   app convention used in project.json.
+#
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG:
+# 01-Jul-2026 - Version 1.1.0
+# - Added per-scene model_layer_visibility capture (Na__TagVisibilityCapture)
+#   alongside the existing camera block, so both Full Sync and Update Camera
+#   Data flow tag on/off state to ValeVision3D without any pipeline changes.
 #
 # =============================================================================
 
@@ -109,10 +120,10 @@ module Na__ValeVisionCloudSync
             camera = page.camera
 
             {
-                'scene_name'           => page.name.to_s,
-                'scene_description'    => page.description.to_s,
-                'include_in_animation' => page.include_in_animation?,
-                'camera'               => {
+                'scene_name'            => page.name.to_s,
+                'scene_description'     => page.description.to_s,
+                'include_in_animation'  => page.include_in_animation?,
+                'camera'                => {
                     'eye'            => na_vector_to_mm(camera.eye),
                     'target'         => na_vector_to_mm(camera.target),
                     'up'             => na_direction_to_hash(camera.up),
@@ -122,7 +133,8 @@ module Na__ValeVisionCloudSync
                     'is_perspective' => camera.perspective?,
                     'aspect_ratio'   => camera.aspect_ratio.to_f.round(4),
                     'image_width'    => camera.image_width.to_f.round(4)
-                }
+                },
+                'model_layer_visibility' => na_capture_tag_visibility(page)   # <-- Per-scene tag/layer on-off state for TrueVision3D
             }
         rescue => error
             puts "[Na__ValeVisionCloudSync] Camera capture error on #{page.name}: #{error.message}"
@@ -130,6 +142,24 @@ module Na__ValeVisionCloudSync
                 'scene_name'  => page.name.to_s,
                 'error'       => error.message
             }
+        end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Tag Visibility Capture Helper
+# -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | Safely Capture Tag Visibility For A Scene
+        # ---------------------------------------------------------------
+        # Degrades to {} on any error so a tag-capture failure never aborts
+        # camera capture for the scene.
+        # ---------------------------------------------------------------
+        def self.na_capture_tag_visibility(page)
+            Na__TagVisibilityCapture.Na__ValeVisionCloudSync__CaptureTagVisibilityForScene(page)
+        rescue => error
+            puts "[Na__ValeVisionCloudSync] Tag visibility capture skipped for #{page.name}: #{error.message}"
+            {}
         end
 
 # endregion -------------------------------------------------------------------
