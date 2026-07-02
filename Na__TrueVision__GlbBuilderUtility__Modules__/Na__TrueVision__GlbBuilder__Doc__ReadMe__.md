@@ -49,7 +49,8 @@
 `NaModel__FirstFloorFurniture`                = *"40__" -> "48__"*        # <-- First Floor Furniture Assets.
 `NaModel__FirstFloorDecor`                    = *"49__"*                  # <-- First Floor Very High Detail Assets.
 `NaModel__Vegetation`                         = *"50__" -> "59__"*        # <-- Vegetation (Trees, Bushes, etc.)
-`NaModel__SceneContextual`                    = *"60__" -> "70__"*        # <-- Scene Context (people, vehicles, etc.)
+`NaModel__SceneEntourage2D`                   = *"60__"*                  # <-- 2D camera-follow billboard entourage (people, pets). Sibling of tag 09 SiteVegetation2D.
+`NaModel__SceneContextual`                    = *"61__" -> "70__"*        # <-- Scene Context (people, vehicles, etc.)
 `NaModel__Storey__GroundFloor`                = *"90__"*                  # <-- Ground Floor Storey Container (see Storey-Based Export below)
 `NaModel__Storey__FirstFloor`                 = *"91__"*                  # <-- First Floor Storey Container
 `NaModel__Storey__SecondFloor`                = *"92__"*                  # <-- Second Floor Storey Container

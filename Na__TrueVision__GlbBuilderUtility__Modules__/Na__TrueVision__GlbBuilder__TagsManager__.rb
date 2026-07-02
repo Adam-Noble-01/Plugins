@@ -31,12 +31,16 @@ module TrueVision3D
         # MODULE CONSTANTS | Tag Prefix Ranges Eligible for Standardised Creation
         # ------------------------------------------------------------
         # Matches the curated TagsIndex subset: orbit, environment, building, storey.
-        # Excludes utility (02-06), linework thickness (03), furniture/context (30-70).
+        # Excludes utility (02-06), linework thickness (03), bulk furniture/context
+        # (30-59, 61-70). Tag 60 (SceneEntourage2D) is a system-managed 2D billboard
+        # tag like tag 9 (SiteVegetation2D), so it is carved out for auto-creation
+        # even though it sits inside the excluded furniture/context number range.
         # ------------------------------------------------------------
         NA__TAGS_MANAGER__CREATE_PREFIX_RANGES = [
             (1..1),
             (7..9),
             (10..29),
+            (60..60),
             (90..93)
         ].freeze
         # ------------------------------------------------------------

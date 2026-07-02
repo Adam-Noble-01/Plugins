@@ -8,6 +8,32 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.6.0 - 02-Jul-2026
+#### Camera Follow Billboards - Multi-Family Support (Scene Entourage 2D)
+
+**Why**
+- The Camera Follow / 2D Billboard system (v2.5.0) was built to generalise beyond trees ("trees, people, pets" — see v2.5.0 note below) but the exporter only ever loaded ONE Components SSOT section (`SiteVegetation2D__Billboard__`, hardcoded in `Na__ExportConfig__LoadFromDataLib`). Adding a second billboard family (2D people/pet entourage) required the handler to tell multiple tag/regex/behaviour configs apart.
+
+**New SSOT data**
+- Tags SSOT v2.2.1: new `60__Scene__Entourage__2D` tag → `TrueVision__SceneEntourage2D` GLB stem, range `[60]`. Carved out of `60_70__SceneContextual`, which narrows to `61_70__SceneContextual` (range `61..70`). Named "Scene" rather than "Site" deliberately — Site__* is reserved for landscape/vegetation context (trees, planting), while people/pets are scene decoration.
+- Components SSOT v1.4.2: new `SceneEntourage2D__Billboard__` section, sibling to `SiteVegetation2D__Billboard__`. Naming pattern `{NN}_{NNNN}__SceneEntourage__{Type}__{Name}__{HeightOrSize}__Var-{NN}` (e.g. `60_0100__SceneEntourage__Person__WomanWalking__1.7m-Height__Var-01`), detection regex `^\d{2}_\d{4}__SceneEntourage__`, same shared `00__OriginPoint` pivot convention. No section-level `ShadeFlatness` default set (set explicitly per component as entourage assets are authored). AO exclusion token `__SceneEntourage__` added (ProfileLines unchanged, same as vegetation).
+
+**Exporter refactor**
+- `Na__TrueVision__GlbBuilder__SpecialObject__CameraFollowObjectHandling__.rb`: replaced single-scalar detection config (`@na_camerafollow_tag_name` / `@na_camerafollow_detection_regex` / `@na_camerafollow_components_map` / `@na_camerafollow_behaviours`) with `@na_camerafollow_families` — an array of `{tag_name:, regex:, components_map:, behaviours:}`. `Configure` now appends rather than overwrites. New `Na__CameraFollowHandler__ResolveFamilyForEntity` resolves which configured family (if any) an entity belongs to (tag match first, then regex); `IsCameraFollowAssembly?`, `ResolveSemanticName`, `ResolveShadeFlatness`, and the baked `yawOnly` extras all resolve per-family instead of off shared globals.
+- `Na__TrueVision__GlbBuilder__Main__.rb`: `Na__ExportConfig__LoadFromDataLib` no longer hardcodes a single section key — it walks every `Na__DataLib__CoreIndex__Components` section and configures any with `Behaviours.CameraFollow == true`. Future billboard families (vehicles, cyclists, etc.) need only a new Components SSOT section, no Ruby change.
+- Hardcoded fallback `TAG_RANGES` / `STOREY_ELEMENT_TAG_MAP` (used only if the DataLib fails to load at all) updated in parallel: `TrueVision__SceneEntourage2D => [60]`, `TrueVision__SceneContextual => (61..70)`, `60 => "SceneEntourage2D"`.
+
+**ValeVision3D downstream**
+- No change required. `3dObjectInteraction__Animation__CameraFollowBillboards__.js` already detects billboards purely by baked `extras.type == 'CameraFollowBillboard'`, independent of source tag. `Na__ModelLoader__MultiModel.js` category parsing is filename-driven (generic `TrueVision__{category}` → `ValeVision__{category}` regex swap), so `TrueVision__SceneEntourage2D` GLBs load automatically.
+- Added `ValeVision__SceneEntourage2D` display-name entry to `Na__UiFeature__ModelToggle__Controls.js` (cosmetic — unmapped categories already auto-label). Updated stale `60-70` range comments to `61-70` in the same file and in `Na__ModelLoader__MultiModel.js`.
+
+**Tags Manager**
+- `Na__TrueVision__GlbBuilder__TagsManager__.rb`: `NA__TAGS_MANAGER__CREATE_PREFIX_RANGES` carves out `(60..60)` from the excluded 30-70 furniture/context band, so the "Create Standard Tags" tool auto-creates `60__Scene__Entourage__2D` in the model — parity with tag 9 (`SiteVegetation2D`), which already had the same carve-out.
+
+**Components SSOT catalog (v1.4.2)**
+- Registered 7 placeholder entries under `SceneEntourage2D__Billboard__.Components` for first-round entourage assets: `60_0100` Man, `60_0200` Woman, `60_0500` Labrador (seated, 0.8m), `60_0600` Dachshund, `60_0700` Pug, `60_0900` British Shorthair cat, `60_1000` Maine Coon cat. Numbering leaves gaps within each category block (People 0100-0400, Dogs 0500-0800, Cats 0900-1200) for future variants/breeds. No `ShadeFlatness` set on any entry yet — pending real assets, resolves to the safe 0.0 (full directional shading) default until authored per component.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.5.1 - 16-Jun-2026
 #### Camera Follow Billboards - Per-Component Shade Flatness
 

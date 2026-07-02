@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Components__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp component and group naming conventions. Documents the prefix systems, ID formats, sub-part names, and attribute dictionary keys used across all Na__ plugins. Serves as the reference for any plugin that creates or identifies Na__ components in the model. Also defines the Na__DataLib__PipelineExclusions render-pipeline exclusion lists consumed by the TrueVision GLB Builder and the TrueVision3D WebApp renderer.",
-        "version"           : "1.3.0",
-        "lastUpdated"       : "16-Jun-2026",
+        "version"           : "1.4.2",
+        "lastUpdated"       : "02-Jul-2026",
         "sourceFiles"       : [
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__DataSerializer__.rb",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__GeometryEngine__.rb",
@@ -130,6 +130,59 @@
             }
         },
 
+        "SceneEntourage2D__Billboard__": {
+            "Description"           : "2D planar scene entourage components that always face the camera (billboard / camera-follow). People and pets are scene decoration, distinct from SiteVegetation2D__Billboard__ (trees/planting). Geometry is typically linework-only or linework with optional faces. Exported with hierarchy preservation and pivot data baked into glTF node extras for ValeVision and TrueVision.",
+            "SourcePlugin"          : "Na__TrueVision__GlbBuilderUtility",
+            "Tag__SketchUpName"     : "60__Scene__Entourage__2D",
+            "ComponentNamePattern"  : "{NN}_{NNNN}__SceneEntourage__{Type}__{Name}__{HeightOrSize}__Var-{NN}",
+            "ComponentNameExample"  : "60_0100__SceneEntourage__Person__WomanWalking__1.7m-Height__Var-01",
+            "DetectionRegex"        : "^\\d{2}_\\d{4}__SceneEntourage__",
+            "OriginPointMarker"     : {
+                "GroupName"         : "00__OriginPoint",
+                "Tag__SketchUpName" : "00__OriginPoint",
+                "Description"       : "Nested failsafe group whose centre defines the rotation pivot. Geometry excluded from GLB; centre captured as pivotLocal in node extras. Same shared convention as SiteVegetation2D__Billboard__."
+            },
+            "Behaviours"            : {
+                "CameraFollow"      : true,
+                "RotationAxis"      : "LocalZ_SketchUp / Y_ThreeJs",
+                "YawOnly"           : true,
+                "AoExclude"         : true
+            },
+            "BehaviourNotes"        : {
+                "ShadeFlatness"     : "No section-level default is set for this family - set explicitly per component under Components.<name>.Behaviours.ShadeFlatness as entourage assets are added. Resolution order: per-component Behaviours.ShadeFlatness -> section Behaviours.ShadeFlatness (absent here) -> 0.0 (full directional shading, unchanged rendering)."
+            },
+            "Components"            : {
+                "60_0100__SceneEntourage__Person__Man__1.8m-Height__Var-01": {
+                    "SemanticName"  : "60_0100__SceneEntourage__Person__Man__1.8m-Height__Var-01",
+                    "Description"   : "Adult male figure - 1.8m height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)"
+                },
+                "60_0200__SceneEntourage__Person__Woman__1.65m-Height__Var-01": {
+                    "SemanticName"  : "60_0200__SceneEntourage__Person__Woman__1.65m-Height__Var-01",
+                    "Description"   : "Adult female figure - 1.65m height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)"
+                },
+                "60_0500__SceneEntourage__Dog__Labrador__0.8m-Height__Var-01": {
+                    "SemanticName"  : "60_0500__SceneEntourage__Dog__Labrador__0.8m-Height__Var-01",
+                    "Description"   : "Labrador, seated pose - 0.8m height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)"
+                },
+                "60_0600__SceneEntourage__Dog__Dachshund__0.23m-Height__Var-01": {
+                    "SemanticName"  : "60_0600__SceneEntourage__Dog__Dachshund__0.23m-Height__Var-01",
+                    "Description"   : "Dachshund - 0.23m shoulder height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)"
+                },
+                "60_0700__SceneEntourage__Dog__Pug__0.33m-Height__Var-01": {
+                    "SemanticName"  : "60_0700__SceneEntourage__Dog__Pug__0.33m-Height__Var-01",
+                    "Description"   : "Pug - 0.33m shoulder height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)"
+                },
+                "60_0900__SceneEntourage__Cat__BritishShorthair__0.3m-Height__Var-01": {
+                    "SemanticName"  : "60_0900__SceneEntourage__Cat__BritishShorthair__0.3m-Height__Var-01",
+                    "Description"   : "British Shorthair cat - 0.3m shoulder height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)"
+                },
+                "60_1000__SceneEntourage__Cat__MaineCoon__0.4m-Height__Var-01": {
+                    "SemanticName"  : "60_1000__SceneEntourage__Cat__MaineCoon__0.4m-Height__Var-01",
+                    "Description"   : "Maine Coon cat - 0.4m shoulder height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)"
+                }
+            }
+        },
+
         "PanelComponents__PNL__": {
             "Description"           : "Window panel components created by ValeDesignSuite WindowPanelConfigurator (standalone, not the ArchTools version). Used for bespoke one-off window configurations.",
             "SourcePlugin"          : "ValeDesignSuite::Tools::WindowPanelConfigurator",
@@ -198,7 +251,8 @@
                 "__Plant__SubComp__Branches",
                 "__Plant__SubGroup__LeavesContainer",
                 "__Plant__SubComp__Leaf__Individual",
-                "__SiteVegetation__"
+                "__SiteVegetation__",
+                "__SceneEntourage__"
             ]
         },
         "Na__DataLib__PipelineExclusions__ProfileLines": {

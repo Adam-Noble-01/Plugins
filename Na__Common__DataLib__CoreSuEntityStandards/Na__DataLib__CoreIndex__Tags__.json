@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout).",
-        "version"           : "2.1.0",
-        "lastUpdated"       : "16-Jun-2026",
+        "version"           : "2.2.1",
+        "lastUpdated"       : "02-Jul-2026",
         "namingConvention"  : "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
         "fieldPrefixes"     : {
             "Tag__"    : "Core SketchUp tag identity (name, description)",
@@ -493,10 +493,18 @@
                 "Glb__FullyExcluded"         : false,
                 "Glb__ExportFileNameStem"    : "TrueVision__Vegetation"
             },
-            "60_70__SceneContextual": {
-                "Tag__SketchUpName"          : "60_70__SceneContextual",
-                "Tag__Description"           : "Scene context objects - people, vehicles, site elements (tags 60 through 70).",
-                "Glb__ExportRangeNumbers"    : [60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
+            "60__Scene__Entourage__2D": {
+                "Tag__SketchUpName"          : "60__Scene__Entourage__2D",
+                "Tag__Description"           : "2D planar scene entourage components that always face the camera (billboard / camera-follow). Lightweight background people, pets, and similar linework or face assets authored as flat SketchUp components. Sibling of 09__Site__Vegetation__2D, carved out of the 60-70 Scene Context range. Exported as a dedicated GLB segment for separate visibility control in ValeVision and TrueVision.",
+                "Glb__ExportRangeNumbers"    : [60],
+                "Glb__FullyExcluded"         : false,
+                "Glb__ExportFileNameStem"    : "TrueVision__SceneEntourage2D",
+                "Storey__ElementExportName"  : "SceneEntourage2D"
+            },
+            "61_70__SceneContextual": {
+                "Tag__SketchUpName"          : "61_70__SceneContextual",
+                "Tag__Description"           : "Scene context objects - people, vehicles, site elements (tags 61 through 70). 2D camera-follow billboard people/pets use tag 60__Scene__Entourage__2D instead.",
+                "Glb__ExportRangeNumbers"    : [61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
                 "Glb__FullyExcluded"         : false,
                 "Glb__ExportFileNameStem"    : "TrueVision__SceneContextual"
             }

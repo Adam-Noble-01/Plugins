@@ -33,10 +33,11 @@ module TrueVision3D
 
         # MODULE VARIABLES | DataLib-Driven Detection Config
         # ------------------------------------------------------------
-        @na_camerafollow_detection_regex   = nil                               # <-- Regexp from Components SSOT
-        @na_camerafollow_tag_name          = CAMERA_FOLLOW_DEFAULT_TAG_NAME    # <-- Tag name from Components SSOT
-        @na_camerafollow_components_map    = {}                                # <-- Semantic name map from SSOT
-        @na_camerafollow_behaviours        = {}                                # <-- Default behaviours from SSOT
+        # Each configured Components SSOT section (vegetation, entourage, any
+        # future billboard family) becomes one "family" entry here rather than
+        # a single set of globals, so multiple 2D camera-follow tag/regex pairs
+        # can coexist and be told apart at export time.
+        @na_camerafollow_families          = []                                # <-- Array of {tag_name:, regex:, components_map:, behaviours:}
         # ------------------------------------------------------------
 
         # FUNCTION | Configure Camera Follow Detection from DataLib
@@ -45,16 +46,37 @@ module TrueVision3D
             return unless section_data.is_a?(Hash)
 
             regex_str = section_data["DetectionRegex"]
-            @na_camerafollow_detection_regex = regex_str ? Regexp.new(regex_str) : Regexp.new(CAMERA_FOLLOW_DEFAULT_DETECTION)
+            regex     = regex_str ? Regexp.new(regex_str) : Regexp.new(CAMERA_FOLLOW_DEFAULT_DETECTION)
 
             tag_name = section_data["Tag__SketchUpName"]
-            @na_camerafollow_tag_name = tag_name.is_a?(String) && !tag_name.empty? ? tag_name : CAMERA_FOLLOW_DEFAULT_TAG_NAME
+            tag_name = tag_name.is_a?(String) && !tag_name.empty? ? tag_name : CAMERA_FOLLOW_DEFAULT_TAG_NAME
 
             components_map = section_data["Components"]
-            @na_camerafollow_components_map = components_map.is_a?(Hash) ? components_map : {}
+            components_map = components_map.is_a?(Hash) ? components_map : {}
 
             behaviours = section_data["Behaviours"]
-            @na_camerafollow_behaviours = behaviours.is_a?(Hash) ? behaviours : {}
+            behaviours = behaviours.is_a?(Hash) ? behaviours : {}
+
+            @na_camerafollow_families << {
+                tag_name:       tag_name,
+                regex:          regex,
+                components_map: components_map,
+                behaviours:     behaviours
+            }
+        end
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Build the Fail-Safe Default Family
+        # ------------------------------------------------------------
+        # Used only when the Components SSOT could not be loaded at all, so
+        # detection still works via the hardcoded tag/regex fallback.
+        def self.Na__CameraFollowHandler__DefaultFamily
+            {
+                tag_name:       CAMERA_FOLLOW_DEFAULT_TAG_NAME,
+                regex:          Regexp.new(CAMERA_FOLLOW_DEFAULT_DETECTION),
+                components_map: {},
+                behaviours:     {}
+            }
         end
         # ------------------------------------------------------------
 
@@ -72,27 +94,40 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
-        # HELPER FUNCTION | Check if Entity is a Camera Follow Assembly
+        # HELPER FUNCTION | Resolve the Configured Family Matching an Entity
         # ---------------------------------------------------------------
-        def self.Na__CameraFollowHandler__IsCameraFollowAssembly?(entity)
-            return false unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+        # Checks tag-driven detection first (cheap, unambiguous), then falls
+        # through to each family's SSOT name regex. Falls back to the single
+        # hardcoded default family when no DataLib families were configured
+        # at all (Components SSOT load failure).
+        def self.Na__CameraFollowHandler__ResolveFamilyForEntity(entity)
+            return nil unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
 
-            if entity.respond_to?(:layer) && entity.layer && entity.layer.name == @na_camerafollow_tag_name
-                return true                                                      # <-- Tag-driven detection
+            families = @na_camerafollow_families.empty? ? [Na__CameraFollowHandler__DefaultFamily] : @na_camerafollow_families
+
+            if entity.respond_to?(:layer) && entity.layer
+                by_tag = families.find { |family| family[:tag_name] == entity.layer.name }
+                return by_tag if by_tag                                          # <-- Tag-driven detection
             end
 
             name = Na__CameraFollowHandler__GetEntityName(entity)
-            return false if name.empty?
+            return nil if name.empty?
 
-            regex = @na_camerafollow_detection_regex || Regexp.new(CAMERA_FOLLOW_DEFAULT_DETECTION)
-            !!regex.match(name)                                                  # <-- SSOT name regex detection
+            families.find { |family| family[:regex].match?(name) }              # <-- SSOT name regex detection
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Check if Entity is a Camera Follow Assembly
+        # ---------------------------------------------------------------
+        def self.Na__CameraFollowHandler__IsCameraFollowAssembly?(entity)
+            !!Na__CameraFollowHandler__ResolveFamilyForEntity(entity)
         end
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Resolve Semantic Export Name from SSOT
         # ---------------------------------------------------------------
-        def self.Na__CameraFollowHandler__ResolveSemanticName(raw_name)
-            entry = @na_camerafollow_components_map[raw_name]
+        def self.Na__CameraFollowHandler__ResolveSemanticName(raw_name, family)
+            entry = family[:components_map][raw_name]
             return raw_name unless entry.is_a?(Hash)
 
             semantic = entry["SemanticName"]
@@ -116,14 +151,14 @@ module TrueVision3D
         #   0.0 = full directional shading (default, unchanged behaviour)
         #   1.0 = fully flat (directional darkening removed entirely)
         # Resolution order: per-component Behaviours -> section Behaviours -> 0.0
-        def self.Na__CameraFollowHandler__ResolveShadeFlatness(raw_name)
-            entry = @na_camerafollow_components_map[raw_name]
+        def self.Na__CameraFollowHandler__ResolveShadeFlatness(raw_name, family)
+            entry = family[:components_map][raw_name]
             if entry.is_a?(Hash) && entry["Behaviours"].is_a?(Hash) && entry["Behaviours"]["ShadeFlatness"].is_a?(Numeric)
                 return Na__CameraFollowHandler__ClampUnitInterval(entry["Behaviours"]["ShadeFlatness"])  # <-- Component override
             end
 
-            if @na_camerafollow_behaviours.is_a?(Hash) && @na_camerafollow_behaviours["ShadeFlatness"].is_a?(Numeric)
-                return Na__CameraFollowHandler__ClampUnitInterval(@na_camerafollow_behaviours["ShadeFlatness"])  # <-- Section default
+            if family[:behaviours].is_a?(Hash) && family[:behaviours]["ShadeFlatness"].is_a?(Numeric)
+                return Na__CameraFollowHandler__ClampUnitInterval(family[:behaviours]["ShadeFlatness"])  # <-- Section default
             end
 
             0.0                                                                  # <-- Safe default (full directional shading)
@@ -215,10 +250,11 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__CameraFollowHandler__BuildAssemblyNodes(assembly_entity, accumulated_transform, gltf, bin_buffer, export_type = :mesh)
             raw_name       = Na__CameraFollowHandler__GetEntityName(assembly_entity)
-            export_name    = Na__CameraFollowHandler__ResolveSemanticName(raw_name)
+            family         = Na__CameraFollowHandler__ResolveFamilyForEntity(assembly_entity) || Na__CameraFollowHandler__DefaultFamily
+            export_name    = Na__CameraFollowHandler__ResolveSemanticName(raw_name, family)
             type_label     = export_type == :linework ? "Linework" : "Mesh"
             pivot_local    = Na__CameraFollowHandler__CapturePivotLocal(assembly_entity)
-            shade_flatness = Na__CameraFollowHandler__ResolveShadeFlatness(raw_name)
+            shade_flatness = Na__CameraFollowHandler__ResolveShadeFlatness(raw_name, family)
 
             Na__Log__Puts "      [CameraFollowHandler/#{type_label}] Building camera-follow assembly: #{export_name}"
 
@@ -234,7 +270,7 @@ module TrueVision3D
                     "generator"     => "TrueVision3D_CameraFollowHandler",
                     "type"          => "CameraFollowBillboard",
                     "cameraFollow"  => true,
-                    "yawOnly"       => @na_camerafollow_behaviours["YawOnly"] != false,
+                    "yawOnly"       => family[:behaviours]["YawOnly"] != false,
                     "pivotLocal"    => pivot_local,
                     "shadeFlatness" => shade_flatness
                 }

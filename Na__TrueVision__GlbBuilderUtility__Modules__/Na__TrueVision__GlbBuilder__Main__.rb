@@ -204,11 +204,20 @@ module TrueVision3D
 
                     components_library = components_data["Na__DataLib__CoreIndex__Components"]
                     if components_library.is_a?(Hash)
-                        billboard_section = components_library["SiteVegetation2D__Billboard__"]
-                        if billboard_section.is_a?(Hash)
-                            Na__CameraFollowHandler__Configure(billboard_section)
-                            puts "    [GlbBuilder] DataLib camera-follow billboards configured from Components SSOT"
+                        # Any Components SSOT section with Behaviours.CameraFollow == true is
+                        # treated as a 2D billboard family (vegetation, entourage, future
+                        # additions) — no hardcoded section-name list to keep in sync.
+                        billboard_section_count = 0
+                        components_library.each do |section_key, section_data|
+                            next unless section_data.is_a?(Hash)
+                            behaviours = section_data["Behaviours"]
+                            next unless behaviours.is_a?(Hash) && behaviours["CameraFollow"] == true
+
+                            Na__CameraFollowHandler__Configure(section_data)
+                            billboard_section_count += 1
+                            puts "    [GlbBuilder] DataLib camera-follow billboards configured from Components SSOT (#{section_key})"
                         end
+                        puts "    [GlbBuilder] WARNING: No camera-follow billboard sections found in Components SSOT" if billboard_section_count.zero?
                     end
                 end
             rescue => e
@@ -462,7 +471,8 @@ module TrueVision3D
             "TrueVision__FirstFloorFurniture"               => (40..48),              # <-- First Floor Furniture
             "TrueVision__FirstFloorDecor"                   => [49],                  # <-- First Floor High Detail
             "TrueVision__Vegetation"                        => (50..59),              # <-- Vegetation
-            "TrueVision__SceneContextual"                   => (60..70)               # <-- Scene Context (people, vehicles)
+            "TrueVision__SceneEntourage2D"                   => [60],                  # <-- 2D camera-follow billboard entourage (people, pets)
+            "TrueVision__SceneContextual"                   => (61..70)               # <-- Scene Context (people, vehicles)
         }
         SKIP_RANGES             =   [0, 2, 3, 4, 5, 6]                            # <-- Ignored tags - DO NOT EXPORT (tag 01 is now exported as OrbitHelperCube)
         MAX_NESTING_DEPTH       =   4                                             # <-- Maximum nesting depth for validation (4 to support storey container nesting)
@@ -488,6 +498,7 @@ module TrueVision3D
             7  => "LandscapeEnvironment",                                          # <-- Landscape & Environment
             8  => "SiteBoundaries",                                                # <-- Site boundaries (fences, walls, site lines)
             9  => "SiteVegetation2D",                                              # <-- 2D camera-follow billboard vegetation
+            60 => "SceneEntourage2D",                                               # <-- 2D camera-follow billboard entourage (people, pets)
             11 => "ExistingWalls",                                                 # <-- Existing Building Walls
             12 => "ExistingFloors",                                                # <-- Existing Building Floors
             13 => "ExistingRoofs",                                                 # <-- Existing Building Roofs
