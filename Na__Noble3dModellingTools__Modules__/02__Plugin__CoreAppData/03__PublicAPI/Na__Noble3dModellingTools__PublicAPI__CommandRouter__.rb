@@ -60,6 +60,9 @@ module Na__Noble3dModellingTools
             when 'select_quad_face_rings_largest'
                 proc { Na__SelectQuadFaceRings.Na__SelectQuadFaceRings__Run(:largest_face_count) }
 
+            when 'select_similar_filter'
+                proc { Na__SelectSimilarFilter.Na__SelectSimilarFilter__Run }
+
             when 'lattice_maker_prompt'
                 proc { Na__LatticeMaker.Na__LatticeMaker__RunWithPrompt }
 

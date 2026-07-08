@@ -1,5 +1,20 @@
 # ValeVision Cloud Sync — Development Log
 
+## Operational Note — 07-Jul-2026 — Whitecardopedia Web Editor Can Now Rename Live Projects
+
+### No code changes in this plugin — documentation only
+Whitecardopedia's Project Editor (the web-based tool, not this plugin) gained a "rename project folder" capability: editing Project Code/Name and saving can now move a project's entire live folder on Cloudflare R2 (e.g. `2026/63592__Bressard-Kayode` -> `2026/63592__Bressard-Kayode Scheme-01`), rewriting `valeVision_ModelUrls` and updating the master index/masterConfig so ValeVision3D keeps working with zero code changes on that side.
+
+**This plugin is completely unaffected and unaware of that rename**, because it never reads the master index or R2 state — every sync (`Na__ValeVisionCloudSync__SyncOrchestrator` -> `AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py`) re-derives its target `folderId` purely from the **local SketchUp project folder's name on disk** (`{code}__{Name}__Whitecard` -> strips the type suffix -> `{code}__{Name}`).
+
+**Practical implication for branching schemes (e.g. Scheme-01 / Scheme-02):**
+- If you rename a project via the Whitecardopedia web editor and intend to **sync that same scheme again later**, you must also rename the **local** SketchUp project folder on disk to match (e.g. `63592__Bressard-Kayode__Whitecard` -> `63592__Bressard-Kayode Scheme-01__Whitecard`). Otherwise the next sync will recompute the OLD folder name and recreate/repopulate it on R2, orphaned from the renamed web copy.
+- Creating a genuinely **new** scheme (e.g. `63592__Bressard-Kayode-Scheme-02__Whitecard`) as a separate local folder and syncing it is entirely safe and untouched by any web-side rename — this remains the supported way to branch a project, exactly as before.
+- There is still no rename/duplicate feature in this plugin itself — every sync's target folder is 100% derived from the current local folder name, with no override besides the existing Settings -> "Project path override" (which still must point at a folder physically named the way you want it to sync as).
+
+# =============================================================================
+
+
 ## Version 0.2.3 — 01-Jul-2026 — Per-Scene Tag/Layer Visibility Capture
 
 ### Overview

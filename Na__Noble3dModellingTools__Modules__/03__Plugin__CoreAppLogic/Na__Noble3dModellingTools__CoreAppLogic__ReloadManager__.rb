@@ -111,6 +111,12 @@ module Na__Noble3dModellingTools
                 Na__ImageCarousel__DialogManager.Na__ImageCarousel__DialogManager__ResetDialog
                 puts '[Na__Noble3dModellingTools] Reload reset Image Viewer dialog.'
             end
+
+            if defined?(Na__SelectSimilarFilter__DialogManager) &&
+               Na__SelectSimilarFilter__DialogManager.respond_to?(:Na__SelectSimilarFilter__DialogManager__ResetDialog)
+                Na__SelectSimilarFilter__DialogManager.Na__SelectSimilarFilter__DialogManager__ResetDialog
+                puts '[Na__Noble3dModellingTools] Reload reset Select Similar Filter dialog.'
+            end
         rescue => error
             puts "[Na__Noble3dModellingTools] Feature dialog reset warning: #{error.class}: #{error.message}"
         end

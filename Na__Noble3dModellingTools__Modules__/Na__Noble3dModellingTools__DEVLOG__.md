@@ -3,6 +3,30 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.5.8 - 08-Jul-2026 - Select Similar Filter (Array Selection Tool)
+
+### Update 01 - New Tool: Select Similar Filter
+- New Pattern B sub-dialog tool at `10__PluginModules/25__SourceCode__SelectSimilarFilter/` for fast "select an array" workflows: select one or more reference faces/edges, open the dialog, and click **Select Similar** to select every other face/edge at the current editing level matching shape and size within a configurable mm threshold (default 10mm).
+- Faces and Edges toggles default to on; matching is scoped strictly to `model.active_entities` (the current open group/component, or the model root), so arrays nested at any depth in the model hierarchy can be filtered without leaking into sibling or child containers.
+- Face matching uses an orientation-invariant shape signature (vertex/hole count plus sorted outer-edge lengths within the mm threshold, with a relative-area shear guard) rather than a single area number, so same-area/different-shape faces are correctly rejected while panels varying slightly in both width and height are still caught. Curved faces fall back to an equivalent-side-length compare. Edge matching compares length directly.
+- Live "Reference: N face(s), M edge(s) selected" readout via a dedicated `Sketchup::SelectionObserver`, matching the existing `UntagSpecificInSelection` live-dialog pattern.
+- Sub-devlog: `10__PluginModules/25__SourceCode__SelectSimilarFilter/Na__Noble3dModellingTools__SelectSimilarFilter__DEVLOG__.md`
+
+### Update 02 - Registry, Router, and Reload Wiring
+- Registered command, button (`Selection Tools` > `Select Similar Filter`, tool_group_order 20), and hotkey binding in the JSON-driven UI command registry (`select_similar_filter`).
+- Wired handler and module load paths through `Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb` and `Na__Noble3dModellingTools__ModuleLoaders__Main__.rb`.
+- Added `Na__SelectSimilarFilter__DialogManager__ResetDialog` and registered it in `Na__Noble3dModellingTools__CoreAppLogic__ReloadManager__.rb`'s `na_reset_feature_dialogs_after_reload`, mirroring the existing Image Viewer precedent, so every **Reload Plugin Data** click leaves a clean dialog state for fast iterative testing of the matching logic.
+
+### Validation Checklist
+- [ ] Tool appears in Noble 3D Tools dialog under Selection Tools > Select Similar Filter.
+- [ ] Tool appears in Extensions > Na__Noble3dModellingTools menu and is hotkey-bindable.
+- [ ] Selecting one panel from a repeated array and clicking Select Similar selects all matching panels, tolerant of small size variation within the threshold.
+- [ ] Same-area but differently-shaped faces are not selected.
+- [ ] Selection stays confined to the currently open group/component (or model root) and never crosses into nested sub-containers.
+- [ ] Reload Plugin Data cleanly resets an open Select Similar dialog.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.5.7 - 01-Jul-2026 - Image Viewer Measurement Tools
 
 ### Update 01 - Canvas Measurement Overlay (Reference Scale + Dimensions)

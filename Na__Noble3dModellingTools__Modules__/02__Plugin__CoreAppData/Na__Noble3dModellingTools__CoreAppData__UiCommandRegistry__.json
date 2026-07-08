@@ -93,6 +93,15 @@
             "expose_to_hotkeys" : true
         },
         {
+            "command_id"        : "select_similar_filter",
+            "command_name"      : "Na Noble3d - Select Similar Filter",
+            "tooltip"           : "Select faces/edges similar in shape and size to the current selection, within the active editing level",
+            "status_bar_text"   : "Open Select Similar Filter",
+            "menu_text"         : "Select Similar Filter",
+            "handler_key"       : "select_similar_filter",
+            "expose_to_hotkeys" : true
+        },
+        {
             "command_id"        : "lattice_maker_prompt",
             "command_name"      : "Na Noble3d - Lattice Maker (Prompt)",
             "tooltip"           : "Create lattice bars from selected edges with input prompt",
@@ -441,6 +450,17 @@
             "button_label"           : "Select Quad Face Rings (Largest Count)",
             "command_id"             : "select_quad_face_rings_largest",
             "description"            : "Picks the candidate ring direction with the highest face count."
+        },
+        {
+            "button_id"              : "btn_select_similar_filter",
+            "tab_name"               : "Selection Tools",
+            "tool_group_name"        : "Select Similar Filter",
+            "tool_group_description" : "Select faces and edges that match the shape and size of the current selection.",
+            "tool_group_order"       : 20,
+            "button_order"           : 10,
+            "button_label"           : "Select Similar Filter",
+            "command_id"             : "select_similar_filter",
+            "description"            : "Opens a dialog to select all faces/edges similar in shape and size to the current selection, within a configurable mm threshold, scoped to the current editing level (open group/component or model root)."
         },
         {
             "button_id"              : "btn_lattice_prompt",
@@ -847,6 +867,10 @@
         },
         {
             "command_id"        : "select_quad_face_rings_largest",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "select_similar_filter",
             "expose_to_hotkeys" : true
         },
         {
