@@ -67,6 +67,7 @@ module Na__DoorNamingContract
     NA_ADR_ID_FORMAT                 = "ADR%03d".freeze
     NA_ADR_ID_REGEX                  = /^ADR\d{3}$/.freeze
     NA_ADR_ID_EXTRACT_REGEX          = /^ADR(\d{3})$/.freeze
+    NA_ADR_SUFFIX_EXTERIOR_DOUBLE    = "__ExteriorDoubleDoor__".freeze
 
     # endregion -------------------------------------------------------------------
 
@@ -104,8 +105,10 @@ module Na__DoorNamingContract
     NA_ROT_SUFFIX_INTERIOR_DOOR      = "DoorHingeCentre".freeze
     NA_ROT_SUFFIX_BIFOLD             = "BifoldHingeCentre".freeze
     NA_ROT_SUFFIX_SLIDING            = "SlidingPanelTrack".freeze
+    NA_ROT_SUFFIX_EXTERIOR_DOUBLE    = "ExteriorDoubleDoorHingeCentre".freeze
     NA_MVE_SUFFIX_BIFOLD             = "BifoldPanelTrack".freeze
     NA_MVE_SUFFIX_SLIDING            = "SlidingPanelTrack".freeze
+    NA_PANEL_TAG_EXTERIOR_DOUBLE     = "ExteriorDoubleDoorPanel".freeze
 
     # endregion -------------------------------------------------------------------
 

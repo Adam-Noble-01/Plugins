@@ -310,6 +310,22 @@ const NA_UI_CONFIG = [
         max     :  500,
         step    :  5,
         default :  60
+    },
+    {
+        id      :  'bottom_sash_top_rail_override',
+        label   :  'Override Bottom Sash Top Rail',
+        type    :  'toggle',
+        default :  false
+    },
+    {
+        id      :  'bottom_sash_top_rail_mm',
+        label   :  'Bottom Sash Top Rail',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  20,
+        max     :  500,
+        step    :  5,
+        default :  60
     }
 ];
 
@@ -579,6 +595,12 @@ const NA_OPTIONS_CONFIG = [
     {
         id      :  'multifold_mode',
         label   :  'Multi-Folding Door',
+        type    :  'toggle',
+        default :  false
+    },
+    {
+        id      :  'double_door_mode',
+        label   :  'Double Doors',
         type    :  'toggle',
         default :  false
     },

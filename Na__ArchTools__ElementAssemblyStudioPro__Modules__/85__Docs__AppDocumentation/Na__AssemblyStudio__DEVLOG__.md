@@ -1,6 +1,27 @@
 # Element Assembly Studio Pro - DEVLOG
 # =============================================================================
 
+# =============================================================================
+## Element Assembly Studio Pro | V1.1.0 - 10-Jul-2026 - Exterior Double Doors
+
+### Feature Summary
+- Added a standalone `ADR###__ExteriorDoubleDoor__` system to the Windows tab with two unequal-capable leaves, active-leaf selection, inward/outward opening, per-leaf 0–180° ROT angles, and independent 0–150 mm parliament-hinge pivot projections.
+- Added stable `MOD001/ROT001` left and `MOD002/ROT002` right animation pairs, optional open-state copies, plan swing geometry, active-leaf hardware, shared exterior frame/cill controls, and globally unique ADR allocation.
+- Added Fully Glazed, Glazed Over Fielded, and Fully Fielded compositions with linked/per-leaf overrides, presets/custom grids, linework output, recessed Shaker geometry, and true two-sided raised/bevelled geometry.
+- Added dual plan/elevation SVG previews, full Ruby and browser-fallback DXF output, frame/leaf/handle finishes, and reuse of the existing Interior Door handle asset library.
+- Split the former combined leaf rail control into independent Top Rail and Bottom Rail controls; Top Rail defaults to 95 mm and Bottom Rail defaults to 150 mm, with legacy combined values migrated to Bottom Rail.
+- Enabled the shared Fuse Parts option for Exterior Double Doors. It now fuses each closed/open MOD leaf's structural stiles and top/bottom/mid rails, fuses glaze bars and trims glass, and fuses the static outer frame while preserving cill, handles, panel inserts/profiles, linework and MOD/ROT animation wrappers.
+- Extended Double Door glazing to use the same Margin Glazing offset and horizontal-bar offset positioning as windows in Ruby geometry, both SVG/DXF paths, and the live margin clamp.
+- Added elevation-preview glaze-bar click targets for each Double Door leaf. Clicking a horizontal or vertical bar toggles a dedicated `double_door_removed_glazebars` key, immediately updating SVG, Ruby geometry, live mode and both DXF paths; this supports intentionally single-sided margin glazing without disturbing saved window-bar visibility.
+- Rebuilt fielded panels as thinner inserts inside genuine lower leaf openings instead of full-depth backing blocks. Raised/bevelled fields now keep their centre flush with the leaf faces and taper inward to thinner captured edges; bevel faces are explicitly oriented outward to eliminate reversed red backfaces.
+- Added `Override Bottom Sash Top Rail`; legacy sliding sashes continue inheriting Casement Top Rail until the override is enabled.
+- Updated the TrueVision and ValeVision door animation contracts so Exterior Double Door leaves can animate independently while existing Interior, Sliding, and Bifold doors retain their established behavior.
+
+### Backward Compatibility
+- Existing AWN, Interior Door, Sliding Door, and Bifold dictionaries and geometry paths remain unchanged.
+- Existing windows without the new sash-rail keys resolve to the previous Casement Top Rail.
+- Cross-type updates remain blocked; Exterior Double Doors update only their own dictionary type.
+
 
 # =============================================================================
 ## Element Assembly Studio Pro | V0.9.5b - 21-Jun-2026 - Linked door-leaf-size sliders (Interior Doors)

@@ -157,6 +157,9 @@ const Na__Export__Dxf = (function() {
         const casLeftStile = useIndividualSizes ? (config.casement_left_stile_mm || casementWidth) : casementWidth;
         const casRightStile = useIndividualSizes ? (config.casement_right_stile_mm || casementWidth) : casementWidth;
         const topSashBottomRail = Math.max(0, Number(config.top_sash_bottom_rail_mm || casBottomRail));
+        const bottomSashTopRail = config.bottom_sash_top_rail_override === true
+            ? Math.max(0, Number(config.bottom_sash_top_rail_mm || casTopRail))
+            : Math.max(0, Number(casTopRail));
         const sashHornOptions = {
             enabled: config.sash_horns_enabled !== false,
             type: config.sash_horn_type || '1'
@@ -224,7 +227,7 @@ const Na__Export__Dxf = (function() {
                         if (slidingSashWindow) {
                             dxf += na_generateSlidingSashPanelDxf(
                                 panelX, cell.y, panelWidth, cell.height,
-                                casTopRail, casBottomRail, topSashBottomRail, casLeftStile, casRightStile,
+                                casTopRail, casBottomRail, topSashBottomRail, bottomSashTopRail, casLeftStile, casRightStile,
                                 hBars, vBars, barWidth, slidingSashOverlap,
                                 { openingIndex: i, cellIndex: cellIndex, panelIndex: p },
                                 removedGlazebars,
@@ -514,7 +517,7 @@ const Na__Export__Dxf = (function() {
 
     // FUNCTION | Generate Sliding Sash Panel DXF
     // ------------------------------------------------------------
-    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, topSashBottomRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar) {
+    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar) {
         const sashHeight = height / 2;
         const sashOverlap = Math.max(0, Math.min(overlapMm || 0, sashHeight - 1));
 
@@ -528,7 +531,7 @@ const Na__Export__Dxf = (function() {
         let dxf = '';
         dxf += na_generateCasementDxf(
             x, y, width, sashHeight + sashOverlap,
-            topRail, bottomRail, leftStile, rightStile,
+            bottomSashTopRail, bottomRail, leftStile, rightStile,
             hBars, vBars, barWidth,
             {
                 openingIndex: panelContext.openingIndex,

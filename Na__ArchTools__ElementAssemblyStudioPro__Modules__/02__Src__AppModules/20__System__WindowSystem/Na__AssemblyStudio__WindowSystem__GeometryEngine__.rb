@@ -130,6 +130,9 @@ module Na__WindowSystem
             sliding_instance = na_dispatch_sliding_create(config, insertion_frame)
             return sliding_instance if sliding_instance
 
+            double_door_instance = na_dispatch_exterior_double_door_create(config, insertion_frame)
+            return double_door_instance if double_door_instance
+
             model = Sketchup.active_model
             entities = model.active_entities
             constants = constants_from_parent
@@ -206,6 +209,7 @@ module Na__WindowSystem
 
             return if na_dispatch_bifold_update(instance, config)
             return if na_dispatch_sliding_update(instance, config)
+            return if na_dispatch_exterior_double_door_update(instance, config)
 
             constants = constants_from_parent
             
@@ -410,6 +414,37 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
+        # @delegate: ../34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__GeometryEngine__.rb
+        def self.na_dispatch_exterior_double_door_create(config, insertion_frame)
+            return nil unless config.is_a?(Hash)
+            return nil unless config["double_door_mode"] == true
+            return nil unless defined?(Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem)
+
+            Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem.na_require_modules
+            engine = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__GeometryEngine
+            engine.na_build_exterior_double_door(config, nil, insertion_frame)
+        rescue StandardError => e
+            DebugTools.na_debug_error("WindowSystem -> Exterior Double Door dispatch (create) failed", e)
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        def self.na_dispatch_exterior_double_door_update(instance, config)
+            return false unless instance && instance.valid?
+            return false unless config.is_a?(Hash)
+            return false unless config["double_door_mode"] == true
+            return false unless defined?(Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem)
+
+            Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem.na_require_modules
+            engine = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__GeometryEngine
+            engine.na_update_exterior_double_door(instance, config)
+            true
+        rescue StandardError => e
+            DebugTools.na_debug_error("WindowSystem -> Exterior Double Door dispatch (update) failed", e)
+            false
+        end
+        # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -566,6 +601,12 @@ module Na__WindowSystem
                 cas_top_rail = cas_bottom_rail = cas_left_stile = cas_right_stile = casement_width
             end
             top_sash_bottom_rail = (config["top_sash_bottom_rail_mm"] || cas_bottom_rail.to_mm).to_f * mm_to_inch
+            bottom_sash_top_rail_override = config["bottom_sash_top_rail_override"] == true
+            bottom_sash_top_rail = if bottom_sash_top_rail_override
+                (config["bottom_sash_top_rail_mm"] || cas_top_rail.to_mm).to_f * mm_to_inch
+            else
+                cas_top_rail
+            end
             
             # Calculate opening layout
             num_openings = num_mullions + 1
@@ -598,6 +639,8 @@ module Na__WindowSystem
                 cas_top_rail: cas_top_rail,
                 cas_bottom_rail: cas_bottom_rail,
                 top_sash_bottom_rail: top_sash_bottom_rail,
+                bottom_sash_top_rail_override: bottom_sash_top_rail_override,
+                bottom_sash_top_rail: bottom_sash_top_rail,
                 cas_left_stile: cas_left_stile,
                 cas_right_stile: cas_right_stile,
                 show_casements: show_casements,
@@ -988,18 +1031,19 @@ module Na__WindowSystem
                     panel_wall_inset, params, frame_material, glass_material
                 )
             elsif panel_has_casement
+                top_rail = na_effective_panel_top_rail(sash_index, params)
                 bottom_rail = na_effective_panel_bottom_rail(sash_index, params)
 
                 GeometryBuilders.na_create_casement_geometry_individual(
                     entities, panel_id, panel_width, panel_height,
-                    params[:cas_top_rail], bottom_rail, params[:cas_left_stile], params[:cas_right_stile],
+                    top_rail, bottom_rail, params[:cas_left_stile], params[:cas_right_stile],
                     params[:casement_depth], panel_x, panel_z, frame_material, panel_wall_inset, params[:casement_inset]
                 )
 
                 glass_offset_x = panel_x + params[:cas_left_stile]
                 glass_offset_z = panel_z + bottom_rail
                 glass_w = panel_width - params[:cas_left_stile] - params[:cas_right_stile]
-                glass_h = panel_height - params[:cas_top_rail] - bottom_rail
+                glass_h = panel_height - top_rail - bottom_rail
 
                 GeometryBuilders.na_create_glass_geometry(
                     entities, panel_id, glass_w, glass_h, params[:glass_thickness],
@@ -1064,6 +1108,17 @@ module Na__WindowSystem
             end
 
             params[:cas_bottom_rail]
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Resolve Panel Top Rail
+        # ------------------------------------------------------------
+        def self.na_effective_panel_top_rail(sash_index, params)
+            if params[:sliding_sash_window] && sash_index == 1
+                return params[:bottom_sash_top_rail]
+            end
+
+            params[:cas_top_rail]
         end
         # ---------------------------------------------------------------
 

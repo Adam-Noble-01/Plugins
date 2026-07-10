@@ -41,6 +41,7 @@ module Na__AssemblyStudio
             @na_window_component     = nil
             @na_bifold_component     = nil
             @na_sliding_component    = nil
+            @na_double_door_component = nil
             @na_config               = nil
             @na_last_measure_frame   = nil                                                                # <-- { :origin_in, :xaxis, :yaxis, :zaxis } or { :origin_in => Point3d }
             @na_current_placement_tool = nil
@@ -93,6 +94,13 @@ module Na__AssemblyStudio
                         na_load_sliding_into_dialog(instance, sliding_id)
                         return
                     end
+
+                    double_door_id = na_resolve_exterior_double_door_id(instance)
+                    if double_door_id
+                        DebugTools.na_debug_window("Existing exterior double door in selection: #{double_door_id}")
+                        na_load_exterior_double_door_into_dialog(instance, double_door_id)
+                        return
+                    end
                 end
                 @na_config = UiBridge.na_deep_clone(na_default_config)
             end
@@ -121,11 +129,26 @@ module Na__AssemblyStudio
             private_class_method :na_resolve_sliding_id
             # ---------------------------------------------------------------
 
+            # HELPER FUNCTION | Safely Resolve an Exterior Double Door ID
+            # ------------------------------------------------------------
+            def self.na_resolve_exterior_double_door_id(instance)
+                return nil unless defined?(Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer)
+                Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer
+                    .na_get_door_id_from_instance(instance)
+            rescue StandardError
+                nil
+            end
+            private_class_method :na_resolve_exterior_double_door_id
+            # ---------------------------------------------------------------
+
             # -----------------------------------------------------------------
             # REGION | Selection coordinator hooks
             # -----------------------------------------------------------------
 
             def self.na_load_window_into_dialog(instance, window_id)
+                @na_bifold_component = nil
+                @na_sliding_component = nil
+                @na_double_door_component = nil
                 @na_window_component = instance
                 @na_config           = DataSerializer.na_load_window_data_from_instance(instance, window_id)
                 if @na_config
@@ -141,6 +164,9 @@ module Na__AssemblyStudio
 
             def self.na_clear_window_from_dialog
                 @na_window_component = nil
+                @na_bifold_component = nil
+                @na_sliding_component = nil
+                @na_double_door_component = nil
                 @na_config           = UiBridge.na_deep_clone(na_default_config)
                 UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
             end
@@ -162,6 +188,8 @@ module Na__AssemblyStudio
                 bifold_serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
 
                 @na_bifold_component = instance
+                @na_sliding_component = nil
+                @na_double_door_component = nil
                 @na_window_component = instance
 
                 stored = bifold_serializer.na_load_door_data_from_instance(instance, door_id)
@@ -177,6 +205,8 @@ module Na__AssemblyStudio
 
             def self.na_clear_bifold_from_dialog
                 @na_bifold_component = nil
+                @na_sliding_component = nil
+                @na_double_door_component = nil
                 @na_window_component = nil
                 @na_config           = UiBridge.na_deep_clone(na_default_config)
                 UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
@@ -187,6 +217,8 @@ module Na__AssemblyStudio
                 sliding_serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
 
                 @na_sliding_component = instance
+                @na_bifold_component = nil
+                @na_double_door_component = nil
                 @na_window_component  = instance
 
                 stored = sliding_serializer.na_load_door_data_from_instance(instance, door_id)
@@ -202,8 +234,39 @@ module Na__AssemblyStudio
 
             def self.na_clear_sliding_from_dialog
                 @na_sliding_component = nil
+                @na_bifold_component = nil
+                @na_double_door_component = nil
                 @na_window_component  = nil
                 @na_config            = UiBridge.na_deep_clone(na_default_config)
+                UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
+            end
+
+            # @delegate: ../34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__DataSerializer__.rb
+            def self.na_load_exterior_double_door_into_dialog(instance, door_id)
+                return unless defined?(Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer)
+                serializer = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer
+
+                @na_double_door_component = instance
+                @na_bifold_component = nil
+                @na_sliding_component = nil
+                @na_window_component = instance
+                stored = serializer.na_load_from_instance(instance)
+                double_door_config = na_resolve_exterior_double_door_payload(stored)
+
+                @na_config = na_wrap_exterior_double_door_config_as_window_payload(door_id, double_door_config)
+                na_send_config_to_dialog
+                UiBridge.na_send_status(@na_dialog, 'info', "Loaded exterior double door: #{door_id}")
+            rescue StandardError => e
+                DebugTools.na_debug_error("[ExtDouble] Error loading exterior double door #{door_id}", e)
+                UiBridge.na_send_status(@na_dialog, 'warning', "Exterior double door #{door_id} selected but config could not be read")
+            end
+
+            def self.na_clear_exterior_double_door_from_dialog
+                @na_double_door_component = nil
+                @na_bifold_component = nil
+                @na_sliding_component = nil
+                @na_window_component = nil
+                @na_config = UiBridge.na_deep_clone(na_default_config)
                 UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
             end
 
@@ -312,6 +375,20 @@ module Na__AssemblyStudio
             private_class_method :na_resolve_sliding_payload
             # ---------------------------------------------------------------
 
+            # HELPER FUNCTION | Pull the Stored Exterior Double Door Configuration
+            # ------------------------------------------------------------
+            def self.na_resolve_exterior_double_door_payload(stored_hash)
+                if stored_hash.is_a?(Hash)
+                    cfg_key = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::NA_KEY_CONFIGURATION
+                    if stored_hash[cfg_key].is_a?(Hash)
+                        return UiBridge.na_deep_clone(stored_hash[cfg_key])
+                    end
+                end
+                UiBridge.na_deep_clone(Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::NA_DEFAULT_DOOR_CONFIG)
+            end
+            private_class_method :na_resolve_exterior_double_door_payload
+            # ---------------------------------------------------------------
+
             # HELPER FUNCTION | Wrap a Bifold Config in the Standard windowConfiguration Envelope
             # ------------------------------------------------------------
             # Force `multifold_mode` true so the JS MainUiLogic toggles the
@@ -365,6 +442,32 @@ module Na__AssemblyStudio
             private_class_method :na_wrap_sliding_config_as_window_payload
             # ---------------------------------------------------------------
 
+            # HELPER FUNCTION | Wrap Exterior Double Door Config for Window UI
+            # ------------------------------------------------------------
+            def self.na_wrap_exterior_double_door_config_as_window_payload(door_id, double_door_config)
+                merged = UiBridge.na_deep_clone(na_default_config["windowConfiguration"] || {})
+                merged.merge!(double_door_config) if double_door_config.is_a?(Hash)
+                merged["multifold_mode"] = false
+                merged["sliding_mode"] = false
+                merged["door_mode"] = false
+                merged["double_door_mode"] = true
+
+                {
+                    "windowMetadata" => [
+                        {
+                            "WindowUniqueId" => door_id,
+                            "WindowDescription" => "Exterior Double Door",
+                            "CreatedDate" => "",
+                            "LastModified" => Time.now.strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                    ],
+                    "windowComponents" => [],
+                    "windowConfiguration" => merged
+                }
+            end
+            private_class_method :na_wrap_exterior_double_door_config_as_window_payload
+            # ---------------------------------------------------------------
+
             # -----------------------------------------------------------------
             # REGION | Create / Update / Live / DXF / Measure handlers
             # -----------------------------------------------------------------
@@ -395,6 +498,10 @@ module Na__AssemblyStudio
                     return na_handle_create_sliding_door(config, pending_frame, mode)
                 end
 
+                if na_is_exterior_double_door_mode?(config["windowConfiguration"])
+                    return na_handle_create_exterior_double_door(config, pending_frame, mode)
+                end
+
                 model     = Sketchup.active_model
                 model.start_operation("Create Window", true)
 
@@ -410,6 +517,7 @@ module Na__AssemblyStudio
                 )
 
                 if @na_window_component && @na_window_component.valid?
+                    na_track_created_component(@na_window_component, :window)
                     if config["windowConfiguration"] && config["windowConfiguration"]["fuse_parts"] == true
                         UiBridge.na_send_status(@na_dialog, 'info', 'Fusing parts...')
                         FuseParts.na_fuse_window_parts(@na_window_component.definition.entities)
@@ -514,8 +622,7 @@ module Na__AssemblyStudio
                 instance = bifold_engine.na_build_bifold_door(window_config, nil, pending_frame)
 
                 if instance && instance.valid?
-                    @na_bifold_component = instance
-                    @na_window_component = instance
+                    na_track_created_component(instance, :bifold)
 
                     na_apply_bifold_fuse_parts(instance, window_config)
 
@@ -679,8 +786,7 @@ module Na__AssemblyStudio
                 instance = sliding_engine.na_build_sliding_door(window_config, nil, pending_frame)
 
                 if instance && instance.valid?
-                    @na_sliding_component = instance
-                    @na_window_component  = instance
+                    na_track_created_component(instance, :sliding)
 
                     na_apply_sliding_fuse_parts(instance, window_config)
 
@@ -833,6 +939,112 @@ module Na__AssemblyStudio
             private_class_method :na_build_sliding_save_payload
             # ---------------------------------------------------------------
 
+            # -----------------------------------------------------------------
+            # REGION | Exterior Double Door dispatch
+            # -----------------------------------------------------------------
+
+            def self.na_is_exterior_double_door_mode?(window_config)
+                window_config.is_a?(Hash) && window_config["double_door_mode"] == true
+            end
+
+            # @delegate: ../34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__GeometryEngine__.rb
+            def self.na_handle_create_exterior_double_door(config, pending_frame = nil, mode = :auto)
+                window_config = config["windowConfiguration"] || {}
+                Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem.na_require_modules
+                engine = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__GeometryEngine
+                serializer = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer
+
+                instance = engine.na_build_exterior_double_door(window_config, nil, pending_frame)
+                unless instance && instance.valid?
+                    UiBridge.na_send_status(@na_dialog, 'error', 'Failed to create exterior double door geometry')
+                    return
+                end
+
+                na_track_created_component(instance, :double_door)
+                door_id = serializer.na_get_door_id_from_instance(instance)
+                if config["windowMetadata"] && config["windowMetadata"][0]
+                    config["windowMetadata"][0]["WindowUniqueId"] = door_id
+                    config["windowMetadata"][0]["CreatedDate"] = Time.now.strftime("%Y-%m-%d %H:%M:%S")
+                    config["windowMetadata"][0]["LastModified"] = Time.now.strftime("%Y-%m-%d %H:%M:%S")
+                end
+                @na_config = config
+                na_finalise_bifold_or_sliding_placement(instance, pending_frame, mode, "Exterior double")
+            rescue StandardError => e
+                DebugTools.na_debug_error("Error creating exterior double door", e)
+                UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
+            end
+
+            def self.na_handle_update_exterior_double_door(config)
+                instance = @na_double_door_component
+                unless instance && instance.valid?
+                    UiBridge.na_send_status(@na_dialog, 'warning', 'No exterior double door selected to update')
+                    return
+                end
+
+                Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem.na_require_modules
+                engine = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__GeometryEngine
+                serializer = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer
+                current_id = serializer.na_get_door_id_from_instance(instance)
+                incoming_id = config.dig("windowMetadata", 0, "WindowUniqueId")
+                unless current_id
+                    UiBridge.na_send_status(@na_dialog, 'warning', 'Selected component is not an exterior double door')
+                    return
+                end
+                if incoming_id && incoming_id != current_id
+                    UiBridge.na_send_status(@na_dialog, 'warning', "Update rejected: selected #{current_id}, received #{incoming_id}")
+                    return
+                end
+                updated = engine.na_update_exterior_double_door(instance, config["windowConfiguration"] || {})
+                if updated
+                    @na_config = config
+                    UiBridge.na_send_status(@na_dialog, 'success', "Exterior double door updated: #{instance.name}")
+                else
+                    UiBridge.na_send_status(@na_dialog, 'error', 'Exterior double door update failed')
+                end
+            rescue StandardError => e
+                DebugTools.na_debug_error("Error updating exterior double door", e)
+                UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
+            end
+
+            def self.na_handle_live_update_exterior_double_door(config)
+                instance = @na_double_door_component
+                return unless instance && instance.valid?
+
+                Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem.na_require_modules
+                serializer = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer
+                current_id = serializer.na_get_door_id_from_instance(instance)
+                incoming_id = config.dig("windowMetadata", 0, "WindowUniqueId")
+                if incoming_id && current_id && incoming_id != current_id
+                    DebugTools.na_debug_warn("Exterior double door live update skipped: stale #{incoming_id}, current #{current_id}")
+                    return
+                end
+
+                engine = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__GeometryEngine
+                if engine.na_update_exterior_double_door(
+                    instance,
+                    config["windowConfiguration"] || {},
+                    transparent: true
+                )
+                    @na_config = config
+                    Sketchup.active_model.active_view.invalidate
+                end
+            rescue StandardError => e
+                DebugTools.na_debug_error("Live update exterior double door failed (non-fatal)", e)
+            end
+
+            # endregion -------------------------------------------------------
+
+            # HELPER FUNCTION | Track One Newly Created Window-Tab Product
+            # ------------------------------------------------------------
+            def self.na_track_created_component(instance, type)
+                @na_window_component = instance
+                @na_bifold_component = type == :bifold ? instance : nil
+                @na_sliding_component = type == :sliding ? instance : nil
+                @na_double_door_component = type == :double_door ? instance : nil
+            end
+            private_class_method :na_track_created_component
+            # ---------------------------------------------------------------
+
             # HELPER FUNCTION | Run the Bifold-Panel FuseParts Pipeline (Phase-9)
             # ------------------------------------------------------------
             # Mirrors the WindowSystem fuse step: only fires when
@@ -888,6 +1100,10 @@ module Na__AssemblyStudio
                     return na_handle_update_sliding_door(config)
                 end
 
+                if na_is_exterior_double_door_mode?(config["windowConfiguration"])
+                    return na_handle_update_exterior_double_door(config)
+                end
+
                 unless @na_window_component && @na_window_component.valid?
                     UiBridge.na_send_status(@na_dialog, 'warning', 'No window selected to update')
                     return
@@ -928,14 +1144,23 @@ module Na__AssemblyStudio
             end
 
             def self.na_handle_export_dxf(config_json)
-                config      = JSON.parse(config_json)
-                dxf_content = DxfExporter.na_generate_dxf(config)
+                config = JSON.parse(config_json)
+                window_config = config["windowConfiguration"] || config
+                if na_is_exterior_double_door_mode?(window_config)
+                    Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem.na_require_modules
+                    dxf_content = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DxfExporter
+                        .na_export_dxf(window_config)
+                    default_filename = "exterior_double_door_export.dxf"
+                else
+                    dxf_content = DxfExporter.na_generate_dxf(window_config)
+                    default_filename = "window_export.dxf"
+                end
                 unless dxf_content
                     UiBridge.na_send_status(@na_dialog, 'error', 'Failed to generate DXF content')
                     return
                 end
 
-                path = UI.savepanel("Export DXF", "", "window_export.dxf")
+                path = UI.savepanel("Export DXF", "", default_filename)
                 if path
                     path = path + ".dxf" unless path.downcase.end_with?(".dxf")
                     File.write(path, dxf_content)
@@ -958,6 +1183,10 @@ module Na__AssemblyStudio
 
                 if na_is_sliding_mode?(config["windowConfiguration"])
                     return na_handle_live_update_sliding_door(config)
+                end
+
+                if na_is_exterior_double_door_mode?(config["windowConfiguration"])
+                    return na_handle_live_update_exterior_double_door(config)
                 end
 
                 incoming_id = nil

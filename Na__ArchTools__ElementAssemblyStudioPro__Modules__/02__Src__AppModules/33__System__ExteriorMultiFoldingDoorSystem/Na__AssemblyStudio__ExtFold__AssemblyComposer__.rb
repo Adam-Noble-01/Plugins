@@ -810,6 +810,7 @@ module Na__AssemblyComposer
         bifold_id_key     = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_KEY_DOOR_ID
         sliding_dict_key  = "Na__SlidingDoorConfiguratorInfo".freeze
         legacy_dict_key   = "Na__DoorConfiguratorInfo".freeze
+        double_dict_key   = "Na__ExteriorDoubleDoorConfiguratorInfo".freeze
         common_id_key     = "DoorID".freeze
 
         used = []
@@ -818,10 +819,12 @@ module Na__AssemblyComposer
                 bifold_id  = na_safe_get_attribute(instance, bifold_dict_key,  bifold_id_key)
                 sliding_id = na_safe_get_attribute(instance, sliding_dict_key, common_id_key)
                 legacy_id  = na_safe_get_attribute(instance, legacy_dict_key,  common_id_key)
+                double_id  = na_safe_get_attribute(instance, double_dict_key,  common_id_key)
 
                 used << na_extract_adr_number(bifold_id)  if bifold_id
                 used << na_extract_adr_number(sliding_id) if sliding_id
                 used << na_extract_adr_number(legacy_id)  if legacy_id
+                used << na_extract_adr_number(double_id)  if double_id
             end
         end
         used.compact

@@ -129,6 +129,20 @@
             <div id="na-canvas-wrapper" class="na-canvas-wrapper">
                 <svg id="na-viewport-svg" class="na-viewport-svg"></svg>
             </div>
+            <div id="na-double-door-dual-viewport" class="na-door-dual-viewport" style="display:none;">
+                <div class="na-door-viewport-cell">
+                    <div class="na-door-viewport-label">Plan View</div>
+                    <div id="na-double-door-plan-wrapper" class="na-canvas-wrapper">
+                        <svg id="na-double-door-plan-svg" class="na-viewport-svg"></svg>
+                    </div>
+                </div>
+                <div class="na-door-viewport-cell">
+                    <div class="na-door-viewport-label">Elevation View</div>
+                    <div id="na-double-door-elevation-wrapper" class="na-canvas-wrapper">
+                        <svg id="na-double-door-elevation-svg" class="na-viewport-svg"></svg>
+                    </div>
+                </div>
+            </div>
             <div id="na-viewport-resize-handle" class="na-resize-handle" title="Drag to resize viewport"></div>
         </section>
 
@@ -165,6 +179,11 @@
         <section id="na-section-multifold-door" class="na-section" style="display:none;">
             <div class="na-section-header"><h2>Multi-Folding Door</h2></div>
             <div id="na-controls-multifold-door" class="na-controls-grid"></div>
+        </section>
+
+        <section id="na-section-double-door" class="na-section" style="display:none;">
+            <div class="na-section-header"><h2>Double Doors</h2></div>
+            <div id="na-controls-double-door" class="na-controls-grid"></div>
         </section>
 
         <section class="na-section na-actions-section">
@@ -324,6 +343,10 @@
     <!-- ExteriorMultiFoldingDoorSystem schema (Phase-1 scaffold; activated by WindowSystem multifold_mode toggle in Phase-2) -->
     <script src="02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__UiSystem__Config__.js"></script>
 
+    <!-- @delegate: 02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__Config__.js -->
+    <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__Config__.js"></script>
+    <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__LeafConfigResolver__.js"></script>
+
     <!-- Generic Viewport engine (must load before any tab-specific viewport) -->
     <script src="02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__SvgHelpers__.js"></script>
     <script src="02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Validation__.js"></script>
@@ -344,6 +367,11 @@
     <!-- ExteriorMultiFoldingDoorSystem viewport adapters (live SVG generator + plan stub) -->
     <script src="02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js"></script>
     <script src="02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__PlanGenerator__.js"></script>
+
+    <!-- @delegate: 02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Viewport__ElevationGenerator__.js -->
+    <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Viewport__ElevationGenerator__.js"></script>
+    <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Viewport__PlanGenerator__.js"></script>
+    <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__DxfExporter__.js"></script>
 
     <!-- WindowSystem main UI logic (Na_DynamicUI + Na_Viewport) -->
     <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js"></script>

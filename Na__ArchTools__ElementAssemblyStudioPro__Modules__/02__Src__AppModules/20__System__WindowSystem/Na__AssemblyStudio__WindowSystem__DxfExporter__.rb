@@ -345,6 +345,11 @@ module Na__WindowSystem
             cas_left_stile = use_individual_sizes ? (config["casement_left_stile_mm"] || casement_width) : casement_width
             cas_right_stile = use_individual_sizes ? (config["casement_right_stile_mm"] || casement_width) : casement_width
             top_sash_bottom_rail = (config["top_sash_bottom_rail_mm"] || cas_bottom_rail).to_f
+            bottom_sash_top_rail = if config["bottom_sash_top_rail_override"] == true
+                (config["bottom_sash_top_rail_mm"] || cas_top_rail).to_f
+            else
+                cas_top_rail.to_f
+            end
             sash_horns_enabled = config["sash_horns_enabled"] != false
             sash_horn_type = config["sash_horn_type"] || "1"
             
@@ -411,7 +416,7 @@ module Na__WindowSystem
                             if sliding_sash_window
                                 entities += na_generate_sliding_sash_panel_dxf(
                                     panel_x, cell[:y], panel_width, cell[:height],
-                                    cas_top_rail, cas_bottom_rail, top_sash_bottom_rail, cas_left_stile, cas_right_stile,
+                                    cas_top_rail, cas_bottom_rail, top_sash_bottom_rail, bottom_sash_top_rail, cas_left_stile, cas_right_stile,
                                     h_bars, v_bars, bar_width, sliding_sash_overlap,
                                     opening_index: i, cell_index: cell_index, panel_index: p,
                                     removed_glazebars: removed_glazebars,
@@ -787,7 +792,7 @@ module Na__WindowSystem
         # ------------------------------------------------------------
         # Draws two stacked casements in one panel.
         # Bottom sash is extended by overlap amount to represent weathering tuck-under.
-        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, top_sash_bottom_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm, opening_index:, cell_index:, panel_index:, removed_glazebars:, sash_horns_enabled:, sash_horn_type:, advanced_glazebar: nil)
+        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, top_sash_bottom_rail, bottom_sash_top_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm, opening_index:, cell_index:, panel_index:, removed_glazebars:, sash_horns_enabled:, sash_horn_type:, advanced_glazebar: nil)
             dxf = ""
 
             sash_height = height.to_f / 2.0
@@ -803,7 +808,7 @@ module Na__WindowSystem
 
             dxf += na_generate_casement_dxf(
                 x, y, width, sash_height + sash_overlap,
-                top_rail, bottom_rail, left_stile, right_stile,
+                bottom_sash_top_rail, bottom_rail, left_stile, right_stile,
                 h_bars, v_bars, bar_width,
                 opening_index: opening_index, cell_index: cell_index, panel_index: panel_index, sash_index: 1,
                 removed_glazebars: removed_glazebars,

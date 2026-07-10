@@ -3,7 +3,7 @@
         "metadata": {
             "appName"           : "Element Assembly Studio Pro",
             "publisher"         : "Noble Architecture",
-            "version"           : "1.0.1",
+            "version"           : "1.1.0",
             "schemaVersion"     : 1
         },
 
@@ -49,6 +49,17 @@
                 "idRegex"                 : "^ADR\\d{3}$",
                 "idFormat"                : "ADR%03d",
                 "definitionNameSuffix"    : "__InteriorDoor__"
+            },
+            "exteriorDoubleDoorSystem": {
+                "instanceDictName"        : "Na__ExteriorDoubleDoorConfiguratorInfo",
+                "instanceIdAttribute"     : "DoorID",
+                "definitionDictPrefix"    : "Na__ExteriorDoubleDoorConfigurator_",
+                "metadataKey"             : "Na__ExteriorDoubleDoorMetadata",
+                "componentsKey"           : "Na__ExteriorDoubleDoorComponents",
+                "configurationKey"        : "Na__ExteriorDoubleDoorConfiguration",
+                "idRegex"                 : "^ADR\\d{3}$",
+                "idFormat"                : "ADR%03d",
+                "definitionNameSuffix"    : "__ExteriorDoubleDoor__"
             }
         },
 
@@ -93,6 +104,8 @@
                 "sashHornType"             : 1,
                 "topSashTopRailMm"         : 60,
                 "topSashBottomRailMm"      : 60,
+                "bottomSashTopRailOverride": false,
+                "bottomSashTopRailMm"      : 60,
                 "slidingSashBottomRailMm"  : 70,
                 "slidingSashLeftStileMm"   : 40,
                 "slidingSashRightStileMm"  : 40,
@@ -112,6 +125,25 @@
             }
         },
 
+        "exteriorDoubleDoorSystem": {
+            "defaults": {
+                "activeLeaf"               : "Left",
+                "swingDirection"            : "Inward",
+                "leftOpeningAngleDeg"       : 90,
+                "rightOpeningAngleDeg"      : 90,
+                "leftHingeProjectionMm"     : 0,
+                "rightHingeProjectionMm"    : 0,
+                "leafSettingsLinked"        : true,
+                "leafComposition"           : "GlazedOverFielded",
+                "panelOutputMode"           : "ThreeDimensional",
+                "panelProfile"              : "RaisedBevelled",
+                "panelTopRailWidthMm"       : 95,
+                "panelBottomRailWidthMm"    : 150,
+                "leafMaterialId"            : "MAT120__GenericWood",
+                "handleAssetKey"            : "Na__InteriorDoor__Handle__Default"
+            }
+        },
+
         "dxf": {
             "layers": {
                 "frame"         : "NA_FRAME",
@@ -122,7 +154,11 @@
                 "glazebar"      : "NA_GLAZEBAR",
                 "cill"          : "NA_CILL",
                 "doorPanel"     : "NA_DOOR_PANEL",
-                "doorTrim"      : "NA_DOOR_TRIM"
+                "doorTrim"      : "NA_DOOR_TRIM",
+                "doorLeaf"      : "NA_DOOR_LEAF",
+                "doorSwing"     : "NA_DOOR_SWING",
+                "doorHardware"  : "NA_DOOR_HARDWARE",
+                "dimensions"    : "NA_DIMENSIONS"
             }
         },
 

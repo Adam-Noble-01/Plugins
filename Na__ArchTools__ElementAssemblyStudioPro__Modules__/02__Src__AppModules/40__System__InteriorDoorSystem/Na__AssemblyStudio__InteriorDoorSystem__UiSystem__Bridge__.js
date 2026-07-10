@@ -332,6 +332,24 @@
 
             na_door_patch_select_options('Na__DoorConfig__HandleAssetKey', options, selectedKey);
             na_door_ensure_preview_cache_entry(selectedKey, 'asset-options-received');
+
+            // The Exterior Double Door system intentionally reuses this same
+            // InteriorDoor__Handles__ asset library rather than duplicating it.
+            var exteriorDescriptor = (window.NA_EXT_DOUBLE_DOOR_CONFIG || []).find(function (item) {
+                return item && item.id === 'double_door_handle_asset_key';
+            });
+            if (exteriorDescriptor) {
+                exteriorDescriptor.options = options;
+                var exteriorConfig = window.Na_DynamicUI &&
+                    typeof window.Na_DynamicUI.na_getConfig === 'function'
+                    ? window.Na_DynamicUI.na_getConfig()
+                    : {};
+                var exteriorSelectedKey = exteriorConfig.double_door_handle_asset_key;
+                if (!exteriorSelectedKey || !options.some(function (opt) { return opt.value === exteriorSelectedKey; })) {
+                    exteriorSelectedKey = payload.defaultKey || options[0].value;
+                }
+                na_door_patch_select_options('double_door_handle_asset_key', options, exteriorSelectedKey);
+            }
         } catch (err) {
             console.error('[Na_DoorBridge] Failed to receive handle asset options:', err);
         }

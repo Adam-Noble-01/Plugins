@@ -233,6 +233,9 @@ const Na__Viewport__SvgGenerator = (function() {
         const casLeftStile = useIndividualSizes ? (config.casement_left_stile_mm || casementWidth) : casementWidth;
         const casRightStile = useIndividualSizes ? (config.casement_right_stile_mm || casementWidth) : casementWidth;
         const topSashBottomRail = Math.max(0, Number(config.top_sash_bottom_rail_mm || casBottomRail));
+        const bottomSashTopRail = config.bottom_sash_top_rail_override === true
+            ? Math.max(0, Number(config.bottom_sash_top_rail_mm || casTopRail))
+            : Math.max(0, Number(casTopRail));
         const sashHornOptions = {
             enabled: config.sash_horns_enabled !== false,
             type: config.sash_horn_type || '1'
@@ -304,6 +307,7 @@ const Na__Viewport__SvgGenerator = (function() {
                         casTopRail: casTopRail,
                         casBottomRail: casBottomRail,
                         topSashBottomRail: topSashBottomRail,
+                        bottomSashTopRail: bottomSashTopRail,
                         casLeftStile: casLeftStile,
                         casRightStile: casRightStile,
                         sashHornOptions: sashHornOptions,
@@ -468,7 +472,7 @@ const Na__Viewport__SvgGenerator = (function() {
                         renderBucket,
                         na_generateSlidingSashPanelSvg(
                             panelX, cell.y, panelWidth, cell.height,
-                            options.casTopRail, options.casBottomRail, options.topSashBottomRail, options.casLeftStile, options.casRightStile,
+                            options.casTopRail, options.casBottomRail, options.topSashBottomRail, options.bottomSashTopRail, options.casLeftStile, options.casRightStile,
                             options.frameColor, options.hBars, options.vBars, options.barWidth, options.slidingSashOverlap,
                             panelContext, options.removedGlazebars, options.sashHornOptions, options.advancedGlazebar
                         )
@@ -724,7 +728,7 @@ const Na__Viewport__SvgGenerator = (function() {
     // ------------------------------------------------------------
     // Draws top and bottom casements stacked vertically.
     // Bottom sash gets a subtle shading overlay to indicate setback depth.
-    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar) {
+    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar) {
         const renderBucket = na_createSvgRenderBucket();
 
         const sashHeight = height / 2;
@@ -744,7 +748,7 @@ const Na__Viewport__SvgGenerator = (function() {
             renderBucket,
             na_generateSingleCasementSvg(
             x, bottomSashY, width, sashHeight + sashOverlap,
-            topRail, bottomRail, leftStile, rightStile,
+            bottomSashTopRail, bottomRail, leftStile, rightStile,
                 frameColor, hBars, vBars, barWidth,
                 {
                     openingIndex: panelContext.openingIndex,

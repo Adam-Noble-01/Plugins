@@ -78,6 +78,12 @@ module Na__InteriorDoorSystem
         # ------------------------------------------------------------
         NA_DOOR_ID_REGEX         = /^ADR\d{3}$/.freeze                         # <-- Validation pattern
         NA_DOOR_ID_FORMAT        = "ADR%03d".freeze                            # <-- sprintf format
+        NA_KNOWN_DOOR_INFO_DICTS = [
+            NA_DOOR_INFO_DICT,
+            "Na__BifoldDoorConfiguratorInfo",
+            "Na__SlidingDoorConfiguratorInfo",
+            "Na__ExteriorDoubleDoorConfiguratorInfo"
+        ].freeze
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -302,14 +308,18 @@ module Na__InteriorDoorSystem
             ids = []
 
             model.entities.grep(Sketchup::ComponentInstance).each do |instance|
-                door_id = instance.get_attribute(NA_DOOR_INFO_DICT, NA_DOOR_ID_KEY)
-                ids << door_id if door_id && na_valid_door_id?(door_id)
+                NA_KNOWN_DOOR_INFO_DICTS.each do |dictionary_name|
+                    door_id = instance.get_attribute(dictionary_name, NA_DOOR_ID_KEY)
+                    ids << door_id if door_id && na_valid_door_id?(door_id)
+                end
             end
 
             model.definitions.each do |definition|
                 definition.entities.grep(Sketchup::ComponentInstance).each do |instance|
-                    door_id = instance.get_attribute(NA_DOOR_INFO_DICT, NA_DOOR_ID_KEY)
-                    ids << door_id if door_id && na_valid_door_id?(door_id)
+                    NA_KNOWN_DOOR_INFO_DICTS.each do |dictionary_name|
+                        door_id = instance.get_attribute(dictionary_name, NA_DOOR_ID_KEY)
+                        ids << door_id if door_id && na_valid_door_id?(door_id)
+                    end
                 end
             end
 
