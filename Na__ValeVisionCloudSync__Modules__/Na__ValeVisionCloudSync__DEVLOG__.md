@@ -1,5 +1,26 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.3.0 — 09-Jul-2026 — MaxModel Projects Export SSOT Indexed Materials
+
+### Overview
+Projects whose local root folder ends in `__MaxModel` now sync with their SSOT indexed materials intact. The GLB export bridge detects the suffix and switches `TrueVision3D::GlbBuilderUtility` into `:indexed_only` material mode for the export (matching the old TrueVision Exporter's indexed option), so the exported GLBs keep their `MAT###__` material names and ValeVision3D MaxEngine can swap them from the DataLib materials index (`Na__DataLib__CoreIndex__Materials`). Whitecard/Blockout syncs are unchanged — and now deterministic: the bridge explicitly sets `:no_materials` for them, so a material mode left selected in the TrueVision Exporter UI can no longer leak into a sync. The builder's prior mode is restored after every export.
+
+### Added
+- **`na_max_model_project?`** in `Na__GlbExportBridge` — detects the `__MaxModel` suffix (case-insensitive) on the resolved project root.
+- **`na_set_material_export_mode`** in `Na__GlbExportBridge` — sets the builder's material export mode via `Na__MaterialEngine__SetExportMode`, returning the prior mode for restore; no-op on builder versions without the material engine API.
+- GLB report step message now states which material mode was used (`SSOT indexed materials (MaxModel)` vs `whitecard, no materials`).
+
+### Notes
+- No Ruby changes were needed anywhere else: `ProjectPathMapper` is suffix-agnostic and `ProjectDataWriter` already strips `__MaxModel`. The Python orchestrator already detects `__MaxModel` folders on first sync and writes `ProjectType: "MaxModel"` + `RenderEngine__Config: MaxEngine` into project.json, which drives the Whitecardopedia "Max Models" tab and ValeVision3D's automatic MaxEngine boot.
+- The Vale Project Structure Builder (`Py_WinUtil__BuildValeProjectStructure__Main__.py` v1.5.0) gained a "MaxModel" project type in the same change, so `__MaxModel` folders can now be created from the dropdown instead of by hand-renaming.
+
+### Files Changed
+- `04__Plugin__SyncFeatures/03__GlbExportBridge/Na__ValeVisionCloudSync__GlbExportBridge__.rb`
+- `Root_GeneralDeveloperTools/02_Python/10__Python__WinFileSystemTools/Py_WinUtil__BuildValeProjectStructure/Py_WinUtil__BuildValeProjectStructure__Main__.py` (companion change)
+
+# =============================================================================
+
+
 ## Operational Note — 07-Jul-2026 — Whitecardopedia Web Editor Can Now Rename Live Projects
 
 ### No code changes in this plugin — documentation only

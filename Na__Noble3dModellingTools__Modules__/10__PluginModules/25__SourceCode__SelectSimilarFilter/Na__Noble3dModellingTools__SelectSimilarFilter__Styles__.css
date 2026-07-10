@@ -1,0 +1,332 @@
+/* ============================================================================= */
+/* NA NOBLE3D MODELLING TOOLS - SELECT SIMILAR FILTER - STYLESHEET             */
+/*                                                                               */
+/* FILE       : Na__Noble3dModellingTools__SelectSimilarFilter__Styles__.css     */
+/* PURPOSE    : Light Noble Architecture theme for the Select Similar Filter     */
+/*              HtmlDialog — header, options, threshold, status, and footer.   */
+/* CREATED    : 2026                                                             */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens (:root Variables)
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    --naSelSim__Bg              : #f4f4f6;
+    --naSelSim__PanelBg         : #ffffff;
+    --naSelSim__Border          : #e0e0e0;
+    --naSelSim__BorderInput     : #ccc;
+    --naSelSim__Text            : #222222;
+    --naSelSim__TextTitle       : #111111;
+    --naSelSim__TextMuted       : #666666;
+    --naSelSim__TextLabel       : #333333;
+    --naSelSim__TextHelp        : #888888;
+    --naSelSim__Accent          : #2d7dd2;
+    --naSelSim__AccentHover     : #2268b8;
+    --naSelSim__BtnMutedBg      : #e8e8e8;
+    --naSelSim__BtnMutedHover   : #d8d8d8;
+    --naSelSim__BtnMutedText    : #444444;
+    --naSelSim__StatusSuccessBg : #e8f5e9;
+    --naSelSim__StatusSuccessFg : #2e7d32;
+    --naSelSim__StatusSuccessBd : #a5d6a7;
+    --naSelSim__StatusWarnBg    : #fff8e1;
+    --naSelSim__StatusWarnFg    : #795548;
+    --naSelSim__StatusWarnBd    : #ffe082;
+    --naSelSim__StatusErrorBg   : #ffebee;
+    --naSelSim__StatusErrorFg   : #c62828;
+    --naSelSim__StatusErrorBd   : #ef9a9a;
+    --naSelSim__FontFamily      : -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout — Document Reset, Shell
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing                  : border-box;
+}
+
+html,
+body {
+    margin                      : 0;
+    padding                     : 0;
+    height                      : 100%;
+    overflow                    : hidden;
+    font-family                 : var(--naSelSim__FontFamily);
+    font-size                   : 13px;
+    color                       : var(--naSelSim__Text);
+    background                  : var(--naSelSim__Bg);
+}
+
+.naSelSim__Shell {
+    display                     : flex;
+    flex-direction              : column;
+    height                      : 100vh;
+    overflow                    : hidden;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Header — Title, Subtitle, Reference Line
+ * ----------------------------------------------------------------------------- */
+
+.naSelSim__Header {
+    padding                     : 14px 18px 12px;
+    background                  : var(--naSelSim__PanelBg);
+    border-bottom               : 1px solid var(--naSelSim__Border);
+    flex-shrink                 : 0;
+}
+
+.naSelSim__Title {
+    font-size                   : 15px;
+    font-weight                 : 600;
+    color                       : var(--naSelSim__TextTitle);
+    margin                      : 0 0 3px;
+}
+
+.naSelSim__Subtitle {
+    font-size                   : 12px;
+    color                       : var(--naSelSim__TextMuted);
+    margin                      : 0 0 8px;
+}
+
+.naSelSim__ReferenceLine {
+    font-size                   : 12px;
+    font-weight                 : 600;
+    color                       : var(--naSelSim__Accent);
+    margin                      : 0;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Mode Row — Geometry / Groups & Components Toggle
+ * ----------------------------------------------------------------------------- */
+
+.naSelSim__ModeRow {
+    display                     : flex;
+    gap                         : 6px;
+    padding                     : 10px 18px;
+    background                  : var(--naSelSim__PanelBg);
+    border-bottom               : 1px solid var(--naSelSim__Border);
+    flex-shrink                 : 0;
+}
+
+.naSelSim__ModeBtn {
+    flex                        : 1;
+    padding                     : 7px 10px;
+    border                      : 1px solid var(--naSelSim__BorderInput);
+    border-radius               : 4px;
+    background                  : var(--naSelSim__PanelBg);
+    color                       : var(--naSelSim__BtnMutedText);
+    font-size                   : 12px;
+    font-weight                 : 500;
+    font-family                 : inherit;
+    cursor                      : pointer;
+    transition                  : background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.naSelSim__ModeBtn:hover {
+    border-color                : var(--naSelSim__Accent);
+}
+
+.naSelSim__ModeBtn--active {
+    background                  : var(--naSelSim__Accent);
+    border-color                : var(--naSelSim__Accent);
+    color                       : #ffffff;
+}
+
+.naSelSim__ModeBtn--active:hover {
+    background                  : var(--naSelSim__AccentHover);
+    border-color                : var(--naSelSim__AccentHover);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Body — Options, Threshold, Help Text
+ * ----------------------------------------------------------------------------- */
+
+.naSelSim__Body {
+    flex                        : 1;
+    overflow-y                  : auto;
+    padding                     : 14px 18px;
+    display                     : flex;
+    flex-direction              : column;
+    gap                         : 14px;
+}
+
+.naSelSim__Panel {
+    display                     : flex;
+    flex-direction              : column;
+    gap                         : 14px;
+}
+
+.naSelSim__Panel--hidden {
+    display                     : none;
+}
+
+.naSelSim__DeepNestedRow {
+    margin-top                  : -4px;
+}
+
+.naSelSim__OptionRow {
+    display                     : flex;
+    gap                         : 20px;
+}
+
+.naSelSim__CheckboxLabel {
+    display                     : flex;
+    align-items                 : center;
+    gap                         : 7px;
+    font-weight                 : 500;
+    cursor                      : pointer;
+}
+
+.naSelSim__CheckboxLabel input[type="checkbox"] {
+    width                       : 15px;
+    height                      : 15px;
+    cursor                      : pointer;
+    accent-color                : var(--naSelSim__Accent);
+}
+
+.naSelSim__ThresholdRow {
+    display                     : flex;
+    flex-direction              : column;
+    gap                         : 6px;
+}
+
+.naSelSim__ThresholdLabel {
+    font-weight                 : 500;
+    color                       : var(--naSelSim__TextLabel);
+}
+
+.naSelSim__ThresholdInput {
+    padding                     : 7px 9px;
+    border                      : 1px solid var(--naSelSim__BorderInput);
+    border-radius               : 4px;
+    font-size                   : 13px;
+    font-family                 : inherit;
+    width                       : 120px;
+    background                  : var(--naSelSim__PanelBg);
+    color                       : var(--naSelSim__Text);
+}
+
+.naSelSim__ThresholdInput:focus {
+    outline                     : none;
+    border-color                : var(--naSelSim__Accent);
+}
+
+.naSelSim__ThresholdInput:disabled {
+    background                  : var(--naSelSim__Bg);
+    color                       : var(--naSelSim__TextHelp);
+    cursor                      : not-allowed;
+}
+
+.naSelSim__HelpText {
+    font-size                   : 11px;
+    color                       : var(--naSelSim__TextHelp);
+    line-height                 : 1.5;
+    margin                      : 0;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Status Banner — Hidden, Success, Warn, Error
+ * ----------------------------------------------------------------------------- */
+
+.naSelSim__StatusBanner {
+    padding                     : 9px 11px;
+    border-radius               : 4px;
+    font-size                   : 12px;
+    line-height                 : 1.4;
+    background                  : var(--naSelSim__StatusWarnBg);
+    color                       : var(--naSelSim__StatusWarnFg);
+    border                      : 1px solid var(--naSelSim__StatusWarnBd);
+}
+
+.naSelSim__StatusBanner--hidden {
+    display                     : none;
+}
+
+.naSelSim__StatusBanner--success {
+    background                  : var(--naSelSim__StatusSuccessBg);
+    color                       : var(--naSelSim__StatusSuccessFg);
+    border-color                : var(--naSelSim__StatusSuccessBd);
+}
+
+.naSelSim__StatusBanner--warn {
+    background                  : var(--naSelSim__StatusWarnBg);
+    color                       : var(--naSelSim__StatusWarnFg);
+    border-color                : var(--naSelSim__StatusWarnBd);
+}
+
+.naSelSim__StatusBanner--error {
+    background                  : var(--naSelSim__StatusErrorBg);
+    color                       : var(--naSelSim__StatusErrorFg);
+    border-color                : var(--naSelSim__StatusErrorBd);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Footer — Action Buttons
+ * ----------------------------------------------------------------------------- */
+
+.naSelSim__Footer {
+    display                     : flex;
+    align-items                 : center;
+    justify-content             : flex-end;
+    padding                     : 12px 16px;
+    background                  : var(--naSelSim__PanelBg);
+    border-top                  : 1px solid var(--naSelSim__Border);
+    gap                         : 8px;
+    flex-shrink                 : 0;
+}
+
+.naSelSim__Btn {
+    padding                     : 7px 16px;
+    border                      : none;
+    border-radius               : 4px;
+    font-size                   : 13px;
+    font-weight                 : 500;
+    font-family                 : inherit;
+    cursor                      : pointer;
+    transition                  : background 0.15s, opacity 0.15s;
+}
+
+.naSelSim__Btn--primary {
+    background                  : var(--naSelSim__Accent);
+    color                       : #ffffff;
+}
+
+.naSelSim__Btn--primary:hover {
+    background                  : var(--naSelSim__AccentHover);
+}
+
+.naSelSim__Btn--muted {
+    background                  : var(--naSelSim__BtnMutedBg);
+    color                       : var(--naSelSim__BtnMutedText);
+}
+
+.naSelSim__Btn--muted:hover {
+    background                  : var(--naSelSim__BtnMutedHover);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* ============================================================================= */
+/* END OF FILE                                                                   */
+/* ============================================================================= */

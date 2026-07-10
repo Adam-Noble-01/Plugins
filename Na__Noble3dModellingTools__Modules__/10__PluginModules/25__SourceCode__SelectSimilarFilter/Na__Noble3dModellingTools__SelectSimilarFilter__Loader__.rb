@@ -10,6 +10,7 @@
 # =============================================================================
 
 require_relative 'Na__Noble3dModellingTools__SelectSimilarFilter__SimilarityMatcher__'
+require_relative 'Na__Noble3dModellingTools__SelectSimilarFilter__ContainerMatcher__'
 require_relative 'Na__Noble3dModellingTools__SelectSimilarFilter__SelectionObserver__'
 require_relative 'Na__Noble3dModellingTools__SelectSimilarFilter__DialogManager__'
 require_relative 'Na__Noble3dModellingTools__SelectSimilarFilter__Run__'

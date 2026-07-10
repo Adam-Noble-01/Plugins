@@ -415,6 +415,42 @@
             "menu_text"         : "Delete All Text and Leaders",
             "handler_key"       : "dimension_utils_delete_text_entities",
             "expose_to_hotkeys" : false
+        },
+        {
+            "command_id"        : "hide_nested_edges",
+            "command_name"      : "Na Noble3d - Hide Nested Edges",
+            "tooltip"           : "Hide selected edges and all edges nested inside selected groups and components",
+            "status_bar_text"   : "Hide edges throughout the selected hierarchy",
+            "menu_text"         : "Hide Nested Edges",
+            "handler_key"       : "hide_nested_edges",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "unhide_nested_edges",
+            "command_name"      : "Na Noble3d - Unhide Nested Edges",
+            "tooltip"           : "Unhide selected edges and all edges nested inside selected groups and components",
+            "status_bar_text"   : "Unhide edges throughout the selected hierarchy",
+            "menu_text"         : "Unhide Nested Edges",
+            "handler_key"       : "unhide_nested_edges",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "unsmooth_nested_edges",
+            "command_name"      : "Na Noble3d - Unsmooth Nested Edges",
+            "tooltip"           : "Remove smoothing from selected edges and all edges nested inside selected groups and components",
+            "status_bar_text"   : "Remove edge smoothing throughout the selected hierarchy",
+            "menu_text"         : "Unsmooth Nested Edges",
+            "handler_key"       : "unsmooth_nested_edges",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "unsoften_nested_edges",
+            "command_name"      : "Na Noble3d - Unsoften Nested Edges",
+            "tooltip"           : "Remove softening from selected edges and all edges nested inside selected groups and components",
+            "status_bar_text"   : "Remove edge softening throughout the selected hierarchy",
+            "menu_text"         : "Unsoften Nested Edges",
+            "handler_key"       : "unsoften_nested_edges",
+            "expose_to_hotkeys" : true
         }
     ],
     "buttons"                : [
@@ -716,6 +752,50 @@
             "description"            : "Prompts for a minimum edge length, then deletes all selected edges below that threshold using a group isolation strategy to preserve shared vertices."
         },
         {
+            "button_id"              : "btn_hide_nested_edges",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Nested Edge State",
+            "tool_group_description" : "Recursively change visibility, smoothing, and softening states without changing unselected shared component instances.",
+            "tool_group_order"       : 45,
+            "button_order"           : 10,
+            "button_label"           : "Hide Nested Edges",
+            "command_id"             : "hide_nested_edges",
+            "description"            : "Hides directly selected edges and every edge inside selected groups and components. Locked nested containers are skipped."
+        },
+        {
+            "button_id"              : "btn_unhide_nested_edges",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Nested Edge State",
+            "tool_group_description" : "Recursively change visibility, smoothing, and softening states without changing unselected shared component instances.",
+            "tool_group_order"       : 45,
+            "button_order"           : 20,
+            "button_label"           : "Unhide Nested Edges",
+            "command_id"             : "unhide_nested_edges",
+            "description"            : "Makes directly selected edges and every edge inside selected groups and components visible. Locked nested containers are skipped."
+        },
+        {
+            "button_id"              : "btn_unsmooth_nested_edges",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Nested Edge State",
+            "tool_group_description" : "Recursively change visibility, smoothing, and softening states without changing unselected shared component instances.",
+            "tool_group_order"       : 45,
+            "button_order"           : 30,
+            "button_label"           : "Unsmooth Nested Edges",
+            "command_id"             : "unsmooth_nested_edges",
+            "description"            : "Turns off SketchUp's Smooth property for directly selected and nested edges without changing their Soft or Hidden properties."
+        },
+        {
+            "button_id"              : "btn_unsoften_nested_edges",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Nested Edge State",
+            "tool_group_description" : "Recursively change visibility, smoothing, and softening states without changing unselected shared component instances.",
+            "tool_group_order"       : 45,
+            "button_order"           : 40,
+            "button_label"           : "Unsoften Nested Edges",
+            "command_id"             : "unsoften_nested_edges",
+            "description"            : "Turns off SketchUp's Soft property for directly selected and nested edges without changing their Smooth or Hidden properties."
+        },
+        {
             "button_id"              : "btn_flatten_3d_to_group",
             "tab_name"               : "Entity Utils",
             "tool_group_name"        : "Group / Component to 2D",
@@ -1012,6 +1092,22 @@
         {
             "command_id"        : "dimension_utils_delete_text_entities",
             "expose_to_hotkeys" : false
+        },
+        {
+            "command_id"        : "hide_nested_edges",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "unhide_nested_edges",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "unsmooth_nested_edges",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "unsoften_nested_edges",
+            "expose_to_hotkeys" : true
         }
     ]
 }

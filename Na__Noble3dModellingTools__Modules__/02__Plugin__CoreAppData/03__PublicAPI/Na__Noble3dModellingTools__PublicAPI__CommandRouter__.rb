@@ -168,6 +168,18 @@ module Na__Noble3dModellingTools
             when 'dimension_utils_delete_text_entities'
                 proc { Na__DimensionUtils.Na__DimensionUtils__RunDeleteTextEntities }
 
+            when 'hide_nested_edges'
+                proc { Na__NestedEdgeStateTools.Na__NestedEdgeStateTools__RunHideNestedEdges }
+
+            when 'unhide_nested_edges'
+                proc { Na__NestedEdgeStateTools.Na__NestedEdgeStateTools__RunUnhideNestedEdges }
+
+            when 'unsmooth_nested_edges'
+                proc { Na__NestedEdgeStateTools.Na__NestedEdgeStateTools__RunUnsmoothNestedEdges }
+
+            when 'unsoften_nested_edges'
+                proc { Na__NestedEdgeStateTools.Na__NestedEdgeStateTools__RunUnsoftenNestedEdges }
+
             else
                 nil
             end

@@ -3,6 +3,38 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.6.1 - 10-Jul-2026 - Nested Edge State Tools
+
+### Update 01 - New Tool Group: Nested Edge State (Four One-Click Commands)
+- Added four Pattern A one-shot commands at `10__PluginModules/26__SourceCode__NestedEdgeStateTools/` for recursively updating edge properties inside the current selection:
+  - **Hide Nested Edges** — sets `edge.hidden = true`
+  - **Unhide Nested Edges** — sets `edge.hidden = false`
+  - **Unsmooth Nested Edges** — sets `edge.smooth = false`
+  - **Unsoften Nested Edges** — sets `edge.soft = false`
+- Refactored the original prototype script into a modular 4-file split (`Mutator`, `Traversal`, `Run`, `Loader`) following Noble 3D Tools naming and single-responsibility conventions.
+- Soft, Smooth, and Hidden are handled as independent SketchUp edge properties, matching Entity Info and the Ruby API semantics.
+- Sub-devlog: `10__PluginModules/26__SourceCode__NestedEdgeStateTools/Na__Noble3dModellingTools__NestedEdgeStateTools__DEVLOG__.md`
+
+### Update 02 - Safe Recursive Editing Behaviour
+- Accepts directly selected edges, groups, and component instances; recursively walks nested containers with locked-container skipping, depth/cycle guards, and mutation preflight.
+- Calls `make_unique` only on branches that actually require a state change, and uniquifies the active editing path when the user is inside an open group/component so unselected shared instances are not affected.
+- Uses short-lived attribute tokens to remap the active-level selection after `make_unique`, then removes the temporary dictionary entirely before commit.
+
+### Update 03 - Registry, Router, and Loader Wiring
+- Registered four commands, four buttons (`Geometry Tools` > `Nested Edge State`, tool_group_order 45), and hotkey bindings in the JSON-driven UI command registry.
+- Wired handlers and module load paths through `Na__Noble3dModellingTools__PublicAPI__CommandRouter__.rb` and `Na__Noble3dModellingTools__ModuleLoaders__Main__.rb` (slot 26).
+
+### Validation Checklist
+- [x] All four commands appear in Noble 3D Tools dialog under Geometry Tools > Nested Edge State.
+- [x] All four commands appear in Extensions > Na__Noble3dModellingTools menu and are hotkey-bindable.
+- [x] Selecting a group/component updates every nested edge for the requested property.
+- [x] Locked nested containers are skipped and reported in the result message.
+- [x] Shared component instances outside the selected hierarchy remain unchanged.
+- [x] Each successful command is one Undo step; no-op runs abort cleanly.
+- [x] Reload Plugin Data loads the module without errors.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.5.8 - 08-Jul-2026 - Select Similar Filter (Array Selection Tool)
 
 ### Update 01 - New Tool: Select Similar Filter
