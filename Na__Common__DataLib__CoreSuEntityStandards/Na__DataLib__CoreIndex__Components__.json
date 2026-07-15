@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Components__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp component and group naming conventions. Documents the prefix systems, ID formats, sub-part names, and attribute dictionary keys used across all Na__ plugins. Serves as the reference for any plugin that creates or identifies Na__ components in the model. Also defines the Na__DataLib__PipelineExclusions render-pipeline exclusion lists consumed by the TrueVision GLB Builder and the TrueVision3D WebApp renderer.",
-        "version"           : "1.4.2",
-        "lastUpdated"       : "02-Jul-2026",
+        "version"           : "1.4.3",
+        "lastUpdated"       : "15-Jul-2026",
         "sourceFiles"       : [
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__DataSerializer__.rb",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__GeometryEngine__.rb",
@@ -120,6 +120,36 @@
                 "09_0100__SiteVegetation__Tree__MatureSpruce__14m-Height__Var-01": {
                     "SemanticName"  : "09_0100__SiteVegetation__Tree__MatureSpruce__14m-Height__Var-01",
                     "Description"   : "Mature spruce tree - 14m height - 2D camera-follow billboard variant 01",
+                    "Behaviours"    : {
+                        "CameraFollow" : true,
+                        "YawOnly"      : true,
+                        "AoExclude"    : true,
+                        "ShadeFlatness": 0.85
+                    }
+                },
+                "09_0200__SiteVegetation__Bush__Generic__0.6m-Height__Var-01": {
+                    "SemanticName"  : "09_0200__SiteVegetation__Bush__Generic__0.6m-Height__Var-01",
+                    "Description"   : "Small generic bush - 0.6m height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)",
+                    "Behaviours"    : {
+                        "CameraFollow" : true,
+                        "YawOnly"      : true,
+                        "AoExclude"    : true,
+                        "ShadeFlatness": 0.85
+                    }
+                },
+                "09_0300__SiteVegetation__Bush__Generic__1.0m-Height__Var-01": {
+                    "SemanticName"  : "09_0300__SiteVegetation__Bush__Generic__1.0m-Height__Var-01",
+                    "Description"   : "Medium generic bush - 1.0m height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)",
+                    "Behaviours"    : {
+                        "CameraFollow" : true,
+                        "YawOnly"      : true,
+                        "AoExclude"    : true,
+                        "ShadeFlatness": 0.85
+                    }
+                },
+                "09_0400__SiteVegetation__Bush__Generic__1.5m-Height__Var-01": {
+                    "SemanticName"  : "09_0400__SiteVegetation__Bush__Generic__1.5m-Height__Var-01",
+                    "Description"   : "Large generic bush - 1.5m height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)",
                     "Behaviours"    : {
                         "CameraFollow" : true,
                         "YawOnly"      : true,

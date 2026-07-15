@@ -1,5 +1,42 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.4.0 — 15-Jul-2026 — Per-Scene SketchUp Section Plane Capture
+
+### Overview
+Camera capture now also records each IMG## scene's active SketchUp section
+plane(s), so ValeVision3D can auto-create matching live cross sections per
+scene ("porting" the SketchUp section, including cap fills, clean profile
+lines and image-export support on the web side). Uses the SketchUp 2026+
+`Sketchup::Page#active_section_planes` API — no page switching required.
+Pages that don't store the section-plane property (Scenes dialog "Active
+Section Planes" unticked) emit `nil`, which tells ValeVision to leave its
+own per-scene section bindings untouched for that scene; scenes WITH a
+SketchUp section always win over ValeVision-authored bindings.
+
+### Added
+- **`Na__ValeVisionCloudSync__SectionPlaneCapture__.rb`** (new,
+  `04__Plugin__SyncFeatures/02__CameraDataCapture`) — converts
+  `SectionPlane#get_plane` `[a,b,c,d]` (inches) to a unit normal (Z-up) +
+  `position_mm` along the normal. SketchUp keeps geometry in FRONT of the
+  plane (normal side) — the same convention as three.js clipping, so the
+  web app consumes the values directly after its standard
+  `Three = (x, z, -y)` axis swap. Model-level planes only; planes nested in
+  groups/components are skipped with a console note (transform chain out of
+  scope for v1). Degrades to `nil` on pre-2026 SketchUp or any error.
+- **`section_planes` key** on every scene entry inside
+  `ValeVison3D__SketchUpCameraData` (array of plane hashes, or `nil` when
+  the scene has no section state). Flows through Full Sync and Update
+  Camera Data unchanged — no orchestrator or writer changes needed.
+
+### Files Changed
+- `04__Plugin__SyncFeatures/02__CameraDataCapture/Na__ValeVisionCloudSync__SectionPlaneCapture__.rb` (new)
+- `04__Plugin__SyncFeatures/02__CameraDataCapture/Na__ValeVisionCloudSync__CameraDataCapture__.rb`
+- `02__Plugin__CoreAppData/02__ModuleLoaders/Na__ValeVisionCloudSync__ModuleLoaders__Main__.rb`
+- Companion web-side change: ValeVision3D v2.12.0 (SketchUp section import + per-scene apply).
+
+# =============================================================================
+
+
 ## Version 0.3.0 — 09-Jul-2026 — MaxModel Projects Export SSOT Indexed Materials
 
 ### Overview

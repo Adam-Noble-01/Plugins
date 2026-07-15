@@ -134,7 +134,8 @@ module Na__ValeVisionCloudSync
                     'aspect_ratio'   => camera.aspect_ratio.to_f.round(4),
                     'image_width'    => camera.image_width.to_f.round(4)
                 },
-                'model_layer_visibility' => na_capture_tag_visibility(page)   # <-- Per-scene tag/layer on-off state for TrueVision3D
+                'model_layer_visibility' => na_capture_tag_visibility(page),  # <-- Per-scene tag/layer on-off state for TrueVision3D
+                'section_planes'         => na_capture_section_planes(page)   # <-- Per-scene active SketchUp section plane(s); nil = scene has none
             }
         rescue => error
             puts "[Na__ValeVisionCloudSync] Camera capture error on #{page.name}: #{error.message}"
@@ -160,6 +161,21 @@ module Na__ValeVisionCloudSync
         rescue => error
             puts "[Na__ValeVisionCloudSync] Tag visibility capture skipped for #{page.name}: #{error.message}"
             {}
+        end
+
+
+        # HELPER FUNCTION | Safely Capture Active Section Planes For A Scene
+        # ---------------------------------------------------------------
+        # Degrades to nil on any error (including pre-2026 SketchUp) so a
+        # section-capture failure never aborts camera capture. nil means
+        # "scene has no section state" — ValeVision then leaves its own
+        # per-scene section bindings untouched for the scene.
+        # ---------------------------------------------------------------
+        def self.na_capture_section_planes(page)
+            Na__SectionPlaneCapture.Na__ValeVisionCloudSync__CaptureSectionPlanesForScene(page)
+        rescue => error
+            puts "[Na__ValeVisionCloudSync] Section plane capture skipped for #{page.name}: #{error.message}"
+            nil
         end
 
 # endregion -------------------------------------------------------------------

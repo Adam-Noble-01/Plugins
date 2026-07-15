@@ -1,0 +1,23 @@
+.text-font {
+    margin: 15px;
+    font-family: Microsoft YaHei, sans-serif;
+    color: #000000;
+    font-size: 14px;
+    white-space: pre-line;
+}
+
+.button {
+    margin-top: 15px;
+    width: 120px;
+    height: 32px;
+    border-width: 0;
+    cursor: pointer;
+    outline: none;
+    font-family: Microsoft YaHei, sans-serif;
+    color: black;
+    font-size: 14px;
+}
+
+.button:hover {
+    background: #5599FF;
+}

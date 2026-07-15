@@ -1,0 +1,29 @@
+SUCCESS==Link success
+NOT_INSTALLED==Please install the latest version of D5 Render,or select installation folder if it has been installed
+SELECT_D5FOLDER==Please select the installation folder of D5 Render or retry after update D5 Render to the lastest version
+NOT_OPEN==Please create or open a project with D5 Render
+UNSUPPORTED_VERSION==Please install the latest version of D5 Render
+RENDERING==Please retry after exit rendering mode or finish the rendering within D5 Render
+RENDER_BUSY==Please retry after exit rendering mode or finish the rendering within D5 Render
+RENDER_BUSY_UPDATING==Please retry after D5 Render finish update
+USER_CANCEL==User cancel
+UNKNOWN_ERROR==Please launch D5 Render manually then sync again
+NOT_SAVE==Please save current file and retry
+NOT_IN_PROJECT==Please click "Start D5" and retry
+
+EMPTY==Model is empty!
+
+WAIT==Please select replace or create a new model in the D5 Render
+MS_SERVER_NOT_AVAILABLE==The communication to the D5 Render is abnormal
+STATUS_NULL==The connection to the D5 Render is abnormal
+MODEL_INVALID==The model association with the D5 Render has been broken
+LIVE_SYNC_ABORT==live sync abort
+LIVE_SYNC_RESTART==will soon start re-associating
+
+NO_VALID_SELECTED==No valid entity is selected. Please select at least one image, face, group, or component.
+LOAD_LIGHT_DATA_ERROR==There is an exception in loading D5 light data which may cause errors in light synchronization. Please use 'Connect to D5 Render' and save to version 2020 and above.
+ANOTHER_LITE_INSTANCE_RUNNING==D5 Lite is currently running, please close D5 Lite and try again.
+RENDER_RUNNING==D5 Render is currently active. Please close it to use D5 Lite
+LITE_MAIN_WINDOW_IS_RUNNING==Lite is running, please close the view port and try again.
+OPEN_LAUNCHER_INTALL_D5==D5 Render is not installed. Please open the D5 Launcher to download D5 Render
+LAUNCHER_NOT_INSTALLED==D5 Launcher is not installed. Please download it first
