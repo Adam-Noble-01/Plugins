@@ -23,8 +23,11 @@ module Na__SelectionHandler
         configuration = data[NA_KEY_CONFIGURATION].merge(
             'double_door_mode' => true,
             'door_mode' => false,
+            'ext_single_door_mode' => false,
             'sliding_mode' => false,
-            'multifold_mode' => false
+            'multifold_mode' => false,
+            'ui_element_category' => 'ExteriorDoors',
+            'ui_exterior_door_type' => 'Double'
         )
         data.merge(NA_KEY_CONFIGURATION => configuration)
     end

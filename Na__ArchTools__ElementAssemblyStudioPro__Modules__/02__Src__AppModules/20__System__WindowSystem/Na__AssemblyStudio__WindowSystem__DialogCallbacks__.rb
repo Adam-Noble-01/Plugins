@@ -42,6 +42,7 @@ module Na__AssemblyStudio
             @na_bifold_component     = nil
             @na_sliding_component    = nil
             @na_double_door_component = nil
+            @na_single_door_component = nil
             @na_config               = nil
             @na_last_measure_frame   = nil                                                                # <-- { :origin_in, :xaxis, :yaxis, :zaxis } or { :origin_in => Point3d }
             @na_current_placement_tool = nil
@@ -101,6 +102,13 @@ module Na__AssemblyStudio
                         na_load_exterior_double_door_into_dialog(instance, double_door_id)
                         return
                     end
+
+                    single_door_id = na_resolve_exterior_single_door_id(instance)
+                    if single_door_id
+                        DebugTools.na_debug_window("Existing exterior single door in selection: #{single_door_id}")
+                        na_load_exterior_single_door_into_dialog(instance, single_door_id)
+                        return
+                    end
                 end
                 @na_config = UiBridge.na_deep_clone(na_default_config)
             end
@@ -141,6 +149,18 @@ module Na__AssemblyStudio
             private_class_method :na_resolve_exterior_double_door_id
             # ---------------------------------------------------------------
 
+            # HELPER FUNCTION | Safely Resolve an Exterior Single Door ID
+            # ------------------------------------------------------------
+            def self.na_resolve_exterior_single_door_id(instance)
+                return nil unless defined?(Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer)
+                Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer
+                    .na_get_door_id_from_instance(instance)
+            rescue StandardError
+                nil
+            end
+            private_class_method :na_resolve_exterior_single_door_id
+            # ---------------------------------------------------------------
+
             # -----------------------------------------------------------------
             # REGION | Selection coordinator hooks
             # -----------------------------------------------------------------
@@ -149,6 +169,7 @@ module Na__AssemblyStudio
                 @na_bifold_component = nil
                 @na_sliding_component = nil
                 @na_double_door_component = nil
+                @na_single_door_component = nil
                 @na_window_component = instance
                 @na_config           = DataSerializer.na_load_window_data_from_instance(instance, window_id)
                 if @na_config
@@ -167,6 +188,7 @@ module Na__AssemblyStudio
                 @na_bifold_component = nil
                 @na_sliding_component = nil
                 @na_double_door_component = nil
+                @na_single_door_component = nil
                 @na_config           = UiBridge.na_deep_clone(na_default_config)
                 UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
             end
@@ -190,6 +212,7 @@ module Na__AssemblyStudio
                 @na_bifold_component = instance
                 @na_sliding_component = nil
                 @na_double_door_component = nil
+                @na_single_door_component = nil
                 @na_window_component = instance
 
                 stored = bifold_serializer.na_load_door_data_from_instance(instance, door_id)
@@ -207,6 +230,7 @@ module Na__AssemblyStudio
                 @na_bifold_component = nil
                 @na_sliding_component = nil
                 @na_double_door_component = nil
+                @na_single_door_component = nil
                 @na_window_component = nil
                 @na_config           = UiBridge.na_deep_clone(na_default_config)
                 UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
@@ -219,6 +243,7 @@ module Na__AssemblyStudio
                 @na_sliding_component = instance
                 @na_bifold_component = nil
                 @na_double_door_component = nil
+                @na_single_door_component = nil
                 @na_window_component  = instance
 
                 stored = sliding_serializer.na_load_door_data_from_instance(instance, door_id)
@@ -236,6 +261,7 @@ module Na__AssemblyStudio
                 @na_sliding_component = nil
                 @na_bifold_component = nil
                 @na_double_door_component = nil
+                @na_single_door_component = nil
                 @na_window_component  = nil
                 @na_config            = UiBridge.na_deep_clone(na_default_config)
                 UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
@@ -247,6 +273,7 @@ module Na__AssemblyStudio
                 serializer = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer
 
                 @na_double_door_component = instance
+                @na_single_door_component = nil
                 @na_bifold_component = nil
                 @na_sliding_component = nil
                 @na_window_component = instance
@@ -262,6 +289,38 @@ module Na__AssemblyStudio
             end
 
             def self.na_clear_exterior_double_door_from_dialog
+                @na_double_door_component = nil
+                @na_single_door_component = nil
+                @na_bifold_component = nil
+                @na_sliding_component = nil
+                @na_window_component = nil
+                @na_config = UiBridge.na_deep_clone(na_default_config)
+                UiBridge.na_invoke(@na_dialog, 'window.na_clearCurrentWindow')
+            end
+
+            # @delegate: ../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__DataSerializer__.rb
+            def self.na_load_exterior_single_door_into_dialog(instance, door_id)
+                return unless defined?(Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer)
+                serializer = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer
+
+                @na_single_door_component = instance
+                @na_double_door_component = nil
+                @na_bifold_component = nil
+                @na_sliding_component = nil
+                @na_window_component = instance
+                stored = serializer.na_load_from_instance(instance)
+                single_door_config = na_resolve_exterior_single_door_payload(stored)
+
+                @na_config = na_wrap_exterior_single_door_config_as_window_payload(door_id, single_door_config)
+                na_send_config_to_dialog
+                UiBridge.na_send_status(@na_dialog, 'info', "Loaded exterior single door: #{door_id}")
+            rescue StandardError => e
+                DebugTools.na_debug_error("[ExtSingleDoor] Error loading exterior single door #{door_id}", e)
+                UiBridge.na_send_status(@na_dialog, 'warning', "Exterior single door #{door_id} selected but config could not be read")
+            end
+
+            def self.na_clear_exterior_single_door_from_dialog
+                @na_single_door_component = nil
                 @na_double_door_component = nil
                 @na_bifold_component = nil
                 @na_sliding_component = nil
@@ -400,6 +459,10 @@ module Na__AssemblyStudio
                 merged["multifold_mode"] = true
                 merged["sliding_mode"]   = false
                 merged["door_mode"]      = false
+                merged["ext_single_door_mode"] = false
+                merged["double_door_mode"] = false
+                merged["ui_element_category"] = "ExteriorDoors"
+                merged["ui_exterior_door_type"] = "MultiFold"
 
                 {
                     "windowMetadata" => [
@@ -425,6 +488,10 @@ module Na__AssemblyStudio
                 merged["multifold_mode"] = false
                 merged["sliding_mode"]   = true
                 merged["door_mode"]      = false
+                merged["ext_single_door_mode"] = false
+                merged["double_door_mode"] = false
+                merged["ui_element_category"] = "ExteriorDoors"
+                merged["ui_exterior_door_type"] = "Sliding"
 
                 {
                     "windowMetadata" => [
@@ -450,7 +517,11 @@ module Na__AssemblyStudio
                 merged["multifold_mode"] = false
                 merged["sliding_mode"] = false
                 merged["door_mode"] = false
+                merged["ext_single_door_mode"] = false
                 merged["double_door_mode"] = true
+                merged["ui_element_category"] = "ExteriorDoors"
+                merged["ui_exterior_door_type"] = "Double"
+                merged["double_door_active_leaf_width_mm"] ||= "EQ"
 
                 {
                     "windowMetadata" => [
@@ -466,6 +537,47 @@ module Na__AssemblyStudio
                 }
             end
             private_class_method :na_wrap_exterior_double_door_config_as_window_payload
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Wrap Exterior Single Door Config for Window UI
+            # ------------------------------------------------------------
+            def self.na_wrap_exterior_single_door_config_as_window_payload(door_id, single_door_config)
+                merged = UiBridge.na_deep_clone(na_default_config["windowConfiguration"] || {})
+                merged.merge!(single_door_config) if single_door_config.is_a?(Hash)
+                merged["multifold_mode"] = false
+                merged["sliding_mode"] = false
+                merged["door_mode"] = false
+                merged["double_door_mode"] = false
+                merged["ext_single_door_mode"] = true
+                merged["ui_element_category"] = "ExteriorDoors"
+                merged["ui_exterior_door_type"] = "Single"
+
+                {
+                    "windowMetadata" => [
+                        {
+                            "WindowUniqueId" => door_id,
+                            "WindowDescription" => "Exterior Single Door",
+                            "CreatedDate" => "",
+                            "LastModified" => Time.now.strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                    ],
+                    "windowComponents" => [],
+                    "windowConfiguration" => merged
+                }
+            end
+            private_class_method :na_wrap_exterior_single_door_config_as_window_payload
+            # ---------------------------------------------------------------
+
+            def self.na_resolve_exterior_single_door_payload(stored_hash)
+                if stored_hash.is_a?(Hash)
+                    cfg_key = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::NA_KEY_CONFIGURATION
+                    if stored_hash[cfg_key].is_a?(Hash)
+                        return UiBridge.na_deep_clone(stored_hash[cfg_key])
+                    end
+                end
+                UiBridge.na_deep_clone(Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::NA_DEFAULT_DOOR_CONFIG)
+            end
+            private_class_method :na_resolve_exterior_single_door_payload
             # ---------------------------------------------------------------
 
             # -----------------------------------------------------------------
@@ -500,6 +612,10 @@ module Na__AssemblyStudio
 
                 if na_is_exterior_double_door_mode?(config["windowConfiguration"])
                     return na_handle_create_exterior_double_door(config, pending_frame, mode)
+                end
+
+                if na_is_exterior_single_door_mode?(config["windowConfiguration"])
+                    return na_handle_create_exterior_single_door(config, pending_frame, mode)
                 end
 
                 model     = Sketchup.active_model
@@ -947,6 +1063,10 @@ module Na__AssemblyStudio
                 window_config.is_a?(Hash) && window_config["double_door_mode"] == true
             end
 
+            def self.na_is_exterior_single_door_mode?(window_config)
+                window_config.is_a?(Hash) && window_config["ext_single_door_mode"] == true
+            end
+
             # @delegate: ../34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__GeometryEngine__.rb
             def self.na_handle_create_exterior_double_door(config, pending_frame = nil, mode = :auto)
                 window_config = config["windowConfiguration"] || {}
@@ -1032,6 +1152,91 @@ module Na__AssemblyStudio
                 DebugTools.na_debug_error("Live update exterior double door failed (non-fatal)", e)
             end
 
+            # @delegate: ../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__GeometryEngine__.rb
+            def self.na_handle_create_exterior_single_door(config, pending_frame = nil, mode = :auto)
+                window_config = config["windowConfiguration"] || {}
+                Na__AssemblyStudio::Na__ExteriorSingleDoorSystem.na_require_modules
+                engine = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__GeometryEngine
+                serializer = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer
+
+                instance = engine.na_build_exterior_single_door(window_config, nil, pending_frame)
+                unless instance && instance.valid?
+                    UiBridge.na_send_status(@na_dialog, 'error', 'Failed to create exterior single door geometry')
+                    return
+                end
+
+                na_track_created_component(instance, :single_door)
+                door_id = serializer.na_get_door_id_from_instance(instance)
+                if config["windowMetadata"] && config["windowMetadata"][0]
+                    config["windowMetadata"][0]["WindowUniqueId"] = door_id
+                    config["windowMetadata"][0]["CreatedDate"] = Time.now.strftime("%Y-%m-%d %H:%M:%S")
+                    config["windowMetadata"][0]["LastModified"] = Time.now.strftime("%Y-%m-%d %H:%M:%S")
+                end
+                @na_config = config
+                na_finalise_bifold_or_sliding_placement(instance, pending_frame, mode, "Exterior single")
+            rescue StandardError => e
+                DebugTools.na_debug_error("Error creating exterior single door", e)
+                UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
+            end
+
+            def self.na_handle_update_exterior_single_door(config)
+                instance = @na_single_door_component
+                unless instance && instance.valid?
+                    UiBridge.na_send_status(@na_dialog, 'warning', 'No exterior single door selected to update')
+                    return
+                end
+
+                Na__AssemblyStudio::Na__ExteriorSingleDoorSystem.na_require_modules
+                engine = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__GeometryEngine
+                serializer = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer
+                current_id = serializer.na_get_door_id_from_instance(instance)
+                incoming_id = config.dig("windowMetadata", 0, "WindowUniqueId")
+                unless current_id
+                    UiBridge.na_send_status(@na_dialog, 'warning', 'Selected component is not an exterior single door')
+                    return
+                end
+                if incoming_id && incoming_id != current_id
+                    UiBridge.na_send_status(@na_dialog, 'warning', "Update rejected: selected #{current_id}, received #{incoming_id}")
+                    return
+                end
+                updated = engine.na_update_exterior_single_door(instance, config["windowConfiguration"] || {})
+                if updated
+                    @na_config = config
+                    UiBridge.na_send_status(@na_dialog, 'success', "Exterior single door updated: #{instance.name}")
+                else
+                    UiBridge.na_send_status(@na_dialog, 'error', 'Exterior single door update failed')
+                end
+            rescue StandardError => e
+                DebugTools.na_debug_error("Error updating exterior single door", e)
+                UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
+            end
+
+            def self.na_handle_live_update_exterior_single_door(config)
+                instance = @na_single_door_component
+                return unless instance && instance.valid?
+
+                Na__AssemblyStudio::Na__ExteriorSingleDoorSystem.na_require_modules
+                serializer = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer
+                current_id = serializer.na_get_door_id_from_instance(instance)
+                incoming_id = config.dig("windowMetadata", 0, "WindowUniqueId")
+                if incoming_id && current_id && incoming_id != current_id
+                    DebugTools.na_debug_warn("Exterior single door live update skipped: stale #{incoming_id}, current #{current_id}")
+                    return
+                end
+
+                engine = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__GeometryEngine
+                if engine.na_update_exterior_single_door(
+                    instance,
+                    config["windowConfiguration"] || {},
+                    transparent: true
+                )
+                    @na_config = config
+                    Sketchup.active_model.active_view.invalidate
+                end
+            rescue StandardError => e
+                DebugTools.na_debug_error("Live update exterior single door failed (non-fatal)", e)
+            end
+
             # endregion -------------------------------------------------------
 
             # HELPER FUNCTION | Track One Newly Created Window-Tab Product
@@ -1041,6 +1246,7 @@ module Na__AssemblyStudio
                 @na_bifold_component = type == :bifold ? instance : nil
                 @na_sliding_component = type == :sliding ? instance : nil
                 @na_double_door_component = type == :double_door ? instance : nil
+                @na_single_door_component = type == :single_door ? instance : nil
             end
             private_class_method :na_track_created_component
             # ---------------------------------------------------------------
@@ -1102,6 +1308,10 @@ module Na__AssemblyStudio
 
                 if na_is_exterior_double_door_mode?(config["windowConfiguration"])
                     return na_handle_update_exterior_double_door(config)
+                end
+
+                if na_is_exterior_single_door_mode?(config["windowConfiguration"])
+                    return na_handle_update_exterior_single_door(config)
                 end
 
                 unless @na_window_component && @na_window_component.valid?
@@ -1187,6 +1397,10 @@ module Na__AssemblyStudio
 
                 if na_is_exterior_double_door_mode?(config["windowConfiguration"])
                     return na_handle_live_update_exterior_double_door(config)
+                end
+
+                if na_is_exterior_single_door_mode?(config["windowConfiguration"])
+                    return na_handle_live_update_exterior_single_door(config)
                 end
 
                 incoming_id = nil

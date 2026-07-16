@@ -59,7 +59,10 @@ require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Box__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
+require_relative '../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__PanelGeometryBuilder__'
+require_relative '../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__PanelLineworkBuilder__'
 require_relative 'Na__AssemblyStudio__ExtFold__GeometryHelpers__'
+require_relative 'Na__AssemblyStudio__ExtFold__PanelLayoutResolver__'
 require_relative 'Na__AssemblyStudio__ExtFold__RotationPivotBuilder__'
 require_relative 'Na__AssemblyStudio__ExtFold__MovementPivotBuilder__'
 
@@ -75,8 +78,13 @@ module Na__AssemblyComposer
     TagManager           = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
     Box                  = Na__AssemblyStudio::Na__GeometryHelpers::Na__Box
     GeometryHelpers      = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryHelpers
+    PanelLayoutResolver  = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__PanelLayoutResolver
+    SharedPanelGeometry  = Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__PanelGeometryBuilder
+    SharedPanelLinework  = Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__PanelLineworkBuilder
     RotationPivotBuilder = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__RotationPivotBuilder
     MovementPivotBuilder = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__MovementPivotBuilder
+    WindowBuilders       = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
+    NA_PANEL_NAMING      = { :container => 'Na__ExteriorMultiFoldDoor' }.freeze
 
 # endregion -------------------------------------------------------------------
 
@@ -371,11 +379,6 @@ module Na__AssemblyComposer
         glass_material  = materials[:glass]
 
         panel_t_mm      = config_hash["bifold_door_panel_thickness_mm"].to_f
-        head_rail_mm    = config_hash["bifold_door_head_rail_mm"].to_f
-        base_rail_mm    = config_hash["bifold_door_base_rail_mm"].to_f
-        stile_width_mm  = config_hash["bifold_door_stile_width_mm"].to_f
-        is_glazed       = config_hash["bifold_door_glazed"] == true
-
         panel_w_mm      = descriptor[:width_mm].to_f
         panel_h_mm      = descriptor[:height_mm].to_f
         origin_x_mm     = dims[:frame_left_mm]   + descriptor[:origin_x_mm].to_f
@@ -383,18 +386,31 @@ module Na__AssemblyComposer
                               panel_t_mm, dims[:frame_depth_mm], dims[:frame_wall_inset_mm]
                           )
         origin_z_mm     = dims[:frame_bottom_mm]
-
         panel_id        = na_resolve_panel_id(descriptor, door_id)
         part_names      = na_resolve_panel_part_names(panel_id)
 
-        na_build_panel_stiles(mod_entities, origin_x_mm, origin_y_mm, origin_z_mm,
-                              panel_w_mm, panel_h_mm, panel_t_mm,
-                              stile_width_mm, part_names, frame_material)
-        na_build_panel_rails(mod_entities, origin_x_mm, origin_y_mm, origin_z_mm,
-                             panel_w_mm, panel_h_mm, panel_t_mm,
-                             head_rail_mm, base_rail_mm, stile_width_mm, part_names, frame_material)
+        leaf = {
+            :index => descriptor[:index].to_i,
+            :origin_x_mm => origin_x_mm,
+            :origin_y_mm => origin_y_mm,
+            :origin_z_mm => origin_z_mm,
+            :width_mm => panel_w_mm,
+            :height_mm => panel_h_mm,
+            :thickness_mm => panel_t_mm
+        }
+        # @delegate: Na__AssemblyStudio__ExtFold__PanelLayoutResolver__.rb
+        panel_layout = PanelLayoutResolver.na_resolve(config_hash, leaf)
 
-        if is_glazed
+        if panel_layout[:composition] == 'FullyGlazed'
+            head_rail_mm   = config_hash["bifold_door_head_rail_mm"].to_f
+            base_rail_mm   = config_hash["bifold_door_base_rail_mm"].to_f
+            stile_width_mm = config_hash["bifold_door_stile_width_mm"].to_f
+            na_build_panel_stiles(mod_entities, origin_x_mm, origin_y_mm, origin_z_mm,
+                                  panel_w_mm, panel_h_mm, panel_t_mm,
+                                  stile_width_mm, part_names, frame_material)
+            na_build_panel_rails(mod_entities, origin_x_mm, origin_y_mm, origin_z_mm,
+                                 panel_w_mm, panel_h_mm, panel_t_mm,
+                                 head_rail_mm, base_rail_mm, stile_width_mm, part_names, frame_material)
             na_build_panel_glazing(mod_entities, origin_x_mm, origin_y_mm, origin_z_mm,
                                    panel_w_mm, panel_h_mm, panel_t_mm,
                                    head_rail_mm, base_rail_mm, stile_width_mm, part_names, glass_material)
@@ -404,23 +420,99 @@ module Na__AssemblyComposer
                                       head_rail_mm, base_rail_mm, stile_width_mm,
                                       panel_id, descriptor[:index].to_i,
                                       frame_material)
+        else
+            na_build_fielded_leaf_members(mod_entities, leaf, panel_layout, part_names, frame_material)
+            na_build_fielded_field_dividers(mod_entities, leaf, panel_layout, frame_material, panel_id)
+            na_build_fielded_glazed_region(mod_entities, leaf, panel_layout, part_names, materials)
+            if panel_layout[:output_mode] == 'Linework'
+                SharedPanelLinework.na_build(mod_entities, leaf, panel_layout, frame_material, NA_PANEL_NAMING)
+            else
+                SharedPanelGeometry.na_build(mod_entities, leaf, panel_layout, frame_material, NA_PANEL_NAMING)
+            end
         end
 
-        # NOTE | Handle placement is wired up in Phase-3.5 alongside the bifold
-        # DataSerializer + SelectionCoordinator. Per-panel handle pseudo-config:
-        # - Reuses Na__InteriorDoorSystem::Na__HandleBuilder3D as-is.
-        # - Maps bifold_door_handle_asset_key -> Na__DoorConfig__HandleAssetKey.
-        # - Maps panel_w_mm -> Na__DoorConfig__OpeningWidth_mm (lining = 0).
-        # - Maps descriptor[:handle_side] -> Na__DoorConfig__SwingSide.
-        # - Wraps the handles in a temporary group, translates by
-        #   (origin_x_mm, origin_y_mm, 0), then explodes back into mod_entities.
-
         DebugTools.na_debug_geometry(
-            "ExtFold MOD: #{mod_name} (panel #{descriptor[:index]}, w=#{panel_w_mm.round}mm, role=#{descriptor[:role]})"
+            "ExtFold MOD: #{mod_name} (panel #{descriptor[:index]}, w=#{panel_w_mm.round}mm, role=#{descriptor[:role]}, composition=#{panel_layout[:composition]})"
         )
         mod_group
     end
     private_class_method :na_build_panel_mod_group
+    # ---------------------------------------------------------------
+
+    def self.na_build_fielded_leaf_members(entities, leaf, layout, part_names, material)
+        members = layout[:members]
+        stile = members[:stile_width_mm]
+        top_rail = members[:top_rail_width_mm]
+        bottom_rail = members[:bottom_rail_width_mm]
+        na_create_box_mm(entities, part_names[:stile_left], leaf[:origin_x_mm], leaf[:origin_y_mm], leaf[:origin_z_mm],
+                         stile, leaf[:thickness_mm], leaf[:height_mm], material)
+        na_create_box_mm(entities, part_names[:stile_right], leaf[:origin_x_mm] + leaf[:width_mm] - stile,
+                         leaf[:origin_y_mm], leaf[:origin_z_mm], stile, leaf[:thickness_mm], leaf[:height_mm], material)
+        inner_width = leaf[:width_mm] - 2.0 * stile
+        na_create_box_mm(entities, part_names[:rail_bottom], leaf[:origin_x_mm] + stile, leaf[:origin_y_mm], leaf[:origin_z_mm],
+                         inner_width, leaf[:thickness_mm], bottom_rail, material)
+        na_create_box_mm(entities, part_names[:rail_top], leaf[:origin_x_mm] + stile, leaf[:origin_y_mm],
+                         leaf[:origin_z_mm] + leaf[:height_mm] - top_rail,
+                         inner_width, leaf[:thickness_mm], top_rail, material)
+
+        return unless layout[:composition] == 'GlazedOverFielded' && layout[:field_region]
+        mid_z = layout[:field_region][:z_mm] + layout[:field_region][:height_mm]
+        panel_token = part_names[:glazing].to_s.sub(/^Na_Glass_/, '')
+        na_create_box_mm(entities, "Na_DoorPanel_#{panel_token}_Rail_Mid",
+                         leaf[:origin_x_mm] + stile, leaf[:origin_y_mm], mid_z,
+                         inner_width, leaf[:thickness_mm], members[:mid_rail_width_mm], material)
+    end
+    private_class_method :na_build_fielded_leaf_members
+    # ---------------------------------------------------------------
+
+    def self.na_build_fielded_field_dividers(entities, leaf, layout, material, panel_id)
+        layout[:field_dividers].each do |divider|
+            role = divider[:orientation] == :vertical ? 'FieldStile' : 'FieldRail'
+            name = format('Na__ExteriorMultiFoldDoor__%s__%s%02d', panel_id, role, divider[:index])
+            na_create_box_mm(entities, name, divider[:x_mm], leaf[:origin_y_mm], divider[:z_mm],
+                             divider[:width_mm], leaf[:thickness_mm], divider[:height_mm], material)
+        end
+    end
+    private_class_method :na_build_fielded_field_dividers
+    # ---------------------------------------------------------------
+
+    def self.na_build_fielded_glazed_region(entities, leaf, layout, part_names, materials)
+        region = layout[:glazed_region]
+        return unless region && region[:height_mm] > 0
+
+        glass_depth = [leaf[:thickness_mm] * 0.35, 2.0].max
+        glass_y = leaf[:origin_y_mm] + (leaf[:thickness_mm] - glass_depth) / 2.0
+        na_create_box_mm(entities, part_names[:glazing],
+                         region[:x_mm], glass_y, region[:z_mm],
+                         region[:width_mm], glass_depth, region[:height_mm], materials[:glass])
+
+        bars = layout[:glaze_bars]
+        return unless bars && (bars[:vertical_count].to_i > 0 || bars[:horizontal_count].to_i > 0)
+
+        panel_token = part_names[:glazing].to_s.sub(/^Na_Glass_/, '')
+        y = leaf[:origin_y_mm] + bars[:inset_mm]
+        depth = [leaf[:thickness_mm] - 2.0 * bars[:inset_mm], 2.0].max
+        vertical_positions = WindowBuilders.na_compute_bar_positions(
+            region[:x_mm], region[:width_mm], bars[:vertical_count],
+            bars[:margin_enabled], bars[:margin_offset_mm]
+        )
+        horizontal_positions = WindowBuilders.na_compute_bar_positions(
+            region[:z_mm], region[:height_mm], bars[:horizontal_count],
+            bars[:margin_enabled], bars[:margin_offset_mm]
+        ).map { |position| position + bars[:horizontal_offset_mm] }
+
+        vertical_positions.each_with_index do |x, index|
+            na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_V#{index + 1}",
+                             x - bars[:width_mm] / 2.0, y, region[:z_mm],
+                             bars[:width_mm], depth, region[:height_mm], materials[:frame])
+        end
+        horizontal_positions.each_with_index do |z, index|
+            na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_H#{index + 1}",
+                             region[:x_mm], y, z - bars[:width_mm] / 2.0,
+                             region[:width_mm], depth, bars[:width_mm], materials[:frame])
+        end
+    end
+    private_class_method :na_build_fielded_glazed_region
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Resolve the FuseParts-Compatible Panel Identifier

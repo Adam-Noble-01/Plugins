@@ -145,16 +145,27 @@ module Na__ExteriorMultiFoldingDoorSystem
     # `bifold_door_opening_height_mm`, `bifold_door_floor_clearance_mm`,
     # `bifold_door_wall_depth_mm` are migrated on load.
     NA_DEFAULT_DOOR_CONFIG = {
-        "bifold_door_layout"             => NA_LAYOUT_EQUAL_EQUAL,           # <-- EqualEqual | AllOneWay | MasterSlaves
-        "bifold_door_open_side"          => "Right",                         # <-- AllOneWay only (Left | Right)
-        "bifold_door_master_side"        => "Right",                         # <-- MasterSlaves only (Left | Right)
-        "bifold_door_panel_count"        => 4,                               # <-- 2..8 leaves (default 4)
-        "bifold_door_panel_thickness_mm" => 50,                              # <-- Per-leaf thickness
-        "bifold_door_head_rail_mm"       => 95,                              # <-- Per-leaf head rail height
-        "bifold_door_base_rail_mm"       => 200,                             # <-- Per-leaf base rail height
-        "bifold_door_stile_width_mm"     => 95,                              # <-- Per-leaf stile width
-        "bifold_door_glazed"             => true,                            # <-- Fully glazed default
-        "bifold_door_panel_design_open"  => false,                           # <-- Reveals PanelDesign sub-panel (Phase-3.6)
+        "bifold_door_layout"             => NA_LAYOUT_EQUAL_EQUAL,
+        "bifold_door_open_side"          => "Right",
+        "bifold_door_master_side"        => "Right",
+        "bifold_door_panel_count"        => 4,
+        "bifold_door_panel_thickness_mm" => 50,
+        "bifold_door_head_rail_mm"       => 95,
+        "bifold_door_base_rail_mm"       => 200,
+        "bifold_door_stile_width_mm"     => 95,
+        "bifold_door_leaf_composition"   => "FullyGlazed",
+        "bifold_door_mid_rail_width_mm"  => 120,
+        "bifold_door_panel_output_mode"  => "ThreeDimensional",
+        "bifold_door_panel_profile"      => "RaisedBevelled",
+        "bifold_door_panel_preset"       => "OnePanel",
+        "bifold_door_panel_columns"      => 1,
+        "bifold_door_panel_rows"         => 1,
+        "bifold_door_fielded_section_height_mm" => 300,
+        "bifold_door_panel_inset_mm"     => 25,
+        "bifold_door_panel_depth_mm"     => 12,
+        "bifold_door_panel_bevel_width_mm" => 18,
+        "bifold_door_glazed"             => true,
+        "bifold_door_panel_design_open"  => false,
         "bifold_door_handle_asset_key"   => "Na__ExteriorDoor__Handle__BifoldDefault",
         "bifold_door_handle_height_mm"   => 1000
     }.freeze
@@ -171,6 +182,7 @@ module Na__ExteriorMultiFoldingDoorSystem
         return if @na_bifold_modules_loaded
 
         require_relative 'Na__AssemblyStudio__ExtFold__GeometryHelpers__'
+        require_relative 'Na__AssemblyStudio__ExtFold__PanelLayoutResolver__'
         require_relative 'Na__AssemblyStudio__ExtFold__RotationPivotBuilder__'
         require_relative 'Na__AssemblyStudio__ExtFold__MovementPivotBuilder__'
         require_relative 'Na__AssemblyStudio__ExtFold__Layout__EqualEqual__'

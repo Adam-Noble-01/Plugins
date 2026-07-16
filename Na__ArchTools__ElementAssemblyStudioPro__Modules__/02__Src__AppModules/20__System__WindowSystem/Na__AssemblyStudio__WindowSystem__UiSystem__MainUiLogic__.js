@@ -125,6 +125,7 @@ const Na_DynamicUI = (function() {
         _config.removed_transom_segments = [];
         _config.removed_glazebars = [];
         _config.double_door_removed_glazebars = [];
+        na_syncModeFlagsFromHierarchy();
     }
     // ---------------------------------------------------------------
     
@@ -139,10 +140,6 @@ const Na_DynamicUI = (function() {
 
         if (id === 'transoms') {
             na_applyTransomDefaultsForCountChange(previousValue, value);
-        }
-
-        if (id === 'sliding_sash_window' && normalizedValue === true) {
-            na_applySlidingSashCasementDefaults();
         }
 
         if (id === 'bottom_sash_top_rail_override' && normalizedValue === true && previousValue !== true) {
@@ -192,29 +189,23 @@ const Na_DynamicUI = (function() {
             na_syncArchAmountFromVerticalBars(value);
         }
 
-        // Mutual exclusivity between the exterior door-mode flags. When one
-        // mode toggles ON, the others toggle OFF so the user cannot
-        // emit a hybrid window+sliding+bifold artefact. Touching the
-        // _config Hash AND the live DOM toggle classes keeps the visual
-        // state in sync without re-running na_buildControls.
-        if (value === true && (id === 'door_mode' || id === 'sliding_mode' || id === 'multifold_mode' || id === 'double_door_mode')) {
-            ['door_mode', 'sliding_mode', 'multifold_mode', 'double_door_mode'].forEach(otherId => {
-                if (otherId === id) return;
-                if (_config[otherId] === true) {
-                    _config[otherId] = false;
-                    const otherToggle = document.getElementById(`${otherId}-toggle`);
-                    if (otherToggle) {
-                        otherToggle.dataset.value = 'false';
-                        otherToggle.classList.remove('na-active');
-                    }
+        // Hierarchical product type: Window|Exterior Doors, then a second-row
+        // exclusive subtype. Legacy boolean mode flags are derived here so
+        // Ruby DialogCallbacks keep working unchanged.
+        if (id === 'ui_element_category' || id === 'ui_window_type' || id === 'ui_exterior_door_type') {
+            const previousModeId = na_resolveActiveProductModeId();
+            na_syncModeFlagsFromHierarchy();
+            const nextModeId = na_resolveActiveProductModeId();
+            if (nextModeId !== previousModeId) {
+                if (nextModeId === 'sliding_sash_window') {
+                    na_applySlidingSashCasementDefaults();
+                } else if (nextModeId) {
+                    na_applyDoorModeDefaultDimensions(nextModeId);
+                    if (nextModeId === 'double_door_mode') na_seedDoubleDoorActiveLeafWidth();
                 }
-            });
-
-            // Seed door-appropriate default dimensions so the user starts
-            // with a valid door opening rather than the window defaults
-            // (900 x 1200mm), which would trigger validation errors.
-            na_applyDoorModeDefaultDimensions(id);
-            if (id === 'double_door_mode') na_seedDoubleDoorActiveLeafWidth();
+            } else if (nextModeId === 'double_door_mode' && id === 'ui_exterior_door_type') {
+                na_seedDoubleDoorActiveLeafWidth();
+            }
         }
 
         na_onConfigChange();
@@ -282,15 +273,98 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
     
+    // FUNCTION | Derive Legacy Mode Flags From Hierarchical Product Controls
+    // ------------------------------------------------------------
+    function na_syncModeFlagsFromHierarchy() {
+        const category = _config.ui_element_category || 'Window';
+        _config.door_mode = false;
+        _config.ext_single_door_mode = false;
+        _config.sliding_mode = false;
+        _config.multifold_mode = false;
+        _config.double_door_mode = false;
+        _config.sliding_sash_window = false;
+
+        if (category === 'ExteriorDoors') {
+            const doorType = _config.ui_exterior_door_type || 'Double';
+            if (doorType === 'Double') {
+                _config.double_door_mode = true;
+            } else if (doorType === 'Single') {
+                _config.ext_single_door_mode = true;
+            } else if (doorType === 'Sliding') {
+                _config.sliding_mode = true;
+            } else if (doorType === 'MultiFold') {
+                _config.multifold_mode = true;
+            }
+            return;
+        }
+
+        if ((_config.ui_window_type || 'Casement') === 'SlidingSash') {
+            _config.sliding_sash_window = true;
+        }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Hydrate Hierarchy Controls From Legacy Mode Flags
+    // ------------------------------------------------------------
+    // Used when Ruby selection restore still sends boolean mode flags.
+    function na_hydrateHierarchyFromModeFlags() {
+        if (_config.double_door_mode === true) {
+            _config.ui_element_category = 'ExteriorDoors';
+            _config.ui_exterior_door_type = 'Double';
+        } else if (_config.ext_single_door_mode === true || _config.door_mode === true) {
+            _config.ui_element_category = 'ExteriorDoors';
+            _config.ui_exterior_door_type = 'Single';
+            _config.ext_single_door_mode = true;
+            _config.door_mode = false;
+        } else if (_config.sliding_mode === true) {
+            _config.ui_element_category = 'ExteriorDoors';
+            _config.ui_exterior_door_type = 'Sliding';
+        } else if (_config.multifold_mode === true) {
+            _config.ui_element_category = 'ExteriorDoors';
+            _config.ui_exterior_door_type = 'MultiFold';
+        } else {
+            _config.ui_element_category = 'Window';
+            _config.ui_window_type = _config.sliding_sash_window === true ? 'SlidingSash' : 'Casement';
+        }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Resolve Active Product Mode Id For Dimension Seeding
+    // ------------------------------------------------------------
+    function na_resolveActiveProductModeId() {
+        if (_config.double_door_mode === true) return 'double_door_mode';
+        if (_config.ext_single_door_mode === true) return 'ext_single_door_mode';
+        if (_config.sliding_mode === true) return 'sliding_mode';
+        if (_config.multifold_mode === true) return 'multifold_mode';
+        if (_config.sliding_sash_window === true) return 'sliding_sash_window';
+        return null;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Show / Hide Hierarchical Second-Row Product Controls
+    // ------------------------------------------------------------
+    function na_updateProductTypeControlVisibility() {
+        const isExterior = (_config.ui_element_category || 'Window') === 'ExteriorDoors';
+        const windowTypeControl = document.querySelector('[data-control-id="ui_window_type"]');
+        const doorTypeControl = document.querySelector('[data-control-id="ui_exterior_door_type"]');
+        if (windowTypeControl) windowTypeControl.style.display = isExterior ? 'none' : '';
+        if (doorTypeControl) doorTypeControl.style.display = isExterior ? '' : 'none';
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Called When Any Config Value Changes
     // ------------------------------------------------------------
     function na_onConfigChange() {
+        na_updateProductTypeControlVisibility();
         na_updateSlidingSashOverlapVisibility();
         na_updateSashHornControlsVisibility();
         na_updateDoorPanelVisibility();
         na_updateSlidingDoorVisibility();
         na_updateMultifoldDoorVisibility();
         na_updateDoubleDoorVisibility();
+        na_updateSingleDoorSubcontrolVisibility();
+        na_updateSharedFieldedPanelVisibility('sliding_door', _config.sliding_mode === true);
+        na_updateSharedFieldedPanelVisibility('bifold_door', _config.multifold_mode === true);
         na_updateAdvancedGlazebarVisibility();
         na_clampGlazebarMarginOffset();
         na_updateTransomControlVisibility();
@@ -440,14 +514,53 @@ const Na_DynamicUI = (function() {
         const doorPanelSection = document.getElementById('na-section-door-panel');
         if (!doorPanelSection) return;
 
-        const isDoorMode = _config.door_mode === true;
+        const isDoorMode = _config.ext_single_door_mode === true;
         doorPanelSection.style.display = isDoorMode ? '' : 'none';
+    }
+    // ---------------------------------------------------------------
 
-        const trimExpandable = document.querySelector('[data-control-id="door_panel_trim_controls"]');
-        if (trimExpandable) {
-            const showTrim = _config.door_panel_show_trim === true;
-            trimExpandable.style.display = showTrim ? '' : 'none';
-        }
+    // FUNCTION | Toggle Single-Door Fielded Subcontrol Visibility
+    // ------------------------------------------------------------
+    function na_updateSingleDoorSubcontrolVisibility() {
+        if (_config.ext_single_door_mode !== true) return;
+        na_updateSharedFieldedPanelVisibility('single_door', true);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Shared Fielded-Panel Subcontrol Visibility
+    // ------------------------------------------------------------
+    // prefix: 'single_door' | 'sliding_door' | 'bifold_door' | 'double_door'
+    function na_updateSharedFieldedPanelVisibility(prefix, isActive) {
+        if (!isActive) return;
+
+        const compositionKey = prefix === 'double_door'
+            ? 'double_door_leaf_composition'
+            : `${prefix}_leaf_composition`;
+        const composition = _config[compositionKey] || (prefix === 'single_door' ? 'GlazedOverFielded' : 'FullyGlazed');
+        const panelOutput = _config[`${prefix}_panel_output_mode`] || 'ThreeDimensional';
+        const preset = _config[`${prefix}_panel_preset`] || 'OnePanel';
+        const hasFielded = composition === 'GlazedOverFielded' || composition === 'FullyFielded';
+        const midRailKey = prefix === 'double_door' || prefix === 'single_door'
+            ? `${prefix}_mid_rail_width_mm`
+            : `${prefix}_mid_rail_width_mm`;
+
+        const visibilityMap = [
+            { id: `${prefix}_panel_output_mode`, visible: hasFielded },
+            { id: `${prefix}_panel_preset`, visible: hasFielded },
+            { id: `${prefix}_panel_inset_mm`, visible: hasFielded },
+            { id: `${prefix}_panel_profile`, visible: hasFielded && panelOutput === 'ThreeDimensional' },
+            { id: `${prefix}_panel_depth_mm`, visible: hasFielded && panelOutput === 'ThreeDimensional' },
+            { id: `${prefix}_panel_bevel_width_mm`, visible: hasFielded && panelOutput === 'ThreeDimensional' },
+            { id: `${prefix}_fielded_section_height_mm`, visible: composition === 'GlazedOverFielded' },
+            { id: midRailKey, visible: composition === 'GlazedOverFielded' },
+            { id: `${prefix}_panel_columns`, visible: hasFielded && preset === 'Custom' },
+            { id: `${prefix}_panel_rows`, visible: hasFielded && preset === 'Custom' }
+        ];
+
+        visibilityMap.forEach(entry => {
+            const control = document.querySelector(`[data-control-id="${entry.id}"]`);
+            if (control) control.style.display = entry.visible ? '' : 'none';
+        });
     }
     // ---------------------------------------------------------------
 
@@ -871,7 +984,8 @@ const Na_DynamicUI = (function() {
         const inDoorMode =
             (_config.multifold_mode === true) ||
             (_config.sliding_mode === true) ||
-            (_config.double_door_mode === true);
+            (_config.double_door_mode === true) ||
+            (_config.ext_single_door_mode === true);
 
         const alwaysWindowOnlyIds = [
             'casement_width_mm',                                                // <-- Casement controls (single + advanced)
@@ -880,8 +994,7 @@ const Na_DynamicUI = (function() {
             'mullions',                                                         // <-- Window-only (split openings)
             'mullion_width_mm',                                                 // <-- Window-only mullion thickness
             'transoms',                                                         // <-- Window-only (split openings vertically)
-            'show_casements',                                                   // <-- Casement-specific toggle
-            'sliding_sash_window'                                               // <-- Sliding sash window mode toggle (distinct from sliding_mode door)
+            'show_casements'                                                    // <-- Casement-specific toggle
         ];
 
         const dynamicWindowOnlyIds = [
@@ -959,16 +1072,18 @@ const Na_DynamicUI = (function() {
     // opening rather than the window defaults (900 x 1200mm).
     //
     // Default heights per mode:
-    //   door_mode      : 2100 mm  (standard single exterior door leaf height)
-    //   sliding_mode   : 2100 mm  (standard sliding patio/bi-pass height)
-    //   multifold_mode : 2100 mm  (standard bifold/multi-fold height)
+    //   ext_single_door_mode : 2100 mm  (standard single exterior door leaf height)
+    //   sliding_mode         : 2100 mm  (standard sliding patio/bi-pass height)
+    //   multifold_mode       : 2100 mm  (standard bifold/multi-fold height)
+    //   double_door_mode     : 2100 mm
     //
     // Default widths per mode:
-    //   door_mode      : 1000 mm  (standard single door leaf)
-    //   sliding_mode   : 3000 mm  (typical two-panel sliding set)
-    //   multifold_mode : 3000 mm  (typical four-panel bifold set)
+    //   ext_single_door_mode : 1000 mm  (standard single door leaf)
+    //   double_door_mode     : 1800 mm
+    //   sliding_mode         : 3000 mm  (typical two-panel sliding set)
+    //   multifold_mode       : 3000 mm  (typical four-panel bifold set)
     function na_applyDoorModeDefaultDimensions(modeId) {
-        const defaultWidth = modeId === 'door_mode'
+        const defaultWidth = (modeId === 'ext_single_door_mode' || modeId === 'door_mode')
             ? 1000
             : (modeId === 'double_door_mode' ? 1800 : 3000);
         const defaultHeight = 2100;                                          // <-- Standard door height for all door modes
@@ -1389,7 +1504,7 @@ const Na_DynamicUI = (function() {
         const resetElementsBtn = document.getElementById('na-btn-reset-elements');
         
         if (createBtn) {
-            createBtn.textContent = _config.double_door_mode === true ? 'Create Double Doors' : 'Create at Cursor';
+            createBtn.textContent = na_resolveCreateButtonLabel();
             if (_svgValid) {
                 createBtn.disabled = false;
                 createBtn.classList.remove('na-btn-disabled');
@@ -1400,7 +1515,7 @@ const Na_DynamicUI = (function() {
         }
         
         if (updateBtn) {
-            updateBtn.textContent = _config.double_door_mode === true ? 'Update Double Doors' : 'Update Window';
+            updateBtn.textContent = na_resolveUpdateButtonLabel();
             if (_svgValid) {
                 updateBtn.disabled = false;
                 updateBtn.classList.remove('na-btn-disabled');
@@ -1432,14 +1547,38 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
     
+    // FUNCTION | Resolve Create Button Label From Active Product
+    // ------------------------------------------------------------
+    function na_resolveCreateButtonLabel() {
+        if (_config.double_door_mode === true) return 'Create Double Doors';
+        if (_config.ext_single_door_mode === true) return 'Create Single Door';
+        if (_config.sliding_mode === true) return 'Create Sliding Doors';
+        if (_config.multifold_mode === true) return 'Create MultiFolding Door';
+        return 'Create at Cursor';
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Resolve Update Button Label From Active Product
+    // ------------------------------------------------------------
+    function na_resolveUpdateButtonLabel() {
+        if (_config.double_door_mode === true) return 'Update Double Doors';
+        if (_config.ext_single_door_mode === true) return 'Update Single Door';
+        if (_config.sliding_mode === true) return 'Update Sliding Doors';
+        if (_config.multifold_mode === true) return 'Update MultiFolding Door';
+        return 'Update Window';
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Set Configuration
     // ------------------------------------------------------------
     function na_setConfig(newConfig) {
         _config = { ..._config, ...newConfig };
-        
-        // Update all UI controls
-        Object.keys(newConfig).forEach(key => {
-            na_updateControlValue(key, newConfig[key]);
+        na_hydrateHierarchyFromModeFlags();
+        na_syncModeFlagsFromHierarchy();
+
+        // Update all UI controls (include hydrated hierarchy keys)
+        Object.keys(_config).forEach(key => {
+            na_updateControlValue(key, _config[key]);
         });
         
         // Trigger render
@@ -1586,6 +1725,7 @@ const Na_DynamicUI = (function() {
 
         const materialGroups = [
             { containerId: 'na-controls-options', descriptors: window.NA_OPTIONS_CONFIG || [] },
+            { containerId: 'na-controls-door-panel', descriptors: window.NA_DOOR_PANEL_CONFIG || [] },
             { containerId: 'na-controls-double-door', descriptors: window.NA_DOUBLE_DOOR_CONFIG || [] }
         ];
 

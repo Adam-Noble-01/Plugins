@@ -58,7 +58,9 @@ module Na__SelectionHandler
             'double_door_mode' => false,
             'door_mode' => false,
             'sliding_mode' => false,
-            'multifold_mode' => false
+            'multifold_mode' => false,
+            'ui_element_category' => 'ExteriorDoors',
+            'ui_exterior_door_type' => 'Single'
         )
         data.merge(NA_KEY_CONFIGURATION => configuration)
     end

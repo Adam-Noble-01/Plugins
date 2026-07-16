@@ -527,6 +527,38 @@ const NA_CILL_FRAME_CONFIG = [
 // ------------------------------------------------------------
 const NA_OPTIONS_CONFIG = [
     {
+        id      :  'ui_element_category',
+        label   :  'Product',
+        type    :  'binary_toggle',
+        default :  'Window',
+        options :  [
+            { value: 'Window', label: 'Windows' },
+            { value: 'ExteriorDoors', label: 'Exterior Doors' }
+        ]
+    },
+    {
+        id      :  'ui_window_type',
+        label   :  'Window Type',
+        type    :  'binary_toggle',
+        default :  'Casement',
+        options :  [
+            { value: 'Casement', label: 'Casement Window' },
+            { value: 'SlidingSash', label: 'Sliding Sash Window' }
+        ]
+    },
+    {
+        id      :  'ui_exterior_door_type',
+        label   :  'Door Type',
+        type    :  'multiway_toggle',
+        default :  'Double',
+        options :  [
+            { value: 'Double', label: 'Double Doors' },
+            { value: 'Single', label: 'Single Door' },
+            { value: 'MultiFold', label: 'MultiFolding Door' },
+            { value: 'Sliding', label: 'Sliding Doors' }
+        ]
+    },
+    {
         id      :  'show_casements',
         label   :  'Show Casements',
         type    :  'toggle',
@@ -557,12 +589,6 @@ const NA_OPTIONS_CONFIG = [
         default :  false
     },
     {
-        id      :  'sliding_sash_window',
-        label   :  'Sliding Sash Window',
-        type    :  'toggle',
-        default :  false
-    },
-    {
         id      :  'sash_horns_enabled',
         label   :  'Show Sash Horns',
         type    :  'toggle',
@@ -579,30 +605,6 @@ const NA_OPTIONS_CONFIG = [
             { value: '3', label: 'Type 03' },
             { value: '4', label: 'Type 04' }
         ]
-    },
-    {
-        id      :  'door_mode',
-        label   :  'Door Mode',
-        type    :  'toggle',
-        default :  false
-    },
-    {
-        id      :  'sliding_mode',
-        label   :  'Sliding Door',
-        type    :  'toggle',
-        default :  false
-    },
-    {
-        id      :  'multifold_mode',
-        label   :  'Multi-Folding Door',
-        type    :  'toggle',
-        default :  false
-    },
-    {
-        id      :  'double_door_mode',
-        label   :  'Double Doors',
-        type    :  'toggle',
-        default :  false
     },
     {
         id              : 'frame_material_id',

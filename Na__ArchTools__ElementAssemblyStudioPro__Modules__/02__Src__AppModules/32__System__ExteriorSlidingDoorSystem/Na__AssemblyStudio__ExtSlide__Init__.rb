@@ -123,14 +123,25 @@ module Na__ExteriorSlidingDoorSystem
     # `sliding_door_opening_height_mm`, `sliding_door_floor_clearance_mm`,
     # `sliding_door_wall_depth_mm` are migrated on load.
     NA_DEFAULT_DOOR_CONFIG = {
-        "sliding_door_mode"               => "FrontSlidesRight",                         # <-- FrontSlidesLeft | FrontSlidesRight
-        "sliding_door_panel_thickness_mm" => 50,                                         # <-- Single leaf thickness
-        "sliding_door_rear_setback_mm"    => 60,                                         # <-- Y-offset of rear panel from front panel face
-        "sliding_door_head_rail_mm"       => 95,                                         # <-- Default head rail height
-        "sliding_door_base_rail_mm"       => 200,                                        # <-- Default base rail height
-        "sliding_door_stile_width_mm"     => 95,                                         # <-- Default stile width (left/right)
-        "sliding_door_glazed"             => true,                                       # <-- Fully glazed default
-        "sliding_door_panel_design_open"  => false,                                      # <-- Reveals PanelDesign sub-panel (Phase 3.6)
+        "sliding_door_mode"               => "FrontSlidesRight",
+        "sliding_door_panel_thickness_mm" => 50,
+        "sliding_door_rear_setback_mm"    => 60,
+        "sliding_door_head_rail_mm"       => 95,
+        "sliding_door_base_rail_mm"       => 200,
+        "sliding_door_stile_width_mm"     => 95,
+        "sliding_door_leaf_composition"   => "FullyGlazed",
+        "sliding_door_mid_rail_width_mm"  => 120,
+        "sliding_door_panel_output_mode"  => "ThreeDimensional",
+        "sliding_door_panel_profile"      => "RaisedBevelled",
+        "sliding_door_panel_preset"       => "OnePanel",
+        "sliding_door_panel_columns"      => 1,
+        "sliding_door_panel_rows"         => 1,
+        "sliding_door_fielded_section_height_mm" => 300,
+        "sliding_door_panel_inset_mm"     => 25,
+        "sliding_door_panel_depth_mm"     => 12,
+        "sliding_door_panel_bevel_width_mm" => 18,
+        "sliding_door_glazed"             => true,
+        "sliding_door_panel_design_open"  => false,
         "sliding_door_handle_asset_key"   => "Na__ExteriorDoor__Handle__SlidingDefault",
         "sliding_door_handle_height_mm"   => 1000
     }.freeze
@@ -150,6 +161,7 @@ module Na__ExteriorSlidingDoorSystem
         return if @na_sliding_modules_loaded
 
         require_relative 'Na__AssemblyStudio__ExtSlide__GeometryHelpers__'
+        require_relative 'Na__AssemblyStudio__ExtSlide__PanelLayoutResolver__'
         require_relative 'Na__AssemblyStudio__ExtSlide__RotationPivotBuilder__'
         require_relative 'Na__AssemblyStudio__ExtSlide__MovementPivotBuilder__'
         require_relative 'Na__AssemblyStudio__ExtSlide__AssemblyComposer__'

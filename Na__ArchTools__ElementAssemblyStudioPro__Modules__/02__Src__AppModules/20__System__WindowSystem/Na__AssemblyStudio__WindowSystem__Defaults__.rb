@@ -187,9 +187,13 @@ module Na__WindowSystem
                 "fuse_parts"                            : false,
 
                 "door_mode"                             : false,
+                "ext_single_door_mode"                  : false,
                 "sliding_mode"                          : false,
                 "multifold_mode"                        : false,
                 "double_door_mode"                      : false,
+                "ui_element_category"                   : "Window",
+                "ui_window_type"                        : "Casement",
+                "ui_exterior_door_type"                 : "Double",
                 "door_panel_height_mm"                  : 400,
                 "door_panel_columns"                    : 1,
                 "door_panel_rows"                       : 1,
