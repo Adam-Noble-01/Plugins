@@ -77,14 +77,18 @@ module Na__DevTools
         # Single public entry point. Bind to a UI button or call directly
         # from the Ruby Console:
         #     Na__DevTools::Na__JsonExporter3D.na_run_export
+        #
+        # Returns a result hash (:status => :saved|:cancelled|:error,
+        # :message => String, :path => optional String) on every code
+        # path so callers (Settings tab) can show a real outcome instead
+        # of assuming the export always succeeds.
         def self.na_run_export
             model     = Sketchup.active_model
             selection = model.selection.to_a
 
             origin_container = na_find_named_container(selection, NA_GROUP_ORIGIN)
             unless origin_container
-                puts "\n!! Na__JsonExporter3D : No group named '#{NA_GROUP_ORIGIN}' found in selection."
-                return
+                return na_report_and_return_error("No group named '#{NA_GROUP_ORIGIN}' found in selection.")
             end
             origin_local = if origin_container[:entity].respond_to?(:definition) && origin_container[:entity].definition
                                origin_container[:entity].definition.bounds.center
@@ -151,6 +155,19 @@ module Na__DevTools
             na_print_to_console(json_string)
             na_save_to_disk(json_string)
         end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Report a Failure to Console + Screen and Return its Result
+        # ------------------------------------------------------------
+        # Selection failures used to only `puts` to the Ruby Console,
+        # which reads as a silent failure if nobody has it open.
+        # UI.messagebox makes the failure visible immediately.
+        def self.na_report_and_return_error(message)
+            puts "\n!! Na__JsonExporter3D : #{message}"
+            UI.messagebox("Na__ 3D Export failed:\n\n#{message}")
+            { :status => :error, :message => message }
+        end
+        private_class_method :na_report_and_return_error
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -1577,28 +1594,33 @@ module Na__DevTools
 
         # HELPER FUNCTION | Save the JSON String to Disk via Save Panel
         # ------------------------------------------------------------
+        # Returns a result hash - see na_run_export for the shape.
         def self.na_save_to_disk(json_string)
+            start_dir   = Na__DevTools.na_resolve_export_directory
             output_path = UI.savepanel(
                 "Save Na Unified Asset JSON",
-                "",
+                start_dir,
                 "Na__Asset__3D__Untitled__.json"
             )
 
             if output_path.nil?
                 puts "\n>> Save cancelled. Copy the JSON from the console above."
-                return
+                return { :status => :cancelled, :message => "3D export cancelled - no file was saved." }
             end
 
             output_path += ".json" unless output_path.downcase.end_with?(".json")
 
             begin
                 File.open(output_path, "w") { |f| f.write(json_string) }
+                Na__DevTools.na_remember_export_directory(output_path)
                 puts "\n>> Saved to : #{output_path}"
+                puts "\n>> Export complete."
+                { :status => :saved, :message => "3D asset saved to #{output_path}", :path => output_path }
             rescue => e
                 puts "\n!! File write failed : #{e.message}"
+                UI.messagebox("Na__ 3D Export could not write the file:\n\n#{e.message}\n\nCopy the JSON from the Ruby Console instead.")
+                { :status => :error, :message => "Could not write file: #{e.message}" }
             end
-
-            puts "\n>> Export complete."
         end
         private_class_method :na_save_to_disk
         # ---------------------------------------------------------------

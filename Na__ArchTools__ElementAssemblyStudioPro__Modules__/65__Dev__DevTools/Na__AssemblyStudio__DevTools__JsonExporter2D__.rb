@@ -49,18 +49,24 @@ module Na__DevTools
 
         # FUNCTION | Run the Na__ 2D Asset Exporter
         # ------------------------------------------------------------
+        # Returns a result hash (:status => :saved|:cancelled|:error,
+        # :message => String, :path => optional String) on every code
+        # path so callers (Settings tab) can show a real outcome instead
+        # of assuming the export always succeeds.
         def self.na_run_export
             model      = Sketchup.active_model
             selection  = model.selection.to_a
 
             origin_group, error = na_validate_selection(selection)
             if error
-                puts "\n!! Na__JsonExporter2D : #{error}"
-                return
+                return na_report_and_return_error(error)
             end
 
             export_mode = na_resolve_export_mode
-            return unless export_mode
+            unless export_mode
+                puts "\n>> Export mode selection cancelled."
+                return { :status => :cancelled, :message => "2D export cancelled." }
+            end
 
             origin_pt = origin_group.bounds.center
             puts "\n>> Origin found  : #{origin_pt.x.round(4)}\", #{origin_pt.y.round(4)}\", #{origin_pt.z.round(4)}\" (inches)"
@@ -87,6 +93,19 @@ module Na__DevTools
             na_print_to_console(json_str)
             na_save_to_disk(json_str, export_mode)
         end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Report a Failure to Console + Screen and Return its Result
+        # ------------------------------------------------------------
+        # Selection/validation failures used to only `puts` to the Ruby
+        # Console, which reads as a silent failure if nobody has it open.
+        # UI.messagebox makes the failure visible immediately.
+        def self.na_report_and_return_error(message)
+            puts "\n!! Na__JsonExporter2D : #{message}"
+            UI.messagebox("Na__ 2D Export failed:\n\n#{message}")
+            { :status => :error, :message => message }
+        end
+        private_class_method :na_report_and_return_error
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -524,26 +543,31 @@ module Na__DevTools
         end
         private_class_method :na_print_to_console
 
+        # Returns a result hash - see na_run_export for the shape.
         def self.na_save_to_disk(json_str, export_mode)
             default_name = (export_mode == NA_MODE_ELEVATION) ? NA_OUTPUT_FILENAME_ELEV : NA_OUTPUT_FILENAME_PLAN
-            output_path = UI.savepanel("Save Na 2D Asset JSON", "", default_name)
+            start_dir    = Na__DevTools.na_resolve_export_directory
+            output_path  = UI.savepanel("Save Na 2D Asset JSON", start_dir, default_name)
 
             if output_path.nil?
                 puts "\n>> Save cancelled. Copy the JSON from the console above."
-                return
+                return { :status => :cancelled, :message => "2D export cancelled - no file was saved." }
             end
 
             output_path += ".json" unless output_path.downcase.end_with?(".json")
 
             begin
                 File.open(output_path, "w") { |f| f.write(json_str) }
+                Na__DevTools.na_remember_export_directory(output_path)
                 puts "\n>> Saved to : #{output_path}"
+                puts "\n>> Export complete."
+                { :status => :saved, :message => "2D asset saved to #{output_path}", :path => output_path }
             rescue => file_err
                 puts "\n!! File write failed : #{file_err.message}"
                 puts "   (Copy the JSON from the console above instead)"
+                UI.messagebox("Na__ 2D Export could not write the file:\n\n#{file_err.message}\n\nCopy the JSON from the Ruby Console instead.")
+                { :status => :error, :message => "Could not write file: #{file_err.message}" }
             end
-
-            puts "\n>> Export complete."
         end
         private_class_method :na_save_to_disk
 

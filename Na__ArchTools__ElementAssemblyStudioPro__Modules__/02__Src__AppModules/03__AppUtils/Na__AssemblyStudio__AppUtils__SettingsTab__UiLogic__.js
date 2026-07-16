@@ -45,18 +45,18 @@
         },
         {
             heading    : 'Asset JSON Exporters',
-            description: 'Export the currently selected SketchUp geometry to a structured JSON asset file. Selection requirements are listed beneath each button.',
+            description: 'Export the currently selected SketchUp geometry to a structured JSON asset file. Each button opens your operating system\'s own Save As dialog so you choose the destination folder and file name yourself - nothing is written to a fixed location. Selection requirements are listed beneath each button.',
             buttons    : [
                 {
                     id      : 'na-btn-settings-export-2d',
                     label   : 'Export 2D Data',
-                    helper  : 'Selection: loose 2D edges and faces in the XY plane plus a group named "00__OriginPoint". Produces a ValeSpec hardware-item JSON.',
+                    helper  : 'Selection: loose 2D edges and faces in the XY plane plus a group named "00__OriginPoint". Produces a ValeSpec hardware-item JSON. A Save As dialog will ask where to put it.',
                     onclick : 'na_settingsExport2D'
                 },
                 {
                     id      : 'na-btn-settings-export-3d',
                     label   : 'Export 3D Data',
-                    helper  : 'Selection: a "00__OriginPoint" group plus optional "01__PlanView", "02__ElevationView", "03__Model3D", "04__Profile2D" groups. Produces a unified Na__Asset__* JSON.',
+                    helper  : 'Selection: a "00__OriginPoint" group plus optional "01__PlanView", "02__ElevationView", "03__Model3D", "04__Profile2D" groups. Produces a unified Na__Asset__* JSON. A Save As dialog will ask where to put it.',
                     onclick : 'na_settingsExport3D'
                 }
             ]

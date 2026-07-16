@@ -200,11 +200,7 @@ module Na__AssemblyStudio
                     UiBridge.na_send_status(@na_dialog, "warning", "Dev tools not loaded - check 65__Dev__DevTools/")
                     return
                 end
-                ::Na__AssemblyStudio::Na__DevTools.na_run_export_2d
-                UiBridge.na_send_status(@na_dialog, "info", "2D exporter finished - see Ruby Console")
-            rescue StandardError => e
-                DebugTools.na_debug_error("Settings 2D export failed", e)
-                UiBridge.na_send_status(@na_dialog, "warning", "2D export failed: #{e.message}")
+                na_run_deferred_export { ::Na__AssemblyStudio::Na__DevTools.na_run_export_2d }
             end
 
             def self.na_handle_settings_export_3d
@@ -212,12 +208,45 @@ module Na__AssemblyStudio
                     UiBridge.na_send_status(@na_dialog, "warning", "Dev tools not loaded - check 65__Dev__DevTools/")
                     return
                 end
-                ::Na__AssemblyStudio::Na__DevTools.na_run_export_3d
-                UiBridge.na_send_status(@na_dialog, "info", "3D exporter finished - see Ruby Console")
-            rescue StandardError => e
-                DebugTools.na_debug_error("Settings 3D export failed", e)
-                UiBridge.na_send_status(@na_dialog, "warning", "3D export failed: #{e.message}")
+                na_run_deferred_export { ::Na__AssemblyStudio::Na__DevTools.na_run_export_3d }
             end
+
+            # HELPER FUNCTION | Run an Exporter Once the HtmlDialog Callback Returns
+            # ------------------------------------------------------------
+            # UI.savepanel/UI.inputbox/UI.messagebox opened directly inside an
+            # HtmlDialog action_callback can be swallowed, stuck behind the
+            # dialog, or (on Windows) trigger a documented SketchUp bug where a
+            # non-repeating timer keeps re-firing while a modal is open. Both
+            # are the likely cause of exports appearing to "silently fail" on
+            # some machines. Deferring one tick via UI.start_timer(0, false)
+            # lets SketchUp's own message loop regain control first, so the
+            # native Save panel reliably surfaces; the `fired` guard stops the
+            # timer from re-running itself while that panel is on screen.
+            def self.na_run_deferred_export(&export_block)
+                fired = false
+                UI.start_timer(0, false) do
+                    next if fired
+                    fired = true
+                    na_report_export_result(export_block.call)
+                end
+            end
+            private_class_method :na_run_deferred_export
+
+            # HELPER FUNCTION | Translate an Exporter Result Hash into a Status Toast
+            # ------------------------------------------------------------
+            def self.na_report_export_result(result)
+                result = { :status => :error, :message => "Exporter returned no result." } unless result.is_a?(Hash)
+                status_type = case result[:status]
+                              when :saved     then "success"
+                              when :cancelled then "info"
+                              else "warning"
+                              end
+                UiBridge.na_send_status(@na_dialog, status_type, result[:message].to_s)
+            rescue StandardError => e
+                DebugTools.na_debug_error("Settings export failed", e)
+                UiBridge.na_send_status(@na_dialog, "warning", "Export failed: #{e.message}")
+            end
+            private_class_method :na_report_export_result
 
             # -----------------------------------------------------------------
             # REGION | Reload Scripts (developer feature)

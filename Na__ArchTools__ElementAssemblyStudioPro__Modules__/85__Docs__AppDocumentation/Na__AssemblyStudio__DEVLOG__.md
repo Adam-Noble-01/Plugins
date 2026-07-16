@@ -1,6 +1,57 @@
 # Element Assembly Studio Pro - DEVLOG
 # =============================================================================
 
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.1.1 - 16-Jul-2026 - Asset JSON Export reliable OS Save dialog
+
+### Context
+On the Settings tab, **Export 2D Data** and **Export 3D Data** appeared to fail silently when used on a different machine from the one the plugin was originally developed on. The user could not choose where the JSON was written, and the status bar always reported "exporter finished" even when nothing was saved.
+
+### Root Cause
+The exporters already called `UI.savepanel`, so there was no hardcoded home-PC path in source. Two behaviours combined to make exports feel broken:
+
+1. **Empty start directory** — `UI.savepanel` was invoked with `""` as the folder argument, so Windows/SketchUp often reopened the OS's last-used save location. On another machine that folder may not exist, so the Save panel could fail to appear or feel "hardcoded" to an invalid path.
+2. **Silent failure inside HtmlDialog callbacks** — selection/validation errors and write failures only `puts` to the Ruby Console, while `DialogManager` always sent "exporter finished" to the Settings status bar. Opening native modal dialogs (`UI.savepanel`, `UI.inputbox`, `UI.messagebox`) directly inside an `HtmlDialog` action_callback is a known SketchUp quirk: the dialog can be swallowed or stuck behind the HtmlDialog on Windows.
+
+### Fix Summary
+- **`Na__AssemblyStudio__DevTools__Main__.rb`**
+  - Added `na_resolve_export_directory` — prefers the last successfully used export folder (via `Sketchup.read_default`, only if `File.directory?` passes on this machine), then falls back through Documents → home → `Sketchup.temp_dir`.
+  - Added `na_remember_export_directory` — stores `File.dirname(path)` after a successful write so the next Save panel opens in the same folder.
+  - Export wrappers (`na_run_export_2d` / `na_run_export_3d`) now propagate a result hash on exception.
+- **`Na__AssemblyStudio__DevTools__JsonExporter2D__.rb`** / **`Na__AssemblyStudio__DevTools__JsonExporter3D__.rb`**
+  - `na_save_to_disk` now calls `UI.savepanel(title, Na__DevTools.na_resolve_export_directory, default_filename)` and remembers the folder on success.
+  - `na_run_export` returns `{ :status => :saved|:cancelled|:error, :message => String, :path => optional }` on every code path.
+  - Selection/validation and write failures call `UI.messagebox` so they are visible without opening the Ruby Console.
+- **`Na__AssemblyStudio__AppCore__DialogManager__.rb`**
+  - Settings export handlers defer the exporter via `UI.start_timer(0, false)` with a one-shot `fired` guard so native Save/input dialogs run after the HtmlDialog callback returns.
+  - `na_report_export_result` maps the exporter result hash to honest Settings status toasts (`success` / `info` cancelled / `warning` error).
+- **`Na__AssemblyStudio__AppUtils__SettingsTab__UiLogic__.js`**
+  - Helper copy updated to state that each export button opens the operating system's own Save As dialog for choosing folder and filename.
+
+### Files Changed (V1.1.1)
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__Main__.rb`
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__JsonExporter2D__.rb`
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__JsonExporter3D__.rb`
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__DialogManager__.rb`
+- `02__Src__AppModules/03__AppUtils/Na__AssemblyStudio__AppUtils__SettingsTab__UiLogic__.js`
+
+### How to Test
+1. Reload Scripts from the Settings tab (or restart SketchUp).
+2. Select geometry meeting the exporter rules (at minimum a `00__OriginPoint` group; see button helper text for full requirements).
+3. Click **Export 2D Data** or **Export 3D Data**.
+4. **Expected:** a native OS Save As dialog appears (2D also prompts for Plan2D vs Elevation2D first). Choose any folder and filename, then save.
+5. **Expected:** the Settings status bar shows a green success message with the saved path, not a generic "finished" message.
+6. Cancel the Save dialog — **Expected:** status bar shows an info "cancelled" message; no file is written.
+7. Deselect everything and click Export — **Expected:** a `UI.messagebox` explains the selection requirement; status bar shows a warning.
+8. Export again on the same machine — **Expected:** the Save dialog reopens in the folder used for the last successful export.
+9. Repeat on a different Windows user profile or machine — **Expected:** Save dialog opens in Documents (or home/temp) with no reference to another PC's path.
+
+### Backward Compatibility
+- Exporters remain callable from the Ruby Console (`Na__DevTools::Na__JsonExporter2D.na_run_export` etc.); they now return a result hash instead of `nil` on all paths.
+- DXF export was not changed.
+- No AppConfig keys or saved component dictionaries are affected.
+
 # =============================================================================
 ## Element Assembly Studio Pro | V1.1.0 - 10-Jul-2026 - Exterior Double Doors
 
