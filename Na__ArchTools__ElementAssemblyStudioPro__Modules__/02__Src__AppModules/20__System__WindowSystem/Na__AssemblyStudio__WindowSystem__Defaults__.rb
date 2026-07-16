@@ -172,6 +172,21 @@ module Na__WindowSystem
                 "glazebar_gothic_arch_height_mm"        : 400,
                 "glazebar_horizontal_offset_mm"         : 0,
 
+                "leaded_glass_controls"                 : false,
+                "leaded_glass_enabled"                  : false,
+                "horizontal_leaded_bars"                : 0,
+                "vertical_leaded_bars"                  : 0,
+                "leaded_width_mm"                       : 6,
+                "leaded_depth_mm"                       : 0,
+                "leaded_centre_lines_only"              : false,
+
+                "edge_colour_controls"                  : false,
+                "edge_colour_frame_id"                  : "MTE102__LineColour__SoftBlack__L20",
+                "edge_colour_casement_id"               : "MTE103__LineColour__DarkGrey__L40",
+                "edge_colour_glazebar_id"               : "MTE103__LineColour__DarkGrey__L40",
+                "edge_colour_leaded_id"                 : "MTE104__LineColour__MidGrey__L60",
+                "edge_colour_fielded_panel_id"          : "MTE103__LineColour__DarkGrey__L40",
+
                 "has_cill"                              : true,
                 "cill_depth_mm"                         : 50,
                 "cill_height_mm"                        : 50,

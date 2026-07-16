@@ -17,8 +17,11 @@ module Na__PanelLineworkBuilder
     SharedBuilder = Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__PanelLineworkBuilder
     NA_NAMING = { :container => 'Na__ExteriorDoubleDoor' }.freeze
 
-    def self.na_build(entities, leaf, panel_layout, material = nil)
-        SharedBuilder.na_build(entities, leaf, panel_layout, material, NA_NAMING)
+    def self.na_build(entities, leaf, panel_layout, material = nil, edge_colour_id: nil)
+        SharedBuilder.na_build(
+            entities, leaf, panel_layout, material, NA_NAMING,
+            edge_colour_id: edge_colour_id
+        )
     end
 
 end

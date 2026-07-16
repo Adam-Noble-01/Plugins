@@ -21,6 +21,8 @@ require_relative 'Na__AssemblyStudio__WindowSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__WindowSystem__DxfExporter__'
 require_relative 'Na__AssemblyStudio__WindowSystem__FuseParts__'
 require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
+require_relative 'Na__AssemblyStudio__WindowSystem__EdgeColourPainter__'
+require_relative 'Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
 
 module Na__AssemblyStudio
     module Na__WindowSystem
@@ -33,6 +35,8 @@ module Na__AssemblyStudio
             DxfExporter    = Na__AssemblyStudio::Na__WindowSystem::Na__DxfExporter
             FuseParts      = Na__AssemblyStudio::Na__WindowSystem::Na__FuseParts
             SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
+            EdgeColourPainter = Na__AssemblyStudio::Na__WindowSystem::Na__EdgeColourPainter
+            LeadedGlassBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
             TwoPoint       = Na__AssemblyStudio::Na__MeasurementTools::Na__TwoPointOpeningTool
             PlacementTool  = Na__AssemblyStudio::Na__PlacementTools::Na__WindowPlacementTool
             InsertionFrame = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                  # <-- Wall-aware insertion transform helper
@@ -366,6 +370,20 @@ module Na__AssemblyStudio
                 "glazebar_gothic_arch_amount",
                 "glazebar_gothic_arch_height_mm",
                 "glazebar_horizontal_offset_mm",                                                    # <-- V1.9.3 Horizontal Bar Vertical Offset
+                # Leaded Glass Controls (overlay on outer glass face)
+                "leaded_glass_controls",
+                "leaded_glass_enabled",
+                "horizontal_leaded_bars",
+                "vertical_leaded_bars",
+                "leaded_width_mm",
+                "leaded_depth_mm",
+                "leaded_centre_lines_only",
+                "edge_colour_controls",
+                "edge_colour_frame_id",
+                "edge_colour_casement_id",
+                "edge_colour_glazebar_id",
+                "edge_colour_leaded_id",
+                "edge_colour_fielded_panel_id",
                 "fuse_parts"
             ].freeze
 
@@ -638,6 +656,7 @@ module Na__AssemblyStudio
                         UiBridge.na_send_status(@na_dialog, 'info', 'Fusing parts...')
                         FuseParts.na_fuse_window_parts(@na_window_component.definition.entities)
                     end
+                    na_apply_edge_colours_after_build(@na_window_component, config["windowConfiguration"])
 
                     description = nil
                     if @na_config["windowMetadata"] && @na_config["windowMetadata"][0]
@@ -741,6 +760,7 @@ module Na__AssemblyStudio
                     na_track_created_component(instance, :bifold)
 
                     na_apply_bifold_fuse_parts(instance, window_config)
+                    na_apply_edge_colours_after_build(instance, window_config)
 
                     door_id = bifold_serializer.na_get_door_id_from_instance(instance)
                     if door_id
@@ -781,6 +801,7 @@ module Na__AssemblyStudio
                 bifold_engine.na_update_bifold_door(instance, window_config)
 
                 na_apply_bifold_fuse_parts(instance, window_config)
+                na_apply_edge_colours_after_build(instance, window_config)
 
                 door_id = bifold_serializer.na_get_door_id_from_instance(instance)
                 if door_id
@@ -813,6 +834,7 @@ module Na__AssemblyStudio
                 bifold_engine.na_update_bifold_door(instance, window_config)
 
                 na_apply_bifold_fuse_parts(instance, window_config)
+                na_apply_edge_colours_after_build(instance, window_config)
 
                 door_id = bifold_serializer.na_get_door_id_from_instance(instance)
                 if door_id
@@ -905,6 +927,7 @@ module Na__AssemblyStudio
                     na_track_created_component(instance, :sliding)
 
                     na_apply_sliding_fuse_parts(instance, window_config)
+                    na_apply_edge_colours_after_build(instance, window_config)
 
                     door_id = sliding_serializer.na_get_door_id_from_instance(instance)
                     if door_id
@@ -967,6 +990,7 @@ module Na__AssemblyStudio
                 sliding_engine.na_update_sliding_door(instance, window_config)
 
                 na_apply_sliding_fuse_parts(instance, window_config)
+                na_apply_edge_colours_after_build(instance, window_config)
 
                 door_id = sliding_serializer.na_get_door_id_from_instance(instance)
                 if door_id
@@ -999,6 +1023,7 @@ module Na__AssemblyStudio
                 sliding_engine.na_update_sliding_door(instance, window_config)
 
                 na_apply_sliding_fuse_parts(instance, window_config)
+                na_apply_edge_colours_after_build(instance, window_config)
 
                 door_id = sliding_serializer.na_get_door_id_from_instance(instance)
                 if door_id
@@ -1294,6 +1319,23 @@ module Na__AssemblyStudio
             private_class_method :na_apply_sliding_fuse_parts
             # ---------------------------------------------------------------
 
+            # HELPER FUNCTION | Final Edge-Colour Paint Pass (Post Create / Fuse)
+            # ------------------------------------------------------------
+            def self.na_apply_edge_colours_after_build(instance, window_config)
+                return unless instance && instance.valid?
+                return unless window_config.is_a?(Hash)
+
+                LeadedGlassBuilder.na_migrate_legacy_leaded_colour!(window_config)
+                EdgeColourPainter.na_apply_assembly_edge_colours(
+                    instance.definition.entities,
+                    window_config
+                )
+            rescue StandardError => e
+                DebugTools.na_debug_error("Edge colour paint failed (non-fatal)", e)
+            end
+            private_class_method :na_apply_edge_colours_after_build
+            # ---------------------------------------------------------------
+
             def self.na_handle_update_window(config_json)
                 config = JSON.parse(config_json)
                 @na_config = config
@@ -1338,6 +1380,7 @@ module Na__AssemblyStudio
                     UiBridge.na_send_status(@na_dialog, 'info', 'Fusing parts...')
                     FuseParts.na_fuse_window_parts(@na_window_component.definition.entities)
                 end
+                na_apply_edge_colours_after_build(@na_window_component, config["windowConfiguration"])
 
                 description = nil
                 if @na_config["windowMetadata"] && @na_config["windowMetadata"][0]
@@ -1443,6 +1486,7 @@ module Na__AssemblyStudio
                         DebugTools.na_debug_error("Fuse Parts error in Live Mode (non-fatal)", e)
                     end
                 end
+                na_apply_edge_colours_after_build(target_instance, config["windowConfiguration"])
 
                 DataSerializer.na_save_window_data(window_id, @na_config)
                 model.commit_operation

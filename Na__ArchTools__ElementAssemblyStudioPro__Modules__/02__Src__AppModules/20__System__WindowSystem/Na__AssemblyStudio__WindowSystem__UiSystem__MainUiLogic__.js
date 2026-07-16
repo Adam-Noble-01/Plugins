@@ -366,6 +366,7 @@ const Na_DynamicUI = (function() {
         na_updateSharedFieldedPanelVisibility('sliding_door', _config.sliding_mode === true);
         na_updateSharedFieldedPanelVisibility('bifold_door', _config.multifold_mode === true);
         na_updateAdvancedGlazebarVisibility();
+        na_updateLeadedGlassVisibility();
         na_clampGlazebarMarginOffset();
         na_updateTransomControlVisibility();
         na_updateWindowOnlyControlsVisibility();                                // <-- Phase 9: Hide casement/mullion/transom/sliding-sash controls in bifold/sliding mode
@@ -927,6 +928,37 @@ const Na_DynamicUI = (function() {
             const showHOffset = Math.max(0, Math.round(Number(_config.horizontal_glaze_bars || 0))) > 0;
             hOffsetCtrl.style.display = showHOffset ? '' : 'none';
         }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Leaded Glass Sub-Control Visibility
+    // ------------------------------------------------------------
+    // When disabled, only the enable toggle stays visible inside the
+    // expandable. Centre Lines Only hides Width + Depth (ignored in Ruby).
+    function na_updateLeadedGlassVisibility() {
+        const enabled = _config.leaded_glass_enabled === true;
+        const centreLinesOnly = _config.leaded_centre_lines_only === true;
+
+        const dependentIds = [
+            'horizontal_leaded_bars',
+            'vertical_leaded_bars',
+            'leaded_width_mm',
+            'leaded_depth_mm',
+            'leaded_centre_lines_only'
+        ];
+        dependentIds.forEach(function (id) {
+            const ctrl = document.querySelector('[data-control-id="' + id + '"]');
+            if (!ctrl) return;
+            if (!enabled) {
+                ctrl.style.display = 'none';
+                return;
+            }
+            if (centreLinesOnly && (id === 'leaded_width_mm' || id === 'leaded_depth_mm')) {
+                ctrl.style.display = 'none';
+                return;
+            }
+            ctrl.style.display = '';
+        });
     }
     // ---------------------------------------------------------------
 
@@ -1573,6 +1605,7 @@ const Na_DynamicUI = (function() {
     // ------------------------------------------------------------
     function na_setConfig(newConfig) {
         _config = { ..._config, ...newConfig };
+        na_migrateLegacyLeadedColour(_config);
         na_hydrateHierarchyFromModeFlags();
         na_syncModeFlagsFromHierarchy();
 
@@ -1583,6 +1616,22 @@ const Na_DynamicUI = (function() {
         
         // Trigger render
         na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Migrate Legacy leaded_colour Mid/Light/Dark → edge_colour_leaded_id
+    // ------------------------------------------------------------
+    function na_migrateLegacyLeadedColour(cfg) {
+        if (!cfg || typeof cfg !== 'object') return;
+        if (cfg.edge_colour_leaded_id) {
+            delete cfg.leaded_colour;
+            return;
+        }
+        const legacy = cfg.leaded_colour;
+        if (legacy === 'light') cfg.edge_colour_leaded_id = 'MTE107__LineColour__LightGrey__L85';
+        else if (legacy === 'dark') cfg.edge_colour_leaded_id = 'MTE103__LineColour__DarkGrey__L40';
+        else if (legacy === 'mid' || legacy) cfg.edge_colour_leaded_id = 'MTE104__LineColour__MidGrey__L60';
+        delete cfg.leaded_colour;
     }
     // ---------------------------------------------------------------
     
@@ -1736,23 +1785,57 @@ const Na_DynamicUI = (function() {
             group.descriptors
                 .filter(descriptor => descriptor && descriptor.type === 'material_cards')
                 .forEach(descriptor => {
-                    const currentValue = (_config && _config[descriptor.id]) || descriptor.default;
-                    const renderConfig = Object.assign({}, descriptor, { default: currentValue });
-                    const newHtml = window.Na__Ui__Controls.na_createControl(renderConfig);
-                    const existing = container.querySelector(`[data-control-id="${descriptor.id}"]`);
-
-                    if (existing) existing.outerHTML = newHtml;
-                    else container.insertAdjacentHTML('beforeend', newHtml);
-
-                    if (window.Na__Ui__Events && typeof window.Na__Ui__Events.na_attachEventListeners === 'function') {
-                        window.Na__Ui__Events.na_attachEventListeners(descriptor, na_onControlChange);
-                    }
+                    na_replace_material_card_control(container, descriptor);
                 });
         });
 
         // Re-render the SVG so the frame tint reflects the just-arrived swatch hex.
         try { na_onConfigChange(); }
         catch (err) { console.warn('[NA_UI] Re-render after swatch refresh failed:', err); }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Rebuild Edge Colour Material Cards (Nested Under Expandable)
+    // ------------------------------------------------------------
+    // Called when Ruby pushes window.NA_EDGE_COLOUR_SWATCHES.
+    function na_rebuild_edge_colour_controls() {
+        if (!window.Na__Ui__Controls) return;
+
+        const container = document.getElementById('na-controls-options');
+        if (!container) return;
+
+        const expandable = (window.NA_OPTIONS_CONFIG || []).find(function (d) {
+            return d && d.id === 'edge_colour_controls' && d.type === 'expandable';
+        });
+        if (!expandable || !Array.isArray(expandable.children)) return;
+
+        expandable.children
+            .filter(function (child) { return child && child.type === 'material_cards'; })
+            .forEach(function (descriptor) {
+                na_replace_material_card_control(container, descriptor);
+            });
+
+        try { na_onConfigChange(); }
+        catch (err) { console.warn('[NA_UI] Re-render after edge-colour swatch refresh failed:', err); }
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER | Replace One Material-Card Control In Place
+    // ------------------------------------------------------------
+    function na_replace_material_card_control(container, descriptor) {
+        if (!container || !descriptor || !window.Na__Ui__Controls) return;
+
+        const currentValue = (_config && _config[descriptor.id]) || descriptor.default;
+        const renderConfig = Object.assign({}, descriptor, { default: currentValue });
+        const newHtml = window.Na__Ui__Controls.na_createControl(renderConfig);
+        const existing = container.querySelector('[data-control-id="' + descriptor.id + '"]');
+
+        if (existing) existing.outerHTML = newHtml;
+        else container.insertAdjacentHTML('beforeend', newHtml);
+
+        if (window.Na__Ui__Events && typeof window.Na__Ui__Events.na_attachEventListeners === 'function') {
+            window.Na__Ui__Events.na_attachEventListeners(descriptor, na_onControlChange);
+        }
     }
     // ---------------------------------------------------------------
 
@@ -1770,7 +1853,8 @@ const Na_DynamicUI = (function() {
         na_toggleGlazebarRemoval: na_toggleGlazebarRemoval,
         na_toggleDoubleDoorGlazebarRemoval: na_toggleDoubleDoorGlazebarRemoval,
         na_resetHiddenElements: na_resetHiddenElements,
-        na_rebuild_frame_finish_control: na_rebuild_frame_finish_control
+        na_rebuild_frame_finish_control: na_rebuild_frame_finish_control,
+        na_rebuild_edge_colour_controls: na_rebuild_edge_colour_controls
     };
     
 })();

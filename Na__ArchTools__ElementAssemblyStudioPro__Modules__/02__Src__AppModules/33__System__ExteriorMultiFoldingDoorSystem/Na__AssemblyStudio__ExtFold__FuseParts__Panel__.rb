@@ -139,6 +139,7 @@ module Na__FuseParts__Panel
         panel_ids.each do |panel_id|
             na_accumulate_result(result, na_fuse_timber_for_panel(inner_entities, panel_id))
             na_accumulate_result(result, na_fuse_glaze_bars_for_panel(inner_entities, panel_id))
+            na_accumulate_result(result, na_fuse_leaded_glass_for_panel(inner_entities, panel_id))
             na_accumulate_result(result, na_trim_glass_for_panel(inner_entities, panel_id))
         end
 
@@ -195,6 +196,34 @@ module Na__FuseParts__Panel
         result
     end
     private_class_method :na_fuse_glaze_bars_for_panel
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Fuse Leaded Glass Overlay for a Single Panel (No Glass Trim)
+    # ------------------------------------------------------------
+    def self.na_fuse_leaded_glass_for_panel(entities, panel_id)
+        result = { :fused => 0, :failed => 0, :skipped => 0 }
+
+        groups = na_collect_groups_by_prefix(entities, "Na_LeadedGlass_#{panel_id}_").select do |group|
+            next false unless group && group.valid?
+            next false if group.entities.grep(Sketchup::Face).empty?
+            bb = group.local_bounds
+            [bb.width, bb.height, bb.depth].min > 0.001.mm
+        end
+        if groups.length < 2
+            result[:skipped] += 1
+            return result
+        end
+
+        fused = FuseShared.na_sequential_outer_shell(groups, "Na_LeadedGlass_#{panel_id}_Fused")
+        if fused
+            result[:fused] += 1
+        else
+            result[:failed] += 1
+            DebugTools.na_debug_error("ExtFold fuse leaded: #{panel_id} fusion returned nil")
+        end
+        result
+    end
+    private_class_method :na_fuse_leaded_glass_for_panel
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Trim Glass with Fused Glaze Bars for a Single Panel

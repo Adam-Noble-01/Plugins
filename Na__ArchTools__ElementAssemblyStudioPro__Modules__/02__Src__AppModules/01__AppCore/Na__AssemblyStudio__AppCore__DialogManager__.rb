@@ -28,6 +28,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__FrameFinishSwatches__'
+require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourSwatches__'
 require_relative '../../../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 require_relative 'Na__AssemblyStudio__AppCore__UiBridge__'
 
@@ -40,6 +41,7 @@ module Na__AssemblyStudio
             MaterialManager     = Na__AssemblyStudio::Na__AppData::Na__MaterialManager
             EdgeColourManager   = Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager
             FrameFinishSwatches = Na__AssemblyStudio::Na__AppData::Na__FrameFinishSwatches
+            EdgeColourSwatches  = Na__AssemblyStudio::Na__AppData::Na__EdgeColourSwatches
 
             # -----------------------------------------------------------------
             # REGION | State
@@ -123,6 +125,11 @@ module Na__AssemblyStudio
                 dialog.add_action_callback("na_requestFrameFinishSwatches") do |_ctx|
                     DebugTools.na_debug_ui("[DialogManager] na_requestFrameFinishSwatches callback invoked from JS")
                     FrameFinishSwatches.na_push_to_dialog(dialog)
+                    EdgeColourSwatches.na_push_to_dialog(dialog)
+                end
+                dialog.add_action_callback("na_requestEdgeColourSwatches") do |_ctx|
+                    DebugTools.na_debug_ui("[DialogManager] na_requestEdgeColourSwatches callback invoked from JS")
+                    EdgeColourSwatches.na_push_to_dialog(dialog)
                 end
             end
             private_class_method :na_register_swatch_push_callback
@@ -139,6 +146,7 @@ module Na__AssemblyStudio
                         if dialog && dialog.respond_to?(:visible?) && dialog.visible?
                             DebugTools.na_debug_ui("[DialogManager] Proactive swatch push (0.5s after show)")
                             FrameFinishSwatches.na_push_to_dialog(dialog)
+                            EdgeColourSwatches.na_push_to_dialog(dialog)
                         end
                     rescue StandardError => e
                         DebugTools.na_debug_error("[DialogManager] Proactive swatch push failed", e)

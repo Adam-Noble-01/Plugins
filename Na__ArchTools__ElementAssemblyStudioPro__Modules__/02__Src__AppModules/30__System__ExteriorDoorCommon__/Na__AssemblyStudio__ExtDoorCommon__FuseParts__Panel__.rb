@@ -69,6 +69,7 @@ module Na__FuseParts__Panel
         na_collect_mod_groups(entities).each do |mod_group|
             na_accumulate(result, na_fuse_leaf_joinery(mod_group, ctx))
             na_accumulate(result, na_fuse_glaze_bars(mod_group, ctx))
+            na_accumulate(result, na_fuse_leaded_glass(mod_group, ctx))
             na_accumulate(result, na_trim_glass(mod_group, ctx))
         end
         na_accumulate(result, na_fuse_outer_frame(entities))
@@ -99,9 +100,11 @@ module Na__FuseParts__Panel
             :container => container,
             :structural_regex => /^#{Regexp.escape(container)}__ADR\d{3}__Leaf\d{3}__(?:StileLeft|StileRight|RailBottom|RailTop|RailMid|FieldStile\d+|FieldRail\d+)$/,
             :glaze_bar_prefix => "#{container}__GlazeBar",
+            :leaded_glass_prefix => "#{container}__LeadedGlass",
             :glass_name => "#{container}__Glass",
             :leaf_joinery_fused => "#{container}__LeafJoinery__Fused",
             :glaze_bars_fused => "#{container}__GlazeBars__Fused",
+            :leaded_glass_fused => "#{container}__LeadedGlass__Fused",
             :glass_trimmed => "#{container}__Glass__Trimmed"
         }
     end
@@ -149,6 +152,31 @@ module Na__FuseParts__Panel
         result.merge(:failed => result[:failed] + 1)
     end
     private_class_method :na_fuse_glaze_bars
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Fuse Leaded Glass Overlay Inside One MOD (No Glass Trim)
+    # ------------------------------------------------------------
+    def self.na_fuse_leaded_glass(mod_group, ctx)
+        result = na_empty_result
+        groups = na_collect_groups_by_prefix(mod_group.entities, ctx[:leaded_glass_prefix]).select do |group|
+            next false unless group && group.valid?
+            next false if group.entities.grep(Sketchup::Face).empty?
+            bb = group.local_bounds
+            [bb.width, bb.height, bb.depth].min > 0.001.mm
+        end
+        return na_skipped(result) if groups.length < 2
+
+        na_normalize_materials(groups)
+        fused = FuseShared.na_sequential_outer_shell(
+            groups.dup,
+            ctx[:leaded_glass_fused]
+        )
+        fused ? result.merge(:fused => 1) : result.merge(:failed => 1)
+    rescue StandardError => e
+        DebugTools.na_debug_error("ExtDoorCommon leaded-glass fuse failed for #{mod_group.name}", e)
+        result.merge(:failed => result[:failed] + 1)
+    end
+    private_class_method :na_fuse_leaded_glass
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Trim Glass With Fused Glaze Bars Inside One MOD

@@ -95,6 +95,31 @@ module Na__AssemblyStudio
             end
             # ---------------------------------------------------------------
 
+            # FUNCTION | Lookup A Library Entry By MTE Id (Including Reserved Default)
+            # ------------------------------------------------------------
+            # Flat library omits reserved Default during flatten; this helper
+            # still returns a synthetic Default entry so swatch UIs can show it.
+            def self.na_library_entry(mte_id)
+                key = mte_id.to_s
+                return nil if key.empty?
+
+                na_load_edge_colours_library if @na_edge_library.nil? && @na_load_status == :pending
+
+                if key == 'Default' || key == 'MTE000__Default'
+                    return {
+                        'SketchUpName' => 'Default',
+                        'HexValue' => nil,
+                        'Description' => 'SketchUp default edge colour',
+                        'SwatchName' => 'Default',
+                        'IsDefault' => true,
+                        'IsReserved' => true
+                    }
+                end
+
+                @na_edge_library && @na_edge_library[key]
+            end
+            # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -361,6 +386,31 @@ module Na__AssemblyStudio
             rescue StandardError => e
                 DebugTools.na_debug_error("EdgeColourManager: apply edge colour failed", e)
                 0
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Clear Edge Materials On A Group (SketchUp Default Colour)
+            # ------------------------------------------------------------
+            def self.na_clear_edge_colours_on_group(group)
+                return 0 unless group && group.respond_to?(:valid?) && group.valid?
+
+                edges = []
+                na_collect_edges_from_entity(group, edges)
+                edges.each { |edge| edge.material = nil }
+                edges.length
+            rescue StandardError => e
+                DebugTools.na_debug_error("EdgeColourManager: clear edge colours failed", e)
+                0
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Apply Or Clear Edge Colour By Id (Default Clears)
+            # ------------------------------------------------------------
+            def self.na_apply_or_clear_edge_colour_on_group(group, mte_id)
+                key = mte_id.to_s
+                return na_clear_edge_colours_on_group(group) if key.empty? || key == 'Default'
+
+                na_apply_edge_colour_to_group(group, key)
             end
             # ---------------------------------------------------------------
 

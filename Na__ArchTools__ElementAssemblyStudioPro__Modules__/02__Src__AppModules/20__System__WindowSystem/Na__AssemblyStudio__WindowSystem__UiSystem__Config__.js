@@ -463,6 +463,74 @@ const NA_GLAZEBAR_CONFIG = [
                 default :  0
             }
         ]
+    },
+    // -------------------------------------------------------------------------
+    // Leaded Glass Controls (expandable)
+    //
+    // Overlay lead came on the outer glass face (does not subdivide glass).
+    // Modes: centre-lines only / flat ribbons (depth 0) / extruded (1–5 mm).
+    // Visibility of child controls is wired in MainUiLogic
+    // (na_updateLeadedGlassVisibility).
+    // -------------------------------------------------------------------------
+    {
+        id      :  'leaded_glass_controls',
+        label   :  'Leaded Glass',
+        type    :  'expandable',
+        default :  false,
+        children: [
+            {
+                id      :  'leaded_glass_enabled',
+                label   :  'Enable Leaded Glass',
+                type    :  'toggle',
+                default :  false
+            },
+            {
+                id      :  'horizontal_leaded_bars',
+                label   :  'Horizontal Lead Lines',
+                unit    :  '',
+                type    :  'slider',
+                min     :  0,
+                max     :  8,
+                step    :  1,
+                default :  0
+            },
+            {
+                id      :  'vertical_leaded_bars',
+                label   :  'Vertical Lead Lines',
+                unit    :  '',
+                type    :  'slider',
+                min     :  0,
+                max     :  8,
+                step    :  1,
+                default :  0
+            },
+            {
+                id      :  'leaded_width_mm',
+                label   :  'Lead Width',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  2,
+                max     :  20,
+                step    :  1,
+                default :  6
+            },
+            {
+                id      :  'leaded_depth_mm',
+                label   :  'Lead Depth',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  0,
+                max     :  5,
+                step    :  1,
+                default :  0
+            },
+            {
+                id      :  'leaded_centre_lines_only',
+                label   :  'Centre Lines Only',
+                type    :  'toggle',
+                default :  false
+            }
+        ]
     }
 ];
 
@@ -612,6 +680,49 @@ const NA_OPTIONS_CONFIG = [
         type            : 'material_cards',
         default         : 'MAT120__GenericWood',
         materialsSource : 'NA_FRAME_FINISH_SWATCHES'                              // <-- Live swatches from materials JSON via Ruby push
+    },
+    {
+        id      :  'edge_colour_controls',
+        label   :  'Edge Colours',
+        type    :  'expandable',
+        default :  false,
+        children:  [
+            {
+                id              : 'edge_colour_frame_id',
+                label           : 'Frame',
+                type            : 'material_cards',
+                default         : 'MTE102__LineColour__SoftBlack__L20',
+                materialsSource : 'NA_EDGE_COLOUR_SWATCHES'
+            },
+            {
+                id              : 'edge_colour_casement_id',
+                label           : 'Casement',
+                type            : 'material_cards',
+                default         : 'MTE103__LineColour__DarkGrey__L40',
+                materialsSource : 'NA_EDGE_COLOUR_SWATCHES'
+            },
+            {
+                id              : 'edge_colour_glazebar_id',
+                label           : 'Glazebar',
+                type            : 'material_cards',
+                default         : 'MTE103__LineColour__DarkGrey__L40',
+                materialsSource : 'NA_EDGE_COLOUR_SWATCHES'
+            },
+            {
+                id              : 'edge_colour_leaded_id',
+                label           : 'Lead Lines',
+                type            : 'material_cards',
+                default         : 'MTE104__LineColour__MidGrey__L60',
+                materialsSource : 'NA_EDGE_COLOUR_SWATCHES'
+            },
+            {
+                id              : 'edge_colour_fielded_panel_id',
+                label           : 'Fielded Panel',
+                type            : 'material_cards',
+                default         : 'MTE103__LineColour__DarkGrey__L40',
+                materialsSource : 'NA_EDGE_COLOUR_SWATCHES'
+            }
+        ]
     }
 ];
 

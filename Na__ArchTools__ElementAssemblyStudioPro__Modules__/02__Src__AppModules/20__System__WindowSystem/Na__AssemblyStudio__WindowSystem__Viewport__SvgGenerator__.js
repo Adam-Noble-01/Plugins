@@ -221,6 +221,14 @@ const Na__Viewport__SvgGenerator = (function() {
             archHeight     : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0)),
             hOffsetMm      : Number(config.glazebar_horizontal_offset_mm || 0)              // <-- Uniform vertical nudge for all horizontal bars (positive = up in mm)
         };
+        const leadedGlass = {
+            enabled      : config.leaded_glass_enabled === true,
+            hBars        : Math.max(0, Math.min(8, Math.round(Number(config.horizontal_leaded_bars || 0)))),
+            vBars        : Math.max(0, Math.min(8, Math.round(Number(config.vertical_leaded_bars || 0)))),
+            widthMm      : Math.max(2, Number(config.leaded_width_mm || 6)),
+            centreLines  : config.leaded_centre_lines_only === true,
+            colourId     : na_resolveLeadedColourId(config)
+        };
         const frameMaterialId = config.frame_material_id || 'MAT120__GenericWood';
         const frameColor = na_getMaterialColor(frameMaterialId);
         const showDimensions = config.show_dimensions !== false;
@@ -316,6 +324,7 @@ const Na__Viewport__SvgGenerator = (function() {
                         vBars: vBars,
                         barWidth: barWidth,
                         advancedGlazebar: advancedGlazebar,
+                        leadedGlass: leadedGlass,
                         removedGlazebars: removedGlazebars,
                         doorMode: doorMode,
                         doorPanelHeightMm: doorPanelHeightMm,
@@ -464,7 +473,8 @@ const Na__Viewport__SvgGenerator = (function() {
                             options.casTopRail, options.casBottomRail, options.casLeftStile, options.casRightStile,
                             options.frameColor, options.hBars, options.vBars, options.barWidth,
                             options.doorPanelHeightMm, options.doorConfig,
-                            panelContext, options.removedGlazebars, options.advancedGlazebar
+                            panelContext, options.removedGlazebars, options.advancedGlazebar,
+                            options.leadedGlass
                         )
                     );
                 } else if (options.slidingSashWindow) {
@@ -474,7 +484,8 @@ const Na__Viewport__SvgGenerator = (function() {
                             panelX, cell.y, panelWidth, cell.height,
                             options.casTopRail, options.casBottomRail, options.topSashBottomRail, options.bottomSashTopRail, options.casLeftStile, options.casRightStile,
                             options.frameColor, options.hBars, options.vBars, options.barWidth, options.slidingSashOverlap,
-                            panelContext, options.removedGlazebars, options.sashHornOptions, options.advancedGlazebar
+                            panelContext, options.removedGlazebars, options.sashHornOptions, options.advancedGlazebar,
+                            options.leadedGlass
                         )
                     );
                 } else {
@@ -491,7 +502,8 @@ const Na__Viewport__SvgGenerator = (function() {
                                 sashIndex: 0
                             },
                             options.removedGlazebars,
-                            options.advancedGlazebar
+                            options.advancedGlazebar,
+                            options.leadedGlass
                         )
                     );
                 }
@@ -521,6 +533,10 @@ const Na__Viewport__SvgGenerator = (function() {
                         )
                     );
                 }
+
+                renderBucket.svg += na_generateLeadedGlassSvg(
+                    panelX, cell.y, panelWidth, cell.height, options.leadedGlass
+                );
 
                 if (showCasements && panelIsRemoved) {                    // <-- Per-panel removed indicator
                     renderBucket.svg += na_generatePanelRemovedIndicatorSvg(panelX, cell.y, panelWidth, cell.height);
@@ -604,7 +620,7 @@ const Na__Viewport__SvgGenerator = (function() {
 
     // FUNCTION | Generate SVG for a Single Casement with Individual Sizes
     // ------------------------------------------------------------
-    function na_generateSingleCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar) {
+    function na_generateSingleCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar, leadedGlass) {
         const renderBucket = na_createSvgRenderBucket();
 
         renderBucket.svg += na_svgRect(x, y, leftStile, height, frameColor, '#000', 0.5);
@@ -638,6 +654,8 @@ const Na__Viewport__SvgGenerator = (function() {
                 )
             );
         }
+
+        renderBucket.svg += na_generateLeadedGlassSvg(glassX, glassY, glassWidth, glassHeight, leadedGlass);
 
         return renderBucket;
     }
@@ -728,7 +746,7 @@ const Na__Viewport__SvgGenerator = (function() {
     // ------------------------------------------------------------
     // Draws top and bottom casements stacked vertically.
     // Bottom sash gets a subtle shading overlay to indicate setback depth.
-    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar) {
+    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar, leadedGlass) {
         const renderBucket = na_createSvgRenderBucket();
 
         const sashHeight = height / 2;
@@ -757,7 +775,8 @@ const Na__Viewport__SvgGenerator = (function() {
                     sashIndex: 1
                 },
                 removedGlazebars,
-                advancedNoArch
+                advancedNoArch,
+                leadedGlass
             )
         );
 
@@ -778,7 +797,8 @@ const Na__Viewport__SvgGenerator = (function() {
                     sashIndex: 0
                 },
                 removedGlazebars,
-                advancedGlazebar
+                advancedGlazebar,
+                leadedGlass
             )
         );
 
@@ -807,7 +827,7 @@ const Na__Viewport__SvgGenerator = (function() {
     // ------------------------------------------------------------
     // Draws a full-height casement with stiles, top/bottom/mid rails,
     // glass + glaze bars in the upper zone, and door panel content in the lower zone.
-    function na_generateDoorCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, doorPanelHeightMm, doorConfig, panelContext, removedGlazebars, advancedGlazebar) {
+    function na_generateDoorCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, doorPanelHeightMm, doorConfig, panelContext, removedGlazebars, advancedGlazebar, leadedGlass) {
         const renderBucket = na_createSvgRenderBucket();
         const midRailW = (doorConfig && doorConfig.door_mid_rail_width_mm) || 150;
         const baseRailW = (doorConfig && doorConfig.door_base_rail_width_mm) || 200;
@@ -850,6 +870,8 @@ const Na__Viewport__SvgGenerator = (function() {
                     )
                 );
             }
+
+            renderBucket.svg += na_generateLeadedGlassSvg(glassX, glassY, glassWidth, glassHeight, leadedGlass);
         }
 
         // Lower zone: door panel content (inside casement frame)
@@ -940,6 +962,77 @@ const Na__Viewport__SvgGenerator = (function() {
 // -----------------------------------------------------------------------------
 // REGION | Glaze Bars — Geometry & Invisible Hit Rects
 // -----------------------------------------------------------------------------
+
+    // FUNCTION | Resolve Leaded Came Preview Stroke Colour From Edge Swatches
+    // ------------------------------------------------------------
+    function na_resolveLeadedColourId(config) {
+        if (config && config.edge_colour_leaded_id) return String(config.edge_colour_leaded_id);
+        const legacy = config && config.leaded_colour ? String(config.leaded_colour) : '';
+        if (legacy === 'light') return 'MTE107__LineColour__LightGrey__L85';
+        if (legacy === 'dark') return 'MTE103__LineColour__DarkGrey__L40';
+        return 'MTE104__LineColour__MidGrey__L60';
+    }
+
+    function na_leadedColourHex(colourId) {
+        const id = (colourId || '').toString();
+        const swatches = window.NA_EDGE_COLOUR_SWATCHES;
+        if (Array.isArray(swatches)) {
+            const hit = swatches.find(function (s) { return s && s.id === id; });
+            if (hit && hit.hex) return hit.hex;
+        }
+        if (id === 'light' || id.indexOf('LightGrey') >= 0) return '#D9D9D9';
+        if (id === 'dark' || id.indexOf('DarkGrey') >= 0) return '#666666';
+        if (id.indexOf('SoftBlack') >= 0) return '#333333';
+        return '#999999';
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate SVG Leaded Glass Overlay for a Glass Area
+    // ------------------------------------------------------------
+    // Centre-lines: thin strokes. Otherwise: light fill ribbons using width.
+    function na_generateLeadedGlassSvg(glassX, glassY, glassWidth, glassHeight, leadedOptions) {
+        const opts = leadedOptions || {};
+        if (!opts.enabled) return '';
+        const hBars = Math.max(0, Math.round(Number(opts.hBars || 0)));
+        const vBars = Math.max(0, Math.round(Number(opts.vBars || 0)));
+        if (hBars <= 0 && vBars <= 0) return '';
+        if (glassWidth <= 0 || glassHeight <= 0) return '';
+
+        const stroke = na_leadedColourHex(opts.colourId || opts.colour);
+        const centreLines = opts.centreLines === true;
+        const widthMm = Math.max(1, Number(opts.widthMm || 6));
+        let svg = '';
+
+        const math = window.Na__GlazebarMath;
+        if (!math || typeof math.na_computeBarPositions !== 'function') return '';
+
+        if (hBars > 0) {
+            const hPositions = math.na_computeBarPositions(glassY, glassHeight, hBars, false, 0);
+            for (let i = 0; i < hBars; i++) {
+                const cy = hPositions[i];
+                if (centreLines) {
+                    svg += `<line x1="${glassX}" y1="${cy}" x2="${glassX + glassWidth}" y2="${cy}" stroke="${stroke}" stroke-width="1" />`;
+                } else {
+                    svg += na_svgRect(glassX, cy - widthMm / 2, glassWidth, widthMm, stroke, stroke, 0.4);
+                }
+            }
+        }
+
+        if (vBars > 0) {
+            const vPositions = math.na_computeBarPositions(glassX, glassWidth, vBars, false, 0);
+            for (let i = 0; i < vBars; i++) {
+                const cx = vPositions[i];
+                if (centreLines) {
+                    svg += `<line x1="${cx}" y1="${glassY}" x2="${cx}" y2="${glassY + glassHeight}" stroke="${stroke}" stroke-width="1" />`;
+                } else {
+                    svg += na_svgRect(cx - widthMm / 2, glassY, widthMm, glassHeight, stroke, stroke, 0.4);
+                }
+            }
+        }
+
+        return svg;
+    }
+    // ---------------------------------------------------------------
 
     // FUNCTION | Generate SVG Glaze Bars for a Glass Area (No Casement Frame)
     // ------------------------------------------------------------
@@ -1419,6 +1512,7 @@ const Na__Viewport__SvgGenerator = (function() {
         na_getSashHornElevationData: na_getSashHornElevationData,
         na_buildSashHornLogicalPoints: na_buildSashHornLogicalPoints,
         na_generateGlazeBarsSvg: na_generateGlazeBarsSvg,
+        na_generateLeadedGlassSvg: na_generateLeadedGlassSvg,
         na_generateGothicArchSvg: na_generateGothicArchSvg,                 // <-- Exposed for ExtFold/ExtSlide elevation parity
         na_collectValidGlazebarKeys: na_collectValidGlazebarKeys,
         na_getCasementKey: na_getCasementKey,                            // <-- Exposed for cross-module reuse
@@ -1430,7 +1524,9 @@ const Na__Viewport__SvgGenerator = (function() {
         na_getEffectiveFrameThicknesses: na_getEffectiveFrameThicknesses,// <-- Exposed for valid-key collectors in UiLogic
         na_svgRect: na_svgRect,
         na_svgDimensions: na_svgDimensions,
-        na_getMaterialColor: na_getMaterialColor
+        na_getMaterialColor: na_getMaterialColor,
+        na_resolveLeadedColourId: na_resolveLeadedColourId,
+        na_leadedColourHex: na_leadedColourHex
     };
 
 // endregion -------------------------------------------------------------------

@@ -12,7 +12,30 @@
         "uiDefaults": {
             "DefaultColourKey"         : "Default",
             "DynamicPaletteSlotCount"  : 4,
-            "DynamicPaletteDefaultKey" : "MTE109__LineColour__White"
+            "DynamicPaletteDefaultKey" : "MTE109__LineColour__White",
+            "AssemblyStudioEdgeColourSwatchKeys": [
+                "Default",
+                "MTE102__LineColour__SoftBlack__L20",
+                "MTE103__LineColour__DarkGrey__L40",
+                "MTE103__LineColour__MediumDarkGrey__L50",
+                "MTE104__LineColour__MidGrey__L60",
+                "MTE107__LineColour__LightGrey__L85"
+            ],
+            "AssemblyStudioEdgeColourSwatchLabels": {
+                "Default": "Default",
+                "MTE102__LineColour__SoftBlack__L20": "Soft Black",
+                "MTE103__LineColour__DarkGrey__L40": "Dark Grey",
+                "MTE103__LineColour__MediumDarkGrey__L50": "Medium Dark Grey",
+                "MTE104__LineColour__MidGrey__L60": "Mid Grey",
+                "MTE107__LineColour__LightGrey__L85": "Light Grey"
+            },
+            "AssemblyStudioEdgeColourPartDefaults": {
+                "frame": "MTE102__LineColour__SoftBlack__L20",
+                "casement": "MTE103__LineColour__DarkGrey__L40",
+                "glazebar": "MTE103__LineColour__DarkGrey__L40",
+                "leaded": "MTE104__LineColour__MidGrey__L60",
+                "fielded_panel": "MTE103__LineColour__DarkGrey__L40"
+            }
         },
         "GitHub__RepoUrl"        : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
         "Data__URL"              : "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__EdgeMaterials__.json"

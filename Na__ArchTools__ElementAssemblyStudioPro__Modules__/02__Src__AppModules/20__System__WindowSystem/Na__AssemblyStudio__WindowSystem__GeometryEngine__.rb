@@ -28,6 +28,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
 require_relative 'Na__AssemblyStudio__WindowSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
+require_relative 'Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
 require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
 require_relative '../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__PanelInterface__'
 
@@ -44,6 +45,7 @@ module Na__WindowSystem
         DataSerializer = Na__AssemblyStudio::Na__WindowSystem::Na__DataSerializer
         GeometryHelpers = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryHelpers
         GeometryBuilders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
+        LeadedGlassBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
         SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
         InsertionFrame   = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                  # <-- Wall-aware insertion transform helper
         # Door panel construction crosses the WindowSystem<->ExteriorSingleDoorSystem
@@ -571,6 +573,9 @@ module Na__WindowSystem
             # and mm (for diagnostics + parity with other glazebar keys).
             glazebar_horizontal_offset_mm = (config["glazebar_horizontal_offset_mm"] || 0).to_f
             glazebar_horizontal_offset    = glazebar_horizontal_offset_mm * mm_to_inch
+
+            # Leaded glass overlay (outer glass face; does not trim glass)
+            leaded_resolved = LeadedGlassBuilder.na_resolve_leaded_params(config)
             
             # Cill
             cill_depth = (config["cill_depth_mm"] || constants[:default_cill_depth]).to_f * mm_to_inch
@@ -685,6 +690,13 @@ module Na__WindowSystem
                 glazebar_gothic_arch_height_mm: glazebar_gothic_arch_height_mm,
                 glazebar_horizontal_offset: glazebar_horizontal_offset,
                 glazebar_horizontal_offset_mm: glazebar_horizontal_offset_mm,
+                leaded_glass_enabled: leaded_resolved[:enabled],
+                horizontal_leaded_bars: leaded_resolved[:h_bars],
+                vertical_leaded_bars: leaded_resolved[:v_bars],
+                leaded_width: leaded_resolved[:width],
+                leaded_depth: leaded_resolved[:depth],
+                leaded_centre_lines_only: leaded_resolved[:centre_lines],
+                leaded_mte_id: leaded_resolved[:mte_id],
                 has_cill: has_cill,
                 cill_depth: cill_depth,
                 cill_height: cill_height
@@ -1061,6 +1073,12 @@ module Na__WindowSystem
                         na_advanced_glazebar_hash(params)
                     )
                 end
+
+                na_create_leaded_for_glass(
+                    entities, panel_id, glass_w, glass_h, glass_offset_x, glass_offset_z,
+                    panel_wall_inset, params[:glass_thickness], params[:frame_depth],
+                    params[:casement_depth], params[:casement_inset], params
+                )
             else
                 GeometryBuilders.na_create_glass_geometry(
                     entities, panel_id, panel_width, panel_height, params[:glass_thickness],
@@ -1077,6 +1095,12 @@ module Na__WindowSystem
                         na_advanced_glazebar_hash(params)
                     )
                 end
+
+                na_create_leaded_for_glass(
+                    entities, panel_id, panel_width, panel_height, panel_x, panel_z,
+                    panel_wall_inset, params[:glass_thickness], params[:frame_depth],
+                    nil, nil, params
+                )
             end
         end
         # ---------------------------------------------------------------
@@ -1098,6 +1122,26 @@ module Na__WindowSystem
                 h_offset_mm:     params[:glazebar_horizontal_offset_mm]                        # <-- mm (for diagnostics)
             }
         end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Create Leaded Glass Overlay For One Glass Pane
+        # ------------------------------------------------------------
+        def self.na_create_leaded_for_glass(
+            entities, panel_id, glass_w, glass_h, offset_x, offset_z,
+            wall_inset, glass_thickness, frame_depth, casement_depth, casement_inset, params
+        )
+            leaded = LeadedGlassBuilder.na_resolve_leaded_params_from_engine(params)
+            return unless leaded[:enabled]
+            return if leaded[:h_bars] <= 0 && leaded[:v_bars] <= 0
+
+            y_front = LeadedGlassBuilder.na_glass_outer_face_y(
+                wall_inset, glass_thickness, frame_depth, casement_depth, casement_inset
+            )
+            LeadedGlassBuilder.na_create_leaded_glass_geometry(
+                entities, panel_id, glass_w, glass_h, offset_x, offset_z, y_front, leaded
+            )
+        end
+        private_class_method :na_create_leaded_for_glass
         # ---------------------------------------------------------------
 
         # FUNCTION | Resolve Panel Bottom Rail
@@ -1177,6 +1221,12 @@ module Na__WindowSystem
                         na_advanced_glazebar_hash(params)
                     )
                 end
+
+                na_create_leaded_for_glass(
+                    entities, panel_id, glass_w, glass_h, glass_x, glass_z,
+                    panel_wall_inset, params[:glass_thickness], params[:frame_depth],
+                    cas_depth, params[:casement_inset], params
+                )
             end
 
             # Lower zone: door panel content (inside casement stiles, between base rail and mid-rail)

@@ -7,6 +7,7 @@ require_relative '../04__GeometryHelpers/Na__AssemblyStudio__DoorNamingContract_
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Box__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
+require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
 require_relative 'Na__AssemblyStudio__ExtDouble__GeometryHelpers__'
 require_relative 'Na__AssemblyStudio__ExtDouble__LeafLayoutResolver__'
 require_relative 'Na__AssemblyStudio__ExtDouble__PanelLayoutResolver__'
@@ -28,6 +29,7 @@ module Na__AssemblyComposer
     RotationPivotBuilder = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__RotationPivotBuilder
     NamingContract = Na__AssemblyStudio::Na__GeometryHelpers::Na__DoorNamingContract
     WindowBuilders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
+    LeadedGlassBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
     MaterialManager = Na__AssemblyStudio::Na__AppData::Na__MaterialManager
     TagManager = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
     Box = Na__AssemblyStudio::Na__GeometryHelpers::Na__Box
@@ -68,11 +70,14 @@ module Na__AssemblyComposer
         panel_layout = PanelLayoutResolver.na_resolve(config, leaf)
         na_build_leaf_members(mod.entities, leaf, panel_layout, materials[:leaf], door_id)
         na_build_field_dividers(mod.entities, leaf, panel_layout, materials[:leaf], door_id)
-        na_build_glazed_region(mod.entities, leaf, panel_layout, materials)
+        na_build_glazed_region(mod.entities, leaf, panel_layout, materials, config)
 
         if panel_layout[:output_mode] == 'Linework'
             # @delegate: Na__AssemblyStudio__ExtDouble__PanelLineworkBuilder__.rb
-            PanelLineworkBuilder.na_build(mod.entities, leaf, panel_layout, materials[:leaf])
+            PanelLineworkBuilder.na_build(
+                mod.entities, leaf, panel_layout, materials[:leaf],
+                edge_colour_id: config['edge_colour_fielded_panel_id']
+            )
         else
             # @delegate: Na__AssemblyStudio__ExtDouble__PanelGeometryBuilder__.rb
             PanelGeometryBuilder.na_build(mod.entities, leaf, panel_layout, materials[:leaf])
@@ -141,7 +146,7 @@ module Na__AssemblyComposer
     end
     private_class_method :na_build_field_dividers
 
-    def self.na_build_glazed_region(entities, leaf, layout, materials)
+    def self.na_build_glazed_region(entities, leaf, layout, materials, config)
         region = layout[:glazed_region]
         return unless region && region[:height_mm] > 0
 
@@ -151,6 +156,7 @@ module Na__AssemblyComposer
                region[:x_mm], glass_y, region[:z_mm],
                region[:width_mm], glass_depth, region[:height_mm], materials[:glass])
         na_build_glaze_bars(entities, leaf, layout, materials[:leaf])
+        na_build_leaded_glass(entities, config, leaf, layout, glass_y, 'Na__ExteriorDoubleDoor')
     end
     private_class_method :na_build_glazed_region
 
@@ -188,6 +194,29 @@ module Na__AssemblyComposer
         end
     end
     private_class_method :na_build_glaze_bars
+
+    def self.na_build_leaded_glass(entities, config, leaf, layout, glass_y_mm, naming_prefix)
+        leaded = LeadedGlassBuilder.na_resolve_leaded_params(config)
+        return unless leaded[:enabled]
+        return if leaded[:h_bars] <= 0 && leaded[:v_bars] <= 0
+
+        region = layout[:glazed_region]
+        return unless region && region[:height_mm].to_f > 0
+
+        mm = 1.0 / 25.4
+        LeadedGlassBuilder.na_create_leaded_glass_geometry(
+            entities,
+            leaf[:index],
+            region[:width_mm] * mm,
+            region[:height_mm] * mm,
+            region[:x_mm] * mm,
+            region[:z_mm] * mm,
+            glass_y_mm * mm,
+            leaded,
+            naming: { prefix: naming_prefix }
+        )
+    end
+    private_class_method :na_build_leaded_glass
 
     def self.na_glazebar_key(leaf, orientation, bar_index)
         "0:0:#{leaf[:index] - 1}:0:#{orientation}:#{bar_index}"

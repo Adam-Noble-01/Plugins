@@ -172,6 +172,7 @@
                 "glassFill"             : "#87CEEB",
                 "glassStroke"           : "#000000",
                 "glazebarStroke"        : "#000000",
+                "leadedGlassStroke"     : "#999999",
                 "doorPanelTimber"       : "#C9A175",
                 "doorPanelStroke"       : "#7A5B33",
                 "doorTrimFill"          : "#A88663",

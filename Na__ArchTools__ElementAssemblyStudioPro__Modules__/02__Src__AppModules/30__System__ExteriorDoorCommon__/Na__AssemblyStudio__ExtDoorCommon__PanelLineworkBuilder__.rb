@@ -55,8 +55,9 @@ module Na__PanelLineworkBuilder
     # FUNCTION | Build Linework Panels Into a Container Group
     # ------------------------------------------------------------
     # @param naming [Hash] { :container => "Na__ExteriorDoubleDoor" }
+    # @param edge_colour_id [String, nil] optional MTE id override
     # @return [Sketchup::Group, nil]
-    def self.na_build(entities, leaf, panel_layout, material = nil, naming = {})
+    def self.na_build(entities, leaf, panel_layout, material = nil, naming = {}, edge_colour_id: nil)
         return nil unless entities && panel_layout[:field_cells].any?
 
         container_prefix = na_container_prefix(naming)
@@ -86,12 +87,15 @@ module Na__PanelLineworkBuilder
             na_build_cell(container.entities, cell, back_y, index + 1, 'Back', container_prefix)
         end
 
-        colour_id = if EdgeColourManager.const_defined?(:NA_DEFAULT_DARK_GREY_KEY)
-                        EdgeColourManager::NA_DEFAULT_DARK_GREY_KEY
-                    else
-                        'MTE103__LineColour__DarkGrey__L40'
-                    end
-        EdgeColourManager.na_apply_edge_colour_to_group(container, colour_id)
+        colour_id = edge_colour_id.to_s
+        if colour_id.empty?
+            colour_id = if EdgeColourManager.const_defined?(:NA_DEFAULT_DARK_GREY_KEY)
+                            EdgeColourManager::NA_DEFAULT_DARK_GREY_KEY
+                        else
+                            'MTE103__LineColour__DarkGrey__L40'
+                        end
+        end
+        EdgeColourManager.na_apply_or_clear_edge_colour_on_group(container, colour_id)
         container
     end
     # ---------------------------------------------------------------

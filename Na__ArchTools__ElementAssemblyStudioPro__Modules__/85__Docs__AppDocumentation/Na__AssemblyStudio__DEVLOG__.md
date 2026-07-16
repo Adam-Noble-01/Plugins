@@ -3,6 +3,47 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.1.3 - 16-Jul-2026 - Leaded Glass Controls + Edge Colours hierarchy
+
+### Context
+Parametric leaded glass (lead came overlay on the outer glass face) for windows and exterior doors, plus a shared Edge Colours section so Frame / Casement / Glazebar / Lead / Fielded Panel edges can be assigned DataLib MTE greys for TrueVision / ValeVision depth-cue hierarchy.
+
+### Leaded Glass — Feature Summary
+- Folded **Leaded Glass** expandable under Glaze Bars (defaults off).
+- H/V lead line counts, Width (default 6 mm), Depth 0–5 mm (1 mm steps), Centre Lines Only.
+- Modes: centre-lines (edges only) | Depth 0 flat ribbons | Depth 1–5 extruded from outer glass face.
+- Does **not** subdivide glass; Fuse Parts fuses lead solids only (no glass trim).
+- Coexists with timber glaze bars. Wired for WindowSystem + Ext Single / Double / Sliding / Multifold.
+- 2D SVG preview draws the lead grid (window + sliding/bifold elevations).
+
+### Edge Colours — Feature Summary
+- Folded **Edge Colours** expandable in Options with five material-card pickers: Frame, Casement, Glazebar, Lead lines, Fielded Panel.
+- Swatches from DataLib EdgeMaterials SSOT: Default, MTE102 SoftBlack, MTE103 DarkGrey, MTE103 MediumDarkGrey, MTE104 MidGrey, MTE107 LightGrey.
+- Part defaults: Frame=MTE102; Casement/Glazebar/Fielded=MTE103 Dark; Lead=MTE104.
+- Applied as a **final** post-build / post-fuse paint pass via `EdgeColourPainter`.
+- Lead colour Mid/Light/Dark select removed; lead uses `edge_colour_leaded_id` (legacy `leaded_colour` migrates on load).
+
+### Files Changed (highlights)
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__.rb` (new)
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__EdgeColourPainter__.rb` (new)
+- `02__AppData/Na__AssemblyStudio__AppData__EdgeColourSwatches__.rb` (new)
+- WindowSystem Config / Defaults / GeometryEngine / FuseParts / DialogCallbacks / SvgGenerator
+- Ext Single / Double / Slide / Fold composers + fuse + elevation generators
+- `Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__EdgeMaterials__.json` (AssemblyStudio uiDefaults)
+- `02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__.rb` (clear Default helper)
+- `01__AppCore/Na__AssemblyStudio__AppCore__DialogManager__.rb` (edge swatch push)
+
+### How to Test
+1. Full SketchUp restart (or Reload Scripts + reopen dialog).
+2. Glaze Bars → Leaded Glass → Enable, set H/V counts — centre-lines / flat / depth 5; Fuse Parts does not cut glass.
+3. Options → Edge Colours — change Frame/Casement/Glazebar/Lead/Fielded swatches; Create/Update; edges show hierarchy in Color by Material.
+4. Exterior doors share the same Glaze Bars / Edge Colours keys.
+
+### Backward Compatibility
+- Existing windows/doors keep baked geometry until Update/recreate.
+- Legacy `leaded_colour` mid/light/dark maps to MTE104/MTE107/MTE103 when `edge_colour_leaded_id` is missing.
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.1.2 - 16-Jul-2026 - Exterior Door Unification (in progress) + Double Door Handle Defaults
 
 ### Context

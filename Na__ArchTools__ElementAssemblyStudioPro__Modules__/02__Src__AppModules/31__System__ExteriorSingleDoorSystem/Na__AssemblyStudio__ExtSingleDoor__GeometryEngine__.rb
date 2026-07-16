@@ -22,6 +22,8 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative 'Na__AssemblyStudio__ExtSingleDoor__AssemblyComposer__'
 require_relative 'Na__AssemblyStudio__ExtSingleDoor__DataSerializer__'
 require_relative 'Na__AssemblyStudio__ExtSingleDoor__FuseParts__Panel__'
+require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__EdgeColourPainter__'
+require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
 
 module Na__AssemblyStudio
 module Na__ExteriorSingleDoorSystem
@@ -31,11 +33,13 @@ module Na__GeometryEngine
 # REGION | Module References
 # -----------------------------------------------------------------------------
 
-    AssemblyComposer = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__AssemblyComposer
-    DataSerializer   = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer
-    FuseParts        = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__FuseParts__Panel
-    TagManager       = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
-    DebugTools       = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+    AssemblyComposer   = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__AssemblyComposer
+    DataSerializer     = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer
+    FuseParts          = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__FuseParts__Panel
+    TagManager         = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
+    DebugTools         = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+    EdgeColourPainter  = Na__AssemblyStudio::Na__WindowSystem::Na__EdgeColourPainter
+    LeadedGlassBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
 
 # endregion -------------------------------------------------------------------
 
@@ -60,6 +64,7 @@ module Na__GeometryEngine
             definition = model.definitions.add("#{door_id}#{NA_DEFINITION_SUFFIX}")
             AssemblyComposer.na_compose(config, definition.entities, door_id)
             na_apply_fuse_parts(config, definition.entities)
+            na_apply_edge_colours(config, definition.entities)
             transform = na_resolve_insertion_transform(insertion_frame)
             instance = model.active_entities.add_instance(definition, transform)
             raise 'Unable to create Exterior Single Door instance' unless instance
@@ -98,6 +103,7 @@ module Na__GeometryEngine
             definition.entities.clear!
             AssemblyComposer.na_compose(config, definition.entities, door_id)
             na_apply_fuse_parts(config, definition.entities)
+            na_apply_edge_colours(config, definition.entities)
             DataSerializer.na_set_door_id_on_instance(instance, door_id)
             DataSerializer.na_save(instance, config)
             model.commit_operation
@@ -144,6 +150,17 @@ module Na__GeometryEngine
         DebugTools.na_debug_error('Exterior Single Door fuse-parts failed (non-fatal)', error)
     end
     private_class_method :na_apply_fuse_parts
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Final Edge-Colour Paint Pass
+    # ------------------------------------------------------------
+    def self.na_apply_edge_colours(config, entities)
+        LeadedGlassBuilder.na_migrate_legacy_leaded_colour!(config)
+        EdgeColourPainter.na_apply_assembly_edge_colours(entities, config)
+    rescue StandardError => error
+        DebugTools.na_debug_error('Exterior Single Door edge-colour paint failed (non-fatal)', error)
+    end
+    private_class_method :na_apply_edge_colours
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

@@ -67,6 +67,7 @@ require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Box__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
+require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
 require_relative '../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__PanelGeometryBuilder__'
 require_relative '../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__PanelLineworkBuilder__'
 require_relative 'Na__AssemblyStudio__ExtSlide__GeometryHelpers__'
@@ -92,6 +93,7 @@ module Na__AssemblyComposer
     RotationPivotBuilder = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__RotationPivotBuilder
     MovementPivotBuilder = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__MovementPivotBuilder
     WindowBuilders       = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
+    LeadedGlassBuilder   = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
     NA_PANEL_NAMING      = { :container => 'Na__ExteriorSlidingDoor' }.freeze
 
 # endregion -------------------------------------------------------------------
@@ -479,12 +481,20 @@ module Na__AssemblyComposer
                                       head_rail_mm, base_rail_mm, stile_width_mm,
                                       panel_id, descriptor[:index].to_i,
                                       frame_material)
+            na_build_panel_leaded_glass(mod_entities, config_hash,
+                                        origin_x_mm, origin_y_mm, origin_z_mm,
+                                        panel_w_mm, panel_h_mm, panel_t_mm,
+                                        head_rail_mm, base_rail_mm, stile_width_mm,
+                                        panel_id)
         else
             na_build_fielded_leaf_members(mod_entities, leaf, panel_layout, part_names, frame_material)
             na_build_fielded_field_dividers(mod_entities, leaf, panel_layout, frame_material, panel_id)
-            na_build_fielded_glazed_region(mod_entities, leaf, panel_layout, part_names, materials)
+            na_build_fielded_glazed_region(mod_entities, leaf, panel_layout, part_names, materials, config_hash)
             if panel_layout[:output_mode] == 'Linework'
-                SharedPanelLinework.na_build(mod_entities, leaf, panel_layout, frame_material, NA_PANEL_NAMING)
+                SharedPanelLinework.na_build(
+                    mod_entities, leaf, panel_layout, frame_material, NA_PANEL_NAMING,
+                    edge_colour_id: config_hash['edge_colour_fielded_panel_id']
+                )
             else
                 SharedPanelGeometry.na_build(mod_entities, leaf, panel_layout, frame_material, NA_PANEL_NAMING)
             end
@@ -536,7 +546,7 @@ module Na__AssemblyComposer
     private_class_method :na_build_fielded_field_dividers
     # ---------------------------------------------------------------
 
-    def self.na_build_fielded_glazed_region(entities, leaf, layout, part_names, materials)
+    def self.na_build_fielded_glazed_region(entities, leaf, layout, part_names, materials, config_hash = {})
         region = layout[:glazed_region]
         return unless region && region[:height_mm] > 0
 
@@ -547,29 +557,33 @@ module Na__AssemblyComposer
                          region[:width_mm], glass_depth, region[:height_mm], materials[:glass])
 
         bars = layout[:glaze_bars]
-        return unless bars && (bars[:vertical_count].to_i > 0 || bars[:horizontal_count].to_i > 0)
+        if bars && (bars[:vertical_count].to_i > 0 || bars[:horizontal_count].to_i > 0)
+            y = leaf[:origin_y_mm] + bars[:inset_mm]
+            depth = [leaf[:thickness_mm] - 2.0 * bars[:inset_mm], 2.0].max
+            vertical_positions = WindowBuilders.na_compute_bar_positions(
+                region[:x_mm], region[:width_mm], bars[:vertical_count],
+                bars[:margin_enabled], bars[:margin_offset_mm]
+            )
+            horizontal_positions = WindowBuilders.na_compute_bar_positions(
+                region[:z_mm], region[:height_mm], bars[:horizontal_count],
+                bars[:margin_enabled], bars[:margin_offset_mm]
+            ).map { |position| position + bars[:horizontal_offset_mm] }
 
-        y = leaf[:origin_y_mm] + bars[:inset_mm]
-        depth = [leaf[:thickness_mm] - 2.0 * bars[:inset_mm], 2.0].max
-        vertical_positions = WindowBuilders.na_compute_bar_positions(
-            region[:x_mm], region[:width_mm], bars[:vertical_count],
-            bars[:margin_enabled], bars[:margin_offset_mm]
-        )
-        horizontal_positions = WindowBuilders.na_compute_bar_positions(
-            region[:z_mm], region[:height_mm], bars[:horizontal_count],
-            bars[:margin_enabled], bars[:margin_offset_mm]
-        ).map { |position| position + bars[:horizontal_offset_mm] }
+            panel_token = part_names[:glazing].to_s.sub(/^Na_Glass_/, '')
+            vertical_positions.each_with_index do |x, index|
+                na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_V#{index + 1}",
+                                 x - bars[:width_mm] / 2.0, y, region[:z_mm],
+                                 bars[:width_mm], depth, region[:height_mm], materials[:frame])
+            end
+            horizontal_positions.each_with_index do |z, index|
+                na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_H#{index + 1}",
+                                 region[:x_mm], y, z - bars[:width_mm] / 2.0,
+                                 region[:width_mm], depth, bars[:width_mm], materials[:frame])
+            end
+        end
 
-        vertical_positions.each_with_index do |x, index|
-            na_create_box_mm(entities, "Na_GlazeBar_#{part_names[:glazing].sub(/^Na_Glass_/, '')}_V#{index + 1}",
-                             x - bars[:width_mm] / 2.0, y, region[:z_mm],
-                             bars[:width_mm], depth, region[:height_mm], materials[:frame])
-        end
-        horizontal_positions.each_with_index do |z, index|
-            na_create_box_mm(entities, "Na_GlazeBar_#{part_names[:glazing].sub(/^Na_Glass_/, '')}_H#{index + 1}",
-                             region[:x_mm], y, z - bars[:width_mm] / 2.0,
-                             region[:width_mm], depth, bars[:width_mm], materials[:frame])
-        end
+        panel_id = part_names[:glazing].to_s.sub(/^Na_Glass_/, '')
+        na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y)
     end
     private_class_method :na_build_fielded_glazed_region
     # ---------------------------------------------------------------
@@ -823,6 +837,55 @@ module Na__AssemblyComposer
         DebugTools.na_debug_error("ExtSlide::AssemblyComposer.na_build_panel_glaze_bars failed", e)
     end
     private_class_method :na_build_panel_glaze_bars
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Build Leaded Glass Overlay for Fully-Glazed Leaf
+    # ------------------------------------------------------------
+    def self.na_build_panel_leaded_glass(entities, config_hash,
+                                         origin_x_mm, origin_y_mm, origin_z_mm,
+                                         panel_w_mm, panel_h_mm, panel_t_mm,
+                                         head_rail_mm, base_rail_mm, stile_width_mm,
+                                         panel_id)
+        clear_box = na_compute_clear_glazing_box(origin_x_mm, origin_z_mm,
+                                                 panel_w_mm, panel_h_mm,
+                                                 head_rail_mm, base_rail_mm,
+                                                 stile_width_mm)
+        return unless clear_box
+
+        glass_y_mm = origin_y_mm + GeometryHelpers.na_compute_glazing_y_origin_mm(panel_t_mm)
+        na_create_leaded_from_region_mm(entities, config_hash, panel_id, clear_box, glass_y_mm)
+    rescue StandardError => e
+        DebugTools.na_debug_error("ExtSlide::AssemblyComposer.na_build_panel_leaded_glass failed", e)
+    end
+    private_class_method :na_build_panel_leaded_glass
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Create Leaded Glass From mm Region + Outer Face Y
+    # ------------------------------------------------------------
+    def self.na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y_mm)
+        leaded = LeadedGlassBuilder.na_resolve_leaded_params(config_hash)
+        return unless leaded[:enabled]
+        return if leaded[:h_bars] <= 0 && leaded[:v_bars] <= 0
+
+        width_mm = region[:width] || region[:width_mm]
+        height_mm = region[:height] || region[:height_mm]
+        x_mm = region[:x] || region[:x_mm]
+        z_mm = region[:z] || region[:z_mm]
+        return unless width_mm.to_f > 0 && height_mm.to_f > 0
+
+        mm = 1.0 / 25.4
+        LeadedGlassBuilder.na_create_leaded_glass_geometry(
+            entities,
+            panel_id,
+            width_mm * mm,
+            height_mm * mm,
+            x_mm * mm,
+            z_mm * mm,
+            glass_y_mm * mm,
+            leaded
+        )
+    end
+    private_class_method :na_create_leaded_from_region_mm
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

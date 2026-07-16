@@ -73,6 +73,10 @@ module Na__WindowSystem
                 glazebar_result = na_fuse_glaze_bars(entities)
                 na_update_summary(summary, glazebar_result)
 
+                # Step 3b: Fuse leaded glass overlay (never trims glass)
+                leaded_result = na_fuse_leaded_glass(entities)
+                na_update_summary(summary, leaded_result)
+
                 # Step 4: Trim glass panels using fused glaze bars
                 trim_result = na_trim_glass_panels(entities)
                 na_update_summary(summary, trim_result)
@@ -292,6 +296,64 @@ module Na__WindowSystem
             result
         end
         # ---------------------------------------------------------------
+
+        # FUNCTION | Fuse Leaded Glass Overlay Parts (No Glass Trim)
+        # ------------------------------------------------------------
+        # Collects solid lead came groups per panel and fuses them.
+        # Centre-line and flat-ribbon groups (no volume) are skipped.
+        # Glass is never trimmed by leaded geometry.
+        def self.na_fuse_leaded_glass(entities)
+            DebugTools.na_debug_geometry("Fusing leaded glass parts...")
+
+            result = { fused: 0, failed: 0, skipped: 0 }
+
+            leaded_panel_ids = na_find_unique_panel_ids(
+                entities,
+                /^Na_LeadedGlass_(.+?)_[HV]\d+$/
+            )
+
+            if leaded_panel_ids.empty?
+                DebugTools.na_debug_geometry("Leaded glass: no groups found, skipping")
+                return result
+            end
+
+            leaded_panel_ids.each do |panel_id|
+                prefix = "Na_LeadedGlass_#{panel_id}_"
+                groups = na_collect_groups_by_prefix(entities, prefix).select { |g| na_group_has_solid_volume?(g) }
+
+                if groups.length < 2
+                    DebugTools.na_debug_geometry("LeadedGlass #{panel_id}: fewer than 2 solid groups, skipping")
+                    result[:skipped] += 1
+                    next
+                end
+
+                groups.each { |g| na_normalize_face_back_materials(g) }
+
+                fused = na_sequential_outer_shell(groups, "Na_LeadedGlass_#{panel_id}_Fused")
+                if fused
+                    result[:fused] += 1
+                    DebugTools.na_debug_success("LeadedGlass #{panel_id} fused into: #{fused.name}")
+                else
+                    result[:failed] += 1
+                    DebugTools.na_debug_error("LeadedGlass #{panel_id} fusion failed")
+                end
+            end
+
+            result
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | True When Group Has Measurable 3D Volume
+        # ------------------------------------------------------------
+        def self.na_group_has_solid_volume?(group)
+            return false unless group && group.valid?
+            return false if group.entities.grep(Sketchup::Face).empty?
+
+            bb = group.local_bounds
+            min_dim = [bb.width, bb.height, bb.depth].min
+            min_dim > 0.001.mm
+        end
+        private_class_method :na_group_has_solid_volume?
 
         # FUNCTION | Copy Front Material To Back Face Of Every Face In Group
         # ------------------------------------------------------------

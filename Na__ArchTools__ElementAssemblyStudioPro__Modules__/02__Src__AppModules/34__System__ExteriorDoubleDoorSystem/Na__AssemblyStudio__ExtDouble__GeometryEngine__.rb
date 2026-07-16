@@ -2,9 +2,12 @@
 
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__TagManager__'
+require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative 'Na__AssemblyStudio__ExtDouble__AssemblyComposer__'
 require_relative 'Na__AssemblyStudio__ExtDouble__DataSerializer__'
 require_relative 'Na__AssemblyStudio__ExtDouble__FuseParts__Panel__'
+require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__EdgeColourPainter__'
+require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
 
 module Na__AssemblyStudio
 module Na__ExteriorDoubleDoorSystem
@@ -14,6 +17,9 @@ module Na__GeometryEngine
     DataSerializer = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer
     FuseParts = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__FuseParts__Panel
     TagManager = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
+    DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+    EdgeColourPainter = Na__AssemblyStudio::Na__WindowSystem::Na__EdgeColourPainter
+    LeadedGlassBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
 
     def self.na_build_exterior_double_door(config, door_id = nil, insertion_frame = nil)
         return nil unless config.is_a?(Hash)
@@ -27,6 +33,7 @@ module Na__GeometryEngine
             # @delegate: Na__AssemblyStudio__ExtDouble__AssemblyComposer__.rb
             AssemblyComposer.na_compose(config, definition.entities, door_id)
             na_apply_fuse_parts(config, definition.entities)
+            na_apply_edge_colours(config, definition.entities)
             transform = na_resolve_insertion_transform(insertion_frame)
             instance = model.active_entities.add_instance(definition, transform)
             raise 'Unable to create Exterior Double Door instance' unless instance
@@ -61,6 +68,7 @@ module Na__GeometryEngine
             # @delegate: Na__AssemblyStudio__ExtDouble__AssemblyComposer__.rb
             AssemblyComposer.na_compose(config, definition.entities, door_id)
             na_apply_fuse_parts(config, definition.entities)
+            na_apply_edge_colours(config, definition.entities)
             DataSerializer.na_set_door_id_on_instance(instance, door_id)
             raise 'Unable to save Exterior Double Door data' unless DataSerializer.na_save(instance, config)
             model.commit_operation
@@ -96,6 +104,14 @@ module Na__GeometryEngine
         DebugTools.na_debug_error('Exterior Double Door fuse-parts failed (non-fatal)', error)
     end
     private_class_method :na_apply_fuse_parts
+
+    def self.na_apply_edge_colours(config, entities)
+        LeadedGlassBuilder.na_migrate_legacy_leaded_colour!(config)
+        EdgeColourPainter.na_apply_assembly_edge_colours(entities, config)
+    rescue StandardError => error
+        DebugTools.na_debug_error('Exterior Double Door edge-colour paint failed (non-fatal)', error)
+    end
+    private_class_method :na_apply_edge_colours
 
 end
 end

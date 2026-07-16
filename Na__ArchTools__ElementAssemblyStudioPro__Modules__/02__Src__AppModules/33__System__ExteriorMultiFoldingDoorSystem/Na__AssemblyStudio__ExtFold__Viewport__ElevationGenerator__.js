@@ -106,6 +106,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
         const frameEdges = na_resolve_frame_edges(config);
         const cill       = na_resolve_cill(config, frameEdges.bottom);
         const glazeBars  = na_resolve_glazebars(config, isGlazed);
+        const leadedGlass = na_resolve_leaded_glass(config, isGlazed);
 
         const frameMatId = config.frame_material_id || DEFAULT_FRAME_MATERIAL_ID;
         const frameCol   = na_safe_material_colour(frameMatId);
@@ -131,6 +132,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
             frameEdges       : frameEdges,
             cill             : cill,
             glazeBars        : glazeBars,
+            leadedGlass      : leadedGlass,
             frameColour      : frameCol,
             innerLeft        : innerLeft,
             innerBottom      : innerBottom,
@@ -194,6 +196,27 @@ const Na__ExtFold__ElevationGenerator = (function () {
         };
         const enabled = isGlazed && (hBars > 0 || vBars > 0 || advanced.archEnabled);
         return { enabled: enabled, hBars: hBars, vBars: vBars, barW: barW, advanced: advanced };
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Resolve Leaded Glass Overlay Settings
+    // ------------------------------------------------------------
+    function na_resolve_leaded_glass(config, isGlazed) {
+        const sg = window.Na__Viewport__SvgGenerator;
+        let colourId = 'MTE104__LineColour__MidGrey__L60';
+        if (sg && typeof sg.na_resolveLeadedColourId === 'function') {
+            colourId = sg.na_resolveLeadedColourId(config);
+        } else if (config && config.edge_colour_leaded_id) {
+            colourId = String(config.edge_colour_leaded_id);
+        }
+        return {
+            enabled     : isGlazed && config.leaded_glass_enabled === true,
+            hBars       : Math.max(0, Math.min(8, Math.round(Number(config.horizontal_leaded_bars || 0)))),
+            vBars       : Math.max(0, Math.min(8, Math.round(Number(config.vertical_leaded_bars || 0)))),
+            widthMm     : Math.max(2, Number(config.leaded_width_mm || 6)),
+            centreLines : config.leaded_centre_lines_only === true,
+            colourId    : colourId
+        };
     }
     // ---------------------------------------------------------------
 
@@ -380,6 +403,13 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
         if (layout.glazeBars.enabled && glazedW > 0 && glazedH > 0) {
             svg += na_build_panel_glazebars(glazedX, glazedY, glazedW, glazedH, layout);
+        }
+
+        if (layout.leadedGlass && layout.leadedGlass.enabled && glazedW > 0 && glazedH > 0) {
+            const sgLead = window.Na__Viewport__SvgGenerator;
+            if (sgLead && typeof sgLead.na_generateLeadedGlassSvg === 'function') {
+                svg += sgLead.na_generateLeadedGlassSvg(glazedX, glazedY, glazedW, glazedH, layout.leadedGlass);
+            }
         }
 
         return svg;
