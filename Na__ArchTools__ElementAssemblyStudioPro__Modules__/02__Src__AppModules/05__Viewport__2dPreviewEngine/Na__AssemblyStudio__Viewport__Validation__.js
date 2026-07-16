@@ -156,7 +156,10 @@
         var frameTh = na_getEffectiveFrameThicknesses(config);
         var innerW = width - frameTh.left - frameTh.right;
         var innerH = height - frameTh.top - frameTh.bottom;
-        var activeW = Number(config.double_door_active_leaf_width_mm || (innerW / 2));
+        // Active leaf width is an EQ/mm hybrid: 'EQ' (or non-numeric) = equal split.
+        var activeRaw = config.double_door_active_leaf_width_mm;
+        var activeNum = (typeof activeRaw === 'number') ? activeRaw : parseFloat(activeRaw);
+        var activeW = isFinite(activeNum) ? activeNum : (innerW / 2);
         var passiveW = innerW - activeW;
         var leftAngle = Number(config.double_door_left_opening_angle_deg);
         var rightAngle = Number(config.double_door_right_opening_angle_deg);

@@ -27,7 +27,7 @@ module Na__ExteriorDoubleDoorSystem
     NA_DEFAULT_DOOR_CONFIG = {
         'double_door_mode'                         => false,
         'double_door_active_leaf'                  => 'Left',
-        'double_door_active_leaf_width_mm'         => 900,
+        'double_door_active_leaf_width_mm'         => 'EQ',
         'double_door_swing_direction'              => 'Inward',
         'double_door_left_opening_angle_deg'       => 90,
         'double_door_right_opening_angle_deg'      => 90,
@@ -45,7 +45,7 @@ module Na__ExteriorDoubleDoorSystem
         'double_door_panel_preset'                 => 'OnePanel',
         'double_door_panel_columns'                => 1,
         'double_door_panel_rows'                   => 1,
-        'double_door_fielded_section_height_mm'    => 850,
+        'double_door_fielded_section_height_mm'    => 300,
         'double_door_mid_rail_width_mm'            => 120,
         'double_door_panel_stile_width_mm'         => 95,
         'double_door_panel_top_rail_width_mm'      => 95,
@@ -56,10 +56,11 @@ module Na__ExteriorDoubleDoorSystem
         'double_door_panel_bevel_width_mm'         => 18,
         'double_door_leaf_thickness_mm'            => 50,
         'double_door_leaf_material_id'             => 'MAT120__GenericWood',
-        'double_door_handle_asset_key'             => 'Na__InteriorDoor__Handle__Default',
+        'double_door_handle_pairing'               => 'Paired',
+        'double_door_handle_asset_key'             => 'Na__ExteriorDoor__Handle__Scroll',
         'double_door_handle_material_id'            => 'MAT615__Metal__Ironmongery__Chrome',
-        'double_door_handle_height_mm'              => 1000,
-        'double_door_handle_backset_mm'             => 60
+        'double_door_handle_height_mm'              => 900,
+        'double_door_handle_backset_mm'             => 40
     }.freeze
 
     def self.na_default_config

@@ -17,7 +17,11 @@
 #   __MaxModel projects export SSOT indexed materials (:indexed_only) so
 #   ValeVision3D MaxEngine can swap MAT###__ materials from the DataLib;
 #   all other projects export sanitised whitecard GLBs (:no_materials).
-#   The builder's previous mode is restored after the export.
+# - MAT000E__ ("Material Exempt") materials ALWAYS write to the GLB in both
+#   modes (builder v3.1.0+) — colour + embedded texture, no SSOT enrichment.
+#   Whitecard one-off fake-detail textures (e.g. MAT000E__CorbelLeafFake)
+#   therefore survive Cloud Sync without switching to MaxModel.
+# - The builder's previous mode is restored after the export.
 # - Detects success via new GLB count and GlbBuilder__ExportLog__*.txt.
 # - Returns a structured result hash for the orchestrator.
 #
@@ -33,6 +37,11 @@
 #   types explicitly export :no_materials so leftover TrueVision UI state
 #   can no longer leak into a sync. Previous mode restored post-export.
 # - Report message now states which material mode was used.
+#
+# 16-Jul-2026 - Version 1.2.0
+# - Documented MAT000E__ always-on exempt path (builder MaterialHandling
+#   v3.1.0). Whitecard :no_materials syncs now carry exempt textures;
+#   report message notes the exempt exception for both project types.
 #
 # =============================================================================
 
@@ -84,6 +93,7 @@ module Na__ValeVisionCloudSync
         # MaxModel projects live in {code}__{Name}__MaxModel folders and must
         # keep their SSOT indexed (MAT###__) materials in the exported GLBs so
         # ValeVision3D MaxEngine can swap them from the DataLib materials index.
+        # MAT000E__ exempt materials export in both MaxModel and Whitecard modes.
         # ---------------------------------------------------------------
         def self.na_max_model_project?(project_root)
             File.basename(project_root.to_s).match?(/__MaxModel$/i)
@@ -134,11 +144,13 @@ module Na__ValeVisionCloudSync
         # written at/after the export start as proof of a fresh export.
         # Material mode is set explicitly for every sync (never inherited from
         # whatever the TrueVision UI last selected) and restored afterwards.
+        # MAT000E__ exempt materials always write regardless of mode (builder
+        # MaterialHandling v3.1.0+).
         # ---------------------------------------------------------------
         def self.na_perform_glb_export(glb_sync_dir, archive_result, project_name, max_model = false)
             export_started_at = Time.now - 2  # <-- 2s tolerance for clock/filesystem granularity
 
-            export_mode   = max_model ? :indexed_only : :no_materials        # <-- MaxModel keeps SSOT MAT###__ materials; all else whitecard
+            export_mode   = max_model ? :indexed_only : :no_materials        # <-- MaxModel keeps SSOT MAT###__; Whitecard whitecard + MAT000E__
             previous_mode = na_set_material_export_mode(export_mode)
 
             begin
@@ -156,7 +168,9 @@ module Na__ValeVisionCloudSync
             fresh_log       = log_path && File.mtime(log_path) >= export_started_at
 
             success       = fresh_glb_count > 0 || fresh_log
-            material_note = max_model ? 'SSOT indexed materials (MaxModel)' : 'whitecard, no materials'
+            material_note = max_model ?
+                'SSOT indexed materials (MaxModel) + MAT000E__ exempt' :
+                'whitecard + MAT000E__ exempt'
 
             {
                 success:        success,

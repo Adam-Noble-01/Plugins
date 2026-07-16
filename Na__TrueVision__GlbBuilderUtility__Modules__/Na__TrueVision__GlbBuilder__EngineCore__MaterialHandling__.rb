@@ -11,10 +11,13 @@
 #
 # DESCRIPTION:
 # - Supports three material export modes controlled via the UI:
-#   :no_materials   - Sanitised whitecard export (all meshes use default)
+#   :no_materials   - Sanitised whitecard export; MAT000E__ exempt materials
+#                     still export with colour + embedded texture
 #   :all_materials  - All SketchUp materials exported with PBR enrichment
 #   :indexed_only   - Only standard indexed materials (MAT___) and exempt
 #                     materials (MAT000E__) exported
+# - MAT000E__ ("Material Exempt") always writes to the GLB in every mode —
+#   colour + texture, no DataLib / SSOT PBR enrichment.
 # - Integrates with MaterialLookupSystem for PBR enrichment of indexed
 #   materials, injecting opacity, metallic, roughness, and doubleSided
 #   directly into the glTF material entries.
@@ -23,6 +26,11 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 16-Jul-2026 - Version 3.1.0
+# - MAT000E__ exempt materials now export in :no_materials mode as well
+#   (colour + texture embed). Whitecard Cloud Sync and TrueVision whitecard
+#   exports can carry one-off fake-detail textures without switching mode.
+#
 # 2025 - Version 1.0.0
 # - Initial debug-safe implementation with texture export disabled.
 #
@@ -97,7 +105,6 @@ module TrueVision3D
         # @return           [Integer]  glTF material index (0 = default fallback)
         # ---------------------------------------------------------------
         def self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf, bin_buffer = nil)
-            return 0 if @export_mode == :no_materials
             return 0 unless material
 
             @material_map ||= {}
@@ -107,7 +114,15 @@ module TrueVision3D
             is_indexed    = self.Na__MaterialLookup__IsIndexedMaterial?(material_name)
             is_exempt     = self.Na__MaterialLookup__IsExemptMaterial?(material_name)
 
-            return 0 if @export_mode == :indexed_only && !is_indexed && !is_exempt
+            # MODE GATES | MAT000E__ exempt materials always pass (every mode).
+            # :no_materials  -> whitecard unless exempt
+            # :indexed_only  -> indexed + exempt only
+            # :all_materials -> everything
+            if @export_mode == :no_materials
+                return 0 unless is_exempt
+            elsif @export_mode == :indexed_only
+                return 0 unless is_indexed || is_exempt
+            end
 
             rgba = if material.respond_to?(:color) && material.color
                 c = material.color
@@ -154,6 +169,11 @@ module TrueVision3D
             material_index = gltf["materials"].length
             gltf["materials"] << gltf_material
             @material_map[material] = material_index
+
+            if is_exempt
+                Na__Log__Puts "    [MaterialEngine] Exempt material exported: #{material_name}"
+            end
+
             material_index
         end
         # ---------------------------------------------------------------
@@ -165,7 +185,7 @@ module TrueVision3D
         # Resets TextureEngine state for a clean export run.
         #
         # Modes:
-        #   :no_materials  - Only the default material, all meshes use index 0
+        #   :no_materials  - Whitecard default; MAT000E__ exempt still exported
         #   :all_materials - All unique materials exported, indexed ones enriched
         #   :indexed_only  - Only indexed/exempt materials exported, others default
         # ---------------------------------------------------------------
@@ -186,11 +206,6 @@ module TrueVision3D
                 }
             }
 
-            if @export_mode == :no_materials
-                Na__Log__Puts "    [MaterialEngine] No-materials mode: all meshes will use default whitecard"
-                return true
-            end
-
             unique_materials = []
             face_groups.each_value do |group_data|
                 material = group_data[:material]
@@ -205,11 +220,17 @@ module TrueVision3D
                 end
             end
 
+            # Register materials allowed by the current mode. EnsureMaterialRegistered
+            # is the single gate — in :no_materials only MAT000E__ exempt pass.
             unique_materials.each do |material|
                 self.Na__MaterialEngine__EnsureMaterialRegistered(material, gltf, binary_buffer)
             end
 
-            mode_label = (@export_mode == :indexed_only) ? "indexed-only" : "all-materials"
+            mode_label = case @export_mode
+                         when :indexed_only then "indexed-only"
+                         when :all_materials then "all-materials"
+                         else "no-materials (whitecard + MAT000E__ exempt)"
+                         end
             Na__Log__Puts "    [MaterialEngine] #{mode_label} mode: #{@material_map.length} material(s) exported"
             true
         end
@@ -226,13 +247,11 @@ module TrueVision3D
         # ---------------------------------------------------------------
         # Returns the glTF material index for a face group's material.
         # Returns 0 (default whitecard) if the material was not exported
-        # or if no-materials mode is active. When gltf and bin_buffer are
-        # provided, registers the material on demand so all mesh export
-        # paths use the same indexed-material rules.
+        # (including non-exempt materials under :no_materials). When gltf
+        # and bin_buffer are provided, registers on demand so all mesh
+        # export paths use the same mode + MAT000E__ exempt rules.
         # ---------------------------------------------------------------
         def self.Na__MaterialEngine__ResolveMaterialIndexForGroup(group_data, gltf = nil, bin_buffer = nil)
-            return 0 if @export_mode == :no_materials
-
             material = group_data[:material]
             return 0 unless material
             if gltf

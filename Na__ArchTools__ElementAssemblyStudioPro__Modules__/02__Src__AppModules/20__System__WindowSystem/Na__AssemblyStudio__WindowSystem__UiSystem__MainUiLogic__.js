@@ -598,20 +598,28 @@ const Na_DynamicUI = (function() {
 
     // FUNCTION | Seed Equal Double-Door Leaf Width
     // ------------------------------------------------------------
+    // Default the active-leaf-width field to the literal 'EQ' (equal 50/50
+    // split). The user may override with a mm number to make the active leaf
+    // that width; typing EQ/blank snaps back to an even split.
     function na_seedDoubleDoorActiveLeafWidth() {
-        const equalLeafWidth = Math.max(300, Math.round(na_getInnerFrameWidthMm() / 2));
-        _config.double_door_active_leaf_width_mm = equalLeafWidth;
-        na_updateControlValue('double_door_active_leaf_width_mm', equalLeafWidth);
+        _config.double_door_active_leaf_width_mm = 'EQ';
+        na_updateControlValue('double_door_active_leaf_width_mm', 'EQ');
     }
     // ---------------------------------------------------------------
 
     // FUNCTION | Clamp Active Leaf Width to Preserve Both Leaves
     // ------------------------------------------------------------
+    // No-op when the field is in 'EQ' mode (non-numeric): the resolver splits
+    // the opening evenly. Only a numeric override is clamped so both leaves
+    // keep at least the 300 mm minimum.
     function na_clampDoubleDoorActiveLeafWidth() {
+        const raw = _config.double_door_active_leaf_width_mm;
+        const currentWidth = (typeof raw === 'number') ? raw : parseFloat(raw);
+        if (!isFinite(currentWidth)) return;                                  // <-- 'EQ' mode; nothing to clamp
+
         const innerWidth = na_getInnerFrameWidthMm();
         const minimumLeafWidth = 300;
         const maximumActiveWidth = Math.max(minimumLeafWidth, innerWidth - minimumLeafWidth);
-        const currentWidth = Number(_config.double_door_active_leaf_width_mm || (innerWidth / 2));
         const clampedWidth = Math.max(minimumLeafWidth, Math.min(maximumActiveWidth, currentWidth));
 
         if (_config.double_door_active_leaf_width_mm !== clampedWidth) {
@@ -1533,6 +1541,26 @@ const Na_DynamicUI = (function() {
             const isRight = (value === btoggle.dataset.rightValue);          // <-- Match against rendered right-option value
             btoggle.classList.toggle('na-binary-toggle--right', isRight);
             btoggle.classList.toggle('na-binary-toggle--left',  !isRight);
+            return;
+        }
+
+        // Try EQ-number hybrid text input (EQ / mm)
+        const eqInput = document.getElementById(`${id}-eqnumber`);
+        if (eqInput) {
+            eqInput.value = (value === null || value === undefined) ? '' : value;
+            return;
+        }
+
+        // Try multiway segmented toggle
+        const segmented = document.getElementById(`${id}-segmented`);
+        if (segmented) {
+            segmented.dataset.value = value;
+            segmented.querySelectorAll('.na-segmented-toggle__option').forEach(option => {
+                option.classList.toggle(
+                    'na-segmented-toggle__option--active',
+                    option.getAttribute('data-option-value') === String(value)
+                );
+            });
             return;
         }
     }

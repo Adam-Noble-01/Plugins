@@ -3,6 +3,58 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.1.2 - 16-Jul-2026 - Exterior Door Unification (in progress) + Double Door Handle Defaults
+
+### Context
+Continuing the exterior-door unification work: shared builders under `30__System__ExteriorDoorCommon__`, Scroll Lever as the exterior handle default, Double Door EQ/paired-handle UX, and a standalone Single Door Ruby backend. This entry records the Double Door handle placement/orientation fixes and the locked-in hardware defaults from SketchUp verification.
+
+### Feature Summary
+- Added `ExteriorDoor__Handles__` asset bucket + `Na__ExteriorDoor__Handle__Scroll` as the exterior default (AppConfig `assetLibrary.exteriorDoor.handles`).
+- Extracted shared exterior builders to `30__System__ExteriorDoorCommon__` (panel layout/geometry/linework, handles, ROT, fuse); Double Door modules delegate into them.
+- Double Door: EQ/EQ active-leaf width (`eq_number`), paired handles default, fielded section height default 300 mm.
+- Scroll handle orientation: `CorrectionRotZ 180` (hang down) + ScaleX RH=-1 / LH=1 (levers toward meeting stile).
+- Handle X is measured from the meeting stile (`latch_x_mm`) via `HandleAbsoluteX` / inset override; UI control **Handle Position from Meeting Stile**.
+- 2D plan/elevation previews draw a scroll schematic (asset 2D path exports are still empty).
+- Reload Scripts: materials/edge cache force-refresh is non-destructive so a transient network fail no longer wipes the palette.
+
+### Hardware Defaults (Double Door — verified)
+| Control | Default |
+|---|---|
+| Handles | Paired |
+| Handle Asset | Scroll Lever Handle (`Na__ExteriorDoor__Handle__Scroll`) |
+| Handle Height | **900 mm** |
+| Handle Position from Meeting Stile | **40 mm** |
+
+Same height/position defaults applied to the Exterior Single Door Ruby defaults for parity.
+
+### Files Changed (highlights)
+- `04__Data__AssetLibrary/ExteriorDoor__Handles__/Na__ExteriorDoor__Handle__Scroll__.json`
+- `02__Src__AppModules/30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__HandleBuilder__.rb`
+- `02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__.rb`
+- `02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Init__.rb`
+- `02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__Config__.js`
+- `02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__HandleBuilder__.rb`
+- Double Door viewport / DXF generators (fallback defaults)
+- `02__Src__AppModules/31__System__ExteriorSingleDoorSystem/` (Ruby defaults aligned)
+- `02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__DialogManager__.rb` (non-destructive cache refresh)
+
+### Still In Progress
+- Phase 3 UI: wire `ext_single_door_mode` create/update/selection + dual viewport; retire legacy `door_mode`.
+- Phase 4: fielded panels on Sliding / MultiFold.
+- Phase 5: Windows \| Exterior Doors context switch.
+- Phase 6: full SketchUp verification pass across all exterior types.
+
+### How to Test
+1. Full SketchUp restart (Reload Scripts alone may leave stale Ruby loaded).
+2. Open Double Doors — confirm Hardware defaults: Paired, Scroll Lever, Height 900, Position 40.
+3. Create a new double door — handles inset 40 mm from meeting stile, levers facing inward, height 900 mm.
+4. Nudge **Handle Position from Meeting Stile** and update — spindle moves from the meeting edge only.
+
+### Backward Compatibility
+- Existing ADR double doors keep baked geometry until Update/recreate.
+- Interior door handle placement unchanged unless an exterior adapter supplies AbsoluteX/Inset keys.
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.1.1 - 16-Jul-2026 - Asset JSON Export reliable OS Save dialog
 
 ### Context

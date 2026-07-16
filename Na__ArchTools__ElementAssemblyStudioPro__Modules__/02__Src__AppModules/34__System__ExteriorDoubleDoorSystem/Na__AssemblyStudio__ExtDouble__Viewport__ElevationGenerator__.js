@@ -85,7 +85,8 @@
             }
         });
 
-        if (leaf.isActive) na_drawHandle(svg, layout, leaf, palette);
+        var handlePaired = String((layout.config && layout.config.double_door_handle_pairing) || 'Paired').toLowerCase() === 'paired';
+        if (leaf.isActive || handlePaired) na_drawHandle(svg, layout, leaf, palette);
     }
 
     function na_drawGlazeBars(svg, layout, leaf, region, palette) {
@@ -185,18 +186,43 @@
     }
 
     function na_drawHandle(svg, layout, leaf, palette) {
-        var backset = Number(layout.config.double_door_handle_backset_mm) || 60;
-        var height = Number(layout.config.double_door_handle_height_mm) || 1000;
+        var backset = Number(layout.config.double_door_handle_backset_mm) || 40;
+        var height = Number(layout.config.double_door_handle_height_mm) || 900;
         var x = leaf.side === 'left'
             ? layout.openingX + leaf.originXMm + leaf.widthMm - backset
             : layout.openingX + leaf.originXMm + backset;
         var y = na_y(layout, leaf.originZMm + height);
+        // Scroll hangs down; curl toward the meeting stile (left leaf → +X, right → -X)
+        var towardMeeting = leaf.side === 'left' ? 1 : -1;
+        var fill = palette.handle || '#6e6558';
+
         svg.appendChild(na_svg('circle', {
-            cx: x, cy: y, r: 11, fill: palette.handle, stroke: NA_STROKE, 'stroke-width': 1
+            cx: x, cy: y, r: 10, fill: fill, stroke: NA_STROKE, 'stroke-width': 1.5
         }));
-        svg.appendChild(na_svg('line', {
-            x1: x, y1: y, x2: x + (leaf.side === 'left' ? -45 : 45), y2: y,
-            stroke: NA_STROKE, 'stroke-width': 6, 'stroke-linecap': 'round'
+        // Stem + scroll tip (schematic — Scroll asset has no Elevation2D paths yet)
+        svg.appendChild(na_svg('path', {
+            d: [
+                'M', x, y + 8,
+                'C', x + towardMeeting * 6, y + 28,
+                x + towardMeeting * 34, y + 48,
+                x + towardMeeting * 10, y + 72
+            ].join(' '),
+            fill: 'none',
+            stroke: fill,
+            'stroke-width': 7,
+            'stroke-linecap': 'round'
+        }));
+        svg.appendChild(na_svg('path', {
+            d: [
+                'M', x + towardMeeting * 10, y + 72,
+                'C', x + towardMeeting * -4, y + 86,
+                x + towardMeeting * 18, y + 92,
+                x + towardMeeting * 8, y + 78
+            ].join(' '),
+            fill: 'none',
+            stroke: NA_STROKE,
+            'stroke-width': 2.5,
+            'stroke-linecap': 'round'
         }));
     }
 

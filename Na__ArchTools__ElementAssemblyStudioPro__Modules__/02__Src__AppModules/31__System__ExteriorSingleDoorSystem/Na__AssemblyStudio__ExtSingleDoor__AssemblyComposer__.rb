@@ -1,5 +1,23 @@
 # frozen_string_literal: true
 
+# =============================================================================
+# ELEMENT ASSEMBLY STUDIO PRO - EXTERIOR SINGLE DOOR - ASSEMBLY COMPOSER
+# =============================================================================
+#
+# FILE       : Na__AssemblyStudio__ExtSingleDoor__AssemblyComposer__.rb
+# NAMESPACE  : Na__AssemblyStudio::Na__ExteriorSingleDoorSystem
+# MODULE     : Na__AssemblyComposer
+# AUTHOR     : Noble Architecture
+# PURPOSE    : Compose the full standalone single-door geometry tree (frame,
+#              cill, one leaf, fielded panel, handle pair, ROT marker, open-
+#              state copy, swing arc). One-leaf mirror of the double door,
+#              consuming the shared ExtDoorCommon panel/handle/rotation builders.
+#
+# NAMING CONVENTION:
+# - All custom identifiers use Na__ or na_ prefix.
+#
+# =============================================================================
+
 require 'sketchup.rb'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__TagManager__'
@@ -7,35 +25,58 @@ require_relative '../04__GeometryHelpers/Na__AssemblyStudio__DoorNamingContract_
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Box__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
-require_relative 'Na__AssemblyStudio__ExtDouble__GeometryHelpers__'
-require_relative 'Na__AssemblyStudio__ExtDouble__LeafLayoutResolver__'
-require_relative 'Na__AssemblyStudio__ExtDouble__PanelLayoutResolver__'
-require_relative 'Na__AssemblyStudio__ExtDouble__PanelLineworkBuilder__'
-require_relative 'Na__AssemblyStudio__ExtDouble__PanelGeometryBuilder__'
-require_relative 'Na__AssemblyStudio__ExtDouble__HandleBuilder__'
-require_relative 'Na__AssemblyStudio__ExtDouble__RotationPivotBuilder__'
+require_relative '../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__PanelGeometryBuilder__'
+require_relative '../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__PanelLineworkBuilder__'
+require_relative 'Na__AssemblyStudio__ExtSingleDoor__GeometryHelpers__'
+require_relative 'Na__AssemblyStudio__ExtSingleDoor__LeafLayoutResolver__'
+require_relative 'Na__AssemblyStudio__ExtSingleDoor__PanelLayoutResolver__'
+require_relative 'Na__AssemblyStudio__ExtSingleDoor__HandleBuilder__'
+require_relative 'Na__AssemblyStudio__ExtSingleDoor__RotationPivotBuilder__'
 
 module Na__AssemblyStudio
-module Na__ExteriorDoubleDoorSystem
+module Na__ExteriorSingleDoorSystem
 module Na__AssemblyComposer
 
-    GeometryHelpers = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__GeometryHelpers
-    LeafLayoutResolver = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__LeafLayoutResolver
-    PanelLayoutResolver = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__PanelLayoutResolver
-    PanelLineworkBuilder = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__PanelLineworkBuilder
-    PanelGeometryBuilder = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__PanelGeometryBuilder
-    HandleBuilder = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__HandleBuilder
-    RotationPivotBuilder = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__RotationPivotBuilder
-    NamingContract = Na__AssemblyStudio::Na__GeometryHelpers::Na__DoorNamingContract
-    WindowBuilders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
-    MaterialManager = Na__AssemblyStudio::Na__AppData::Na__MaterialManager
-    TagManager = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
-    Box = Na__AssemblyStudio::Na__GeometryHelpers::Na__Box
+# -----------------------------------------------------------------------------
+# REGION | Module References
+# -----------------------------------------------------------------------------
 
+    GeometryHelpers      = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__GeometryHelpers
+    LeafLayoutResolver   = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__LeafLayoutResolver
+    PanelLayoutResolver  = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__PanelLayoutResolver
+    HandleBuilder        = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__HandleBuilder
+    RotationPivotBuilder = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__RotationPivotBuilder
+    SharedPanelGeometry  = Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__PanelGeometryBuilder
+    SharedPanelLinework  = Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__PanelLineworkBuilder
+    NamingContract       = Na__AssemblyStudio::Na__GeometryHelpers::Na__DoorNamingContract
+    WindowBuilders       = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
+    MaterialManager      = Na__AssemblyStudio::Na__AppData::Na__MaterialManager
+    TagManager           = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
+    Box                  = Na__AssemblyStudio::Na__GeometryHelpers::Na__Box
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Module Constants
+# -----------------------------------------------------------------------------
+
+    NA_PANEL_NAMING = { :container => 'Na__ExteriorSingleDoor' }.freeze
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Public API
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Compose the Full Single-Door Geometry Tree
+    # ------------------------------------------------------------
+    # @param config          [Hash] Door configuration
+    # @param parent_entities [Sketchup::Entities] ADR definition entities
+    # @param door_id         [String] ADR identifier
+    # @return [Hash] { :leaves, :open_groups, :swing_groups }
     def self.na_compose(config, parent_entities, door_id)
-        # @delegate: Na__AssemblyStudio__ExtDouble__LeafLayoutResolver__.rb
         leaves = LeafLayoutResolver.na_resolve(config)
-        raise ArgumentError, 'Exterior double door requires two valid leaves' unless leaves.length == 2
+        raise ArgumentError, 'Exterior single door requires one valid leaf' unless leaves.length == 1
 
         dimensions = leaves.first[:dimensions]
         materials = na_resolve_materials(config)
@@ -56,7 +97,16 @@ module Na__AssemblyComposer
             :swing_groups => swing_groups.freeze
         }.freeze
     end
+    # ---------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Internal Helpers - Per-Leaf Composition
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Compose One Leaf (MOD + Panel + Handle + ROT)
+    # ------------------------------------------------------------
     def self.na_compose_leaf(config, parent_entities, leaf, door_id, materials)
         mod = parent_entities.add_group
         mod.name = NamingContract.na_format_mod_rot_only(
@@ -64,40 +114,43 @@ module Na__AssemblyComposer
         )
         TagManager.na_apply_tag_to_entity(mod, :door_closed)
 
-        # @delegate: Na__AssemblyStudio__ExtDouble__PanelLayoutResolver__.rb
+        # @delegate: Na__AssemblyStudio__ExtSingleDoor__PanelLayoutResolver__.rb
         panel_layout = PanelLayoutResolver.na_resolve(config, leaf)
         na_build_leaf_members(mod.entities, leaf, panel_layout, materials[:leaf], door_id)
         na_build_field_dividers(mod.entities, leaf, panel_layout, materials[:leaf], door_id)
         na_build_glazed_region(mod.entities, leaf, panel_layout, materials)
 
         if panel_layout[:output_mode] == 'Linework'
-            # @delegate: Na__AssemblyStudio__ExtDouble__PanelLineworkBuilder__.rb
-            PanelLineworkBuilder.na_build(mod.entities, leaf, panel_layout, materials[:leaf])
+            SharedPanelLinework.na_build(mod.entities, leaf, panel_layout, materials[:leaf], NA_PANEL_NAMING)
         else
-            # @delegate: Na__AssemblyStudio__ExtDouble__PanelGeometryBuilder__.rb
-            PanelGeometryBuilder.na_build(mod.entities, leaf, panel_layout, materials[:leaf])
+            SharedPanelGeometry.na_build(mod.entities, leaf, panel_layout, materials[:leaf], NA_PANEL_NAMING)
         end
 
-        # @delegate: Na__AssemblyStudio__ExtDouble__HandleBuilder__.rb
-        # Paired (default) => handle pair on both leaves; Single => active leaf only.
-        paired = (config['double_door_handle_pairing'] || 'Paired').to_s.casecmp('Paired').zero?
-        if paired || leaf[:is_active]
-            HandleBuilder.na_build_leaf_handle(config, mod.entities, leaf, materials[:handle])
-        end
+        # @delegate: Na__AssemblyStudio__ExtSingleDoor__HandleBuilder__.rb
+        HandleBuilder.na_build_leaf_handle(config, mod.entities, leaf, materials[:handle])
 
         # MOD and matching ROT are deliberately emitted consecutively.
-        # @delegate: Na__AssemblyStudio__ExtDouble__RotationPivotBuilder__.rb
+        # @delegate: Na__AssemblyStudio__ExtSingleDoor__RotationPivotBuilder__.rb
         rot = RotationPivotBuilder.na_build(parent_entities, leaf)
         { :leaf => leaf, :panel_layout => panel_layout, :mod => mod, :rot => rot }.freeze
     end
     private_class_method :na_compose_leaf
+    # ---------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Internal Helpers - Leaf Members + Glazing
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Build Leaf Stiles and Rails
+    # ------------------------------------------------------------
     def self.na_build_leaf_members(entities, leaf, layout, material, door_id)
         members = layout[:members]
         stile = members[:stile_width_mm]
         top_rail = members[:top_rail_width_mm]
         bottom_rail = members[:bottom_rail_width_mm]
-        prefix = "Na__ExteriorDoubleDoor__#{door_id}__Leaf#{format('%03d', leaf[:index])}"
+        prefix = "Na__ExteriorSingleDoor__#{door_id}__Leaf#{format('%03d', leaf[:index])}"
         na_box(entities, "#{prefix}__StileLeft", leaf[:origin_x_mm], leaf[:origin_y_mm], leaf[:origin_z_mm],
                stile, leaf[:thickness_mm], leaf[:height_mm], material)
         na_box(entities, "#{prefix}__StileRight", leaf[:origin_x_mm] + leaf[:width_mm] - stile,
@@ -115,87 +168,90 @@ module Na__AssemblyComposer
                inner_width, leaf[:thickness_mm], members[:mid_rail_width_mm], material)
     end
     private_class_method :na_build_leaf_members
+    # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Build Field Divider Stiles and Rails
+    # ------------------------------------------------------------
     def self.na_build_field_dividers(entities, leaf, layout, material, door_id)
         layout[:field_dividers].each do |divider|
             role = divider[:orientation] == :vertical ? 'FieldStile' : 'FieldRail'
             name = format(
-                'Na__ExteriorDoubleDoor__%s__Leaf%03d__%s%02d',
-                door_id,
-                leaf[:index],
-                role,
-                divider[:index]
+                'Na__ExteriorSingleDoor__%s__Leaf%03d__%s%02d',
+                door_id, leaf[:index], role, divider[:index]
             )
-            na_box(
-                entities,
-                name,
-                divider[:x_mm],
-                leaf[:origin_y_mm],
-                divider[:z_mm],
-                divider[:width_mm],
-                leaf[:thickness_mm],
-                divider[:height_mm],
-                material
-            )
+            na_box(entities, name, divider[:x_mm], leaf[:origin_y_mm], divider[:z_mm],
+                   divider[:width_mm], leaf[:thickness_mm], divider[:height_mm], material)
         end
     end
     private_class_method :na_build_field_dividers
+    # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Build Glass Pane and Glaze Bars for Glazed Region
+    # ------------------------------------------------------------
     def self.na_build_glazed_region(entities, leaf, layout, materials)
         region = layout[:glazed_region]
         return unless region && region[:height_mm] > 0
 
         glass_depth = [leaf[:thickness_mm] * 0.35, 2.0].max
         glass_y = leaf[:origin_y_mm] + (leaf[:thickness_mm] - glass_depth) / 2.0
-        na_box(entities, 'Na__ExteriorDoubleDoor__Glass',
+        na_box(entities, 'Na__ExteriorSingleDoor__Glass',
                region[:x_mm], glass_y, region[:z_mm],
                region[:width_mm], glass_depth, region[:height_mm], materials[:glass])
         na_build_glaze_bars(entities, leaf, layout, materials[:leaf])
     end
     private_class_method :na_build_glazed_region
+    # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Build Vertical and Horizontal Glaze Bars
+    # ------------------------------------------------------------
     def self.na_build_glaze_bars(entities, leaf, layout, material)
         region = layout[:glazed_region]
         bars = layout[:glaze_bars]
         y = leaf[:origin_y_mm] + bars[:inset_mm]
         depth = [leaf[:thickness_mm] - 2.0 * bars[:inset_mm], 2.0].max
         vertical_positions = WindowBuilders.na_compute_bar_positions(
-            region[:x_mm],
-            region[:width_mm],
-            bars[:vertical_count],
-            bars[:margin_enabled],
-            bars[:margin_offset_mm]
+            region[:x_mm], region[:width_mm], bars[:vertical_count],
+            bars[:margin_enabled], bars[:margin_offset_mm]
         )
         horizontal_positions = WindowBuilders.na_compute_bar_positions(
-            region[:z_mm],
-            region[:height_mm],
-            bars[:horizontal_count],
-            bars[:margin_enabled],
-            bars[:margin_offset_mm]
+            region[:z_mm], region[:height_mm], bars[:horizontal_count],
+            bars[:margin_enabled], bars[:margin_offset_mm]
         ).map { |position| position + bars[:horizontal_offset_mm] }
 
         vertical_positions.each_with_index do |x, index|
             next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'vertical', index + 1))
-            na_box(entities, "Na__ExteriorDoubleDoor__GlazeBarV#{index + 1}",
+            na_box(entities, "Na__ExteriorSingleDoor__GlazeBarV#{index + 1}",
                    x - bars[:width_mm] / 2.0, y, region[:z_mm],
                    bars[:width_mm], depth, region[:height_mm], material)
         end
         horizontal_positions.each_with_index do |z, index|
             next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'horizontal', index + 1))
-            na_box(entities, "Na__ExteriorDoubleDoor__GlazeBarH#{index + 1}",
+            na_box(entities, "Na__ExteriorSingleDoor__GlazeBarH#{index + 1}",
                    region[:x_mm], y, z - bars[:width_mm] / 2.0,
                    region[:width_mm], depth, bars[:width_mm], material)
         end
     end
     private_class_method :na_build_glaze_bars
+    # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Build Glaze-Bar Removal Key for a Leaf Bar Index
+    # ------------------------------------------------------------
     def self.na_glazebar_key(leaf, orientation, bar_index)
         "0:0:#{leaf[:index] - 1}:0:#{orientation}:#{bar_index}"
     end
     private_class_method :na_glazebar_key
+    # ---------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Internal Helpers - Open State + Swing Arcs
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Build Rotated Open-State Copies of MOD Groups
+    # ------------------------------------------------------------
     def self.na_build_open_copies(config, records)
-        return [] unless GeometryHelpers.na_boolean(config, 'double_door_create_open_state_copy', true)
+        return [] unless GeometryHelpers.na_boolean(config, 'single_door_create_open_state_copy', true)
         records.map do |record|
             copy = record[:mod].copy
             copy.name = record[:mod].name
@@ -205,12 +261,15 @@ module Na__AssemblyComposer
         end
     end
     private_class_method :na_build_open_copies
+    # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Build Floor-Level Swing Arc Helper Groups
+    # ------------------------------------------------------------
     def self.na_build_swing_groups(config, entities, leaves)
-        return [] unless GeometryHelpers.na_boolean(config, 'double_door_show_swing_arcs', true)
+        return [] unless GeometryHelpers.na_boolean(config, 'single_door_show_swing_arcs', true)
         leaves.map do |leaf|
             group = entities.add_group
-            group.name = format('Na__ExteriorDoubleDoor__Swing__%03d', leaf[:index])
+            group.name = format('Na__ExteriorSingleDoor__Swing__%03d', leaf[:index])
             points = GeometryHelpers.na_arc_points_mm(
                 leaf[:hinge_x_mm], leaf[:pivot_y_mm], leaf[:width_mm],
                 leaf[:closed_latch_angle_deg], leaf[:signed_angle_deg], 32
@@ -225,7 +284,16 @@ module Na__AssemblyComposer
         end
     end
     private_class_method :na_build_swing_groups
+    # ---------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Internal Helpers - Frame + Cill
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Build Outer Frame Geometry via WindowSystem Builders
+    # ------------------------------------------------------------
     def self.na_build_frame(config, dimensions, entities, material)
         edges = {
             :top => GeometryHelpers.na_mm_to_inch(dimensions[:frame_top_mm]),
@@ -244,7 +312,10 @@ module Na__AssemblyComposer
         )
     end
     private_class_method :na_build_frame
+    # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Build Cill Geometry When Enabled
+    # ------------------------------------------------------------
     def self.na_build_cill(config, dimensions, entities, frame_material)
         return unless GeometryHelpers.na_boolean(config, 'has_cill', true)
         return unless dimensions[:frame_bottom_mm] > 0
@@ -269,7 +340,10 @@ module Na__AssemblyComposer
         )
     end
     private_class_method :na_build_cill
+    # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Lift All Geometry by Cill Height
+    # ------------------------------------------------------------
     def self.na_apply_cill_lift(config, dimensions, entities)
         return unless GeometryHelpers.na_boolean(config, 'has_cill', true)
         return unless dimensions[:frame_bottom_mm] > 0
@@ -281,19 +355,31 @@ module Na__AssemblyComposer
         entities.transform_entities(transform, targets)
     end
     private_class_method :na_apply_cill_lift
+    # ---------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Internal Helpers - Materials + Primitives
+# -----------------------------------------------------------------------------
+
+    # HELPER FUNCTION | Resolve Frame / Leaf / Glass / Handle Materials
+    # ------------------------------------------------------------
     def self.na_resolve_materials(config)
         frame_id = config['frame_material_id'] || Na__AssemblyStudio::Na__WindowSystem::NA_DEFAULT_FRAME_MATERIAL_ID
         glass_id = config['glass_material_id'] || Na__AssemblyStudio::Na__WindowSystem::NA_DEFAULT_GLASS_MATERIAL_ID
         {
             :frame => MaterialManager.na_get_material_by_id(frame_id),
-            :leaf => MaterialManager.na_get_material_by_id(config['double_door_leaf_material_id'] || frame_id),
+            :leaf => MaterialManager.na_get_material_by_id(config['single_door_leaf_material_id'] || frame_id),
             :glass => MaterialManager.na_get_material_by_id(glass_id),
-            :handle => MaterialManager.na_get_material_by_id(config['double_door_handle_material_id'])
+            :handle => MaterialManager.na_get_material_by_id(config['single_door_handle_material_id'])
         }
     end
     private_class_method :na_resolve_materials
+    # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Create a Grouped Box From Millimetre Dimensions
+    # ------------------------------------------------------------
     def self.na_box(entities, name, x, y, z, width, depth, height, material)
         return nil if width <= 0 || depth <= 0 || height <= 0
         Box.na_create_grouped_box(
@@ -305,7 +391,10 @@ module Na__AssemblyComposer
         )
     end
     private_class_method :na_box
+    # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Build a Geom::Point3d From Millimetre Coordinates
+    # ------------------------------------------------------------
     def self.na_point(x_mm, y_mm, z_mm)
         Geom::Point3d.new(
             GeometryHelpers.na_mm_to_inch(x_mm),
@@ -314,7 +403,14 @@ module Na__AssemblyComposer
         )
     end
     private_class_method :na_point
+    # ---------------------------------------------------------------
 
-end
-end
-end
+# endregion -------------------------------------------------------------------
+
+end # module Na__AssemblyComposer
+end # module Na__ExteriorSingleDoorSystem
+end # module Na__AssemblyStudio
+
+# =============================================================================
+# END OF FILE
+# =============================================================================

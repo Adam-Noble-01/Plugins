@@ -376,11 +376,14 @@ module Na__AssemblyStudio
                 { reload_dialog: true }
             end
 
-            # Purge cache + force-fetch the materials JSON from the live URL.
-            # Returns :url, :cache, :local, or :failed for surfacing in the
-            # status bar so the user knows where the data came from.
+            # Force-fetch the materials JSON from the live URL, NON-DESTRUCTIVELY.
+            # The on-disk cache file is deliberately NOT purged first: force-load
+            # tries the URL and falls back to the existing cache if the network
+            # is unreachable. Purging before the fetch (the previous behaviour)
+            # meant a single transient URL failure wiped the working palette and
+            # left every material unresolved until a full SketchUp restart.
+            # Returns :url, :cache, :local, or :failed for the status bar.
             def self.na_force_refresh_materials_json
-                Na__DataLib__CacheData.Na__Cache__PurgeCacheFile(:materials)
                 Na__DataLib__CacheData.Na__Cache__LoadData(:materials, true)
                 source = Na__DataLib__CacheData.Na__Cache__LastSource(:materials)
                 source || :failed
@@ -390,12 +393,12 @@ module Na__AssemblyStudio
             end
             private_class_method :na_force_refresh_materials_json
 
-            # Purge cache + force-fetch the edge-materials (MTE) JSON from
-            # the live URL. Mirrors na_force_refresh_materials_json so the
-            # door panel design subsystem sees fresh edge colours after a
-            # developer reload.
+            # Force-fetch the edge-materials (MTE) JSON from the live URL,
+            # NON-DESTRUCTIVELY (see na_force_refresh_materials_json). Mirrors
+            # that method so the door panel design subsystem sees fresh edge
+            # colours after a developer reload without risking a wiped palette
+            # on a transient network failure.
             def self.na_force_refresh_edge_materials_json
-                Na__DataLib__CacheData.Na__Cache__PurgeCacheFile(:edge_materials)
                 Na__DataLib__CacheData.Na__Cache__LoadData(:edge_materials, true)
                 source = Na__DataLib__CacheData.Na__Cache__LastSource(:edge_materials)
                 source || :failed

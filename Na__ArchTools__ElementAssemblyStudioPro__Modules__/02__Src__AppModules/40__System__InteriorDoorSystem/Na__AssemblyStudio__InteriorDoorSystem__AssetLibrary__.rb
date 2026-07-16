@@ -55,10 +55,11 @@ module Na__InteriorDoorSystem
 
         # CONSTANTS | Asset Folder Names (relative to the configurator root)
         # ------------------------------------------------------------
-        NA_ASSETS_ROOT_FOLDER_FALLBACK  = "04__Data__AssetLibrary".freeze
-        NA_FOLDER_HANDLES_FALLBACK      = "InteriorDoor__Handles__".freeze
-        NA_FOLDER_ARCHITRAVES_FALLBACK  = "InteriorDoor__Architraves__".freeze
-        NA_FOLDER_HINGES_FALLBACK       = "InteriorDoor__Hinges__".freeze
+        NA_ASSETS_ROOT_FOLDER_FALLBACK      = "04__Data__AssetLibrary".freeze
+        NA_FOLDER_HANDLES_FALLBACK          = "InteriorDoor__Handles__".freeze
+        NA_FOLDER_ARCHITRAVES_FALLBACK      = "InteriorDoor__Architraves__".freeze
+        NA_FOLDER_HINGES_FALLBACK           = "InteriorDoor__Hinges__".freeze
+        NA_FOLDER_EXTERIOR_HANDLES_FALLBACK = "ExteriorDoor__Handles__".freeze     # <-- Shared exterior-door handle bucket
         # ---------------------------------------------------------------
 
         # CONSTANTS | Default Asset Keys (used when config omits them)
@@ -120,16 +121,17 @@ module Na__InteriorDoorSystem
         # HELPER FUNCTION | Resolve Bucket Name from AppConfig with Fallback
         # ------------------------------------------------------------
         def self.na_resolve_folder_name(folder_sym)
-            key = case folder_sym
-                  when :handles      then "handles"
-                  when :architraves  then "architraves"
-                  when :hinges       then "hinges"
-                  else nil
-                  end
+            parent, key = case folder_sym
+                          when :handles          then ["interiorDoor", "handles"]
+                          when :architraves      then ["interiorDoor", "architraves"]
+                          when :hinges           then ["interiorDoor", "hinges"]
+                          when :exterior_handles then ["exteriorDoor", "handles"]
+                          else [nil, nil]
+                          end
             return nil unless key
 
             begin
-                config_bucket = ConfigLoader.na_get("assetLibrary", "interiorDoor")
+                config_bucket = ConfigLoader.na_get("assetLibrary", parent)
                 if config_bucket.is_a?(Hash)
                     configured_name = config_bucket[key]
                     return configured_name.to_s unless configured_name.to_s.strip.empty?
@@ -139,9 +141,10 @@ module Na__InteriorDoorSystem
             end
 
             case folder_sym
-            when :handles      then NA_FOLDER_HANDLES_FALLBACK
-            when :architraves  then NA_FOLDER_ARCHITRAVES_FALLBACK
-            when :hinges       then NA_FOLDER_HINGES_FALLBACK
+            when :handles          then NA_FOLDER_HANDLES_FALLBACK
+            when :architraves      then NA_FOLDER_ARCHITRAVES_FALLBACK
+            when :hinges           then NA_FOLDER_HINGES_FALLBACK
+            when :exterior_handles then NA_FOLDER_EXTERIOR_HANDLES_FALLBACK
             else nil
             end
         end
@@ -163,7 +166,8 @@ module Na__InteriorDoorSystem
             key ||= NA_DEFAULT_HANDLE_KEY
             return @na_handle_cache[key] if @na_handle_cache.key?(key)
 
-            data = na_load_asset_file(:handles, key)
+            data = na_load_asset_file(:handles, key)                       # <-- Interior-door handle bucket first
+            data ||= na_load_asset_file(:exterior_handles, key)           # <-- Fall back to shared exterior-door handle bucket
             @na_handle_cache[key] = data if data
             data
         end
@@ -204,6 +208,18 @@ module Na__InteriorDoorSystem
             @na_handle_cache       = {}
             @na_architrave_cache   = {}
             DebugTools.na_debug_asset("Asset caches cleared")
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Invalidate One Cached Handle Asset
+        # ------------------------------------------------------------
+        # Forces the next na_load_handle_asset call to re-read JSON from
+        # disk. Used when placement metadata (ScaleX / correction angles)
+        # is tuned so Create/Update picks up the edit without a full
+        # dialog reload.
+        def self.na_invalidate_handle_asset(key)
+            return if key.nil? || key.to_s.empty?
+            @na_handle_cache.delete(key.to_s) if @na_handle_cache
         end
         # ---------------------------------------------------------------
 

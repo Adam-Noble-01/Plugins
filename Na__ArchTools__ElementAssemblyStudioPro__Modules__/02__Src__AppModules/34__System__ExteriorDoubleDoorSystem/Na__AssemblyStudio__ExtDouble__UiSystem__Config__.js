@@ -34,7 +34,7 @@
         Object.assign(na_select('double_door_active_leaf', 'Active Leaf', 'Left', [
             { value: 'Left', label: 'Left Leaf' }, { value: 'Right', label: 'Right Leaf' }
         ], 'Opening and Leaves'), { type: 'binary_toggle' }),
-        na_slider('double_door_active_leaf_width_mm', 'Active Leaf Width', 300, 7600, 5, 900, 'Opening and Leaves'),
+        { id: 'double_door_active_leaf_width_mm', label: 'Active Leaf Width', type: 'eq_number', default: 'EQ', section: 'Opening and Leaves' },
         Object.assign(na_select('double_door_swing_direction', 'Swing Direction', 'Inward', [
             { value: 'Inward', label: 'Inward' }, { value: 'Outward', label: 'Outward' }
         ], 'Opening and Leaves'), { type: 'binary_toggle' }),
@@ -65,14 +65,17 @@
         na_select('double_door_panel_preset', 'Panel Layout', 'OnePanel', na_presets, 'Fielded Panels'),
         Object.assign(na_slider('double_door_panel_columns', 'Custom Columns', 1, 6, 1, 1, 'Fielded Panels'), { unit: '' }),
         Object.assign(na_slider('double_door_panel_rows', 'Custom Rows', 1, 6, 1, 1, 'Fielded Panels'), { unit: '' }),
-        na_slider('double_door_fielded_section_height_mm', 'Fielded Section Height', 100, 1800, 5, 850, 'Fielded Panels'),
+        na_slider('double_door_fielded_section_height_mm', 'Fielded Section Height', 100, 1800, 5, 300, 'Fielded Panels'),
         na_slider('double_door_panel_inset_mm', 'Panel Inset', 5, 100, 1, 25, 'Fielded Panels'),
         na_slider('double_door_panel_depth_mm', 'Panel Depth', 1, 30, 1, 12, 'Fielded Panels'),
         na_slider('double_door_panel_bevel_width_mm', 'Panel Bevel Width', 2, 60, 1, 18, 'Fielded Panels'),
 
-        na_select('double_door_handle_asset_key', 'Handle Asset', 'Na__InteriorDoor__Handle__Default', [], 'Hardware'),
-        na_slider('double_door_handle_height_mm', 'Handle Height', 700, 1400, 5, 1000, 'Hardware'),
-        na_slider('double_door_handle_backset_mm', 'Handle Backset', 20, 200, 5, 60, 'Hardware'),
+        Object.assign(na_select('double_door_handle_pairing', 'Handles', 'Paired', [
+            { value: 'Single', label: 'Single' }, { value: 'Paired', label: 'Paired' }
+        ], 'Hardware'), { type: 'binary_toggle' }),
+        na_select('double_door_handle_asset_key', 'Handle Asset', 'Na__ExteriorDoor__Handle__Scroll', [], 'Hardware'),
+        na_slider('double_door_handle_height_mm', 'Handle Height', 700, 1400, 5, 900, 'Hardware'),
+        na_slider('double_door_handle_backset_mm', 'Handle Position from Meeting Stile', 20, 250, 5, 40, 'Hardware'),
         {
             id: 'double_door_leaf_material_id',
             label: 'Leaf Finish',
@@ -108,7 +111,7 @@
             na_select(prefix + 'panel_preset', 'Panel Layout', 'OnePanel', na_presets, section),
             Object.assign(na_slider(prefix + 'panel_columns', 'Custom Columns', 1, 6, 1, 1, section), { unit: '' }),
             Object.assign(na_slider(prefix + 'panel_rows', 'Custom Rows', 1, 6, 1, 1, section), { unit: '' }),
-            na_slider(prefix + 'fielded_section_height_mm', 'Fielded Section Height', 100, 1800, 5, 850, section),
+            na_slider(prefix + 'fielded_section_height_mm', 'Fielded Section Height', 100, 1800, 5, 300, section),
             na_slider(prefix + 'mid_rail_width_mm', 'Separating Midrail Width', 40, 300, 5, 120, section),
             na_slider(prefix + 'panel_stile_width_mm', 'Perimeter Stile Width', 40, 250, 5, 95, section),
             na_slider(prefix + 'panel_top_rail_width_mm', 'Top Rail Width', 40, 300, 5, 95, section),

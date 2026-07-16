@@ -461,6 +461,68 @@ body {
 }
 
 /* =============================================================================
+   EQ-NUMBER CONTROL
+   Hybrid text input accepting the literal "EQ" (equal split) or a mm value.
+   ============================================================================= */
+
+.na-eq-number-input {
+    width         : 90px;
+    padding       : var(--na-spacing-xs) var(--na-spacing-sm);
+    background    : var(--na-bg-tertiary);
+    border        : 1px solid var(--na-border-color);
+    border-radius : var(--na-radius-sm);
+    color         : var(--na-text-primary);
+    font-size     : var(--na-font-size-sm);
+    text-align    : right;
+}
+
+.na-eq-number-input:focus {
+    outline      : none;
+    border-color : var(--na-accent-blue);
+}
+
+/* =============================================================================
+   SEGMENTED (MULTIWAY) TOGGLE CONTROL
+   N labelled options in a pill; the active option is highlighted. Used for the
+   Exterior Doors sub-mode switch (Double | Single | MultiFold | Sliding).
+   ============================================================================= */
+
+.na-segmented-toggle {
+    display             : flex;
+    align-items         : stretch;
+    gap                 : 2px;
+    padding             : 2px;
+    background          : var(--na-bg-tertiary);
+    border-radius       : var(--na-radius-sm);
+    user-select         : none;
+    -webkit-user-select : none;
+}
+
+.na-segmented-toggle__option {
+    flex          : 1;
+    padding       : var(--na-spacing-xs) var(--na-spacing-sm);
+    background    : transparent;
+    border        : none;
+    border-radius : var(--na-radius-sm);
+    color         : var(--na-text-muted);
+    font-size     : var(--na-font-size-sm);
+    font-family   : inherit;
+    cursor        : pointer;
+    white-space   : nowrap;
+    transition    : background var(--na-transition-fast), color var(--na-transition-fast);
+}
+
+.na-segmented-toggle__option:hover {
+    color : var(--na-text-primary);
+}
+
+.na-segmented-toggle__option--active {
+    background   : var(--na-accent-blue);
+    color        : var(--na-text-primary);
+    font-weight  : 600;
+}
+
+/* =============================================================================
    COLOR PICKER
    ============================================================================= */
 

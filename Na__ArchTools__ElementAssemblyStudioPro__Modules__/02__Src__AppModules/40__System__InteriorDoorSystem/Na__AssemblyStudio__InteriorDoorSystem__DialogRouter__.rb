@@ -576,7 +576,9 @@ module Na__InteriorDoorSystem
             # Ensure fresh reads when users export/replace files mid-session.
             AssetLibrary.na_clear_caches if AssetLibrary.respond_to?(:na_clear_caches)
 
-            keys = AssetLibrary.na_list_assets(:handles)
+            # Interior handles plus the shared exterior-door handle bucket so the
+            # exterior door dropdowns (double/single) can select the Scroll handle.
+            keys = (AssetLibrary.na_list_assets(:handles) + AssetLibrary.na_list_assets(:exterior_handles)).uniq
             options = keys.map { |key| na_build_handle_option(key) }.compact
             options.sort_by! { |option| option["label"].to_s.downcase }
 

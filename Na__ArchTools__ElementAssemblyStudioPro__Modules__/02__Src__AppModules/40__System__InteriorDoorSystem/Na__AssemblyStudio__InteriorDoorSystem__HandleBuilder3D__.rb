@@ -569,9 +569,23 @@ module Na__InteriorDoorSystem
             leaf_w_mm            = leaf ? leaf[:leaf_w_mm].to_f : (opening_w_mm - 2 * lining_t_mm)
             hinge_x_mm           = leaf ? leaf[:hinge_x_mm].to_f :
                                        ((swing_side == "left") ? lining_t_mm : (opening_w_mm - lining_t_mm))
-            handle_x_mm          = (swing_side == "left") ?
-                                       (hinge_x_mm + leaf_w_mm + offset_x_mm) :
-                                       (hinge_x_mm - leaf_w_mm + offset_x_mm * scale_x)
+
+            # Absolute X (mm) wins when an exterior adapter supplies it — used so
+            # double-door handles sit a true inset from the meeting stile edge.
+            absolute_x_mm        = config["Na__DoorConfig__HandleAbsoluteX_mm"]
+            latch_inset_mm       = config["Na__DoorConfig__HandleInsetFromLatch_mm"]
+            handle_x_mm          = if absolute_x_mm && !absolute_x_mm.to_s.strip.empty?
+                                       absolute_x_mm.to_f
+                                   elsif latch_inset_mm && latch_inset_mm.to_f > 0
+                                       inset = latch_inset_mm.to_f
+                                       (swing_side == "left") ?
+                                           (hinge_x_mm + leaf_w_mm - inset) :
+                                           (hinge_x_mm - leaf_w_mm + inset)
+                                   else
+                                       (swing_side == "left") ?
+                                           (hinge_x_mm + leaf_w_mm + offset_x_mm) :
+                                           (hinge_x_mm - leaf_w_mm + offset_x_mm * scale_x)
+                                   end
 
             panel_centre_y_mm    = GeometryHelpers.na_panel_centre_y_mm(config)        # <-- Swing-direction-aware panel centre
             handle_y_mm          = if face == :interior
@@ -585,11 +599,12 @@ module Na__InteriorDoorSystem
             base_origin   = Geom::Point3d.new(mm.call(handle_x_mm), mm.call(handle_y_mm), mm.call(handle_height_mm))
 
             t_origin      = Geom::Transformation.new(base_origin)
-            t_lay_back    = na_compute_handle_lay_back_rotation                                  # <-- Handle lay-back correction (Z -180 then X -90)
+            t_lay_back    = na_compute_handle_lay_back_rotation                                  # <-- Handle lay-back correction (X -90)
             t_face_flip   = na_compute_handle_face_flip(face)                                    # <-- Mirror across panel XZ plane for exterior face
             t_handing     = (scale_x < 0) ? Geom::Transformation.scaling(ORIGIN, -1, 1, 1) : Geom::Transformation.new
+            t_correction  = na_compute_handle_asset_correction(metadata)                        # <-- Optional per-asset orientation correction (local space)
 
-            t_origin * t_face_flip * t_handing * t_lay_back
+            t_origin * t_face_flip * t_handing * t_lay_back * t_correction
         end
         private_class_method :na_compute_handle_transform
         # ---------------------------------------------------------------
@@ -632,6 +647,32 @@ module Na__InteriorDoorSystem
             rotateHandleX = Geom::Transformation.rotation(ORIGIN, X_AXIS, -90.degrees)
           end
         private_class_method :na_compute_handle_lay_back_rotation
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Optional Per-Asset Orientation Correction
+        # ------------------------------------------------------------
+        # Some handle assets are authored in a pose that differs from the
+        # default "lying on back, spindle +Z" convention (e.g. the exterior
+        # Scroll handle is flipped in Z). Such assets may declare a correction
+        # rotation in degrees about the local X / Y / Z axes; it is applied in
+        # the asset's own local space (before the standard lay-back) so the
+        # handle stands the right way up. Absent fields default to 0, leaving
+        # existing assets (e.g. the interior default handle) untouched.
+        #
+        # @param metadata [Hash] Na__Asset__Metadata block
+        # @return [Geom::Transformation]
+        def self.na_compute_handle_asset_correction(metadata)
+            metadata ||= {}
+            rot_x = metadata["Na__PanelPlacement__CorrectionRotX_deg"].to_f
+            rot_y = metadata["Na__PanelPlacement__CorrectionRotY_deg"].to_f
+            rot_z = metadata["Na__PanelPlacement__CorrectionRotZ_deg"].to_f
+            transform = Geom::Transformation.new
+            transform = Geom::Transformation.rotation(ORIGIN, X_AXIS, rot_x.degrees) * transform unless rot_x.zero?
+            transform = Geom::Transformation.rotation(ORIGIN, Y_AXIS, rot_y.degrees) * transform unless rot_y.zero?
+            transform = Geom::Transformation.rotation(ORIGIN, Z_AXIS, rot_z.degrees) * transform unless rot_z.zero?
+            transform
+        end
+        private_class_method :na_compute_handle_asset_correction
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

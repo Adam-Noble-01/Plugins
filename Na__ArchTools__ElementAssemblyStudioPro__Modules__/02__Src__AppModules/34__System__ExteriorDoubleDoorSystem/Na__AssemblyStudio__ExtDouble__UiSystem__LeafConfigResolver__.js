@@ -70,7 +70,7 @@
             preset: na_value('panel_preset', 'OnePanel'),
             columns: na_clamp(na_value('panel_columns', 1), 1, 6),
             rows: na_clamp(na_value('panel_rows', 1), 1, 6),
-            fieldedHeightMm: na_number(na_value('fielded_section_height_mm', 850), 850),
+            fieldedHeightMm: na_number(na_value('fielded_section_height_mm', 300), 300),
             midRailMm: na_number(na_value('mid_rail_width_mm', 120), 120),
             stileMm: na_number(na_value('panel_stile_width_mm', 95), 95),
             topRailMm: na_number(na_value('panel_top_rail_width_mm', 95), 95),
@@ -257,16 +257,22 @@
         return dividers;
     }
 
+    // Resolve the active-leaf width from the EQ/mm hybrid field: 'EQ' (or any
+    // non-numeric value) means an equal 50/50 split; a number is the active
+    // leaf width in mm, clamped so both leaves keep the 300 mm minimum.
+    function na_resolveActiveLeafWidthMm(config, innerWidthMm, minimum, maximum) {
+        var raw = config.double_door_active_leaf_width_mm;
+        var num = (typeof raw === 'number') ? raw : parseFloat(raw);
+        if (!isFinite(num)) return innerWidthMm / 2;
+        return na_clamp(num, minimum, maximum);
+    }
+
     function na_resolve(config) {
         config = config || {};
         var dimensions = na_dimensions(config);
         var minimum = Math.min(NA_MIN_LEAF_WIDTH_MM, dimensions.innerWidthMm / 2);
         var maximum = Math.max(minimum, dimensions.innerWidthMm - minimum);
-        var activeWidth = na_clamp(
-            config.double_door_active_leaf_width_mm,
-            minimum,
-            maximum
-        );
+        var activeWidth = na_resolveActiveLeafWidthMm(config, dimensions.innerWidthMm, minimum, maximum);
         var activeSide = String(config.double_door_active_leaf || 'Left').toLowerCase();
         var leftWidth = activeSide === 'right' ? dimensions.innerWidthMm - activeWidth : activeWidth;
         var widths = { left: leftWidth, right: dimensions.innerWidthMm - leftWidth };

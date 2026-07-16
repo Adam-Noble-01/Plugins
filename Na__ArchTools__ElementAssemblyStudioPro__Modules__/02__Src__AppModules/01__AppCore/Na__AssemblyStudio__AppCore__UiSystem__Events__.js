@@ -16,11 +16,51 @@ const Na__Ui__Events = (function () {
             case 'slider':         na_attachSliderListeners(config, onChangeCallback); break;
             case 'toggle':         na_attachToggleListener(config, onChangeCallback); break;
             case 'binary_toggle':  na_attachBinaryToggleListener(config, onChangeCallback); break;
+            case 'multiway_toggle':na_attachMultiwayToggleListener(config, onChangeCallback); break;
+            case 'eq_number':      na_attachEqNumberListener(config, onChangeCallback); break;
             case 'select':         na_attachSelectListener(config, onChangeCallback); break;
             case 'color':          na_attachColorListener(config, onChangeCallback); break;
             case 'material_cards': na_attachMaterialCardsListener(config, onChangeCallback); break;
             case 'expandable':     na_attachExpandableListener(config, onChangeCallback); break;
         }
+    }
+
+    // EQ-number: normalizes free text to the literal 'EQ' or a numeric mm value.
+    // Blank / "eq" / "equal" / "=" (case-insensitive) / non-numeric -> 'EQ'.
+    function na_normalizeEqValue(raw) {
+        const text = String(raw == null ? '' : raw).trim();
+        if (text === '') return 'EQ';
+        if (/^(eq|equal|equals|equ|=)$/i.test(text)) return 'EQ';
+        const num = parseFloat(text);
+        if (!isFinite(num)) return 'EQ';
+        return num;
+    }
+
+    function na_attachEqNumberListener(config, onChangeCallback) {
+        const input = document.getElementById(`${config.id}-eqnumber`);
+        if (!input) return;
+        input.addEventListener('change', () => {
+            const normalized = na_normalizeEqValue(input.value);
+            input.value = normalized;
+            if (onChangeCallback) onChangeCallback(config.id, normalized);
+        });
+    }
+
+    // Multiway toggle: segmented switch. Clicking an option sets data-value on
+    // the container and moves the --active class, then emits the option value.
+    function na_attachMultiwayToggleListener(config, onChangeCallback) {
+        const container = document.getElementById(`${config.id}-segmented`);
+        if (!container) return;
+        const buttons = container.querySelectorAll('.na-segmented-toggle__option');
+        buttons.forEach(button => {
+            button.addEventListener('click', () => {
+                const value = button.getAttribute('data-option-value');
+                container.setAttribute('data-value', value);
+                buttons.forEach(other => other.classList.remove('na-segmented-toggle__option--active'));
+                button.classList.add('na-segmented-toggle__option--active');
+                if (onChangeCallback) onChangeCallback(config.id, value);
+            });
+        });
     }
 
     function na_attachExpandableListener(config, onChangeCallback) {
@@ -139,14 +179,16 @@ const Na__Ui__Events = (function () {
     }
 
     return {
-        na_attachEventListeners:        na_attachEventListeners,
-        na_attachSliderListeners:       na_attachSliderListeners,
-        na_attachToggleListener:        na_attachToggleListener,
-        na_attachBinaryToggleListener:  na_attachBinaryToggleListener,
-        na_attachSelectListener:        na_attachSelectListener,
-        na_attachColorListener:         na_attachColorListener,
-        na_attachMaterialCardsListener: na_attachMaterialCardsListener,
-        na_attachExpandableListener:    na_attachExpandableListener
+        na_attachEventListeners:         na_attachEventListeners,
+        na_attachSliderListeners:        na_attachSliderListeners,
+        na_attachToggleListener:         na_attachToggleListener,
+        na_attachBinaryToggleListener:   na_attachBinaryToggleListener,
+        na_attachMultiwayToggleListener: na_attachMultiwayToggleListener,
+        na_attachEqNumberListener:       na_attachEqNumberListener,
+        na_attachSelectListener:         na_attachSelectListener,
+        na_attachColorListener:          na_attachColorListener,
+        na_attachMaterialCardsListener:  na_attachMaterialCardsListener,
+        na_attachExpandableListener:     na_attachExpandableListener
     };
 })();
 

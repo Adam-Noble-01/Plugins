@@ -167,8 +167,9 @@ module TrueVision3D
         # HELPER FUNCTION | Check If Material Name Is Exempt
         # ---------------------------------------------------------------
         # Returns true if the name matches the MAT000E__ prefix.
-        # Exempt materials are included in indexed_only mode but
-        # do NOT receive PBR enrichment from the library.
+        # Exempt materials always export (every mode, including
+        # :no_materials) with SketchUp colour + texture, but do NOT
+        # receive PBR enrichment from the library / DataLib SSOT.
         # ---------------------------------------------------------------
         def self.Na__MaterialLookup__IsExemptMaterial?(material_name)
             return false unless material_name.is_a?(String)

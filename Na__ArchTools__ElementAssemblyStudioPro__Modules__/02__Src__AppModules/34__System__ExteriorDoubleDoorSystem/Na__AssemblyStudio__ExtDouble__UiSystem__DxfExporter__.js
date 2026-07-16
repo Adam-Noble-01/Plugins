@@ -122,12 +122,12 @@
             });
         }
         if (leaf.isActive) {
-            var backset = Number(config.double_door_handle_backset_mm || 60);
+            var backset = Number(config.double_door_handle_backset_mm || 40);
             var handleX = leaf.side === 'left'
                 ? leaf.originXMm + leaf.widthMm - backset
                 : leaf.originXMm + backset;
             dxf += na_circle('NA_DOOR_HARDWARE', handleX,
-                leaf.originZMm + Number(config.double_door_handle_height_mm || 1000) + lift, 12);
+                leaf.originZMm + Number(config.double_door_handle_height_mm || 900) + lift, 12);
         }
         return dxf;
     }

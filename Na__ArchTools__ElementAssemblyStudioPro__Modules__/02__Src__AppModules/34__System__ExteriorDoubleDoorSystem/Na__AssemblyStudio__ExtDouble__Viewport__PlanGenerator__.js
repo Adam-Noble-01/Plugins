@@ -119,7 +119,8 @@
             cx: pivotSvg.x, cy: pivotSvg.y, r: 5, fill: '#d00000', stroke: '#d00000'
         }));
         if (na_boolean(config.double_door_show_swing_arcs, true)) na_drawArc(svg, layout, leaf);
-        if (leaf.isActive) na_drawHandle(svg, layout, leaf, palette, config);
+        var handlePaired = String((config && config.double_door_handle_pairing) || 'Paired').toLowerCase() === 'paired';
+        if (leaf.isActive || handlePaired) na_drawHandle(svg, layout, leaf, palette, config);
     }
 
     function na_drawArc(svg, layout, leaf) {
@@ -141,26 +142,35 @@
     }
 
     function na_drawHandle(svg, layout, leaf, palette, config) {
-        var backset = Number(config.double_door_handle_backset_mm) || 60;
+        var backset = Number(config.double_door_handle_backset_mm) || 40;
         var x = leaf.side === 'left'
             ? leaf.originXMm + leaf.widthMm - backset
             : leaf.originXMm + backset;
-        var y = leaf.originYMm + (leaf.side === 'left' ? leaf.thicknessMm : 0);
-        var point = na_point(layout, x, y);
+        var yClosed = leaf.originYMm + (leaf.side === 'left' ? leaf.thicknessMm : 0);
+        var point = na_point(layout, x, yClosed);
+        var fill = (palette && palette.handle) || '#6e6558';
+        // Plan schematic: rose + short grip projecting off the leaf face
+        var faceOut = leaf.side === 'left' ? 1 : -1;
+        var tip = na_point(layout, x, yClosed + faceOut * 28);
+
         svg.appendChild(na_svg('circle', {
-            cx: point.x, cy: point.y, r: 9, fill: palette.handle, stroke: NA_STROKE, 'stroke-width': 1
+            cx: point.x, cy: point.y, r: 8, fill: fill, stroke: NA_STROKE, 'stroke-width': 1.5
+        }));
+        svg.appendChild(na_svg('line', {
+            x1: point.x, y1: point.y, x2: tip.x, y2: tip.y,
+            stroke: fill, 'stroke-width': 5, 'stroke-linecap': 'round'
         }));
         if (!na_boolean(config.double_door_create_open_state_copy, true)) return;
 
         var opened = na_rotate(
-            { x: x, y: y },
+            { x: x, y: yClosed },
             { x: leaf.hingeXMm, y: leaf.pivotYMm },
             leaf.signedAngleDeg
         );
         var openedPoint = na_point(layout, opened.x, opened.y);
         svg.appendChild(na_svg('circle', {
-            cx: openedPoint.x, cy: openedPoint.y, r: 9, fill: 'none',
-            stroke: NA_STROKE, 'stroke-width': 1, 'stroke-dasharray': '3 2'
+            cx: openedPoint.x, cy: openedPoint.y, r: 8, fill: 'none',
+            stroke: NA_STROKE, 'stroke-width': 1.5, 'stroke-dasharray': '3 2'
         }));
     }
 

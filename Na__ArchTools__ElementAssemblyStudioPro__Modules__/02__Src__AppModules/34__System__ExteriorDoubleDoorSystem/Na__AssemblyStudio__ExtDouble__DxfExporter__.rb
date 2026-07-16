@@ -158,8 +158,8 @@ module Na__DxfExporter
     private_class_method :na_bar_positions
 
     def self.na_add_handle(output, config, leaf)
-        backset = GeometryHelpers.na_number(config, 'double_door_handle_backset_mm', 60)
-        height = GeometryHelpers.na_number(config, 'double_door_handle_height_mm', 1000)
+        backset = GeometryHelpers.na_number(config, 'double_door_handle_backset_mm', 40)
+        height = GeometryHelpers.na_number(config, 'double_door_handle_height_mm', 900)
         x = leaf[:side] == :left ? leaf[:origin_x_mm] + leaf[:width_mm] - backset : leaf[:origin_x_mm] + backset
         layer = na_layer(config, :hardware)
         output << { :type => :circle, :layer => layer, :x => x, :y => leaf[:origin_z_mm] + height, :radius => 12.0 }

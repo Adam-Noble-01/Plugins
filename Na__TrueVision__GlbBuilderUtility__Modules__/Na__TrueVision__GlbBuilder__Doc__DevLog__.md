@@ -8,6 +8,28 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - MaterialHandling v3.1.0 - 16-Jul-2026
+#### MAT000E__ Exempt Materials Always Export (Including :no_materials)
+
+**Why**
+- ValeVision Cloud Sync Whitecard projects use `:no_materials`, which previously
+  stripped every material — including `MAT000E__` one-off exception textures.
+- TrueVision's exempt prefix was only honoured under `:indexed_only` / MaxModel.
+
+**Change**
+- `Na__MaterialEngine__EnsureMaterialRegistered` — `MAT000E__` passes the gate
+  in every mode (`:no_materials`, `:indexed_only`, `:all_materials`); colour +
+  texture embed; no DataLib PBR enrichment.
+- `PrepareMaterialsForExport` — no longer early-returns in `:no_materials`;
+  registers exempt materials via the same gate.
+- `ResolveMaterialIndexForGroup` — removed blind `:no_materials` return so
+  on-demand registration also carries exempt materials.
+
+**Downstream**
+- Whitecard Cloud Sync + PureEngine can show throwaway detail textures named
+  e.g. `MAT000E__CorbelLeafFake` without converting the project to MaxModel.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.6.0 - 02-Jul-2026
 #### Camera Follow Billboards - Multi-Family Support (Scene Entourage 2D)
 

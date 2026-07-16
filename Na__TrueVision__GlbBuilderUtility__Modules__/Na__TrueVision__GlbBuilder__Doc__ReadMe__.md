@@ -170,7 +170,7 @@ When children are nested inside a storey container (90-93), the following child 
 ### Material Export Modes
 Three modes are available, controlled via the UI:
 
-1. **No Materials** (`:no_materials`) - All meshes use a default whitecard material. Produces clean massing models.
+1. **No Materials** (`:no_materials`) - Meshes use a default whitecard material, except `MAT000E__` exempt materials which still export with colour + texture. Produces clean massing models with optional one-off detail textures.
 2. **All Materials** (`:all_materials`) - Every unique SketchUp face material is exported. Indexed materials receive PBR enrichment from the online library.
 3. **Indexed Only** (`:indexed_only`) - Only materials matching `MAT###__` (standard indexed) or `MAT000E__` (exempt) patterns are exported. All others fall back to whitecard.
 
@@ -181,7 +181,7 @@ Materials are resolved per-face only. Group/component container materials are NO
 - If neither exists, the face uses the default whitecard material (index 0)
 
 ### MAT000E__ Material Exempt Prefix
-Materials prefixed with `MAT000E__` ("Material Exempt") are always included in `:indexed_only` mode alongside standard indexed materials. They export with their SketchUp color and texture but do NOT receive PBR enrichment from the online library. This allows custom materials to be included in the GLB without being registered in the standard materials library.
+Materials prefixed with `MAT000E__` ("Material Exempt") **always** export in every mode (`:no_materials`, `:indexed_only`, and `:all_materials`). They write with their SketchUp colour and texture but do NOT receive PBR enrichment from the online library / DataLib SSOT. Use this for one-off throwaway detail textures (e.g. `MAT000E__CorbelLeafFake`) without registering them in the materials index. ValeVision Cloud Sync Whitecard exports use `:no_materials` and therefore still carry `MAT000E__` materials into the GLB.
 
 ### Texture Embedding
 When a material has a valid texture, the PNG image data is embedded directly in the GLB binary buffer:

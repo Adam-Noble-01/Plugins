@@ -281,7 +281,8 @@ module TrueVision3D
                         Export Materials
                     </label>
                     <div class="info-text">
-                        When unchecked, all meshes export with a default whitecard material for clean massing models.
+                        When unchecked, meshes export with a default whitecard material for clean massing models,
+                        except MAT000E__ exempt materials which still write colour + texture into the GLB.
                         Materials are resolved per-face only (group/component materials are not inherited).
                     </div>
                 </div>
@@ -295,6 +296,7 @@ module TrueVision3D
                         Only export materials matching the standard naming convention (MAT001__, MAT101__, etc.)
                         from the materials library, plus exempt materials (MAT000E__). Custom materials are replaced
                         with the default whitecard. Uncheck to export all SketchUp materials.
+                        MAT000E__ exempt materials always export in every mode.
                     </div>
                 </div>
 

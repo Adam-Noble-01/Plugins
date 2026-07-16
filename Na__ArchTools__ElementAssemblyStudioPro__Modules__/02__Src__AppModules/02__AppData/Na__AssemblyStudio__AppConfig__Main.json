@@ -92,6 +92,9 @@
                 "handles"       : "InteriorDoor__Handles__",
                 "hinges"        : "InteriorDoor__Hinges__"
             },
+            "exteriorDoor": {
+                "handles"       : "ExteriorDoor__Handles__"
+            },
             "window": {
                 "sashHorns"     : "Windows__SashHorns__"
             }

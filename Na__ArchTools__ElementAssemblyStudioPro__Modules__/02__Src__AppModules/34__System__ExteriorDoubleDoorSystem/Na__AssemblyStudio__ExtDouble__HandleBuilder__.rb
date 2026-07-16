@@ -1,54 +1,42 @@
 # frozen_string_literal: true
 
-require_relative '../40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__HandleBuilder3D__'
+# =============================================================================
+# EXTERIOR DOUBLE DOOR - HANDLE BUILDER (DELEGATOR)
+# -----------------------------------------------------------------------------
+# Maps double_door_* handle keys into the shared handle_config and delegates to
+# the shared exterior-door handle builder. Active-leaf-only placement is
+# preserved here (the composer decides which leaf(s) receive a handle).
+# @delegate: ../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__HandleBuilder__.rb
+# =============================================================================
+
+require_relative '../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__HandleBuilder__'
 require_relative 'Na__AssemblyStudio__ExtDouble__GeometryHelpers__'
 
 module Na__AssemblyStudio
 module Na__ExteriorDoubleDoorSystem
 module Na__HandleBuilder
 
-    InteriorHandleBuilder = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D
+    SharedHandleBuilder = Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__HandleBuilder
     GeometryHelpers = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__GeometryHelpers
 
     def self.na_build_active_leaf_handle(config, entities, leaf, material = nil)
         return { :interior => nil, :exterior => nil } unless leaf[:is_active]
-
-        adapter_config = na_adapter_config(config, leaf)
-        adapter_leaf = na_adapter_leaf(config, leaf)
-        InteriorHandleBuilder.na_build_handles(adapter_config, entities, material, adapter_leaf)
+        na_build_leaf_handle(config, entities, leaf, material)
     end
 
-    def self.na_adapter_config(config, leaf)
-        dimensions = leaf[:dimensions]
+    def self.na_build_leaf_handle(config, entities, leaf, material = nil)
+        SharedHandleBuilder.na_build_leaf_handle(na_handle_config(config), entities, leaf, material)
+    end
+
+    def self.na_handle_config(config)
         {
-            'Na__DoorConfig__HandleAssetKey' => config['double_door_handle_asset_key'],
-            'Na__DoorConfig__HandleHeight_mm' => GeometryHelpers.na_number(config, 'double_door_handle_height_mm', 1000),
-            'Na__DoorConfig__OpeningWidth_mm' => dimensions[:width_mm],
-            'Na__DoorConfig__LiningThickness_mm' => 0,
-            'Na__DoorConfig__PanelThickness_mm' => leaf[:thickness_mm],
-            'Na__DoorConfig__WallDepth_mm' => dimensions[:frame_depth_mm],
-            'Na__DoorConfig__LiningFaceOffset_mm' => dimensions[:frame_wall_inset_mm],
-            'Na__DoorConfig__SwingDirection' => config['double_door_swing_direction'] || 'Inward',
-            'Na__DoorConfig__SwingSide' => leaf[:side_name]
+            :asset_key => config['double_door_handle_asset_key'],
+            :height_mm => GeometryHelpers.na_number(config, 'double_door_handle_height_mm', 900),
+            :backset_mm => GeometryHelpers.na_number(config, 'double_door_handle_backset_mm', 40),
+            :swing_direction => config['double_door_swing_direction'] || 'Inward'
         }
     end
-    private_class_method :na_adapter_config
-
-    def self.na_adapter_leaf(config, leaf)
-        backset = GeometryHelpers.na_clamp(
-            GeometryHelpers.na_number(config, 'double_door_handle_backset_mm', 60),
-            20,
-            [leaf[:width_mm] / 2.0, 20].max
-        )
-        {
-            :index => leaf[:index],
-            :swing_side => leaf[:side].to_s,
-            :origin_x_mm => leaf[:origin_x_mm],
-            :hinge_x_mm => leaf[:hinge_x_mm],
-            :leaf_w_mm => [leaf[:width_mm] - backset, 1.0].max
-        }
-    end
-    private_class_method :na_adapter_leaf
+    private_class_method :na_handle_config
 
 end
 end

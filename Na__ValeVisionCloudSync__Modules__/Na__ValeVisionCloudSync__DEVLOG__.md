@@ -1,5 +1,32 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.4.1 — 16-Jul-2026 — MAT000E__ Exempt Materials Always Export (Whitecard)
+
+### Overview
+Whitecard / Blockout Cloud Sync still uses `:no_materials` for sanitised
+massing GLBs, but `MAT000E__` ("Material Exempt") materials now always write
+into the GLB — colour + embedded texture — matching TrueVision's exempt
+exception. One-off throwaway detail textures (e.g. `MAT000E__CorbelLeafFake`)
+survive Whitecard sync without converting the project to MaxModel. MaxModel
+`:indexed_only` behaviour is unchanged (already included exempt materials).
+
+### Changed
+- **TrueVision GLB Builder `MaterialHandling` v3.1.0** — `:no_materials` no
+  longer early-returns before the exempt gate; `PrepareMaterialsForExport`
+  and `ResolveMaterialIndexForGroup` register `MAT000E__` materials in every
+  mode. Cloud Sync Whitecard exports inherit this automatically.
+- **`Na__GlbExportBridge`** — report message notes `MAT000E__ exempt` for
+  both Whitecard and MaxModel syncs; docs updated.
+
+### Files Changed
+- `Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__EngineCore__MaterialHandling__.rb`
+- `Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__EngineCore__MaterialLookupSystem__.rb`
+- `Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__Doc__ReadMe__.md`
+- `04__Plugin__SyncFeatures/03__GlbExportBridge/Na__ValeVisionCloudSync__GlbExportBridge__.rb`
+
+# =============================================================================
+
+
 ## Version 0.4.0 — 15-Jul-2026 — Per-Scene SketchUp Section Plane Capture
 
 ### Overview

@@ -22,12 +22,54 @@ const Na__Ui__Controls = (function () {
             case 'slider':         return na_createSliderHtml(config);
             case 'toggle':         return na_createToggleHtml(config);
             case 'binary_toggle':  return na_createBinaryToggleHtml(config);
+            case 'multiway_toggle':return na_createMultiwayToggleHtml(config);
+            case 'eq_number':      return na_createEqNumberHtml(config);
             case 'select':         return na_createSelectHtml(config);
             case 'color':          return na_createColorHtml(config);
             case 'material_cards': return na_createMaterialCardsHtml(config);
             case 'expandable':     return na_createExpandableHtml(config);
             default:               return '';
         }
+    }
+
+    // EQ-number: hybrid text input accepting the literal "EQ" (equal split) or a
+    // millimetre number. Used by the double/single door active-leaf-width field.
+    //   { id, label, type: 'eq_number', default: 'EQ' | <number> }
+    function na_createEqNumberHtml(config) {
+        const value = (config.default === null || config.default === undefined) ? '' : config.default;
+        return `
+            <div class="na-control-item" data-control-id="${config.id}">
+                <div class="na-toggle-container">
+                    <span class="na-control-label">${config.label}</span>
+                    <input type="text" class="na-eq-number-input" id="${config.id}-eqnumber"
+                           value="${value}" placeholder="EQ or mm" spellcheck="false">
+                </div>
+            </div>
+        `;
+    }
+
+    // Multiway toggle: segmented N-option switch (>= 2 options). Renders one
+    // button per option; the active option carries --active. Used for the
+    // Exterior Doors sub-mode switch (Double | Single | MultiFold | Sliding).
+    //   { id, label, type: 'multiway_toggle', default, options: [{value,label}, ...] }
+    function na_createMultiwayToggleHtml(config) {
+        const options = Array.isArray(config.options) ? config.options : [];
+        const optionsHtml = options.map(function (opt) {
+            const activeClass = (opt.value === config.default) ? ' na-segmented-toggle__option--active' : '';
+            return `<button type="button" class="na-segmented-toggle__option${activeClass}"
+                        data-option-value="${opt.value}">${opt.label}</button>`;
+        }).join('');
+        const labelHtml = config.label
+            ? `<span class="na-control-label">${config.label}</span>`
+            : '';
+        return `
+            <div class="na-control-item" data-control-id="${config.id}">
+                ${labelHtml}
+                <div class="na-segmented-toggle" id="${config.id}-segmented" data-value="${config.default}">
+                    ${optionsHtml}
+                </div>
+            </div>
+        `;
     }
 
     function na_createExpandableHtml(config) {
@@ -211,14 +253,16 @@ const Na__Ui__Controls = (function () {
     }
 
     return {
-        na_createControl:           na_createControl,
-        na_createSliderHtml:        na_createSliderHtml,
-        na_createToggleHtml:        na_createToggleHtml,
-        na_createBinaryToggleHtml:  na_createBinaryToggleHtml,
-        na_createSelectHtml:        na_createSelectHtml,
-        na_createColorHtml:         na_createColorHtml,
-        na_createMaterialCardsHtml: na_createMaterialCardsHtml,
-        na_createExpandableHtml:    na_createExpandableHtml
+        na_createControl:            na_createControl,
+        na_createSliderHtml:         na_createSliderHtml,
+        na_createToggleHtml:         na_createToggleHtml,
+        na_createBinaryToggleHtml:   na_createBinaryToggleHtml,
+        na_createMultiwayToggleHtml: na_createMultiwayToggleHtml,
+        na_createEqNumberHtml:       na_createEqNumberHtml,
+        na_createSelectHtml:         na_createSelectHtml,
+        na_createColorHtml:          na_createColorHtml,
+        na_createMaterialCardsHtml:  na_createMaterialCardsHtml,
+        na_createExpandableHtml:     na_createExpandableHtml
     };
 })();
 
