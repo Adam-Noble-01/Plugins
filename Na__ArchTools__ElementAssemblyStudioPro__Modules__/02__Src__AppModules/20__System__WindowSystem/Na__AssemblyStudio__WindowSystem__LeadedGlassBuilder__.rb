@@ -92,7 +92,7 @@ module Na__WindowSystem
 
             {
                 enabled:       enabled,
-                h_bars:        [[(config['horizontal_leaded_bars'] || 0).to_i, 0].max, 8].min,
+                h_bars:        [[(config['horizontal_leaded_bars'] || 0).to_i, 0].max, 10].min,
                 v_bars:        [[(config['vertical_leaded_bars'] || 0).to_i, 0].max, 8].min,
                 width:         [(config['leaded_width_mm'] || 6).to_f, 2.0].max * NA_MM_TO_INCH,
                 depth:         [[(config['leaded_depth_mm'] || 0).to_f, 0.0].max, 5.0].min * NA_MM_TO_INCH,

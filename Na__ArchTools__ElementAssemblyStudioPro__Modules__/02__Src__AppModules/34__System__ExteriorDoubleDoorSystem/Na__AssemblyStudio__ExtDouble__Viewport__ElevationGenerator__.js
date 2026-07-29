@@ -429,7 +429,7 @@ const Na__ExtDouble__ElevationGenerator = (function () {
         const config = layout.config || {};
         if (config.leaded_glass_enabled !== true) return;
 
-        const hLeads = Math.max(0, Math.min(8, Math.round(Number(config.horizontal_leaded_bars || 0))));
+        const hLeads = Math.max(0, Math.min(10, Math.round(Number(config.horizontal_leaded_bars || 0))));
         const vLeads = Math.max(0, Math.min(8, Math.round(Number(config.vertical_leaded_bars || 0))));
         if (hLeads <= 0 && vLeads <= 0) return;
         if (region.widthMm <= 0 || region.heightMm <= 0) return;

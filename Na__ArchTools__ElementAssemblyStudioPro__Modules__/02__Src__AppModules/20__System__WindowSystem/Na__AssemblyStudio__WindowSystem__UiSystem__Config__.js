@@ -521,7 +521,7 @@ const NA_GLAZEBAR_CONFIG = [
                 unit    :  '',
                 type    :  'slider',
                 min     :  0,
-                max     :  8,
+                max     :  10,
                 step    :  1,
                 default :  0
             },

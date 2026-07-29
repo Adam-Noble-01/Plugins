@@ -205,7 +205,7 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         }
         return {
             enabled     : isGlazed && config.leaded_glass_enabled === true,
-            hBars       : Math.max(0, Math.min(8, Math.round(Number(config.horizontal_leaded_bars || 0)))),
+            hBars       : Math.max(0, Math.min(10, Math.round(Number(config.horizontal_leaded_bars || 0)))),
             vBars       : Math.max(0, Math.min(8, Math.round(Number(config.vertical_leaded_bars || 0)))),
             widthMm     : Math.max(2, Number(config.leaded_width_mm || 6)),
             centreLines : config.leaded_centre_lines_only === true,
