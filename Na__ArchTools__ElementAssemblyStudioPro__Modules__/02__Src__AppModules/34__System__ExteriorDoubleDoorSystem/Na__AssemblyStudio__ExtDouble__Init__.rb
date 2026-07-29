@@ -1,5 +1,25 @@
 # frozen_string_literal: true
 
+# =============================================================================
+# ELEMENT ASSEMBLY STUDIO PRO - EXTERIOR DOUBLE DOOR - INIT
+# =============================================================================
+#
+# FILE       : Na__AssemblyStudio__ExtDouble__Init__.rb
+# NAMESPACE  : Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem
+# MODULE     : Na__ExteriorDoubleDoorSystem / Na__Init
+# AUTHOR     : Noble Architecture
+# PURPOSE    : Standalone exterior double door system bootstrap - constants,
+#              default config, lazy module loading, and AppCore registration
+#              (SelectionCoordinator handler + DialogManager init hook).
+#
+# NAMING NOTE:
+# Folder is `34__System__ExteriorDoubleDoorSystem`. The Ruby module name is
+# `Na__ExteriorDoubleDoorSystem` (full descriptive). Filenames use the
+# abbreviated `ExtDouble__` segment so absolute Windows paths stay below
+# the 260-char MAX_PATH ceiling.
+#
+# =============================================================================
+
 require 'json'
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
@@ -7,22 +27,44 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 module Na__AssemblyStudio
 module Na__ExteriorDoubleDoorSystem
 
-    DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+# -----------------------------------------------------------------------------
+# REGION | Module References
+# -----------------------------------------------------------------------------
 
-    NA_MODULE_ROOT_PATH      = File.dirname(__FILE__).freeze
-    NA_DOOR_ID_REGEX         = /^ADR\d{3}$/.freeze
-    NA_DEFINITION_SUFFIX     = '__ExteriorDoubleDoor__'.freeze
-    NA_PANEL_TAG             = 'ExteriorDoubleDoorPanel'.freeze
-    NA_ROT_SUFFIX            = 'ExteriorDoubleDoorHingeCentre'.freeze
+    DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools                          # <-- Shared debug logger
 
-    NA_DOOR_INFO_DICT        = 'Na__ExteriorDoubleDoorConfiguratorInfo'.freeze
-    NA_DOOR_DEF_DICT_PREFIX  = 'Na__ExteriorDoubleDoorConfigurator_'.freeze
-    NA_KEY_DOOR_ID           = 'DoorID'.freeze
-    NA_KEY_INSTANCE_NAME     = 'SketchUpInstanceName'.freeze
-    NA_KEY_DEFINITION_NAME   = 'SketchUpDefinitionName'.freeze
-    NA_KEY_METADATA          = 'Na__ExteriorDoubleDoorMetadata'.freeze
-    NA_KEY_COMPONENTS        = 'Na__ExteriorDoubleDoorComponents'.freeze
-    NA_KEY_CONFIGURATION     = 'Na__ExteriorDoubleDoorConfiguration'.freeze
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Module Constants - Path / Identity
+# -----------------------------------------------------------------------------
+
+    NA_MODULE_ROOT_PATH      = File.dirname(__FILE__).freeze                               # <-- Folder of this Init file
+    NA_DOOR_ID_REGEX         = /^ADR\d{3}$/.freeze                                         # <-- ADR-series validation
+    NA_DEFINITION_SUFFIX     = '__ExteriorDoubleDoor__'.freeze                             # <-- Definition name suffix
+    NA_PANEL_TAG             = 'ExteriorDoubleDoorPanel'.freeze                            # <-- Panel layer/tag name
+    NA_ROT_SUFFIX            = 'ExteriorDoubleDoorHingeCentre'.freeze                      # <-- ROT naming contract
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Module Constants - Attribute Dictionaries / Keys
+# -----------------------------------------------------------------------------
+
+    NA_DOOR_INFO_DICT        = 'Na__ExteriorDoubleDoorConfiguratorInfo'.freeze             # <-- Instance info dict
+    NA_DOOR_DEF_DICT_PREFIX  = 'Na__ExteriorDoubleDoorConfigurator_'.freeze                # <-- Per-definition dict prefix
+    NA_KEY_DOOR_ID           = 'DoorID'.freeze                                             # <-- ADR id attribute key
+    NA_KEY_INSTANCE_NAME     = 'SketchUpInstanceName'.freeze                               # <-- Instance name key
+    NA_KEY_DEFINITION_NAME   = 'SketchUpDefinitionName'.freeze                             # <-- Definition name key
+    NA_KEY_METADATA          = 'Na__ExteriorDoubleDoorMetadata'.freeze                     # <-- Metadata payload key
+    NA_KEY_COMPONENTS        = 'Na__ExteriorDoubleDoorComponents'.freeze                   # <-- Component map key
+    NA_KEY_CONFIGURATION     = 'Na__ExteriorDoubleDoorConfiguration'.freeze                # <-- Full config JSON key
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Module Constants - Default Door Configuration
+# -----------------------------------------------------------------------------
 
     NA_DEFAULT_DOOR_CONFIG = {
         'double_door_mode'                         => false,
@@ -36,6 +78,7 @@ module Na__ExteriorDoubleDoorSystem
         'double_door_show_swing_arcs'              => true,
         'double_door_create_open_state_copy'       => true,
         'double_door_removed_glazebars'             => [],
+        'double_door_leaded_disabled_cells'         => [],
         'double_door_leaf_settings_linked'         => true,
         'double_door_left_leaf_override_enabled'   => false,
         'double_door_right_leaf_override_enabled'  => false,
@@ -63,14 +106,34 @@ module Na__ExteriorDoubleDoorSystem
         'double_door_handle_backset_mm'             => 40
     }.freeze
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Public API - Default Config Accessors
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Deep-Copy Default Double-Door Config Hash
+    # ------------------------------------------------------------
     def self.na_default_config
         Marshal.load(Marshal.dump(NA_DEFAULT_DOOR_CONFIG))
     end
+    # ---------------------------------------------------------------
 
+    # FUNCTION | Default Double-Door Config as JSON String
+    # ------------------------------------------------------------
     def self.na_default_config_json
         JSON.generate(NA_DEFAULT_DOOR_CONFIG)
     end
+    # ---------------------------------------------------------------
 
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Public API - Lazy Module Loading
+# -----------------------------------------------------------------------------
+
+    # FUNCTION | Require All ExtDouble Sub-Modules Once
+    # ------------------------------------------------------------
     def self.na_require_modules
         return if @na_modules_loaded
 
@@ -103,18 +166,34 @@ module Na__ExteriorDoubleDoorSystem
 
         @na_modules_loaded = true
     end
+    # ---------------------------------------------------------------
 
+    # FUNCTION | Clear Load Gate for Developer Reload Cycles
+    # ------------------------------------------------------------
     def self.na_reset_module_load_gate_for_developer_reload
         @na_modules_loaded = false
     end
+    # ---------------------------------------------------------------
 
+    # FUNCTION | Ensure Modules Loaded When Dialog Initialises
+    # ------------------------------------------------------------
     def self.na_init_callbacks(dialog)
         return false unless dialog
         na_require_modules
         true
     end
+    # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Nested Init - AppCore Registration
+# -----------------------------------------------------------------------------
 
     module Na__Init
+
+        # FUNCTION | Bootstrap ExtDouble Into AppCore Wiring
+        # ------------------------------------------------------------
         def self.na_init
             require_relative '../01__AppCore/Na__AssemblyStudio__AppCore__DialogManager__'
             require_relative '../01__AppCore/Na__AssemblyStudio__AppCore__SelectionCoordinator__'
@@ -133,7 +212,15 @@ module Na__ExteriorDoubleDoorSystem
             end
             true
         end
-    end
+        # ---------------------------------------------------------------
 
-end
-end
+    end # module Na__Init
+
+# endregion -------------------------------------------------------------------
+
+end # module Na__ExteriorDoubleDoorSystem
+end # module Na__AssemblyStudio
+
+# =============================================================================
+# END OF FILE
+# =============================================================================

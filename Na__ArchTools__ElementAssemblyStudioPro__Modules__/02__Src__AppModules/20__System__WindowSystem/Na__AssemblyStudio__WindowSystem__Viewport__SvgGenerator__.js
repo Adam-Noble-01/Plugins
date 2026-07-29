@@ -103,6 +103,22 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Build Leaded Glass Cell Storage Key
+    // ------------------------------------------------------------
+    // Cells are the sub-panes between glaze bars: col 0 = leftmost,
+    // row 0 = bottom (logical y-up), matching the Ruby 3D convention.
+    function na_getLeadedCellKey(openingIndex, cellIndex, panelIndex, sashIndex, col, row) {
+        return `${openingIndex}:${cellIndex}:${panelIndex}:${sashIndex}:${col}:${row}`;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Disabled Leaded Cell Set
+    // ------------------------------------------------------------
+    function na_getDisabledLeadedCellSet(disabledCells) {
+        return new Set(Array.isArray(disabledCells) ? disabledCells.map(key => String(key)) : []);
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Build Casement Storage Key
     // ------------------------------------------------------------
     function na_getCasementKey(openingIndex, cellIndex, panelIndex) {
@@ -163,7 +179,8 @@ const Na__Viewport__SvgGenerator = (function() {
         return {
             svg: '',
             clickTargetsSvg: '',                                         // <-- Glaze bar click rects
-            casementClickTargetsSvg: ''                                  // <-- Per-panel casement click rects
+            casementClickTargetsSvg: '',                                 // <-- Per-panel casement click rects
+            leadedClickTargetsSvg: ''                                    // <-- Per-cell leaded glass click rects
         };
     }
     // ---------------------------------------------------------------
@@ -174,6 +191,7 @@ const Na__Viewport__SvgGenerator = (function() {
         targetBucket.svg += sourceBucket.svg;
         targetBucket.clickTargetsSvg += sourceBucket.clickTargetsSvg;
         targetBucket.casementClickTargetsSvg += (sourceBucket.casementClickTargetsSvg || ''); // <-- Forward casement targets
+        targetBucket.leadedClickTargetsSvg += (sourceBucket.leadedClickTargetsSvg || '');     // <-- Forward leaded cell targets
     }
     // ---------------------------------------------------------------
 
@@ -219,7 +237,9 @@ const Na__Viewport__SvgGenerator = (function() {
             archEnabled    : config.glazebar_gothic_arch_enabled === true,
             archAmount     : Math.max(1, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),    // <-- V1.9.4 Allow single lancet arch (was clamped to 2 minimum)
             archHeight     : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0)),
-            hOffsetMm      : Number(config.glazebar_horizontal_offset_mm || 0)              // <-- Uniform vertical nudge for all horizontal bars (positive = up in mm)
+            hOffsetMm      : Number(config.glazebar_horizontal_offset_mm || 0),             // <-- Uniform vertical nudge for all horizontal bars (positive = up in mm)
+            hOffsetsMm     : Na__GlazebarMath.na_collectBarOffsets(config, 'glazebar_h_offset_', hBars),   // <-- Per-bar vertical nudges (positive = up)
+            vOffsetsMm     : Na__GlazebarMath.na_collectBarOffsets(config, 'glazebar_v_offset_', vBars)    // <-- Per-bar horizontal nudges (positive = right)
         };
         const leadedGlass = {
             enabled      : config.leaded_glass_enabled === true,
@@ -227,7 +247,8 @@ const Na__Viewport__SvgGenerator = (function() {
             vBars        : Math.max(0, Math.min(8, Math.round(Number(config.vertical_leaded_bars || 0)))),
             widthMm      : Math.max(2, Number(config.leaded_width_mm || 6)),
             centreLines  : config.leaded_centre_lines_only === true,
-            colourId     : na_resolveLeadedColourId(config)
+            colourId     : na_resolveLeadedColourId(config),
+            disabledCells: na_getDisabledLeadedCellSet(config.leaded_disabled_cells)        // <-- Per-cell opt-out toggled from the preview
         };
         const frameMaterialId = config.frame_material_id || 'MAT120__GenericWood';
         const frameColor = na_getMaterialColor(frameMaterialId);
@@ -253,6 +274,7 @@ const Na__Viewport__SvgGenerator = (function() {
         let openingClickTargetsSvg = '';
         let transomClickTargetsSvg = '';
         let glazebarClickTargetsSvg = '';
+        let leadedCellClickTargetsSvg = '';
 
         const doorMode = config.door_mode === true;
         const doorPanelHeightMm = doorMode ? Math.max(0, config.door_panel_height_mm || 400) : 0;
@@ -334,6 +356,7 @@ const Na__Viewport__SvgGenerator = (function() {
                 svg += openingCellRender.svg;
                 openingClickTargetsSvg += openingCellRender.casementClickTargetsSvg;
                 glazebarClickTargetsSvg += openingCellRender.clickTargetsSvg;
+                leadedCellClickTargetsSvg += openingCellRender.leadedClickTargetsSvg;
             });
         }
 
@@ -348,6 +371,7 @@ const Na__Viewport__SvgGenerator = (function() {
 
         svg += openingClickTargetsSvg;
         svg += transomClickTargetsSvg;
+        svg += leadedCellClickTargetsSvg;                                 // <-- Below glazebar targets so bar clicks win
         svg += glazebarClickTargetsSvg;
 
         return svg;
@@ -535,7 +559,20 @@ const Na__Viewport__SvgGenerator = (function() {
                 }
 
                 renderBucket.svg += na_generateLeadedGlassSvg(
-                    panelX, cell.y, panelWidth, cell.height, options.leadedGlass
+                    panelX, cell.y, panelWidth, cell.height, options.leadedGlass,
+                    {
+                        hBars: options.hBars,
+                        vBars: options.vBars,
+                        barWidth: options.barWidth,
+                        advancedGlazebar: options.advancedGlazebar,
+                        panelContext: {
+                            openingIndex: panelContext.openingIndex,
+                            cellIndex: panelContext.cellIndex,
+                            panelIndex: panelContext.panelIndex,
+                            sashIndex: 0
+                        },
+                        clickBucket: renderBucket
+                    }
                 );
 
                 if (showCasements && panelIsRemoved) {                    // <-- Per-panel removed indicator
@@ -655,7 +692,17 @@ const Na__Viewport__SvgGenerator = (function() {
             );
         }
 
-        renderBucket.svg += na_generateLeadedGlassSvg(glassX, glassY, glassWidth, glassHeight, leadedGlass);
+        renderBucket.svg += na_generateLeadedGlassSvg(
+            glassX, glassY, glassWidth, glassHeight, leadedGlass,
+            {
+                hBars: hBars,
+                vBars: vBars,
+                barWidth: barWidth,
+                advancedGlazebar: advancedGlazebar,
+                panelContext: panelContext,
+                clickBucket: renderBucket
+            }
+        );
 
         return renderBucket;
     }
@@ -760,7 +807,10 @@ const Na__Viewport__SvgGenerator = (function() {
         // still applies if the user enabled it.
         const advancedNoArch = advancedGlazebar
             ? { marginEnabled: advancedGlazebar.marginEnabled, marginOffset: advancedGlazebar.marginOffset,
-                archEnabled: false, archAmount: 0, archHeight: 0 }
+                archEnabled: false, archAmount: 0, archHeight: 0,
+                hOffsetMm: advancedGlazebar.hOffsetMm,
+                hOffsetsMm: advancedGlazebar.hOffsetsMm,
+                vOffsetsMm: advancedGlazebar.vOffsetsMm }
             : undefined;
         na_mergeSvgRenderBuckets(
             renderBucket,
@@ -871,7 +921,22 @@ const Na__Viewport__SvgGenerator = (function() {
                 );
             }
 
-            renderBucket.svg += na_generateLeadedGlassSvg(glassX, glassY, glassWidth, glassHeight, leadedGlass);
+            renderBucket.svg += na_generateLeadedGlassSvg(
+                glassX, glassY, glassWidth, glassHeight, leadedGlass,
+                {
+                    hBars: hBars,
+                    vBars: vBars,
+                    barWidth: barWidth,
+                    advancedGlazebar: advancedGlazebar,
+                    panelContext: {
+                        openingIndex: panelContext.openingIndex,
+                        cellIndex: panelContext.cellIndex,
+                        panelIndex: panelContext.panelIndex,
+                        sashIndex: 0
+                    },
+                    clickBucket: renderBucket
+                }
+            );
         }
 
         // Lower zone: door panel content (inside casement frame)
@@ -987,50 +1052,185 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Compute Final Glaze Bar Centerlines for a Glass Area
+    // ------------------------------------------------------------
+    // Single source for the FINAL bar positions (spacing -> margin /
+    // arch alignment -> uniform h offset -> per-bar offsets) so the bar
+    // renderer and the per-cell leaded glass grid can never drift apart.
+    // Returns { hPositions, vPositions, effectiveGlassHeight }.
+    function na_computeFinalBarPositions(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, advancedOptions) {
+        const math = window.Na__GlazebarMath;
+        const adv = advancedOptions || {};
+        const marginEnabled = adv.marginEnabled === true;
+        const marginOffset  = Math.max(0, Number(adv.marginOffset || 0));
+        const archEnabled   = adv.archEnabled === true;
+        const archAmount    = Math.max(1, Math.round(adv.archAmount || 1));
+        const archHeight    = Math.max(0, Number(adv.archHeight || 0));
+        const hOffsetMm     = Number(adv.hOffsetMm || 0);
+
+        const effectiveGlassHeight = (math && math.na_computeEffectiveGlassHeight)
+            ? math.na_computeEffectiveGlassHeight(glassHeight, archEnabled, archHeight, glassWidth, archAmount)
+            : (archEnabled ? Math.max(0, glassHeight - archHeight) : glassHeight);
+
+        let hPositions = [];
+        if (hBars > 0 && effectiveGlassHeight > 0) {
+            hPositions = math.na_computeBarPositions(glassY, effectiveGlassHeight, hBars, marginEnabled, marginOffset);
+            if (hOffsetMm !== 0) {
+                hPositions = hPositions.map(function (y) { return y + hOffsetMm; });
+            }
+            hPositions = math.na_applyBarOffsets(hPositions, adv.hOffsetsMm);
+        }
+
+        let vPositions = [];
+        if (vBars > 0) {
+            const archAlignVbars = archEnabled && !marginEnabled && (vBars + 1 === archAmount);
+            vPositions = archAlignVbars
+                ? math.na_computeArchAlignedBarPositions(glassX, glassWidth, vBars, barWidth, archAmount)
+                : math.na_computeBarPositions(glassX, glassWidth, vBars, marginEnabled, marginOffset);
+            vPositions = math.na_applyBarOffsets(vPositions, adv.vOffsetsMm);
+        }
+
+        return {
+            hPositions: hPositions,
+            vPositions: vPositions,
+            effectiveGlassHeight: effectiveGlassHeight
+        };
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Generate SVG Leaded Glass Overlay for a Glass Area
     // ------------------------------------------------------------
     // Centre-lines: thin strokes. Otherwise: light fill ribbons using width.
-    function na_generateLeadedGlassSvg(glassX, glassY, glassWidth, glassHeight, leadedOptions) {
+    // Lead lines are laid out PER GLAZING CELL (the sub-panes between
+    // glaze bars) when cellContext is provided; each cell gets the
+    // configured lead line counts and can be toggled off individually
+    // (opts.disabledCells keyed by na_getLeadedCellKey). Without
+    // cellContext the whole pane is treated as one cell (legacy shape).
+    // cellContext = { hBars, vBars, barWidth, advancedGlazebar,
+    //                 panelContext, clickBucket }
+    function na_generateLeadedGlassSvg(glassX, glassY, glassWidth, glassHeight, leadedOptions, cellContext) {
         const opts = leadedOptions || {};
         if (!opts.enabled) return '';
-        const hBars = Math.max(0, Math.round(Number(opts.hBars || 0)));
-        const vBars = Math.max(0, Math.round(Number(opts.vBars || 0)));
-        if (hBars <= 0 && vBars <= 0) return '';
+        const hLeads = Math.max(0, Math.round(Number(opts.hBars || 0)));
+        const vLeads = Math.max(0, Math.round(Number(opts.vBars || 0)));
+        if (hLeads <= 0 && vLeads <= 0) return '';
         if (glassWidth <= 0 || glassHeight <= 0) return '';
-
-        const stroke = na_leadedColourHex(opts.colourId || opts.colour);
-        const centreLines = opts.centreLines === true;
-        const widthMm = Math.max(1, Number(opts.widthMm || 6));
-        let svg = '';
 
         const math = window.Na__GlazebarMath;
         if (!math || typeof math.na_computeBarPositions !== 'function') return '';
 
-        if (hBars > 0) {
-            const hPositions = math.na_computeBarPositions(glassY, glassHeight, hBars, false, 0);
-            for (let i = 0; i < hBars; i++) {
-                const cy = hPositions[i];
-                if (centreLines) {
-                    svg += `<line x1="${glassX}" y1="${cy}" x2="${glassX + glassWidth}" y2="${cy}" stroke="${stroke}" stroke-width="1" />`;
-                } else {
-                    svg += na_svgRect(glassX, cy - widthMm / 2, glassWidth, widthMm, stroke, stroke, 0.4);
-                }
-            }
-        }
+        const context = cellContext || {};
+        const glazeHBars = Math.max(0, Math.round(Number(context.hBars || 0)));
+        const glazeVBars = Math.max(0, Math.round(Number(context.vBars || 0)));
+        const glazeBarWidth = Math.max(0, Number(context.barWidth || 0));
+        const panelContext = context.panelContext || null;
+        const clickBucket = context.clickBucket || null;
+        const disabledCells = opts.disabledCells instanceof Set
+            ? opts.disabledCells
+            : na_getDisabledLeadedCellSet(opts.disabledCells);
 
-        if (vBars > 0) {
-            const vPositions = math.na_computeBarPositions(glassX, glassWidth, vBars, false, 0);
-            for (let i = 0; i < vBars; i++) {
-                const cx = vPositions[i];
-                if (centreLines) {
-                    svg += `<line x1="${cx}" y1="${glassY}" x2="${cx}" y2="${glassY + glassHeight}" stroke="${stroke}" stroke-width="1" />`;
-                } else {
-                    svg += na_svgRect(cx - widthMm / 2, glassY, widthMm, glassHeight, stroke, stroke, 0.4);
+        // Build the cell grid from the FINAL glaze bar centerlines so the
+        // lead lines always sit between the bars, offsets included.
+        const barLayout = na_computeFinalBarPositions(
+            glassX, glassY, glassWidth, glassHeight,
+            glazeHBars, glazeVBars, glazeBarWidth, context.advancedGlazebar
+        );
+        const columnBounds = math.na_computeCellBounds(glassX, glassWidth, barLayout.vPositions, glazeBarWidth);
+        const rowBounds = math.na_computeCellBounds(glassY, barLayout.effectiveGlassHeight, barLayout.hPositions, glazeBarWidth);
+
+        let svg = '';
+        for (let row = 0; row < rowBounds.length; row++) {
+            for (let col = 0; col < columnBounds.length; col++) {
+                const cellX = columnBounds[col].start;
+                const cellW = columnBounds[col].size;
+                const cellY = rowBounds[row].start;
+                const cellH = rowBounds[row].size;
+                if (cellW <= 0 || cellH <= 0) continue;
+
+                const cellDisabled = panelContext
+                    ? disabledCells.has(na_getLeadedCellKey(
+                        panelContext.openingIndex, panelContext.cellIndex,
+                        panelContext.panelIndex, panelContext.sashIndex, col, row))
+                    : false;
+
+                if (!cellDisabled) {
+                    svg += na_generateLeadedCellLinesSvg(cellX, cellY, cellW, cellH, hLeads, vLeads, opts);
+                }
+
+                if (panelContext && clickBucket) {
+                    clickBucket.leadedClickTargetsSvg += na_generateLeadedCellClickTargetSvg(
+                        cellX, cellY, cellW, cellH, panelContext, col, row
+                    );
                 }
             }
         }
 
         return svg;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Lead Lines Within One Glazing Cell
+    // ------------------------------------------------------------
+    function na_generateLeadedCellLinesSvg(cellX, cellY, cellWidth, cellHeight, hLeads, vLeads, opts) {
+        const math = window.Na__GlazebarMath;
+        const stroke = na_leadedColourHex(opts.colourId || opts.colour);
+        const centreLines = opts.centreLines === true;
+        const widthMm = Math.max(1, Number(opts.widthMm || 6));
+        let svg = '';
+
+        if (hLeads > 0) {
+            const hPositions = math.na_computeBarPositions(cellY, cellHeight, hLeads, false, 0);
+            for (let i = 0; i < hLeads; i++) {
+                const cy = hPositions[i];
+                if (centreLines) {
+                    svg += `<line x1="${cellX}" y1="${-cy}" x2="${cellX + cellWidth}" y2="${-cy}" stroke="${stroke}" stroke-width="1" />`;
+                } else {
+                    svg += na_svgRect(cellX, cy - widthMm / 2, cellWidth, widthMm, stroke, stroke, 0.4);
+                }
+            }
+        }
+
+        if (vLeads > 0) {
+            const vPositions = math.na_computeBarPositions(cellX, cellWidth, vLeads, false, 0);
+            for (let i = 0; i < vLeads; i++) {
+                const cx = vPositions[i];
+                if (centreLines) {
+                    svg += `<line x1="${cx}" y1="${-cellY}" x2="${cx}" y2="${-(cellY + cellHeight)}" stroke="${stroke}" stroke-width="1" />`;
+                } else {
+                    svg += na_svgRect(cx - widthMm / 2, cellY, widthMm, cellHeight, stroke, stroke, 0.4);
+                }
+            }
+        }
+
+        return svg;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Leaded Cell Click Target SVG
+    // ------------------------------------------------------------
+    // Whole-cell invisible hit rect for toggling that cell's leaded
+    // glass. Emitted BELOW the glaze bar hit rects and inset by half a
+    // hit-zone so bar clicks always win near the boundaries.
+    function na_generateLeadedCellClickTargetSvg(cellX, cellY, cellWidth, cellHeight, panelContext, col, row) {
+        const inset = 4;
+        const targetX = cellX + inset;
+        const targetY = cellY + inset;
+        const targetWidth = cellWidth - inset * 2;
+        const targetHeight = cellHeight - inset * 2;
+        if (targetWidth <= 0 || targetHeight <= 0) return '';
+        const svgY = -targetY - targetHeight;
+        return `<rect class="na-leaded-cell-click-target"
+                      data-opening-index="${panelContext.openingIndex}"
+                      data-cell-index="${panelContext.cellIndex}"
+                      data-panel-index="${panelContext.panelIndex}"
+                      data-sash-index="${panelContext.sashIndex}"
+                      data-col="${col}"
+                      data-row="${row}"
+                      x="${targetX}" y="${svgY}"
+                      width="${targetWidth}" height="${targetHeight}"
+                      fill="rgba(0, 0, 0, 0.001)"
+                      stroke="none"
+                      style="cursor: pointer; pointer-events: all;"/>`;
     }
     // ---------------------------------------------------------------
 
@@ -1049,34 +1249,22 @@ const Na__Viewport__SvgGenerator = (function() {
         // Defaults preserve the legacy divide-by-(N+1) layout exactly so
         // unrelated call sites are unaffected.
         const adv = advancedOptions || {};
-        const marginEnabled = adv.marginEnabled === true;
-        const marginOffset  = Math.max(0, Number(adv.marginOffset || 0));
         const archEnabled   = adv.archEnabled === true;
         const archAmount    = Math.max(1, Math.round(adv.archAmount || 1));
         const archHeight    = Math.max(0, Number(adv.archHeight || 0));
-        // Uniform vertical nudge for horizontal bars. The SVG generator
-        // uses a y-up local context (see na_generateGothicArchSvg
-        // header comment), so adding the mm offset moves the bars
-        // upward visually - matching Ruby's positive-Z-is-up convention.
-        const hOffsetMm     = Number(adv.hOffsetMm || 0);
 
-        // When arches are on, the regular bar grid occupies only the lower
-        // portion of the glass. Horizontal bars are computed against this
-        // reduced height, and vertical bars stop at the springing line.
-        // We subtract the FULL arch zone (apex + overshoot) so the
-        // overshoot termini land at the top of glass and the apex sits
-        // below, matching the casement-header tracery convention.
-        const effectiveGlassHeight = (window.Na__GlazebarMath && window.Na__GlazebarMath.na_computeEffectiveGlassHeight)
-            ? window.Na__GlazebarMath.na_computeEffectiveGlassHeight(glassHeight, archEnabled, archHeight, glassWidth, archAmount)
-            : (archEnabled ? Math.max(0, glassHeight - archHeight) : glassHeight);
+        // Final bar centerlines: spacing -> margin / arch alignment ->
+        // uniform h offset -> per-bar offsets. Shared with the leaded
+        // glass cell grid via na_computeFinalBarPositions. The SVG
+        // generator uses a y-up local context, so positive offsets move
+        // horizontal bars upward - matching Ruby's positive-Z-is-up.
+        const barLayout = na_computeFinalBarPositions(
+            glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, adv
+        );
+        const effectiveGlassHeight = barLayout.effectiveGlassHeight;
 
         if (hBars > 0 && effectiveGlassHeight > 0) {
-            const hPositionsRaw = window.Na__GlazebarMath.na_computeBarPositions(
-                glassY, effectiveGlassHeight, hBars, marginEnabled, marginOffset
-            );
-            const hPositions = hOffsetMm === 0
-                ? hPositionsRaw
-                : hPositionsRaw.map(function (y) { return y + hOffsetMm; });
+            const hPositions = barLayout.hPositions;
             for (let b = 1; b <= hBars; b++) {
                 const barCenterY = hPositions[b - 1];
                 const barY = barCenterY - (barWidth / 2);
@@ -1106,18 +1294,11 @@ const Na__Viewport__SvgGenerator = (function() {
         }
 
         if (vBars > 0) {
-            // When arches are on and the vbar count matches the natural
-            // pairing (one vbar under every interior arch springing),
-            // align vbars with the EXTENDED-ZONE springings so the bars
-            // sit directly beneath the springings. Margin glazing takes
-            // priority if both are on (so its outer-pair inset still
-            // works as expected).
-            const archAlignVbars = archEnabled && !marginEnabled && (vBars + 1 === archAmount);
-            const vPositions = archAlignVbars
-                ? window.Na__GlazebarMath.na_computeArchAlignedBarPositions(
-                    glassX, glassWidth, vBars, barWidth, archAmount)
-                : window.Na__GlazebarMath.na_computeBarPositions(
-                    glassX, glassWidth, vBars, marginEnabled, marginOffset);
+            // Final positions include arch alignment (one vbar under
+            // every interior springing when counts pair up), margin
+            // glazing, and the per-bar offsets - see
+            // na_computeFinalBarPositions for the ordering.
+            const vPositions = barLayout.vPositions;
             // Vertical bars only span the regular (non-arch) zone height,
             // matching the reference image where mullions terminate at the
             // arch springing line.
@@ -1442,6 +1623,71 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Collect Valid Leaded Glass Cell Keys
+    // ------------------------------------------------------------
+    // Mirrors na_collectValidGlazebarKeys but enumerates the glazing
+    // cell grid: (vBars + 1) columns x (hBars + 1) rows per panel/sash.
+    // Independent of leaded_glass_enabled so disabled-cell choices
+    // survive toggling leaded glass off and on.
+    function na_collectValidLeadedCellKeys(config) {
+        const frameThicknesses = na_getEffectiveFrameThicknesses(config);
+        const showCasements = config.show_casements !== false;
+        const slidingSashWindow = config.sliding_sash_window === true;
+        const casementsPerOpening = Math.max(1, Math.min(6, config.casements_per_opening || 1));
+        const numMullions = config.mullions || 0;
+        const mullionWidth = config.mullion_width_mm || 40;
+        const transomCount = Math.max(0, Math.min(3, Math.round(config.transoms || 0)));
+        const transomWidth = config.transom_width_mm || 40;
+        const transomBottoms = na_getActiveTransomBottoms(config, transomCount);
+        const removedTransomSegments = na_getRemovedTransomSegmentSet(config.removed_transom_segments);
+        const hBars = config.horizontal_glaze_bars || 0;
+        const vBars = config.vertical_glaze_bars || 0;
+        const removedCasementSet = na_getRemovedCasementSet(config.removed_casements);
+        const validKeys = [];
+
+        const numOpenings = numMullions + 1;
+        const innerWidth = (config.width_mm || 900) - frameThicknesses.left - frameThicknesses.right;
+        const innerHeight = (config.height_mm || 1200) - frameThicknesses.top - frameThicknesses.bottom;
+        const availableWidth = innerWidth - (numMullions * mullionWidth);
+        const openingWidth = availableWidth / numOpenings;
+
+        for (let openingIndex = 0; openingIndex < numOpenings; openingIndex++) {
+            const openingX = frameThicknesses.left + (openingIndex * (openingWidth + mullionWidth));
+            const openingLayout = na_getOpeningCellLayout(
+                openingIndex,
+                openingX,
+                frameThicknesses.bottom,
+                openingWidth,
+                innerHeight,
+                transomBottoms,
+                transomWidth,
+                removedTransomSegments
+            );
+
+            openingLayout.cells.forEach((cell, cellIndex) => {
+                for (let panelIndex = 0; panelIndex < casementsPerOpening; panelIndex++) {
+                    const panelHasCasement = showCasements && !na_isPanelCasementRemoved(
+                        removedCasementSet,
+                        openingIndex,
+                        cellIndex,
+                        panelIndex
+                    );
+                    const sashIndices = (panelHasCasement && slidingSashWindow) ? [0, 1] : [0];
+                    sashIndices.forEach(sashIndex => {
+                        for (let row = 0; row <= hBars; row++) {
+                            for (let col = 0; col <= vBars; col++) {
+                                validKeys.push(na_getLeadedCellKey(openingIndex, cellIndex, panelIndex, sashIndex, col, row));
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        return validKeys;
+    }
+    // ---------------------------------------------------------------
+
 // endregion -------------------------------------------------------------------
 
 
@@ -1514,7 +1760,10 @@ const Na__Viewport__SvgGenerator = (function() {
         na_generateGlazeBarsSvg: na_generateGlazeBarsSvg,
         na_generateLeadedGlassSvg: na_generateLeadedGlassSvg,
         na_generateGothicArchSvg: na_generateGothicArchSvg,                 // <-- Exposed for ExtFold/ExtSlide elevation parity
+        na_computeFinalBarPositions: na_computeFinalBarPositions,           // <-- Exposed so DXF / door elevations share final bar math
         na_collectValidGlazebarKeys: na_collectValidGlazebarKeys,
+        na_collectValidLeadedCellKeys: na_collectValidLeadedCellKeys,       // <-- Exposed for leaded-cell pruning in UiLogic
+        na_getLeadedCellKey: na_getLeadedCellKey,                           // <-- Exposed for leaded-cell toggles in UiLogic
         na_getCasementKey: na_getCasementKey,                            // <-- Exposed for cross-module reuse
         na_getRemovedCasementSet: na_getRemovedCasementSet,              // <-- Exposed for DXF JS fallback
         na_isPanelCasementRemoved: na_isPanelCasementRemoved,            // <-- Exposed for DXF JS fallback

@@ -330,7 +330,9 @@ module Na__WindowSystem
                 arch_height:     (config["glazebar_gothic_arch_height_mm"] || 0).to_f,
                 arch_height_mm:  (config["glazebar_gothic_arch_height_mm"] || 0).to_f,
                 h_offset:        (config["glazebar_horizontal_offset_mm"] || 0).to_f,                # <-- DxfExporter works in mm so inches/mm collapse to the same value
-                h_offset_mm:     (config["glazebar_horizontal_offset_mm"] || 0).to_f
+                h_offset_mm:     (config["glazebar_horizontal_offset_mm"] || 0).to_f,
+                h_bar_offsets:   (1..(config["horizontal_glaze_bars"] || 0).to_i).map { |i| (config["glazebar_h_offset_#{i}_mm"] || 0).to_f },   # <-- Per-bar vertical nudges (mm)
+                v_bar_offsets:   (1..(config["vertical_glaze_bars"] || 0).to_i).map { |i| (config["glazebar_v_offset_#{i}_mm"] || 0).to_f }      # <-- Per-bar horizontal nudges (mm)
             }
             has_cill = config["has_cill"] != false
             cill_height = config["cill_height_mm"] || 50
@@ -523,6 +525,7 @@ module Na__WindowSystem
             arch_amount    = [[(adv[:arch_amount]  || 1).to_i, 1].max, 8].min
             arch_height    = (adv[:arch_height]    || 0).to_f
             arch_height_mm = (adv[:arch_height_mm] || 0).to_f
+            h_offset       = (adv[:h_offset]       || 0).to_f                                       # <-- Uniform vertical nudge (mm, positive = up)
 
             effective_glass_height = glass_height
             if arch_enabled && arch_height > 0 && arch_amount >= 1
@@ -533,6 +536,8 @@ module Na__WindowSystem
 
             if h_bars > 0 && effective_glass_height > 0
                 h_positions = na_compute_bar_positions_dxf(glass_y, effective_glass_height, h_bars, margin_enabled, margin_offset)
+                h_positions = h_positions.map { |y| y + h_offset } if h_offset != 0.0               # <-- Was packed but never applied pre-V1.3.0 (DXF/3D parity fix)
+                h_positions = na_apply_bar_offsets_dxf(h_positions, adv[:h_bar_offsets])            # <-- Per-bar vertical nudges
                 h_positions.each_with_index do |bar_center_y, idx|
                     b = idx + 1
                     next if na_glazebar_removed?(removed_glazebars, opening_index, cell_index, panel_index, sash_index, "horizontal", b)
@@ -549,6 +554,7 @@ module Na__WindowSystem
                               else
                                   na_compute_bar_positions_dxf(glass_x, glass_width, v_bars, margin_enabled, margin_offset)
                               end
+                v_positions = na_apply_bar_offsets_dxf(v_positions, adv[:v_bar_offsets])            # <-- Per-bar horizontal nudges
                 v_positions.each_with_index do |bar_center_x, idx|
                     b = idx + 1
                     next if na_glazebar_removed?(removed_glazebars, opening_index, cell_index, panel_index, sash_index, "vertical", b)
@@ -564,6 +570,19 @@ module Na__WindowSystem
             end
 
             dxf
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Per-Bar Offset Application (DXF copy)
+        # ------------------------------------------------------------
+        # Local mirror of GeometryBuilders.na_apply_bar_offsets, kept
+        # local to avoid cross-loading the geometry builders.
+        def self.na_apply_bar_offsets_dxf(positions, offsets)
+            return positions unless positions.is_a?(Array) && offsets.is_a?(Array) && !offsets.empty?
+            positions.each_with_index.map do |position, index|
+                offset = offsets[index]
+                offset.is_a?(Numeric) ? position + offset : position
+            end
         end
         # ---------------------------------------------------------------
 

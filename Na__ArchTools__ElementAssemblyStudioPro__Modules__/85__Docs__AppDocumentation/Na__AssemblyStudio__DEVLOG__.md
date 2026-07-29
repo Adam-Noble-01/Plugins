@@ -3,6 +3,93 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.3.1 - 29-Jul-2026 - Multifold Fielded Panels + Fold/Slide Fielded Glazebar Offsets
+
+### Context
+Multifold (bifold) leaf composition controls already offered FullyGlazed / GlazedOverFielded / FullyFielded (matching exterior double doors), but fielded panels never appeared in the 2D elevation or 3D model — preview stayed fully glazed, and Ruby fell back to FullyGlazed when composition was missing or out of sync with the legacy `bifold_door_glazed` flag. Separately, per-bar Horizontal/Vertical Bar N Offset sliders (V1.3.0) worked for windows and double doors, and for fold/slide FullyGlazed + 2D preview, but the **fielded** 3D path for multifold and sliding still used even spacing only (uniform horizontal nudge at best) — so a GlazedOverFielded multifold with Bar 1 Offset stayed centred while an adjacent window/door with the same offset looked correct.
+
+### Feature Summary
+- **Multifold fielded leaf compositions** — 2D elevation now resolves shared bifold panel settings into per-panel `fieldRegion` / `glazedRegion` / `fieldCells` (new `ExtFold__UiSystem__PanelConfigResolver__.js`) and draws midrail, field fills/dividers/cells, and glass only in the glazed region (ExtDouble-style). WindowSystem defaults gain bifold fielded keys; MainUiLogic syncs `bifold_door_glazed` from `bifold_door_leaf_composition` on change/load so Ruby no longer silently FullyGlazes. Timber FuseParts limited to stile/rail (incl. Mid) so `Na__ExteriorMultiFoldDoor__PanelGeometry` is not fused away.
+- **Fold/Slide fielded per-bar glazebar offsets** — ExtFold + ExtSlide `PanelLayoutResolver` now forward `glazebar_h_offset_N_mm` / `glazebar_v_offset_N_mm` (1–8) into ExtDoorCommon panel_config. Both AssemblyComposers add `na_final_bar_positions_mm` (mirror ExtDouble: spacing → uniform offset → per-bar offsets) and use it in `na_build_fielded_glazed_region`, so fielded glazed regions honour the same offset sliders as FullyGlazed / 2D.
+
+### Files Changed (highlights)
+- `33__System__ExteriorMultiFoldingDoorSystem/`
+  - `Na__AssemblyStudio__ExtFold__UiSystem__PanelConfigResolver__.js` (new — shared settings → per-panel field/glazed regions)
+  - `Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js` (midrail, field cells, glazed-region glass)
+  - `Na__AssemblyStudio__ExtFold__PanelLayoutResolver__.rb` (per-bar offset keys into panel_config)
+  - `Na__AssemblyStudio__ExtFold__AssemblyComposer__.rb` (`na_final_bar_positions_mm` on fielded glazed path; composition-driven content note)
+  - `Na__AssemblyStudio__ExtFold__FuseParts__Panel__.rb` (stile/rail-only timber fuse; preserve PanelGeometry)
+- `32__System__ExteriorSlidingDoorSystem/`
+  - `Na__AssemblyStudio__ExtSlide__PanelLayoutResolver__.rb` (per-bar offset keys)
+  - `Na__AssemblyStudio__ExtSlide__AssemblyComposer__.rb` (`na_final_bar_positions_mm` on fielded glazed path)
+- `20__System__WindowSystem/`
+  - `Na__AssemblyStudio__WindowSystem__Defaults__.rb` (bifold fielded composition / panel keys)
+  - `Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` (`na_syncBifoldGlazedFromComposition`)
+- `Na__AssemblyStudio__UiLayout__.html` (PanelConfigResolver script before elevation generator)
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (version 1.3.1)
+
+### How to Test
+1. Full SketchUp restart (or Reload Scripts + reopen dialog).
+2. Exterior MultiFold: set leaf composition to FullyFielded and GlazedOverFielded (with a panel preset) — 2D elevation shows field cells / midrail; Create/Update — 3D matches (panel solids not fused into the leaf shell).
+3. Multifold GlazedOverFielded (or FullyGlazed): Horizontal Bars = 1 → set Horizontal Bar 1 Offset (e.g. 320 mm) — preview and 3D bar both nudge (not centred); compare to a window/double door with the same offset.
+4. Exterior Sliding: same offset check on a fielded glazed leaf — 3D bars honour per-bar offsets.
+5. Reload an older multifold with only `bifold_door_glazed: true` — still FullyGlazed; changing composition updates both the composition key and the legacy glazed flag.
+
+### Backward Compatibility
+- Missing `bifold_door_leaf_composition` still defaults to FullyGlazed (legacy `bifold_door_glazed` behaviour).
+- Zero per-bar offsets keep fielded bar positions identical to V1.3.0 even spacing (+ uniform horizontal offset if set).
+- FuseParts change only excludes panel-geometry from timber fuse; stile/rail fuse behaviour otherwise unchanged.
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.3.0 - 29-Jul-2026 - Per-Bar Glazebar Offsets + Per-Cell Leaded Glass
+
+### Context
+Two glazing refinements requested off real drawing work: (1) glaze bars could only be evenly spaced (plus one uniform horizontal nudge), so offset transom-style bars — e.g. a high horizontal bar forming a top-light division — were impossible; (2) leaded glass lead lines spanned the whole pane and clashed straight through the glaze bars, and there was no way to have leaded glass in only some panes (e.g. leaded top-lights only, as per the concept sketch).
+
+### Feature Summary
+- **Per-bar glaze bar offsets** — a transom-style static pool of 16 sliders (`glazebar_h_offset_1..8_mm`, `glazebar_v_offset_1..8_mm`, ±500 mm, step 5) in the GLAZE BARS section. Only the sliders for bars that currently exist are shown (`na_updateGlazebarOffsetVisibility`), so the UI stays clean until offsets are relevant; hidden sliders keep their values. Offsets are applied AFTER the existing spacing pipeline (even / margin glazing / arch alignment / uniform Horizontal Bar Vertical Offset): positive = up for horizontal bars, right for vertical bars. Wired through: window SVG preview, Ruby 3D (windows + all four exterior door composers), JS + Ruby DXF exporters, double-door leaf resolvers (incl. per-leaf override seeding), sliding/bifold elevation generators.
+- **Leaded glass per glazing cell** — lead line counts now apply PER CELL between the glaze bars (final positions, offsets included), computed from a shared cell grid (`Na__GlazebarMath.na_computeCellBounds` / `LeadedGlassBuilder.na_compute_cell_bounds`) so lead lines never cross a bar. Gothic arch zones are excluded from the lead grid.
+- **Click-to-toggle leaded cells** — clicking a glazing cell in the elevation preview (windows AND double doors) toggles that cell's leaded glass off/on, mirroring the glaze-bar removal pattern: invisible `na-leaded-cell-click-target` rects, state arrays `leaded_disabled_cells` / `double_door_leaded_disabled_cells` (keys `opening:cell:panel:sash:col:row`, col 0 = left, row 0 = bottom), pruned against the live grid on every change and cleared by Reset Elements. The double-door elevation now renders leaded glass (it previously had none).
+- **Parity fix**: the uniform Horizontal Bar Vertical Offset was packed for DXF but never applied (Ruby exporter) and dropped for sliding-sash bottom sashes (JS preview/DXF clones) — both now applied consistently. Leaded centre-lines mode in the window SVG preview also drew at un-flipped Y (below the window); fixed.
+
+### Files Changed (highlights)
+- `20__System__WindowSystem/`
+  - `Na__AssemblyStudio__WindowSystem__Viewport__GlazebarMath__.js` (na_applyBarOffsets / na_collectBarOffsets / na_computeCellBounds)
+  - `Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js` (na_computeFinalBarPositions single-source bar math; per-cell leaded renderer + cell click targets; leaded click-target bucket)
+  - `Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js` (16 offset slider descriptors via na_buildGlazebarOffsetDescriptors)
+  - `Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` (offset slider visibility, leaded-cell toggles + valid-key pruning, reset, click binding)
+  - `Na__AssemblyStudio__WindowSystem__UiSystem__Export__Dxf__.js` (per-bar offsets in DXF bars)
+  - `Na__AssemblyStudio__WindowSystem__Defaults__.rb` (16 offset keys + 2 disabled-cell arrays)
+  - `Na__AssemblyStudio__WindowSystem__GeometryBuilders__.rb` (na_compute_final_bar_positions / na_apply_bar_offsets; glazebar builder refactored onto them)
+  - `Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__.rb` (per-cell grid support, disabled cells, cell-suffixed group naming)
+  - `Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb` (offset parsing, advanced hash, leaded call sites carry panel context + grid)
+  - `Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb` (NA_DOOR_SHARED_WINDOW_KEYS + new keys)
+  - `Na__AssemblyStudio__WindowSystem__DxfExporter__.rb` (per-bar offsets + h_offset parity fix)
+- `05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Controls__.js` (leaded-cell click branch in the delegated dispatcher)
+- `30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__PanelLayoutResolver__.rb` (:h_offsets_mm / :v_offsets_mm in :glaze_bars)
+- `34__System__ExteriorDoubleDoorSystem/` — PanelLayoutResolver.rb + AssemblyComposer.rb (shared final-bar helper, per-cell leaded w/ disabled cells), Init.rb (default array), UiSystem__LeafConfigResolver__.js (offset arrays + override seeding), Viewport__ElevationGenerator__.js (offsets + NEW leaded rendering + cell click targets), UiSystem__DxfExporter__.js (offsets)
+- `31__System__ExteriorSingleDoorSystem/` — PanelLayoutResolver.rb + AssemblyComposer.rb (offsets + per-cell leaded)
+- `32__System__ExteriorSlidingDoorSystem/` + `33__System__ExteriorMultiFoldingDoorSystem/` — AssemblyComposer.rb (shared advanced-hash helper w/ offsets, per-cell leaded render parity) + Viewport__ElevationGenerator__.js (offsets, per-cell leaded render)
+- `50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__Bridge__.js` (seed the 2 new arrays in the defaults builder)
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (version 1.3.0)
+
+### How to Test
+1. Full SketchUp restart (or Reload Scripts + reopen dialog).
+2. Windows tab, casement window: set Horizontal Bars = 1 → a "Horizontal Bar 1 Offset" slider appears under the count slider; drag it — the bar nudges up/down in the preview; Create/Update — 3D matches. Set bars to 0 — the slider hides (value retained).
+3. Set Horizontal Bars = 2, Vertical Bars = 2 → 2 + 2 offset sliders; give each a different value; verify preview + 3D + DXF export all match.
+4. Enable Leaded Glass with 2H x 2V lead lines and 1x1 glaze bars → lead lines now sit INSIDE each of the 4 panes (no crossing the bars), following any bar offsets.
+5. Click a pane in the elevation preview → its lead lines disappear (click again to restore); Update → 3D leaded glass matches; Reset Elements restores all cells.
+6. Exterior Double Doors: repeat 2/4/5 on the double-door elevation preview (leaded glass now draws there, per leaf); confirm bar clicks still remove bars (bar hit rects sit above cell rects).
+7. Sliding sash: leaded lines per sash respect the cells; bottom sash bars now honour the offsets (parity fix).
+8. Save a preset with offsets + disabled cells; apply it after changing the design — offsets and cell states restore.
+
+### Backward Compatibility
+- All new keys default to 0 / empty arrays; old components and presets load unchanged (defaults merge on both JS and door serializer sides).
+- With zero per-bar offsets and no disabled cells, bar positions are identical to V1.2.0; leaded glass with 0 glaze bars still spans the whole pane as before.
+- Leaded group naming gains a cell suffix ONLY when a bar grid exists; FuseParts prefix/regex collectors still match (window `Na_LeadedGlass_*_H#`, door `<container>__LeadedGlass*`).
+- The DXF uniform-offset fix means exports that previously ignored Horizontal Bar Vertical Offset now include it (matching the 3D model).
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.2.0 - 29-Jul-2026 - Presets Gallery + Preset Editor
 
 ### Context

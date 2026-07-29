@@ -36,6 +36,16 @@ module Na__PanelLayoutResolver
             composition = config['sliding_door_glazed'] == false ? 'FullyFielded' : 'FullyGlazed'
         end
 
+        # Per-bar offset keys must be forwarded so ExtDoorCommon
+        # glaze_bars[:h_offsets_mm] / [:v_offsets_mm] are populated.
+        offset_keys = {}
+        (1..8).each do |bar_index|
+            %w[h v].each do |axis|
+                key = "glazebar_#{axis}_offset_#{bar_index}_mm"
+                offset_keys[key] = get.call(key, config[key] || 0)
+            end
+        end
+
         {
             'composition' => composition,
             'output_mode' => get.call('sliding_door_panel_output_mode', 'ThreeDimensional'),
@@ -59,7 +69,7 @@ module Na__PanelLayoutResolver
             'glazebar_margin_offset_mm' => get.call('glazebar_margin_offset_mm', config['glazebar_margin_offset_mm'] || 120),
             'glazebar_horizontal_offset_mm' => get.call('glazebar_horizontal_offset_mm', config['glazebar_horizontal_offset_mm'] || 0),
             'removed_glazebars' => (config['removed_glazebars'].is_a?(Array) ? config['removed_glazebars'] : [])
-        }
+        }.merge(offset_keys)
     end
     private_class_method :na_panel_config
 

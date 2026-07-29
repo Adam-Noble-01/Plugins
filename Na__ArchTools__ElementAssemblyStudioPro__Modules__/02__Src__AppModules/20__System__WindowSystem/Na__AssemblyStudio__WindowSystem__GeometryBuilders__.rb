@@ -338,36 +338,21 @@ module Na__WindowSystem
             # so callers that have not yet been migrated still get the
             # legacy divide-by-(N+1) behaviour.
             adv = advanced.is_a?(Hash) ? advanced : {}
-            margin_enabled   = adv[:margin_enabled]    == true
-            margin_offset    = (adv[:margin_offset]    || 0).to_f
             arch_enabled     = adv[:arch_enabled]      == true
             arch_amount      = [[(adv[:arch_amount]    || 2).to_i, 1].max, 8].min                  # <-- V1.9.4 Allow single lancet arch (was clamped to 2 minimum)
             arch_height      = (adv[:arch_height]      || 0).to_f
             arch_height_mm   = (adv[:arch_height_mm]   || 0).to_f
-            h_offset         = (adv[:h_offset]         || 0).to_f                          # <-- Inches; positive lifts horizontal bars towards top of glass
 
-            # Gothic arch zone shrinks the effective glass area available
-            # for regular bars. We subtract the FULL arch zone (apex +
-            # overshoot) so the overshoot termini land at the top of glass
-            # and the apex sits below -- matching the 2D preview and the
-            # casement-header tracery convention.
-            effective_glass_height = glass_height
-            if arch_enabled && arch_height > 0 && arch_amount >= 1
-                bay_width = glass_width.to_f / arch_amount
-                total_arch_zone = na_compute_gothic_total_zone_height(bay_width, arch_height)
-                effective_glass_height = [glass_height - total_arch_zone, 0].max
-            end
+            # Final bar centerlines (spacing -> margin / arch alignment ->
+            # uniform h_offset -> per-bar offsets), shared with the leaded
+            # glass cell grid via na_compute_final_bar_positions.
+            layout = na_compute_final_bar_positions(offset_x, offset_z, glass_width, glass_height, h_bars, v_bars, bar_width, adv)
+            effective_glass_height = layout[:effective_glass_height]
 
-            # Horizontal bars (margin-aware positioning + user offset).
-            # The h_offset is applied AFTER the automatic spacing math
-            # so the slider acts as a uniform vertical nudge - critical
-            # when a Gothic arch shrinks the effective glass height and
-            # the auto-centred bar no longer aligns with the springing.
+            # Horizontal bars (margin-aware positioning + user offsets,
+            # both uniform and per-bar, applied AFTER the spacing math).
             if h_bars > 0 && effective_glass_height > 0
-                h_positions = na_compute_bar_positions(offset_z, effective_glass_height, h_bars, margin_enabled, margin_offset)
-                h_positions = h_positions.map { |z| z + h_offset } if h_offset != 0.0
-
-                h_positions.each_with_index do |bar_center_z, idx|
+                layout[:h_positions].each_with_index do |bar_center_z, idx|
                     i = idx + 1
                     next if na_glazebar_removed?(removed_glazebars, opening_layout_index, cell_index, panel_index, sash_index, "horizontal", i)
 
@@ -377,18 +362,8 @@ module Na__WindowSystem
             end
 
             # Vertical bars (margin-aware positioning, span only the non-arch zone).
-            # When arches are on and v_bars pairs naturally with arches
-            # (one vbar under every interior springing), align vbars to
-            # the extended-zone springings so they sit directly beneath
-            # the arch springings. Margin glazing takes precedence.
-            arch_align_vbars = arch_enabled && !margin_enabled && (v_bars + 1 == arch_amount)
             if v_bars > 0 && effective_glass_height > 0
-                v_positions = if arch_align_vbars
-                                  na_compute_arch_aligned_bar_positions(offset_x, glass_width, v_bars, bar_width, arch_amount)
-                              else
-                                  na_compute_bar_positions(offset_x, glass_width, v_bars, margin_enabled, margin_offset)
-                              end
-                v_positions.each_with_index do |bar_center_x, idx|
+                layout[:v_positions].each_with_index do |bar_center_x, idx|
                     i = idx + 1
                     next if na_glazebar_removed?(removed_glazebars, opening_layout_index, cell_index, panel_index, sash_index, "vertical", i)
 
@@ -411,6 +386,65 @@ module Na__WindowSystem
                     arch_height_mm, material,
                     glass_top_z
                 )
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Compute Final Bar Centerlines For One Glass Pane
+        # ------------------------------------------------------------
+        # Mirrors window.Na__Viewport__SvgGenerator.na_computeFinalBarPositions
+        # in JS. Order of operations: even/margin spacing (or arch-aligned
+        # vbars) -> uniform h_offset -> per-bar offsets. All dimensional
+        # values are in the CALLER'S units; adv[:h_bar_offsets] /
+        # adv[:v_bar_offsets] must already be converted to match.
+        # @return [Hash] { h_positions:, v_positions:, effective_glass_height: }
+        def self.na_compute_final_bar_positions(offset_x, offset_z, glass_width, glass_height, h_bars, v_bars, bar_width, advanced)
+            adv = advanced.is_a?(Hash) ? advanced : {}
+            margin_enabled = adv[:margin_enabled] == true
+            margin_offset  = (adv[:margin_offset] || 0).to_f
+            arch_enabled   = adv[:arch_enabled]   == true
+            arch_amount    = [[(adv[:arch_amount] || 2).to_i, 1].max, 8].min
+            arch_height    = (adv[:arch_height]   || 0).to_f
+            h_offset       = (adv[:h_offset]      || 0).to_f
+
+            effective_glass_height = glass_height
+            if arch_enabled && arch_height > 0 && arch_amount >= 1
+                bay_width = glass_width.to_f / arch_amount
+                total_arch_zone = na_compute_gothic_total_zone_height(bay_width, arch_height)
+                effective_glass_height = [glass_height - total_arch_zone, 0].max
+            end
+
+            h_positions = []
+            if h_bars.to_i > 0 && effective_glass_height > 0
+                h_positions = na_compute_bar_positions(offset_z, effective_glass_height, h_bars, margin_enabled, margin_offset)
+                h_positions = h_positions.map { |z| z + h_offset } if h_offset != 0.0
+                h_positions = na_apply_bar_offsets(h_positions, adv[:h_bar_offsets])
+            end
+
+            v_positions = []
+            if v_bars.to_i > 0 && effective_glass_height > 0
+                arch_align_vbars = arch_enabled && !margin_enabled && (v_bars + 1 == arch_amount)
+                v_positions = if arch_align_vbars
+                                  na_compute_arch_aligned_bar_positions(offset_x, glass_width, v_bars, bar_width, arch_amount)
+                              else
+                                  na_compute_bar_positions(offset_x, glass_width, v_bars, margin_enabled, margin_offset)
+                              end
+                v_positions = na_apply_bar_offsets(v_positions, adv[:v_bar_offsets])
+            end
+
+            { h_positions: h_positions, v_positions: v_positions, effective_glass_height: effective_glass_height }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Apply Per-Bar Offsets After The Spacing Step
+        # ------------------------------------------------------------
+        # Mirrors Na__GlazebarMath.na_applyBarOffsets. offsets[i] pairs
+        # with positions[i]; nil / non-numeric entries mean no nudge.
+        def self.na_apply_bar_offsets(positions, offsets)
+            return positions unless positions.is_a?(Array) && offsets.is_a?(Array) && !offsets.empty?
+            positions.each_with_index.map do |position, index|
+                offset = offsets[index]
+                offset.is_a?(Numeric) ? position + offset : position
             end
         end
         # ---------------------------------------------------------------

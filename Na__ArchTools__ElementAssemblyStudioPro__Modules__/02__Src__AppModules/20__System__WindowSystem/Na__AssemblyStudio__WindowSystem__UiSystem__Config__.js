@@ -335,6 +335,35 @@ const NA_UI_CONFIG = [
 // REGION | Glaze Bars Configuration
 // =============================================================================
 
+// CONSTANTS | Per-Bar Offset Slider Pool
+// ------------------------------------------------------------
+// One signed nudge slider per glaze bar (transom-style static pool).
+// Keys: glazebar_h_offset_N_mm / glazebar_v_offset_N_mm (N = 1-based
+// bar index matching the removal-key bar numbering). Applied AFTER the
+// automatic spacing step. Horizontal bars: positive = up. Vertical
+// bars: positive = right. MainUiLogic shows only the first
+// horizontal_glaze_bars / vertical_glaze_bars sliders of each pool
+// (na_updateGlazebarOffsetVisibility) so the UI stays uncluttered.
+const NA_GLAZEBAR_OFFSET_MAX_BARS = 8;
+
+function na_buildGlazebarOffsetDescriptors(axisKey, axisLabel) {
+    const descriptors = [];
+    for (let barIndex = 1; barIndex <= NA_GLAZEBAR_OFFSET_MAX_BARS; barIndex += 1) {
+        descriptors.push({
+            id      :  'glazebar_' + axisKey + '_offset_' + barIndex + '_mm',
+            label   :  axisLabel + ' Bar ' + barIndex + ' Offset',
+            unit    :  'mm',
+            type    :  'slider',
+            min     :  -500,
+            max     :   500,
+            step    :  5,
+            default :  0
+        });
+    }
+    return descriptors;
+}
+// ------------------------------------------------------------
+
 // CONSTANTS | Glaze Bars Configuration
 // ------------------------------------------------------------
 const NA_GLAZEBAR_CONFIG = [
@@ -348,6 +377,7 @@ const NA_GLAZEBAR_CONFIG = [
         step    :  1,
         default :  0
     },
+    ...na_buildGlazebarOffsetDescriptors('h', 'Horizontal'),
     {
         id      :  'vertical_glaze_bars',
         label   :  'Vertical Bars',
@@ -358,6 +388,7 @@ const NA_GLAZEBAR_CONFIG = [
         step    :  1,
         default :  0
     },
+    ...na_buildGlazebarOffsetDescriptors('v', 'Vertical'),
     {
         id      :  'glaze_bar_width_mm',
         label   :  'Bar Width',

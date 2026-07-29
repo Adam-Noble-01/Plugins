@@ -370,6 +370,15 @@ module Na__AssemblyStudio
                 "glazebar_gothic_arch_amount",
                 "glazebar_gothic_arch_height_mm",
                 "glazebar_horizontal_offset_mm",                                                    # <-- V1.9.3 Horizontal Bar Vertical Offset
+                # Per-Bar Glaze Bar Offsets (V1.3.0 - applied after spacing)
+                "glazebar_h_offset_1_mm", "glazebar_h_offset_2_mm",
+                "glazebar_h_offset_3_mm", "glazebar_h_offset_4_mm",
+                "glazebar_h_offset_5_mm", "glazebar_h_offset_6_mm",
+                "glazebar_h_offset_7_mm", "glazebar_h_offset_8_mm",
+                "glazebar_v_offset_1_mm", "glazebar_v_offset_2_mm",
+                "glazebar_v_offset_3_mm", "glazebar_v_offset_4_mm",
+                "glazebar_v_offset_5_mm", "glazebar_v_offset_6_mm",
+                "glazebar_v_offset_7_mm", "glazebar_v_offset_8_mm",
                 # Leaded Glass Controls (overlay on outer glass face)
                 "leaded_glass_controls",
                 "leaded_glass_enabled",
@@ -378,6 +387,7 @@ module Na__AssemblyStudio
                 "leaded_width_mm",
                 "leaded_depth_mm",
                 "leaded_centre_lines_only",
+                "leaded_disabled_cells",                                                            # <-- V1.3.0 Per-cell leaded glass toggles
                 "edge_colour_controls",
                 "edge_colour_frame_id",
                 "edge_colour_casement_id",

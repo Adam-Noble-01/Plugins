@@ -362,8 +362,10 @@ module Na__AssemblyComposer
     # The MOD group is the moving part of the panel. Its NAME encodes
     # the open-state ROT (and optional MVE) transformation that
     # TrueVision3D's animation scanner parses at runtime. The geometry
-    # inside is the panel's frame (rails + stiles) plus the glazing
-    # pane (when `bifold_door_glazed == true`).
+    # inside is the panel's frame (rails + stiles) plus either a fully
+    # glazed lite or fielded-panel layout driven by
+    # bifold_door_leaf_composition (FullyGlazed / GlazedOverFielded /
+    # FullyFielded) via PanelLayoutResolver + ExtDoorCommon builders.
     #
     # Phase-9: panel inner parts now use the FuseParts-compatible
     # `Na_DoorPanel_{panel_id}_*` naming, panel sits inside the inner
@@ -501,14 +503,9 @@ module Na__AssemblyComposer
             panel_token = part_names[:glazing].to_s.sub(/^Na_Glass_/, '')
             y = leaf[:origin_y_mm] + bars[:inset_mm]
             depth = [leaf[:thickness_mm] - 2.0 * bars[:inset_mm], 2.0].max
-            vertical_positions = WindowBuilders.na_compute_bar_positions(
-                region[:x_mm], region[:width_mm], bars[:vertical_count],
-                bars[:margin_enabled], bars[:margin_offset_mm]
-            )
-            horizontal_positions = WindowBuilders.na_compute_bar_positions(
-                region[:z_mm], region[:height_mm], bars[:horizontal_count],
-                bars[:margin_enabled], bars[:margin_offset_mm]
-            ).map { |position| position + bars[:horizontal_offset_mm] }
+            positions = na_final_bar_positions_mm(layout)
+            vertical_positions = positions[:vertical]
+            horizontal_positions = positions[:horizontal]
 
             vertical_positions.each_with_index do |x, index|
                 na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_V#{index + 1}",
@@ -526,6 +523,35 @@ module Na__AssemblyComposer
         na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y)
     end
     private_class_method :na_build_fielded_glazed_region
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Final Bar Centerlines For One Panel (mm space)
+    # ------------------------------------------------------------
+    # Spacing -> uniform horizontal offset -> per-bar offsets. Mirrors
+    # ExtDouble so GlazedOverFielded bifold panels honour the same
+    # glazebar_h_offset_N_mm / glazebar_v_offset_N_mm sliders.
+    def self.na_final_bar_positions_mm(layout)
+        region = layout[:glazed_region]
+        bars = layout[:glaze_bars]
+        vertical_positions = WindowBuilders.na_compute_bar_positions(
+            region[:x_mm],
+            region[:width_mm],
+            bars[:vertical_count],
+            bars[:margin_enabled],
+            bars[:margin_offset_mm]
+        )
+        vertical_positions = WindowBuilders.na_apply_bar_offsets(vertical_positions, bars[:v_offsets_mm])
+        horizontal_positions = WindowBuilders.na_compute_bar_positions(
+            region[:z_mm],
+            region[:height_mm],
+            bars[:horizontal_count],
+            bars[:margin_enabled],
+            bars[:margin_offset_mm]
+        ).map { |position| position + bars[:horizontal_offset_mm] }
+        horizontal_positions = WindowBuilders.na_apply_bar_offsets(horizontal_positions, bars[:h_offsets_mm])
+        { :horizontal => horizontal_positions, :vertical => vertical_positions }
+    end
+    private_class_method :na_final_bar_positions_mm
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Resolve the FuseParts-Compatible Panel Identifier
@@ -717,20 +743,7 @@ module Na__AssemblyComposer
         bar_inset_mm    = (config_hash["glazebar_inset_mm"]  || 10).to_f
         glass_thick_mm  = (config_hash["glass_thickness_mm"] || 20).to_f
 
-        # Advanced glazebar (Margin + Gothic) — converted to inches inline
-        # so the WindowSystem builder receives the same units it gets when
-        # called from the regular window code path.
-        mm_to_inch = 1.0 / 25.4
-        advanced_glazebar = {
-            margin_enabled:  config_hash["glazebar_margin_enabled"] == true,
-            margin_offset:   (config_hash["glazebar_margin_offset_mm"] || 0).to_f * mm_to_inch,
-            arch_enabled:    gothic_arch_enabled,
-            arch_amount:     [[(config_hash["glazebar_gothic_arch_amount"] || 2).to_i, 1].max, 8].min,           # <-- V1.9.4 Allow single lancet arch
-            arch_height:     (config_hash["glazebar_gothic_arch_height_mm"] || 0).to_f * mm_to_inch,
-            arch_height_mm:  (config_hash["glazebar_gothic_arch_height_mm"] || 0).to_f,
-            h_offset:        (config_hash["glazebar_horizontal_offset_mm"] || 0).to_f * mm_to_inch,    # <-- Uniform vertical nudge for horizontal bars
-            h_offset_mm:     (config_hash["glazebar_horizontal_offset_mm"] || 0).to_f
-        }
+        advanced_glazebar = na_fold_advanced_glazebar_hash(config_hash)
 
         clear_box = na_compute_clear_glazing_box(origin_x_mm, origin_z_mm,
                                                  panel_w_mm, panel_h_mm,
@@ -817,8 +830,37 @@ module Na__AssemblyComposer
     private_class_method :na_build_panel_leaded_glass
     # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Advanced Glazebar Hash (mm config -> inch space)
+    # ------------------------------------------------------------
+    # Single packing shared by the glaze bar builder and the leaded glass
+    # cell grid so bar positions and lead cells always agree. Values are
+    # converted to inches inline so the WindowSystem builder receives the
+    # same units it gets when called from the regular window code path.
+    def self.na_fold_advanced_glazebar_hash(config_hash)
+        mm_to_inch = 1.0 / 25.4
+        h_bars = (config_hash["horizontal_glaze_bars"] || 0).to_i
+        v_bars = (config_hash["vertical_glaze_bars"]   || 0).to_i
+        {
+            margin_enabled:  config_hash["glazebar_margin_enabled"] == true,
+            margin_offset:   (config_hash["glazebar_margin_offset_mm"] || 0).to_f * mm_to_inch,
+            arch_enabled:    config_hash["glazebar_gothic_arch_enabled"] == true,
+            arch_amount:     [[(config_hash["glazebar_gothic_arch_amount"] || 2).to_i, 1].max, 8].min,           # <-- V1.9.4 Allow single lancet arch
+            arch_height:     (config_hash["glazebar_gothic_arch_height_mm"] || 0).to_f * mm_to_inch,
+            arch_height_mm:  (config_hash["glazebar_gothic_arch_height_mm"] || 0).to_f,
+            h_offset:        (config_hash["glazebar_horizontal_offset_mm"] || 0).to_f * mm_to_inch,    # <-- Uniform vertical nudge for horizontal bars
+            h_offset_mm:     (config_hash["glazebar_horizontal_offset_mm"] || 0).to_f,
+            h_bar_offsets:   (1..h_bars).map { |i| (config_hash["glazebar_h_offset_#{i}_mm"] || 0).to_f * mm_to_inch },   # <-- Per-bar vertical nudges (inches)
+            v_bar_offsets:   (1..v_bars).map { |i| (config_hash["glazebar_v_offset_#{i}_mm"] || 0).to_f * mm_to_inch }    # <-- Per-bar horizontal nudges (inches)
+        }
+    end
+    private_class_method :na_fold_advanced_glazebar_hash
+    # ---------------------------------------------------------------
+
     # HELPER FUNCTION | Create Leaded Glass From mm Region + Outer Face Y
     # ------------------------------------------------------------
+    # Lead lines are laid out per glazing cell between the FINAL glaze
+    # bar centerlines (per-cell render parity with the elevation preview;
+    # no click-toggle on bifold panels yet, so no disabled-cell set).
     def self.na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y_mm)
         leaded = LeadedGlassBuilder.na_resolve_leaded_params(config_hash)
         return unless leaded[:enabled]
@@ -831,6 +873,23 @@ module Na__AssemblyComposer
         return unless width_mm.to_f > 0 && height_mm.to_f > 0
 
         mm = 1.0 / 25.4
+        grid = nil
+        if defined?(Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders)
+            builders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
+            bar_layout = builders.na_compute_final_bar_positions(
+                x_mm * mm, z_mm * mm, width_mm * mm, height_mm * mm,
+                (config_hash["horizontal_glaze_bars"] || 0).to_i,
+                (config_hash["vertical_glaze_bars"] || 0).to_i,
+                (config_hash["glaze_bar_width_mm"] || 25).to_f * mm,
+                na_fold_advanced_glazebar_hash(config_hash)
+            )
+            grid = {
+                h_positions: bar_layout[:h_positions],
+                v_positions: bar_layout[:v_positions],
+                bar_width: (config_hash["glaze_bar_width_mm"] || 25).to_f * mm,
+                effective_glass_height: bar_layout[:effective_glass_height]
+            }
+        end
         LeadedGlassBuilder.na_create_leaded_glass_geometry(
             entities,
             panel_id,
@@ -839,7 +898,8 @@ module Na__AssemblyComposer
             x_mm * mm,
             z_mm * mm,
             glass_y_mm * mm,
-            leaded
+            leaded,
+            grid: grid
         )
     end
     private_class_method :na_create_leaded_from_region_mm

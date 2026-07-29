@@ -32,6 +32,22 @@
        Returns the per-arc segment count for 3D tessellation.
        Provided here too so SVG / DXF / 3D all agree on segmentation.
 
+   - na_applyBarOffsets(positions, offsets)
+       Adds a signed per-bar offset to each bar centerline AFTER the
+       spacing step (even / margin / arch-aligned). offsets[i] pairs with
+       positions[i]; missing or non-numeric entries mean "no nudge".
+
+   - na_collectBarOffsets(config, prefix, count)
+       Gathers the per-bar offset slider values (glazebar_h_offset_N_mm /
+       glazebar_v_offset_N_mm, N = 1-based) from a flat config object
+       into a 0-indexed numeric array of length `count`.
+
+   - na_computeCellBounds(start, size, barPositions, barWidth)
+       Splits one axis of a glass pane into cell segments between glaze
+       bar EDGES (centerline +/- barWidth/2). Returns [{start, size}]
+       ordered from `start` upward; degenerate segments are clamped to
+       size 0 so callers can skip them.
+
    ============================================================================= */
 
 const Na__GlazebarMath = (function () {
@@ -199,13 +215,64 @@ const Na__GlazebarMath = (function () {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Apply per-bar offsets after the spacing step
+    // ---------------------------------------------------------------
+    function na_applyBarOffsets(positions, offsets) {
+        if (!Array.isArray(positions) || positions.length === 0) return positions || [];
+        if (!Array.isArray(offsets) || offsets.length === 0) return positions;
+        return positions.map(function (position, index) {
+            const offset = Number(offsets[index]);
+            return isNaN(offset) ? position : position + offset;
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Collect per-bar offset slider values from a config
+    // ---------------------------------------------------------------
+    // prefix is 'glazebar_h_offset_' or 'glazebar_v_offset_'; keys are
+    // 1-based ('glazebar_h_offset_1_mm'), the returned array 0-indexed.
+    function na_collectBarOffsets(config, prefix, count) {
+        const offsets = [];
+        if (!config || !count || count <= 0) return offsets;
+        for (let i = 1; i <= count; i += 1) {
+            const raw = Number(config[prefix + i + '_mm']);
+            offsets.push(isNaN(raw) ? 0 : raw);
+        }
+        return offsets;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Split one axis into cell segments between bar edges
+    // ---------------------------------------------------------------
+    // barPositions are FINAL centerlines (offsets already applied).
+    // Returns (barPositions.length + 1) segments spanning glass edge ->
+    // bar edge, bar edge -> bar edge, ..., bar edge -> glass edge.
+    function na_computeCellBounds(start, size, barPositions, barWidth) {
+        const positions = Array.isArray(barPositions) ? barPositions.slice() : [];
+        positions.sort(function (a, b) { return a - b; });
+        const halfBar = Math.max(0, Number(barWidth) || 0) / 2;
+        const cells = [];
+        let cursor = start;
+        for (let i = 0; i < positions.length; i += 1) {
+            const edge = positions[i] - halfBar;
+            cells.push({ start: cursor, size: Math.max(0, edge - cursor) });
+            cursor = positions[i] + halfBar;
+        }
+        cells.push({ start: cursor, size: Math.max(0, (start + size) - cursor) });
+        return cells;
+    }
+    // ---------------------------------------------------------------
+
     return {
         na_computeBarPositions             : na_computeBarPositions,
         na_computeArchAlignedBarPositions  : na_computeArchAlignedBarPositions,
         na_computeEffectiveGlassHeight     : na_computeEffectiveGlassHeight,
         na_computeGothicArcParams          : na_computeGothicArcParams,
         na_computeGothicTotalZoneHeight    : na_computeGothicTotalZoneHeight,
-        na_gothicTessellationSegmentCount  : na_gothicTessellationSegmentCount
+        na_gothicTessellationSegmentCount  : na_gothicTessellationSegmentCount,
+        na_applyBarOffsets                 : na_applyBarOffsets,
+        na_collectBarOffsets               : na_collectBarOffsets,
+        na_computeCellBounds               : na_computeCellBounds
     };
 })();
 

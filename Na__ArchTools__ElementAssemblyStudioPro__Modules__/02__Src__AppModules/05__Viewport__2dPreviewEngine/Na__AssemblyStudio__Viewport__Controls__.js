@@ -168,7 +168,7 @@
 
     // FUNCTION | Wire delegated click handling on SVG for preview hit targets
     // ------------------------------------------------------------
-    function na_setupCasementClickTargets(svgElement, interactionState, clickCallback, transomClickCallback, glazebarClickCallback) {
+    function na_setupCasementClickTargets(svgElement, interactionState, clickCallback, transomClickCallback, glazebarClickCallback, leadedCellClickCallback) {
         if (!svgElement) return;
         if (svgElement._na_clickHandler) {
             svgElement.removeEventListener('click', svgElement._na_clickHandler);
@@ -189,6 +189,19 @@
                     isNaN(sashIndex) || isNaN(barIndex) ||
                     (orientation !== 'horizontal' && orientation !== 'vertical')) return;
                 if (glazebarClickCallback) glazebarClickCallback(openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex);
+                return;
+            }
+
+            if (target.classList.contains('na-leaded-cell-click-target')) {
+                var openingIndexL = parseInt(target.dataset.openingIndex, 10);
+                var cellIndexL    = parseInt(target.dataset.cellIndex,    10);
+                var panelIndexL   = parseInt(target.dataset.panelIndex,   10);
+                var sashIndexL    = parseInt(target.dataset.sashIndex,    10);
+                var colIndex      = parseInt(target.dataset.col,          10);
+                var rowIndex      = parseInt(target.dataset.row,          10);
+                if (isNaN(openingIndexL) || isNaN(cellIndexL) || isNaN(panelIndexL) ||
+                    isNaN(sashIndexL) || isNaN(colIndex) || isNaN(rowIndex)) return;
+                if (leadedCellClickCallback) leadedCellClickCallback(openingIndexL, cellIndexL, panelIndexL, sashIndexL, colIndex, rowIndex);
                 return;
             }
 

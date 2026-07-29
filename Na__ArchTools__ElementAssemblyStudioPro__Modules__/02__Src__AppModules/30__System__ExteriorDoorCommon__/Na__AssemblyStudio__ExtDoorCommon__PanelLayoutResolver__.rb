@@ -260,17 +260,25 @@ module Na__PanelLayoutResolver
 
     # HELPER FUNCTION | Resolve Glaze-Bar Counts, Widths and Offsets
     # ------------------------------------------------------------
+    # Per-bar offset arrays come from the 'glazebar_h_offset_N_mm' /
+    # 'glazebar_v_offset_N_mm' keys (1-based bar index; positive = up
+    # for horizontal bars, right for vertical bars), applied AFTER the
+    # spacing math in the composers. Bars beyond the 8-slider pool get 0.
     def self.na_resolve_glaze_bars(effective, leaf)
         maximum_inset = [leaf[:thickness_mm] / 2.0 - 1.0, 0.0].max
         removed_keys = effective['removed_glazebars']
+        horizontal_count = GeometryHelpers.na_clamp(effective['horizontal_glaze_bars'], 0, 12).to_i
+        vertical_count = GeometryHelpers.na_clamp(effective['vertical_glaze_bars'], 0, 12).to_i
         {
-            :horizontal_count => GeometryHelpers.na_clamp(effective['horizontal_glaze_bars'], 0, 12).to_i,
-            :vertical_count => GeometryHelpers.na_clamp(effective['vertical_glaze_bars'], 0, 12).to_i,
+            :horizontal_count => horizontal_count,
+            :vertical_count => vertical_count,
             :width_mm => GeometryHelpers.na_clamp(effective['glaze_bar_width_mm'], 5, 100),
             :inset_mm => GeometryHelpers.na_clamp(effective['glazebar_inset_mm'], 0, maximum_inset),
             :margin_enabled => effective['glazebar_margin_enabled'] == true,
             :margin_offset_mm => [effective['glazebar_margin_offset_mm'].to_f, 0.0].max,
             :horizontal_offset_mm => effective['glazebar_horizontal_offset_mm'].to_f,
+            :h_offsets_mm => (1..horizontal_count).map { |i| effective["glazebar_h_offset_#{i}_mm"].to_f }.freeze,
+            :v_offsets_mm => (1..vertical_count).map { |i| effective["glazebar_v_offset_#{i}_mm"].to_f }.freeze,
             :removed_keys => Array(removed_keys).map(&:to_s).freeze
         }.freeze
     end

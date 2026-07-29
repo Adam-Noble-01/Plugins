@@ -182,7 +182,9 @@ const Na__ExtSlide__ElevationGenerator = (function () {
             archEnabled   : config.glazebar_gothic_arch_enabled === true,
             archAmount    : Math.max(1, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),     // <-- V1.9.4 Allow single lancet arch
             archHeight    : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0)),
-            hOffsetMm     : Number(config.glazebar_horizontal_offset_mm || 0)                       // <-- Uniform vertical nudge for horizontal bars (positive = up)
+            hOffsetMm     : Number(config.glazebar_horizontal_offset_mm || 0),                      // <-- Uniform vertical nudge for horizontal bars (positive = up)
+            hOffsetsMm    : window.Na__GlazebarMath ? window.Na__GlazebarMath.na_collectBarOffsets(config, 'glazebar_h_offset_', hBars) : [],   // <-- Per-bar vertical nudges
+            vOffsetsMm    : window.Na__GlazebarMath ? window.Na__GlazebarMath.na_collectBarOffsets(config, 'glazebar_v_offset_', vBars) : []    // <-- Per-bar horizontal nudges
         };
         const enabled = isGlazed && (hBars > 0 || vBars > 0 || advanced.archEnabled);
         return { enabled: enabled, hBars: hBars, vBars: vBars, barW: barW, advanced: advanced };
@@ -352,7 +354,12 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         if (layout.leadedGlass && layout.leadedGlass.enabled && glazedW > 0 && glazedH > 0) {
             const sgLead = window.Na__Viewport__SvgGenerator;
             if (sgLead && typeof sgLead.na_generateLeadedGlassSvg === 'function') {
-                svg += sgLead.na_generateLeadedGlassSvg(glazedX, glazedY, glazedW, glazedH, layout.leadedGlass);
+                svg += sgLead.na_generateLeadedGlassSvg(glazedX, glazedY, glazedW, glazedH, layout.leadedGlass, {
+                    hBars: layout.glazeBars.hBars,                     // <-- Per-cell layout between glaze bars (render parity;
+                    vBars: layout.glazeBars.vBars,                     //     no click-toggle on sliding leaves yet)
+                    barWidth: layout.glazeBars.barW,
+                    advancedGlazebar: layout.glazeBars.advanced
+                });
             }
         }
 
@@ -380,15 +387,17 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         if (hBars > 0 && effectiveGlassH > 0) {
             const hPosRaw = math.na_computeBarPositions(glassY, effectiveGlassH, hBars, adv.marginEnabled, adv.marginOffset);
             const hOffsetMm = Number(adv.hOffsetMm || 0);
-            const hPos = hOffsetMm === 0
+            let hPos = hOffsetMm === 0
                 ? hPosRaw
                 : hPosRaw.map(function (y) { return y + hOffsetMm; });
+            hPos = math.na_applyBarOffsets(hPos, adv.hOffsetsMm);       // <-- Per-bar vertical nudges after uniform offset
             for (let i = 0; i < hPos.length; i += 1) {
                 svg += sg.na_svgRect(glassX, hPos[i] - barW / 2, glassW, barW, colour, STROKE_BLACK, 1);
             }
         }
         if (vBars > 0 && effectiveGlassH > 0) {
-            const vPos = math.na_computeBarPositions(glassX, glassW, vBars, adv.marginEnabled, adv.marginOffset);
+            let vPos = math.na_computeBarPositions(glassX, glassW, vBars, adv.marginEnabled, adv.marginOffset);
+            vPos = math.na_applyBarOffsets(vPos, adv.vOffsetsMm);       // <-- Per-bar horizontal nudges after spacing
             for (let i = 0; i < vPos.length; i += 1) {
                 svg += sg.na_svgRect(vPos[i] - barW / 2, glassY, barW, effectiveGlassH, colour, STROKE_BLACK, 1);
             }

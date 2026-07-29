@@ -281,10 +281,12 @@
             });
         });
 
-        defaults.removed_casements             = [];
-        defaults.removed_transom_segments      = [];
-        defaults.removed_glazebars             = [];
-        defaults.double_door_removed_glazebars = [];
+        defaults.removed_casements                  = [];
+        defaults.removed_transom_segments           = [];
+        defaults.removed_glazebars                  = [];
+        defaults.double_door_removed_glazebars      = [];
+        defaults.leaded_disabled_cells              = [];
+        defaults.double_door_leaded_disabled_cells  = [];
         return defaults;
     }
     // ---------------------------------------------------------------

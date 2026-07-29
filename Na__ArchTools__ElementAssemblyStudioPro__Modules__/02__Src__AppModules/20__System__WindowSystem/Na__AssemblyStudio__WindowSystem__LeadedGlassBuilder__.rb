@@ -16,6 +16,11 @@
 # - Modes: centre-lines only (edges), flat ribbons (depth 0), extruded (1–5 mm)
 # - Colours from DataLib MTE edge materials via EdgeColourManager
 # - Reuses glaze-bar spacing math (na_compute_bar_positions)
+# - PER-CELL layout: when the caller passes a grid: hash (final glaze bar
+#   centerlines + bar width + optional disabled-cell keys) the lead lines
+#   are laid out inside each glazing cell BETWEEN the glaze bars instead
+#   of spanning the whole pane, so lead never clashes with the bars.
+#   Cell keys: "opening:cell:panel:sash:col:row" (col 0 = left, row 0 = bottom).
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix
@@ -137,6 +142,15 @@ module Na__WindowSystem
         # @param naming [Hash, nil] optional { prefix: "Na__ExteriorSingleDoor" }
         #   When set, groups are named "{prefix}__LeadedGlassH/V#"
         #   Otherwise Window style: "Na_LeadedGlass_{panel_id}_H/V#"
+        # @param grid [Hash, nil] optional glaze bar grid context:
+        #   { h_positions:, v_positions:  FINAL bar centerlines (caller units),
+        #     bar_width:                  glaze bar width (caller units),
+        #     effective_glass_height:    lead zone height (arch zone excluded),
+        #     panel_context:             { opening:, cell:, panel:, sash: },
+        #     disabled_cells:            Array of "o:c:p:s:col:row" keys }
+        #   When present, lead lines are laid out per glazing cell between
+        #   the bars; cells whose key is disabled are skipped entirely.
+        #   Without it the legacy whole-pane single-cell layout applies.
         # @return [Array<Sketchup::Group>] created groups (may be empty)
         def self.na_create_leaded_glass_geometry(
             entities,
@@ -147,7 +161,8 @@ module Na__WindowSystem
             offset_z,
             y_front,
             leaded_params,
-            naming: nil
+            naming: nil,
+            grid: nil
         )
             return [] unless entities && leaded_params.is_a?(Hash)
             return [] unless leaded_params[:enabled]
@@ -157,6 +172,89 @@ module Na__WindowSystem
             v_bars = leaded_params[:v_bars].to_i
             return [] if h_bars <= 0 && v_bars <= 0
 
+            grid_hash = grid.is_a?(Hash) ? grid : {}
+            bar_width = (grid_hash[:bar_width] || 0).to_f
+            lead_zone_height = (grid_hash[:effective_glass_height] || glass_height).to_f
+            column_bounds = na_compute_cell_bounds(offset_x, glass_width, grid_hash[:v_positions], bar_width)
+            row_bounds = na_compute_cell_bounds(offset_z, lead_zone_height, grid_hash[:h_positions], bar_width)
+            disabled_cells = grid_hash[:disabled_cells].is_a?(Array) ? grid_hash[:disabled_cells].map(&:to_s) : []
+            panel_context = grid_hash[:panel_context].is_a?(Hash) ? grid_hash[:panel_context] : nil
+            multi_cell = column_bounds.length > 1 || row_bounds.length > 1
+
+            created = []
+            row_bounds.each_with_index do |row_bound, row_index|
+                column_bounds.each_with_index do |column_bound, col_index|
+                    next if row_bound[:size] <= 0 || column_bound[:size] <= 0
+
+                    if panel_context
+                        cell_key = "#{panel_context[:opening]}:#{panel_context[:cell]}:" \
+                                   "#{panel_context[:panel]}:#{panel_context[:sash]}:#{col_index}:#{row_index}"
+                        next if disabled_cells.include?(cell_key)
+                    end
+
+                    cell_panel_id = multi_cell ? "#{panel_id}_C#{col_index}_#{row_index}" : panel_id
+                    cell_naming = naming
+                    if multi_cell && naming.is_a?(Hash) && naming[:prefix]
+                        cell_naming = naming.merge(cell_suffix: "_C#{col_index}_#{row_index}")
+                    end
+
+                    created.concat(
+                        na_create_leaded_cell_geometry(
+                            entities, cell_panel_id,
+                            column_bound[:size], row_bound[:size],
+                            column_bound[:start], row_bound[:start],
+                            y_front, leaded_params, cell_naming
+                        )
+                    )
+                end
+            end
+
+            DebugTools.na_debug_geometry(
+                "LeadedGlass panel #{panel_id}: #{h_bars}H x #{v_bars}V per cell " \
+                "(#{column_bounds.length}x#{row_bounds.length} cells, #{disabled_cells.length} disabled)"
+            )
+            created
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Split One Axis Into Cell Segments Between Bar Edges
+        # ------------------------------------------------------------
+        # Mirrors Na__GlazebarMath.na_computeCellBounds in JS. Positions
+        # are FINAL bar centerlines (offsets applied); segments run glass
+        # edge -> bar edge, bar edge -> bar edge, ..., bar edge -> glass edge.
+        def self.na_compute_cell_bounds(start, size, bar_positions, bar_width)
+            positions = bar_positions.is_a?(Array) ? bar_positions.map(&:to_f).sort : []
+            half_bar = [bar_width.to_f, 0.0].max / 2.0
+            cells = []
+            cursor = start.to_f
+            positions.each do |position|
+                edge = position - half_bar
+                cells << { start: cursor, size: [edge - cursor, 0.0].max }
+                cursor = position + half_bar
+            end
+            cells << { start: cursor, size: [(start.to_f + size.to_f) - cursor, 0.0].max }
+            cells
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Create Lead Lines Within One Glazing Cell
+        # ------------------------------------------------------------
+        # The original whole-pane drawing body, applied to one cell rect.
+        def self.na_create_leaded_cell_geometry(
+            entities,
+            panel_id,
+            glass_width,
+            glass_height,
+            offset_x,
+            offset_z,
+            y_front,
+            leaded_params,
+            naming
+        )
+            return [] if glass_width.to_f <= 0 || glass_height.to_f <= 0
+
+            h_bars = leaded_params[:h_bars].to_i
+            v_bars = leaded_params[:v_bars].to_i
             material = EdgeColourManager.na_get_edge_material_by_id(leaded_params[:mte_id])
             centre_lines = leaded_params[:centre_lines] == true
             width = centre_lines ? 0.0 : leaded_params[:width].to_f
@@ -223,10 +321,6 @@ module Na__WindowSystem
                 EdgeColourManager.na_apply_edge_colour_to_group(g, leaded_params[:mte_id])
             end
 
-            DebugTools.na_debug_geometry(
-                "LeadedGlass panel #{panel_id}: #{h_bars}H x #{v_bars}V " \
-                "(centre=#{centre_lines}, depth=#{(depth / NA_MM_TO_INCH).round(1)}mm)"
-            )
             created
         end
         # ---------------------------------------------------------------
@@ -252,8 +346,12 @@ module Na__WindowSystem
 
         def self.na_group_name(panel_id, axis, index, naming)
             prefix = naming.is_a?(Hash) ? naming[:prefix] : nil
+            cell_suffix = naming.is_a?(Hash) ? naming[:cell_suffix].to_s : ''
             if prefix && !prefix.to_s.empty?
-                "#{prefix}__LeadedGlass#{axis}#{index}"
+                # Cell suffix rides AFTER the LeadedGlass token so the door
+                # FuseParts prefix collectors ('<container>__LeadedGlass')
+                # keep matching per-cell groups.
+                "#{prefix}__LeadedGlass#{axis}#{index}#{cell_suffix}"
             else
                 "Na_LeadedGlass_#{panel_id}_#{axis}#{index}"
             end

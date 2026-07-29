@@ -147,7 +147,9 @@ const Na__Export__Dxf = (function() {
             archEnabled   : config.glazebar_gothic_arch_enabled === true,
             archAmount    : Math.max(1, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),     // <-- V1.9.4 Allow single lancet arch (was clamped to 2 minimum)
             archHeight    : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0)),
-            hOffsetMm     : Number(config.glazebar_horizontal_offset_mm || 0)                       // <-- Uniform vertical nudge for horizontal bars
+            hOffsetMm     : Number(config.glazebar_horizontal_offset_mm || 0),                      // <-- Uniform vertical nudge for horizontal bars
+            hOffsetsMm    : window.Na__GlazebarMath ? window.Na__GlazebarMath.na_collectBarOffsets(config, 'glazebar_h_offset_', hBars) : [],   // <-- Per-bar vertical nudges
+            vOffsetsMm    : window.Na__GlazebarMath ? window.Na__GlazebarMath.na_collectBarOffsets(config, 'glazebar_v_offset_', vBars) : []    // <-- Per-bar horizontal nudges
         };
         const removedCasementSet = na_getRemovedCasementSetForDxf(config.removed_casements); // <-- Per-panel removal lookup with legacy support
 
@@ -324,9 +326,12 @@ const Na__Export__Dxf = (function() {
             const hPositionsRaw = math
                 ? math.na_computeBarPositions(glassY, effectiveGlassHeight, hBars, marginEnabled, marginOffset)
                 : na_fallbackBarPositions(glassY, effectiveGlassHeight, hBars);
-            const hPositions = hOffsetMm === 0
+            let hPositions = hOffsetMm === 0
                 ? hPositionsRaw
                 : hPositionsRaw.map(function (y) { return y + hOffsetMm; });
+            if (math && typeof math.na_applyBarOffsets === 'function') {
+                hPositions = math.na_applyBarOffsets(hPositions, adv.hOffsetsMm);   // <-- Per-bar vertical nudges after uniform offset
+            }
             for (let b = 1; b <= hBars; b++) {
                 const barKey = na_getGlazebarKey(
                     panelContext.openingIndex,
@@ -348,11 +353,14 @@ const Na__Export__Dxf = (function() {
             // the EXTENDED-ZONE springings so the bars sit directly
             // beneath the arch springings. Margin glazing takes priority.
             const archAlignVbars = archEnabled && !marginEnabled && (vBars + 1 === archAmount);
-            const vPositions = math
+            let vPositions = math
                 ? (archAlignVbars
                     ? math.na_computeArchAlignedBarPositions(glassX, glassWidth, vBars, barWidth, archAmount)
                     : math.na_computeBarPositions(glassX, glassWidth, vBars, marginEnabled, marginOffset))
                 : na_fallbackBarPositions(glassX, glassWidth, vBars);
+            if (math && typeof math.na_applyBarOffsets === 'function') {
+                vPositions = math.na_applyBarOffsets(vPositions, adv.vOffsetsMm);   // <-- Per-bar horizontal nudges after spacing
+            }
             for (let b = 1; b <= vBars; b++) {
                 const barKey = na_getGlazebarKey(
                     panelContext.openingIndex,
@@ -525,7 +533,10 @@ const Na__Export__Dxf = (function() {
         // tracery belongs to the head only). Margin glazing still applies.
         const advancedNoArch = advancedGlazebar
             ? { marginEnabled: advancedGlazebar.marginEnabled, marginOffset: advancedGlazebar.marginOffset,
-                archEnabled: false, archAmount: 0, archHeight: 0 }
+                archEnabled: false, archAmount: 0, archHeight: 0,
+                hOffsetMm: advancedGlazebar.hOffsetMm,
+                hOffsetsMm: advancedGlazebar.hOffsetsMm,
+                vOffsetsMm: advancedGlazebar.vOffsetsMm }
             : undefined;
 
         let dxf = '';

@@ -125,6 +125,8 @@ const Na_DynamicUI = (function() {
         _config.removed_transom_segments = [];
         _config.removed_glazebars = [];
         _config.double_door_removed_glazebars = [];
+        _config.leaded_disabled_cells = [];
+        _config.double_door_leaded_disabled_cells = [];
         na_syncModeFlagsFromHierarchy();
     }
     // ---------------------------------------------------------------
@@ -176,6 +178,14 @@ const Na_DynamicUI = (function() {
         // then user-controllable until the toggle is disabled.
         if (id === 'glazebar_gothic_arch_enabled' && previousValue !== true && normalizedValue === true) {
             na_applyGothicArchDefaultsOnEnable();
+        }
+
+        // Keep legacy bifold_door_glazed in sync with leaf composition so
+        // Ruby PanelLayoutResolver fallback and any remaining glazed-only
+        // readers stay consistent when the user picks FullyFielded /
+        // GlazedOverFielded / FullyGlazed.
+        if (id === 'bifold_door_leaf_composition') {
+            na_syncBifoldGlazedFromComposition(_config);
         }
 
         // Soft-coupling: moving the Vertical Bars slider always drives
@@ -366,6 +376,7 @@ const Na_DynamicUI = (function() {
         na_updateSharedFieldedPanelVisibility('sliding_door', _config.sliding_mode === true);
         na_updateSharedFieldedPanelVisibility('bifold_door', _config.multifold_mode === true);
         na_updateAdvancedGlazebarVisibility();
+        na_updateGlazebarOffsetVisibility();
         na_updateLeadedGlassVisibility();
         na_clampGlazebarMarginOffset();
         na_updateTransomControlVisibility();
@@ -456,6 +467,24 @@ const Na_DynamicUI = (function() {
             _config.removed_glazebars = _config.removed_glazebars
                 .map(key => String(key))
                 .filter(key => validGlazebarKeys.has(key));
+        }
+
+        // Clean up leaded_disabled_cells when the glazing cell grid changes
+        if (!Array.isArray(_config.leaded_disabled_cells)) {
+            _config.leaded_disabled_cells = [];
+        }
+        const validLeadedCellKeys = na_getValidLeadedCellKeySet();
+        if (_config.double_door_mode === true) {
+            if (!Array.isArray(_config.double_door_leaded_disabled_cells)) {
+                _config.double_door_leaded_disabled_cells = [];
+            }
+            _config.double_door_leaded_disabled_cells = _config.double_door_leaded_disabled_cells
+                .map(key => String(key))
+                .filter(key => validLeadedCellKeys.has(key));
+        } else {
+            _config.leaded_disabled_cells = _config.leaded_disabled_cells
+                .map(key => String(key))
+                .filter(key => validLeadedCellKeys.has(key));
         }
         
         // Update 2D viewport and validate
@@ -927,6 +956,28 @@ const Na_DynamicUI = (function() {
         if (hOffsetCtrl) {
             const showHOffset = Math.max(0, Math.round(Number(_config.horizontal_glaze_bars || 0))) > 0;
             hOffsetCtrl.style.display = showHOffset ? '' : 'none';
+        }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Per-Bar Glaze Bar Offset Slider Visibility
+    // ------------------------------------------------------------
+    // Transom-style static pool: one offset slider per possible glaze
+    // bar (glazebar_h_offset_N_mm / glazebar_v_offset_N_mm, N = 1..8).
+    // Only the sliders for bars that currently exist are shown, so the
+    // GLAZE BARS section stays uncluttered until offsets are relevant.
+    // Hidden sliders keep their values, so restoring a bar count also
+    // restores its nudges.
+    function na_updateGlazebarOffsetVisibility() {
+        const hBarCount = Math.max(0, Math.min(8, Math.round(Number(_config.horizontal_glaze_bars || 0))));
+        const vBarCount = Math.max(0, Math.min(8, Math.round(Number(_config.vertical_glaze_bars || 0))));
+
+        for (let barIndex = 1; barIndex <= 8; barIndex++) {
+            const hCtrl = document.querySelector(`[data-control-id="glazebar_h_offset_${barIndex}_mm"]`);
+            if (hCtrl) hCtrl.style.display = barIndex <= hBarCount ? '' : 'none';
+
+            const vCtrl = document.querySelector(`[data-control-id="glazebar_v_offset_${barIndex}_mm"]`);
+            if (vCtrl) vCtrl.style.display = barIndex <= vBarCount ? '' : 'none';
         }
     }
     // ---------------------------------------------------------------
@@ -1498,6 +1549,83 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Build Leaded Glass Cell Key
+    // ------------------------------------------------------------
+    function na_getLeadedCellKey(openingIndex, cellIndex, panelIndex, sashIndex, col, row) {
+        return `${openingIndex}:${cellIndex}:${panelIndex}:${sashIndex}:${col}:${row}`;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Collect Valid Leaded Glass Cell Keys
+    // ------------------------------------------------------------
+    // Grid shape only (bar counts define the cells) — deliberately NOT
+    // gated on leaded_glass_enabled so per-cell choices survive the
+    // leaded toggle being switched off and back on.
+    function na_getValidLeadedCellKeySet() {
+        if (_config.double_door_mode === true &&
+            window.Na__ExtDouble__LeafConfigResolver &&
+            typeof window.Na__ExtDouble__LeafConfigResolver.na_resolve === 'function') {
+            const validKeys = new Set();
+            const resolved = window.Na__ExtDouble__LeafConfigResolver.na_resolve(_config);
+            resolved.leaves.forEach(leaf => {
+                for (let row = 0; row <= leaf.settings.horizontalBars; row += 1) {
+                    for (let col = 0; col <= leaf.settings.verticalBars; col += 1) {
+                        validKeys.add(na_getLeadedCellKey(0, 0, leaf.index - 1, 0, col, row));
+                    }
+                }
+            });
+            return validKeys;
+        }
+
+        if (!window.Na__Viewport__SvgGenerator ||
+            typeof window.Na__Viewport__SvgGenerator.na_collectValidLeadedCellKeys !== 'function') {
+            return new Set();
+        }
+
+        return new Set(window.Na__Viewport__SvgGenerator.na_collectValidLeadedCellKeys(_config));
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Leaded Glass For One Glazing Cell
+    // ------------------------------------------------------------
+    function na_toggleLeadedCellState(openingIndex, cellIndex, panelIndex, sashIndex, col, row) {
+        na_toggleLeadedCellStateInCollection(
+            'leaded_disabled_cells',
+            openingIndex, cellIndex, panelIndex, sashIndex, col, row
+        );
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Toggle Leaded Glass For One Exterior Double-Door Cell
+    // ------------------------------------------------------------
+    function na_toggleDoubleDoorLeadedCellState(openingIndex, cellIndex, panelIndex, sashIndex, col, row) {
+        na_toggleLeadedCellStateInCollection(
+            'double_door_leaded_disabled_cells',
+            openingIndex, cellIndex, panelIndex, sashIndex, col, row
+        );
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Toggle a Leaded-Cell Key in a Named State Collection
+    // ------------------------------------------------------------
+    function na_toggleLeadedCellStateInCollection(collectionKey, openingIndex, cellIndex, panelIndex, sashIndex, col, row) {
+        if (_config.leaded_glass_enabled !== true) return;               // <-- Cells only toggleable while leaded glass is on
+        if (!Array.isArray(_config[collectionKey])) _config[collectionKey] = [];
+        const cellKey = na_getLeadedCellKey(openingIndex, cellIndex, panelIndex, sashIndex, col, row);
+        const existingIndex = _config[collectionKey].indexOf(cellKey);
+
+        if (existingIndex === -1) {
+            _config[collectionKey].push(cellKey);
+            console.log(`[NA_UI] Disabled leaded glass cell ${cellKey}`);
+        } else {
+            _config[collectionKey].splice(existingIndex, 1);
+            console.log(`[NA_UI] Enabled leaded glass cell ${cellKey}`);
+        }
+
+        na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Check If Any Elements Are Hidden
     // ------------------------------------------------------------
     function na_hasHiddenElements() {
@@ -1507,11 +1635,19 @@ const Na_DynamicUI = (function() {
         const removedDoubleDoorGlazebarsCount = Array.isArray(_config.double_door_removed_glazebars)
             ? _config.double_door_removed_glazebars.length
             : 0;
+        const disabledLeadedCellsCount = Array.isArray(_config.leaded_disabled_cells)
+            ? _config.leaded_disabled_cells.length
+            : 0;
+        const disabledDoubleDoorLeadedCellsCount = Array.isArray(_config.double_door_leaded_disabled_cells)
+            ? _config.double_door_leaded_disabled_cells.length
+            : 0;
 
         return removedCasementsCount > 0 ||
             removedTransomSegmentsCount > 0 ||
             removedGlazebarsCount > 0 ||
-            removedDoubleDoorGlazebarsCount > 0;
+            removedDoubleDoorGlazebarsCount > 0 ||
+            disabledLeadedCellsCount > 0 ||
+            disabledDoubleDoorLeadedCellsCount > 0;
     }
     // ---------------------------------------------------------------
 
@@ -1522,6 +1658,8 @@ const Na_DynamicUI = (function() {
         _config.removed_transom_segments = [];
         _config.removed_glazebars = [];
         _config.double_door_removed_glazebars = [];
+        _config.leaded_disabled_cells = [];
+        _config.double_door_leaded_disabled_cells = [];
 
         console.log('[NA_UI] Reset all hidden element state');
         na_onConfigChange();
@@ -1606,6 +1744,7 @@ const Na_DynamicUI = (function() {
     function na_setConfig(newConfig) {
         _config = { ..._config, ...newConfig };
         na_migrateLegacyLeadedColour(_config);
+        na_syncBifoldGlazedFromComposition(_config);
         na_hydrateHierarchyFromModeFlags();
         na_syncModeFlagsFromHierarchy();
 
@@ -1616,6 +1755,16 @@ const Na_DynamicUI = (function() {
         
         // Trigger render
         na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Sync Legacy bifold_door_glazed From Leaf Composition
+    // ------------------------------------------------------------
+    function na_syncBifoldGlazedFromComposition(cfg) {
+        if (!cfg || typeof cfg !== 'object') return;
+        if (cfg.bifold_door_leaf_composition) {
+            cfg.bifold_door_glazed = (cfg.bifold_door_leaf_composition === 'FullyGlazed');
+        }
     }
     // ---------------------------------------------------------------
 
@@ -1852,6 +2001,8 @@ const Na_DynamicUI = (function() {
         na_toggleTransomSegmentRemoval: na_toggleTransomSegmentRemoval,
         na_toggleGlazebarRemoval: na_toggleGlazebarRemoval,
         na_toggleDoubleDoorGlazebarRemoval: na_toggleDoubleDoorGlazebarRemoval,
+        na_toggleLeadedCellState: na_toggleLeadedCellState,
+        na_toggleDoubleDoorLeadedCellState: na_toggleDoubleDoorLeadedCellState,
         na_resetHiddenElements: na_resetHiddenElements,
         na_rebuild_frame_finish_control: na_rebuild_frame_finish_control,
         na_rebuild_edge_colour_controls: na_rebuild_edge_colour_controls
@@ -2056,6 +2207,16 @@ const Na_Viewport = (function() {
                     orientation,
                     barIndex
                 );
+            },
+            function (openingIndex, cellIndex, panelIndex, sashIndex, col, row) {
+                Na_DynamicUI.na_toggleLeadedCellState(
+                    openingIndex,
+                    cellIndex,
+                    panelIndex,
+                    sashIndex,
+                    col,
+                    row
+                );
             }
         );
     }
@@ -2081,6 +2242,16 @@ const Na_Viewport = (function() {
                     sashIndex,
                     orientation,
                     barIndex
+                );
+            },
+            function (openingIndex, cellIndex, panelIndex, sashIndex, col, row) {
+                Na_DynamicUI.na_toggleDoubleDoorLeadedCellState(
+                    openingIndex,
+                    cellIndex,
+                    panelIndex,
+                    sashIndex,
+                    col,
+                    row
                 );
             }
         );

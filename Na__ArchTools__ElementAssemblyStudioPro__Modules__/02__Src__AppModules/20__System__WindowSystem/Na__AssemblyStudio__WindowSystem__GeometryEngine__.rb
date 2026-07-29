@@ -574,8 +574,16 @@ module Na__WindowSystem
             glazebar_horizontal_offset_mm = (config["glazebar_horizontal_offset_mm"] || 0).to_f
             glazebar_horizontal_offset    = glazebar_horizontal_offset_mm * mm_to_inch
 
+            # Per-bar offsets (glazebar_h_offset_N_mm / glazebar_v_offset_N_mm,
+            # N = 1-based bar index). Applied AFTER the spacing math, on top
+            # of the uniform offset. Horizontal bars: positive = up (+Z).
+            # Vertical bars: positive = right (+X). Converted to inches here.
+            glazebar_h_bar_offsets = (1..h_bars).map { |i| (config["glazebar_h_offset_#{i}_mm"] || 0).to_f * mm_to_inch }
+            glazebar_v_bar_offsets = (1..v_bars).map { |i| (config["glazebar_v_offset_#{i}_mm"] || 0).to_f * mm_to_inch }
+
             # Leaded glass overlay (outer glass face; does not trim glass)
             leaded_resolved = LeadedGlassBuilder.na_resolve_leaded_params(config)
+            leaded_disabled_cells = config["leaded_disabled_cells"].is_a?(Array) ? config["leaded_disabled_cells"].map(&:to_s) : []
             
             # Cill
             cill_depth = (config["cill_depth_mm"] || constants[:default_cill_depth]).to_f * mm_to_inch
@@ -690,6 +698,8 @@ module Na__WindowSystem
                 glazebar_gothic_arch_height_mm: glazebar_gothic_arch_height_mm,
                 glazebar_horizontal_offset: glazebar_horizontal_offset,
                 glazebar_horizontal_offset_mm: glazebar_horizontal_offset_mm,
+                glazebar_h_bar_offsets: glazebar_h_bar_offsets,
+                glazebar_v_bar_offsets: glazebar_v_bar_offsets,
                 leaded_glass_enabled: leaded_resolved[:enabled],
                 horizontal_leaded_bars: leaded_resolved[:h_bars],
                 vertical_leaded_bars: leaded_resolved[:v_bars],
@@ -697,6 +707,7 @@ module Na__WindowSystem
                 leaded_depth: leaded_resolved[:depth],
                 leaded_centre_lines_only: leaded_resolved[:centre_lines],
                 leaded_mte_id: leaded_resolved[:mte_id],
+                leaded_disabled_cells: leaded_disabled_cells,
                 has_cill: has_cill,
                 cill_depth: cill_depth,
                 cill_height: cill_height
@@ -1077,7 +1088,8 @@ module Na__WindowSystem
                 na_create_leaded_for_glass(
                     entities, panel_id, glass_w, glass_h, glass_offset_x, glass_offset_z,
                     panel_wall_inset, params[:glass_thickness], params[:frame_depth],
-                    params[:casement_depth], params[:casement_inset], params
+                    params[:casement_depth], params[:casement_inset], params,
+                    opening_index, cell_index, panel_index, sash_index
                 )
             else
                 GeometryBuilders.na_create_glass_geometry(
@@ -1099,7 +1111,8 @@ module Na__WindowSystem
                 na_create_leaded_for_glass(
                     entities, panel_id, panel_width, panel_height, panel_x, panel_z,
                     panel_wall_inset, params[:glass_thickness], params[:frame_depth],
-                    nil, nil, params
+                    nil, nil, params,
+                    opening_index, cell_index, panel_index, sash_index
                 )
             end
         end
@@ -1119,16 +1132,23 @@ module Na__WindowSystem
                 arch_height:     params[:glazebar_gothic_arch_height],
                 arch_height_mm:  params[:glazebar_gothic_arch_height_mm],
                 h_offset:        params[:glazebar_horizontal_offset],                          # <-- inches
-                h_offset_mm:     params[:glazebar_horizontal_offset_mm]                        # <-- mm (for diagnostics)
+                h_offset_mm:     params[:glazebar_horizontal_offset_mm],                       # <-- mm (for diagnostics)
+                h_bar_offsets:   params[:glazebar_h_bar_offsets],                              # <-- inches; per-bar vertical nudges (positive = up)
+                v_bar_offsets:   params[:glazebar_v_bar_offsets]                               # <-- inches; per-bar horizontal nudges (positive = right)
             }
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Create Leaded Glass Overlay For One Glass Pane
         # ------------------------------------------------------------
+        # Lead lines are laid out per glazing cell between the FINAL glaze
+        # bar centerlines (offsets included) so lead never crosses a bar.
+        # The panel context (opening/cell/panel/sash) keys the per-cell
+        # disabled set toggled from the SVG preview.
         def self.na_create_leaded_for_glass(
             entities, panel_id, glass_w, glass_h, offset_x, offset_z,
-            wall_inset, glass_thickness, frame_depth, casement_depth, casement_inset, params
+            wall_inset, glass_thickness, frame_depth, casement_depth, casement_inset, params,
+            opening_index = 0, cell_index = 0, panel_index = 0, sash_index = 0
         )
             leaded = LeadedGlassBuilder.na_resolve_leaded_params_from_engine(params)
             return unless leaded[:enabled]
@@ -1137,8 +1157,23 @@ module Na__WindowSystem
             y_front = LeadedGlassBuilder.na_glass_outer_face_y(
                 wall_inset, glass_thickness, frame_depth, casement_depth, casement_inset
             )
+
+            bar_layout = GeometryBuilders.na_compute_final_bar_positions(
+                offset_x, offset_z, glass_w, glass_h,
+                params[:h_bars], params[:v_bars], params[:bar_width],
+                na_advanced_glazebar_hash(params)
+            )
+            grid = {
+                h_positions: bar_layout[:h_positions],
+                v_positions: bar_layout[:v_positions],
+                bar_width: params[:bar_width],
+                effective_glass_height: bar_layout[:effective_glass_height],
+                panel_context: { opening: opening_index, cell: cell_index, panel: panel_index, sash: sash_index },
+                disabled_cells: params[:leaded_disabled_cells]
+            }
+
             LeadedGlassBuilder.na_create_leaded_glass_geometry(
-                entities, panel_id, glass_w, glass_h, offset_x, offset_z, y_front, leaded
+                entities, panel_id, glass_w, glass_h, offset_x, offset_z, y_front, leaded, grid: grid
             )
         end
         private_class_method :na_create_leaded_for_glass
@@ -1225,7 +1260,8 @@ module Na__WindowSystem
                 na_create_leaded_for_glass(
                     entities, panel_id, glass_w, glass_h, glass_x, glass_z,
                     panel_wall_inset, params[:glass_thickness], params[:frame_depth],
-                    cas_depth, params[:casement_inset], params
+                    cas_depth, params[:casement_inset], params,
+                    opening_index, cell_index, panel_index, sash_index
                 )
             end
 

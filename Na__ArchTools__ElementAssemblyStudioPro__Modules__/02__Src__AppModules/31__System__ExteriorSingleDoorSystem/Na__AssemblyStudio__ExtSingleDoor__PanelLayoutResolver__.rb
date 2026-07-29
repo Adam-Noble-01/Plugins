@@ -79,9 +79,26 @@ module Na__PanelLayoutResolver
             'glazebar_margin_offset_mm' => get.call('glazebar_margin_offset_mm', config['glazebar_margin_offset_mm'] || 120),
             'glazebar_horizontal_offset_mm' => get.call('glazebar_horizontal_offset_mm', config['glazebar_horizontal_offset_mm'] || 0),
             'removed_glazebars' => (config['single_door_removed_glazebars'].is_a?(Array) ? config['single_door_removed_glazebars'] : config['removed_glazebars'])
-        }
+        }.merge(na_offset_keys(config, get))
     end
     private_class_method :na_panel_config
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Per-Bar Offset Keys (single_door_* -> plain fallback)
+    # ------------------------------------------------------------
+    # glazebar_h_offset_N_mm / glazebar_v_offset_N_mm, N = 1..8 (1-based
+    # bar index). Applied after the spacing math in the composer.
+    def self.na_offset_keys(config, get)
+        keys = {}
+        (1..8).each do |bar_index|
+            %w[h v].each do |axis|
+                suffix = "glazebar_#{axis}_offset_#{bar_index}_mm"
+                keys[suffix] = get.call(suffix, config[suffix] || 0)
+            end
+        end
+        keys
+    end
+    private_class_method :na_offset_keys
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

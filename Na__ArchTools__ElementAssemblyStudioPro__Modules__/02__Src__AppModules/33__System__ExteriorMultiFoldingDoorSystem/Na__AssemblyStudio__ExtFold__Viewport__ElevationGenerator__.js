@@ -25,8 +25,10 @@
    - Bulky head/base "track" rectangles are gone. The outer frame is now
      a per-edge jamb + head + bottom rail combo identical to the
      window-mode preview, with an optional cill below.
-   - Each panel can carry a glaze-bar grille when bifold_door_glazed +
-     horizontal_glaze_bars / vertical_glaze_bars are configured.
+   - Panel content is driven by `bifold_door_leaf_composition` via
+     Na__ExtFold__PanelConfigResolver (FullyGlazed / GlazedOverFielded /
+     FullyFielded) with field cells, midrail, and glaze bars confined to
+     the glazed region. Legacy `bifold_door_glazed` is a fallback only.
    - Coordinate convention: x in mm from left jamb, y in mm from base; the
      na_svgRect helper flips Y for SVG screen-space (origin top-left becomes
      (0, -y - h)). This matches the WindowSystem generator so the shared
@@ -42,6 +44,7 @@
    - window.Na__Viewport__SvgGenerator.na_svgRect, na_svgDimensions,
      na_getMaterialColor, na_getEffectiveFrameThicknesses (reused for
      visual consistency).
+   - window.Na__ExtFold__PanelConfigResolver for composition / field cells.
    - window.Na_Viewport.na_render() in WindowSystem MainUiLogic dispatches
      here when config.multifold_mode === true.
 
@@ -89,6 +92,8 @@ const Na__ExtFold__ElevationGenerator = (function () {
     // Phase-9: Reads the shared window-level keys for opening dimensions,
     // per-edge frame thickness, cill and glaze bars; bifold-only keys
     // continue to drive panel layout, joinery and fold direction.
+    // Composition / fielded panel content is resolved via
+    // Na__ExtFold__PanelConfigResolver (see na_generate_bifold_svg).
     function na_resolve_layout(config) {
         const safeNum    = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
         const openingW   = Math.max(800,  safeNum(config.width_mm,  3600));
@@ -100,8 +105,16 @@ const Na__ExtFold__ElevationGenerator = (function () {
         const layout     = String(config.bifold_door_layout      || 'EqualEqual');
         const openSide   = String(config.bifold_door_open_side   || 'Right');
         const masterSide = String(config.bifold_door_master_side || 'Right');
-        const isGlazed   = config.bifold_door_glazed !== false;
         const showDims   = config.show_dimensions    !== false;
+
+        const panelSettings = (window.Na__ExtFold__PanelConfigResolver &&
+            typeof window.Na__ExtFold__PanelConfigResolver.na_panel_settings === 'function')
+            ? window.Na__ExtFold__PanelConfigResolver.na_panel_settings(config)
+            : {
+                composition: config.bifold_door_leaf_composition ||
+                    (config.bifold_door_glazed === false ? 'FullyFielded' : 'FullyGlazed')
+            };
+        const isGlazed = panelSettings.composition !== 'FullyFielded';
 
         const frameEdges = na_resolve_frame_edges(config);
         const cill       = na_resolve_cill(config, frameEdges.bottom);
@@ -128,6 +141,8 @@ const Na__ExtFold__ElevationGenerator = (function () {
             openSide         : openSide,
             masterSide       : masterSide,
             isGlazed         : isGlazed,
+            composition      : panelSettings.composition,
+            panelSettings    : panelSettings,
             showDimensions   : showDims,
             frameEdges       : frameEdges,
             cill             : cill,
@@ -192,7 +207,9 @@ const Na__ExtFold__ElevationGenerator = (function () {
             archEnabled   : config.glazebar_gothic_arch_enabled === true,
             archAmount    : Math.max(1, Math.min(8, Math.round(config.glazebar_gothic_arch_amount || 2))),     // <-- V1.9.4 Allow single lancet arch
             archHeight    : Math.max(0, Number(config.glazebar_gothic_arch_height_mm || 0)),
-            hOffsetMm     : Number(config.glazebar_horizontal_offset_mm || 0)                       // <-- Uniform vertical nudge for horizontal bars (positive = up)
+            hOffsetMm     : Number(config.glazebar_horizontal_offset_mm || 0),                      // <-- Uniform vertical nudge for horizontal bars (positive = up)
+            hOffsetsMm    : window.Na__GlazebarMath ? window.Na__GlazebarMath.na_collectBarOffsets(config, 'glazebar_h_offset_', hBars) : [],   // <-- Per-bar vertical nudges
+            vOffsetsMm    : window.Na__GlazebarMath ? window.Na__GlazebarMath.na_collectBarOffsets(config, 'glazebar_v_offset_', vBars) : []    // <-- Per-bar horizontal nudges
         };
         const enabled = isGlazed && (hBars > 0 || vBars > 0 || advanced.archEnabled);
         return { enabled: enabled, hBars: hBars, vBars: vBars, barW: barW, advanced: advanced };
@@ -340,33 +357,163 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
 
     // -----------------------------------------------------------------------------
-    // REGION | Per-Panel Drawing (Stiles, Rails, Glazing, Glaze Bars)
+    // REGION | Per-Panel Drawing (Stiles, Rails, Glazing, Fielded Panels)
     // -----------------------------------------------------------------------------
 
     // FUNCTION | Build SVG for All Bifold Panels Inside the Inner Clear Opening
     // ------------------------------------------------------------
-    function na_build_all_panels(layout) {
+    // @delegate: Na__AssemblyStudio__ExtFold__UiSystem__PanelConfigResolver__.js
+    function na_build_all_panels(layout, resolvedPanels) {
         let svg = '';
         if (layout.innerWidth <= 0 || layout.innerHeight <= 0) return svg;
+
+        const panels = resolvedPanels && resolvedPanels.length
+            ? resolvedPanels
+            : null;
+
+        if (panels) {
+            for (let i = 0; i < panels.length; i += 1) {
+                svg += na_build_one_panel_from_resolved(panels[i], layout);
+            }
+            return svg;
+        }
 
         for (let i = 0; i < layout.panelCount; i++) {
             const px = layout.innerLeft + i * layout.panelWidth + (PANEL_GAP_MM / 2);
             const py = layout.innerBottom;
             const pw = Math.max(0, layout.panelWidth - PANEL_GAP_MM);
             const ph = layout.innerHeight;
-            svg += na_build_one_panel(px, py, pw, ph, layout, i);
+            svg += na_build_one_panel_legacy(px, py, pw, ph, layout);
         }
         return svg;
     }
     // ---------------------------------------------------------------
 
 
-    // SUB FUNCTION | Build SVG for a Single Bifold Panel (Window-Style Joinery)
+    // SUB FUNCTION | Build SVG for One Panel from PanelConfigResolver Output
     // ------------------------------------------------------------
-    // Phase-9 joinery: stiles span the FULL panel height, rails fit
-    // between stiles. Glazing and glaze bars share the same clear inner
-    // rectangle so a glaze-bar grille lines up with the glass pane.
-    function na_build_one_panel(panelX, panelY, panelWidth, panelHeight, layout, panelIndex) {
+    // Draws stiles/rails, optional midrail, glazed region + bars/leaded,
+    // and field cells (linework or raised bevel outline) for non-glazed
+    // compositions — parity with ExtDouble elevation leaf drawing.
+    function na_build_one_panel_from_resolved(panel, layout) {
+        const sg = window.Na__Viewport__SvgGenerator;
+        if (!sg) return '';
+
+        const colour = layout.frameColour;
+        const settings = panel.settings || layout.panelSettings || {};
+        const pl = panel.panelLayout || {};
+        const stile = pl.stileMm != null ? pl.stileMm : Math.min(layout.stileWidth, panel.widthMm * 0.30);
+        const headRail = pl.topRailMm != null ? pl.topRailMm : Math.min(layout.headRail, panel.heightMm * 0.25);
+        const baseRail = pl.bottomRailMm != null ? pl.bottomRailMm : Math.min(layout.baseRail, panel.heightMm * 0.35);
+        const midRail = pl.midRailMm != null ? pl.midRailMm : (settings.midRailMm || 120);
+
+        const panelX = panel.originXMm;
+        const panelY = panel.originZMm;
+        const panelWidth = panel.widthMm;
+        const panelHeight = panel.heightMm;
+
+        let svg = '';
+
+        if (pl.fieldRegion && pl.fieldRegion.widthMm > 0 && pl.fieldRegion.heightMm > 0) {
+            const f = pl.fieldRegion;
+            svg += sg.na_svgRect(f.xMm, f.zMm, f.widthMm, f.heightMm, colour, STROKE_BLACK, 1);
+        }
+
+        if (pl.glazedRegion && pl.glazedRegion.widthMm > 0 && pl.glazedRegion.heightMm > 0) {
+            const g = pl.glazedRegion;
+            svg += sg.na_svgRect(g.xMm, g.zMm, g.widthMm, g.heightMm, FILL_GLAZING, STROKE_BLACK, 1);
+            if (layout.glazeBars.enabled) {
+                svg += na_build_panel_glazebars(g.xMm, g.zMm, g.widthMm, g.heightMm, layout);
+            }
+            if (layout.leadedGlass && layout.leadedGlass.enabled) {
+                const sgLead = window.Na__Viewport__SvgGenerator;
+                if (sgLead && typeof sgLead.na_generateLeadedGlassSvg === 'function') {
+                    svg += sgLead.na_generateLeadedGlassSvg(g.xMm, g.zMm, g.widthMm, g.heightMm, layout.leadedGlass, {
+                        hBars: layout.glazeBars.hBars,
+                        vBars: layout.glazeBars.vBars,
+                        barWidth: layout.glazeBars.barW,
+                        advancedGlazebar: layout.glazeBars.advanced
+                    });
+                }
+            }
+        }
+
+        if (panelHeight > 0) {
+            svg += sg.na_svgRect(panelX, panelY, stile, panelHeight, colour, STROKE_BLACK, 1);
+            svg += sg.na_svgRect(panelX + panelWidth - stile, panelY, stile, panelHeight, colour, STROKE_BLACK, 1);
+        }
+
+        const railX = panelX + stile;
+        const railW = Math.max(0, panelWidth - 2 * stile);
+        if (railW > 0 && baseRail > 0) {
+            svg += sg.na_svgRect(railX, panelY, railW, baseRail, colour, STROKE_BLACK, 1);
+        }
+        if (railW > 0 && headRail > 0) {
+            svg += sg.na_svgRect(railX, panelY + panelHeight - headRail, railW, headRail, colour, STROKE_BLACK, 1);
+        }
+
+        if (settings.composition === 'GlazedOverFielded' && pl.fieldRegion && midRail > 0) {
+            const midZ = pl.fieldRegion.zMm + pl.fieldRegion.heightMm;
+            svg += sg.na_svgRect(railX, midZ, railW, midRail, colour, STROKE_BLACK, 1);
+        }
+
+        if (pl.fieldDividers && pl.fieldDividers.length) {
+            pl.fieldDividers.forEach(function (divider) {
+                svg += sg.na_svgRect(
+                    divider.xMm, divider.zMm, divider.widthMm, divider.heightMm,
+                    colour, STROKE_BLACK, 1
+                );
+            });
+        }
+
+        if (pl.fieldCells && pl.fieldCells.length) {
+            svg += na_build_field_cells(pl.fieldCells, settings, colour, sg);
+        }
+
+        return svg;
+    }
+    // ---------------------------------------------------------------
+
+
+    // SUB FUNCTION | Draw Field Cell Insets (Linework or Raised Outline)
+    // ------------------------------------------------------------
+    function na_build_field_cells(fieldCells, settings, colour, sg) {
+        let svg = '';
+        const outputMode = settings.outputMode || 'ThreeDimensional';
+        const profile = settings.profile || 'RaisedBevelled';
+        const insetDefault = settings.insetMm || 25;
+        const bevelDefault = settings.bevelMm || 18;
+
+        fieldCells.forEach(function (cell) {
+            const inset = Math.min(insetDefault, cell.widthMm / 3, cell.heightMm / 3);
+            const fill = outputMode === 'Linework' ? 'none' : colour;
+            const strokeWidth = outputMode === 'Linework' ? 1 : 3;
+            svg += sg.na_svgRect(
+                cell.xMm + inset,
+                cell.zMm + inset,
+                cell.widthMm - 2 * inset,
+                cell.heightMm - 2 * inset,
+                fill, STROKE_BLACK, strokeWidth
+            );
+            if (outputMode === 'ThreeDimensional' && profile === 'RaisedBevelled') {
+                const bevel = Math.min(bevelDefault, inset);
+                svg += sg.na_svgRect(
+                    cell.xMm + bevel,
+                    cell.zMm + bevel,
+                    cell.widthMm - 2 * bevel,
+                    cell.heightMm - 2 * bevel,
+                    'none', STROKE_BLACK, 1
+                );
+            }
+        });
+        return svg;
+    }
+    // ---------------------------------------------------------------
+
+
+    // SUB FUNCTION | Legacy Fully-Glazed Panel Draw (Resolver Unavailable)
+    // ------------------------------------------------------------
+    function na_build_one_panel_legacy(panelX, panelY, panelWidth, panelHeight, layout) {
         const sg = window.Na__Viewport__SvgGenerator;
         if (!sg) return '';
 
@@ -408,7 +555,12 @@ const Na__ExtFold__ElevationGenerator = (function () {
         if (layout.leadedGlass && layout.leadedGlass.enabled && glazedW > 0 && glazedH > 0) {
             const sgLead = window.Na__Viewport__SvgGenerator;
             if (sgLead && typeof sgLead.na_generateLeadedGlassSvg === 'function') {
-                svg += sgLead.na_generateLeadedGlassSvg(glazedX, glazedY, glazedW, glazedH, layout.leadedGlass);
+                svg += sgLead.na_generateLeadedGlassSvg(glazedX, glazedY, glazedW, glazedH, layout.leadedGlass, {
+                    hBars: layout.glazeBars.hBars,
+                    vBars: layout.glazeBars.vBars,
+                    barWidth: layout.glazeBars.barW,
+                    advancedGlazebar: layout.glazeBars.advanced
+                });
             }
         }
 
@@ -439,15 +591,17 @@ const Na__ExtFold__ElevationGenerator = (function () {
         if (hBars > 0 && effectiveGlassH > 0) {
             const hPosRaw = math.na_computeBarPositions(glassY, effectiveGlassH, hBars, adv.marginEnabled, adv.marginOffset);
             const hOffsetMm = Number(adv.hOffsetMm || 0);
-            const hPos = hOffsetMm === 0
+            let hPos = hOffsetMm === 0
                 ? hPosRaw
                 : hPosRaw.map(function (y) { return y + hOffsetMm; });
+            hPos = math.na_applyBarOffsets(hPos, adv.hOffsetsMm);       // <-- Per-bar vertical nudges after uniform offset
             for (let i = 0; i < hPos.length; i += 1) {
                 svg += sg.na_svgRect(glassX, hPos[i] - barW / 2, glassW, barW, colour, STROKE_BLACK, 1);
             }
         }
         if (vBars > 0 && effectiveGlassH > 0) {
-            const vPos = math.na_computeBarPositions(glassX, glassW, vBars, adv.marginEnabled, adv.marginOffset);
+            let vPos = math.na_computeBarPositions(glassX, glassW, vBars, adv.marginEnabled, adv.marginOffset);
+            vPos = math.na_applyBarOffsets(vPos, adv.vOffsetsMm);       // <-- Per-bar horizontal nudges after spacing
             for (let i = 0; i < vPos.length; i += 1) {
                 svg += sg.na_svgRect(vPos[i] - barW / 2, glassY, barW, effectiveGlassH, colour, STROKE_BLACK, 1);
             }
@@ -639,10 +793,23 @@ const Na__ExtFold__ElevationGenerator = (function () {
         const layout         = na_resolve_layout(config);
         const foldDirections = na_resolve_fold_directions(layout);
 
+        // @delegate: Na__AssemblyStudio__ExtFold__UiSystem__PanelConfigResolver__.js
+        let resolvedPanels = null;
+        if (window.Na__ExtFold__PanelConfigResolver &&
+            typeof window.Na__ExtFold__PanelConfigResolver.na_resolve === 'function') {
+            const panelResolved = window.Na__ExtFold__PanelConfigResolver.na_resolve(config || {});
+            resolvedPanels = panelResolved.panels || null;
+            if (panelResolved.settings) {
+                layout.panelSettings = panelResolved.settings;
+                layout.composition = panelResolved.settings.composition;
+                layout.isGlazed = panelResolved.settings.composition !== 'FullyFielded';
+            }
+        }
+
         let svg = '';
         svg += na_build_outer_frame(layout);
         svg += na_build_cill(layout);
-        svg += na_build_all_panels(layout);
+        svg += na_build_all_panels(layout, resolvedPanels);
         svg += na_build_hinge_dots(layout, foldDirections);
         svg += na_build_fold_arrows(layout, foldDirections);
         svg += na_build_handle_dot(layout, foldDirections);

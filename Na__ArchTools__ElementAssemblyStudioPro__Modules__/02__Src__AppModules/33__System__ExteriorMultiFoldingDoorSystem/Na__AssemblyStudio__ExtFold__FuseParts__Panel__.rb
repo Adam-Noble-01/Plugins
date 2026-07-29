@@ -60,13 +60,16 @@ module Na__FuseParts__Panel
 # REGION | Module Constants
 # -----------------------------------------------------------------------------
 
-    NA_PANEL_PART_REGEX     = /^Na_DoorPanel_(Bifold_.+)_(Stile_(?:Left|Right)|Rail_(?:Top|Bottom))$/.freeze
+    NA_PANEL_PART_REGEX     = /^Na_DoorPanel_(Bifold_.+)_(Stile_(?:Left|Right)|Rail_(?:Top|Bottom|Mid))$/.freeze
     # Accepts straight bars (_H<n> / _V<n>) and Gothic arch halves
     # (_Arch<n>_L / _Arch<n>_R, each a single pushpull solid) so a bifold
     # leaf with arches but no straight bars still gets a fuse pass.
     NA_GLAZEBAR_PART_REGEX  = /^Na_GlazeBar_(Bifold_.+?)_(?:[HV]\d+|Arch\d+_[LR])$/.freeze
     NA_FRAME_PART_PREFIX    = "Na_Frame_".freeze
     NA_MOD_NAME_REGEX       = /^MOD\d{3}/.freeze
+    # Timber parts only — never fuse fielded PanelGeometry / FieldStile groups
+    # which use the Na__ExteriorMultiFoldDoor__* naming prefix.
+    NA_TIMBER_PART_REGEX    = /^Na_DoorPanel_(Bifold_.+)_(Stile_(?:Left|Right)|Rail_(?:Top|Bottom|Mid))$/.freeze
 
 # endregion -------------------------------------------------------------------
 
@@ -153,7 +156,7 @@ module Na__FuseParts__Panel
     def self.na_fuse_timber_for_panel(entities, panel_id)
         result = { :fused => 0, :failed => 0, :skipped => 0 }
 
-        groups = na_collect_groups_by_prefix(entities, "Na_DoorPanel_#{panel_id}_")
+        groups = na_collect_timber_groups_for_panel(entities, panel_id)
         if groups.length < 2
             DebugTools.na_debug_geometry("ExtFold fuse timber: #{panel_id} has <2 parts, skipping")
             result[:skipped] += 1
@@ -171,6 +174,23 @@ module Na__FuseParts__Panel
         result
     end
     private_class_method :na_fuse_timber_for_panel
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Collect Stile / Rail Groups Only for One Panel
+    # ------------------------------------------------------------
+    # Restricts the fuse set to perimeter joinery so fielded panel
+    # geometry (Na__ExteriorMultiFoldDoor__PanelGeometry / Field__*)
+    # and field dividers are never outer-shelled into the timber solid.
+    def self.na_collect_timber_groups_for_panel(entities, panel_id)
+        prefix = "Na_DoorPanel_#{panel_id}_"
+        entities.to_a.grep(Sketchup::Group).find_all do |group|
+            next false unless group.valid? && group.name.is_a?(String)
+            next false if group.name.end_with?('_Fused')
+            next false unless group.name.start_with?(prefix)
+            group.name.match?(NA_TIMBER_PART_REGEX)
+        end
+    end
+    private_class_method :na_collect_timber_groups_for_panel
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Fuse the Glaze Bars for a Single Panel

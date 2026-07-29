@@ -208,6 +208,29 @@ module Na__AssemblyComposer
     private_class_method :na_build_glazed_region
     # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Final Bar Centerlines For The Leaf (mm space)
+    # ------------------------------------------------------------
+    # Spacing -> uniform horizontal offset -> per-bar offsets. Shared by
+    # the bar builder and the leaded glass cell grid so 3D bars and lead
+    # cells always agree, matching the elevation preview.
+    def self.na_final_bar_positions_mm(layout)
+        region = layout[:glazed_region]
+        bars = layout[:glaze_bars]
+        vertical_positions = WindowBuilders.na_compute_bar_positions(
+            region[:x_mm], region[:width_mm], bars[:vertical_count],
+            bars[:margin_enabled], bars[:margin_offset_mm]
+        )
+        vertical_positions = WindowBuilders.na_apply_bar_offsets(vertical_positions, bars[:v_offsets_mm])
+        horizontal_positions = WindowBuilders.na_compute_bar_positions(
+            region[:z_mm], region[:height_mm], bars[:horizontal_count],
+            bars[:margin_enabled], bars[:margin_offset_mm]
+        ).map { |position| position + bars[:horizontal_offset_mm] }
+        horizontal_positions = WindowBuilders.na_apply_bar_offsets(horizontal_positions, bars[:h_offsets_mm])
+        { :horizontal => horizontal_positions, :vertical => vertical_positions }
+    end
+    private_class_method :na_final_bar_positions_mm
+    # ---------------------------------------------------------------
+
     # HELPER FUNCTION | Build Vertical and Horizontal Glaze Bars
     # ------------------------------------------------------------
     def self.na_build_glaze_bars(entities, leaf, layout, material)
@@ -215,14 +238,9 @@ module Na__AssemblyComposer
         bars = layout[:glaze_bars]
         y = leaf[:origin_y_mm] + bars[:inset_mm]
         depth = [leaf[:thickness_mm] - 2.0 * bars[:inset_mm], 2.0].max
-        vertical_positions = WindowBuilders.na_compute_bar_positions(
-            region[:x_mm], region[:width_mm], bars[:vertical_count],
-            bars[:margin_enabled], bars[:margin_offset_mm]
-        )
-        horizontal_positions = WindowBuilders.na_compute_bar_positions(
-            region[:z_mm], region[:height_mm], bars[:horizontal_count],
-            bars[:margin_enabled], bars[:margin_offset_mm]
-        ).map { |position| position + bars[:horizontal_offset_mm] }
+        positions = na_final_bar_positions_mm(layout)
+        vertical_positions = positions[:vertical]
+        horizontal_positions = positions[:horizontal]
 
         vertical_positions.each_with_index do |x, index|
             next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'vertical', index + 1))
@@ -251,6 +269,15 @@ module Na__AssemblyComposer
         return unless region && region[:height_mm].to_f > 0
 
         mm = 1.0 / 25.4
+        positions = na_final_bar_positions_mm(layout)
+        disabled_source = config['leaded_disabled_cells']
+        grid = {
+            h_positions: positions[:horizontal].map { |position| position * mm },
+            v_positions: positions[:vertical].map { |position| position * mm },
+            bar_width: layout[:glaze_bars][:width_mm] * mm,
+            panel_context: { opening: 0, cell: 0, panel: leaf[:index] - 1, sash: 0 },
+            disabled_cells: Array(disabled_source).map(&:to_s)
+        }
         LeadedGlassBuilder.na_create_leaded_glass_geometry(
             entities,
             leaf[:index],
@@ -260,7 +287,8 @@ module Na__AssemblyComposer
             region[:z_mm] * mm,
             glass_y_mm * mm,
             leaded,
-            naming: { prefix: naming_prefix }
+            naming: { prefix: naming_prefix },
+            grid: grid
         )
     end
     private_class_method :na_build_leaded_glass
