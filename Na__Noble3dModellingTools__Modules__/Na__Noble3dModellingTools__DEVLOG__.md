@@ -3,6 +3,53 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.6.4 - 28-Jul-2026 - Face Pattern Generator: Rosemary Base Thickness + Side Gap Default
+
+### Update 01 - Rosemary Tile Refinements
+- New `Base Thickness (mm)` field (default 10, min 0, max 30) draws the visible tile end as a second line above each course's bottom edge — in both the SVG preview and the applied component definition (definition names now include the base value). Set 0 to disable.
+- Rosemary Side Gap / Shunt default changed from 1.5mm to 0mm; the 1.5mm Rosemary linear-cover figure remains as the field hint.
+- Sub-devlog: `10__PluginModules/20__SourceCode__FacePatternGenerator/Na__Noble3dModellingTools__FacePatternGenerator__DEVLOG__.md`
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.6.3 - 28-Jul-2026 - Face Pattern Generator: Rotate 90° Face Canvas Button
+
+### Update 01 - Rotate the Face Canvas for Cross-Slope Coursing
+- New `⟳ Rotate 90°` toolbar button beside **Refresh Face** in the Face Pattern Generator dialog. Each press rotates the face canvas 90° clockwise in the SVG preview and regenerates the pattern vectors to suit — fixes faces where the auto-derived up-slope axis runs the courses the wrong way.
+- Apply stays exact under rotation for all six patterns: polyline patterns round-trip the rotated basis through GeometryBuilder, and the slate/rosemary builders apply the matching in-plane basis rotation (`rotation_steps` in the payload) before placing component courses. Rotation state resets whenever a fresh face is loaded via Refresh Face.
+- Sub-devlog: `10__PluginModules/20__SourceCode__FacePatternGenerator/Na__Noble3dModellingTools__FacePatternGenerator__DEVLOG__.md`
+
+### Validation Checklist
+- [ ] Rotate 90° button appears beside Refresh Face and cycles 90° → 180° → 270° → 0°.
+- [ ] Face outline visibly rotates clockwise in the preview each press and the pattern re-tiles to the new orientation.
+- [ ] Apply to Face after rotating places patio/brick/stone/shrub linework matching the rotated preview.
+- [ ] Apply to Face after rotating places slate/rosemary component courses matching the rotated preview (no mirroring).
+- [ ] Refresh Face resets the rotation to 0°.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.6.2 - 28-Jul-2026 - Face Pattern Generator: Rosemary Plain Tile Roof
+
+### Update 01 - New Pattern Type: Rosemary Tile Roof (British Plain Tiles)
+- Face Pattern Generator gains a sixth pattern type for British plain tile (Rosemary style) roofs alongside the existing Slate Roof pattern.
+- UK plain tile presets: 265x165mm at 65mm headlap (100mm max gauge, default), 75mm headlap (95mm gauge), and 85mm headlap (90mm gauge), plus Custom; default 1.5mm side shunt matches the Redland Rosemary 166.5mm linear cover.
+- New files: `02__PatternGenerators/Na__FacePattern__RosemaryRoofGenerator__.js` (SVG preview) and `Na__Noble3dModellingTools__FacePatternGenerator__RosemaryBuilder__.rb` (applies `Na__FacePattern__RosemaryTile__<width>x<gauge>` component instances in a `Na Face Pattern - Rosemary` group).
+- Wired through `UiConfig__.js`, `AppCore__.js`, `DialogManager__.rb`, `Loader__.rb`, `UiLayout__.html`, and the UI command registry tooltip/group description.
+- Sub-devlog: `10__PluginModules/20__SourceCode__FacePatternGenerator/Na__Noble3dModellingTools__FacePatternGenerator__DEVLOG__.md`
+
+### Update 02 - Live Preset Selects and Apply Safety Guards (Rosemary + Slate)
+- DynamicUI select fields gained a generic `applies` map: choosing a preset now writes its dimensions into the linked number fields, and editing a linked field flips the select back to Custom. Applied to both the new rosemary presets and the existing slate presets, which were previously inert (number-field values always won over the selected preset).
+- Both roof builders now clamp side gap to >= 0 and reject non-positive tile/slate widths on Apply, closing a hand-typed-negative-value path that could infinite-loop the course placement inside an open operation and hang SketchUp.
+
+### Validation Checklist
+- [ ] Rosemary Tile Roof appears in the Pattern Type dropdown and builds its parameter panel.
+- [ ] Preview regenerates on parameter change with half-bond staggered 165mm-wide courses at 100mm gauge (default preset).
+- [ ] Apply to Face places rosemary tile component instances in one undo step.
+- [ ] Download DXF exports the rosemary preview linework.
+- [ ] Reload Plugin Data loads the RosemaryBuilder without errors.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.6.1 - 10-Jul-2026 - Nested Edge State Tools
 
 ### Update 01 - New Tool Group: Nested Edge State (Four One-Click Commands)

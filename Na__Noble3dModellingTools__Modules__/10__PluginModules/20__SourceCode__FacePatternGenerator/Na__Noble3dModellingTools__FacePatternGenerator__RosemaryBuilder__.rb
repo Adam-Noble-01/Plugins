@@ -1,30 +1,32 @@
 # =============================================================================
-# NA NOBLE3D MODELLING TOOLS - FACE PATTERN GENERATOR - SLATE BUILDER
+# NA NOBLE3D MODELLING TOOLS - FACE PATTERN GENERATOR - ROSEMARY BUILDER
 # =============================================================================
 #
-# FILE       : Na__Noble3dModellingTools__FacePatternGenerator__SlateBuilder__.rb
-# NAMESPACE  : Na__Noble3dModellingTools::Na__FacePatternGenerator__SlateBuilder
+# FILE       : Na__Noble3dModellingTools__FacePatternGenerator__RosemaryBuilder__.rb
+# NAMESPACE  : Na__Noble3dModellingTools::Na__FacePatternGenerator__RosemaryBuilder
 # AUTHOR     : Adam Noble - Noble Architecture
-# PURPOSE    : Apply a slate roof pattern by placing component instances on the
-#              selected face using proven course-tiling logic from the prototype.
+# PURPOSE    : Apply a British plain tile (Rosemary style) roof pattern by
+#              placing component instances on the selected face using the same
+#              proven course-tiling logic as the slate builder.
 # CREATED    : 2026
 #
 # DESCRIPTION:
-# - Slate Apply ignores dialog polylines and regenerates from the live selection.
+# - Rosemary Apply ignores dialog polylines and regenerates from the live selection.
 # - Uses face.classify_point for corner-inside tests (handles edge coincidence).
-# - Visible gauge = (slate_length - headlap) / 2 per UK roofing convention.
-# - Half-bond stagger offsets alternate courses by half a slate width + gap.
+# - Visible gauge = (tile_length - headlap) / 2 per UK double-lap plain tiling.
+# - Standard plain tile is 265x165mm with 65mm minimum headlap (100mm max gauge).
+# - Half-bond stagger offsets alternate courses by half a tile width + shunt gap.
 #
 # =============================================================================
 
 module Na__Noble3dModellingTools
-    module Na__FacePatternGenerator__SlateBuilder
+    module Na__FacePatternGenerator__RosemaryBuilder
 
 # -----------------------------------------------------------------------------
 # REGION | Constants
 # -----------------------------------------------------------------------------
 
-        NA_OPERATION_NAME = 'Face Pattern Generator - Apply Slate'.freeze
+        NA_OPERATION_NAME = 'Face Pattern Generator - Apply Rosemary Tiles'.freeze
 
         SAFE_POINT_CLASSES = [
             Sketchup::Face::PointInside,
@@ -34,11 +36,9 @@ module Na__Noble3dModellingTools
         ].freeze
 
         PRESET_TABLE = {
-            'slate_600x300_100' => [600.0, 300.0, 100.0],
-            'slate_500x300_100' => [500.0, 300.0, 100.0],
-            'slate_500x250_100' => [500.0, 250.0, 100.0],
-            'slate_460x220_80'  => [460.0, 220.0, 80.0],
-            'slate_400x250_75'  => [400.0, 250.0, 75.0]
+            'rosemary_265x165_65' => [265.0, 165.0, 65.0],
+            'rosemary_265x165_75' => [265.0, 165.0, 75.0],
+            'rosemary_265x165_85' => [265.0, 165.0, 85.0]
         }.freeze
 
 # endregion -------------------------------------------------------------------
@@ -47,31 +47,31 @@ module Na__Noble3dModellingTools
 # REGION | Public Entry Point
 # -----------------------------------------------------------------------------
 
-        # FUNCTION | Apply Slate Component Instances to the Selected Face
+        # FUNCTION | Apply Rosemary Tile Component Instances to the Selected Face
         # ------------------------------------------------------------
-        def self.Na__FacePatternGenerator__ApplySlatePattern(payload_hash)
+        def self.Na__FacePatternGenerator__ApplyRosemaryPattern(payload_hash)
             model = Sketchup.active_model
             return na_result(false, 'No active model available.') unless model
 
             face = Na__FacePatternGenerator__FaceData.Na__FacePatternGenerator__GetSingleSelectedFace(model.selection)
-            return na_result(false, 'Select the target face before applying the slate pattern.') unless face
+            return na_result(false, 'Select the target face before applying the rosemary tile pattern.') unless face
 
             options          = na_read_options(payload_hash)
-            visible_gauge_mm = (options[:slate_length_mm] - options[:headlap_mm]) / 2.0
-            return na_result(false, 'Headlap must be smaller than slate length.') if visible_gauge_mm <= 0
-            return na_result(false, 'Slate width must be greater than zero.') if options[:slate_width_mm] <= 0
+            visible_gauge_mm = (options[:tile_length_mm] - options[:headlap_mm]) / 2.0
+            return na_result(false, 'Headlap must be smaller than tile length.') if visible_gauge_mm <= 0
+            return na_result(false, 'Tile width must be greater than zero.') if options[:tile_width_mm] <= 0
 
             model.start_operation(NA_OPERATION_NAME, true)
             begin
-                definition = na_build_slate_definition(model, options[:slate_width_mm], visible_gauge_mm)
+                definition = na_build_tile_definition(model, options[:tile_width_mm], visible_gauge_mm, options[:base_thickness_mm])
                 group      = model.active_entities.add_group
-                group.name   = 'Na Face Pattern - Slate'
+                group.name   = 'Na Face Pattern - Rosemary'
 
                 count = na_populate_face(
                     group.entities,
                     definition,
                     face,
-                    options[:slate_width_mm],
+                    options[:tile_width_mm],
                     visible_gauge_mm,
                     options[:side_gap_mm],
                     options[:lift_mm],
@@ -81,14 +81,14 @@ module Na__Noble3dModellingTools
 
                 if count.zero?
                     model.abort_operation
-                    return na_result(false, 'No slate instances fit inside the selected face.')
+                    return na_result(false, 'No rosemary tile instances fit inside the selected face.')
                 end
 
                 model.commit_operation
-                na_result(true, "Slate pattern applied with #{count} instance(s).")
+                na_result(true, "Rosemary tile pattern applied with #{count} instance(s).")
             rescue => error
                 model.abort_operation
-                na_result(false, "Slate build failed: #{error.class}: #{error.message}")
+                na_result(false, "Rosemary tile build failed: #{error.class}: #{error.message}")
             end
         end
         # ------------------------------------------------------------
@@ -99,31 +99,35 @@ module Na__Noble3dModellingTools
 # REGION | Options and Definition
 # -----------------------------------------------------------------------------
 
-        # HELPER FUNCTION | Parse Slate Options from the Apply Payload
+        # HELPER FUNCTION | Parse Rosemary Tile Options from the Apply Payload
         # ------------------------------------------------------------
         def self.na_read_options(payload_hash)
             preset_key = payload_hash.fetch('preset_key', '').to_s
             preset     = PRESET_TABLE[preset_key]
 
             {
-                slate_length_mm: payload_hash.fetch('slate_length_mm', preset ? preset[0] : 500.0).to_f,
-                slate_width_mm:  payload_hash.fetch('slate_width_mm', preset ? preset[1] : 250.0).to_f,
-                headlap_mm:      payload_hash.fetch('headlap_mm', preset ? preset[2] : 100.0).to_f,
-                side_gap_mm:     [payload_hash.fetch('side_gap_mm', 0.0).to_f, 0.0].max,
-                lift_mm:         payload_hash.fetch('lift_mm', 0.0).to_f,
-                stagger:         !!payload_hash.fetch('stagger', true),
-                rotation_steps:  payload_hash.fetch('rotation_steps', 0).to_i % 4
+                tile_length_mm:    payload_hash.fetch('tile_length_mm', preset ? preset[0] : 265.0).to_f,
+                tile_width_mm:     payload_hash.fetch('tile_width_mm', preset ? preset[1] : 165.0).to_f,
+                headlap_mm:        payload_hash.fetch('headlap_mm', preset ? preset[2] : 65.0).to_f,
+                side_gap_mm:       [payload_hash.fetch('side_gap_mm', 0.0).to_f, 0.0].max,
+                base_thickness_mm: [payload_hash.fetch('base_thickness_mm', 10.0).to_f, 0.0].max,
+                lift_mm:           payload_hash.fetch('lift_mm', 0.0).to_f,
+                stagger:           !!payload_hash.fetch('stagger', true),
+                rotation_steps:    payload_hash.fetch('rotation_steps', 0).to_i % 4
             }
         end
         private_class_method :na_read_options
         # ------------------------------------------------------------
 
-        # HELPER FUNCTION | Get or Create the Slate Rectangle Component Definition
+        # HELPER FUNCTION | Get or Create the Rosemary Tile Rectangle Component Definition
         # ------------------------------------------------------------
-        def self.na_build_slate_definition(model, slate_width_mm, visible_gauge_mm)
-            width_text      = slate_width_mm.round(1)
+        # base_thickness_mm draws the visible tile end as a second line above the
+        # bottom edge of the course rectangle (0 or >= gauge disables it).
+        def self.na_build_tile_definition(model, tile_width_mm, visible_gauge_mm, base_thickness_mm = 0.0)
+            width_text      = tile_width_mm.round(1)
             gauge_text      = visible_gauge_mm.round(1)
-            definition_name = "Na__FacePattern__Slate__#{width_text}x#{gauge_text}"
+            base_text       = base_thickness_mm.round(1)
+            definition_name = "Na__FacePattern__RosemaryTile__#{width_text}x#{gauge_text}b#{base_text}"
 
             existing = model.definitions[definition_name]
             return existing if existing
@@ -132,8 +136,8 @@ module Na__Noble3dModellingTools
             entities   = definition.entities
 
             p0 = Geom::Point3d.new(0, 0, 0)
-            p1 = Geom::Point3d.new(slate_width_mm.mm, 0, 0)
-            p2 = Geom::Point3d.new(slate_width_mm.mm, visible_gauge_mm.mm, 0)
+            p1 = Geom::Point3d.new(tile_width_mm.mm, 0, 0)
+            p2 = Geom::Point3d.new(tile_width_mm.mm, visible_gauge_mm.mm, 0)
             p3 = Geom::Point3d.new(0, visible_gauge_mm.mm, 0)
 
             entities.add_line(p0, p1)
@@ -141,9 +145,15 @@ module Na__Noble3dModellingTools
             entities.add_line(p2, p3)
             entities.add_line(p3, p0)
 
+            if base_thickness_mm > 0 && base_thickness_mm < visible_gauge_mm
+                b0 = Geom::Point3d.new(0, base_thickness_mm.mm, 0)
+                b1 = Geom::Point3d.new(tile_width_mm.mm, base_thickness_mm.mm, 0)
+                entities.add_line(b0, b1)
+            end
+
             definition
         end
-        private_class_method :na_build_slate_definition
+        private_class_method :na_build_tile_definition
         # ------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -152,9 +162,9 @@ module Na__Noble3dModellingTools
 # REGION | Face Population
 # -----------------------------------------------------------------------------
 
-        # HELPER FUNCTION | Tile Slate Instances Across the Face in Courses
+        # HELPER FUNCTION | Tile Rosemary Instances Across the Face in Courses
         # ------------------------------------------------------------
-        def self.na_populate_face(entities, definition, face, slate_width_mm, visible_gauge_mm, side_gap_mm, lift_mm, stagger, rotation_steps = 0)
+        def self.na_populate_face(entities, definition, face, tile_width_mm, visible_gauge_mm, side_gap_mm, lift_mm, stagger, rotation_steps = 0)
             basis = na_build_basis(face)
             return 0 unless basis
 
@@ -164,7 +174,7 @@ module Na__Noble3dModellingTools
             min_x, max_x   = local_vertices.map(&:first).minmax
             min_y, max_y   = local_vertices.map(&:last).minmax
 
-            x_step_mm = slate_width_mm + side_gap_mm
+            x_step_mm = tile_width_mm + side_gap_mm
             y_step_mm = visible_gauge_mm
             row_index = 0
             y_mm      = min_y - y_step_mm
@@ -177,8 +187,8 @@ module Na__Noble3dModellingTools
                 while x_mm <= max_x + x_step_mm
                     corners = [
                         [x_mm, y_mm],
-                        [x_mm + slate_width_mm, y_mm],
-                        [x_mm + slate_width_mm, y_mm + visible_gauge_mm],
+                        [x_mm + tile_width_mm, y_mm],
+                        [x_mm + tile_width_mm, y_mm + visible_gauge_mm],
                         [x_mm, y_mm + visible_gauge_mm]
                     ]
 
@@ -268,7 +278,7 @@ module Na__Noble3dModellingTools
         private_class_method :na_to_local_2d
         # ------------------------------------------------------------
 
-        # HELPER FUNCTION | Test Whether All Slate Corners Lie on or Inside the Face
+        # HELPER FUNCTION | Test Whether All Tile Corners Lie on or Inside the Face
         # ------------------------------------------------------------
         def self.na_corners_fit_face?(face, local_corners, basis)
             local_corners.all? do |xy|
@@ -297,7 +307,7 @@ module Na__Noble3dModellingTools
 
 # endregion -------------------------------------------------------------------
 
-    end # module Na__FacePatternGenerator__SlateBuilder
+    end # module Na__FacePatternGenerator__RosemaryBuilder
 end # module Na__Noble3dModellingTools
 
 # =============================================================================

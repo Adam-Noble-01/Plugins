@@ -141,12 +141,57 @@
                         { value: 'slate_460x220_80', label: 'Natural 460x220 - 80 headlap' },
                         { value: 'slate_400x250_75', label: 'Natural 400x250 - 75 headlap' },
                         { value: 'custom', label: 'Custom' }
-                    ]
+                    ],
+                    applies: {
+                        slate_600x300_100: { slate_length_mm: 600, slate_width_mm: 300, headlap_mm: 100 },
+                        slate_500x300_100: { slate_length_mm: 500, slate_width_mm: 300, headlap_mm: 100 },
+                        slate_500x250_100: { slate_length_mm: 500, slate_width_mm: 250, headlap_mm: 100 },
+                        slate_460x220_80:  { slate_length_mm: 460, slate_width_mm: 220, headlap_mm: 80 },
+                        slate_400x250_75:  { slate_length_mm: 400, slate_width_mm: 250, headlap_mm: 75 }
+                    }
                 },
                 { id: 'slate_length_mm', type: 'number', label: 'Slate Length (mm)', default: 500, min: 100, max: 2000, step: 5 },
                 { id: 'slate_width_mm', type: 'number', label: 'Slate Width (mm)', default: 250, min: 100, max: 2000, step: 5 },
                 { id: 'headlap_mm', type: 'number', label: 'Headlap (mm)', default: 100, min: 1, max: 1000, step: 1 },
                 { id: 'side_gap_mm', type: 'number', label: 'Side Gap (mm)', default: 0, min: 0, max: 200, step: 1 },
+                {
+                    id: 'stagger',
+                    type: 'select',
+                    label: 'Half Bond Stagger',
+                    default: 'true',
+                    options: [
+                        { value: 'true', label: 'Yes' },
+                        { value: 'false', label: 'No' }
+                    ]
+                },
+                { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
+            ]
+        },
+        rosemary: {
+            label: 'Rosemary Tile Roof',
+            fields: [
+                {
+                    id: 'preset_key',
+                    type: 'select',
+                    label: 'Preset',
+                    default: 'rosemary_265x165_65',
+                    options: [
+                        { value: 'rosemary_265x165_65', label: 'Rosemary 265x165 - 65 headlap (100 gauge)' },
+                        { value: 'rosemary_265x165_75', label: 'Rosemary 265x165 - 75 headlap (95 gauge)' },
+                        { value: 'rosemary_265x165_85', label: 'Rosemary 265x165 - 85 headlap (90 gauge)' },
+                        { value: 'custom', label: 'Custom' }
+                    ],
+                    applies: {
+                        rosemary_265x165_65: { tile_length_mm: 265, tile_width_mm: 165, headlap_mm: 65 },
+                        rosemary_265x165_75: { tile_length_mm: 265, tile_width_mm: 165, headlap_mm: 75 },
+                        rosemary_265x165_85: { tile_length_mm: 265, tile_width_mm: 165, headlap_mm: 85 }
+                    }
+                },
+                { id: 'tile_length_mm', type: 'number', label: 'Tile Length (mm)', default: 265, min: 100, max: 600, step: 5 },
+                { id: 'tile_width_mm', type: 'number', label: 'Tile Width (mm)', default: 165, min: 50, max: 600, step: 5 },
+                { id: 'headlap_mm', type: 'number', label: 'Headlap (mm)', default: 65, min: 1, max: 200, step: 1, hint: 'BS 5534 minimum 65mm headlap for double-lap plain tiles.' },
+                { id: 'side_gap_mm', type: 'number', label: 'Side Gap / Shunt (mm)', default: 0, min: 0, max: 20, step: 0.5, hint: 'Set 1.5 for Rosemary 166.5mm linear cover (165 tile + 1.5 shunt).' },
+                { id: 'base_thickness_mm', type: 'number', label: 'Base Thickness (mm)', default: 10, min: 0, max: 30, step: 1, hint: 'Visible tile end at the base of each course — drawn as a second line above the bottom edge. Set 0 to disable.' },
                 {
                     id: 'stagger',
                     type: 'select',

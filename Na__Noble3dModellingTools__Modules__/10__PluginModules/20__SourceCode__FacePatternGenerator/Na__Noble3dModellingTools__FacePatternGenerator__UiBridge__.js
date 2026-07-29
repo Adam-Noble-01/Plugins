@@ -82,6 +82,10 @@
             window.Na__FacePattern__AppCore.na_downloadDxf();
         });
 
+        na_el('naFacePat_btnRotateFace').addEventListener('click', function () {
+            window.Na__FacePattern__AppCore.na_rotateFace90();
+        });
+
         na_el('naFacePat_btnRefreshFace').addEventListener('click', function () {
             if (window.sketchup && window.sketchup.na_refresh_face) {
                 window.sketchup.na_refresh_face('');

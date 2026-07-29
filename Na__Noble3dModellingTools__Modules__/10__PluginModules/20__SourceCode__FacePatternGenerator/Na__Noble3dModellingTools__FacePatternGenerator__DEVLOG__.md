@@ -7,7 +7,7 @@
 ## Overview
 
 Unified parametric surface pattern generator that reads a single selected
-SketchUp face, previews five architectural pattern types in an SVG HtmlDialog,
+SketchUp face, previews six architectural pattern types in an SVG HtmlDialog,
 and applies the generated linework back onto the face plane.
 
 # =============================================================================
@@ -15,6 +15,51 @@ and applies the generated linework back onto the face plane.
 # =============================================================================
 
 
+# Na Noble3d Modelling Tools
+## Version 0.4.1 - 28-Jul-2026 - Rosemary Base Thickness Line + Side Gap Default 0
+
+### Update 01 - Base Thickness Field (Visible Tile End)
+- New `Base Thickness (mm)` field on the rosemary pattern (default 10, min 0, max 30): draws the visible tile end as a second horizontal line above the bottom edge of every course rectangle, matching how the tile thickness reads in elevation. Set 0 to disable; values >= the visible gauge are ignored rather than drawn above the course.
+- `RosemaryRoofGenerator__.js` emits the base line per fully-inside tile (status message now counts tiles, not polylines); `RosemaryBuilder__.rb` draws the same line inside the component definition, whose name now carries the base value (`...__<width>x<gauge>b<base>`) so differing settings never reuse a stale definition. DXF export writes each base line as a single LINE entity.
+
+### Update 02 - Side Gap Default 0
+- Rosemary `Side Gap / Shunt (mm)` default changed from 1.5 to 0; the hint now reads "Set 1.5 for Rosemary 166.5mm linear cover (165 tile + 1.5 shunt)."
+
+---
+# Na Noble3d Modelling Tools
+## Version 0.4.0 - 28-Jul-2026 - Face Canvas Rotation (Rotate 90° Toolbar Button)
+
+### Update 01 - Rotate 90° Button in the Dialog Toolbar
+- New `⟳ Rotate 90°` button (`naFacePat_btnRotateFace`) beside **Refresh Face** in `UiLayout__.html`, wired via `UiBridge__.js` to `AppCore.na_rotateFace90`. Each press rotates the face canvas 90° clockwise and regenerates the pattern to suit — for faces where the derived up-slope axis runs the wrong way for the coursing.
+- `AppCore__.js` rotates the loaded face payload in place: outline and hole points map (x, y) → (y, −x), bounds are recomputed, and the payload basis follows as x′ = y, y′ = −x, so world positions are unchanged and the frame stays right-handed (no mirrored components). `rotationSteps` (0–3) tracks the cumulative state and resets to 0 whenever Ruby pushes a fresh face payload (Refresh Face / dialog open).
+- Polyline patterns (patio, brickwork, stonework, shrub) need no Ruby changes: Apply round-trips the rotated basis through `GeometryBuilder`, so the applied linework matches the rotated preview.
+
+### Update 02 - rotation_steps Plumbed into the Roof Builders
+- Apply payload now carries `rotation_steps`. `SlateBuilder__.rb` and `RosemaryBuilder__.rb` — which rebuild their own basis from the live face rather than trusting the payload — apply the same clockwise rule N times via a new `na_rotate_basis_clockwise!` helper (x′ = y, y′ = −x per step), so slate and rosemary component courses land exactly where the rotated preview shows them.
+
+---
+# Na Noble3d Modelling Tools
+## Version 0.3.0 - 28-Jul-2026 - Rosemary Plain Tile Roof Pattern
+
+### Update 01 - New Pattern Type: Rosemary Tile Roof (British Plain Tiles)
+- Added a sixth pattern type `rosemary` for British plain tile (Rosemary style) roofs, reusing the proven slate course-tiling maths: visible gauge = (tile length − headlap) / 2, half-bond stagger on alternate courses.
+- New JS preview generator `02__PatternGenerators/Na__FacePattern__RosemaryRoofGenerator__.js` (`window.Na__FacePattern__RosemaryRoofGenerator`) with UK plain tile presets: 265x165 at 65mm headlap (100mm gauge, default), 75mm headlap (95mm gauge), 85mm headlap (90mm gauge), plus Custom.
+- New Ruby builder `...__RosemaryBuilder__.rb` (`Na__FacePatternGenerator__RosemaryBuilder`) placing `Na__FacePattern__RosemaryTile__<width>x<gauge>` component instances in a `Na Face Pattern - Rosemary` group; regenerates from the live selection via `face.classify_point`, matching the SlateBuilder pattern.
+- Default Side Gap / Shunt is 1.5mm so the horizontal module matches the Redland Rosemary 166.5mm linear cover (165mm tile + 1.5mm shunt); headlap hint cites the BS 5534 65mm minimum for double-lap plain tiling.
+
+### Update 02 - Wiring
+- `UiConfig__.js` — `rosemary` field descriptor block (preset select, tile length/width, headlap, side gap with 0.5mm step, stagger, lift).
+- `AppCore__.js` — generator dispatch for `rosemary` and apply-payload block (`tile_length_mm` / `tile_width_mm` / `headlap_mm` / `side_gap_mm` / `stagger`).
+- `DialogManager__.rb` — RosemaryRoofGenerator added to the inlined script list; `na_handle_apply_pattern` dispatches `rosemary` to the RosemaryBuilder.
+- `Loader__.rb` — requires the RosemaryBuilder before DialogManager.
+- `UiLayout__.html` hint and `UiCommandRegistry__.json` tooltip / tool-group description updated to mention rosemary tiles.
+
+### Update 03 - Review Fixes: Live Preset Selects and Apply Safety Guards
+- `01__SharedJs/Na__FacePattern__DynamicUI__.js` — select fields now support a generic `applies` map: choosing a preset writes its values into the linked number inputs, and manually editing a linked input flips the select back to `custom`. Previously preset selects were inert (number-field defaults always won), so the rosemary 75/85 headlap presets silently produced 65mm headlap output.
+- `UiConfig__.js` — `applies` maps added to both the rosemary and slate preset selects, so all named presets in both roof patterns now drive their dimension fields.
+- `RosemaryBuilder__.rb` / `SlateBuilder__.rb` — `na_read_options` clamps `side_gap_mm` to >= 0 and the entry points reject a non-positive tile/slate width, guaranteeing a positive x-step. A hand-typed negative side gap (below the field min, which HTML only enforces on the spinner) could previously drive the course loop into an infinite loop inside an open operation, hard-hanging SketchUp.
+
+---
 # Na Noble3d Modelling Tools
 ## Version 0.2.0 - 16-Jun-2026 - Noble Code Style and Dialog UI Polish
 

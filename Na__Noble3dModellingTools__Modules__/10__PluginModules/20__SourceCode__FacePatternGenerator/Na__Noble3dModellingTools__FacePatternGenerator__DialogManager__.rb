@@ -107,6 +107,7 @@ module Na__Noble3dModellingTools
                 File.join(__dir__, '02__PatternGenerators', 'Na__FacePattern__StoneworkGenerator__.js'),
                 File.join(__dir__, '02__PatternGenerators', 'Na__FacePattern__ShrubGenerator__.js'),
                 File.join(__dir__, '02__PatternGenerators', 'Na__FacePattern__SlateRoofGenerator__.js'),
+                File.join(__dir__, '02__PatternGenerators', 'Na__FacePattern__RosemaryRoofGenerator__.js'),
                 File.join(__dir__, 'Na__Noble3dModellingTools__FacePatternGenerator__UiConfig__.js'),
                 File.join(__dir__, 'Na__Noble3dModellingTools__FacePatternGenerator__SvgPreview__.js'),
                 File.join(__dir__, 'Na__Noble3dModellingTools__FacePatternGenerator__AppCore__.js'),
@@ -187,6 +188,8 @@ module Na__Noble3dModellingTools
             result =
                 if pattern_type == 'slate'
                     Na__FacePatternGenerator__SlateBuilder.Na__FacePatternGenerator__ApplySlatePattern(payload)
+                elsif pattern_type == 'rosemary'
+                    Na__FacePatternGenerator__RosemaryBuilder.Na__FacePatternGenerator__ApplyRosemaryPattern(payload)
                 else
                     Na__FacePatternGenerator__GeometryBuilder.Na__FacePatternGenerator__ApplyPolylines(payload)
                 end

@@ -6,7 +6,9 @@
 // NAMESPACE  : window.Na__FacePattern__DynamicUI
 // AUTHOR     : Adam Noble - Noble Architecture
 // PURPOSE    : JSON-config-driven control panel builder — number inputs and
-//              selects from field-descriptor arrays in UiConfig.
+//              selects from field-descriptor arrays in UiConfig. Select fields
+//              with an `applies` map write preset values into linked number
+//              fields; editing a linked field flips the select back to custom.
 // CREATED    : 2026
 //
 // =============================================================================
@@ -108,6 +110,8 @@ window.Na__FacePattern__DynamicUI = (function () {
 
             function na_onFieldChange() {
                 na_state.values[field.id] = field.type === 'number' ? Number(input.value) : input.value;
+                if (field.type === 'select' && field.applies) { na_applyPresetValues(field, input.value); }
+                if (field.type === 'number') { na_syncPresetSelects(field.id); }
                 if (na_state.onChange) { na_state.onChange(field.id, na_state.values[field.id]); }
             }
 
@@ -123,6 +127,50 @@ window.Na__FacePattern__DynamicUI = (function () {
             }
 
             container.appendChild(group);
+        });
+    }
+    // ------------------------------------------------------------
+
+    // endregion ---------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Preset Select Linking
+    // -------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Write a Preset's Linked Field Values into Sibling Inputs
+    // ------------------------------------------------------------
+    function na_applyPresetValues(field, presetKey) {
+        var mapping = field.applies[presetKey];
+        if (!mapping) { return; }
+        Object.keys(mapping).forEach(function (targetId) {
+            var target = na_el(targetId);
+            if (!target) { return; }
+            target.value = mapping[targetId];
+            na_state.values[targetId] = mapping[targetId];
+        });
+    }
+    // ------------------------------------------------------------
+
+    // HELPER FUNCTION | Flip Preset Selects to Custom When a Linked Field Diverges
+    // ------------------------------------------------------------
+    function na_syncPresetSelects(changedFieldId) {
+        na_state.fields.forEach(function (presetField) {
+            if (!presetField.applies) { return; }
+            var select = na_el(presetField.id);
+            if (!select) { return; }
+            var mapping = presetField.applies[select.value];
+            if (!mapping || !Object.prototype.hasOwnProperty.call(mapping, changedFieldId)) { return; }
+            var matches = Object.keys(mapping).every(function (targetId) {
+                var target = na_el(targetId);
+                return !target || Number(target.value) === Number(mapping[targetId]);
+            });
+            if (matches) { return; }
+            var hasCustom = Array.prototype.some.call(select.options, function (option) {
+                return option.value === 'custom';
+            });
+            if (!hasCustom) { return; }
+            select.value = 'custom';
+            na_state.values[presetField.id] = 'custom';
         });
     }
     // ------------------------------------------------------------

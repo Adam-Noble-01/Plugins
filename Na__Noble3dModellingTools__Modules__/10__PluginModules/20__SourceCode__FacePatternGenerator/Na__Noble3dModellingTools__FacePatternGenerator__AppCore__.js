@@ -22,6 +22,7 @@
         faceData: null,
         patternKey: 'patio',
         polylines: [],
+        rotationSteps: 0,
         onApply: null
     };
 
@@ -38,6 +39,7 @@
         if (key === 'stonework') { return window.Na__FacePattern__StoneworkGenerator; }
         if (key === 'shrub')     { return window.Na__FacePattern__ShrubGenerator; }
         if (key === 'slate')     { return window.Na__FacePattern__SlateRoofGenerator; }
+        if (key === 'rosemary')  { return window.Na__FacePattern__RosemaryRoofGenerator; }
         return window.Na__FacePattern__PatioGenerator;
     }
     // ------------------------------------------------------------
@@ -54,6 +56,68 @@
         }
         normalized.seed = Date.now();
         return normalized;
+    }
+    // ------------------------------------------------------------
+
+    // endregion ---------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Face Canvas Rotation
+    // -------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Rotate a Local 2D Point 90 Degrees Clockwise
+    // ------------------------------------------------------------
+    function na_rotatePoint90(point) {
+        return [point[1], -point[0]];
+    }
+    // ------------------------------------------------------------
+
+    // HELPER FUNCTION | Recompute Axis-Aligned Bounds from Outline Points
+    // ------------------------------------------------------------
+    function na_boundsFromPoints(points) {
+        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        points.forEach(function (point) {
+            if (point[0] < minX) { minX = point[0]; }
+            if (point[0] > maxX) { maxX = point[0]; }
+            if (point[1] < minY) { minY = point[1]; }
+            if (point[1] > maxY) { maxY = point[1]; }
+        });
+        return { min_x: minX, min_y: minY, max_x: maxX, max_y: maxY, width: maxX - minX, height: maxY - minY };
+    }
+    // ------------------------------------------------------------
+
+    // HELPER FUNCTION | Rotate the Loaded Face Payload 90 Degrees Clockwise
+    // ------------------------------------------------------------
+    // Points map (x, y) -> (y, -x); the basis follows as x' = y, y' = -x so
+    // world positions are unchanged and the frame stays right-handed.
+    function na_rotateFaceDataInPlace() {
+        var data = na_state.faceData;
+        data.outer = data.outer.map(na_rotatePoint90);
+        data.holes = (data.holes || []).map(function (hole) { return hole.map(na_rotatePoint90); });
+        data.bounds = na_boundsFromPoints(data.outer);
+        if (data.basis && data.basis.x_axis && data.basis.y_axis) {
+            var oldX = data.basis.x_axis;
+            data.basis.x_axis = data.basis.y_axis;
+            data.basis.y_axis = [-oldX[0], -oldX[1], -oldX[2]];
+        }
+    }
+    // ------------------------------------------------------------
+
+    // FUNCTION | Rotate the Face Canvas 90 Degrees Clockwise and Regenerate
+    // ------------------------------------------------------------
+    function na_rotateFace90() {
+        if (!na_state.faceData) {
+            window.Na__FacePattern__DynamicUI.na_setStatus('Load a face before rotating the canvas.', false);
+            return;
+        }
+        na_state.rotationSteps = (na_state.rotationSteps + 1) % 4;
+        na_rotateFaceDataInPlace();
+        na_updateFaceMeta();
+        na_regenerate();
+        window.Na__FacePattern__DynamicUI.na_setStatus(
+            'Face canvas rotated to ' + (na_state.rotationSteps * 90) + '° clockwise — preview regenerated.',
+            true
+        );
     }
     // ------------------------------------------------------------
 
@@ -132,6 +196,7 @@
             params: values,
             polylines: na_state.polylines,
             basis: na_state.faceData.basis,
+            rotation_steps: na_state.rotationSteps,
             lift_mm: Number(values.lift_mm) || 0,
             close_paths: true,
             group_name: 'Na Face Pattern - ' + na_state.patternKey
@@ -144,6 +209,16 @@
             payload.headlap_mm      = Number(values.headlap_mm) || 100;
             payload.side_gap_mm     = Number(values.side_gap_mm) || 0;
             payload.stagger         = values.stagger !== false;
+        }
+
+        if (na_state.patternKey === 'rosemary') {
+            payload.preset_key        = values.preset_key;
+            payload.tile_length_mm    = Number(values.tile_length_mm) || 265;
+            payload.tile_width_mm     = Number(values.tile_width_mm) || 165;
+            payload.headlap_mm        = Number(values.headlap_mm) || 65;
+            payload.side_gap_mm       = Number(values.side_gap_mm) || 0;
+            payload.base_thickness_mm = Math.max(0, Number(values.base_thickness_mm) || 0);
+            payload.stagger           = values.stagger !== false;
         }
 
         na_state.onApply(payload);
@@ -172,6 +247,7 @@
     // ------------------------------------------------------------
     function na_setFaceData(facePayload) {
         na_state.faceData = facePayload;
+        na_state.rotationSteps = 0;                                             // <-- Fresh payload arrives unrotated
         na_updateFaceMeta();
         na_regenerate();
     }
@@ -207,6 +283,7 @@
         na_setFaceData: na_setFaceData,
         na_setPattern: na_setPattern,
         na_applyPattern: na_applyPattern,
+        na_rotateFace90: na_rotateFace90,
         na_downloadDxf: na_downloadDxf,
         na_resetView: function () {
             window.Na__FacePattern__SvgPreview.na_resetView(na_state.faceData, na_state.polylines);

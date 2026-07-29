@@ -347,7 +347,7 @@
         {
             "command_id"        : "face_pattern_generator",
             "command_name"      : "Na Noble3d - Face Pattern Generator",
-            "tooltip"           : "Open one unified pattern dialog for patio, brickwork, stonework, shrub and slate previews",
+            "tooltip"           : "Open one unified pattern dialog for patio, brickwork, stonework, shrub, slate and rosemary tile previews",
             "status_bar_text"   : "Generate pattern linework directly from one selected face",
             "menu_text"         : "Face Pattern Generator",
             "handler_key"       : "face_pattern_generator",
@@ -898,7 +898,7 @@
             "button_id"              : "btn_face_pattern_generator",
             "tab_name"               : "Geometry Tools",
             "tool_group_name"        : "Surface Pattern Tools",
-            "tool_group_description" : "Generate face-bound patio, brickwork, stonework, shrub and slate patterns from one unified dialog.",
+            "tool_group_description" : "Generate face-bound patio, brickwork, stonework, shrub, slate and rosemary tile patterns from one unified dialog.",
             "tool_group_order"       : 55,
             "button_order"           : 10,
             "button_label"           : "Face Pattern Generator",
