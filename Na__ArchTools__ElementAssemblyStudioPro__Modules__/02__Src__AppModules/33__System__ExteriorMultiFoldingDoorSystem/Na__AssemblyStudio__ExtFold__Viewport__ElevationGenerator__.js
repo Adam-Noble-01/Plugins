@@ -148,6 +148,8 @@ const Na__ExtFold__ElevationGenerator = (function () {
             cill             : cill,
             glazeBars        : glazeBars,
             leadedGlass      : leadedGlass,
+            removedGlazebars : na_key_set(config.removed_glazebars),
+            disabledLeadedCells : na_key_set(config.leaded_disabled_cells),
             frameColour      : frameCol,
             innerLeft        : innerLeft,
             innerBottom      : innerBottom,
@@ -246,6 +248,30 @@ const Na__ExtFold__ElevationGenerator = (function () {
             return sg.na_getMaterialColor(materialId);
         }
         return '#FFFFFF';
+    }
+    // ---------------------------------------------------------------
+
+
+    // HELPER FUNCTION | Build a String-Key Set From a Config Array
+    // ------------------------------------------------------------
+    function na_key_set(source) {
+        return new Set(Array.isArray(source) ? source.map(function (key) { return String(key); }) : []);
+    }
+    // ---------------------------------------------------------------
+
+
+    // HELPER FUNCTION | Per-Panel Context for Shared Click-Target Keys
+    // ------------------------------------------------------------
+    function na_panel_context(panelIndex) {
+        return { openingIndex: 0, cellIndex: 0, panelIndex: panelIndex, sashIndex: 0 };
+    }
+    // ---------------------------------------------------------------
+
+
+    // HELPER FUNCTION | Empty Click-Target Accumulation Bucket
+    // ------------------------------------------------------------
+    function na_create_click_bucket() {
+        return { clickTargetsSvg: '', leadedClickTargetsSvg: '' };
     }
     // ---------------------------------------------------------------
 
@@ -363,7 +389,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
     // FUNCTION | Build SVG for All Bifold Panels Inside the Inner Clear Opening
     // ------------------------------------------------------------
     // @delegate: Na__AssemblyStudio__ExtFold__UiSystem__PanelConfigResolver__.js
-    function na_build_all_panels(layout, resolvedPanels) {
+    function na_build_all_panels(layout, resolvedPanels, clickBucket) {
         let svg = '';
         if (layout.innerWidth <= 0 || layout.innerHeight <= 0) return svg;
 
@@ -373,7 +399,10 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
         if (panels) {
             for (let i = 0; i < panels.length; i += 1) {
-                svg += na_build_one_panel_from_resolved(panels[i], layout);
+                const panelIndex = Number.isFinite(Number(panels[i].index))
+                    ? Number(panels[i].index)
+                    : i;
+                svg += na_build_one_panel_from_resolved(panels[i], layout, panelIndex, clickBucket);
             }
             return svg;
         }
@@ -383,7 +412,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
             const py = layout.innerBottom;
             const pw = Math.max(0, layout.panelWidth - PANEL_GAP_MM);
             const ph = layout.innerHeight;
-            svg += na_build_one_panel_legacy(px, py, pw, ph, layout);
+            svg += na_build_one_panel_legacy(px, py, pw, ph, layout, i, clickBucket);
         }
         return svg;
     }
@@ -395,7 +424,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
     // Draws stiles/rails, optional midrail, glazed region + bars/leaded,
     // and field cells (linework or raised bevel outline) for non-glazed
     // compositions — parity with ExtDouble elevation leaf drawing.
-    function na_build_one_panel_from_resolved(panel, layout) {
+    function na_build_one_panel_from_resolved(panel, layout, panelIndex, clickBucket) {
         const sg = window.Na__Viewport__SvgGenerator;
         if (!sg) return '';
 
@@ -423,19 +452,9 @@ const Na__ExtFold__ElevationGenerator = (function () {
             const g = pl.glazedRegion;
             svg += sg.na_svgRect(g.xMm, g.zMm, g.widthMm, g.heightMm, FILL_GLAZING, STROKE_BLACK, 1);
             if (layout.glazeBars.enabled) {
-                svg += na_build_panel_glazebars(g.xMm, g.zMm, g.widthMm, g.heightMm, layout);
+                svg += na_build_panel_glazebars(g.xMm, g.zMm, g.widthMm, g.heightMm, layout, panelIndex, clickBucket);
             }
-            if (layout.leadedGlass && layout.leadedGlass.enabled) {
-                const sgLead = window.Na__Viewport__SvgGenerator;
-                if (sgLead && typeof sgLead.na_generateLeadedGlassSvg === 'function') {
-                    svg += sgLead.na_generateLeadedGlassSvg(g.xMm, g.zMm, g.widthMm, g.heightMm, layout.leadedGlass, {
-                        hBars: layout.glazeBars.hBars,
-                        vBars: layout.glazeBars.vBars,
-                        barWidth: layout.glazeBars.barW,
-                        advancedGlazebar: layout.glazeBars.advanced
-                    });
-                }
-            }
+            svg += na_build_panel_leaded(g.xMm, g.zMm, g.widthMm, g.heightMm, layout, panelIndex, clickBucket);
         }
 
         if (panelHeight > 0) {
@@ -513,7 +532,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
     // SUB FUNCTION | Legacy Fully-Glazed Panel Draw (Resolver Unavailable)
     // ------------------------------------------------------------
-    function na_build_one_panel_legacy(panelX, panelY, panelWidth, panelHeight, layout) {
+    function na_build_one_panel_legacy(panelX, panelY, panelWidth, panelHeight, layout, panelIndex, clickBucket) {
         const sg = window.Na__Viewport__SvgGenerator;
         if (!sg) return '';
 
@@ -549,19 +568,11 @@ const Na__ExtFold__ElevationGenerator = (function () {
         }
 
         if (layout.glazeBars.enabled && glazedW > 0 && glazedH > 0) {
-            svg += na_build_panel_glazebars(glazedX, glazedY, glazedW, glazedH, layout);
+            svg += na_build_panel_glazebars(glazedX, glazedY, glazedW, glazedH, layout, panelIndex, clickBucket);
         }
 
-        if (layout.leadedGlass && layout.leadedGlass.enabled && glazedW > 0 && glazedH > 0) {
-            const sgLead = window.Na__Viewport__SvgGenerator;
-            if (sgLead && typeof sgLead.na_generateLeadedGlassSvg === 'function') {
-                svg += sgLead.na_generateLeadedGlassSvg(glazedX, glazedY, glazedW, glazedH, layout.leadedGlass, {
-                    hBars: layout.glazeBars.hBars,
-                    vBars: layout.glazeBars.vBars,
-                    barWidth: layout.glazeBars.barW,
-                    advancedGlazebar: layout.glazeBars.advanced
-                });
-            }
+        if (glazedW > 0 && glazedH > 0) {
+            svg += na_build_panel_leaded(glazedX, glazedY, glazedW, glazedH, layout, panelIndex, clickBucket);
         }
 
         return svg;
@@ -571,49 +582,46 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
     // SUB FUNCTION | Draw Horizontal + Vertical Glaze Bars Inside a Panel
     // ------------------------------------------------------------
-    // Mirrors the WindowSystem grille builder: bars are evenly spaced
-    // inside the clear glass rectangle, centred on the section dividers.
-    function na_build_panel_glazebars(glassX, glassY, glassW, glassH, layout) {
-        const sg   = window.Na__Viewport__SvgGenerator;
-        const math = window.Na__GlazebarMath;
-        if (!sg || !math) return '';
+    // Delegates to the shared WindowSystem grille builder so removed-bar
+    // state and invisible click targets stay in sync with Window / Double Door.
+    function na_build_panel_glazebars(glassX, glassY, glassW, glassH, layout, panelIndex, clickBucket) {
+        const sg = window.Na__Viewport__SvgGenerator;
+        if (!sg || typeof sg.na_generateGlazeBarsSvg !== 'function') return '';
 
         const { hBars, vBars, barW, advanced } = layout.glazeBars;
-        const adv     = advanced || { marginEnabled:false, marginOffset:0, archEnabled:false, archAmount:0, archHeight:0 };
-        const colour  = layout.frameColour;
-        let svg = '';
+        const bucket = sg.na_generateGlazeBarsSvg(
+            glassX, glassY, glassW, glassH,
+            hBars, vBars, barW, layout.frameColour,
+            na_panel_context(panelIndex),
+            layout.removedGlazebars || new Set(),
+            advanced
+        );
+        if (clickBucket) {
+            clickBucket.clickTargetsSvg += bucket.clickTargetsSvg || '';
+        }
+        return bucket.svg || '';
+    }
+    // ---------------------------------------------------------------
 
-        // Arch zone reduces the effective height available for regular
-        // bars. Subtract the FULL zone (apex + overshoot) so the
-        // overshoot termini land at top of glass, matching window-mode.
-        const effectiveGlassH = math.na_computeEffectiveGlassHeight(glassH, adv.archEnabled, adv.archHeight, glassW, adv.archAmount);
 
-        if (hBars > 0 && effectiveGlassH > 0) {
-            const hPosRaw = math.na_computeBarPositions(glassY, effectiveGlassH, hBars, adv.marginEnabled, adv.marginOffset);
-            const hOffsetMm = Number(adv.hOffsetMm || 0);
-            let hPos = hOffsetMm === 0
-                ? hPosRaw
-                : hPosRaw.map(function (y) { return y + hOffsetMm; });
-            hPos = math.na_applyBarOffsets(hPos, adv.hOffsetsMm);       // <-- Per-bar vertical nudges after uniform offset
-            for (let i = 0; i < hPos.length; i += 1) {
-                svg += sg.na_svgRect(glassX, hPos[i] - barW / 2, glassW, barW, colour, STROKE_BLACK, 1);
-            }
-        }
-        if (vBars > 0 && effectiveGlassH > 0) {
-            let vPos = math.na_computeBarPositions(glassX, glassW, vBars, adv.marginEnabled, adv.marginOffset);
-            vPos = math.na_applyBarOffsets(vPos, adv.vOffsetsMm);       // <-- Per-bar horizontal nudges after spacing
-            for (let i = 0; i < vPos.length; i += 1) {
-                svg += sg.na_svgRect(vPos[i] - barW / 2, glassY, barW, effectiveGlassH, colour, STROKE_BLACK, 1);
-            }
-        }
-        if (adv.archEnabled && adv.archHeight > 0 && adv.archAmount >= 1 && typeof sg.na_generateGothicArchSvg === 'function') {
-            const springingY = glassY + effectiveGlassH;
-            svg += sg.na_generateGothicArchSvg(
-                glassX, springingY, glassW, adv.archHeight, adv.archAmount, barW, colour,
-                { openingIndex: 0, cellIndex: 0, panelIndex: 0, sashIndex: 0 }
-            );
-        }
-        return svg;
+    // SUB FUNCTION | Draw Leaded Glass With Per-Cell Click Targets
+    // ------------------------------------------------------------
+    function na_build_panel_leaded(glassX, glassY, glassW, glassH, layout, panelIndex, clickBucket) {
+        if (!layout.leadedGlass || !layout.leadedGlass.enabled) return '';
+        const sg = window.Na__Viewport__SvgGenerator;
+        if (!sg || typeof sg.na_generateLeadedGlassSvg !== 'function') return '';
+
+        const leadedOpts = Object.assign({}, layout.leadedGlass, {
+            disabledCells: layout.disabledLeadedCells || new Set()
+        });
+        return sg.na_generateLeadedGlassSvg(glassX, glassY, glassW, glassH, leadedOpts, {
+            hBars: layout.glazeBars.hBars,
+            vBars: layout.glazeBars.vBars,
+            barWidth: layout.glazeBars.barW,
+            advancedGlazebar: layout.glazeBars.advanced,
+            panelContext: na_panel_context(panelIndex),
+            clickBucket: clickBucket
+        });
     }
     // ---------------------------------------------------------------
 
@@ -792,6 +800,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
         const layout         = na_resolve_layout(config);
         const foldDirections = na_resolve_fold_directions(layout);
+        const clickBucket    = na_create_click_bucket();
 
         // @delegate: Na__AssemblyStudio__ExtFold__UiSystem__PanelConfigResolver__.js
         let resolvedPanels = null;
@@ -809,7 +818,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
         let svg = '';
         svg += na_build_outer_frame(layout);
         svg += na_build_cill(layout);
-        svg += na_build_all_panels(layout, resolvedPanels);
+        svg += na_build_all_panels(layout, resolvedPanels, clickBucket);
         svg += na_build_hinge_dots(layout, foldDirections);
         svg += na_build_fold_arrows(layout, foldDirections);
         svg += na_build_handle_dot(layout, foldDirections);
@@ -817,6 +826,9 @@ const Na__ExtFold__ElevationGenerator = (function () {
         if (layout.showDimensions && typeof sg.na_svgDimensions === 'function') {
             svg += sg.na_svgDimensions(layout.openingWidth, layout.openingHeight);
         }
+
+        svg += clickBucket.leadedClickTargetsSvg;                        // <-- Below glazebar targets so bar clicks win
+        svg += clickBucket.clickTargetsSvg;
 
         return svg;
     }

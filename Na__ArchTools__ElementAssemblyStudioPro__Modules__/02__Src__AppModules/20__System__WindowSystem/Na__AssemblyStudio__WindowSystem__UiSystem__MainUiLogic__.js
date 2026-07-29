@@ -1479,12 +1479,75 @@ const Na_DynamicUI = (function() {
             return validKeys;
         }
 
+        if (_config.sliding_mode === true || _config.multifold_mode === true) {
+            return na_getValidDoorPanelGlazebarKeySet();
+        }
+
         if (!window.Na__Viewport__SvgGenerator ||
             typeof window.Na__Viewport__SvgGenerator.na_collectValidGlazebarKeys !== 'function') {
             return new Set();
         }
 
         return new Set(window.Na__Viewport__SvgGenerator.na_collectValidGlazebarKeys(_config));
+    }
+    // ---------------------------------------------------------------
+
+
+    // HELPER FUNCTION | Resolve Sliding / Multifold Panel Count (0-Based Indices)
+    // ------------------------------------------------------------
+    function na_resolveDoorPanelCountForKeys() {
+        if (_config.sliding_mode === true) return 2;
+        if (_config.multifold_mode === true &&
+            window.Na__ExtFold__PanelConfigResolver &&
+            typeof window.Na__ExtFold__PanelConfigResolver.na_resolve === 'function') {
+            const resolved = window.Na__ExtFold__PanelConfigResolver.na_resolve(_config);
+            if (resolved && Array.isArray(resolved.panels) && resolved.panels.length > 0) {
+                return resolved.panels.length;
+            }
+        }
+        if (_config.multifold_mode === true) {
+            return Math.max(2, Math.min(8, Math.round(Number(_config.bifold_door_panel_count || 4))));
+        }
+        return 0;
+    }
+    // ---------------------------------------------------------------
+
+
+    // HELPER FUNCTION | Valid Glaze-Bar Keys for Sliding / Multifold Panels
+    // ------------------------------------------------------------
+    function na_getValidDoorPanelGlazebarKeySet() {
+        const validKeys = new Set();
+        const panelCount = na_resolveDoorPanelCountForKeys();
+        const hBars = Math.max(0, Math.round(Number(_config.horizontal_glaze_bars || 0)));
+        const vBars = Math.max(0, Math.round(Number(_config.vertical_glaze_bars || 0)));
+        for (let panelIndex = 0; panelIndex < panelCount; panelIndex += 1) {
+            for (let index = 1; index <= hBars; index += 1) {
+                validKeys.add(na_getGlazebarKey(0, 0, panelIndex, 0, 'horizontal', index));
+            }
+            for (let index = 1; index <= vBars; index += 1) {
+                validKeys.add(na_getGlazebarKey(0, 0, panelIndex, 0, 'vertical', index));
+            }
+        }
+        return validKeys;
+    }
+    // ---------------------------------------------------------------
+
+
+    // HELPER FUNCTION | Valid Leaded-Cell Keys for Sliding / Multifold Panels
+    // ------------------------------------------------------------
+    function na_getValidDoorPanelLeadedCellKeySet() {
+        const validKeys = new Set();
+        const panelCount = na_resolveDoorPanelCountForKeys();
+        const hBars = Math.max(0, Math.round(Number(_config.horizontal_glaze_bars || 0)));
+        const vBars = Math.max(0, Math.round(Number(_config.vertical_glaze_bars || 0)));
+        for (let panelIndex = 0; panelIndex < panelCount; panelIndex += 1) {
+            for (let row = 0; row <= hBars; row += 1) {
+                for (let col = 0; col <= vBars; col += 1) {
+                    validKeys.add(na_getLeadedCellKey(0, 0, panelIndex, 0, col, row));
+                }
+            }
+        }
+        return validKeys;
     }
     // ---------------------------------------------------------------
 
@@ -1575,6 +1638,10 @@ const Na_DynamicUI = (function() {
                 }
             });
             return validKeys;
+        }
+
+        if (_config.sliding_mode === true || _config.multifold_mode === true) {
+            return na_getValidDoorPanelLeadedCellKeySet();
         }
 
         if (!window.Na__Viewport__SvgGenerator ||

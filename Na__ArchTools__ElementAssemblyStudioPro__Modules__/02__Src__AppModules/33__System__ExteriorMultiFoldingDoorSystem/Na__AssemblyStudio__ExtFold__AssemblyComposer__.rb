@@ -422,13 +422,13 @@ module Na__AssemblyComposer
                                       origin_x_mm, origin_y_mm, origin_z_mm,
                                       panel_w_mm, panel_h_mm, panel_t_mm,
                                       head_rail_mm, base_rail_mm, stile_width_mm,
-                                      panel_id, descriptor[:index].to_i,
+                                      panel_id, descriptor[:index].to_i - 1,
                                       frame_material)
             na_build_panel_leaded_glass(mod_entities, config_hash,
                                         origin_x_mm, origin_y_mm, origin_z_mm,
                                         panel_w_mm, panel_h_mm, panel_t_mm,
                                         head_rail_mm, base_rail_mm, stile_width_mm,
-                                        panel_id)
+                                        panel_id, descriptor[:index].to_i - 1)
         else
             na_build_fielded_leaf_members(mod_entities, leaf, panel_layout, part_names, frame_material)
             na_build_fielded_field_dividers(mod_entities, leaf, panel_layout, frame_material, panel_id)
@@ -506,13 +506,16 @@ module Na__AssemblyComposer
             positions = na_final_bar_positions_mm(layout)
             vertical_positions = positions[:vertical]
             horizontal_positions = positions[:horizontal]
+            removed_keys = Array(bars[:removed_keys]).map(&:to_s)
 
             vertical_positions.each_with_index do |x, index|
+                next if removed_keys.include?(na_glazebar_key(leaf, 'vertical', index + 1))
                 na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_V#{index + 1}",
                                  x - bars[:width_mm] / 2.0, y, region[:z_mm],
                                  bars[:width_mm], depth, region[:height_mm], materials[:frame])
             end
             horizontal_positions.each_with_index do |z, index|
+                next if removed_keys.include?(na_glazebar_key(leaf, 'horizontal', index + 1))
                 na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_H#{index + 1}",
                                  region[:x_mm], y, z - bars[:width_mm] / 2.0,
                                  region[:width_mm], depth, bars[:width_mm], materials[:frame])
@@ -520,9 +523,19 @@ module Na__AssemblyComposer
         end
 
         panel_id = part_names[:glazing].to_s.sub(/^Na_Glass_/, '')
-        na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y)
+        na_create_leaded_from_region_mm(
+            entities, config_hash, panel_id, region, glass_y, leaf[:index].to_i - 1
+        )
     end
     private_class_method :na_build_fielded_glazed_region
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Glaze-Bar Removal Key (Matches Preview / Window Scheme)
+    # ------------------------------------------------------------
+    def self.na_glazebar_key(leaf, orientation, bar_index)
+        "0:0:#{leaf[:index].to_i - 1}:0:#{orientation}:#{bar_index}"
+    end
+    private_class_method :na_glazebar_key
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Final Bar Centerlines For One Panel (mm space)
@@ -815,7 +828,7 @@ module Na__AssemblyComposer
                                          origin_x_mm, origin_y_mm, origin_z_mm,
                                          panel_w_mm, panel_h_mm, panel_t_mm,
                                          head_rail_mm, base_rail_mm, stile_width_mm,
-                                         panel_id)
+                                         panel_id, panel_index_0 = 0)
         clear_box = na_compute_clear_glazing_box(origin_x_mm, origin_z_mm,
                                                  panel_w_mm, panel_h_mm,
                                                  head_rail_mm, base_rail_mm,
@@ -823,7 +836,9 @@ module Na__AssemblyComposer
         return unless clear_box
 
         glass_y_mm = origin_y_mm + GeometryHelpers.na_compute_glazing_y_origin_mm(panel_t_mm)
-        na_create_leaded_from_region_mm(entities, config_hash, panel_id, clear_box, glass_y_mm)
+        na_create_leaded_from_region_mm(
+            entities, config_hash, panel_id, clear_box, glass_y_mm, panel_index_0
+        )
     rescue StandardError => e
         DebugTools.na_debug_error("ExtFold::AssemblyComposer.na_build_panel_leaded_glass failed", e)
     end
@@ -859,9 +874,9 @@ module Na__AssemblyComposer
     # HELPER FUNCTION | Create Leaded Glass From mm Region + Outer Face Y
     # ------------------------------------------------------------
     # Lead lines are laid out per glazing cell between the FINAL glaze
-    # bar centerlines (per-cell render parity with the elevation preview;
-    # no click-toggle on bifold panels yet, so no disabled-cell set).
-    def self.na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y_mm)
+    # bar centerlines. panel_index_0 is 0-based so disabled-cell keys match
+    # the 2D preview / WindowSystem toggle scheme.
+    def self.na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y_mm, panel_index_0 = 0)
         leaded = LeadedGlassBuilder.na_resolve_leaded_params(config_hash)
         return unless leaded[:enabled]
         return if leaded[:h_bars] <= 0 && leaded[:v_bars] <= 0
@@ -873,6 +888,8 @@ module Na__AssemblyComposer
         return unless width_mm.to_f > 0 && height_mm.to_f > 0
 
         mm = 1.0 / 25.4
+        disabled_cells = config_hash['leaded_disabled_cells']
+        disabled_cells = [] unless disabled_cells.is_a?(Array)
         grid = nil
         if defined?(Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders)
             builders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
@@ -887,7 +904,9 @@ module Na__AssemblyComposer
                 h_positions: bar_layout[:h_positions],
                 v_positions: bar_layout[:v_positions],
                 bar_width: (config_hash["glaze_bar_width_mm"] || 25).to_f * mm,
-                effective_glass_height: bar_layout[:effective_glass_height]
+                effective_glass_height: bar_layout[:effective_glass_height],
+                panel_context: { opening: 0, cell: 0, panel: panel_index_0.to_i, sash: 0 },
+                disabled_cells: disabled_cells.map(&:to_s)
             }
         end
         LeadedGlassBuilder.na_create_leaded_glass_geometry(
