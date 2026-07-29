@@ -10,9 +10,9 @@
 //              and dispatches to per-tab Ruby callbacks.
 //
 // REFACTOR NOTES (v2 / EASP)
-// - Tab list still hardcodes windows/doors/settings for the v2 rebrand;
-//   future tabs (e.g. skylights) will swap this for a registry driven by
-//   the AppConfig.tabs array.
+// - Tab list still hardcodes windows/doors/settings (plus the presets pages)
+//   for the v2 rebrand; future tabs (e.g. skylights) will swap this for a
+//   registry driven by the AppConfig.tabs array.
 // =============================================================================
 
 (function () {
@@ -28,6 +28,10 @@
     var NA_TAB_WINDOWS             = 'windows';
     var NA_TAB_DOORS               = 'doors';
     var NA_TAB_SETTINGS            = 'settings';
+    var NA_TAB_PRESETS             = 'presets';
+    var NA_TAB_PRESET_EDITOR       = 'preset_editor';
+
+    var NA_PRESETS_MODE_CLS        = 'na-presets-mode';
 
     var na_live_state = { windows: false, doors: false };
 
@@ -190,9 +194,20 @@
     // REGION | Visibility / tab-change hooks
     // -----------------------------------------------------------------------
 
+    // Presets pages get the same chrome treatment as Settings: no Live Mode,
+    // no Measure Opening. They additionally flip body.na-presets-mode so the
+    // stylesheet can swap the main tab strip for the presets tab strip.
+    function na_is_presets_tab(tabId) {
+        return (tabId === NA_TAB_PRESETS || tabId === NA_TAB_PRESET_EDITOR);
+    }
+
+    function na_sync_presets_mode(tabId) {
+        document.body.classList.toggle(NA_PRESETS_MODE_CLS, na_is_presets_tab(tabId));
+    }
+
     Na_AppContext.na_apply_visibility = function () {
         var tab      = na_resolve_active_tab();
-        var hideBoth = (tab === NA_TAB_SETTINGS);
+        var hideBoth = (tab === NA_TAB_SETTINGS) || na_is_presets_tab(tab);
         na_set_button_hidden(NA_BTN_LIVE_ID,    hideBoth);
         na_set_button_hidden(NA_BTN_MEASURE_ID, hideBoth);
     };
@@ -207,6 +222,7 @@
     Na_AppContext.na_on_tab_changed = function (tabId) {
         na_clear_measure_active();
         Na_AppContext.na_apply_visibility();
+        na_sync_presets_mode(tabId || na_resolve_active_tab());
         na_sync_live_button_to_tab();
         na_publish_active_tab(tabId || na_resolve_active_tab());
     };
@@ -232,6 +248,7 @@
 
     Na_AppContext.na_init = function () {
         Na_AppContext.na_apply_visibility();
+        na_sync_presets_mode(na_resolve_active_tab());
         na_sync_live_button_to_tab();
         na_clear_measure_active();
         na_publish_active_tab(na_resolve_active_tab());

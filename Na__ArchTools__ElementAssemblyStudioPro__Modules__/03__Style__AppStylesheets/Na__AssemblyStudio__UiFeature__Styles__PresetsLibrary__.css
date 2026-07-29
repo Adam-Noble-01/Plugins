@@ -1,0 +1,420 @@
+/* =============================================================================
+   ELEMENT ASSEMBLY STUDIO PRO - PRESETS LIBRARY STYLES
+   =============================================================================
+   FILE       : Na__AssemblyStudio__UiFeature__Styles__PresetsLibrary__.css
+   PURPOSE    : Presets Gallery + Preset Editor pages. Covers the presets-mode
+                tab-strip swap (body.na-presets-mode), the section-header lead
+                group that hosts the "Presets Gallery" entry buttons, the card
+                grid / index-table gallery views, and the editor metadata form.
+
+   CASCADE NOTE
+   - This file is imported BEFORE Na__AssemblyStudio__Styles__Combined__.css
+     (see CoreUi Styles Index). The presets tab bar carries .na-tab-bar, whose
+     `display: flex` in the combined bundle would out-order a single-class hide
+     rule here, so every show/hide rule below uses two selectors minimum.
+   ============================================================================= */
+
+/* =============================================================================
+   PRESETS MODE - TAB STRIP SWAP
+   Default state hides the presets tab bar + Back button; body.na-presets-mode
+   (toggled by Na_AppContext.na_on_tab_changed) swaps them in for the main
+   tabs and the Live Mode / Measure Opening actions.
+   ============================================================================= */
+
+.na-tab-strip .na-tab-strip__presets-tabs,
+.na-tab-strip .na-tab-strip__presets-actions {
+    display              : none;
+}
+
+body.na-presets-mode .na-tab-strip__tabs {
+    display              : none;
+}
+
+body.na-presets-mode .na-tab-strip__actions {
+    display              : none;
+}
+
+body.na-presets-mode .na-tab-strip__presets-tabs {
+    display              : flex;
+}
+
+body.na-presets-mode .na-tab-strip__presets-actions {
+    display              : flex;
+}
+
+/* Mirror the main tab-strip sizing (see TabStrip stylesheet) so the swap is
+   seamless: tab buttons stretch like .na-tab-strip__tabs, the Back button row
+   matches .na-tab-strip__actions. */
+.na-tab-strip__presets-tabs {
+    align-items          : stretch;
+}
+
+.na-tab-strip__presets-actions {
+    align-items          : center;
+    gap                  : 8px;
+    padding              : 6px 12px;
+}
+
+.na-tab-strip__presets-actions .na-btn,
+.na-tab-strip__presets-actions button {
+    height               : 30px;
+    padding              : 0 12px;
+    font-size            : 12px;
+    border-radius        : 4px;
+}
+
+/* =============================================================================
+   SECTION HEADER LEAD GROUP
+   Wraps the "2D Preview" h2 + Presets Gallery button on the left side of the
+   section header. The `.na-section-header h2` uppercase rule in the combined
+   bundle is a descendant selector, so the h2 styling survives the wrapper.
+   ============================================================================= */
+
+.na-section-header__lead {
+    display              : flex;
+    align-items          : center;
+    gap                  : var(--na-spacing-sm);
+}
+
+/* =============================================================================
+   GALLERY - TOOLBAR ROW
+   Search input | family filter | view toggle | Capture Current Design.
+   ============================================================================= */
+
+.na-presets-gallery__toolbar {
+    display              : flex;
+    align-items          : center;
+    flex-wrap            : wrap;
+    gap                  : var(--na-spacing-sm);
+    padding              : var(--na-spacing-md) var(--na-spacing-lg);
+    border-bottom        : 1px solid var(--na-border-color);
+    background           : var(--na-bg-secondary);
+}
+
+.na-presets-gallery__toolbar input,
+.na-presets-gallery__toolbar select {
+    padding              : var(--na-spacing-xs) var(--na-spacing-sm);
+    font-family          : var(--na-font-family);
+    font-size            : var(--na-font-size-sm);
+    color                : var(--na-text-primary);
+    background           : var(--na-bg-primary);
+    border               : 1px solid var(--na-border-color);
+    border-radius        : var(--na-radius-sm);
+    box-sizing           : border-box;
+}
+
+.na-presets-gallery__toolbar input {
+    flex                 : 1 1 160px;
+    min-width            : 120px;
+}
+
+.na-presets-gallery__toolbar input:focus,
+.na-presets-gallery__toolbar select:focus {
+    outline              : none;
+    border-color         : var(--na-accent-blue);
+}
+
+/* =============================================================================
+   GALLERY - CARD GRID VIEW
+   ============================================================================= */
+
+.na-presets-gallery__grid {
+    display              : grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap                  : var(--na-spacing-md);
+    padding              : var(--na-spacing-md) var(--na-spacing-lg);
+}
+
+.na-preset-card {
+    position             : relative;
+    display              : flex;
+    flex-direction       : column;
+    background           : var(--na-bg-secondary);
+    border               : 1px solid var(--na-border-color);
+    border-radius        : var(--na-radius-md);
+    overflow             : hidden;
+    cursor               : pointer;
+    transition           : border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.na-preset-card:hover {
+    border-color         : var(--na-accent-blue);
+    box-shadow           : 0 2px 8px rgba(74, 144, 217, 0.25);
+}
+
+.na-preset-card__thumb {
+    position             : relative;
+    aspect-ratio         : 1 / 1;
+    display              : flex;
+    align-items          : center;
+    justify-content      : center;
+    padding              : var(--na-spacing-sm);
+    box-sizing           : border-box;
+    background           : var(--na-bg-tertiary);
+    border-bottom        : 1px solid var(--na-border-color);
+}
+
+.na-preset-card__thumb-svg {
+    display              : block;
+    width                : 100%;
+    height               : 100%;
+    max-width            : 100%;
+    max-height           : 100%;
+}
+
+.na-preset-card__info {
+    display              : flex;
+    flex-direction       : column;
+    gap                  : var(--na-spacing-xs);
+    padding              : var(--na-spacing-sm);
+}
+
+.na-preset-card__name {
+    font-size            : var(--na-font-size-md);
+    font-weight          : 600;
+    color                : var(--na-text-primary);
+    white-space          : nowrap;
+    overflow             : hidden;
+    text-overflow        : ellipsis;
+}
+
+.na-preset-card__meta {
+    display              : flex;
+    align-items          : center;
+    flex-wrap            : wrap;
+    gap                  : var(--na-spacing-xs);
+}
+
+.na-preset-card__chip {
+    display              : inline-block;
+    padding              : 1px 6px;
+    font-size            : var(--na-font-size-sm);
+    font-weight          : 500;
+    line-height          : 1.5;
+    white-space          : nowrap;
+    color                : var(--na-text-secondary);
+    background           : var(--na-bg-tertiary);
+    border               : 1px solid var(--na-border-color);
+    border-radius        : 10px;
+}
+
+/* Family chips: pastel background + darker text per product family. */
+.na-preset-card__chip--window {
+    color                : #2a5d94;
+    background           : #e3eefa;
+    border-color         : #c5dcf5;
+}
+
+.na-preset-card__chip--exteriordoor {
+    color                : #2f6b33;
+    background           : #e2f2e3;
+    border-color         : #c6e5c8;
+}
+
+.na-preset-card__chip--interiordoor {
+    color                : #8a6413;
+    background           : #fdf1dc;
+    border-color         : #f5e0b8;
+}
+
+.na-preset-card__code {
+    margin-left          : auto;
+    font-family          : 'Consolas', 'Courier New', monospace;
+    font-size            : var(--na-font-size-sm);
+    color                : var(--na-text-muted);
+}
+
+/* Edit affordance: small pencil button pinned top-right of the thumb,
+   revealed on card hover. */
+.na-preset-card__edit {
+    position             : absolute;
+    top                  : var(--na-spacing-xs);
+    right                : var(--na-spacing-xs);
+    width                : 24px;
+    height               : 24px;
+    padding              : 0;
+    display              : flex;
+    align-items          : center;
+    justify-content      : center;
+    font-size            : 13px;
+    line-height          : 1;
+    color                : var(--na-text-secondary);
+    background           : var(--na-bg-secondary);
+    border               : 1px solid var(--na-border-color);
+    border-radius        : var(--na-radius-sm);
+    cursor               : pointer;
+    opacity              : 0;
+    transition           : opacity 0.15s ease, background 0.15s ease;
+}
+
+.na-preset-card:hover .na-preset-card__edit {
+    opacity              : 1;
+}
+
+.na-preset-card__edit:hover {
+    color                : #ffffff;
+    background           : var(--na-accent-blue);
+    border-color         : var(--na-accent-blue);
+}
+
+/* =============================================================================
+   GALLERY - INDEX (TABLE) VIEW
+   Compact rows: Preview (~44px svg) | Code | Name | Family | Type | Keywords
+   | Description. Row click applies the preset, so the whole row is a pointer.
+   ============================================================================= */
+
+.na-presets-index__table {
+    width                : calc(100% - (2 * var(--na-spacing-lg)));
+    margin               : var(--na-spacing-md) var(--na-spacing-lg);
+    border-collapse      : collapse;
+    font-size            : var(--na-font-size-sm);
+    background           : var(--na-bg-secondary);
+    border               : 1px solid var(--na-border-color);
+}
+
+.na-presets-index__table th {
+    padding              : var(--na-spacing-xs) var(--na-spacing-sm);
+    text-align           : left;
+    font-weight          : 600;
+    white-space          : nowrap;
+    color                : var(--na-text-secondary);
+    background           : var(--na-bg-tertiary);
+    border-bottom        : 1px solid var(--na-border-color);
+}
+
+.na-presets-index__table td {
+    padding              : var(--na-spacing-xs) var(--na-spacing-sm);
+    vertical-align       : middle;
+    color                : var(--na-text-primary);
+    border-bottom        : 1px solid var(--na-border-color);
+}
+
+.na-presets-index__table td svg {
+    display              : block;
+    width                : 44px;
+    height               : 44px;
+}
+
+.na-presets-index__table tbody tr {
+    cursor               : pointer;
+    transition           : background 0.15s ease;
+}
+
+.na-presets-index__table tbody tr:hover {
+    background           : var(--na-bg-hover);
+}
+
+/* =============================================================================
+   GALLERY - EMPTY STATES
+   ============================================================================= */
+
+.na-presets-gallery__empty {
+    padding              : var(--na-spacing-xl);
+    text-align           : center;
+    font-size            : var(--na-font-size-md);
+    color                : var(--na-text-muted);
+}
+
+/* =============================================================================
+   PRESET EDITOR - PREVIEW PANEL + METADATA FORM
+   ============================================================================= */
+
+.na-preset-editor {
+    display              : flex;
+    flex-direction       : column;
+    gap                  : var(--na-spacing-md);
+    max-width            : 640px;
+    padding              : var(--na-spacing-md) var(--na-spacing-lg);
+}
+
+.na-preset-editor__preview {
+    display              : flex;
+    align-items          : center;
+    justify-content      : center;
+    padding              : var(--na-spacing-md);
+    max-height           : 320px;
+    box-sizing           : border-box;
+    background           : var(--na-bg-tertiary);
+    border               : 1px solid var(--na-border-color);
+    border-radius        : var(--na-radius-md);
+}
+
+.na-preset-editor__preview svg {
+    display              : block;
+    max-width            : 100%;
+    max-height           : 288px;    /* panel max-height minus its padding */
+}
+
+.na-preset-editor__form {
+    display              : flex;
+    flex-direction       : column;
+    gap                  : var(--na-spacing-sm);
+}
+
+/* Label + input on one flex row (Window Info pattern, horizontal variant).
+   Baseline alignment keeps single-line inputs and the description textarea
+   both hanging correctly off the label text. */
+.na-preset-editor__row {
+    display              : flex;
+    align-items          : baseline;
+    gap                  : var(--na-spacing-sm);
+}
+
+.na-preset-editor__label {
+    flex                 : 0 0 130px;
+    font-size            : var(--na-font-size-sm);
+    color                : var(--na-text-muted);
+}
+
+.na-preset-editor__input,
+.na-preset-editor__textarea,
+.na-preset-editor__row select {
+    flex                 : 1 1 auto;
+    min-width            : 0;
+    padding              : var(--na-spacing-xs) var(--na-spacing-sm);
+    font-family          : var(--na-font-family);
+    font-size            : var(--na-font-size-sm);
+    font-weight          : 500;
+    color                : var(--na-text-primary);
+    background           : var(--na-bg-primary);
+    border               : 1px solid var(--na-border-color);
+    border-radius        : var(--na-radius-sm);
+    box-sizing           : border-box;
+}
+
+.na-preset-editor__input:focus,
+.na-preset-editor__textarea:focus,
+.na-preset-editor__row select:focus {
+    outline              : none;
+    border-color         : var(--na-accent-blue);
+}
+
+.na-preset-editor__input--readonly,
+.na-preset-editor__input[readonly] {
+    color                : var(--na-text-muted);
+    background           : var(--na-bg-tertiary);
+    cursor               : default;
+}
+
+.na-preset-editor__textarea {
+    min-height           : 64px;
+    resize               : vertical;
+}
+
+.na-preset-editor__actions {
+    display              : flex;
+    flex-wrap            : wrap;
+    gap                  : var(--na-spacing-sm);
+    margin-top           : var(--na-spacing-xs);
+}
+
+.na-preset-editor__empty {
+    display              : flex;
+    flex-direction       : column;
+    align-items          : center;
+    gap                  : var(--na-spacing-md);
+    padding              : var(--na-spacing-xl);
+    text-align           : center;
+    font-size            : var(--na-font-size-md);
+    color                : var(--na-text-muted);
+}

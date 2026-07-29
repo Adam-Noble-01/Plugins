@@ -22,7 +22,8 @@ SketchUp loads Plugins/Na__ElementAssemblyStudioPro__Loader.rb
         ├─ require ExteriorSingleDoorSystem/Init       (registers PanelInterface)
         ├─ require ExteriorSlidingDoorSystem/Init      (Phase-1 scaffold: selection handler stub registered)
         ├─ require ExteriorMultiFoldingDoorSystem/Init (Phase-1 scaffold: selection handler stub registered)
-        └─ require InteriorDoorSystem/Init             (registers callbacks + selection handler)
+        ├─ require InteriorDoorSystem/Init             (registers callbacks + selection handler)
+        └─ require PresetsLibrarySystem/Init           (registers presets library callbacks)
 
 User clicks toolbar button -> Na__AssemblyStudio.na_init
   ├─ load AppConfig
@@ -132,6 +133,7 @@ This pattern means:
 01__AppCore JS              - TabRouter, AppContext (must load AFTER tab modules)
 03__AppUtils JS             - SettingsTab UiLogic, SettingsTab Bridge
 40__InteriorDoorSystem      - UiSystem Config, Plan/Elev generators, MainUiLogic, Bridge
+50__PresetsLibrarySystem    - Bridge, SvgCapture, CardRenderer, MainUiLogic (Na_PresetsUI), EditorUiLogic (Na_PresetEditorUI)
 ```
 
 The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, `Na_SettingsUI`) and via the `data-na-tab-id` attribute on tab buttons. Adding a new tab = add a button with `data-na-tab-id="newTab"` plus a JS module that exposes `Na_NewtabUI` (or `Na_<TabId>UI`).
@@ -156,6 +158,10 @@ The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, 
 | sketchup.na_updateDoor               | InteriorDoorSystem::DialogRouter                                           |
 | sketchup.na_liveUpdateDoor           | InteriorDoorSystem::DialogRouter                                           |
 | sketchup.na_measureDoorOpening       | InteriorDoorSystem::DialogRouter (activates ThreePointOpeningTool)         |
+| sketchup.na_presetsRequestLibrary    | PresetsLibrarySystem::DialogCallbacks (scan + push library)                |
+| sketchup.na_presetsSaveNew(json)     | PresetsLibrarySystem::DialogCallbacks (allocate code, write preset file)   |
+| sketchup.na_presetsUpdateMeta(json)  | PresetsLibrarySystem::DialogCallbacks (.bak + metadata patch)              |
+| sketchup.na_presetsUpdateConfig(json)| PresetsLibrarySystem::DialogCallbacks (.bak + config/SVG overwrite)        |
 
 | Ruby->JS function                    | Description                                                               |
 |--------------------------------------|---------------------------------------------------------------------------|
@@ -168,6 +174,8 @@ The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, 
 | window.na_receiveDoorMeasurement(...)| Push 3-point measurement back to UI                                       |
 | window.na_setPlacementActive(bool)   | Enable/disable the Tab key forwarder while placing a window                |
 | window.na_measureCancelled()         | Clear measure-active styling on the button                                 |
+| window.na_receivePresetsLibrary(json)| Push the scanned presets library into the gallery/editor cache             |
+| window.na_receivePresetsSaveResult(json) | Push a preset save/update result back to the editor                    |
 
 All `Ruby -> JS` calls go through `AppCore::UiBridge.na_execute_json_function` / `na_execute_numeric_function` / `na_send_status` / `na_invoke`. No direct `dialog.execute_script("window.na_X(...)")` should appear anywhere outside `UiBridge`.
 

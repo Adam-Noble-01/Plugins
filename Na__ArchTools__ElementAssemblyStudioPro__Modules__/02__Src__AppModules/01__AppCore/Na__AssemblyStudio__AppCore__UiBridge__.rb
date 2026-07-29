@@ -36,7 +36,7 @@ module Na__AssemblyStudio
 
             def self.na_escape_js_string(str)
                 return "" if str.nil?
-                str.to_s.gsub("'", "\\\\'")
+                str.to_s.gsub('\\') { '\\\\' }.gsub("'") { "\\'" }
             end
 
             # -----------------------------------------------------------------

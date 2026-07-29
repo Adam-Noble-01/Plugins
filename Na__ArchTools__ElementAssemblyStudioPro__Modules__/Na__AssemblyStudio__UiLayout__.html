@@ -93,6 +93,37 @@
                     Measure Opening
                 </button>
             </div>
+
+            <!-- Presets page tab bar (hidden until body.na-presets-mode swaps it
+                 in for the main tabs — see PresetsLibrary stylesheet) -->
+            <nav id="na-presets-tab-bar" class="na-tab-bar na-tab-strip__presets-tabs" role="tablist">
+                <button id="na-tab-button-presets"
+                        class="na-tab"
+                        role="tab"
+                        aria-controls="na-tab-presets"
+                        aria-selected="false"
+                        data-na-tab-id="presets"
+                        onclick="Na_TabRouter.na_activateTab('presets')">
+                    Presets Gallery
+                </button>
+                <button id="na-tab-button-preset_editor"
+                        class="na-tab"
+                        role="tab"
+                        aria-controls="na-tab-preset_editor"
+                        aria-selected="false"
+                        data-na-tab-id="preset_editor"
+                        onclick="Na_TabRouter.na_activateTab('preset_editor')">
+                    Preset Editor
+                </button>
+            </nav>
+
+            <div class="na-tab-strip__presets-actions">
+                <button id="na-btn-presets-back"
+                        class="na-btn na-btn-secondary"
+                        onclick="Na_PresetsUI.na_navigate_back()">
+                    Back to Main Menu
+                </button>
+            </div>
         </div>
 
     </div>
@@ -119,7 +150,10 @@
 
         <section class="na-section na-viewport-section">
             <div class="na-section-header">
-                <h2>2D Preview</h2>
+                <div class="na-section-header__lead">
+                    <h2>2D Preview</h2>
+                    <button id="na-btn-presets-gallery" class="na-btn na-btn-small" onclick="Na_PresetsUI.na_open_from_main('windows')">Presets Gallery</button>
+                </div>
                 <div class="na-viewport-controls">
                     <button class="na-btn na-btn-small" onclick="Na_Viewport.na_resetView()">Reset View</button>
                     <button id="na-btn-reset-elements" class="na-btn na-btn-small" onclick="na_resetElements()">Reset Elements</button>
@@ -224,7 +258,10 @@
 
         <section class="na-section na-viewport-section na-door-viewport-section">
             <div class="na-section-header">
-                <h2>2D Preview</h2>
+                <div class="na-section-header__lead">
+                    <h2>2D Preview</h2>
+                    <button id="na-btn-presets-gallery-doors" class="na-btn na-btn-small" onclick="Na_PresetsUI.na_open_from_main('doors')">Presets Gallery</button>
+                </div>
                 <div class="na-viewport-controls">
                     <button class="na-btn na-btn-small" onclick="Na_DoorViewport && Na_DoorViewport.na_resetView()">Reset View</button>
                 </div>
@@ -317,6 +354,32 @@
     </div>
     <!-- endregion ============================================================== -->
 
+    <!-- ==========================================================================
+         REGION | Tab Panel - Presets Gallery
+         ========================================================================== -->
+    <div id="na-tab-presets"
+         class="na-tab-panel na-hidden"
+         role="tabpanel"
+         aria-labelledby="na-tab-button-presets"
+         data-na-tab-id="presets">
+
+        <div id="na-presets-body"></div>
+    </div>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
+         REGION | Tab Panel - Preset Editor
+         ========================================================================== -->
+    <div id="na-tab-preset_editor"
+         class="na-tab-panel na-hidden"
+         role="tabpanel"
+         aria-labelledby="na-tab-button-preset_editor"
+         data-na-tab-id="preset_editor">
+
+        <div id="na-preset-editor-body"></div>
+    </div>
+    <!-- endregion ============================================================== -->
+
     </main>
     <!-- endregion (Main Content) =============================================== -->
 
@@ -401,6 +464,13 @@
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js"></script>
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Bridge__.js"></script>
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__FinishCards__.js"></script>
+
+    <!-- PresetsLibrary system (Presets Gallery + Preset Editor tabs; loaded after every main-tab system so capture/apply can reach them all) -->
+    <script src="02__Src__AppModules/50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__Bridge__.js"></script>
+    <script src="02__Src__AppModules/50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__SvgCapture__.js"></script>
+    <script src="02__Src__AppModules/50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__CardRenderer__.js"></script>
+    <script src="02__Src__AppModules/50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__MainUiLogic__.js"></script>
+    <script src="02__Src__AppModules/50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__EditorUiLogic__.js"></script>
     <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================

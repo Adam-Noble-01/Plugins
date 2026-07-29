@@ -3,7 +3,7 @@
         "metadata": {
             "appName"           : "Element Assembly Studio Pro",
             "publisher"         : "Noble Architecture",
-            "version"           : "1.1.0",
+            "version"           : "1.2.0",
             "schemaVersion"     : 1
         },
 
@@ -98,6 +98,13 @@
             "window": {
                 "sashHorns"     : "Windows__SashHorns__"
             }
+        },
+
+        "presetsLibrary": {
+            "rootFolder"    : "05__Data__PresetsLibrary",
+            "archiveFolder" : "01__Archive",
+            "codePrefix"    : "EAS",
+            "codeFormat"    : "EAS%03d"
         },
 
         "windowSystem": {
