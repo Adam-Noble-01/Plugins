@@ -2,8 +2,8 @@
 # Reserved to the Plugin Developer
 # Copyright © 2008-2026 Fredo6 - Designed and written by Fredo6
 
-VERSION = 15.8e
-DATE = 15 Feb 26
+VERSION = 15.9d
+DATE = 09 Jul 26
 COPYRIGHT = © 2008-2026
 SKETCHUP_VERSION = 17
 
@@ -34,4 +34,6 @@ WEB_SUPPORT_LINK = https://sketchucation.com/plugin/903-libfredo6
 UPD_WEBSITE = Sketchucation Forum
 ##UPD_URL = https://sketchucation.com/forums/viewtopic.php?f=180&t=3263
 UPD_URL = https://community.sketchucation.com/topic/99246/checkforupdate-for-script-publishing
-MENUCODES = 1232,1262,664,1220,750
+
+VIDEO = LibFredo6 - Installation ; http://www.youtube.com/watch?v=ymMDV99wqCo
+MENUCODES = 726,899,1148,983,844

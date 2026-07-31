@@ -1,10 +1,10 @@
 # Plugin Registration
 # Reserved to the Plugin Developer
 
-VERSION = 3.6a
-DATE = 01 Apr 24
-COPYRIGHT = "© 2009-2024"
-LIBFREDO6 = 143
+VERSION = 3.7a
+DATE = 09 Jul 26
+COPYRIGHT = "© 2009-2026"
+LIBFREDO6 = 159
 SKETCHUP_VERSION = 17
 
 CREDITS = "Matt666 : for the initial idea on best-fitting bounding box in his Ruby Challenge 2"
