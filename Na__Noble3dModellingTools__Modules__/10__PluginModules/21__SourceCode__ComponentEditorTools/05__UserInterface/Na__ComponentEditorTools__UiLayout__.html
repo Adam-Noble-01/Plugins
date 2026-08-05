@@ -42,6 +42,7 @@
                 <button class="naComponentEditor__TabButton" data-tab-id="overview" type="button">Overview</button>
                 <button class="naComponentEditor__TabButton" data-tab-id="attributes" type="button">Attributes</button>
                 <button class="naComponentEditor__TabButton" data-tab-id="thumbnail" type="button">Thumbnail</button>
+                <button class="naComponentEditor__TabButton" data-tab-id="export" type="button">Export</button>
                 <button class="naComponentEditor__TabButton" data-tab-id="settings" type="button">Settings</button>
                 <span class="naComponentEditor__TabDivider" aria-hidden="true"></span>
                 <button class="naComponentEditor__TabButton naComponentEditor__TabButton--active" data-tab-id="gallery" type="button">Gallery</button>
@@ -295,6 +296,67 @@
             </section>
             <!-- endregion --------------------------------------------------- -->
 
+            <!-- REGION | Tab: Export ---------------------------------------- -->
+            <section id="na-component-tab-export" class="naComponentEditor__TabPanel" data-tab-id="export">
+
+                <!-- Capture overlay -->
+                <div class="naComponentEditor__CaptureOverlay naComponentEditor__CaptureOverlay--export">
+                    <div class="naComponentEditor__CaptureOverlayInner">
+                        <p class="naComponentEditor__CaptureOverlayMessage">Enable <strong>Monitor Selection</strong> then click a component in the model to load export data.</p>
+                        <button class="naComponentEditor__Button naComponentEditor__Button--primary naComponentEditor__CaptureOverlayBtn" type="button">Enable Monitor Selection</button>
+                    </div>
+                </div>
+
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">Multi-View Asset JSON Export</h2>
+                    <p id="na-export-message" class="naComponentEditor__PanelSubheading">Generate a preview of the 2D projections and 3D mesh data captured from the selected component, then export the unified Na asset JSON file.</p>
+                    <div class="naComponentEditor__ButtonRow">
+                        <button id="na-export-btn-generate" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Generate Preview</button>
+                        <button id="na-export-btn-write" class="naComponentEditor__Button" type="button" disabled>Export JSON File</button>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Panel">
+                    <h2 class="naComponentEditor__PanelHeading">View Previews</h2>
+                    <p class="naComponentEditor__PanelSubheading">Rendered directly from the generated JSON data, so what you see here is exactly what exports.</p>
+                    <div class="naComponentEditor__ExportViewportGrid">
+                        <div class="naComponentEditor__ExportViewport">
+                            <div class="naComponentEditor__ExportViewportTitle">Front Elevation</div>
+                            <svg id="na-export-viewport-front" class="naComponentEditor__ExportViewportSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+                            <div id="na-export-viewport-front-caption" class="naComponentEditor__ExportViewportCaption"></div>
+                        </div>
+                        <div class="naComponentEditor__ExportViewport">
+                            <div class="naComponentEditor__ExportViewportTitle">Right Elevation</div>
+                            <svg id="na-export-viewport-right" class="naComponentEditor__ExportViewportSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+                            <div id="na-export-viewport-right-caption" class="naComponentEditor__ExportViewportCaption"></div>
+                        </div>
+                        <div class="naComponentEditor__ExportViewport">
+                            <div class="naComponentEditor__ExportViewportTitle">Top Plan</div>
+                            <svg id="na-export-viewport-top" class="naComponentEditor__ExportViewportSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+                            <div id="na-export-viewport-top-caption" class="naComponentEditor__ExportViewportCaption"></div>
+                        </div>
+                        <div class="naComponentEditor__ExportViewport">
+                            <div class="naComponentEditor__ExportViewportTitle">3D Isometric Wireframe</div>
+                            <svg id="na-export-viewport-iso" class="naComponentEditor__ExportViewportSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+                            <div id="na-export-viewport-iso-caption" class="naComponentEditor__ExportViewportCaption"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="naComponentEditor__Grid2">
+                    <div class="naComponentEditor__Panel">
+                        <h2 class="naComponentEditor__PanelHeading">Export Summary</h2>
+                        <div id="na-export-summary" class="naComponentEditor__MetaRows"></div>
+                    </div>
+                    <div class="naComponentEditor__Panel">
+                        <h2 class="naComponentEditor__PanelHeading">Warnings</h2>
+                        <div id="na-export-warnings" class="naComponentEditor__ExportWarningList"></div>
+                    </div>
+                </section>
+
+            </section>
+            <!-- endregion --------------------------------------------------- -->
+
             <!-- REGION | Tab: Settings -------------------------------------- -->
             <section id="na-component-tab-settings" class="naComponentEditor__TabPanel" data-tab-id="settings">
                 <section class="naComponentEditor__Panel">
@@ -430,6 +492,7 @@
     <script src="Na__ComponentEditorTools__Tab__Overview__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Attributes__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Thumbnail__.js"></script>
+    <script src="Na__ComponentEditorTools__Tab__Export__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Settings__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Gallery__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Index__.js"></script>

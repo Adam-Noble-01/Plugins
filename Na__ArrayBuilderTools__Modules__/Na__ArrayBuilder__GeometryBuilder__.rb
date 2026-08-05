@@ -8,7 +8,7 @@
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Creates array course geometry from path and configuration
 # CREATED    : 2026
-# VERSION    : 0.0.3
+# VERSION    : 0.1.0
 #
 # DESCRIPTION:
 # - Creates a component containing all array units along a path
@@ -18,9 +18,12 @@
 #             (registered via Na__ArrayBuilder__ObjectRegistry).
 # - Orients units along the local path segment direction (local +X
 #   forward, local +Z up by convention).
-# - Supports two anchor modes for the 'object' type:
-#     local_axis -> object's own definition origin lands on the path point
-#     centre     -> object's bounding-box centre lands on the path point
+# - Object units are always pinned by their LEADING bounding-box face
+#   (scaled by the picked instance's scale) so spacing and insets are
+#   measured between real geometry faces. The two anchor modes control
+#   only the lateral / vertical set-out:
+#     local_axis -> lateral + vertical set-out from the definition origin
+#     centre     -> bounding-box centre on the path line (lateral + vertical)
 #
 # =============================================================================
 
@@ -115,13 +118,16 @@ module Na__ArrayBuilderTools
         # single parent component so the result behaves identically to
         # the dentil / dogtooth output (one selectable assembly).
         def self.na_create_array_from_definition(positions, config)
-            source_def = Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetDefinition
+            placement_info = Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo
+            return nil unless placement_info
+
+            source_def = placement_info[:definition]
             return nil unless source_def && source_def.valid?
 
             model = Sketchup.active_model
             anchor_mode  = config['anchor_mode'] || 'local_axis'
             keep_upright = config['keep_upright'] == true                          # <-- Locks unit +Z to world +Z when true
-            anchor_offset = na_compute_anchor_offset(source_def, anchor_mode)
+            anchor_offset = na_compute_anchor_offset(placement_info, anchor_mode)
 
             model.start_operation("Create Object Array", true)
 
@@ -160,18 +166,37 @@ module Na__ArrayBuilderTools
 
         # FUNCTION | Compute Anchor-Offset Transform for Source Definition
         # ------------------------------------------------------------
-        # local_axis -> identity (definition origin = path point)
-        # centre     -> shifts so the bbox centre = path point
-        #
-        # Implementation note: translations are always invertible, so the
-        # SU 2026 stricter Transformation#inverse rules do not affect us.
-        def self.na_compute_anchor_offset(source_def, anchor_mode)
-            return Geom::Transformation.new if anchor_mode != 'centre'
+        # Maps definition space into unit-local space where the unit's
+        # LEADING bbox face sits on the local YZ plane (x = 0), so the
+        # distribution maths' leading-edge positions land on real
+        # geometry faces and spacing / insets are exact regardless of
+        # where the component's origin was authored:
+        #   local_axis -> lateral / vertical set-out from the definition
+        #                 origin is preserved (only forward is pinned)
+        #   centre     -> bbox centre sits on the path line laterally
+        #                 and vertically, leading face at x = 0
+        # The picked instance's scale is baked in so the array matches
+        # the size the user picked.
+        def self.na_compute_anchor_offset(placement_info, anchor_mode)
+            scale   = placement_info[:scale] || [1.0, 1.0, 1.0]
+            scaling = Geom::Transformation.scaling(scale[0], scale[1], scale[2])
 
-            bb = source_def.bounds
-            return Geom::Transformation.new if bb.nil? || bb.empty?
+            if anchor_mode == 'centre'
+                centre = placement_info[:scaled_center]
+                offset = Geom::Vector3d.new(
+                    -placement_info[:scaled_min_x].to_f,
+                    -centre.y.to_f,
+                    -centre.z.to_f
+                )
+            else
+                offset = Geom::Vector3d.new(
+                    -placement_info[:scaled_min_x].to_f,
+                    0.0,
+                    0.0
+                )
+            end
 
-            Geom::Transformation.translation(bb.center).inverse
+            Geom::Transformation.translation(offset) * scaling
         end
         # ---------------------------------------------------------------
 

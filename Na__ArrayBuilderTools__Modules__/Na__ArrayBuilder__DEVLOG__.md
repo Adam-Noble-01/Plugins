@@ -3,6 +3,115 @@
 ## Version History
 
 # =======================================================================================
+## Array Builder Version 0.1.0 - 04-Aug-2026
+
+### Distribution Math Overhaul + Array-From-Selection Path Source
+
+Two user-reported problem areas drove this release: Fixed Inset mode
+producing spacing "not even close" to the target (especially with
+custom objects), and the wish to array along existing edges / curves
+instead of hand-drawing the path every time (Profile Path Tracer
+parity, including a Reverse toggle).
+
+### Bug Fixes: Distribution Math (all modes)
+
+Confirmed defects in the previous math, all fixed:
+
+1. **Inset mode forced-pair overlap.** Once a segment passed the
+   minimum-length check (`seg_len >= 2*inset + unit_width`) the mode
+   ALWAYS pinned a unit at both insets, even when the span between the
+   pinned pair was smaller than one unit width - the two units
+   overlapped or touched regardless of the requested spacing (e.g.
+   110mm unit, 200mm inset, 560mm segment = 60mm of overlap). Such
+   segments now fall back to a single best-effort centred unit.
+2. **`round()` gap-count selection.** `n_gaps = round(span/step)` in
+   both inset and normalise modes neither guaranteed the closest
+   achievable spacing nor prevented `actual_step < unit_width`
+   (overlap). Replaced with a shared best-fit solver
+   (`Na__Distribution__BestFitGapCount`): tries floor/ceil of
+   span/target_step, clamps so the step can never drop below the unit
+   width, picks the candidate closest to the target.
+3. **Normalise mode short-segment overlap.** Same forced-pair class of
+   bug as (1) for segments between 1x and 2x unit width; now a single
+   centred unit.
+4. **Object mode broke the leading-edge contract.** All distribution
+   maths and the preview treat a computed position as the unit's
+   LEADING bbox face, but placement put the definition ORIGIN there
+   (local_axis) or the bbox CENTRE there (centre). Any component with
+   an offset origin (e.g. the common bottom-centre authoring) landed
+   shifted along the path - start/end insets came out asymmetric by
+   +/- half a unit width. Placement now maps the unit's scaled leading
+   bbox face onto the computed position in BOTH anchor modes; the
+   anchor mode only controls lateral / vertical set-out (local_axis =
+   from the component origin, centre = bbox-centred).
+5. **Scaled instances ignored.** Picking a scaled Group / Component
+   used the unscaled definition bounds for the maths but placed
+   unscaled instances. The picker now captures the instance's per-axis
+   scale (transformation axis lengths); the registry exposes scaled
+   bounds and the geometry builder bakes the scale into each placed
+   instance. Mirrored / sheared instances are intentionally not
+   reproduced (magnitude only).
+6. **Fixed-step endpoint semantics.** A unit whose leading edge landed
+   exactly on a waypoint was built along the PREVIOUS segment's
+   direction (pointing past the corner); it now transfers to the next
+   segment. On the final segment a unit starting exactly at the path
+   end (100% overhang) is dropped.
+7. **"Actual spacing" report drift.** The overlay/dialog spacing
+   report duplicated the old round() logic; it now runs through the
+   same solver as placement so it can never disagree.
+
+### New: Path Source - Use Selection (Profile Path Tracer parity)
+
+- New **Path Source** section in the dialog: **Draw Path** (default,
+  unchanged behaviour) / **Use Selection**.
+- Use Selection reads the current model selection (edges, curves,
+  arcs, or a face outline), orders it into a single chain or closed
+  loop, and activates a **review tool**: the standard wireframe
+  preview is shown along the selected path with a yellow direction
+  arrow at the start; **Enter / click builds**, **ESC cancels**.
+- **Reverse Direction**: dialog toggle (visible in selection mode) or
+  the **R key** while reviewing. Flips the run live in the preview;
+  the dialog button and viewport stay in sync both ways. Closed loops
+  are winding-normalised (clockwise in their dominant plane, same rule
+  as the Profile Path Tracer) so Reverse is deterministic.
+- Validation errors (branching selection, disconnected islands, no
+  edges) surface as dialog warnings without leaving the dialog.
+
+### New / Changed Files
+
+| File | Change |
+|---|---|
+| `Na__ArrayBuilder__Distribution__.rb` | NEW - all three distribution solvers + shared best-fit gap solver + actual-spacing report (single source of truth) |
+| `Na__ArrayBuilder__PathFromSelection__.rb` | NEW - selection edge extraction, chain/loop ordering, winding normalisation, reverse (ported from Profile Path Tracer's PathAnalysis) |
+| `Na__ArrayBuilder__PreviewRenderMixin__.rb` | NEW - shared config-state + preview engine used by both tools; object previews now use the real scaled bbox envelope so preview == placement exactly |
+| `Na__ArrayBuilder__SelectionArrayTool__.rb` | NEW - preview + confirm review tool with live Reverse (R key / dialog) |
+| `Na__ArrayBuilder__InsetDistribution__.rb` | DELETED - superseded by the Distribution module |
+| `Na__ArrayBuilder__PathTool__.rb` | Slimmed: maths + preview drawing moved to the mixin/Distribution; tool-lifecycle code unchanged |
+| `Na__ArrayBuilder__GeometryBuilder__.rb` | Object anchor offsets rewritten to the leading-face convention + instance scale baking |
+| `Na__ArrayBuilder__ObjectRegistry__.rb` | Captures per-axis scale; new `Na__Registry__GetPlacementInfo` (scaled bounds/centre/min-faces) |
+| `Na__ArrayBuilder__ObjectPicker__.rb` | Extracts the picked instance's per-axis scale |
+| `Na__ArrayBuilder__DialogManager__.rb` | Selection-flow routing, `na_reversePath` callback, active-review-tool registration, reverse-state push |
+| `Na__ArrayBuilder__UiLayout__.html` / `UiBridge__.js` | Path Source section, Reverse toggle, config payload (`path_source`, `reverse_path`), start-button label swap |
+| `Na__ArrayBuilder__Main__.rb` | Version 0.1.0, require updates |
+
+### Behaviour Notes (deliberate decisions, user-confirmed)
+
+- Inset mode keeps "spacing flexes, insets pinned" semantics - now
+  genuinely best-fit and never overlapping (user chose this over
+  exact-spacing-with-growing-margins).
+- Object units are always pinned by bbox faces along the path; the
+  Local Axis / Centre choice only affects sideways + vertical set-out.
+- R-key reverse uses Windows virtual key code 82; the dialog toggle is
+  the platform-independent route.
+
+#### Verification
+
+- User-tested in SketchUp 2026 following the release: confirmed
+  working correctly ("worked perfectly"). Covered the Inset-mode
+  overlap fix, custom-object leading-face placement, and the new
+  Use Selection / Reverse path-source flow.
+
+# =======================================================================================
 ## Array Builder Version 0.0.9 - 11-May-2026
 
 ### New Feature: Keep Upright Orientation Toggle

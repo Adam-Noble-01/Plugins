@@ -1505,7 +1505,8 @@ body {
 /* The tab panels that host an overlay need positioning context */
 #na-component-tab-overview,
 #na-component-tab-attributes,
-#na-component-tab-thumbnail {
+#na-component-tab-thumbnail,
+#na-component-tab-export {
     position                        : relative;
 }
 
@@ -1528,7 +1529,8 @@ body {
 /* Show overlays only when body carries the awaiting class and the tab is active */
 body.naComponentEditor--awaitingCapture #na-component-tab-overview.naComponentEditor__TabPanel--active .naComponentEditor__CaptureOverlay,
 body.naComponentEditor--awaitingCapture #na-component-tab-attributes.naComponentEditor__TabPanel--active .naComponentEditor__CaptureOverlay,
-body.naComponentEditor--awaitingCapture #na-component-tab-thumbnail.naComponentEditor__TabPanel--active .naComponentEditor__CaptureOverlay {
+body.naComponentEditor--awaitingCapture #na-component-tab-thumbnail.naComponentEditor__TabPanel--active .naComponentEditor__CaptureOverlay,
+body.naComponentEditor--awaitingCapture #na-component-tab-export.naComponentEditor__TabPanel--active .naComponentEditor__CaptureOverlay {
     display                         : block;
 }
 
@@ -1652,6 +1654,95 @@ body.naComponentEditor--awaitingCapture #na-component-tab-thumbnail.naComponentE
     border                          : 1px solid #c9d8f0;
     color                           : #2060b8;
     white-space                     : nowrap;
+}
+
+/* #endregion ---------------------------------------------------------------- */
+
+
+/* =============================================================================
+   REGION | Export Tab Viewports
+   ============================================================================= */
+
+.naComponentEditor__ExportViewportGrid {
+    display                         : grid;
+    grid-template-columns           : 1fr 1fr;
+    gap                             : 12px;
+}
+
+.naComponentEditor__ExportViewport {
+    display                         : flex;
+    flex-direction                  : column;
+    border                          : 1px solid var(--naComponentEditor_Border);
+    border-radius                   : 6px;
+    background                      : #fdfdfe;
+    overflow                        : hidden;
+}
+
+.naComponentEditor__ExportViewportTitle {
+    padding                         : 6px 10px;
+    font-size                       : 12px;
+    font-weight                     : 600;
+    color                           : var(--naComponentEditor_MutedText);
+    border-bottom                   : 1px solid var(--naComponentEditor_Border);
+    background                      : var(--naComponentEditor_Bg);
+}
+
+.naComponentEditor__ExportViewportSvg {
+    display                         : block;
+    width                           : 100%;
+    height                          : 240px;
+    background                      : #ffffff;
+}
+
+.naComponentEditor__ExportViewportCaption {
+    padding                         : 4px 10px;
+    font-size                       : 11px;
+    color                           : var(--naComponentEditor_MutedText);
+    border-top                      : 1px solid var(--naComponentEditor_Border);
+    min-height                      : 22px;
+}
+
+.naComponentEditor__ExportSvgStroke {
+    stroke                          : var(--naComponentEditor_Text);
+    stroke-width                    : 1.25;
+    fill                            : none;
+    vector-effect                   : non-scaling-stroke;
+}
+
+.naComponentEditor__ExportSvgStrokeSoft {
+    stroke                          : #b6bec8;
+    stroke-width                    : 0.6;
+    fill                            : none;
+    vector-effect                   : non-scaling-stroke;
+}
+
+.naComponentEditor__ExportSvgOrigin {
+    stroke                          : var(--naComponentEditor_Error);
+    stroke-width                    : 1;
+    fill                            : none;
+    vector-effect                   : non-scaling-stroke;
+    opacity                         : 0.65;
+}
+
+.naComponentEditor__ExportWarningList {
+    display                         : flex;
+    flex-direction                  : column;
+    gap                             : 6px;
+}
+
+.naComponentEditor__ExportWarningItem {
+    padding                         : 6px 10px;
+    border-radius                   : 4px;
+    border                          : 1px solid #f0c878;
+    background                      : #fef4e0;
+    color                           : var(--naComponentEditor_Warn);
+    font-size                       : 12px;
+    line-height                     : 1.4;
+}
+
+.naComponentEditor__Button[disabled] {
+    opacity                         : 0.45;
+    cursor                          : not-allowed;
 }
 
 /* #endregion ---------------------------------------------------------------- */

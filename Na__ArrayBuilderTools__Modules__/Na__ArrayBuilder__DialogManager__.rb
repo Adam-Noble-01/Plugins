@@ -8,7 +8,7 @@
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Manages UI::HtmlDialog and JS <-> Ruby communication
 # CREATED    : 2026
-# VERSION    : 0.0.3
+# VERSION    : 0.1.0
 #
 # DESCRIPTION:
 # - Creates and manages the UI::HtmlDialog instance
@@ -25,6 +25,8 @@ require 'json'
 require_relative 'Na__ArrayBuilder__ObjectRegistry__'
 require_relative 'Na__ArrayBuilder__ObjectPicker__'
 require_relative 'Na__ArrayBuilder__PathTool__'
+require_relative 'Na__ArrayBuilder__PathFromSelection__'
+require_relative 'Na__ArrayBuilder__SelectionArrayTool__'
 require_relative 'Na__ArrayBuilder__GeometryBuilder__'
 
 module Na__ArrayBuilderTools
@@ -41,6 +43,10 @@ module Na__ArrayBuilderTools
         @na_last_preview_count   = nil
         @na_last_preview_length  = nil
         @na_last_preview_spacing = nil
+
+        # The active selection-review tool (if any), so the dialog's
+        # Reverse button can flip the preview live.
+        @na_active_selection_tool = nil
 
 # endregion -------------------------------------------------------------------
 
@@ -102,6 +108,11 @@ module Na__ArrayBuilderTools
                 na_handle_start_array(config_json)
             end
 
+            # Callback: Reverse Path Direction (selection-review tool)
+            @dialog.add_action_callback("na_reversePath") do |_ctx, state|
+                na_handle_reverse_path(state)
+            end
+
             # Callback: Pick Custom Source Object (Object array type)
             @dialog.add_action_callback("na_pickObject") do |_ctx|
                 na_handle_pick_object
@@ -132,12 +143,19 @@ module Na__ArrayBuilderTools
 
         # FUNCTION | Handle Start Array Callback
         # ------------------------------------------------------------
+        # Routes to the draw-path tool (default) or the selection-review
+        # tool when the dialog's Path Source is set to 'selection'.
         def self.na_handle_start_array(config_json)
             begin
                 config = JSON.parse(config_json)
 
                 if config['type'] == 'object'
                     return unless na_validate_object_source_or_warn
+                end
+
+                if config['path_source'] == 'selection'
+                    na_start_array_from_selection(config)
+                    return
                 end
 
                 path_tool = Na__ArrayBuilder__PathTool.new(config, self)
@@ -148,6 +166,52 @@ module Na__ArrayBuilderTools
                 Na__ArrayBuilderTools.na_debug_log("start array error: #{e.message}")
                 na_send_status_to_dialog("error", "Error: #{e.message}")
             end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Start the Selection-Review Flow
+        # ------------------------------------------------------------
+        # Builds an ordered path from the current model selection and,
+        # when valid, activates the review tool for preview + confirm.
+        def self.na_start_array_from_selection(config)
+            model  = Sketchup.active_model
+            result = Na__ArrayBuilder__PathFromSelection
+                .Na__PathFromSelection__BuildFromEntities(model.selection.to_a)
+
+            unless result[:valid]
+                na_send_status_to_dialog("warning", result[:reason])
+                return
+            end
+
+            tool = Na__ArrayBuilder__SelectionArrayTool.new(
+                config, self, result[:points], result[:closed]
+            )
+            model.select_tool(tool)
+
+            na_send_status_to_dialog(
+                "info",
+                "Previewing array on selected path - Enter / click to build, R to reverse"
+            )
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Handle Reverse-Path Callback From the Dialog
+        # ------------------------------------------------------------
+        # Live-updates the active selection-review tool. When no review
+        # tool is running the state simply rides along in the next
+        # Start Placement config, so nothing to do here.
+        def self.na_handle_reverse_path(state)
+            tool = @na_active_selection_tool
+            return unless tool
+
+            tool.na_set_reverse(state == true || state.to_s == 'true')
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Register / Clear the Active Selection-Review Tool
+        # ------------------------------------------------------------
+        def self.na_register_selection_tool(tool)
+            @na_active_selection_tool = tool
         end
         # ---------------------------------------------------------------
 
@@ -275,6 +339,17 @@ module Na__ArrayBuilderTools
             @na_last_preview_count   = nil
             @na_last_preview_length  = nil
             @na_last_preview_spacing = nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Push Reverse-Direction State to the Dialog
+        # ------------------------------------------------------------
+        # Keeps the dialog's Reverse button in sync when the user
+        # toggles direction with the R key in the viewport.
+        def self.na_send_reverse_state(state)
+            return unless @dialog && @dialog.visible?
+
+            @dialog.execute_script("window.na_setReverseState(#{state ? 'true' : 'false'});")
         end
         # ---------------------------------------------------------------
 

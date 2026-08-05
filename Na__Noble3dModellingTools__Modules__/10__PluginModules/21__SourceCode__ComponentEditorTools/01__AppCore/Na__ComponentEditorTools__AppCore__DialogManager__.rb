@@ -205,6 +205,27 @@ module Na__ComponentEditorTools
                     self.Na__ComponentEditorTools__HandleReloadRequest
                 },
 
+                # ----- Export tab callbacks ----------------------------------
+
+                'na_componenteditortools_export_generate_preview' => proc {
+                    result = Na__ExportTools.Na__ComponentEditorTools__GeneratePreview
+                    self.Na__ComponentEditorTools__PushStatus(result[:message], result[:success] ? 'success' : 'error')
+                    self.Na__ComponentEditorTools__PushExportPreview(result)
+                },
+                'na_componenteditortools_export_write_json' => proc {
+                    result = Na__ExportTools.Na__ComponentEditorTools__ExportJson
+                    self.Na__ComponentEditorTools__PushStatus(result[:message], result[:success] ? 'success' : 'error')
+                    Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
+                        @na_dialog,
+                        'Na__ComponentEditorTools__ReceiveExportResult',
+                        {
+                            success: !!result[:success],
+                            message: result[:message].to_s,
+                            path:    result[:path].to_s
+                        }
+                    )
+                },
+
                 # ----- User Config callbacks ---------------------------------
 
                 'na_componenteditortools_get_user_config' => proc {
@@ -467,6 +488,23 @@ module Na__ComponentEditorTools
                     current_thumbnail_preview_path: preview_path,
                     current_thumbnail_preview_uri: Na__ThumbnailTools.Na__ComponentEditorTools__FilePathToFileUri(preview_path),
                     current_thumbnail_preview_source: 'visible_viewport'
+                }
+            )
+        end
+
+        def self.Na__ComponentEditorTools__PushExportPreview(result_hash)
+            Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
+                @na_dialog,
+                'Na__ComponentEditorTools__ReceiveExportPreview',
+                {
+                    success:          !!result_hash[:success],
+                    message:          result_hash[:message].to_s,
+                    component_name:   result_hash[:component_name].to_s,
+                    product_code:     result_hash[:product_code].to_s,
+                    file_name:        result_hash[:file_name].to_s,
+                    warnings:         result_hash[:warnings] || [],
+                    stats:            result_hash[:stats] || [],
+                    preview_document: result_hash[:preview_document]
                 }
             )
         end

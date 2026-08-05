@@ -160,3 +160,15 @@
 [26-07-31 16:19:50.328] [I] [100960] [106292] <sdl_extension.cpp:67#Init_d5lite> *************** Initialize **************
 [26-07-31 16:19:50.328] [I] [100960] [106292] <sdl_extension.cpp:93#Init_d5lite> *************** End Initialize **************
 [26-07-31 16:19:50.329] [I] [100960] [106292] <lightening_interface.cpp:143#sdl::LightInterface::start> 
+[26-08-04 10:49:49.232] [I] [186540] [192144] <sdl_extension.cpp:67#Init_d5lite> *************** Initialize **************
+[26-08-04 10:49:49.232] [I] [186540] [192144] <sdl_extension.cpp:93#Init_d5lite> *************** End Initialize **************
+[26-08-04 10:49:49.233] [I] [186540] [192144] <lightening_interface.cpp:143#sdl::LightInterface::start> 
+[26-08-04 14:56:29.908] [I] [170368] [158808] <sdl_extension.cpp:67#Init_d5lite> *************** Initialize **************
+[26-08-04 14:56:29.908] [I] [170368] [158808] <sdl_extension.cpp:93#Init_d5lite> *************** End Initialize **************
+[26-08-04 14:56:29.908] [I] [170368] [158808] <lightening_interface.cpp:143#sdl::LightInterface::start> 
+[26-08-05 08:45:11.589] [I] [295120] [44048] <sdl_extension.cpp:67#Init_d5lite> *************** Initialize **************
+[26-08-05 08:45:11.590] [I] [295120] [44048] <sdl_extension.cpp:93#Init_d5lite> *************** End Initialize **************
+[26-08-05 08:45:11.590] [I] [295120] [44048] <lightening_interface.cpp:143#sdl::LightInterface::start> 
+[26-08-05 10:06:30.335] [I] [294884] [288740] <sdl_extension.cpp:67#Init_d5lite> *************** Initialize **************
+[26-08-05 10:06:30.336] [I] [294884] [288740] <sdl_extension.cpp:93#Init_d5lite> *************** End Initialize **************
+[26-08-05 10:06:30.336] [I] [294884] [288740] <lightening_interface.cpp:143#sdl::LightInterface::start> 

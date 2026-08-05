@@ -26,7 +26,32 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 
 
 # Na Noble3d Modelling Tools — Component Editor Tools
-## Version 0.6.1 - 22-Jun-2026 - TrueVision Valid Flag
+## Version 0.6.1 - 05-Aug-2026 - Export Tab: Multi-View Asset JSON Exporter
+
+### Overview
+New **Export** tab (between Thumbnail and Settings) that generates the unified Na asset JSON for the selected component: three fixed-axis 2D projections (Front / Right / Top), full 3D mesh with per-vertex normals, and the nested object hierarchy. Four live SVG viewports render directly from the generated JSON payload, so the preview is exactly the data that exports. Workflow: Monitor Selection capture, Generate Preview, visual check, Export JSON File (savepanel, remembered directory).
+
+### Update 01 - New Module: 09__ExportTools
+- `Na__ComponentEditorTools__ExportTools__Main__.rb` — capture engine and serializer, namespace `Na__ComponentEditorTools::Na__ExportTools`.
+- Geometry read from the definition entities in definition space; local 0,0,0 from a nested `00__OriginPoint` group (bounding box bottom centre fallback with warning).
+- 2D projection: silhouette + camera-facing hard edge classification, raytest hidden-edge cull (endpoint sampling along the view direction; origin-marker and foreign hits recast past, any other nearer hit occludes, faces and edges alike, since revolved parts share seam planes and seam rays only ever meet edge hits), exact ArcCurve paths, least squares circle refit of tessellated chains (Kasa fit, min 10 points, 0.02mm residual), collinear merge.
+- 3D capture mirrors the Element Assembly Studio unified exporter: `face.mesh(7)` per-vertex normals, real edge records with soft/smooth flags, `Na__Asset__ObjectHierarchy3D` with local/world matrices.
+- Product code = leading digit block of the component name (e.g. `50_1001`), written to `Na__Asset__Metadata__Id` and `Na__Asset__ValeSpec__ProductCode`. Output filename mirrors the component name with the Na double underscore suffix.
+- Column-aligned Na JSON serializer (three-stage style) with inline matrix rows.
+
+### Update 02 - Dialog Wiring
+- `AppCore__Main` — requires the new module.
+- `DialogManager` — callbacks `na_componenteditortools_export_generate_preview` and `na_componenteditortools_export_write_json`; `PushExportPreview` pushes `Na__ComponentEditorTools__ReceiveExportPreview` (preview document has mesh faces stripped, viewports only need vertices and edges; the export writes the full held document).
+
+### Update 03 - UI
+- `UiLayout` — Export tab button, tab panel (capture overlay, action row, four viewport cards, Export Summary and Warnings panels), script include.
+- `Tab__Export__.js` — SVG renderers: 2D paths (lines/arcs/circles/polygons, y negated, CCW arcs drawn with sweep-flag 0, non-scaling strokes, origin crosshair) and fixed isometric 3D wireframe (hard edges solid, soft light, soft skipped above 30k edges). Fresh selection payloads invalidate the held preview and disable the export button.
+- `TabRouter` — `export` registered as an auditing tab; `UiBridge.js` — outgoing calls, receive handlers, render fan-out; `Styles.css` — viewport grid, stroke classes, warning chips, disabled button state.
+
+### Update 04 - Fixed: Arc Winding and Occlusion Stragglers
+Two bugs found auditing the first real export (`50_1001__Finial__Ball__`) against the live SketchUp model, both fixed and re-verified on a second, more complex asset (`50_2001__Finial__Spire__` — 157/159 elevation lines, clean single-circle top plan, 3576 mesh edges).
+- **Arc winding was reversed on screen.** `Tab__Export__.js` negates world Y to draw in SVG's y-down space; that reflection also reverses the direction an arc travels, so a path authored as sweep-flag 1 for a CCW world arc drew backwards after the flip. Fixed to sweep-flag 0.
+- **Occlusion let seam-aligned rays leak through.** The original cull recast past every edge hit on the theory that an edge isn't a face and shouldn't occlude. But on lathe-turned assets every revolved part shares the same segment count, so a ray descending through a shared seam plane meets *only* edge hits all the way down — sphere top, sphere bottom, collar, neck — burns the whole recast budget, and fails open to "visible". Fixed: any nearer hit occludes, edge or face alike; only origin-marker hits and hits outside the selected instance are recast past. Recast budget raised 6 → 16 to keep those legitimate skip-chains resolving. `ExportTools__Main__.rb` `OcclusionCullEdges` / `SamplePointVisible`.
 
 ### Overview
 Added a persistent **TrueVision Valid** boolean flag to every component in the library. The flag is stored in the `Na__ComponentLibrary` attribute dictionary on the `.skp` file — alongside the existing `code`, `gallery_name`, `notes`, `category`, and `type` core keys — and survives the full load → edit → save_as → re-extract round-trip. A toggle checkbox column in the Index table and a white-circle `✓` badge overlaid on thumbnails in both the Gallery and Index provide the visual interface.

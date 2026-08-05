@@ -106,6 +106,11 @@
             window.Na__ComponentEditorTools__ThumbnailTab.Na__ComponentEditorTools__Render(payload);
         }
 
+        if (window.Na__ComponentEditorTools__ExportTab &&
+            typeof window.Na__ComponentEditorTools__ExportTab.Na__ComponentEditorTools__Render === 'function') {
+            window.Na__ComponentEditorTools__ExportTab.Na__ComponentEditorTools__Render(payload);
+        }
+
         if (window.Na__ComponentEditorTools__SettingsTab &&
             typeof window.Na__ComponentEditorTools__SettingsTab.Na__ComponentEditorTools__Render === 'function') {
             window.Na__ComponentEditorTools__SettingsTab.Na__ComponentEditorTools__Render(payload);
@@ -235,6 +240,24 @@
         }
     }
 
+    function Na__ComponentEditorTools__ReceiveExportPreview(preview_payload) {
+        if (!preview_payload || typeof preview_payload !== 'object') return;
+
+        if (window.Na__ComponentEditorTools__ExportTab &&
+            typeof window.Na__ComponentEditorTools__ExportTab.Na__ComponentEditorTools__ReceivePreview === 'function') {
+            window.Na__ComponentEditorTools__ExportTab.Na__ComponentEditorTools__ReceivePreview(preview_payload);
+        }
+    }
+
+    function Na__ComponentEditorTools__ReceiveExportResult(result_payload) {
+        if (!result_payload || typeof result_payload !== 'object') return;
+
+        if (window.Na__ComponentEditorTools__ExportTab &&
+            typeof window.Na__ComponentEditorTools__ExportTab.Na__ComponentEditorTools__ReceiveExportResult === 'function') {
+            window.Na__ComponentEditorTools__ExportTab.Na__ComponentEditorTools__ReceiveExportResult(result_payload);
+        }
+    }
+
     function Na__ComponentEditorTools__ReceiveMonitoringState(monitoring_payload) {
         if (!monitoring_payload || typeof monitoring_payload !== 'object') return;
 
@@ -296,6 +319,16 @@
     function Na__ComponentEditorTools__ReloadPlugin() {
         na_set_status('Reloading plugin...', 'info');
         na_call_ruby('na_componenteditortools_reload_plugin');
+    }
+
+    function Na__ComponentEditorTools__ExportGeneratePreview() {
+        na_set_status('Generating export preview...', 'info');
+        na_call_ruby('na_componenteditortools_export_generate_preview');
+    }
+
+    function Na__ComponentEditorTools__ExportWriteJson() {
+        na_set_status('Exporting asset JSON...', 'info');
+        na_call_ruby('na_componenteditortools_export_write_json');
     }
 
     function Na__ComponentEditorTools__GetUserConfig() {
@@ -457,6 +490,10 @@
     window.Na__ComponentEditorTools__ReceiveStatus           = Na__ComponentEditorTools__ReceiveStatus;
     window.Na__ComponentEditorTools__ReceivePayload          = Na__ComponentEditorTools__ReceivePayload;
     window.Na__ComponentEditorTools__ReceiveMonitoringState  = Na__ComponentEditorTools__ReceiveMonitoringState;
+    window.Na__ComponentEditorTools__ReceiveExportPreview    = Na__ComponentEditorTools__ReceiveExportPreview;
+    window.Na__ComponentEditorTools__ReceiveExportResult     = Na__ComponentEditorTools__ReceiveExportResult;
+    window.Na__ComponentEditorTools__ExportGeneratePreview   = Na__ComponentEditorTools__ExportGeneratePreview;
+    window.Na__ComponentEditorTools__ExportWriteJson         = Na__ComponentEditorTools__ExportWriteJson;
     window.Na__ComponentEditorTools__SetMonitoring           = Na__ComponentEditorTools__SetMonitoring;
     window.Na__ComponentEditorTools__ReceiveUserConfig       = Na__ComponentEditorTools__ReceiveUserConfig;
     window.Na__ComponentEditorTools__ReceiveGallery          = Na__ComponentEditorTools__ReceiveGallery;

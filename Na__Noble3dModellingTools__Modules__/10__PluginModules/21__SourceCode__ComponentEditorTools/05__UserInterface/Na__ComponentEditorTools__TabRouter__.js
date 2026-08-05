@@ -18,7 +18,7 @@
     var Na__ComponentEditorTools__TabRouter = {};
     var na_active_tab = 'gallery';
 
-    var NA_AUDITING_TABS = { overview: true, attributes: true, thumbnail: true, settings: true };
+    var NA_AUDITING_TABS = { overview: true, attributes: true, thumbnail: true, export: true, settings: true };
 
 // endregion -------------------------------------------------------------------
 

@@ -7,16 +7,16 @@
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Interactive 3D tool for defining array paths with preview
 # CREATED    : 2026
-# VERSION    : 0.0.4
+# VERSION    : 0.1.0
 #
 # DESCRIPTION:
 # - Crosshair-based tool for defining multi-segment paths
-# - Click to set start point, Ctrl+Click to add waypoints, Click to finish
+# - Click to add waypoints, Enter / right-click / double-click to finish
 # - Live wireframe preview of array units along the path
 # - Displays count, spacing, and total length info overlay
-# - Supports the 'object' array type by reading the picked definition's
-#   bounding-box dimensions from Na__ArrayBuilder__ObjectRegistry, so the
-#   existing spacing / normalisation maths is fully reused.
+# - Unit dimensions / distribution maths / preview rendering live in
+#   Na__ArrayBuilder__PreviewRenderMixin (shared with the selection
+#   review tool) which delegates to Na__ArrayBuilder__Distribution.
 # - Includes Na__ArrayBuilder__AxisLockMixin: arrow keys lock the next
 #   segment to the X / Y / Z axis or parallel to the previous segment
 #   via SketchUp's native View#lock_inference so projection AND visual
@@ -27,7 +27,8 @@
 
 require 'sketchup.rb'
 require_relative 'Na__ArrayBuilder__ObjectRegistry__'
-require_relative 'Na__ArrayBuilder__InsetDistribution__'
+require_relative 'Na__ArrayBuilder__Distribution__'
+require_relative 'Na__ArrayBuilder__PreviewRenderMixin__'
 require_relative 'Na__ArrayBuilder__AxisLockMixin__'
 
 module Na__ArrayBuilderTools
@@ -39,6 +40,7 @@ module Na__ArrayBuilderTools
     class Na__ArrayBuilder__PathTool
 
         include Na__ArrayBuilder__AxisLockMixin
+        include Na__ArrayBuilder__PreviewRenderMixin
 
         # CONSTANTS
         # ------------------------------------------------------------
@@ -46,11 +48,7 @@ module Na__ArrayBuilderTools
         NA_GRID_SIZE         = 1.mm
         NA_INCH_TO_MM        = 25.4
         NA_PATH_COLOR        = Sketchup::Color.new(255, 165, 0, 200)
-        NA_PREVIEW_COLOR     = Sketchup::Color.new(0, 200, 180, 160)
-        NA_PREVIEW_FILL      = Sketchup::Color.new(0, 200, 180, 40)
         NA_WAYPOINT_COLOR    = Sketchup::Color.new(255, 220, 0)
-        NA_TEXT_COLOR         = Sketchup::Color.new(255, 255, 255)
-        NA_TEXT_BG_COLOR      = Sketchup::Color.new(40, 40, 40, 200)
 
         # Backspace has no VK_* constant in the SketchUp Ruby API; key
         # code 8 is the cross-platform value the Tool callback receives.
@@ -69,19 +67,7 @@ module Na__ArrayBuilderTools
             @waypoints = []
             @state = :picking_start
 
-            @array_type   = config['type'] || 'dentil'
-            @anchor_mode  = config['anchor_mode'] || 'local_axis'
-            @keep_upright = config['keep_upright'] == true                         # <-- Locks unit +Z to world +Z when true
-            @spacing      = (config['spacing_mm'] || 115).to_f.mm
-
-            # Distribution mode: 'fixed' (default) | 'normalise' | 'inset'.
-            # Falls back to the legacy `normalise_distance` boolean so
-            # any in-flight cached config stays compatible.
-            @distribution = config['distribution']
-            @distribution ||= (config['normalise_distance'] ? 'normalise' : 'fixed')
-            @inset        = (config['inset_mm'] || 200).to_f.mm
-
-            na_resolve_unit_dimensions(config)
+            na_init_unit_config_state(config)
             na_reset_preview_cache
         end
         # ---------------------------------------------------------------
@@ -97,31 +83,6 @@ module Na__ArrayBuilderTools
             @na_cache_total_mm    = nil
             @na_cache_actual_mm   = nil
             @na_last_status_text  = nil
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Resolve Unit Dimensions for Current Array Type
-        # ------------------------------------------------------------
-        # In 'object' mode the per-step unit width and the preview-box
-        # dimensions are derived from the picked definition's bounding
-        # box. For dentil / dogtooth they come straight from the dialog
-        # config. Falls back to the dialog-provided values if no object
-        # has been picked yet (validation in DialogManager prevents this
-        # in practice).
-        def na_resolve_unit_dimensions(config)
-            if @array_type == 'object'
-                bounds = Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetBoundsMm
-                if bounds
-                    @unit_width  = bounds[:unit_width_mm].to_f.mm
-                    @unit_depth  = bounds[:unit_depth_mm].to_f.mm
-                    @unit_height = bounds[:unit_height_mm].to_f.mm
-                    return
-                end
-            end
-
-            @unit_width  = (config['unit_width_mm']  || 110).to_f.mm
-            @unit_depth  = (config['unit_depth_mm']   || 30).to_f.mm
-            @unit_height = (config['unit_height_mm']  || 75).to_f.mm
         end
         # ---------------------------------------------------------------
 
@@ -284,7 +245,7 @@ module Na__ArrayBuilderTools
                 preview_path = @na_cache_path      || (@waypoints + [@cursor_pos])
 
                 na_draw_preview_units(view, positions)
-                na_draw_info_text(view, positions, preview_path)
+                na_draw_array_info_text(view, positions, preview_path, @cursor_pos)
 
                 @dialog_manager.na_send_preview_info(
                     positions.length,
@@ -376,403 +337,6 @@ module Na__ArrayBuilderTools
                     wp.offset(Z_AXIS, marker_size)
                 )
             end
-        end
-        # ---------------------------------------------------------------
-
-        # endregion =====================================================
-
-        # =============================================================
-        # REGION | Preview Calculation (Router)
-        # =============================================================
-
-        # FUNCTION | Calculate Preview Unit Positions Along Path
-        # ------------------------------------------------------------
-        # Delegates to fixed-step, normalised, or fixed-inset algorithm
-        # based on the `distribution` config string. Fixed-inset is
-        # implemented in Na__ArrayBuilder__InsetDistribution to keep the
-        # path tool focused on tool-lifecycle concerns.
-        def na_calculate_preview_positions(path_points)
-            case @distribution
-            when 'inset'
-                Na__ArrayBuilder__InsetDistribution
-                    .Na__InsetDistribution__CalculatePositions(
-                        path_points, @unit_width, @spacing, @inset
-                    )
-            when 'normalise'
-                na_calculate_normalised_positions(path_points)
-            else
-                na_calculate_fixed_positions(path_points)
-            end
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Calculate Total Path Length in mm
-        # ------------------------------------------------------------
-        def na_path_length_mm(path_points)
-            total = 0.0
-            (0...path_points.length - 1).each do |i|
-                total += path_points[i].distance(path_points[i + 1])
-            end
-            total * NA_INCH_TO_MM
-        end
-        # ---------------------------------------------------------------
-
-        # endregion =====================================================
-
-        # =============================================================
-        # REGION | Fixed Distance Calculation
-        # =============================================================
-
-        # FUNCTION | Calculate Positions with Fixed Step
-        # ------------------------------------------------------------
-        # Original algorithm: walks the entire path with a constant
-        # step of (unit_width + spacing). Units may not land at
-        # segment endpoints.
-        def na_calculate_fixed_positions(path_points)
-            return [] if path_points.length < 2
-
-            step = @unit_width + @spacing
-            return [] if step <= 0
-
-            positions = []
-            remaining = 0.0
-            first_unit = true
-
-            (0...path_points.length - 1).each do |i|
-                seg_start = path_points[i]
-                seg_end   = path_points[i + 1]
-                seg_vec   = seg_end - seg_start
-                seg_len   = seg_vec.length
-                next if seg_len < 0.001
-
-                direction = seg_vec.clone
-                direction.length = 1.0
-
-                cursor = remaining
-
-                if first_unit && cursor <= 0
-                    positions << { point: seg_start, direction: direction }
-                    first_unit = false
-                    cursor = step
-                end
-
-                while cursor <= seg_len
-                    pt = seg_start.offset(direction, cursor)
-                    positions << { point: pt, direction: direction }
-                    cursor += step
-                end
-
-                remaining = cursor - seg_len
-            end
-
-            positions
-        end
-        # ---------------------------------------------------------------
-
-        # endregion =====================================================
-
-        # =============================================================
-        # REGION | Normalised Distance Calculation
-        # =============================================================
-
-        # FUNCTION | Calculate Positions with Normalised Per-Segment Spacing
-        # ------------------------------------------------------------
-        # For each segment independently:
-        # 1. Places a unit at the segment start and end.
-        # 2. Calculates how many units fit between, adjusting spacing
-        #    to be as close to the target as possible.
-        # 3. Every segment gets a brick at both endpoints. At corners
-        #    this means two bricks meet at the waypoint, each oriented
-        #    along its own segment direction -- matching real brickwork.
-        #
-        # Result: every wall corner gets a unit, with even distribution
-        # between them.
-        def na_calculate_normalised_positions(path_points)
-            return [] if path_points.length < 2
-
-            target_step = @unit_width + @spacing
-            return [] if target_step <= 0
-
-            positions = []
-
-            (0...path_points.length - 1).each do |seg_idx|
-                seg_start = path_points[seg_idx]
-                seg_end   = path_points[seg_idx + 1]
-                seg_vec   = seg_end - seg_start
-                seg_len   = seg_vec.length
-                next if seg_len < 0.001
-
-                direction = seg_vec.clone
-                direction.length = 1.0
-
-                span = seg_len - @unit_width
-
-                if span <= 0
-                    positions << { point: seg_start, direction: direction }
-                    next
-                end
-
-                n_gaps = [1, (span / target_step).round].max
-                actual_step = span.to_f / n_gaps
-                n_bricks = n_gaps + 1
-
-                (0...n_bricks).each do |i|
-                    pt = seg_start.offset(direction, i * actual_step)
-                    positions << { point: pt, direction: direction }
-                end
-            end
-
-            positions
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Calculate Average Actual Spacing in mm (Distribution-Aware)
-        # ------------------------------------------------------------
-        # Returns the average gap-between-faces in millimetres for the
-        # active distribution mode, or nil when not applicable (fixed
-        # step uses the user-entered spacing verbatim).
-        def na_calculate_actual_spacing_mm(path_points)
-            case @distribution
-            when 'inset'
-                Na__ArrayBuilder__InsetDistribution
-                    .Na__InsetDistribution__CalculateActualSpacingMm(
-                        path_points, @unit_width, @spacing, @inset
-                    )
-            when 'normalise'
-                na_calculate_normalised_actual_spacing_mm(path_points)
-            else
-                nil
-            end
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Average Spacing for Normalised Mode
-        # ------------------------------------------------------------
-        # Extracted from the previous na_calculate_actual_spacing_mm so
-        # the public router stays a thin dispatch.
-        def na_calculate_normalised_actual_spacing_mm(path_points)
-            return nil if path_points.length < 2
-
-            target_step = @unit_width + @spacing
-            return nil if target_step <= 0
-
-            total_spacing = 0.0
-            segment_count = 0
-
-            (0...path_points.length - 1).each do |seg_idx|
-                seg_len = path_points[seg_idx].distance(path_points[seg_idx + 1])
-                next if seg_len < 0.001
-
-                span = seg_len - @unit_width
-                next if span <= 0
-
-                n_gaps = [1, (span / target_step).round].max
-                actual_step = span.to_f / n_gaps
-                actual_spacing = actual_step - @unit_width
-
-                total_spacing += actual_spacing
-                segment_count += 1
-            end
-
-            return nil if segment_count == 0
-            avg_spacing_inches = total_spacing / segment_count
-            (avg_spacing_inches * NA_INCH_TO_MM).round
-        end
-        # ---------------------------------------------------------------
-
-        # endregion =====================================================
-
-        # =============================================================
-        # REGION | Preview Unit Drawing
-        # =============================================================
-
-        # FUNCTION | Draw All Preview Units (Batched)
-        # ------------------------------------------------------------
-        # Collects every preview-unit wireframe segment into one flat
-        # array, then issues a single view.draw(GL_LINES, ...) call.
-        # Replaces the previous per-unit 12-call pattern, so N units =
-        # 1 GL call instead of 12*N. Big win for long paths.
-        def na_draw_preview_units(view, positions)
-            return if positions.empty?
-
-            segments = []
-            positions.each do |pos|
-                na_collect_preview_unit_segments(pos[:point], pos[:direction], segments)
-            end
-
-            return if segments.empty?
-
-            view.line_width    = 1
-            view.drawing_color = NA_PREVIEW_COLOR
-            view.draw(GL_LINES, segments)
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Collect Wireframe Segments for One Preview Unit
-        # ------------------------------------------------------------
-        # Computes the 8 oriented corners of one preview box and pushes
-        # 24 points (12 line segments) onto the shared segments array.
-        # No drawing is performed here; the single batched draw call
-        # happens in na_draw_preview_units.
-        def na_collect_preview_unit_segments(origin, direction, segments)
-            w = @unit_width
-            d = @unit_depth
-            h = @unit_height
-
-            if @keep_upright
-                forward   = na_horizontal_forward_for_preview(direction)
-                lateral   = forward.cross(Z_AXIS)
-                lateral.length = 1.0 if lateral.length > 0
-                actual_up = Z_AXIS.clone                                           # <-- Preview must mirror placement: locked to world +Z
-            else
-                forward = direction.clone
-                forward.length = 1.0 if forward.length > 0
-
-                up = Z_AXIS.clone
-
-                lateral = forward.cross(up)
-                if lateral.length < 0.001
-                    lateral = Y_AXIS.clone
-                else
-                    lateral.length = 1.0
-                end
-
-                actual_up = lateral.cross(forward)
-                actual_up.length = 1.0 if actual_up.length > 0
-            end
-
-            if @array_type == 'dogtooth'
-                rot = Geom::Transformation.rotation(origin, forward, 45.degrees)
-                lateral   = lateral.transform(rot)
-                actual_up = actual_up.transform(rot)
-            end
-
-            preview_origin = na_apply_preview_anchor_offset(
-                origin, forward, actual_up, w, h
-            )
-
-            half_d  = d * 0.5
-            corners = na_compute_box_corners(preview_origin, forward, lateral, actual_up, w, half_d, h)
-            na_collect_wireframe_box_segments(corners, segments)
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Append the 12 Edges of an Oriented Box to a Segments Array
-        # ------------------------------------------------------------
-        # Each segment is two consecutive points. SketchUp's GL_LINES
-        # treats every pair of points as one segment.
-        def na_collect_wireframe_box_segments(c, segments)
-            # Bottom face
-            segments << c[0] << c[1]
-            segments << c[1] << c[2]
-            segments << c[2] << c[3]
-            segments << c[3] << c[0]
-
-            # Top face
-            segments << c[4] << c[5]
-            segments << c[5] << c[6]
-            segments << c[6] << c[7]
-            segments << c[7] << c[4]
-
-            # Verticals
-            segments << c[0] << c[4]
-            segments << c[1] << c[5]
-            segments << c[2] << c[6]
-            segments << c[3] << c[7]
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Apply Anchor-Mode Offset to Preview Box Origin
-        # ------------------------------------------------------------
-        # In 'centre' mode the bbox should be centred on the path point,
-        # so we shift the box origin back by -width/2 along forward and
-        # -height/2 along up. Lateral is already centred via half_d.
-        # All other modes leave the origin untouched.
-        def na_apply_preview_anchor_offset(origin, forward, up, width, height)
-            return origin unless @array_type == 'object' && @anchor_mode == 'centre'
-
-            origin
-                .offset(forward, -width * 0.5)
-                .offset(up,      -height * 0.5)
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Horizontally-Projected Forward For Keep-Upright Preview
-        # ------------------------------------------------------------
-        # Mirrors GeometryBuilder.na_horizontal_forward_or_default so the
-        # live wireframe preview matches the placed geometry exactly.
-        # Falls back to X_AXIS when the segment is (near-)vertical and
-        # projection would collapse to zero length.
-        def na_horizontal_forward_for_preview(direction)
-            return X_AXIS.clone if direction.nil?
-
-            horiz = Geom::Vector3d.new(direction.x, direction.y, 0.0)
-            return X_AXIS.clone if horiz.length < 0.001
-
-            horiz.length = 1.0
-            horiz
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Compute 8 Corners of an Oriented Box
-        # ------------------------------------------------------------
-        def na_compute_box_corners(origin, fwd, lat, up, width, half_depth, height)
-            p0 = origin
-            p1 = p0.offset(fwd, width)
-            p2 = p0.offset(lat, half_depth)
-            p3 = p0.offset(lat, -half_depth)
-
-            [
-                p0.offset(lat, -half_depth),
-                p1.offset(lat, -half_depth),
-                p1.offset(lat, half_depth),
-                p0.offset(lat, half_depth),
-                p0.offset(lat, -half_depth).offset(up, height),
-                p1.offset(lat, -half_depth).offset(up, height),
-                p1.offset(lat, half_depth).offset(up, height),
-                p0.offset(lat, half_depth).offset(up, height)
-            ]
-        end
-        # ---------------------------------------------------------------
-
-        # endregion =====================================================
-
-        # =============================================================
-        # REGION | Info Text Overlay
-        # =============================================================
-
-        # FUNCTION | Draw Info Text at Cursor
-        # ------------------------------------------------------------
-        def na_draw_info_text(view, positions, path_points)
-            total_mm          = na_path_length_mm(path_points)
-            count             = positions.length
-            target_spacing_mm = (@spacing * NA_INCH_TO_MM).round
-            inset_mm          = (@inset   * NA_INCH_TO_MM).round
-            actual_mm         = na_calculate_actual_spacing_mm(path_points)
-
-            label =
-                case @distribution
-                when 'inset'
-                    if actual_mm
-                        "#{count} units | Inset: #{inset_mm}mm | Actual: #{actual_mm}mm (target: #{target_spacing_mm}mm) | Length: #{total_mm.round}mm"
-                    else
-                        "#{count} units | Inset: #{inset_mm}mm | Length: #{total_mm.round}mm"
-                    end
-                when 'normalise'
-                    if actual_mm
-                        "#{count} units | Actual: #{actual_mm}mm (target: #{target_spacing_mm}mm) | Length: #{total_mm.round}mm"
-                    else
-                        "#{count} units | Normalised | Length: #{total_mm.round}mm"
-                    end
-                else
-                    "#{count} units | Spacing: #{target_spacing_mm}mm | Length: #{total_mm.round}mm"
-                end
-
-            screen_pt = view.screen_coords(@cursor_pos)
-            text_point = Geom::Point3d.new(screen_pt.x + 20, screen_pt.y - 30, 0)
-
-            view.drawing_color = NA_TEXT_COLOR
-            view.draw_text(text_point, label)
         end
         # ---------------------------------------------------------------
 

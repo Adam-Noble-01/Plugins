@@ -4,7 +4,7 @@
 //
 // FILE       : Na__ArrayBuilder__UiBridge__.js
 // AUTHOR     : Noble Architecture
-// VERSION    : 0.0.3
+// VERSION    : 0.1.0
 // PURPOSE    : Handles UI interactions and Ruby communication
 //
 // =============================================================================
@@ -39,11 +39,18 @@ var na_currentType         = 'dentil';
 var na_currentAnchor       = 'local_axis';
 var na_currentDistribution = 'fixed';
 var na_currentKeepUpright  = false;                                              // <-- Off by default; locks unit +Z to world +Z when true
+var na_currentPathSource   = 'draw';                                             // <-- 'draw' (click waypoints) | 'selection' (use selected edges)
+var na_currentReversePath  = false;                                              // <-- Flips the selection path direction
 
 var NA_DIST_HINTS = {
     'fixed':     'Fixed step: walks the path with constant unit + spacing.',
     'normalise': 'Normalised: per-segment spacing is adjusted so units land at both ends of each wall.',
     'inset':     'Fixed inset: first and last units sit at the inset distance from each segment endpoint; intermediates are evenly spaced.'
+};
+
+var NA_PATH_SOURCE_HINTS = {
+    'draw':      'Draw the array path by clicking waypoints in the viewport.',
+    'selection': 'Uses the currently selected edges / curve as the path. A preview appears first - toggle Reverse (or press R) if the run starts from the wrong end, then Enter / click to build.'
 };
 
 // endregion ===================================================================
@@ -144,6 +151,49 @@ function na_setOrientation(mode) {
 // endregion ===================================================================
 
 // =============================================================================
+// REGION | Path Source Selection (Draw / Use Selection) + Reverse
+// =============================================================================
+
+function na_setPathSource(source) {
+    na_currentPathSource = source;
+
+    var btnDraw      = document.getElementById('na-btn-path-draw');
+    var btnSelection = document.getElementById('na-btn-path-selection');
+
+    if (btnDraw)      btnDraw.classList.toggle('na-active',      source === 'draw');
+    if (btnSelection) btnSelection.classList.toggle('na-active', source === 'selection');
+
+    var reverseRow = document.getElementById('na-reverse-row');
+    if (reverseRow) reverseRow.style.display = source === 'selection' ? 'flex' : 'none';
+
+    var hint = document.getElementById('na-path-source-hint');
+    if (hint) hint.textContent = NA_PATH_SOURCE_HINTS[source] || '';
+
+    var startBtn = document.getElementById('na-btn-start');
+    if (startBtn) startBtn.textContent = source === 'selection' ? 'Preview From Selection' : 'Start Placement';
+}
+
+function na_toggleReversePath() {
+    na_currentReversePath = !na_currentReversePath;
+    na_updateReverseButton();
+
+    // Live-update an active selection preview; harmless no-op otherwise.
+    if (typeof sketchup !== 'undefined') {
+        sketchup.na_reversePath(na_currentReversePath);
+    }
+}
+
+function na_updateReverseButton() {
+    var btn = document.getElementById('na-btn-reverse-path');
+    if (!btn) return;
+
+    btn.classList.toggle('na-active', na_currentReversePath);
+    btn.textContent = na_currentReversePath ? 'Reverse: On' : 'Reverse: Off';
+}
+
+// endregion ===================================================================
+
+// =============================================================================
 // REGION | Distribution Mode Selection (Fixed / Normalise / Inset)
 // =============================================================================
 
@@ -204,7 +254,9 @@ function na_buildBoxConfig() {
         spacing_mm:     parseFloat(document.getElementById('na-spacing').value)     || 0,
         distribution:   na_currentDistribution,
         inset_mm:       na_readInsetMm(),
-        keep_upright:   na_currentKeepUpright
+        keep_upright:   na_currentKeepUpright,
+        path_source:    na_currentPathSource,
+        reverse_path:   na_currentReversePath
     };
 }
 
@@ -219,7 +271,9 @@ function na_buildObjectConfig() {
         spacing_mm:   parseFloat(document.getElementById('na-object-spacing').value) || 0,
         distribution: na_currentDistribution,
         inset_mm:     na_readInsetMm(),
-        keep_upright: na_currentKeepUpright
+        keep_upright: na_currentKeepUpright,
+        path_source:  na_currentPathSource,
+        reverse_path: na_currentReversePath
     };
 }
 
@@ -278,6 +332,11 @@ window.na_objectPicked = function(name, wMm, dMm, hMm) {
     if (dEl)    dEl.textContent    = dMm + ' mm';
     if (hEl)    hEl.textContent    = hMm + ' mm';
     if (info)   info.classList.add('na-object-info-active');
+};
+
+window.na_setReverseState = function(state) {
+    na_currentReversePath = state === true;
+    na_updateReverseButton();
 };
 
 window.na_objectCleared = function() {

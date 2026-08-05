@@ -170,6 +170,21 @@ module Na__ArrayBuilderTools
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Extract Per-Axis Scale From the Picked Instance
+        # ------------------------------------------------------------
+        # Axis lengths of the instance transformation give the scale
+        # magnitudes regardless of the instance's rotation. Mirroring
+        # and shear are intentionally not reproduced.
+        def Na__ObjectPicker__ExtractInstanceScale(entity)
+            return [1.0, 1.0, 1.0] unless entity.respond_to?(:transformation)
+
+            t = entity.transformation
+            [t.xaxis.length.to_f, t.yaxis.length.to_f, t.zaxis.length.to_f]
+        rescue
+            [1.0, 1.0, 1.0]
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Resolve a Human-Readable Display Name for the Entity
         # ------------------------------------------------------------
         # Prefers the instance name, falls back to the definition name,
@@ -194,6 +209,8 @@ module Na__ArrayBuilderTools
 
         # FUNCTION | Store Picked Entity and Notify Dialog
         # ------------------------------------------------------------
+        # Captures the picked instance's per-axis scale alongside the
+        # definition so the arrayed copies match the size the user saw.
         def Na__ObjectPicker__StoreAndReport(entity)
             component_def = Na__ObjectPicker__ResolveDefinition(entity)
 
@@ -206,9 +223,10 @@ module Na__ArrayBuilderTools
             end
 
             display_name = Na__ObjectPicker__ResolveDisplayName(entity, component_def)
+            scale        = Na__ObjectPicker__ExtractInstanceScale(entity)
 
             Na__ArrayBuilder__ObjectRegistry.Na__Registry__SetDefinition(
-                component_def, display_name
+                component_def, display_name, scale
             )
 
             bounds = Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetBoundsMm

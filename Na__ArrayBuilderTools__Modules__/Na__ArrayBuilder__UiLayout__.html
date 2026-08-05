@@ -105,6 +105,27 @@
         </div>
     </div>
 
+    <!-- PATH SOURCE -->
+    <div class="na-section">
+        <label class="na-section-label">Path Source</label>
+        <div class="na-type-selector">
+            <button id="na-btn-path-draw" class="na-type-btn na-active" onclick="na_setPathSource('draw')">
+                Draw Path
+            </button>
+            <button id="na-btn-path-selection" class="na-type-btn" onclick="na_setPathSource('selection')">
+                Use Selection
+            </button>
+        </div>
+        <div class="na-type-selector" id="na-reverse-row" style="display:none; margin-top:8px;">
+            <button id="na-btn-reverse-path" class="na-type-btn" onclick="na_toggleReversePath()">
+                Reverse: Off
+            </button>
+        </div>
+        <div class="na-toggle-hint" id="na-path-source-hint">
+            Draw the array path by clicking waypoints in the viewport.
+        </div>
+    </div>
+
     <!-- ORIENTATION -->
     <div class="na-section">
         <label class="na-section-label">Orientation</label>
