@@ -592,7 +592,21 @@
             "Na__Door__Closed",
             "Na__DoorPanel",
             "Na__DoorHandle",
-            "Na__Architrave"
+            "Na__Architrave",
+            "05__SetOut__Datum__Upstand",
+            "05__SetOut__Datum__Frame",
+            "05__SetOut__Datum__Eaves",
+            "05__SetOut__Datum__Ridge",
+            "05__SetOut__Datum__Deck",
+            "05__SetOut__Datum__Glazing",
+            "05__SetOut__Construction__Roof",
+            "05__SetOut__Construction__HipEnd",
+            "05__SetOut__Construction__Hip",
+            "05__SetOut__Centreline__Ridge",
+            "05__SetOut__Centreline__Hip",
+            "05__SetOut__Centreline__Eaves",
+            "05__SetOut__Centreline__GlazeBar",
+            "05__SetOut__Centreline__Transom"
         ],
         "AdvancedSwapOffNote"      : "Edges already assigned to one of these tags are not reassigned during Advanced mode tag application in the Edge Paint plugin. Both canonical and legacy names are listed for backward compatibility with existing models.",
         "TreatAsUntaggedTagNames"  : [
