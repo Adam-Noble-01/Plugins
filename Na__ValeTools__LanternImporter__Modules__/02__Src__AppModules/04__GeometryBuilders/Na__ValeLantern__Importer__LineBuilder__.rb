@@ -64,10 +64,12 @@ module Na__ValeLantern
 # REGION | Module References and Constants
 # -----------------------------------------------------------------------------
 
-            DebugTools    = Na__ValeLantern::Na__Importer::Na__DebugTools
-            Units         = Na__ValeLantern::Na__Importer::Na__Units
-            TagManager    = Na__ValeLantern::Na__Importer::Na__TagManager
-            DataLibBridge = Na__ValeLantern::Na__Importer::Na__DataLibBridge
+            DebugTools         = Na__ValeLantern::Na__Importer::Na__DebugTools
+            Units              = Na__ValeLantern::Na__Importer::Na__Units
+            TagManager         = Na__ValeLantern::Na__Importer::Na__TagManager
+            DataLibBridge      = Na__ValeLantern::Na__Importer::Na__DataLibBridge
+            ConfigLoader       = Na__ValeLantern::Na__Importer::Na__ConfigLoader
+            DefinitionRegistry = Na__ValeLantern::Na__Importer::Na__DefinitionRegistry
 
             NA_ATTRIBUTE_DICTIONARY = 'VghLantern'.freeze
             NA_MIN_POLYLINE_POINTS  = 2
@@ -79,11 +81,17 @@ module Na__ValeLantern
 # REGION | Linework Construction — Public API
 # -----------------------------------------------------------------------------
 
-            # FUNCTION | Build one linework part into a named group
+            # FUNCTION | Build one linework part into a named container
             # ------------------------------------------------------------
-            # @param parent_entities [Sketchup::Entities] Where the group is created
+            # A group by default, or a component when Containers.LineworkAsComponent
+            # is on. Either way the edges are built in WORLD coordinates at an
+            # identity transform: a datum has no section to derive a frame from and
+            # nothing in a setting out set repeats, so there is no definition to
+            # share and nothing to gain from a local frame.
+            #
+            # @param parent_entities [Sketchup::Entities] Where the container is created
             # @param part [Hash] One payload part record of Kind 'linework'
-            # @return [Sketchup::Group, nil] The finished group, or nil on refusal
+            # @return [Sketchup::Group, Sketchup::ComponentInstance, nil]
             def self.na_build_linework(parent_entities, part)
                 part_name = part['Name'].to_s
                 polylines = part['Polylines']
@@ -93,9 +101,11 @@ module Na__ValeLantern
                     return nil
                 end
 
-                group      = parent_entities.add_group
-                group.name = part_name
-                entities   = group.entities
+                container, entities, definition = na_open_container(parent_entities, part_name)
+                if container.nil?
+                    DebugTools.na_record_failure(part_name, 'no container could be created')
+                    return nil
+                end
 
                 edge_count = 0
                 polylines.each do |polyline|
@@ -104,24 +114,75 @@ module Na__ValeLantern
 
                 if edge_count.zero?
                     DebugTools.na_record_failure(part_name, 'every polyline was degenerate')
-                    group.erase! if group.valid?
+                    na_discard_container(container, definition)
                     return nil
                 end
 
-                TagManager.na_apply_tag(group, part['TagKey'])
+                TagManager.na_apply_tag(container, part['TagKey'])
                 na_paint_edges(entities, part['StyleKey'])
-                na_stamp_attributes(group, part['Attributes'])
+                na_stamp_attributes(container, part['Attributes'])
 
                 DebugTools.na_detail("Built linework '#{part_name}' (#{edge_count} edges)")
                 DebugTools.na_count('Linework groups')
-                group
+                container
 
             rescue StandardError => e
                 DebugTools.na_record_failure(part['Name'].to_s, "#{e.class}: #{e.message}")
-                group.erase! if defined?(group) && group && group.valid?
+                na_discard_container(container, definition) if defined?(container)
                 nil
             end
             # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Internal — Container Creation
+# -----------------------------------------------------------------------------
+
+            # HELPER FUNCTION | Open a group or a component to build the edges into
+            # ------------------------------------------------------------
+            # @return [Array] [container, entities, definition_or_nil]
+            def self.na_open_container(parent_entities, part_name)
+                unless ConfigLoader.na_linework_is_component?
+                    group      = parent_entities.add_group
+                    group.name = part_name
+                    return [group, group.entities, nil]
+                end
+
+                model = Sketchup.active_model
+                return [nil, nil, nil] unless model
+
+                definition = DefinitionRegistry.na_create_container_definition(model, part_name)
+                return [nil, nil, nil] if definition.nil?
+
+                instance = parent_entities.add_instance(definition, Geom::Transformation.new)
+                if instance.nil?
+                    DefinitionRegistry.na_discard_definition(model, definition)
+                    return [nil, nil, nil]
+                end
+
+                instance.name = part_name
+                [instance, definition.entities, definition]
+
+            rescue StandardError => e
+                DebugTools.na_detail("Linework container refused: #{e.message}")
+                [nil, nil, nil]
+            end
+            private_class_method :na_open_container
+
+            # HELPER FUNCTION | Remove a container that produced nothing
+            # ------------------------------------------------------------
+            # A component's definition has to go as well as its instance, or an
+            # empty entry is left in the Component browser forever.
+            def self.na_discard_container(container, definition)
+                container.erase! if container && container.valid?
+                return if definition.nil?
+
+                DefinitionRegistry.na_discard_definition(Sketchup.active_model, definition)
+            rescue StandardError => e
+                DebugTools.na_detail("Container could not be removed: #{e.message}")
+            end
+            private_class_method :na_discard_container
 
 # endregion -------------------------------------------------------------------
 

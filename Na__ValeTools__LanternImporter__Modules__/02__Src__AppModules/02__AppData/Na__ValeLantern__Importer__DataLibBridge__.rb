@@ -75,9 +75,15 @@ module Na__ValeLantern
             NA_LIBRARY_ROOT_KEY   = 'Na__DataLib__CoreIndex__ConstructionLinework'.freeze
             NA_SERIES_KEY         = 'MTE300__ConstructionLineSeries__'.freeze
 
+            NA_MATERIALS_FILE_KEY = :materials
+            NA_MATERIALS_ROOT_KEY = 'Na__DataLib__CoreIndex__Materials'.freeze
+
             @na_by_style_key      = nil                                                             # <-- SourceStyleKey => standard entry
             @na_load_attempted    = false
             @na_materials_by_key  = {}                                                              # <-- SourceStyleKey => Sketchup::Material
+
+            @na_ssot_materials    = nil                                                             # <-- Material id => materials index entry
+            @na_materials_loaded  = false
 
 # endregion -------------------------------------------------------------------
 
@@ -154,6 +160,79 @@ module Na__ValeLantern
                 @na_by_style_key     = nil
                 @na_load_attempted   = false
                 @na_materials_by_key = {}
+                @na_ssot_materials   = nil
+                @na_materials_loaded = false
+            end
+            # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Surface Materials Index — Public API
+# -----------------------------------------------------------------------------
+
+            # FUNCTION | Load the Noble Architecture surface materials index
+            # ------------------------------------------------------------
+            # A SEPARATE DataLib file from the edge materials, and separate for a
+            # reason: this one governs what a surface IS, and it is what decides
+            # whether a pane of glass survives the trip out to ValeVision3D.
+            #
+            # Na__TrueVision__GlbBuilder enriches a material only when its name
+            # matches /^MAT\d{3}__/ AND appears in this index. A material named
+            # anything else reaches the GLB with no alphaMode, no opacity and no
+            # double-sided flag - which is a roof full of glass rendering as
+            # opaque white beside conservatory glazing that renders correctly.
+            #
+            # @return [Hash] { material id => index entry }
+            def self.na_load_ssot_materials
+                return @na_ssot_materials if @na_materials_loaded
+                @na_materials_loaded = true
+                @na_ssot_materials   = {}
+
+                return @na_ssot_materials unless defined?(Na__DataLib__CacheData)
+
+                data = na_fetch_materials
+                root = data.is_a?(Hash) ? data[NA_MATERIALS_ROOT_KEY] : nil
+                unless root.is_a?(Hash)
+                    DebugTools.na_warn('DataLib surface materials index unavailable - lantern materials will keep their VGH names.')
+                    return @na_ssot_materials
+                end
+
+                root.each_value do |series|
+                    next unless series.is_a?(Hash)
+
+                    series.each do |entry_id, entry|
+                        next unless entry.is_a?(Hash)
+                        next unless entry['SketchUpName'].is_a?(String)
+                        @na_ssot_materials[entry_id.to_s] = entry
+                    end
+                end
+
+                DebugTools.na_info("Surface materials index loaded: #{@na_ssot_materials.length} materials")
+                @na_ssot_materials
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | The surface materials index entry for one material id
+            # ------------------------------------------------------------
+            def self.na_ssot_material_for(material_id)
+                na_load_ssot_materials unless @na_materials_loaded
+                return nil if material_id.nil? || material_id.to_s.empty?
+                @na_ssot_materials[material_id.to_s]
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Parse an index BaseColor string into an RGB triple
+            # ------------------------------------------------------------
+            # The index stores colour as "rgb(230, 240, 255)", matching what
+            # Na__TrueVision__GlbBuilder's own parser reads.
+            def self.na_parse_base_color(base_color)
+                return nil unless base_color.is_a?(String)
+
+                match = base_color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/)
+                return nil unless match
+
+                [match[1].to_i, match[2].to_i, match[3].to_i]
             end
             # ---------------------------------------------------------------
 
@@ -238,6 +317,16 @@ module Na__ValeLantern
                 nil
             end
             private_class_method :na_fetch_edge_materials
+
+            # HELPER FUNCTION | Ask DataLib for the surface materials file
+            # ------------------------------------------------------------
+            def self.na_fetch_materials
+                Na__DataLib__CacheData.Na__Cache__LoadData(NA_MATERIALS_FILE_KEY)
+            rescue StandardError => e
+                DebugTools.na_warn("DataLib load failed for :#{NA_MATERIALS_FILE_KEY} - #{e.message}")
+                nil
+            end
+            private_class_method :na_fetch_materials
 
             # HELPER FUNCTION | Where the standard was read from, for the report
             # ------------------------------------------------------------

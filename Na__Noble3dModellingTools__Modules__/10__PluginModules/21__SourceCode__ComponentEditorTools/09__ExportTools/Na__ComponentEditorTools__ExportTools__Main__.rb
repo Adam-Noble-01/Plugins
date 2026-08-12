@@ -23,17 +23,54 @@
 #     * Top Plan        : view direction -Z | screen X=+X, screen Y=+Y
 # - Edge keep rules: silhouette edges always; hard or border edges while any
 #   adjacent face is camera facing; loose edges always.
-# - Hidden-edge cull: both endpoints of every kept edge are raytest-sampled
-#   along the view direction against the selected instance in the model, so
-#   detail buried behind faces (lathe rings under a ball, back corners) drops
-#   out and each view matches what SketchUp displays. Sampling is per
-#   endpoint, not per span, so partially hidden edges export whole.
+# - Hidden-edge cull: every kept edge is raytest-sampled along the view
+#   direction against the selected instance in the model, so detail buried
+#   behind faces (lathe rings under a ball, back corners) drops out and each
+#   view matches what SketchUp displays. Samples are taken at 25/50/75% along
+#   the edge rather than at its endpoints: a revolve's seam vertices sit
+#   exactly on the plane where its faces meet, where raytest is unreliable and
+#   buried rings leaked through as stragglers. Interior samples sit clear of
+#   that plane, and a partially buried edge still exports whole because one
+#   interior sample reaching the camera keeps it.
 # - Circle recovery: chains of tessellated segments that lie on a common
 #   circle (lathe rings, exploded circles) are refitted and exported as true
-#   Circle / Arc paths instead of chord runs.
+#   Circle / Arc paths instead of chord runs. Faceted shapes are excluded -
+#   octagons, hexagons and coarse "circles" are all ArcCurves whose vertices
+#   lie on the circumcircle, so both the arc path and the chain refit would
+#   otherwise round them off. The test is tessellation density normalised to a
+#   full turn (NA_ARC_MIN_SEGMENTS_PER_TURN), not Curve#is_polygon?, which only
+#   records how a curve was created and reports false for an 8-sided circle.
 # - 3D capture mirrors the Element Assembly Studio unified exporter: per-vertex
 #   normals via face.mesh(7), real edge records with soft/smooth flags, and a
 #   full object hierarchy block with local and world matrices.
+#
+# EDGE STYLE CAPTURE (schema 1.2.0)
+# - Every exported edge carries the authored SketchUp style so downstream
+#   consumers never have to guess with an angle-based softening filter:
+#     Na__Edge__IsSoft      edge not drawn AND adjacent faces merge into a
+#                           Surface entity. Does not itself change shading.
+#     Na__Edge__IsSmooth    adjacent face shading blends across the edge.
+#                           On its own the edge STAYS VISIBLE - SketchUp hides
+#                           it only because Soften/Smooth sets both together.
+#     Na__Edge__IsHidden    Edit > Hide. Not drawn, no surface merge, shading
+#                           unchanged.
+#     Na__Edge__IsDisplayed resolved "does SketchUp draw this line" answer:
+#                           !soft && !hidden && tag visible.
+#     Na__Edge__ColorHex    colour of a material painted on the edge itself,
+#                           with HasOwnMaterial distinguishing an authored
+#                           colour from the black default.
+#   Faces gain the matching Na__Face__IsHidden / IsDisplayed / TagName /
+#   BackMaterial, and hierarchy nodes gain Na__Object__IsHidden / TagVisible.
+# - Because the flags now have to survive, the Mesh3D traversal no longer
+#   culls hidden geometry (NA_CAPTURE_HIDDEN_GEOMETRY). Before 1.2.0 hidden
+#   edges and faces were dropped during collection, so IsHidden could never
+#   be anything but false. The 2D projection views are unchanged - those are
+#   a display projection and still exclude hidden / invisible-tag linework.
+# - Loose edges (no adjacent face) now export. Previously only face-loop
+#   vertex positions were indexed, so unfaced linework failed the vertex
+#   lookup and was silently discarded.
+# - Vertex normals are averaged across smoothed edges by face.mesh(7), so
+#   smooth shading is baked into the exported normals already.
 # - Export filename mirrors the component name (illegal filesystem characters
 #   stripped, trailing underscores normalised to the Na__ double underscore
 #   suffix). The product code is the leading digit block of the component name
@@ -55,6 +92,25 @@ module Na__ComponentEditorTools
         NA_INCH_TO_MM                  = 25.4
         NA_ORIGIN_NAME                 = '00__OriginPoint'.freeze
 
+        # MODULE CONSTANT | Capture Hidden / Invisible-Tag Geometry in Mesh3D
+        # ------------------------------------------------------------
+        # When true the Mesh3D + ObjectHierarchy3D capture records hidden
+        # edges, hidden faces and geometry on invisible tags and flags them
+        # (Na__Edge__IsHidden / Na__Face__IsHidden / Na__Object__IsHidden)
+        # instead of dropping them. This is what lets an authored component
+        # round-trip: the Lantern Importer can re-hide exactly what the
+        # author hid rather than guessing from a softening angle threshold.
+        #
+        # The 2D projection views are deliberately NOT affected - those are a
+        # display projection, so hidden and invisible-tag linework stays out.
+        #
+        # Flip to false to restore the pre-1.2.0 "visible geometry only" mesh.
+        NA_CAPTURE_HIDDEN_GEOMETRY     = true
+
+        # MODULE CONSTANT | Fallback Edge Colour (SketchUp draws untinted edges black)
+        # ------------------------------------------------------------
+        NA_DEFAULT_EDGE_RGB            = [0, 0, 0].freeze
+
         NA_EXPORT_DIR_REGISTRY_SECTION = 'Na__ComponentEditorTools__ExportTools'.freeze
         NA_EXPORT_DIR_REGISTRY_KEY     = 'na_last_export_directory'.freeze
 
@@ -70,6 +126,9 @@ module Na__ComponentEditorTools
         NA_OCCLUSION_STEP_IN           = 0.04                                  # <-- Recast advance past ignorable hits (about 1mm)
         NA_OCCLUSION_MAX_CASTS         = 16                                    # <-- Max recasts per sample ray (origin marker / foreign hits only)
         NA_OCCLUSION_MAX_EDGES         = 20000                                 # <-- Above this the hidden-edge cull is skipped for speed
+        NA_OCCLUSION_SAMPLE_FRACTIONS  = [0.25, 0.5, 0.75].freeze              # <-- Interior sample positions along each edge
+        NA_OCCLUSION_MIN_SPAN_IN       = 0.5 / 25.4                            # <-- Below this an edge falls back to endpoint sampling
+        NA_ARC_MIN_SEGMENTS_PER_TURN   = 16                                    # <-- Coarser than this and a curve is faceted, not round
 
         NA_VIEW_DEFINITIONS = [
             {
@@ -500,17 +559,28 @@ module Na__ComponentEditorTools
 
         # FUNCTION | Drop edges hidden behind faces for this view direction
         # ------------------------------------------------------------
-        # Samples both endpoints of every kept edge with a model raytest cast
-        # along the view direction from outside the model. An edge survives
-        # while either endpoint is the first surface met (within tolerance),
-        # so lathe rings under a ball, back corners and buried detail drop
-        # out and the view matches what SketchUp itself displays.
+        # Samples every kept edge with model raytest casts along the view
+        # direction from outside the model. An edge survives while any sample
+        # is the first surface met (within tolerance), so lathe rings under a
+        # ball, back corners and buried detail drop out and the view matches
+        # what SketchUp itself displays.
         # Origin-marker hits and hits outside the selected instance are
         # recast past; any other nearer hit occludes, faces and edges alike.
         # Edge hits must occlude because revolved parts share seam planes:
         # a ray descending exactly along a shared seam meets every surface
         # crossing as an edge hit, and stepping past those let hidden
         # fragments leak through as straggler linework.
+        #
+        # SAMPLING IS INTERIOR, NOT PER ENDPOINT. Endpoint-only sampling leaked
+        # buried lathe rings: a revolve's seam vertices sit exactly on the
+        # plane where its faces meet, raytest is unreliable along that plane,
+        # and the seam vertex read back as visible. The result was a scatter of
+        # 1-6mm stragglers in plan, all with an endpoint at exactly y=0.
+        # Sampling at 25/50/75% along the span puts every sample clear of the
+        # seam, so those fragments now cull correctly, while a genuinely
+        # half-buried silhouette edge still has a visible interior sample and
+        # survives whole. Edges shorter than NA_OCCLUSION_MIN_SPAN_IN cannot
+        # carry meaningful interior samples and fall back to the endpoint test.
         def self.Na__ComponentEditorTools__OcclusionCullEdges(kept_records, view_def, context)
             return kept_records unless context && context[:model]
 
@@ -536,14 +606,42 @@ module Na__ComponentEditorTools
                 start_world = edge.start.position.transform(transform).transform(instance_transform)
                 end_world   = edge.end.position.transform(transform).transform(instance_transform)
 
-                self.Na__ComponentEditorTools__SamplePointVisible(model, start_world, dir_world, ray_offset, context) ||
-                    self.Na__ComponentEditorTools__SamplePointVisible(model, end_world, dir_world, ray_offset, context)
+                self.Na__ComponentEditorTools__EdgeSurvivesOcclusion(
+                    model, start_world, end_world, dir_world, ray_offset, context
+                )
             end
         rescue StandardError => error
             if context && context[:warnings]
                 context[:warnings] << "#{view_def[:label]}: occlusion cull failed (#{error.message}) - all classified edges kept."
             end
             kept_records
+        end
+
+        # HELPER | Does any sample along this edge reach the camera?
+        # ------------------------------------------------------------
+        # Interior samples first (they sit clear of revolve seam planes, where
+        # raytest is unreliable). Short edges fall back to endpoint sampling.
+        def self.Na__ComponentEditorTools__EdgeSurvivesOcclusion(model, start_world, end_world, dir_world, ray_offset, context)
+            span_x = end_world.x.to_f - start_world.x.to_f
+            span_y = end_world.y.to_f - start_world.y.to_f
+            span_z = end_world.z.to_f - start_world.z.to_f
+            span   = Math.sqrt(span_x * span_x + span_y * span_y + span_z * span_z)
+
+            if span < NA_OCCLUSION_MIN_SPAN_IN
+                return self.Na__ComponentEditorTools__SamplePointVisible(model, start_world, dir_world, ray_offset, context) ||
+                       self.Na__ComponentEditorTools__SamplePointVisible(model, end_world, dir_world, ray_offset, context)
+            end
+
+            NA_OCCLUSION_SAMPLE_FRACTIONS.each do |fraction|
+                sample_point = Geom::Point3d.new(
+                    start_world.x.to_f + span_x * fraction,
+                    start_world.y.to_f + span_y * fraction,
+                    start_world.z.to_f + span_z * fraction
+                )
+                return true if self.Na__ComponentEditorTools__SamplePointVisible(model, sample_point, dir_world, ray_offset, context)
+            end
+
+            false
         end
 
         # HELPER | Is this world-space sample the first surface along the ray?
@@ -643,19 +741,37 @@ module Na__ComponentEditorTools
         # Pipeline: exact ArcCurve paths where the arc plane faces the camera,
         # then dedupe raw segments, then chain-based circle refitting, then
         # collinear merge of whatever remains.
+        #
+        # FACETED CURVES ARE NOT ARCS. Octagons, hexagons and coarse "circles"
+        # are all Sketchup::ArcCurve, with the radius being the circumradius
+        # and every vertex sitting exactly on the circumcircle. Emitting one
+        # through the arc path bulges each straight side out to that
+        # circumcircle, which drew the octagonal ridge block as a circle in
+        # plan (8 sides x 45 degrees = a full 360). CurveIsFaceted routes any
+        # curve coarser than NA_ARC_MIN_SEGMENTS_PER_TURN to the straight
+        # segment path instead.
+        #
+        # The same vertices-on-a-circle property also fools the chain circle
+        # refit - a 12-sided shape fits a circle with zero residual - so
+        # faceted segments are tagged :no_circle_fit and excluded from it.
+        # Tagging rather than raising NA_CIRCLE_FIT_MIN_POINTS keeps genuine
+        # part-circle chains (a partly occluded fine circle) refittable.
         def self.Na__ComponentEditorTools__BuildViewPaths(kept_records, origin_pt, view_def)
-            arcs            = []
-            segment_records = []
-            curve_groups    = {}
+            arcs             = []
+            segment_records  = []
+            faceted_records  = []
+            curve_groups     = {}
 
             kept_records.each do |record|
                 curve = record[:edge].curve
-                if curve.is_a?(Sketchup::ArcCurve)
+                if !curve.is_a?(Sketchup::ArcCurve)
+                    segment_records << record
+                elsif self.Na__ComponentEditorTools__CurveIsFaceted(curve)
+                    faceted_records << record
+                else
                     key = "#{curve.object_id}|#{self.Na__ComponentEditorTools__TransformKey(record[:world_transform])}"
                     group = curve_groups[key] ||= { :curve => curve, :transform => record[:world_transform], :records => [] }
                     group[:records] << record
-                else
-                    segment_records << record
                 end
             end
 
@@ -669,13 +785,17 @@ module Na__ComponentEditorTools
                 end
             end
 
-            raw_segments = segment_records.map do |record|
-                edge      = record[:edge]
-                transform = record[:world_transform]
-                {
-                    :p1 => self.Na__ComponentEditorTools__ProjectUv(edge.start.position.transform(transform), origin_pt, view_def),
-                    :p2 => self.Na__ComponentEditorTools__ProjectUv(edge.end.position.transform(transform), origin_pt, view_def)
-                }
+            raw_segments = []
+            [[segment_records, false], [faceted_records, true]].each do |records, is_faceted|
+                records.each do |record|
+                    edge      = record[:edge]
+                    transform = record[:world_transform]
+                    raw_segments << {
+                        :p1            => self.Na__ComponentEditorTools__ProjectUv(edge.start.position.transform(transform), origin_pt, view_def),
+                        :p2            => self.Na__ComponentEditorTools__ProjectUv(edge.end.position.transform(transform), origin_pt, view_def),
+                        :no_circle_fit => is_faceted
+                    }
+                end
             end
 
             deduped_segments        = self.Na__ComponentEditorTools__DedupeSegments(raw_segments)
@@ -685,6 +805,38 @@ module Na__ComponentEditorTools
             lines = self.Na__ComponentEditorTools__MergeSegments(leftovers)
 
             [arcs, lines]
+        end
+
+        # HELPER | Is this ArcCurve visually faceted rather than round?
+        # ------------------------------------------------------------
+        # Curve#is_polygon? alone is NOT sufficient: it records how the curve
+        # was created, not how it looks. A "circle" drawn with 8 sides, or an
+        # exploded/copied polygon, reports is_polygon? == false yet is plainly
+        # an octagon - which is exactly how the ridge block's octagonal shaft
+        # ended up drawn as a circle in plan.
+        #
+        # The reliable measure is tessellation density normalised to a full
+        # turn, since that is what decides whether the chords read as a curve:
+        #     segments_per_turn = edge_count * 2PI / sweep
+        # Below NA_ARC_MIN_SEGMENTS_PER_TURN each chord departs its arc by more
+        # than about 2% of the radius, so the shape is faceted and must export
+        # as straight segments. This works whichever way the curve was built,
+        # and whether the group holds one 8-edge curve or eight 1-edge curves.
+        #
+        # is_polygon? is still honoured as an additional trigger when present.
+        def self.Na__ComponentEditorTools__CurveIsFaceted(curve)
+            return true if curve.respond_to?(:is_polygon?) && curve.is_polygon?
+
+            edge_count = curve.edges.length
+            return true if edge_count < 3
+
+            sweep = (curve.end_angle.to_f - curve.start_angle.to_f).abs
+            sweep = 2.0 * Math::PI if sweep <= 1.0e-9                           # <-- Full circles can report a zero span
+            segments_per_turn = edge_count * (2.0 * Math::PI / sweep)
+
+            segments_per_turn < NA_ARC_MIN_SEGMENTS_PER_TURN
+        rescue StandardError
+            false
         end
 
         def self.Na__ComponentEditorTools__ArcFacesCamera(curve, transform, view_def)
@@ -746,8 +898,15 @@ module Na__ComponentEditorTools
                 b = [segment[:p2][0].round(NA_CHAIN_NODE_ROUND_DP), segment[:p2][1].round(NA_CHAIN_NODE_ROUND_DP)]
                 next if a == b
                 key = (a <=> b) <= 0 ? [a, b] : [b, a]
-                next if seen[key]
-                seen[key] = true
+
+                # A coincident duplicate must not launder away the polygon tag,
+                # or the survivor could still be circle-refitted.
+                if seen[key]
+                    seen[key][:no_circle_fit] = true if segment[:no_circle_fit]
+                    next
+                end
+
+                seen[key] = segment
                 out << segment
             end
             out
@@ -812,8 +971,14 @@ module Na__ComponentEditorTools
 
                 chain_points, is_closed = self.Na__ComponentEditorTools__OrderedChainPoints(segments, chain_indices, node_key)
 
+                # A faceted shape's vertices all sit exactly on its
+                # circumcircle, so a chain containing any faceted segment would
+                # fit a circle with zero residual and round it off. Never
+                # refit those.
+                chain_is_faceted = chain_indices.any? { |seg_index| segments[seg_index][:no_circle_fit] }
+
                 fitted = nil
-                if chain_points && chain_points.length >= NA_CIRCLE_FIT_MIN_POINTS
+                if !chain_is_faceted && chain_points && chain_points.length >= NA_CIRCLE_FIT_MIN_POINTS
                     fitted = self.Na__ComponentEditorTools__CircleFitPath(chain_points, is_closed)
                 end
 
@@ -1083,6 +1248,9 @@ module Na__ComponentEditorTools
                 'Na__Object__Name'                      => definition.name.to_s,
                 'Na__Object__DefinitionName'            => definition.name.to_s,
                 'Na__Object__TagName'                   => '',
+                'Na__Object__TagVisible'                => true,
+                'Na__Object__IsHidden'                  => false,
+                'Na__Object__MaterialName'              => '',
                 'Na__Object__LocalTransform__Matrix4x4' => self.Na__ComponentEditorTools__TransformToMatrix(Geom::Transformation.new),
                 'Na__Object__WorldTransform__Matrix4x4' => self.Na__ComponentEditorTools__TransformToMatrix(Geom::Transformation.new),
                 'Na__Object__DirectFaceCount'           => 0
@@ -1093,18 +1261,26 @@ module Na__ComponentEditorTools
                 hierarchy_nodes, face_records, node_seq, {}, edge_records
             )
 
-            return [nil, nil, nil] if face_records.empty?
+            # Linework-only components are valid now that loose edges export,
+            # so only bail when there is genuinely nothing to capture.
+            return [nil, nil, nil] if face_records.empty? && edge_records.empty?
 
             mesh_block      = self.Na__ComponentEditorTools__BuildMeshBlock(face_records, origin_pt, edge_records)
             hierarchy_block = self.Na__ComponentEditorTools__BuildHierarchyBlock(hierarchy_nodes, face_records)
 
             counts = mesh_block['Na__Geometry__Counts']
             stats  = {
-                :label    => '3D Mesh',
-                :vertices => counts['Na__Geometry__VertexCount'],
-                :faces    => counts['Na__Geometry__FaceCount'],
-                :edges    => counts['Na__Geometry__EdgeCount'],
-                :objects  => hierarchy_nodes.length
+                :label     => '3D Mesh',
+                :vertices  => counts['Na__Geometry__VertexCount'],
+                :faces     => counts['Na__Geometry__FaceCount'],
+                :edges     => counts['Na__Geometry__EdgeCount'],
+                :objects   => hierarchy_nodes.length,
+                :hard      => counts['Na__Geometry__HardEdgeCount'],
+                :soft      => counts['Na__Geometry__SoftEdgeCount'],
+                :smooth    => counts['Na__Geometry__SmoothEdgeCount'],
+                :hidden    => counts['Na__Geometry__HiddenEdgeCount'],
+                :displayed => counts['Na__Geometry__DisplayedEdgeCount'],
+                :coloured  => counts['Na__Geometry__ColouredEdgeCount']
             }
 
             [mesh_block, hierarchy_block, stats]
@@ -1114,16 +1290,23 @@ module Na__ComponentEditorTools
             'OBJ%04d' % (node_index + 1)
         end
 
+        # FUNCTION | Walk the definition tree collecting faces, edges and nodes
+        # ------------------------------------------------------------
+        # With NA_CAPTURE_HIDDEN_GEOMETRY enabled this traversal no longer
+        # culls hidden entities or entities on invisible tags. Their state is
+        # recorded on the emitted record instead, so soften / smooth / hide /
+        # edge-colour authored in SketchUp survives the round trip. Only the
+        # 00__OriginPoint construction marker is still skipped outright.
         def self.Na__ComponentEditorTools__CollectMeshTree(entities, parent_world, parent_node_id, hierarchy_nodes, face_records, node_seq, definition_guard, edge_records)
             entities.each do |entity|
-                next if self.Na__ComponentEditorTools__EntityExcluded(entity)
+                next if !NA_CAPTURE_HIDDEN_GEOMETRY && self.Na__ComponentEditorTools__EntityExcluded(entity)
                 next if self.Na__ComponentEditorTools__OriginEntity(entity)
 
                 case entity
                 when Sketchup::Face
                     face_records << { :face => entity, :world_transform => parent_world, :node_id => parent_node_id }
                 when Sketchup::Edge
-                    edge_records << { :edge => entity, :world_transform => parent_world }
+                    edge_records << { :edge => entity, :world_transform => parent_world, :node_id => parent_node_id }
                 when Sketchup::Group
                     local_transform = entity.transformation
                     world_transform = parent_world * local_transform
@@ -1158,11 +1341,40 @@ module Na__ComponentEditorTools
                 'Na__Object__EntityType'                => entity.class.name.split('::').last,
                 'Na__Object__Name'                      => entity.respond_to?(:name) ? entity.name.to_s : '',
                 'Na__Object__DefinitionName'            => entity.respond_to?(:definition) ? entity.definition.name.to_s : '',
-                'Na__Object__TagName'                   => (entity.respond_to?(:layer) && entity.layer) ? entity.layer.name.to_s : '',
+                'Na__Object__TagName'                   => self.Na__ComponentEditorTools__TagName(entity),
+                'Na__Object__TagVisible'                => self.Na__ComponentEditorTools__TagVisible(entity),
+                'Na__Object__IsHidden'                  => self.Na__ComponentEditorTools__IsHidden(entity),
+                'Na__Object__MaterialName'              => (entity.respond_to?(:material) && entity.material) ? entity.material.display_name.to_s : '',
                 'Na__Object__LocalTransform__Matrix4x4' => self.Na__ComponentEditorTools__TransformToMatrix(local_transform),
                 'Na__Object__WorldTransform__Matrix4x4' => self.Na__ComponentEditorTools__TransformToMatrix(world_transform),
                 'Na__Object__DirectFaceCount'           => 0
             }
+        end
+
+        # HELPER | Tag (layer) name of a drawing element, '' when unassigned
+        # ------------------------------------------------------------
+        def self.Na__ComponentEditorTools__TagName(entity)
+            (entity.respond_to?(:layer) && entity.layer) ? entity.layer.name.to_s : ''
+        rescue StandardError
+            ''
+        end
+
+        # HELPER | Is this element's tag currently visible in the model?
+        # ------------------------------------------------------------
+        def self.Na__ComponentEditorTools__TagVisible(entity)
+            return true unless entity.respond_to?(:layer) && entity.layer
+            return true unless entity.layer.respond_to?(:visible?)
+            !!entity.layer.visible?
+        rescue StandardError
+            true
+        end
+
+        # HELPER | Explicit per-entity hide flag (Edit > Hide), not tag state
+        # ------------------------------------------------------------
+        def self.Na__ComponentEditorTools__IsHidden(entity)
+            entity.respond_to?(:hidden?) ? !!entity.hidden? : false
+        rescue StandardError
+            false
         end
 
         def self.Na__ComponentEditorTools__TransformToMatrix(transform)
@@ -1216,46 +1428,84 @@ module Na__ComponentEditorTools
                     nil
                 end
                 material_name = face.material ? face.material.display_name.to_s : ''
+                back_material = face.back_material ? face.back_material.display_name.to_s : ''
+                face_hidden   = self.Na__ComponentEditorTools__IsHidden(face)
+                face_tag_vis  = self.Na__ComponentEditorTools__TagVisible(face)
 
                 face_id = 'F%03d' % (index + 1)
                 faces_out << {
-                    'FaceId'              => face_id,
-                    'FaceName'            => "Na__Mesh__Face__#{face_id}",
-                    'OuterLoop_VertexIds' => outer_ids,
-                    'InnerLoops'          => inner_loops,
-                    'Normal'              => [
+                    'FaceId'                 => face_id,
+                    'FaceName'               => "Na__Mesh__Face__#{face_id}",
+                    'OuterLoop_VertexIds'    => outer_ids,
+                    'InnerLoops'             => inner_loops,
+                    'Normal'                 => [
                         normal_vec.x.to_f.round(6),
                         normal_vec.y.to_f.round(6),
                         normal_vec.z.to_f.round(6)
                     ],
-                    'Area_mm2'            => area_mm2,
-                    'MaterialName'        => material_name,
-                    'Na__Object__NodeId'  => node_id
+                    'Area_mm2'               => area_mm2,
+                    'MaterialName'           => material_name,
+                    'Na__Face__BackMaterial' => back_material,
+                    'Na__Face__IsHidden'     => face_hidden,
+                    'Na__Face__IsDisplayed'  => (!face_hidden && face_tag_vis),
+                    'Na__Face__TagName'      => self.Na__ComponentEditorTools__TagName(face),
+                    'Na__Face__TagVisible'   => face_tag_vis,
+                    'Na__Object__NodeId'     => node_id
                 }
             end
+
+            loose_vertex_count = self.Na__ComponentEditorTools__RegisterLooseEdgeVertices(
+                edge_records, position_to_vertex_id, vertices_out, origin_pt
+            )
 
             edges_out = self.Na__ComponentEditorTools__EdgesFromRealEdges(edge_records, position_to_vertex_id, origin_pt)
             bbox      = self.Na__ComponentEditorTools__CalcBboxXyz(vertices_out)
 
-            soft_edge_count   = edges_out.count { |record| record['IsSoft'] }
-            smooth_edge_count = edges_out.count { |record| record['IsSmooth'] }
-            hard_edge_count   = edges_out.count { |record| !record['IsSoft'] && !record['IsSmooth'] }
+            soft_edge_count      = edges_out.count { |record| record['Na__Edge__IsSoft'] }
+            smooth_edge_count    = edges_out.count { |record| record['Na__Edge__IsSmooth'] }
+            hard_edge_count      = edges_out.count { |record| !record['Na__Edge__IsSoft'] && !record['Na__Edge__IsSmooth'] }
+            hidden_edge_count    = edges_out.count { |record| record['Na__Edge__IsHidden'] }
+            displayed_edge_count = edges_out.count { |record| record['Na__Edge__IsDisplayed'] }
+            coloured_edge_count  = edges_out.count { |record| record['Na__Edge__HasOwnMaterial'] }
+            hidden_face_count    = faces_out.count { |record| record['Na__Face__IsHidden'] }
 
             {
-                'Na__Geometry__OriginNote'  => "Local 0,0,0 = centre of #{NA_ORIGIN_NAME} group.",
-                'Na__Geometry__CoordSystem' => 'Right-handed | X=right, Y=front, Z=up | Units=mm',
-                'Na__Geometry__BoundingBox' => bbox,
-                'Na__Geometry__Counts'      => {
-                    'Na__Geometry__VertexCount'     => vertices_out.length,
-                    'Na__Geometry__FaceCount'       => faces_out.length,
-                    'Na__Geometry__EdgeCount'       => edges_out.length,
-                    'Na__Geometry__HardEdgeCount'   => hard_edge_count,
-                    'Na__Geometry__SoftEdgeCount'   => soft_edge_count,
-                    'Na__Geometry__SmoothEdgeCount' => smooth_edge_count
+                'Na__Geometry__OriginNote'      => "Local 0,0,0 = centre of #{NA_ORIGIN_NAME} group.",
+                'Na__Geometry__CoordSystem'     => 'Right-handed | X=right, Y=front, Z=up | Units=mm',
+                'Na__Geometry__EdgeStyleLegend' => self.Na__ComponentEditorTools__EdgeStyleLegend,
+                'Na__Geometry__BoundingBox'     => bbox,
+                'Na__Geometry__Counts'          => {
+                    'Na__Geometry__VertexCount'         => vertices_out.length,
+                    'Na__Geometry__LineworkVertexCount' => loose_vertex_count,
+                    'Na__Geometry__FaceCount'           => faces_out.length,
+                    'Na__Geometry__HiddenFaceCount'     => hidden_face_count,
+                    'Na__Geometry__EdgeCount'           => edges_out.length,
+                    'Na__Geometry__HardEdgeCount'       => hard_edge_count,
+                    'Na__Geometry__SoftEdgeCount'       => soft_edge_count,
+                    'Na__Geometry__SmoothEdgeCount'     => smooth_edge_count,
+                    'Na__Geometry__HiddenEdgeCount'     => hidden_edge_count,
+                    'Na__Geometry__DisplayedEdgeCount'  => displayed_edge_count,
+                    'Na__Geometry__ColouredEdgeCount'   => coloured_edge_count
                 },
-                'Na__Geometry__Vertices'    => vertices_out,
-                'Na__Geometry__Faces'       => faces_out,
-                'Na__Geometry__Edges'       => edges_out
+                'Na__Geometry__Vertices'        => vertices_out,
+                'Na__Geometry__Faces'           => faces_out,
+                'Na__Geometry__Edges'           => edges_out
+            }
+        end
+
+        # FUNCTION | Inline contract for the edge style flags
+        # ------------------------------------------------------------
+        # Written into every export so the Lantern Designer loader and the
+        # SketchUp re-importer share one authoritative statement of what the
+        # flags mean, rather than each re-deriving SketchUp's rules.
+        def self.Na__ComponentEditorTools__EdgeStyleLegend
+            {
+                'Na__Edge__IsSoft'      => 'SketchUp soft: edge is not drawn AND its adjacent faces merge into a Surface entity. Does not by itself change shading.',
+                'Na__Edge__IsSmooth'    => 'SketchUp smooth: adjacent face shading blends across the edge (averaged vertex normals). On its own the edge REMAINS VISIBLE; SketchUp hides it only because Soften/Smooth sets soft and smooth together.',
+                'Na__Edge__IsHidden'    => 'SketchUp Edit > Hide: edge is not drawn. Faces are NOT merged into a surface and shading is unchanged.',
+                'Na__Edge__IsDisplayed' => 'Resolved draw test: true when NOT soft AND NOT hidden AND the edge tag is visible. Smooth alone does not suppress the line. Consume this directly instead of re-deriving the rules or applying an angle-based softening filter.',
+                'Na__Edge__ColorHex'    => 'Colour of the material painted on the edge itself. When Na__Edge__HasOwnMaterial is false this is the SketchUp default edge colour (#000000) and the edge should be left unpainted on re-import.',
+                'ShadingNote'           => 'Vertex normals in Na__Geometry__Vertices are already averaged across smoothed edges via face.mesh(7) / normal_at, so smooth shading is baked into the exported normals and needs no downstream recomputation.'
             }
         end
 
@@ -1335,6 +1585,33 @@ module Na__ComponentEditorTools
             end
         end
 
+        # FUNCTION | Convert real Sketchup::Edge records into JSON edge records
+        # ------------------------------------------------------------
+        # Every edge carries the full authored style bundle so both the web
+        # renderer and the SketchUp re-importer can restore parity:
+        #
+        #   Na__Edge__IsSoft       edge hidden AND adjacent faces merged into
+        #                          a Surface entity (SketchUp: soft)
+        #   Na__Edge__IsSmooth     adjacent face shading blended across the
+        #                          edge via averaged vertex normals. On its own
+        #                          the edge STAYS VISIBLE - SketchUp only hides
+        #                          it because the Soften/Smooth slider sets soft
+        #                          and smooth together.
+        #   Na__Edge__IsHidden     Edit > Hide. Edge not drawn, faces NOT merged
+        #                          into a surface and shading unchanged.
+        #   Na__Edge__IsDisplayed  resolved answer to "does SketchUp draw this
+        #                          line". Precomputed here so downstream never
+        #                          has to re-derive the soft/smooth/hidden/tag
+        #                          precedence rules (and so a dumb angle-based
+        #                          softening filter is never needed).
+        #
+        # Vertex ids come from the position index built during the face pass,
+        # topped up by RegisterLooseEdgeVertices so loose linework with no
+        # adjacent face still exports instead of being silently dropped.
+        #
+        # Uniqueness is per (node, undirected vertex pair) so coincident edges
+        # living in different nested groups both survive and can be rebuilt
+        # into their own containers.
         def self.Na__ComponentEditorTools__EdgesFromRealEdges(edge_records, position_to_vertex_id, origin_pt)
             seen  = {}
             edges = []
@@ -1343,6 +1620,7 @@ module Na__ComponentEditorTools
                 edge = record[:edge]
                 next unless edge && edge.valid?
                 transform = record[:world_transform]
+                node_id   = record[:node_id]
 
                 start_world = edge.start.position.transform(transform)
                 end_world   = edge.end.position.transform(transform)
@@ -1352,23 +1630,142 @@ module Na__ComponentEditorTools
                 next unless start_vid && end_vid
                 next if start_vid == end_vid
 
-                pair_key = [start_vid, end_vid].sort.join('|')
+                pair_key = "#{node_id}|#{[start_vid, end_vid].sort.join('|')}"
                 next if seen[pair_key]
                 seen[pair_key] = true
 
-                edge_id = 'E%03d' % (edges.length + 1)
-                edges << {
-                    'EdgeId'       => edge_id,
-                    'StartVertex'  => start_vid,
-                    'EndVertex'    => end_vid,
-                    'IsSoft'       => edge.respond_to?(:soft?)          ? !!edge.soft?          : false,
-                    'IsSmooth'     => edge.respond_to?(:smooth?)        ? !!edge.smooth?        : false,
-                    'IsHidden'     => edge.respond_to?(:hidden?)        ? !!edge.hidden?        : false,
-                    'CastsShadows' => edge.respond_to?(:casts_shadows?) ? !!edge.casts_shadows? : true
+                edge_id      = 'E%03d' % (edges.length + 1)
+                edge_record  = {
+                    'EdgeId'      => edge_id,
+                    'StartVertex' => start_vid,
+                    'EndVertex'   => end_vid
                 }
+                edge_record.merge!(self.Na__ComponentEditorTools__EdgeStyleRecord(edge))
+                edge_record['Na__Object__NodeId'] = node_id
+                edges << edge_record
             end
 
             edges
+        end
+
+        # FUNCTION | Authored style bundle for one edge
+        # ------------------------------------------------------------
+        def self.Na__ComponentEditorTools__EdgeStyleRecord(edge)
+            is_soft     = edge.respond_to?(:soft?)   ? !!edge.soft?   : false
+            is_smooth   = edge.respond_to?(:smooth?) ? !!edge.smooth? : false
+            is_hidden   = self.Na__ComponentEditorTools__IsHidden(edge)
+            tag_visible = self.Na__ComponentEditorTools__TagVisible(edge)
+            colour      = self.Na__ComponentEditorTools__EdgeColour(edge)
+
+            {
+                'Na__Edge__IsSoft'          => is_soft,
+                'Na__Edge__IsSmooth'        => is_smooth,
+                'Na__Edge__IsHidden'        => is_hidden,
+                'Na__Edge__IsDisplayed'     => (!is_soft && !is_hidden && tag_visible),
+                'Na__Edge__CastsShadows'    => edge.respond_to?(:casts_shadows?) ? !!edge.casts_shadows? : true,
+                'Na__Edge__TagName'         => self.Na__ComponentEditorTools__TagName(edge),
+                'Na__Edge__TagVisible'      => tag_visible,
+                'Na__Edge__MaterialName'    => colour[:material_name],
+                'Na__Edge__HasOwnMaterial'  => colour[:has_own_material],
+                'Na__Edge__ColorHex'        => colour[:hex],
+                'Na__Edge__ColorRgba'       => colour[:rgba],
+
+                # Legacy 1.1.0 aliases - kept so existing readers of these
+                # exports keep working while consumers migrate to Na__Edge__*.
+                'IsSoft'                    => is_soft,
+                'IsSmooth'                  => is_smooth,
+                'IsHidden'                  => is_hidden,
+                'CastsShadows'              => edge.respond_to?(:casts_shadows?) ? !!edge.casts_shadows? : true
+            }
+        end
+
+        # HELPER | Resolve an edge's authored colour
+        # ------------------------------------------------------------
+        # SketchUp only tints an edge when a material has been painted onto
+        # the edge itself. Untinted edges fall back to the model's edge colour
+        # (black by default), so that is what we report with
+        # HasOwnMaterial=false - the importer then knows to leave the edge
+        # unpainted rather than force it black.
+        def self.Na__ComponentEditorTools__EdgeColour(edge)
+            material = edge.respond_to?(:material) ? edge.material : nil
+
+            unless material
+                return {
+                    :material_name    => '',
+                    :has_own_material => false,
+                    :hex              => self.Na__ComponentEditorTools__RgbToHex(NA_DEFAULT_EDGE_RGB),
+                    :rgba             => [NA_DEFAULT_EDGE_RGB[0], NA_DEFAULT_EDGE_RGB[1], NA_DEFAULT_EDGE_RGB[2], 255]
+                }
+            end
+
+            colour = material.color
+            rgb    = colour ? [colour.red.to_i, colour.green.to_i, colour.blue.to_i] : NA_DEFAULT_EDGE_RGB
+            alpha  = (colour && colour.respond_to?(:alpha)) ? colour.alpha.to_i : 255
+
+            {
+                :material_name    => material.display_name.to_s,
+                :has_own_material => true,
+                :hex              => self.Na__ComponentEditorTools__RgbToHex(rgb),
+                :rgba             => [rgb[0], rgb[1], rgb[2], alpha]
+            }
+        rescue StandardError
+            {
+                :material_name    => '',
+                :has_own_material => false,
+                :hex              => self.Na__ComponentEditorTools__RgbToHex(NA_DEFAULT_EDGE_RGB),
+                :rgba             => [NA_DEFAULT_EDGE_RGB[0], NA_DEFAULT_EDGE_RGB[1], NA_DEFAULT_EDGE_RGB[2], 255]
+            }
+        end
+
+        def self.Na__ComponentEditorTools__RgbToHex(rgb)
+            '#%02X%02X%02X' % [rgb[0].to_i, rgb[1].to_i, rgb[2].to_i]
+        end
+
+        # FUNCTION | Give loose edges real vertex ids
+        # ------------------------------------------------------------
+        # The face pass only indexes positions that belong to a face loop, so
+        # linework with no adjacent face (construction lines, authored guide
+        # edges, the ridge lighting block's detail lines) previously failed the
+        # "next unless start_vid && end_vid" guard and vanished from Mesh3D.
+        # This pass registers those endpoints as linework-only vertices.
+        #
+        # They carry a placeholder +Z normal and IsLineworkOnly=true. Nothing
+        # in Na__Geometry__Faces ever references them, so the placeholder can
+        # never leak into face shading.
+        def self.Na__ComponentEditorTools__RegisterLooseEdgeVertices(edge_records, position_to_vertex_id, vertices_out, origin_pt)
+            loose_count = 0
+
+            edge_records.each do |record|
+                edge = record[:edge]
+                next unless edge && edge.valid?
+                transform = record[:world_transform]
+
+                [edge.start, edge.end].each do |vertex|
+                    world_point  = vertex.position.transform(transform)
+                    pos_x_mm     = ((world_point.x - origin_pt.x) * NA_INCH_TO_MM).round(3)
+                    pos_y_mm     = ((world_point.y - origin_pt.y) * NA_INCH_TO_MM).round(3)
+                    pos_z_mm     = ((world_point.z - origin_pt.z) * NA_INCH_TO_MM).round(3)
+                    position_key = "#{pos_x_mm}|#{pos_y_mm}|#{pos_z_mm}"
+                    next if position_to_vertex_id[position_key]
+
+                    vertex_id = 'V%03d' % (vertices_out.length + 1)
+                    position_to_vertex_id[position_key] = vertex_id
+                    loose_count += 1
+                    vertices_out << {
+                        'VertexId'       => vertex_id,
+                        'VertexName'     => "Na__Mesh__Vertex__#{vertex_id}",
+                        'PosX_mm'        => pos_x_mm,
+                        'PosY_mm'        => pos_y_mm,
+                        'PosZ_mm'        => pos_z_mm,
+                        'Normal_X'       => 0.0,
+                        'Normal_Y'       => 0.0,
+                        'Normal_Z'       => 1.0,
+                        'IsLineworkOnly' => true
+                    }
+                end
+            end
+
+            loose_count
         end
 
         def self.Na__ComponentEditorTools__PositionKeyMm(world_point, origin_pt)
@@ -1422,7 +1819,7 @@ module Na__ComponentEditorTools
             document = {
                 'meta' => {
                     'schema'           => 'Na__Asset__UnifiedComponentSchema',
-                    'schemaVersion'    => '1.1.0',
+                    'schemaVersion'    => '1.2.0',
                     'generator'        => 'Na__ComponentEditorTools::Na__ExportTools - Export tab multi-view exporter',
                     'generatedDate'    => Time.now.strftime('%d-%b-%Y'),
                     'sourceModel'      => source_model,
@@ -1432,10 +1829,12 @@ module Na__ComponentEditorTools
                     'namingConvention' => 'All custom keys prefixed Na__. Three-stage form Na__Section__SubSection__FieldName.',
                     'fieldPrefixes'    => {
                         'Na__Asset__'     => 'Top-level asset metadata and content blocks',
-                        'Na__Geometry__'  => 'Geometry sub-fields (BoundingBox, Counts, OriginNote, CoordSystem, Paths)',
+                        'Na__Geometry__'  => 'Geometry sub-fields (BoundingBox, Counts, OriginNote, CoordSystem, Paths, EdgeStyleLegend)',
                         'Na__View__'      => '2D projection provenance (source view, camera axes, projection type)',
-                        'Na__Object__'    => '3D hierarchy nodes (ids, names, tags, transforms)',
-                        'Na__Hierarchy__' => '3D object hierarchy block metadata'
+                        'Na__Object__'    => '3D hierarchy nodes (ids, names, tags, transforms, visibility)',
+                        'Na__Hierarchy__' => '3D object hierarchy block metadata',
+                        'Na__Edge__'      => 'Authored edge style (soft, smooth, hidden, resolved display, tag, colour)',
+                        'Na__Face__'      => 'Authored face state (hidden, resolved display, tag, back material)'
                     }
                 },
                 'Na__Asset__Metadata' => {

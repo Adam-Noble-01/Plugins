@@ -1,0 +1,113 @@
+{
+    "Na__ValeLantern__Importer__Config__Description": "Plugin side configuration for the Vale Lantern Importer. This is the ONE place the importer's own build decisions live - edge softening, whether a container is a component or a group, whether congruent parts share a definition, and how a reload behaves. It is deliberately NOT in the payload: the payload is a build recipe describing the lantern, and these are decisions about how SketchUp should present it, which a modeller wants to change without re-exporting from the web application. Edit this file and re-run the loader line; nothing needs re-exporting. Everything about the lantern ITSELF - tags, materials, part naming, geometry - still comes from the payload and must never be duplicated here.",
+
+    "Na__ValeLantern__Importer__Config__Meta": {
+        "ConfigName"        : "Na__ValeLantern__Importer__Config",
+        "ConfigVersion"     : "1.4.0",
+        "ConfigVersionNote" : "Tracks the plugin version that introduced the current shape of this file. A key added here is readable by an older plugin, which simply ignores it; a key REMOVED needs the plugin's fallback defaults checked first, because a missing key falls back rather than failing.",
+        "ReloadNote"        : "Read through Na__ConfigLoader.na_get / na_soften_rule_for, never by parsing this file directly. The loader caches on first read and is reset by every run of the plugin loader, so an edit here is picked up by re-pasting the one line loader without restarting SketchUp."
+    },
+
+    "Na__ValeLantern__Importer__Config__SoftenEdges": {
+        "Enabled"     : true,
+        "EnabledNote" : "Master switch. Set false to import with every edge hard, which is what the importer did before version 1.4.0 and what to fall back to when diagnosing a part whose faces came out wrong - a soft edge merges its two faces into one Surface, and a merged surface hides exactly the evidence you want to see.",
+
+        "DefaultRule": {
+            "Soften"         : false,
+            "AngleDegrees"   : 22.5,
+            "SmoothNormals"  : true,
+            "SoftenCoplanar" : false
+        },
+        "DefaultRuleNote" : "Applied to any part whose TagKey is not in the Rules table below. Soften defaults FALSE so a part family added to the exporter arrives with hard edges and is visibly unconfigured, rather than quietly softened by a rule nobody wrote for it.",
+
+        "Rules": [
+            { "Key": "buildersUpstand",   "Label": "Builders Upstand",          "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "headBeam",          "Label": "Base Frame Head Beam",      "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "eavesExtrusion",    "Label": "Base Frame Eaves Extrusion","Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "leadFlashing",      "Label": "Base Lead Flashing",        "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "ridgeCore",         "Label": "Ridge Aluminium Core",      "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "ridgeBeam",         "Label": "Ridge Beam Timber",         "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "ridgeBlocking",     "Label": "Ridge Blocking",            "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "ridgeFlashing",     "Label": "Ridge Lead Flashing",       "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "ridgeCappingBlock", "Label": "Ridge Capping Block",       "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "ridgeCapping",      "Label": "Ridge Aluminium Cap",       "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "ridgeBlock",        "Label": "Ridge Octagonal Block",     "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "hipCore",           "Label": "Hip Aluminium Core",        "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "hipBeam",           "Label": "Hip Beam Timber",           "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "hipBlocking",       "Label": "Hip Blocking",              "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "hipFlashing",       "Label": "Hip Lead Flashing",         "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "verge",             "Label": "Verge",                     "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "glazeBarCap",       "Label": "Glazebar Caps",             "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "glazeBarCore",      "Label": "Glazebar Cores",            "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "glazeBarTrim",      "Label": "Glazebar Trims",            "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "glazing",           "Label": "Glazing Units",             "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "cornice",           "Label": "Interior Cornice",          "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "cornicePacker",     "Label": "Interior Cornice Packer",   "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "eavesTrim",         "Label": "Interior Eaves Trim",       "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "components",        "Label": "Finials and Finial Bases",  "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false }
+        ],
+        "RulesNote"      : "One row per part family, keyed on the TagKey the payload puts on every part - the same vocabulary as Na__SketchUpExport__Config.json -> Tags, so a key here and a tag there are the same thing by construction. A key the payload never sends is harmless; a family the payload sends that is missing here falls to DefaultRule.",
+        "RulesKeyNote"   : "KEYED ON TagKey, NOT ON PART NAME. Part names carry an index or a side - HipBeam__02, Cornice__Front - and there are hundreds of them. The tag key is the family, there are twenty four of them, and it is what the exporter already stamps on every part.",
+        "RulesFinialNote": "The 'components' row is false and should stay false. Finials are the one thing in a lantern that is not a swept section: they arrive as an authored mesh and their soft, smooth, hidden and edge colour state is replayed exactly as the component author set it by MeshBuilder. An angle threshold cannot tell a deliberately hidden edge from a shallow one, so running one over a finial would throw away better information than it adds. The softening pass only ever touches prisms, so this row is documentation rather than a live switch.",
+        "RulesLeadNote"  : "'leadFlashing' - the base and eaves flashing - is left FALSE while the ridge and hip flashings are true, because that is what was asked for. It is a folded sheet with shallow folds, and softening it would hide the fold lines that show where the sheet breaks. Flip it here if the eaves flashing reads too busy.",
+
+        "FlagMeaningsNote"     : "Soften sets Edge#soft, which hides the edge AND merges its two faces into one Surface entity. SmoothNormals sets Edge#smooth, which blends the shading across the edge; on its own smooth leaves the edge VISIBLE, and SketchUp only hides it as well because the Soften Edges slider sets both together. This config sets both together too, which is what the Soften Edges panel with 'Smooth normals' ticked does. SoftenCoplanar mirrors the panel's third checkbox and is left off, because the importer already ERASES the edge between two coplanar faces in its merge pass - there is normally nothing left for it to soften.",
+        "AngleMeaningNote"     : "AngleDegrees is the angle between the two FACE NORMALS either side of the edge, exactly as the Soften Edges panel reads it. An edge whose faces meet at a shallower angle than this is softened; a sharper one is left hard. 22.5 degrees keeps the arrises of a section crisp while dissolving the tessellation of its curves and chamfers.",
+        "MergeCoplanarNote"    : "This pass runs AFTER the payload's own MergeCoplanarFaces and OrientSolidsOutward passes, and depends on both: the merge removes the flats first so nothing is softened that should have been erased outright, and the orientation pass is what makes the angle between two normals mean the real dihedral rather than its supplement.",
+        "SharedDefinitionNote" : "Softening runs once per component DEFINITION, not once per placed part. Where four hip beams share one definition the pass runs once and all four are softened, which is the second dividend of the definition sharing below."
+    },
+
+    "Na__ValeLantern__Importer__Config__Containers": {
+        "RootAsComponent"      : true,
+        "AssemblyAsComponent"  : true,
+        "PartGroupAsComponent" : true,
+        "PartAsComponent"      : true,
+        "ContainerNote"        : "Each level of the hierarchy independently: the one top level lantern container, the seven assembly containers, the lazily created part group containers, and the individual physical parts. Set any of them false to get a plain group at that level, which is what the importer built before version 1.4.0.",
+
+        "LineworkAsComponent"     : false,
+        "LineworkAsComponentNote" : "Construction linework - datums, derivation triangles, member centrelines - stays a GROUP by default while every solid becomes a component. It is the one place where the argument for components does not hold. Nothing in a setting out set repeats, so there is no definition to share; the exporter's GroupPerEntity puts every datum in its own container, so making them components would add dozens of one-off entries to the Component browser for a class of object nobody selects from there; and linework is switched on and off by tag, which works identically either way. Set true if you want the whole tree uniform.",
+
+        "WhyComponentsNote"    : "A SketchUp group and a component are the same object underneath - a group IS a ComponentDefinition with one instance and group? set true - but they behave differently in the three ways that matter here. FIRST, a component definition can carry MANY instances that genuinely share one copy of the geometry: four hip assemblies built from one definition hold one hip's faces in the file, not four, and editing one edits all four. A group cannot do that; SketchUp silently makes a copied group unique the moment it is edited. SECOND, a component appears in the Component browser by name and can be counted, reported and swapped there, where a group appears nowhere. THIRD, and this is what makes the reload work at all, a definition's geometry can be replaced wholesale while every placed instance keeps its own position - which is exactly what regenerating a lantern in place means.",
+
+        "ShareCongruentDefinitions"     : true,
+        "ShareCongruentDefinitionsNote" : "The point of the whole change. Parts of the same family whose geometry is IDENTICAL up to a rigid move share one definition, so a lantern's four hip beams, four hip cores, four hip flashings and N glaze bars per slope each cost one definition rather than one per placement. Set false to build every part its own definition, which is the safe fallback if a shared part ever lands in the wrong place.",
+
+        "ShareMirroredInstances"        : true,
+        "ShareMirroredInstancesNote"    : "Extends the sharing to parts that are MIRROR images rather than rotations of one another. On a rectangular lantern the four hips pair up two ways: two are 180 degree rotations of each other, and those two pairs are mirror images. Rotation-only sharing therefore gives two definitions of two instances; adding the mirror gives one definition of four. The instance transform for a mirrored placement carries a negative determinant, which SketchUp handles - a mirrored component is what the Scale tool produces with a negative handle - but IF a mirrored part ever renders with its back faces outward, this is the switch to turn off first. Rotation sharing keeps working with it off.",
+
+        "SignatureDecimals"     : 4,
+        "SignatureDecimalsNote" : "Two parts are treated as congruent when every point of one, expressed in its own derived local frame, rounds to the same value as the other's at this many decimal places OF AN INCH. Four places is 1e-4 inch, about 0.0025mm - far coarser than the 1e-12 of floating point error a frame round trip introduces, and far finer than any real difference between two parts. Lower it and genuinely different parts start sharing a definition; raise it and congruent parts stop matching.",
+
+        "DefinitionNameTemplate"     : "{RootToken}__{Family}__{Index}",
+        "ContainerNameTemplate"      : "{RootToken}__{Name}",
+        "DefinitionNameTemplateNote" : "Tokens: {RootToken} is the payload's own RootGroupName, which already reads ValeLantern__{ProjectCode}__{LanternTitle}, so every definition a lantern creates sorts together in the Component browser under the lantern it belongs to. {Family} is the TagKey with its first letter capitalised - hipBeam becomes HipBeam. {Index} is a two digit counter within the family FOR THIS IMPORT, so the first shared hip beam definition is 01 whether it covers one placement or four. {Name} is the container's own name, which for an assembly is the payload's 01__BaseAssembly and so on. A name already taken in the model gets __2, __3 appended, which is what stops a second lantern from the same project quietly adopting the first one's geometry.",
+
+        "InstanceNamesFromPartNote"   : "The INSTANCE keeps the payload's part name - HipBeam__02, Cornice__Front - so the Outliner reads exactly as it did when every part was a group, while the definition carries the shared family name. Per part attributes, the tag and the material are written to the INSTANCE, never to the shared definition, because they are what differs between two placements of the same geometry."
+    },
+
+    "Na__ValeLantern__Importer__Config__Reload": {
+        "RebuildInPlace"      : true,
+        "RebuildInPlaceNote"  : "A reload replaces the geometry INSIDE the existing lantern's component definition rather than deleting the lantern and importing a new one. That is what preserves the placement: the instance is never touched, so its transform, its name, its tag and any copy of it the user has made all survive, and every copy regenerates at once. Set false and the reload refuses rather than falling back to something that would move the lantern.",
+
+        "ConfirmOnDifferentLantern"     : true,
+        "ConfirmOnDifferentLanternNote" : "The reload compares the payload's Lantern.Id against the one stamped on the lantern being reloaded and asks before continuing when they differ. Reloading a kitchen lantern's file over an orangery lantern is a legitimate thing to want - it is how you swap one for the other in place - but it is far more often a wrong file picked in a hurry.",
+
+        "PreserveBuildChoices"     : true,
+        "PreserveBuildChoicesNote" : "An import stamps BuiltModel and BuiltSettingOut on the root. A reload reads them back and rebuilds the same classes, so a lantern imported with its construction linework reloads with its construction linework and one imported without does not silently gain it. Set false to always rebuild the metal alone.",
+
+        "RemoveOrphanedDefinitions"     : true,
+        "RemoveOrphanedDefinitionsNote" : "The previous build's part definitions are removed after the old geometry is cleared and BEFORE the new geometry is built, which both keeps the Component browser from growing by thirty entries on every reload and frees the definition names so the rebuild reuses them instead of accumulating __2, __3 suffixes. Only definitions this plugin stamped as its own and that no longer carry a single instance anywhere in the model are touched - a purge_unused would have taken the user's own unused components with it, and an authored finial shared with another tool is never removed while anything still places it.",
+
+        "RememberSourceFile"     : true,
+        "RememberSourceFileNote" : "The path a lantern was built from is stamped on its root, so the reload picker opens in the folder that file came from rather than in the last folder used by any import. It is also what lets the right click menu offer to regenerate straight from that file. Turn it off and the picker falls back to the last folder any import used, and the right click menu drops to the one item."
+    },
+
+    "Na__ValeLantern__Importer__Config__ContextMenu": {
+        "Enabled"     : true,
+        "EnabledNote" : "Adds the reload to the right click menu, but ONLY when the thing being right clicked is a Vale lantern or something inside one. Set false to keep the reload on the Plugins menu alone - SketchUp's context menu gets crowded with plugins installed, and this is the switch for anybody who would rather it stayed out of theirs.",
+
+        "DetectionNote" : "Detection is on the RecordType stamp the importer writes onto the lantern itself, read off the clicked entity or its definition and climbed if the click was on something nested. Constant time, so there is nothing to cache and no model level register to go stale when a lantern is deleted, pasted in from another model, or arrives inside an imported building.",
+
+        "ItemsNote" : "Two items. 'Reload Lantern Json...' opens the file picker. 'Regenerate Lantern from <file>' appears only when the lantern remembers the file it was built from AND that file is still on disk, and skips the picker - which is acceptable precisely because the filename is in the label, so the user is told exactly what the picker would have told them, one click earlier."
+    }
+}

@@ -22,11 +22,19 @@
 #   From the Ruby console, one line:
 #       Na__ValeLantern.na_import
 #
-#   Or from Extensions > Vale Lantern Importer > Import Lantern Build File.
+#   Or from Plugins > Vale Lantern Importer > Import Lantern Build File.
 #
 #   Both reach the same routine. There is no dialog and no options panel,
-#   because every decision the import makes is already carried in the payload -
-#   which is the point of exporting a build recipe rather than a configuration.
+#   because every decision about the LANTERN is already carried in the payload -
+#   which is the point of exporting a build recipe rather than a configuration -
+#   and every decision about how SketchUp should present it is in
+#   Na__ValeLantern__Importer__Config.json.
+#
+#   To rebuild a lantern that is already in the model from an updated file:
+#       Na__ValeLantern.na_reload_lantern
+#
+#   That one replaces the geometry inside the lantern's own component definition,
+#   so the lantern does not move and every copy of it regenerates at once.
 #
 # -----------------------------------------------------------------------------
 #
@@ -39,14 +47,29 @@
 # the order below is a contract rather than a convenience:
 #
 #     Units, DebugTools     no dependencies
+#     ConfigLoader          DebugTools
 #     DataLibBridge         DebugTools  (plus the optional Na__DataLib install)
 #     TagManager            DebugTools, DataLibBridge
 #     MaterialManager       DebugTools
 #     PayloadReader         DebugTools
-#     PrismBuilder          DebugTools, Units, TagManager, MaterialManager
-#     MeshBuilder           the same four
-#     LineBuilder           DebugTools, Units, TagManager, DataLibBridge
+#     EdgeSoftener          DebugTools, ConfigLoader
+#     DefinitionRegistry    DebugTools, ConfigLoader
+#     PrismBuilder          DebugTools, Units, TagManager, MaterialManager,
+#                           ConfigLoader, EdgeSoftener, DefinitionRegistry
+#     MeshBuilder           DebugTools, Units, TagManager, MaterialManager,
+#                           plus DataLibBridge for the MTE materials that
+#                           authored edge colours resolve to
+#     LineBuilder           DebugTools, Units, TagManager, DataLibBridge,
+#                           ConfigLoader, DefinitionRegistry
 #     ModelComposer         everything above
+#     LanternReloader       everything above, plus Na__Main itself for the file
+#                           picker - which is safe because this module is fully
+#                           defined before the chain below is loaded
+#     ContextMenu           DebugTools, ConfigLoader, LanternReloader. Lives in
+#                           01__AppCore because it is UI wiring, but loads LAST
+#                           because it names the reloader. The folder numbers
+#                           describe what a file IS; NA_MODULE_CHAIN is the only
+#                           thing that describes what loads when.
 #
 # NAMING CONVENTION:
 # - Importer namespace Na__Importer / na_ prefixes.
@@ -68,15 +91,20 @@ module Na__ValeLantern
             NA_MODULE_CHAIN = [
                 '03__AppUtils/Na__ValeLantern__Importer__Units__',
                 '03__AppUtils/Na__ValeLantern__Importer__DebugTools__',
+                '02__AppData/Na__ValeLantern__Importer__ConfigLoader__',
                 '02__AppData/Na__ValeLantern__Importer__DataLibBridge__',
                 '03__AppUtils/Na__ValeLantern__Importer__TagManager__',
                 '03__AppUtils/Na__ValeLantern__Importer__MaterialManager__',
                 '02__AppData/Na__ValeLantern__Importer__PayloadReader__',
+                '04__GeometryBuilders/Na__ValeLantern__Importer__EdgeSoftener__',
+                '04__GeometryBuilders/Na__ValeLantern__Importer__DefinitionRegistry__',
                 '04__GeometryBuilders/Na__ValeLantern__Importer__PrismBuilder__',
                 '04__GeometryBuilders/Na__ValeLantern__Importer__MeshBuilder__',
                 '04__GeometryBuilders/Na__ValeLantern__Importer__LineBuilder__',
-                '05__Assembly/Na__ValeLantern__Importer__ModelComposer__'
-            ].freeze
+                '05__Assembly/Na__ValeLantern__Importer__ModelComposer__',
+                '05__Assembly/Na__ValeLantern__Importer__LanternReloader__',
+                '01__AppCore/Na__ValeLantern__Importer__ContextMenu__'
+            ].freeze                                                                                # <-- ContextMenu is AppCore by folder but loads LAST: it names the reloader
 
             # FUNCTION | Load every module in dependency order
             # ------------------------------------------------------------
@@ -109,6 +137,13 @@ module Na__ValeLantern
                 # lookup from before the edit.
                 if defined?(Na__ValeLantern::Na__Importer::Na__DataLibBridge)
                     Na__ValeLantern::Na__Importer::Na__DataLibBridge.na_reset
+                end
+
+                # Same reasoning for the plugin's own config: the JSON is cached
+                # on first read, so an edit to a softening angle would otherwise
+                # need SketchUp restarting rather than the loader re-pasting.
+                if defined?(Na__ValeLantern::Na__Importer::Na__ConfigLoader)
+                    Na__ValeLantern::Na__Importer::Na__ConfigLoader.na_reset
                 end
 
                 true
@@ -165,7 +200,10 @@ module Na__ValeLantern
                 payload = payload_reader.na_read_payload(chosen)
                 return false if payload.nil?
 
-                root = model_composer.na_compose(payload, choices)
+                build_choices = (choices.is_a?(Hash) ? choices : {}).dup
+                build_choices[:SourceFilePath] = chosen                                              # <-- Stamped on the root, so a reload's picker opens where this file lives
+
+                root = model_composer.na_compose(payload, build_choices)
                 if root.nil?
                     debug_tools.na_error('Nothing was built. The model is unchanged.')
                     return false
@@ -197,6 +235,32 @@ module Na__ValeLantern
             end
             # ---------------------------------------------------------------
 
+            # FUNCTION | Rebuild a lantern already in the model, in place
+            # ------------------------------------------------------------
+            # The answer to "I have changed the design, and the lantern is already
+            # sitting on a roof in this model." The geometry inside the lantern's
+            # component definition is replaced, so the lantern does not move, every
+            # copy of it regenerates at once, and the whole thing is one undo step.
+            #
+            # Which lantern is worked out from the selection, then from whatever
+            # the user has open, then from the model - and only asked when the
+            # model holds more than one and the user has said nothing.
+            #
+            # @param file_path [String, nil] Skip the picker by passing a path
+            # @param target [Sketchup::ComponentInstance, Sketchup::Group, nil]
+            # @return [Boolean] true when a lantern was rebuilt
+            def self.na_reload_lantern(file_path = nil, target = nil)
+                reloader = Na__ValeLantern::Na__Importer::Na__LanternReloader
+
+                unless Sketchup.active_model
+                    puts '[Vale Lantern] ERROR: there is no open model to reload into.'
+                    return false
+                end
+
+                reloader.na_reload(file_path, target)
+            end
+            # ---------------------------------------------------------------
+
             # FUNCTION | Run one import with per part console reporting
             # ------------------------------------------------------------
             # The routine to reach for when a part has come out wrong: it names
@@ -220,27 +284,39 @@ module Na__ValeLantern
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Internal — File Picker and Result Framing
+# REGION | File Picker — Public API
+# -----------------------------------------------------------------------------
+#
+# Public rather than private because the reloader asks for a build file too, and
+# there must be exactly one place that knows the filter string and the settings
+# keys the last used folder is remembered under. Two copies of NA_LAST_DIR_KEY
+# would drift the day one of them was renamed, and the symptom - a picker that
+# opens in the wrong folder - is too small to ever get investigated.
 # -----------------------------------------------------------------------------
 
-            # HELPER FUNCTION | Open the OS file picker at the last used folder
+            # FUNCTION | Open the OS file picker for a build file
             # ------------------------------------------------------------
             # UI.openpanel returns nil on cancel, and on some platforms has
             # historically returned the string 'Cancel' instead, so both are
             # treated as a cancellation.
-            def self.na_ask_for_file
-                start_dir = Sketchup.read_default(NA_SETTINGS_KEY, NA_LAST_DIR_KEY, nil)
-                start_dir = nil unless start_dir && File.directory?(start_dir)
+            #
+            # @param title [String] Picker title, so a reload can say so
+            # @param start_dir [String, nil] Overrides the remembered folder
+            # @return [String, nil] An existing file path, or nil on cancel
+            def self.na_ask_for_file(title = NA_PICKER_TITLE, start_dir = nil)
+                folder = start_dir
+                folder = Sketchup.read_default(NA_SETTINGS_KEY, NA_LAST_DIR_KEY, nil) if folder.nil?
+                folder = nil unless folder && File.directory?(folder)
 
-                chosen = UI.openpanel(NA_PICKER_TITLE, start_dir, NA_PICKER_FILTER)
+                chosen = UI.openpanel(title, folder, NA_PICKER_FILTER)
                 return nil if chosen.nil? || chosen.to_s.empty? || chosen == 'Cancel'
                 return nil unless File.exist?(chosen)
 
                 chosen
             end
-            private_class_method :na_ask_for_file
+            # ---------------------------------------------------------------
 
-            # HELPER FUNCTION | Remember the folder the file came from
+            # FUNCTION | Remember the folder a file came from
             # ------------------------------------------------------------
             # A build file is downloaded to the same folder every time, so
             # reopening the picker there saves the same four clicks on every
@@ -250,7 +326,13 @@ module Na__ValeLantern
             rescue StandardError
                 nil                                                                                 # <-- A preference that will not save is not worth a message
             end
-            private_class_method :na_remember_directory
+            # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Internal — Result Framing
+# -----------------------------------------------------------------------------
 
             # HELPER FUNCTION | Select the new lantern and zoom to it
             # ------------------------------------------------------------
@@ -312,6 +394,26 @@ module Na__ValeLantern
     # ------------------------------------------------------------
     def self.na_import_verbose(file_path = nil, choices = {})
         Na__ValeLantern::Na__Importer::Na__Main.na_import_verbose(file_path, choices)
+    end
+
+    # FUNCTION | Rebuild a lantern already in the model, in place
+    # ------------------------------------------------------------
+    # The lantern does not move, every copy of it regenerates, and it is one
+    # undo step. Which lantern is taken from the selection where there is one.
+    def self.na_reload_lantern(file_path = nil, target = nil)
+        Na__ValeLantern::Na__Importer::Na__Main.na_reload_lantern(file_path, target)
+    end
+
+    # FUNCTION | The same reload with per part console reporting
+    # ------------------------------------------------------------
+    def self.na_reload_lantern_verbose(file_path = nil, target = nil)
+        debug_tools = Na__ValeLantern::Na__Importer::Na__DebugTools
+        debug_tools.na_set_verbose(true)
+        begin
+            Na__ValeLantern::Na__Importer::Na__Main.na_reload_lantern(file_path, target)
+        ensure
+            debug_tools.na_set_verbose(false)
+        end
     end
 
 end

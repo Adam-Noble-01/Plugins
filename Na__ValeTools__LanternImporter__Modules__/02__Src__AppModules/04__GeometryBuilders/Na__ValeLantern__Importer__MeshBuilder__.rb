@@ -48,10 +48,12 @@ module Na__ValeLantern
             Units           = Na__ValeLantern::Na__Importer::Na__Units
             TagManager      = Na__ValeLantern::Na__Importer::Na__TagManager
             MaterialManager = Na__ValeLantern::Na__Importer::Na__MaterialManager
+            DataLibBridge   = Na__ValeLantern::Na__Importer::Na__DataLibBridge
 
             NA_ATTRIBUTE_DICTIONARY = 'VghLantern'.freeze
             NA_MIN_LOOP_POINTS      = 3
             NA_POINT_MERGE_INCH     = 0.0005
+            NA_EDGE_KEY_DP          = 4                                                                 # <-- 1e-4 inch, about 0.0025mm
 
             @na_definitions_by_key = {}                                                             # <-- Payload key, Sketchup::ComponentDefinition out
 
@@ -180,8 +182,10 @@ module Na__ValeLantern
                     return nil
                 end
 
+                styled = na_apply_edge_styles(definition.entities, vertices, entry['Edges'], name)
+
                 definition.set_attribute(NA_ATTRIBUTE_DICTIONARY, 'AssetId', entry['AssetId'].to_s)
-                DebugTools.na_detail("Built definition '#{name}' (#{built} faces)")
+                DebugTools.na_detail("Built definition '#{name}' (#{built} faces, #{styled} edges styled)")
                 DebugTools.na_count('Component definitions')
                 definition
             end
@@ -217,6 +221,11 @@ module Na__ValeLantern
                         face = entities.add_face(outer)
                         next if face.nil?
                         built += 1
+
+                        # An author who hid this face in the source component
+                        # meant it. Rebuild it either way - it is still part of
+                        # the solid - then put the hide back.
+                        face.hidden = true if face_entry['Hidden'] && face.valid?
 
                         inner_loops = face_entry['Inner']
                         next unless inner_loops.is_a?(Array)
@@ -266,6 +275,201 @@ module Na__ValeLantern
                 points
             end
             private_class_method :na_loop_points
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Internal — Authored Edge Style Restoration
+# -----------------------------------------------------------------------------
+#
+# WHY THIS EXISTS AT ALL
+#
+# add_face gives every edge SketchUp's defaults: visible, hard, unpainted. A
+# lathed finial rebuilt that way is a black wireframe of every tessellation
+# segment, and the only fix used to be a softening pass with an angle
+# threshold. A threshold cannot tell a deliberately hidden edge from a shallow
+# one, and it has no opinion at all about edge colour. So the author's actual
+# choices are carried through the payload and replayed here.
+#
+# THE THREE FLAGS ARE NOT INTERCHANGEABLE (SketchUp's own definitions)
+#
+#   soft     edge is not drawn AND its two faces merge into a Surface entity.
+#            Does not by itself change shading.
+#   smooth   the shading blends across the edge. ON ITS OWN THE EDGE STAYS
+#            VISIBLE - SketchUp only hides it as well because the Soften/Smooth
+#            slider sets soft and smooth together.
+#   hidden   Edit > Hide. Not drawn, no surface merge, shading unchanged.
+#
+# All three are replayed independently rather than collapsed into one "soften"
+# call, because collapsing them is exactly the loss this work set out to fix.
+#
+# MATCHING PAYLOAD EDGES TO BUILT EDGES
+#
+# The payload numbers its edges against the same vertex table the faces were
+# built from, but SketchUp decides for itself which edges exist - it merges
+# coincident geometry and can split an edge that another vertex lands on. So
+# rather than trusting a built order, every edge in the definition is looked
+# up by the rounded positions of its two ends. An edge the payload does not
+# describe simply keeps SketchUp's defaults, which is the safe direction to
+# fail in.
+# -----------------------------------------------------------------------------
+
+            # HELPER FUNCTION | Replay the authored soft / smooth / hidden / colour state
+            # ------------------------------------------------------------
+            # @param entities   [Sketchup::Entities]  The definition's entities
+            # @param vertices   [Array<Geom::Point3d>] Same table the faces used
+            # @param raw_edges  [Array<Hash>]         Payload Edges array
+            # @return [Integer] How many edges were matched and styled
+            def self.na_apply_edge_styles(entities, vertices, raw_edges, definition_name)
+                return 0 unless raw_edges.is_a?(Array) && !raw_edges.empty?
+
+                position_index = na_build_position_index(vertices)
+                return 0 if position_index.empty?
+
+                style_by_pair = {}
+                raw_edges.each do |record|
+                    next unless record.is_a?(Hash)
+                    index_a = record['A']
+                    index_b = record['B']
+                    next if index_a.nil? || index_b.nil?
+                    style_by_pair[[index_a.to_i, index_b.to_i].sort] = record
+                end
+                return 0 if style_by_pair.empty?
+
+                model   = Sketchup.active_model
+                styled  = 0
+                unknown = 0
+
+                entities.grep(Sketchup::Edge).each do |edge|
+                    next unless edge.valid?
+
+                    index_a = position_index[na_position_key(edge.start.position)]
+                    index_b = position_index[na_position_key(edge.end.position)]
+                    if index_a.nil? || index_b.nil?
+                        unknown += 1
+                        next
+                    end
+
+                    record = style_by_pair[[index_a, index_b].sort]
+                    if record.nil?
+                        unknown += 1
+                        next
+                    end
+
+                    styled += 1 if na_style_one_edge(model, edge, record)
+                end
+
+                if unknown > 0
+                    DebugTools.na_detail(
+                        "Definition '#{definition_name}': #{unknown} edge(s) had no authored style and kept SketchUp defaults."
+                    )
+                end
+
+                styled
+            rescue StandardError => e
+                DebugTools.na_warn("Edge styling refused for '#{definition_name}': #{e.class}: #{e.message}")
+                0
+            end
+            private_class_method :na_apply_edge_styles
+
+            # HELPER FUNCTION | Apply one payload style record to one edge
+            # ------------------------------------------------------------
+            # smooth is set before soft, and hidden last. The three are separate
+            # flags in SketchUp, but writing hidden last means that if a future
+            # SketchUp ever did couple them, the author's explicit hide is the
+            # one that survives.
+            def self.na_style_one_edge(model, edge, record)
+                edge.smooth = !!record['Smooth'] if record.key?('Smooth')
+                edge.soft   = !!record['Soft']   if record.key?('Soft')
+                edge.hidden = !!record['Hidden'] if record.key?('Hidden')
+
+                if record.key?('CastsShadows') && edge.respond_to?(:casts_shadows=)
+                    edge.casts_shadows = !!record['CastsShadows']
+                end
+
+                material = na_edge_material_from_record(model, record)
+                edge.material = material if material
+
+                true
+            rescue StandardError => e
+                DebugTools.na_detail("Edge style refused: #{e.message}")
+                false
+            end
+            private_class_method :na_style_one_edge
+
+            # HELPER FUNCTION | Resolve the material an authored edge colour asks for
+            # ------------------------------------------------------------
+            # The MTE library is asked first, so an imported red datum line is the
+            # same material object as one painted by the rest of the toolchain and
+            # stays recognisable to Na__EdgeUtil__PaintDeepNestedEdges. Only when
+            # DataLib cannot answer is a plain material created from the exported
+            # hex, so a colour authored outside the library is still not lost.
+            #
+            # An edge with no authored material returns nil and is left unpainted,
+            # rather than forced to black - unpainted is what SketchUp itself
+            # calls an untinted edge, and it keeps Color By Tag working.
+            def self.na_edge_material_from_record(model, record)
+                return nil unless model
+                return nil unless record['HasOwnMaterial']
+
+                style_key = record['MaterialName'].to_s
+                unless style_key.empty?
+                    material = DataLibBridge.na_edge_material_for(model, style_key)
+                    return material if material
+                end
+
+                na_material_from_hex(model, style_key, record['ColorHex'])
+            rescue StandardError => e
+                DebugTools.na_detail("Edge material refused: #{e.message}")
+                nil
+            end
+            private_class_method :na_edge_material_from_record
+
+            # HELPER FUNCTION | Create or reuse a plain material for a hex colour
+            # ------------------------------------------------------------
+            def self.na_material_from_hex(model, preferred_name, hex_value)
+                hex = hex_value.to_s.strip
+                return nil unless hex =~ /\A#?[0-9A-Fa-f]{6}\z/
+
+                hex   = hex.sub(/\A#/, '')
+                red   = hex[0, 2].to_i(16)
+                green = hex[2, 2].to_i(16)
+                blue  = hex[4, 2].to_i(16)
+
+                name = preferred_name.to_s.empty? ? "Na__EdgeColour__##{hex.upcase}" : preferred_name.to_s
+                existing = model.materials[name]
+                return existing if existing
+
+                material       = model.materials.add(name)
+                material.color = Sketchup::Color.new(red, green, blue)
+                material
+            rescue StandardError => e
+                DebugTools.na_detail("Edge colour material refused: #{e.message}")
+                nil
+            end
+            private_class_method :na_material_from_hex
+
+            # HELPER FUNCTION | Index the vertex table by rounded position
+            # ------------------------------------------------------------
+            def self.na_build_position_index(vertices)
+                index = {}
+                vertices.each_with_index do |point, position|
+                    next if point.nil?
+                    key = na_position_key(point)
+                    index[key] = position unless index.key?(key)
+                end
+                index
+            end
+            private_class_method :na_build_position_index
+
+            # HELPER FUNCTION | Rounded position key for vertex matching
+            # ------------------------------------------------------------
+            def self.na_position_key(point)
+                "#{point.x.to_f.round(NA_EDGE_KEY_DP)}|" \
+                "#{point.y.to_f.round(NA_EDGE_KEY_DP)}|" \
+                "#{point.z.to_f.round(NA_EDGE_KEY_DP)}"
+            end
+            private_class_method :na_position_key
 
 # endregion -------------------------------------------------------------------
 

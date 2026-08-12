@@ -60,21 +60,66 @@ module Na__ValeLantern
                 model = Sketchup.active_model
                 return 0 unless model
 
+                swapped = 0
+
                 material_table.each do |entry|
                     next unless entry.is_a?(Hash)
 
-                    key  = entry['Key']
-                    name = entry['Name']
+                    key      = entry['Key']
+                    resolved = na_apply_ssot_material(entry)                                        # <-- Swap to the shared swatch where one exists
+                    name     = resolved['Name']
                     next if key.nil? || name.nil? || name.to_s.empty?
 
-                    material = na_get_or_create_material(model, name.to_s, entry)
+                    swapped += 1 if resolved['SsotApplied']
+
+                    material = na_get_or_create_material(model, name.to_s, resolved)
                     @na_materials_by_key[key.to_s] = material if material
                 end
 
-                DebugTools.na_info("Materials prepared: #{@na_materials_by_key.length}")
+                DebugTools.na_info("Materials prepared: #{@na_materials_by_key.length} (#{swapped} on the shared Na__DataLib swatch)")
                 @na_materials_by_key.length
             end
             # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Swap a payload material row onto its SSOT swatch
+            # ------------------------------------------------------------
+            # A row carrying an SsotMaterialId is renamed and recoloured from the
+            # Noble Architecture surface materials index, so the lantern shares a
+            # swatch with everything Element Assembly Studio Pro builds.
+            #
+            # THIS IS NOT COSMETIC. Na__TrueVision__GlbBuilder enriches a
+            # material only when its name matches /^MAT\d{3}__/ AND appears in
+            # that index. A pane of glass called VGH__Glazing fails both tests,
+            # reaches the GLB with no alphaMode and no opacity, and renders in
+            # ValeVision3D as opaque white beside conservatory glazing that
+            # renders correctly. Naming is the whole mechanism.
+            #
+            # A row with no id, or an id the index cannot answer, keeps its own
+            # name and colour - which is the right outcome for the roles that
+            # genuinely have no equivalent in the index.
+            def self.na_apply_ssot_material(entry)
+                material_id = entry['SsotMaterialId']
+                return entry if material_id.nil? || material_id.to_s.empty?
+
+                bridge   = Na__ValeLantern::Na__Importer::Na__DataLibBridge
+                standard = bridge.na_ssot_material_for(material_id)
+                unless standard
+                    DebugTools.na_detail("Surface material '#{material_id}' is not in the index - '#{entry['Name']}' keeps its own name.")
+                    return entry
+                end
+
+                merged = entry.dup
+                merged['Name']        = standard['SketchUpName']
+                merged['SsotApplied'] = true
+
+                rgb = bridge.na_parse_base_color(standard['BaseColor'])
+                merged['ColorRgb'] = rgb if rgb
+                merged['Alpha']    = standard['Opacity'].to_f if standard['Opacity'].is_a?(Numeric)
+
+                DebugTools.na_detail("Material '#{entry['Name']}' swapped to shared swatch '#{merged['Name']}'")
+                merged
+            end
+            private_class_method :na_apply_ssot_material
 
             # FUNCTION | The material registered against one payload key
             # ------------------------------------------------------------

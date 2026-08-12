@@ -26,6 +26,64 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 
 
 # Na Noble3d Modelling Tools — Component Editor Tools
+## Version 0.6.3 - 12-Aug-2026 - Export Tab: 2D Projection Fixes (Faceted Curves + Seam Stragglers)
+
+### Overview
+Two pre-existing defects in the 2D projection pipeline, both surfaced while auditing the first 1.2.0 exports of `47_1001__ValeRoofSystem__RidgeBlock__StandardOctagonalBlock__`. Neither was caused by the 0.6.2 edge-style work — the 3D capture and the 2D projection are separate paths — but both corrupted the Top Plan badly enough to block sign-off.
+
+### Update 01 - Faceted ArcCurves must not export as arcs
+- Octagons, hexagons and coarse "circles" are all `Sketchup::ArcCurve`, with the radius being the **circumradius** and every vertex sitting exactly on the circumcircle. `BuildViewPaths` only tested `is_a?(Sketchup::ArcCurve)`, so all 8 straight sides of the octagonal shaft were emitted as 45° arcs — 8 × 45° = 360°, drawing a circle right through the block outline.
+- Confirmed from the export data: arc endpoints are the octagon corners (±27.96, ±67.5), chord 55.918 mm against an arc length of 57.383 mm, so every side bulged out by 1.5 mm.
+- **First attempt used `Curve#is_polygon?` and failed.** The follow-up audit export still contained all 8 arcs. That method records how a curve was *created*, not how it looks, and returns false for a "circle" drawn with 8 sides or for an exploded or copied polygon. Wrong discriminator.
+- `CurveIsFaceted` now measures tessellation density normalised to a full turn — `edge_count * 2PI / sweep` — and treats anything below `NA_ARC_MIN_SEGMENTS_PER_TURN` (16, i.e. chords departing their arc by more than about 2% of radius) as faceted. Independent of how the curve was built, and identical whether the group holds one 8-edge curve or eight 1-edge curves (both resolve to 8 per turn). `is_polygon?` retained as an additional trigger.
+- Classification check: octagon 8/turn and 12-sided 12/turn export as lines; SketchUp's default 24-segment circle, fine circles and part-arcs export as true arcs, so lathe rings are unaffected.
+- The same circumcircle property also fools the chain circle refit — a 12-sided shape fits a circle with zero radial residual. Faceted segments are tagged `:no_circle_fit`, `FitChainsToCircles` skips any chain containing one, and `DedupeSegments` propagates the tag onto a surviving coincident duplicate so it cannot be laundered away. Tagging rather than raising `NA_CIRCLE_FIT_MIN_POINTS` keeps genuine part-circle chains refittable.
+
+### Update 02 - Hidden-edge cull now samples edge interiors
+- Symptom: a scatter of 1-6 mm stragglers inside the octagon in Top Plan. Diagnosis from the export — every straggler was a lathe-ring fragment from the turned base (radii 10.5 / 12.2 / 26.2 / 26.9 / 33.7 / 36.2 / 42.8 mm) and **every one had an endpoint at exactly y = 0.000**, symmetric at ±x. That is the revolve seam plane.
+- Cause: `SamplePointVisible` was called on the two endpoints only. A revolve's seam vertices sit exactly on the plane where its faces meet; `model.raytest` is unreliable along that plane, so a buried seam vertex read back as the first surface hit and kept the whole edge. The existing "straggler linework" comment in `OcclusionCullEdges` was describing this same failure mode.
+- Fix: new `EdgeSurvivesOcclusion` samples at 25/50/75% along the span (`NA_OCCLUSION_SAMPLE_FRACTIONS`) and keeps the edge if any interior sample reaches the camera. Interior samples sit clear of the seam, so stragglers cull; a genuinely half-buried silhouette edge still has a visible interior sample and survives whole, preserving the original intent. Edges below `NA_OCCLUSION_MIN_SPAN_IN` (0.5 mm) cannot carry meaningful interior samples and fall back to the old endpoint test.
+- Measured on the ridge block: plan lines 74 → 24. Of the 50 removed, 24 were sub-5 mm seam stragglers and 24 were a second concentric ring correctly hidden beneath the top one. The 24 that remain are a real 0.2 mm chamfer ring.
+- Cost: up to 3 casts per edge instead of 2, with early exit on the first visible sample. `NA_OCCLUSION_MAX_EDGES` guard unchanged.
+
+
+# Na Noble3d Modelling Tools — Component Editor Tools
+## Version 0.6.2 - 12-Aug-2026 - Export Tab: Authored Edge Style Capture (schema 1.2.0)
+
+### Overview
+Exported components now carry the **authored** SketchUp edge state — soften, smooth, hide and edge colour — so a component can be styled in SketchUp, consumed by the Lantern Designer web app, and rebuilt back in SketchUp with the same linework. Previously an angle-based softening filter was the only option downstream, which cannot express intent (a deliberately hidden edge and a shallow-angle edge are indistinguishable to a threshold).
+
+### Update 01 - Root cause: hidden geometry was culled before it could be flagged
+- `CollectMeshTree` ran every entity through `EntityExcluded` (hidden? or invisible tag) *before* recording it. `IsHidden` was written on every edge but could only ever be `false`, and hidden faces silently vanished from the mesh.
+- New constant `NA_CAPTURE_HIDDEN_GEOMETRY` (default true): the Mesh3D traversal now records hidden entities and entities on invisible tags and flags them instead of dropping them. Flip to false to restore the pre-1.2.0 visible-only mesh.
+- The three 2D projection views are deliberately unchanged — those are a display projection, so hidden and invisible-tag linework correctly stays out of them.
+
+### Update 02 - Per-edge style bundle (`Na__Edge__*`)
+- `IsSoft` / `IsSmooth` / `IsHidden` / `CastsShadows`, plus `TagName`, `TagVisible`, `MaterialName`, `HasOwnMaterial`, `ColorHex`, `ColorRgba` and the owning `Na__Object__NodeId`.
+- `Na__Edge__IsDisplayed` is the precomputed answer to "does SketchUp draw this line": `!soft && !hidden && tag visible`. Consumers read one boolean instead of re-deriving SketchUp's precedence rules.
+- Per SketchUp's documented behaviour, **smooth alone does not hide an edge** — it only blends the shading. SketchUp's Soften/Smooth slider sets soft and smooth together, which is why the two are usually confused. `IsDisplayed` follows SketchUp, not the GLB builder's stricter linework rule (which also drops smooth-only edges).
+- Legacy flat `IsSoft` / `IsSmooth` / `IsHidden` / `CastsShadows` keys are still written alongside, so existing readers of 1.1.0 exports keep working.
+
+### Update 03 - Per-face and per-node state
+- Faces gain `Na__Face__IsHidden`, `Na__Face__IsDisplayed`, `Na__Face__TagName`, `Na__Face__TagVisible`, `Na__Face__BackMaterial`.
+- Hierarchy nodes gain `Na__Object__IsHidden`, `Na__Object__TagVisible`, `Na__Object__MaterialName`, so a hidden group re-imports hidden.
+
+### Update 04 - Loose edges no longer discarded
+- The vertex position index was built only from face loops, so linework with no adjacent face failed the `next unless start_vid && end_vid` guard and was dropped from Mesh3D entirely.
+- `RegisterLooseEdgeVertices` runs after the face pass and registers those endpoints as linework-only vertices (`IsLineworkOnly: true`, placeholder +Z normal — never referenced by a face, so it cannot leak into shading).
+- `CaptureMesh` bails only when faces *and* edges are both empty, so pure-linework components export.
+
+### Update 05 - Edge uniqueness now per node
+- Dedupe key was the undirected vertex pair alone, collapsing coincident edges from different nested groups into one record. Now keyed by `(node_id, vertex pair)` so each container keeps its own edges and can be rebuilt correctly.
+
+### Update 06 - Counts, legend and preview
+- `Na__Geometry__Counts` adds `HiddenEdgeCount`, `DisplayedEdgeCount`, `ColouredEdgeCount`, `HiddenFaceCount`, `LineworkVertexCount`.
+- New `Na__Geometry__EdgeStyleLegend` writes the soft/smooth/hidden contract into every export, so the web loader and the SketchUp re-importer share one authoritative definition. Includes the note that vertex normals are already averaged across smoothed edges by `face.mesh(7)`, so smooth shading is baked in and needs no downstream recomputation.
+- `Tab__Export__.js` — the isometric preview honours `IsDisplayed`, paints authored `ColorHex`, and dashes hidden edges so the captured state is visible before export. Summary panel gains an Edge Styles row.
+- `meta.schemaVersion` → `1.2.0`; `fieldPrefixes` documents `Na__Edge__` and `Na__Face__`.
+
+
+# Na Noble3d Modelling Tools — Component Editor Tools
 ## Version 0.6.1 - 05-Aug-2026 - Export Tab: Multi-View Asset JSON Exporter
 
 ### Overview

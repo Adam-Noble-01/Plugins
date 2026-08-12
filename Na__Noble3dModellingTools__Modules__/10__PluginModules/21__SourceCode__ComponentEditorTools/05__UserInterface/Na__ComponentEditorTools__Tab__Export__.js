@@ -180,6 +180,13 @@
 // Projects Mesh3D vertices with a fixed isometric basis and draws the edge
 // list. Hard edges draw solid; soft/smooth edges draw light (skipped entirely
 // on very heavy meshes to keep the dialog responsive).
+//
+// Schema 1.2.0 edges carry Na__Edge__IsDisplayed - the resolved "does SketchUp
+// draw this line" answer (not soft, not hidden, tag visible). The preview
+// honours it so what you see here matches the SketchUp viewport, and paints
+// each line with its authored Na__Edge__ColorHex when one was applied. Edges
+// suppressed only by hiding are still drawn faintly so an author can confirm
+// the hidden state was captured rather than silently lost.
 
     function na_iso_project(x, y, z) {
         return {
@@ -229,15 +236,30 @@
             var end_point   = projected[edge_entry['EndVertex']];
             if (!start_point || !end_point) return;
 
-            var is_soft = edge_entry['IsSoft'] || edge_entry['IsSmooth'];
+            var is_soft = edge_entry['Na__Edge__IsSoft'] || edge_entry['IsSoft'] ||
+                          edge_entry['Na__Edge__IsSmooth'] || edge_entry['IsSmooth'];
             if (is_soft && !draw_soft) return;
 
-            var stroke_class = is_soft
-                ? 'naComponentEditor__ExportSvgStrokeSoft'
-                : 'naComponentEditor__ExportSvgStroke';
+            // Fall back to the legacy soft/smooth test on pre-1.2.0 documents
+            // that have no resolved display flag.
+            var is_displayed = (typeof edge_entry['Na__Edge__IsDisplayed'] === 'boolean')
+                ? edge_entry['Na__Edge__IsDisplayed']
+                : !is_soft;
+
+            var stroke_class = is_displayed
+                ? 'naComponentEditor__ExportSvgStroke'
+                : 'naComponentEditor__ExportSvgStrokeSoft';
+
+            var colour_attr = '';
+            if (edge_entry['Na__Edge__HasOwnMaterial'] && edge_entry['Na__Edge__ColorHex']) {
+                colour_attr = ' stroke="' + edge_entry['Na__Edge__ColorHex'] + '"';
+            }
+
+            var dash_attr = edge_entry['Na__Edge__IsHidden'] ? ' stroke-dasharray="4 3"' : '';
 
             fragments.push(
-                '<line class="' + stroke_class + '" x1="' + na_round(start_point.u) + '" y1="' + na_round(-start_point.v) +
+                '<line class="' + stroke_class + '"' + colour_attr + dash_attr +
+                ' x1="' + na_round(start_point.u) + '" y1="' + na_round(-start_point.v) +
                 '" x2="' + na_round(end_point.u) + '" y2="' + na_round(-end_point.v) + '"></line>'
             );
         });
@@ -277,6 +299,14 @@
                     stat_entry.vertices + ' vertices, ' + stat_entry.faces + ' faces, ' + stat_entry.edges + ' edges, ' + stat_entry.objects + ' objects',
                     false
                 ));
+                if (typeof stat_entry.displayed === 'number') {
+                    rows.push(na_meta_row(
+                        'Edge Styles',
+                        stat_entry.hard + ' hard, ' + stat_entry.soft + ' soft, ' + stat_entry.smooth + ' smooth, ' +
+                        stat_entry.hidden + ' hidden, ' + stat_entry.coloured + ' coloured (' + stat_entry.displayed + ' drawn)',
+                        false
+                    ));
+                }
             } else {
                 rows.push(na_meta_row(
                     stat_entry.label,
