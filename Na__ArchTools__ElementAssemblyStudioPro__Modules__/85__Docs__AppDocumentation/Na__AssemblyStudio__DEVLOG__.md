@@ -3,6 +3,47 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.4.0 - 12-Aug-2026 - Adjustable Sliding Sash Meeting Rail Position
+
+### Context
+Sliding sash windows were hard-locked to a 50/50 vertical split — `height / 2` appeared independently in the 2D preview, the 3D geometry engine, and both DXF exporters. Real Victorian/Georgian sashes are very often unequal: a 3-over-6 window (one row of panes in the top sash, two rows in the bottom) needs the meeting rail roughly a third down from the head so all nine panes come out near-square. With the split fixed at centre the top row of panes rendered far taller than the bottom rows, so those sashes could not be modelled at all.
+
+### Feature Summary
+- **Custom Meeting Rail Position** — a new toggle in Advanced Casement Controls (directly under Override Bottom Sash Top Rail) reveals a **Meeting Rail Offset** slider: signed millimetres, −600…+600, step 5, default 0. Centred at rest; dragging **right (positive) drives the meeting rail UP** (shorter top sash, taller bottom sash), dragging **left (negative) drives it DOWN**. Clamped per cell so neither sash falls below 10% of that cell's height.
+- **Unequal sash heights are now honoured throughout.** The two sashes previously shared one `sashHeight` value because they were equal by construction; each render path now computes the bottom sash as `meetingRailY` and the top sash as `height − meetingRailY` independently. The sliding overlap clamp now measures against the **top** sash height (the sash the bottom one tucks into), and the sash horns follow the moved meeting rail.
+- **Split math is mirrored in four places** (`na_resolveMeetingRailHeight` / `na_resolve_meeting_rail_height`) so preview, 3D build and both DXF exporters agree on the rail position. An offset of exactly 0 short-circuits to `height / 2`, so existing models and presets are bit-identical.
+- Applies per sash cell, so transom-divided openings and multi-casement openings each get the same mm shift, clamped independently to their own cell height.
+
+### Files Changed
+- `20__System__WindowSystem/`
+  - `Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js` (`meeting_rail_position_override` toggle + `meeting_rail_offset_mm` slider descriptors)
+  - `Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` (sliding-sash defaults, toggle-reveal visibility, window-only control list)
+  - `Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js` (`na_resolveMeetingRailHeight`; independent top/bottom sash heights in the 2D preview)
+  - `Na__AssemblyStudio__WindowSystem__UiSystem__Export__Dxf__.js` (same split math for the JS DXF path)
+  - `Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb` (`na_resolve_meeting_rail_height`; offset read into params; 3D sash + horn placement)
+  - `Na__AssemblyStudio__WindowSystem__DxfExporter__.rb` (`na_resolve_meeting_rail_height`; Ruby DXF path)
+  - `Na__AssemblyStudio__WindowSystem__Defaults__.rb` (two new config keys)
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (version 1.4.0)
+
+### How to Test
+1. Reload Plugin Data (or full SketchUp restart) and reopen the dialog.
+2. Windows tab → Sliding Sash. Confirm **Custom Meeting Rail Position** appears under Override Bottom Sash Top Rail, and that the **Meeting Rail Offset** slider only appears once the toggle is on.
+3. Leave the offset at 0 — the preview must be identical to V1.3.1 (exact 50/50 split).
+4. Drag right → the meeting rail moves **up**, top sash shrinks. Drag left → it moves **down**. Values are signed mm.
+5. Set Horizontal Bars = 1 and remove the top sash's bar (click it) to get 3-over-6; on a ~1410mm window the bottom sash wants roughly two-thirds of the cell, so try +200 to +250 — all nine panes should come out roughly square, matching the site photo case. (Geometric ideal is cell height / 6; rail thicknesses shift it slightly, so tune by eye.)
+6. Create/Update the 3D model — sash rails, glass and sash horns must sit at the same division as the preview.
+7. Export DXF — meeting rail position must match the preview.
+8. Push the slider to both extremes — the division should stop at 10% / 90% of the cell height rather than collapsing a sash.
+9. Add a transom (2 cells) and confirm each cell shifts by the same mm, clamped to its own height.
+
+### Backward Compatibility
+- `meeting_rail_position_override` defaults to `false` and `meeting_rail_offset_mm` to `0`, so presets and models saved before V1.4.0 load and rebuild exactly as before.
+- With the toggle off the offset is resolved to 0 before it reaches any render path, and a 0 offset returns `height / 2` unchanged — the slider's stored value is retained but inert.
+
+### Known Limitation
+- The 10%/90% clamp is purely proportional; it does not account for rail thicknesses. On a short cell with heavy rails, an extreme offset can squeeze the smaller sash until its top and bottom rails nearly meet. Validation's minimum-cell-height check still assumes an equal split.
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.3.1 - 29-Jul-2026 - Multifold Fielded Panels + Fold/Slide Fielded Glazebar Offsets
 
 ### Context

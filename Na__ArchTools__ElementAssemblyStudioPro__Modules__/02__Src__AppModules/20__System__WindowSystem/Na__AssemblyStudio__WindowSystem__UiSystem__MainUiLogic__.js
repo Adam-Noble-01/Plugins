@@ -233,6 +233,8 @@ const Na_DynamicUI = (function() {
             top_sash_bottom_rail_mm: 60,
             bottom_sash_top_rail_override: false,
             bottom_sash_top_rail_mm: 60,
+            meeting_rail_position_override: false,
+            meeting_rail_offset_mm: 0,
             casement_left_stile_mm: 40,
             casement_right_stile_mm: 40
         };
@@ -525,7 +527,7 @@ const Na_DynamicUI = (function() {
             _config.multifold_mode !== true &&
             _config.sliding_mode !== true;
 
-        ['top_sash_bottom_rail_mm', 'bottom_sash_top_rail_override', 'sash_horns_enabled', 'sash_horn_type'].forEach(controlId => {
+        ['top_sash_bottom_rail_mm', 'bottom_sash_top_rail_override', 'meeting_rail_position_override', 'sash_horns_enabled', 'sash_horn_type'].forEach(controlId => {
             const control = document.querySelector(`[data-control-id="${controlId}"]`);
             if (control) control.style.display = showSashControls ? '' : 'none';
         });
@@ -534,6 +536,12 @@ const Na_DynamicUI = (function() {
         if (bottomSashTopRailControl) {
             bottomSashTopRailControl.style.display =
                 showSashControls && _config.bottom_sash_top_rail_override === true ? '' : 'none';
+        }
+
+        const meetingRailOffsetControl = document.querySelector('[data-control-id="meeting_rail_offset_mm"]');
+        if (meetingRailOffsetControl) {
+            meetingRailOffsetControl.style.display =
+                showSashControls && _config.meeting_rail_position_override === true ? '' : 'none';
         }
     }
     // ---------------------------------------------------------------
@@ -1089,6 +1097,8 @@ const Na_DynamicUI = (function() {
             'top_sash_bottom_rail_mm',
             'bottom_sash_top_rail_override',
             'bottom_sash_top_rail_mm',
+            'meeting_rail_position_override',
+            'meeting_rail_offset_mm',
             'sash_horns_enabled',
             'sash_horn_type'
         ];

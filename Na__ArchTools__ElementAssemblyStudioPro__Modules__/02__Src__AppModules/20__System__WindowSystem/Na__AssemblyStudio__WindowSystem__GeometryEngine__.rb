@@ -620,7 +620,15 @@ module Na__WindowSystem
             else
                 cas_top_rail
             end
-            
+            # Signed nudge for the meeting rail away from the 50/50 split.
+            # Positive drives the meeting rail UP (shorter top sash);
+            # negative drives it DOWN. Zero when the override is off.
+            meeting_rail_offset = if config["meeting_rail_position_override"] == true
+                (config["meeting_rail_offset_mm"] || 0).to_f * mm_to_inch
+            else
+                0.0
+            end
+
             # Calculate opening layout
             num_openings = num_mullions + 1
             inner_width = width - effective_frame_thicknesses[:left] - effective_frame_thicknesses[:right]
@@ -653,6 +661,7 @@ module Na__WindowSystem
                 cas_bottom_rail: cas_bottom_rail,
                 top_sash_bottom_rail: top_sash_bottom_rail,
                 bottom_sash_top_rail_override: bottom_sash_top_rail_override,
+                meeting_rail_offset: meeting_rail_offset,
                 bottom_sash_top_rail: bottom_sash_top_rail,
                 cas_left_stile: cas_left_stile,
                 cas_right_stile: cas_right_stile,
@@ -967,6 +976,25 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Resolve Meeting Rail Height Within a Sash Cell
+        # ------------------------------------------------------------
+        # Returns the height of the bottom sash zone measured up from the
+        # cell floor - i.e. where the meeting rail sits inside the cell.
+        # offset is signed and in inches: positive drives the meeting rail
+        # UP (shorter top sash), negative drives it DOWN. Clamped so
+        # neither sash falls below 10% of the cell height. An offset of 0
+        # returns the exact 50/50 split so legacy models are unchanged.
+        # Mirrors SvgGenerator.na_resolveMeetingRailHeight (2D preview) so
+        # the built geometry matches what the user saw in the dialog.
+        def self.na_resolve_meeting_rail_height(cell_height, offset)
+            height_value = cell_height.to_f
+            centre_split = height_value / 2.0
+            offset_value = offset.to_f
+            return centre_split if offset_value == 0.0
+            [[centre_split + offset_value, height_value * 0.10].max, height_value * 0.90].min
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Create Sliding Sash Opening Cell
         # ------------------------------------------------------------
         # Creates two vertically stacked casements per horizontal panel.
@@ -974,9 +1002,11 @@ module Na__WindowSystem
         def self.na_create_sliding_sash_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_height, params, frame_material, glass_material)
             num_panels = params[:casements_per_opening]
             panel_width = params[:opening_width] / num_panels.to_f
-            sash_height = opening_height / 2.0
-            sash_overlap = [params[:sliding_sash_overlap], sash_height - 1.mm].min
-            sash_overlap = [sash_overlap, 0].max
+            meeting_rail_y = na_resolve_meeting_rail_height(opening_height, params[:meeting_rail_offset])
+            bottom_sash_height = meeting_rail_y                                                              # <-- Cell floor up to the meeting rail
+            top_sash_height = opening_height.to_f - meeting_rail_y                                           # <-- Meeting rail up to the cell head
+            sash_overlap = [params[:sliding_sash_overlap].to_f, top_sash_height - 1.mm.to_f].min             # <-- Bottom sash tucks up into the top sash
+            sash_overlap = [sash_overlap, 0.0].max
 
             (0...num_panels).each do |p|
                 panel_x = opening_x + (p * panel_width)
@@ -998,9 +1028,9 @@ module Na__WindowSystem
                     p,
                     0,
                     panel_x,
-                    opening_z + sash_height,
+                    opening_z + meeting_rail_y,
                     panel_width,
-                    sash_height,
+                    top_sash_height,
                     panel_has_casement,
                     params[:frame_wall_inset],
                     params,
@@ -1013,7 +1043,7 @@ module Na__WindowSystem
                         entities,
                         top_panel_id,
                         panel_x,
-                        opening_z + sash_height,
+                        opening_z + meeting_rail_y,
                         panel_width,
                         params,
                         frame_material
@@ -1030,7 +1060,7 @@ module Na__WindowSystem
                     panel_x,
                     opening_z,
                     panel_width,
-                    sash_height + sash_overlap,
+                    bottom_sash_height + sash_overlap,
                     panel_has_casement,
                     params[:frame_wall_inset] + params[:casement_depth],
                     params,

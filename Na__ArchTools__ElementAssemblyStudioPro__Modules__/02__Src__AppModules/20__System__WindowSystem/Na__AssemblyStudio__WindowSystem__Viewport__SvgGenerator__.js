@@ -269,6 +269,13 @@ const Na__Viewport__SvgGenerator = (function() {
             enabled: config.sash_horns_enabled !== false,
             type: config.sash_horn_type || '1'
         };
+        // Signed nudge for the meeting rail away from the 50/50 split.
+        // Positive drives the meeting rail UP (shorter top sash, taller
+        // bottom sash); negative drives it DOWN. Resolved to 0 when the
+        // override toggle is off so legacy configs render unchanged.
+        const meetingRailOffset = config.meeting_rail_position_override === true
+            ? Number(config.meeting_rail_offset_mm || 0)
+            : 0;
 
         let svg = '';
         let openingClickTargetsSvg = '';
@@ -333,6 +340,7 @@ const Na__Viewport__SvgGenerator = (function() {
                         removedCasementSet: removedCasementSet,
                         slidingSashWindow: slidingSashWindow,
                         slidingSashOverlap: slidingSashOverlap,
+                        meetingRailOffset: meetingRailOffset,
                         casementsPerOpening: casementsPerOpening,
                         casTopRail: casTopRail,
                         casBottomRail: casBottomRail,
@@ -508,6 +516,7 @@ const Na__Viewport__SvgGenerator = (function() {
                             panelX, cell.y, panelWidth, cell.height,
                             options.casTopRail, options.casBottomRail, options.topSashBottomRail, options.bottomSashTopRail, options.casLeftStile, options.casRightStile,
                             options.frameColor, options.hBars, options.vBars, options.barWidth, options.slidingSashOverlap,
+                            options.meetingRailOffset,
                             panelContext, options.removedGlazebars, options.sashHornOptions, options.advancedGlazebar,
                             options.leadedGlass
                         )
@@ -789,17 +798,38 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Resolve Meeting Rail Height Within a Sash Cell
+    // ------------------------------------------------------------
+    // Returns the height of the bottom sash zone measured up from the
+    // cell floor - i.e. where the meeting rail sits inside the cell.
+    // offsetMm is signed: positive drives the meeting rail UP (shorter
+    // top sash), negative drives it DOWN. Clamped so neither sash falls
+    // below 10% of the cell height. An offset of 0 returns the exact
+    // 50/50 split, so legacy configs are bit-identical.
+    // Mirrored by GeometryEngine.na_resolve_meeting_rail_height (3D),
+    // DxfExporter.na_resolve_meeting_rail_height (Ruby DXF) and
+    // Export__Dxf__.na_resolveMeetingRailHeight (JS DXF).
+    function na_resolveMeetingRailHeight(height, offsetMm) {
+        const centreSplit = height / 2;
+        const offset = Number(offsetMm) || 0;
+        if (offset === 0) return centreSplit;
+        return Math.max(height * 0.10, Math.min(height * 0.90, centreSplit + offset));
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Generate Sliding Sash SVG for One Panel
     // ------------------------------------------------------------
     // Draws top and bottom casements stacked vertically.
     // Bottom sash gets a subtle shading overlay to indicate setback depth.
-    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar, leadedGlass) {
+    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, meetingRailOffsetMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar, leadedGlass) {
         const renderBucket = na_createSvgRenderBucket();
 
-        const sashHeight = height / 2;
-        const sashOverlap = Math.max(0, Math.min(overlapMm || 0, sashHeight - 1));
+        const meetingRailY = na_resolveMeetingRailHeight(height, meetingRailOffsetMm);
+        const bottomSashHeight = meetingRailY;                                              // <-- Cell floor up to the meeting rail
+        const topSashHeight = height - meetingRailY;                                        // <-- Meeting rail up to the cell head
+        const sashOverlap = Math.max(0, Math.min(overlapMm || 0, topSashHeight - 1));       // <-- Bottom sash tucks up into the top sash
         const bottomSashY = y;
-        const topSashY = y + sashHeight;
+        const topSashY = y + meetingRailY;
 
         // Bottom sash: arches are NOT drawn here even when enabled, because
         // architectural gothic tracery sits at the head of the assembly only.
@@ -815,7 +845,7 @@ const Na__Viewport__SvgGenerator = (function() {
         na_mergeSvgRenderBuckets(
             renderBucket,
             na_generateSingleCasementSvg(
-            x, bottomSashY, width, sashHeight + sashOverlap,
+            x, bottomSashY, width, bottomSashHeight + sashOverlap,
             bottomSashTopRail, bottomRail, leftStile, rightStile,
                 frameColor, hBars, vBars, barWidth,
                 {
@@ -831,13 +861,13 @@ const Na__Viewport__SvgGenerator = (function() {
         );
 
         // Reduced by 50% from previous 0.2 intensity.
-        renderBucket.svg += na_svgRect(x, bottomSashY, width, sashHeight + sashOverlap, 'rgba(0, 0, 0, 0.1)', 'none', 0);
+        renderBucket.svg += na_svgRect(x, bottomSashY, width, bottomSashHeight + sashOverlap, 'rgba(0, 0, 0, 0.1)', 'none', 0);
 
         // Top sash gets the full advancedGlazebar (margin + arches if enabled).
         na_mergeSvgRenderBuckets(
             renderBucket,
             na_generateSingleCasementSvg(
-            x, topSashY, width, sashHeight,
+            x, topSashY, width, topSashHeight,
             topRail, topSashBottomRail, leftStile, rightStile,
                 frameColor, hBars, vBars, barWidth,
                 {

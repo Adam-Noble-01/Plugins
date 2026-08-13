@@ -354,7 +354,14 @@ module Na__WindowSystem
             end
             sash_horns_enabled = config["sash_horns_enabled"] != false
             sash_horn_type = config["sash_horn_type"] || "1"
-            
+            # Signed nudge for the meeting rail away from the 50/50 split
+            # (mm here - the DXF exporter works in millimetres throughout).
+            meeting_rail_offset = if config["meeting_rail_position_override"] == true
+                (config["meeting_rail_offset_mm"] || 0).to_f
+            else
+                0.0
+            end
+
             # Calculate openings
             num_openings = num_mullions + 1
             inner_width = width - left_frame_thickness - right_frame_thickness
@@ -419,7 +426,7 @@ module Na__WindowSystem
                                 entities += na_generate_sliding_sash_panel_dxf(
                                     panel_x, cell[:y], panel_width, cell[:height],
                                     cas_top_rail, cas_bottom_rail, top_sash_bottom_rail, bottom_sash_top_rail, cas_left_stile, cas_right_stile,
-                                    h_bars, v_bars, bar_width, sliding_sash_overlap,
+                                    h_bars, v_bars, bar_width, sliding_sash_overlap, meeting_rail_offset,
                                     opening_index: i, cell_index: cell_index, panel_index: p,
                                     removed_glazebars: removed_glazebars,
                                     sash_horns_enabled: sash_horns_enabled,
@@ -807,15 +814,31 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Resolve Meeting Rail Height Within a Sash Cell
+        # ------------------------------------------------------------
+        # Mirrors SvgGenerator.na_resolveMeetingRailHeight so the exported
+        # DXF matches the 2D preview. Positive offset drives the meeting
+        # rail UP, clamped to 10%-90% of the cell height. All mm.
+        def self.na_resolve_meeting_rail_height(cell_height, offset_mm)
+            height_value = cell_height.to_f
+            centre_split = height_value / 2.0
+            offset_value = offset_mm.to_f
+            return centre_split if offset_value == 0.0
+            [[centre_split + offset_value, height_value * 0.10].max, height_value * 0.90].min
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Generate DXF for Sliding Sash Panel
         # ------------------------------------------------------------
         # Draws two stacked casements in one panel.
         # Bottom sash is extended by overlap amount to represent weathering tuck-under.
-        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, top_sash_bottom_rail, bottom_sash_top_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm, opening_index:, cell_index:, panel_index:, removed_glazebars:, sash_horns_enabled:, sash_horn_type:, advanced_glazebar: nil)
+        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, top_sash_bottom_rail, bottom_sash_top_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm, meeting_rail_offset_mm, opening_index:, cell_index:, panel_index:, removed_glazebars:, sash_horns_enabled:, sash_horn_type:, advanced_glazebar: nil)
             dxf = ""
 
-            sash_height = height.to_f / 2.0
-            sash_overlap = [[overlap_mm.to_f, sash_height - 1.0].min, 0.0].max
+            meeting_rail_y = na_resolve_meeting_rail_height(height, meeting_rail_offset_mm)
+            bottom_sash_height = meeting_rail_y                                                    # <-- Cell floor up to the meeting rail
+            top_sash_height = height.to_f - meeting_rail_y                                         # <-- Meeting rail up to the cell head
+            sash_overlap = [[overlap_mm.to_f, top_sash_height - 1.0].min, 0.0].max
 
             # Bottom sash: arch decoration is suppressed (architectural
             # tracery belongs at the head of the assembly only). Margin
@@ -826,7 +849,7 @@ module Na__WindowSystem
             end
 
             dxf += na_generate_casement_dxf(
-                x, y, width, sash_height + sash_overlap,
+                x, y, width, bottom_sash_height + sash_overlap,
                 bottom_sash_top_rail, bottom_rail, left_stile, right_stile,
                 h_bars, v_bars, bar_width,
                 opening_index: opening_index, cell_index: cell_index, panel_index: panel_index, sash_index: 1,
@@ -836,7 +859,7 @@ module Na__WindowSystem
 
             # Top sash gets the full advanced_glazebar (margin + arches).
             dxf += na_generate_casement_dxf(
-                x, y + sash_height, width, sash_height,
+                x, y + meeting_rail_y, width, top_sash_height,
                 top_rail, top_sash_bottom_rail, left_stile, right_stile,
                 h_bars, v_bars, bar_width,
                 opening_index: opening_index, cell_index: cell_index, panel_index: panel_index, sash_index: 0,
@@ -848,7 +871,7 @@ module Na__WindowSystem
                 dxf += na_generate_sash_horn_dxf(
                     sash_horn_type,
                     x,
-                    y + sash_height,
+                    y + meeting_rail_y,
                     width,
                     left_stile,
                     right_stile

@@ -142,6 +142,8 @@ module Na__WindowSystem
                 "top_sash_bottom_rail_mm"               : 60,
                 "bottom_sash_top_rail_override"         : false,
                 "bottom_sash_top_rail_mm"               : 60,
+                "meeting_rail_position_override"        : false,
+                "meeting_rail_offset_mm"                : 0,
                 "casement_left_stile_mm"                : 40,
                 "casement_right_stile_mm"               : 40,
                 "casement_depth_mm"                     : 55,

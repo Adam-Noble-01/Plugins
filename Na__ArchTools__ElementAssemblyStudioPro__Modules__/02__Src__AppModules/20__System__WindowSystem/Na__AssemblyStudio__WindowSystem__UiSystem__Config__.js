@@ -326,6 +326,22 @@ const NA_UI_CONFIG = [
         max     :  500,
         step    :  5,
         default :  60
+    },
+    {
+        id      :  'meeting_rail_position_override',
+        label   :  'Custom Meeting Rail Position',
+        type    :  'toggle',
+        default :  false
+    },
+    {
+        id      :  'meeting_rail_offset_mm',
+        label   :  'Meeting Rail Offset',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  -600,
+        max     :   600,
+        step    :  5,
+        default :  0
     }
 ];
 

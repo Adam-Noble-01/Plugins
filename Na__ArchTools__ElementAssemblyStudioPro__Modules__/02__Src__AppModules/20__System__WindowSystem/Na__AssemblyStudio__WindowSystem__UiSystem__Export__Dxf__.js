@@ -166,6 +166,11 @@ const Na__Export__Dxf = (function() {
             enabled: config.sash_horns_enabled !== false,
             type: config.sash_horn_type || '1'
         };
+        // Signed nudge for the meeting rail away from the 50/50 split.
+        // Positive drives the meeting rail UP; negative drives it DOWN.
+        const meetingRailOffset = config.meeting_rail_position_override === true
+            ? Number(config.meeting_rail_offset_mm || 0)
+            : 0;
 
         const numOpenings = numMullions + 1;
         const innerWidth = width - leftFrameThickness - rightFrameThickness;
@@ -230,7 +235,7 @@ const Na__Export__Dxf = (function() {
                             dxf += na_generateSlidingSashPanelDxf(
                                 panelX, cell.y, panelWidth, cell.height,
                                 casTopRail, casBottomRail, topSashBottomRail, bottomSashTopRail, casLeftStile, casRightStile,
-                                hBars, vBars, barWidth, slidingSashOverlap,
+                                hBars, vBars, barWidth, slidingSashOverlap, meetingRailOffset,
                                 { openingIndex: i, cellIndex: cellIndex, panelIndex: p },
                                 removedGlazebars,
                                 sashHornOptions,
@@ -523,11 +528,26 @@ const Na__Export__Dxf = (function() {
     // ---------------------------------------------------------------
     // ---------------------------------------------------------------
 
+    // FUNCTION | Resolve Meeting Rail Height Within a Sash Cell
+    // ------------------------------------------------------------
+    // Mirrors SvgGenerator.na_resolveMeetingRailHeight so the DXF and the
+    // 2D preview agree on where the meeting rail lands. Positive offset
+    // drives the rail UP, clamped to 10%-90% of the cell height.
+    function na_resolveMeetingRailHeight(height, offsetMm) {
+        const centreSplit = height / 2;
+        const offset = Number(offsetMm) || 0;
+        if (offset === 0) return centreSplit;
+        return Math.max(height * 0.10, Math.min(height * 0.90, centreSplit + offset));
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Generate Sliding Sash Panel DXF
     // ------------------------------------------------------------
-    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar) {
-        const sashHeight = height / 2;
-        const sashOverlap = Math.max(0, Math.min(overlapMm || 0, sashHeight - 1));
+    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, meetingRailOffsetMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar) {
+        const meetingRailY = na_resolveMeetingRailHeight(height, meetingRailOffsetMm);
+        const bottomSashHeight = meetingRailY;                                              // <-- Cell floor up to the meeting rail
+        const topSashHeight = height - meetingRailY;                                        // <-- Meeting rail up to the cell head
+        const sashOverlap = Math.max(0, Math.min(overlapMm || 0, topSashHeight - 1));
 
         // Bottom sash suppresses the arch decoration (architectural
         // tracery belongs to the head only). Margin glazing still applies.
@@ -541,7 +561,7 @@ const Na__Export__Dxf = (function() {
 
         let dxf = '';
         dxf += na_generateCasementDxf(
-            x, y, width, sashHeight + sashOverlap,
+            x, y, width, bottomSashHeight + sashOverlap,
             bottomSashTopRail, bottomRail, leftStile, rightStile,
             hBars, vBars, barWidth,
             {
@@ -554,7 +574,7 @@ const Na__Export__Dxf = (function() {
             advancedNoArch
         );
         dxf += na_generateCasementDxf(
-            x, y + sashHeight, width, sashHeight,
+            x, y + meetingRailY, width, topSashHeight,
             topRail, topSashBottomRail, leftStile, rightStile,
             hBars, vBars, barWidth,
             {
@@ -569,7 +589,7 @@ const Na__Export__Dxf = (function() {
 
         dxf += na_generateSlidingSashHornDxf(
             x,
-            y + sashHeight,
+            y + meetingRailY,
             width,
             leftStile,
             rightStile,
