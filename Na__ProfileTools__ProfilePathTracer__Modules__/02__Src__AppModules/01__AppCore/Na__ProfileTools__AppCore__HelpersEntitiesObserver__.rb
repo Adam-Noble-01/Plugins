@@ -18,6 +18,13 @@
 #     already regenerating (avoids observer-inside-model-commit recursion).
 #   - Debounce: 150 ms timer via UI.start_timer. The latest event cancels any
 #     pending timer before scheduling a new one.
+#   - Edit-context deferral: while model.active_path still contains the Helpers
+#     group (or its parent assembly) the user has the group open. Rebuilding a
+#     sibling sub-group from inside that context fails, so the timer re-arms at
+#     350 ms and only regenerates once the group edit is closed.
+#   - Every internal call MUST use an explicit `self.` receiver. These method
+#     names start with a capital letter, so a bare reference parses as a
+#     constant lookup and raises NameError inside the observer callback.
 #   - Stale group guard: if helpers_group.valid? is false (group deleted or
 #     undone) the pending timer callback self-detaches.
 #   - DynamicRegenEnabled flag: regen is only triggered when the parent
@@ -37,7 +44,8 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Initialisation
     # -------------------------------------------------------------------------
 
-        DEBOUNCE_SECONDS = 0.15
+        DEBOUNCE_SECONDS         = 0.15
+        EDIT_CONTEXT_POLL_SECONDS = 0.35
 
         def initialize(helpers_group)
             @na_helpers_group  = helpers_group
@@ -51,15 +59,15 @@ module Na__ProfileTools__ProfilePathTracer
     # -------------------------------------------------------------------------
 
         def onElementAdded(_entities, _element)
-            Na__HelpersEntitiesObserver__Schedule
+            self.Na__HelpersEntitiesObserver__Schedule
         end
 
         def onElementRemoved(_entities, _element)
-            Na__HelpersEntitiesObserver__Schedule
+            self.Na__HelpersEntitiesObserver__Schedule
         end
 
         def onElementModified(_entities, _element)
-            Na__HelpersEntitiesObserver__Schedule
+            self.Na__HelpersEntitiesObserver__Schedule
         end
 
     # endregion ----------------------------------------------------------------
@@ -70,13 +78,13 @@ module Na__ProfileTools__ProfilePathTracer
 
         private
 
-        def Na__HelpersEntitiesObserver__Schedule
+        def Na__HelpersEntitiesObserver__Schedule(delay_seconds = DEBOUNCE_SECONDS)
             return if Na__RegenEngine.Na__RegenEngine__InProgress?
 
-            Na__HelpersEntitiesObserver__CancelPendingTimer
-            @na_pending_timer = UI.start_timer(DEBOUNCE_SECONDS, false) do
+            self.Na__HelpersEntitiesObserver__CancelPendingTimer
+            @na_pending_timer = UI.start_timer(delay_seconds, false) do
                 @na_pending_timer = nil
-                Na__HelpersEntitiesObserver__FireRegen
+                self.Na__HelpersEntitiesObserver__FireRegen
             end
         rescue => error
             Na__DebugTools.Na__Debug__Warn("HelpersObserver: schedule failed: #{error.message}")
@@ -91,6 +99,14 @@ module Na__ProfileTools__ProfilePathTracer
         def Na__HelpersEntitiesObserver__FireRegen
             unless @na_helpers_group && @na_helpers_group.respond_to?(:valid?) && @na_helpers_group.valid?
                 Na__ObserverRegistry.Na__ObserverRegistry__HandleStaleHelpers(@na_helpers_group)
+                return
+            end
+
+            # The user is still inside the Helpers (or parent) edit context. Rebuilding
+            # a sibling sub-group from in here fails silently, so wait for them to close
+            # the group and re-check on the next tick.
+            if self.Na__HelpersEntitiesObserver__InsideEditContext?
+                self.Na__HelpersEntitiesObserver__Schedule(EDIT_CONTEXT_POLL_SECONDS)
                 return
             end
 
@@ -110,6 +126,43 @@ module Na__ProfileTools__ProfilePathTracer
             Na__RegenEngine.Na__RegenEngine__RegenerateFromHelpers(parent_group)
         rescue => error
             Na__DebugTools.Na__Debug__Warn("HelpersObserver: fire regen failed: #{error.message}")
+        end
+
+        # True while model.active_path contains THIS observer's Helpers group or the
+        # assembly that owns it. Scoped that tightly on purpose: matching any trace
+        # assembly would set every attached observer polling whenever the user
+        # opened an unrelated one. Being inside an ancestor is fine — the problem
+        # is only editing a child while the rebuild writes to its parent.
+        def Na__HelpersEntitiesObserver__InsideEditContext?
+            model = Sketchup.active_model
+            return false unless model
+
+            active_path = model.active_path
+            return false if active_path.nil? || active_path.empty?
+
+            watched_ids = [
+                self.Na__HelpersEntitiesObserver__SafePersistentId(@na_helpers_group),
+                self.Na__HelpersEntitiesObserver__SafePersistentId(
+                    Na__DataSerializer.Na__DataSerializer__ContainingInstance(@na_helpers_group)
+                )
+            ].compact
+            return false if watched_ids.empty?
+
+            active_path.any? do |instance|
+                instance_id = self.Na__HelpersEntitiesObserver__SafePersistentId(instance)
+                instance_id && watched_ids.include?(instance_id)
+            end
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("HelpersObserver: edit-context probe failed: #{error.message}")
+            false
+        end
+
+        def Na__HelpersEntitiesObserver__SafePersistentId(entity)
+            return nil unless entity && entity.respond_to?(:persistent_id)
+            return nil if entity.respond_to?(:valid?) && !entity.valid?
+            entity.persistent_id
+        rescue
+            nil
         end
 
     # endregion ----------------------------------------------------------------

@@ -16,6 +16,7 @@ module Na__ProfileTools__ProfilePathTracer
     # -------------------------------------------------------------------------
 
         NA_VERTEX_PICK_TOLERANCE = 120.mm
+        NA_CHAIN_CLOSE_TOLERANCE = 0.001
 
     # endregion ----------------------------------------------------------------
 
@@ -74,7 +75,11 @@ module Na__ProfileTools__ProfilePathTracer
             nearest_distance = nil
 
             vertices.each do |vertex|
-                distance = vertex.distance(target_point)
+                # Callers pass either Sketchup::Vertex (from the degree map) or
+                # Geom::Point3d (from an ordered point list). Only the latter
+                # answers #distance, so normalise before measuring.
+                position = vertex.respond_to?(:position) ? vertex.position : vertex
+                distance = position.distance(target_point)
                 next if nearest_distance && distance >= nearest_distance
                 nearest_distance = distance
                 nearest_vertex = vertex
@@ -231,6 +236,139 @@ module Na__ProfileTools__ProfilePathTracer
             edges = self.Na__Path__ExtractEdges(path_entities)
             return { isValid: false, reason: 'No edges selected.' } if edges.empty?
             self.Na__Path__OrderEdges(edges)
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Multi-Chain Decomposition (Helpers regeneration)
+    # -------------------------------------------------------------------------
+
+        # Na__Path__BuildSegments demands ONE unbranched chain, which is right for
+        # a user selection but wrong for the Helpers proxy: the whole point of that
+        # linework is that you keep drawing into it. A second run, or a spur off an
+        # existing wall, would be rejected outright as "disconnected"/"branching".
+        #
+        # This splits an arbitrary edge set into maximal non-branching chains plus
+        # any pure closed loops, so every stroke in the group gets swept.
+        #
+        # anchor_point orients each chain: the endpoint nearest it becomes the
+        # start. Passing the assembly's remembered StartPoint keeps the sweep
+        # direction stable as edges are added at either end.
+        def self.Na__Path__BuildChains(path_entities, anchor_point = nil)
+            edges = self.Na__Path__ExtractEdges(path_entities)
+            return { isValid: false, reason: 'No edges found.', chains: [] } if edges.empty?
+
+            maps          = self.Na__Path__BuildVertexDegreeMap(edges)
+            degree_map    = maps[:degree_map]
+            adjacency_map = maps[:adjacency_map]
+
+            used_edges = {}
+            chains     = []
+
+            # Runs bounded by a node — an endpoint (degree 1) or a junction (3+).
+            degree_map.select { |_vertex, degree| degree != 2 }.keys.each do |node_vertex|
+                adjacency_map[node_vertex].each do |edge|
+                    next if used_edges.key?(edge.persistent_id)
+                    chain = self.Na__Path__WalkChainFrom(node_vertex, edge, adjacency_map, degree_map, used_edges)
+                    chains << chain if chain
+                end
+            end
+
+            # Anything still unused has every vertex at degree 2, so it is a loop
+            # with no node to start from — seed it anywhere.
+            edges.each do |edge|
+                next if used_edges.key?(edge.persistent_id)
+                chain = self.Na__Path__WalkChainFrom(edge.start, edge, adjacency_map, degree_map, used_edges)
+                chains << chain if chain
+            end
+
+            return { isValid: false, reason: 'Helpers linework produced no usable runs.', chains: [] } if chains.empty?
+
+            chains = chains.map { |chain| self.Na__Path__OrientChain(chain, anchor_point) }
+            chains = self.Na__Path__SortChainsByAnchor(chains, anchor_point)
+
+            { isValid: true, reason: nil, chains: chains }
+        rescue => error
+            { isValid: false, reason: "Helpers path scan failed: #{error.message}", chains: [] }
+        end
+
+        def self.Na__Path__WalkChainFrom(start_vertex, first_edge, adjacency_map, degree_map, used_edges)
+            ordered_points = [start_vertex.position]
+            current_vertex = start_vertex
+            current_edge   = first_edge
+            edge_count     = 0
+
+            loop do
+                break if used_edges.key?(current_edge.persistent_id)
+                used_edges[current_edge.persistent_id] = true
+                edge_count += 1
+
+                current_vertex = (current_edge.start == current_vertex) ? current_edge.end : current_edge.start
+                ordered_points << current_vertex.position
+
+                # A node terminates the run; a degree-2 vertex carries it on.
+                break if degree_map[current_vertex] != 2
+
+                next_edge = adjacency_map[current_vertex].find { |edge| !used_edges.key?(edge.persistent_id) }
+                break unless next_edge
+                current_edge = next_edge
+            end
+
+            return nil if edge_count.zero? || ordered_points.length < 2
+
+            is_closed_loop = ordered_points.length >= 4 &&
+                             ordered_points.first.distance(ordered_points.last) <= NA_CHAIN_CLOSE_TOLERANCE
+
+            if is_closed_loop
+                normalised = self.Na__Path__NormaliseClosedLoopWinding(ordered_points, [])
+                ordered_points = normalised[:ordered_points]
+            end
+
+            { ordered_points: ordered_points, is_closed_loop: is_closed_loop }
+        end
+
+        # Open runs are reversed if their tail sits nearer the anchor than their
+        # head. Closed runs keep the winding fixed by the walk but are rotated to
+        # begin at the vertex nearest the anchor — a loop has no natural start, so
+        # without this the follow-me seam drifts to whichever edge happened to be
+        # walked first and moves every time the edge set changes.
+        def self.Na__Path__OrientChain(chain, anchor_point)
+            return chain if anchor_point.nil?
+
+            ordered_points = chain[:ordered_points]
+
+            if chain[:is_closed_loop]
+                return {
+                    ordered_points: self.Na__Path__RotateLoopToAnchor(ordered_points, anchor_point),
+                    is_closed_loop: true
+                }
+            end
+
+            return chain if ordered_points.length < 2
+            return chain if ordered_points.first.distance(anchor_point) <= ordered_points.last.distance(anchor_point)
+
+            { ordered_points: ordered_points.reverse, is_closed_loop: false }
+        end
+
+        # Closed chains arrive with the first point repeated at the end; rotation
+        # preserves both that shape and the winding direction.
+        def self.Na__Path__RotateLoopToAnchor(ordered_points, anchor_point)
+            points = Array(ordered_points)
+            return points if points.length < 4
+
+            loop_body = points[0...-1]
+            start_index = (0...loop_body.length).min_by { |index| loop_body[index].distance(anchor_point) }
+            return points if start_index.nil? || start_index.zero?
+
+            rotated = loop_body[start_index..-1] + loop_body[0...start_index]
+            rotated + [rotated.first]
+        end
+
+        # Stable ordering keeps run numbering from shuffling between rebuilds.
+        def self.Na__Path__SortChainsByAnchor(chains, anchor_point)
+            return chains if anchor_point.nil?
+            chains.sort_by { |chain| chain[:ordered_points].first.distance(anchor_point) }
         end
 
         def self.Na__Path__Validate(path_entities)

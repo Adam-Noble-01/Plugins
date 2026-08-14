@@ -73,6 +73,7 @@ require_relative '../33__System__CreateProfileMode/Na__ProfileTools__CreateNewPr
 # REGION | System - Edit Profile
 # -------------------------------------------------------------------------
 
+require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__GeometryWriter__'
 require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__MetaWriter__'
 
 # -------------------------------------------------------------------------

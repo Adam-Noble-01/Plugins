@@ -16,23 +16,28 @@
     // -------------------------------------------------------------------------
 
     function Na__Ui__AttachEvents(handlers) {
-        var profileSourceModeSelect = document.getElementById('naProfileSourceModeSelect');
-        var pathModeSelect          = document.getElementById('naPathModeSelect');
         var btnGenerate             = document.getElementById('naBtnGenerate');
         var btnPickSceneProfile     = document.getElementById('naBtnPickSceneProfile');
         var btnClearSceneProfile    = document.getElementById('naBtnClearSceneProfile');
 
-        if (profileSourceModeSelect) {
-            profileSourceModeSelect.addEventListener('change', function() {
-                handlers.Na__Events__OnProfileSourceModeChange(profileSourceModeSelect.value);
+        var switchOptions = document.querySelectorAll('.na-switch__option[data-na-switch-key]');
+        if (switchOptions && switchOptions.length > 0) {
+            Array.prototype.forEach.call(switchOptions, function(switchOption) {
+                switchOption.addEventListener('click', function() {
+                    var switchKey   = switchOption.getAttribute('data-na-switch-key') || '';
+                    var switchValue = switchOption.getAttribute('data-na-switch-value') || '';
+                    if (switchOption.getAttribute('aria-pressed') === 'true') return;
+
+                    if (switchKey === 'profileSourceMode') {
+                        handlers.Na__Events__OnProfileSourceModeChange(switchValue);
+                    } else if (switchKey === 'pathMode') {
+                        handlers.Na__Events__OnPathModeChange(switchValue);
+                    }
+                });
             });
         }
 
-        if (pathModeSelect) {
-            pathModeSelect.addEventListener('change', function() {
-                handlers.Na__Events__OnPathModeChange(pathModeSelect.value);
-            });
-        }
+        Na__Ui__AttachInsertPointEvents(handlers);
 
         var toggleBtns = document.querySelectorAll('.na-toggle-btn[data-na-toggle-key]');
         if (toggleBtns && toggleBtns.length > 0) {
@@ -82,6 +87,44 @@
             });
         }
 
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Insert Point Picker Events
+    // -------------------------------------------------------------------------
+
+    // The preview SVG is re-rendered on every state change, so vertex clicks are
+    // delegated from the <svg> element instead of bound per handle.
+    function Na__Ui__AttachInsertPointEvents(handlers) {
+        var btnSetInsertPoint   = document.getElementById('naBtnSetInsertPoint');
+        var btnResetInsertPoint = document.getElementById('naBtnResetInsertPoint');
+        var viewportSvg         = document.getElementById('naProfileViewportSvg');
+
+        if (btnSetInsertPoint) {
+            btnSetInsertPoint.addEventListener('click', function() {
+                handlers.Na__Events__OnToggleInsertPointPick();
+            });
+        }
+
+        if (btnResetInsertPoint) {
+            btnResetInsertPoint.addEventListener('click', function() {
+                handlers.Na__Events__OnResetInsertPoint();
+            });
+        }
+
+        if (viewportSvg) {
+            viewportSvg.addEventListener('click', function(clickEvent) {
+                var target = clickEvent.target;
+                if (!target || !target.getAttribute) return;
+
+                var vertexIndex = target.getAttribute('data-na-vertex-index');
+                if (vertexIndex === null) return;
+
+                handlers.Na__Events__OnPickInsertPointVertex(parseInt(vertexIndex, 10));
+            });
+        }
     }
 
     // endregion ----------------------------------------------------------------

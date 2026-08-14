@@ -21,6 +21,11 @@
         rotationStep: 0,
         isPreviewEnabled: true,
         reverseDirection: false,
+        // { y, z } in the profile's authored PosY_mm / PosZ_mm space, or null to
+        // use the profile's own origin. Set by picking a vertex in the 2D preview.
+        originOffset: null,
+        isInsertPointPickActive: false,
+        previewSourcePoints: [],
         toggleDefinitions: {},
         toggleStates: {},
         profiles: {},
@@ -110,8 +115,14 @@
         const previewResult = svgGen.Na__Svg__GenerateProfile(selectedProfile, {
             toggleStates: Na__UiState.toggleStates,
             rotationStep: Na__UiState.rotationStep,
-            reverseDirection: Na__UiState.reverseDirection
+            reverseDirection: Na__UiState.reverseDirection,
+            originOffset: Na__UiState.originOffset,
+            showVertexHandles: Na__UiState.isInsertPointPickActive
         });
+
+        // Cached in the profile's authored coordinates so a picked handle resolves
+        // to an absolute datum rather than compounding with the current offset.
+        Na__UiState.previewSourcePoints = previewResult.sourcePoints || [];
 
         viewportSvg.setAttribute('viewBox', previewResult.viewBox || '-120 -120 240 240');
         viewportSvg.innerHTML = previewResult.svg || '';
@@ -158,8 +169,16 @@
             rotationStep: Na__UiState.rotationStep,
             isPreviewEnabled: Na__UiState.isPreviewEnabled,
             reverseDirection: Na__UiState.reverseDirection,
+            originOffset: Na__UiState.originOffset,
             toggleStates: Na__UiState.toggleStates
         };
+    }
+
+    // A datum picked on one profile means nothing on another, so switching the
+    // active profile drops the offset instead of silently re-datuming the new one.
+    function Na__Ui__ClearInsertPointState() {
+        Na__UiState.originOffset = null;
+        Na__UiState.isInsertPointPickActive = false;
     }
 
     // endregion ----------------------------------------------------------------
@@ -180,12 +199,43 @@
         },
         Na__Events__OnProfileChange: function(profileKey) {
             Na__UiState.profileKey = profileKey;
+            Na__Ui__ClearInsertPointState();
+            Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
             Na__Ui__SetStatus('Profile selected: ' + (profileKey || '[none]'));
         },
         Na__Events__OnPathModeChange: function(pathMode) {
             Na__UiState.pathMode = pathMode;
-            Na__Ui__SetStatus('Path mode changed: ' + pathMode);
+            Na__Ui__Render();
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus('Path mode: ' + (pathMode === 'interactive' ? 'Interactive path picking' : 'Use current selection'));
+        },
+        Na__Events__OnToggleInsertPointPick: function() {
+            Na__UiState.isInsertPointPickActive = !Na__UiState.isInsertPointPickActive;
+            Na__Ui__Render();
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus(Na__UiState.isInsertPointPickActive ?
+                'Click a profile vertex in the preview to set the insertion point.' :
+                'Insert point picking cancelled.');
+        },
+        Na__Events__OnPickInsertPointVertex: function(vertexIndex) {
+            var sourcePoint = Na__UiState.previewSourcePoints[vertexIndex];
+            if (!sourcePoint) {
+                Na__Ui__SetStatus('That vertex could not be resolved — try another.');
+                return;
+            }
+
+            Na__UiState.originOffset = { y: Number(sourcePoint[0]), z: Number(sourcePoint[1]) };
+            Na__UiState.isInsertPointPickActive = false;
+            Na__Ui__Render();
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus('Insert point moved to Y ' + Math.round(sourcePoint[0]) + 'mm, Z ' + Math.round(sourcePoint[1]) + 'mm.');
+        },
+        Na__Events__OnResetInsertPoint: function() {
+            Na__Ui__ClearInsertPointState();
+            Na__Ui__Render();
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus('Insert point reset to the profile origin.');
         },
         Na__Events__OnRotateToStep: function(step) {
             Na__UiState.rotationStep = Math.max(0, Math.min(3, Number(step) || 0));
@@ -253,12 +303,20 @@
     // -------------------------------------------------------------------------
 
     function Na__Apply__OnStoreSelectedChanged(payload) {
+        var isDifferentProfile = payload && payload.key && payload.key !== Na__UiState.profileKey;
+
         if (payload && payload.key) {
             Na__UiState.profileKey = payload.key;
             if (payload.record) {
                 Na__UiState.profiles[payload.key] = payload.record;
             }
         }
+
+        if (isDifferentProfile) {
+            Na__Ui__ClearInsertPointState();
+            Na__Ui__Render();
+        }
+
         Na__Ui__UpdateActiveProfileIndicator();
         Na__Ui__RenderProfilePreview();
     }
@@ -313,6 +371,7 @@
             Na__UiState.profiles = profileMap;
             Na__UiState.profileKey = payload.profileKey || '';
             Na__UiState.profileSourceMode = payload.profileSourceMode || 'library';
+            Na__Ui__ClearInsertPointState();
 
             if (window.Na__ProfileTools__ProfileStore) {
                 window.Na__ProfileTools__ProfileStore.Na__Store__SetProfiles(profileMap, Na__UiState.profileKey);

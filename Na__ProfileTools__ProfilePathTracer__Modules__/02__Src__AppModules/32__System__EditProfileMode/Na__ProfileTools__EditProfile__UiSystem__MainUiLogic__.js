@@ -136,6 +136,10 @@
 
             '  <div class="na-section na-actions-section">',
             '    <button class="naButtonPrimary naButton" id="na-edit-save-btn">Save Changes</button>',
+            '    <button class="naButtonSecondary naButton" id="na-edit-flip-btn"',
+            '            title="Mirror this profile left-right about its datum and write it back to the library file, so the whole library can share one handing. Saves any edits above at the same time. Note: runs already placed with a custom insert point will need that point re-picked.">',
+            '      ⇄ Flip Profile',
+            '    </button>',
             '    <button class="naButtonSecondary naButton" id="na-edit-back-btn">Back to Gallery</button>',
             '  </div>',
 
@@ -220,10 +224,27 @@
         var descEl     = document.getElementById('na-edit-description');
         var kwEl       = document.getElementById('na-edit-keywords');
         var saveBtn    = document.getElementById('na-edit-save-btn');
+        var flipBtn    = document.getElementById('na-edit-flip-btn');
         var backBtn    = document.getElementById('na-edit-back-btn');
 
         var store = window.Na__ProfileTools__ProfileStore;
         var key   = record.profileKey || na_current_key;
+
+        function na_build_payload(flipHorizontal) {
+            var kwRaw    = kwEl ? kwEl.value : '';
+            var keywords = kwRaw.split(',').map(function (k) { return k.trim(); }).filter(Boolean);
+
+            return {
+                profileKey     : key,
+                sourceFile     : record.sourceFile || '',
+                name           : nameEl ? nameEl.value : '',
+                description    : descEl ? descEl.value : '',
+                keywords       : keywords,
+                // Carried on the same write as the metadata, so flipping never
+                // throws away edits the user has typed but not yet saved.
+                flipHorizontal : flipHorizontal === true
+            };
+        }
 
         function na_apply_patch() {
             if (!store) return;
@@ -242,27 +263,36 @@
         if (descEl)  descEl.addEventListener('input',  na_apply_patch);
         if (kwEl)    kwEl.addEventListener('input',    na_apply_patch);
 
+        // na_is_saving gates BOTH buttons, so any dispatch that never reaches Ruby
+        // must release it here — otherwise one dead click leaves Save and Flip
+        // disabled for the rest of the session, waiting on a result that is never
+        // coming. The bridge returns false when SketchUp is not connected.
+        function na_dispatch_write(button, busyLabel, idleLabel, flipHorizontal) {
+            if (na_is_saving) return;
+            na_is_saving = true;
+            button.disabled = true;
+            button.textContent = busyLabel;
+
+            var isDispatched = window.Na__EditProfile__Bridge__Save
+                ? window.Na__EditProfile__Bridge__Save(na_build_payload(flipHorizontal))
+                : false;
+            if (isDispatched) return;
+
+            na_is_saving = false;
+            button.disabled = false;
+            button.textContent = idleLabel;
+            na_set_status('Save bridge is not available — nothing was written.');
+        }
+
         if (saveBtn) {
             saveBtn.addEventListener('click', function () {
-                if (na_is_saving) return;
-                na_is_saving = true;
-                saveBtn.disabled = true;
-                saveBtn.textContent = 'Saving...';
+                na_dispatch_write(saveBtn, 'Saving...', 'Save Changes', false);
+            });
+        }
 
-                var kwRaw    = kwEl ? kwEl.value : '';
-                var keywords = kwRaw.split(',').map(function (k) { return k.trim(); }).filter(Boolean);
-
-                var payload = {
-                    profileKey  : key,
-                    sourceFile  : record.sourceFile || '',
-                    name        : nameEl ? nameEl.value : '',
-                    description : descEl ? descEl.value : '',
-                    keywords    : keywords
-                };
-
-                if (window.Na__EditProfile__Bridge__Save) {
-                    window.Na__EditProfile__Bridge__Save(payload);
-                }
+        if (flipBtn) {
+            flipBtn.addEventListener('click', function () {
+                na_dispatch_write(flipBtn, 'Flipping...', '⇄ Flip Profile', true);
             });
         }
 
@@ -307,18 +337,28 @@
 
     function na_receive_save_result(result) {
         na_is_saving = false;
+
         var saveBtn = document.getElementById('na-edit-save-btn');
         if (saveBtn) {
             saveBtn.disabled = false;
             saveBtn.textContent = 'Save Changes';
         }
 
+        var flipBtn = document.getElementById('na-edit-flip-btn');
+        if (flipBtn) {
+            flipBtn.disabled = false;
+            flipBtn.textContent = '⇄ Flip Profile';
+        }
+
         if (!result) return;
 
+        // No redraw needed here: the bridge hands the freshly re-parsed record to
+        // Na__Store__UpdateRecord first, and its na_selected_changed dispatch has
+        // already re-rendered this panel (and the Gallery card) from disk truth.
         if (result.isSaved) {
             na_set_status(result.statusMessage || 'Profile saved.');
         } else {
-            na_set_status(result.statusMessage || 'Save failed.');
+            na_set_status(result.statusMessage || result.reason || 'Save failed.');
         }
     }
 

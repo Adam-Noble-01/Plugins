@@ -33,12 +33,13 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Initialization / State
     # -------------------------------------------------------------------------
 
-        def initialize(profile_key, profile_data, toggle_states = {}, initial_rotation_step = 0, reverse_direction = false)
+        def initialize(profile_key, profile_data, toggle_states = {}, initial_rotation_step = 0, reverse_direction = false, origin_offset = nil)
             @na_profile_key = profile_key
             @na_profile_data = profile_data || {}
             @na_toggle_states = toggle_states || {}
             @na_rotation_step = initial_rotation_step.to_i % 4
             @na_reverse_direction = reverse_direction == true
+            @na_origin_offset = origin_offset
             @na_key_tab_held = false
             @na_crosshair_size = NA_DEFAULT_CROSSHAIR_SIZE
 
@@ -280,19 +281,20 @@ module Na__ProfileTools__ProfilePathTracer
 
             @na_cache_path = preview_path
             @na_cache_total_length_mm = self.Na__PathSelectionTool__PathLengthMm(preview_path)
-            @na_cache_profile_polyline = Na__GeometryBuilders.Na__Geometry__BuildPreviewProfilePolyline(
+
+            # One call builds ghost + cage together so the reverse flip is derived
+            # from a single shared bounding box, exactly as the real build does.
+            preview_geometry = Na__GeometryBuilders.Na__Geometry__BuildPreviewGeometry(
                 profile_data: @na_profile_data,
                 path_data: path_data,
                 start_point: @na_cursor_point,
                 rotation_step: @na_rotation_step,
-                toggle_states: @na_toggle_states
+                toggle_states: @na_toggle_states,
+                reverse_direction: @na_reverse_direction,
+                origin_offset: @na_origin_offset
             )
-            @na_cache_sweep_segments = Na__GeometryBuilders.Na__Geometry__BuildPreviewSweepSegments(
-                profile_data: @na_profile_data,
-                path_data: path_data,
-                rotation_step: @na_rotation_step,
-                toggle_states: @na_toggle_states
-            )
+            @na_cache_profile_polyline = preview_geometry[:profile_polyline]
+            @na_cache_sweep_segments = preview_geometry[:sweep_segments]
         end
 
         def Na__PathSelectionTool__FinishPathIfReady(view, include_cursor_point)
@@ -313,7 +315,8 @@ module Na__ProfileTools__ProfilePathTracer
                 path_points: path_points,
                 rotation_step: @na_rotation_step,
                 toggle_states: @na_toggle_states,
-                reverse_direction: @na_reverse_direction
+                reverse_direction: @na_reverse_direction,
+                origin_offset: @na_origin_offset
             )
 
             Sketchup::set_status_text(result['statusMessage'].to_s, NA_STATUS_PROMPT_KEY)
@@ -345,20 +348,21 @@ module Na__ProfileTools__ProfilePathTracer
         def Na__PathSelectionTool__UpdateStatusText
             rotation_degrees = @na_rotation_step.to_i * 90
             lock_suffix = self.Na__AxisLock__StatusSuffix
+            reverse_suffix = @na_reverse_direction ? ' | REVERSED' : ''
 
             next_status =
                 if @na_state == :picking_start
                     if @na_cursor_point
                         coords = self.Na__PathSelectionTool__PointToMmString(@na_cursor_point)
-                        "Profile Path Tracer: Click to set start point at #{coords} | TAB rotate (#{rotation_degrees} deg) | ESC cancel#{lock_suffix}"
+                        "Profile Path Tracer: Click to set start point at #{coords} | TAB rotate (#{rotation_degrees} deg) | ESC cancel#{reverse_suffix}#{lock_suffix}"
                     else
-                        "Profile Path Tracer: Click to set start point | TAB rotate (#{rotation_degrees} deg) | ESC cancel#{lock_suffix}"
+                        "Profile Path Tracer: Click to set start point | TAB rotate (#{rotation_degrees} deg) | ESC cancel#{reverse_suffix}#{lock_suffix}"
                     end
                 else
                     if @na_cache_path && !@na_cache_path.empty?
-                        "Profile Path Tracer: Click add waypoint (click start to close) | Enter/Right-click/Double-click finish | Backspace undo | TAB rotate (#{rotation_degrees} deg) | #{@na_cache_total_length_mm.round}mm#{lock_suffix}"
+                        "Profile Path Tracer: Click add waypoint (click start to close) | Enter/Right-click/Double-click finish | Backspace undo | TAB rotate (#{rotation_degrees} deg) | #{@na_cache_total_length_mm.round}mm#{reverse_suffix}#{lock_suffix}"
                     else
-                        "Profile Path Tracer: Click add waypoint (click start to close) | Enter/Right-click/Double-click finish | Backspace undo | TAB rotate (#{rotation_degrees} deg)#{lock_suffix}"
+                        "Profile Path Tracer: Click add waypoint (click start to close) | Enter/Right-click/Double-click finish | Backspace undo | TAB rotate (#{rotation_degrees} deg)#{reverse_suffix}#{lock_suffix}"
                     end
                 end
 

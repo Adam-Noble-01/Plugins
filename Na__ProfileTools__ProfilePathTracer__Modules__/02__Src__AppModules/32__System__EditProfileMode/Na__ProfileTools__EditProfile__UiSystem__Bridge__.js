@@ -33,13 +33,18 @@
     // REGION | Save Bridge Call
     // -------------------------------------------------------------------------
 
+    // Returns true only when the call actually reached Ruby. Callers disable
+    // their button until a result comes back, so a false here is their signal to
+    // re-enable immediately — otherwise the panel latches on "Saving..." forever
+    // with no result ever arriving.
     function Na__EditProfile__Bridge__Save(payload) {
         if (Na__EditBridge__HasCallback('na_profilepathtracer_update_profile_meta')) {
             Na__EditBridge__SetStatus('Saving profile metadata...');
             window.sketchup.na_profilepathtracer_update_profile_meta(JSON.stringify(payload || {}));
-            return;
+            return true;
         }
         Na__EditBridge__SetStatus('Save bridge is not available (SketchUp not connected).');
+        return false;
     }
 
     // endregion ----------------------------------------------------------------

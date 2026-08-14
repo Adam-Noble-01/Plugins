@@ -18,6 +18,12 @@
     const NA_AXES_PADDING = 20;
     const NA_POINT_EQUALITY_TOLERANCE = 0.0001;
 
+    // Marker sizes are a fraction of the viewBox span, not an absolute unit count.
+    // The SVG scales to fit its box, so this is what keeps the datum X and the
+    // vertex handles the same on-screen size for a 20 mm bead and a 500 mm cornice.
+    const NA_ORIGIN_MARKER_FRACTION = 0.045;
+    const NA_VERTEX_HANDLE_FRACTION = 0.030;
+
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
@@ -104,70 +110,83 @@
         const halfWidth = Math.max(10, (maxX - minX) / 2);
         const halfHeight = Math.max(10, (maxY - minY) / 2);
         const margin = (options && typeof options.margin === 'number') ? options.margin : NA_PREVIEW_MARGIN;
+        const viewBoxWidth = (halfWidth + margin) * 2;
+        const viewBoxHeight = (halfHeight + margin) * 2;
 
         return {
             centerX: centerX,
             centerY: centerY,
             halfWidth: halfWidth,
             halfHeight: halfHeight,
+            viewBoxWidth: viewBoxWidth,
+            viewBoxHeight: viewBoxHeight,
             viewBox: [
                 centerX - halfWidth - margin,
                 -(centerY + halfHeight + margin),
-                (halfWidth + margin) * 2,
-                (halfHeight + margin) * 2
+                viewBoxWidth,
+                viewBoxHeight
             ].join(' ')
         };
     }
 
-    function Na__Svg__FlipAcrossXAtY(points, axisY) {
-        return points.map(function(point) {
-            return [Number(point[0]), (2 * Number(axisY)) - Number(point[1])];
-        });
-    }
+    // endregion ----------------------------------------------------------------
 
-    function Na__Svg__FlipAcrossYAtX(points, axisX) {
-        return points.map(function(point) {
-            return [(2 * Number(axisX)) - Number(point[0]), Number(point[1])];
-        });
-    }
+    // -------------------------------------------------------------------------
+    // REGION | Display Transform Pipeline
+    // -------------------------------------------------------------------------
 
-    function Na__Svg__ApplyMirrorToggles(points, toggleStates) {
-        if (!Array.isArray(points) || points.length === 0) return [];
-        var mirroredPoints = Na__Svg__NormaliseLoopPoints(points).map(function(point) { return [Number(point[0]), Number(point[1])]; });
+    // The mirror/rotate/flip chain is captured as an ordered op list with the
+    // mirror axes frozen up front. That lets the profile outline AND the lone
+    // datum point run through the exact same transform, so the X marker always
+    // lands where the path line will actually sit.
+    function Na__Svg__BuildDisplayOps(basePoints, toggleStates, rotationStep, reverseDirection) {
         var flags = toggleStates || {};
-        var bounds = Na__Svg__Bounds(mirroredPoints, { includeOrigin: true });
+        var bounds = Na__Svg__Bounds(basePoints, { includeOrigin: true });
+        var ops = [];
 
-        if (flags.flipXCenter === true) {
-            mirroredPoints = Na__Svg__FlipAcrossXAtY(mirroredPoints, bounds.centerY);
-        }
-        if (flags.flipYCenter === true) {
-            mirroredPoints = Na__Svg__FlipAcrossYAtX(mirroredPoints, bounds.centerX);
-        }
-        if (flags.flipXWorld === true) {
-            mirroredPoints = Na__Svg__FlipAcrossXAtY(mirroredPoints, 0);
-        }
-        if (flags.flipYWorld === true) {
-            mirroredPoints = Na__Svg__FlipAcrossYAtX(mirroredPoints, 0);
-        }
+        if (flags.flipXCenter === true) ops.push({ kind: 'flipX', axis: bounds.centerY });
+        if (flags.flipYCenter === true) ops.push({ kind: 'flipY', axis: bounds.centerX });
+        if (flags.flipXWorld === true)  ops.push({ kind: 'flipX', axis: 0 });
+        if (flags.flipYWorld === true)  ops.push({ kind: 'flipY', axis: 0 });
 
-        return mirroredPoints;
-    }
-
-    function Na__Svg__ApplyRotationStep(points, rotationStep) {
-        if (!Array.isArray(points) || points.length === 0) return [];
         var normalizedStep = Number(rotationStep || 0) % 4;
         if (normalizedStep < 0) normalizedStep += 4;
-        if (normalizedStep === 0) {
-            return Na__Svg__NormaliseLoopPoints(points).map(function(point) { return [Number(point[0]), Number(point[1])]; });
-        }
+        if (normalizedStep !== 0) ops.push({ kind: 'rotate', step: normalizedStep });
 
-        return Na__Svg__NormaliseLoopPoints(points).map(function(point) {
-            var x = Number(point[0]);
-            var y = Number(point[1]);
+        if (reverseDirection) ops.push({ kind: 'flipY', axis: 0 });
+        ops.push({ kind: 'flipY', axis: 0 });
 
-            if (normalizedStep === 1) { return [-y, x]; }
-            if (normalizedStep === 2) { return [-x, -y]; }
-            return [y, -x];
+        return ops;
+    }
+
+    function Na__Svg__ApplyDisplayOps(point, ops) {
+        var x = Number(point[0]);
+        var y = Number(point[1]);
+
+        ops.forEach(function(op) {
+            if (op.kind === 'flipX') {
+                y = (2 * op.axis) - y;
+            } else if (op.kind === 'flipY') {
+                x = (2 * op.axis) - x;
+            } else if (op.kind === 'rotate') {
+                var priorX = x;
+                var priorY = y;
+                if (op.step === 1)      { x = -priorY; y = priorX; }
+                else if (op.step === 2) { x = -priorX; y = -priorY; }
+                else                    { x = priorY;  y = -priorX; }
+            }
+        });
+
+        return [x, y];
+    }
+
+    function Na__Svg__ApplyOriginOffset(points, originOffset) {
+        if (!originOffset) return points;
+        var offsetY = Number(originOffset.y) || 0;
+        var offsetZ = Number(originOffset.z) || 0;
+        if (offsetY === 0 && offsetZ === 0) return points;
+        return points.map(function(point) {
+            return [Number(point[0]) - offsetY, Number(point[1]) - offsetZ];
         });
     }
 
@@ -177,13 +196,40 @@
     // REGION | Profile SVG Generation
     // -------------------------------------------------------------------------
 
-    function Na__Svg__OriginMarker(bounds) {
-        var markerSize = Math.max(3, Math.min(bounds.halfWidth, bounds.halfHeight) * 0.08);
+    // Marker sizes key off the rendered viewBox span, margin included — that span
+    // is what maps onto the fixed pixel box, so a fraction of it is a fixed
+    // on-screen size whether the profile is a 20mm bead or a 500mm cornice.
+    function Na__Svg__MarkerScale(bounds) {
+        return Math.max(bounds.viewBoxWidth, bounds.viewBoxHeight);
+    }
+
+    // Datum marker: always a diagonal X of the same on-screen size, drawn at the
+    // active insertion point rather than assuming it sits at (0,0).
+    function Na__Svg__OriginMarker(bounds, datumPoint) {
+        var arm = Na__Svg__MarkerScale(bounds) * NA_ORIGIN_MARKER_FRACTION;
+        var cx = Number(datumPoint[0]);
+        var cy = -Number(datumPoint[1]);
+
         return [
-            '<line class="naProfileOriginLine" x1="' + (-markerSize) + '" y1="0" x2="' + markerSize + '" y2="0" />',
-            '<line class="naProfileOriginLine" x1="0" y1="' + (-markerSize) + '" x2="0" y2="' + markerSize + '" />',
-            '<circle class="naProfileOriginPoint" cx="0" cy="0" r="2.2" />'
-        ].join('');
+            '<line class="naProfileOriginCross" x1="' + (cx - arm) + '" y1="' + (cy - arm) + '"',
+            '                                   x2="' + (cx + arm) + '" y2="' + (cy + arm) + '" />',
+            '<line class="naProfileOriginCross" x1="' + (cx - arm) + '" y1="' + (cy + arm) + '"',
+            '                                   x2="' + (cx + arm) + '" y2="' + (cy - arm) + '" />'
+        ].join(' ');
+    }
+
+    function Na__Svg__VertexHandles(bounds, displayPoints) {
+        var radius = Na__Svg__MarkerScale(bounds) * NA_VERTEX_HANDLE_FRACTION;
+
+        return displayPoints.map(function(point, index) {
+            return [
+                '<circle class="naProfileVertexHandle"',
+                '        data-na-vertex-index="' + index + '"',
+                '        cx="' + Number(point[0]) + '"',
+                '        cy="' + (-Number(point[1])) + '"',
+                '        r="' + radius + '" />'
+            ].join(' ');
+        }).join('');
     }
 
     function Na__Svg__ExtractPointsFromUnifiedSchema(profileRecord) {
@@ -233,39 +279,48 @@
             };
         }
 
-        var toggleStates     = (options && options.toggleStates)     ? options.toggleStates     : {};
-        var rotationStep     = (options && options.rotationStep)     ? Number(options.rotationStep) : 0;
-        var thumbnailMode    = !!(options && options.thumbnailMode);
-        var reverseDirection = !!(options && options.reverseDirection);
+        var toggleStates       = (options && options.toggleStates)     ? options.toggleStates     : {};
+        var rotationStep       = (options && options.rotationStep)     ? Number(options.rotationStep) : 0;
+        var thumbnailMode      = !!(options && options.thumbnailMode);
+        var reverseDirection   = !!(options && options.reverseDirection);
+        var originOffset       = (options && options.originOffset)     ? options.originOffset     : null;
+        var showVertexHandles  = !!(options && options.showVertexHandles);
 
-        points = Na__Svg__ApplyMirrorToggles(points, toggleStates);
-        points = Na__Svg__ApplyRotationStep(points, rotationStep);
-        if (reverseDirection) {
-            points = Na__Svg__FlipAcrossYAtX(points, 0);
-        }
-        points = Na__Svg__FlipAcrossYAtX(points, 0);
+        // sourcePoints keep the profile's authored coordinates so a picked handle
+        // can be reported back as an absolute datum, independent of the offset
+        // already in force.
+        var sourcePoints = points.map(function(point) { return [Number(point[0]), Number(point[1])]; });
+        var basePoints   = Na__Svg__ApplyOriginOffset(sourcePoints, originOffset);
+
+        var displayOps    = Na__Svg__BuildDisplayOps(basePoints, toggleStates, rotationStep, reverseDirection);
+        var displayPoints = basePoints.map(function(point) { return Na__Svg__ApplyDisplayOps(point, displayOps); });
+        var datumPoint    = Na__Svg__ApplyDisplayOps([0, 0], displayOps);
 
         var boundsOptions;
         if (thumbnailMode) {
-            var tightBounds = Na__Svg__Bounds(points, { includeOrigin: false, margin: 0 });
+            var tightBounds = Na__Svg__Bounds(displayPoints, { includeOrigin: false, margin: 0 });
             var propMargin = Math.max(tightBounds.halfWidth, tightBounds.halfHeight) * 0.10;
             boundsOptions = { includeOrigin: false, margin: Math.max(propMargin, 4) };
         } else {
             boundsOptions = { includeOrigin: true };
         }
 
-        const bounds = Na__Svg__Bounds(points, boundsOptions);
-        const profileLine = Na__Svg__ClosedPolyline(points, 'naProfileLine');
+        const bounds = Na__Svg__Bounds(displayPoints, boundsOptions);
+        const profileLine = Na__Svg__ClosedPolyline(displayPoints, 'naProfileLine');
 
         return {
             isValid: true,
             reason: null,
             viewBox: bounds.viewBox,
+            sourcePoints: sourcePoints,
             svg: [
                 '<g class="naProfilePreviewLayer">',
                 Na__Svg__Axes(bounds),
-                Na__Svg__OriginMarker(bounds),
+                // Gallery thumbnails are about shape recognition — a datum marker
+                // sized for the working preview would just be noise at card scale.
+                thumbnailMode ? '' : Na__Svg__OriginMarker(bounds, datumPoint),
                 profileLine,
+                showVertexHandles ? Na__Svg__VertexHandles(bounds, displayPoints) : '',
                 '</g>'
             ].join('')
         };

@@ -14,11 +14,37 @@
     // REGION | HTML Helpers
     // -------------------------------------------------------------------------
 
-    function Na__Ui__BuildOptionsHtml(options, selectedValue) {
-        return options.map(function(option) {
-            const isSelected = String(option.value) === String(selectedValue) ? ' selected' : '';
-            return '<option value="' + option.value + '"' + isSelected + '>' + option.label + '</option>';
+    // Two-state segmented switch. Both choices stay visible and the live one is
+    // filled in, so the current mode and its alternative read in a single glance
+    // — no click needed, unlike the dropdowns these replaced.
+    function Na__Ui__BuildSwitchHtml(switchKey, options, activeValue) {
+        const buttons = options.map(function(option) {
+            const isActive = String(option.value) === String(activeValue);
+            const activeClass = isActive ? ' na-switch__option--active' : '';
+            return [
+                '<button type="button"',
+                '        class="na-switch__option' + activeClass + '"',
+                '        data-na-switch-key="' + switchKey + '"',
+                '        data-na-switch-value="' + option.value + '"',
+                '        aria-pressed="' + (isActive ? 'true' : 'false') + '"',
+                '        title="' + (option.title || option.label) + '">',
+                option.shortLabel || option.label,
+                '</button>'
+            ].join(' ');
         }).join('');
+
+        return '<div class="na-switch" role="group">' + buttons + '</div>';
+    }
+
+    function Na__Ui__BuildSwitchOptions(configOptions, shortLabels) {
+        return (configOptions || []).map(function(option) {
+            return {
+                value: option.value,
+                label: option.label,
+                title: option.label,
+                shortLabel: shortLabels[option.value] || option.label
+            };
+        });
     }
 
     function Na__Ui__BuildToggleButtonsHtml(toggleDefinitions, toggleStates) {
@@ -82,6 +108,12 @@
 
         const hasToggles = Object.keys(toggleDefinitions).length > 0;
 
+        const isInsertPointPickActive = state.isInsertPointPickActive === true;
+        const hasCustomInsertPoint    = !!state.originOffset;
+        const insertPointHint         = hasCustomInsertPoint
+            ? 'Custom datum: Y ' + Math.round(state.originOffset.y) + 'mm, Z ' + Math.round(state.originOffset.z) + 'mm'
+            : 'Datum: profile origin';
+
         var store            = window.Na__ProfileTools__ProfileStore;
         var activeRecord     = store ? store.Na__Store__GetSelectedRecord() : null;
         var activeName       = activeRecord ? (activeRecord.displayName || activeRecord.profileKey || '') : '';
@@ -99,11 +131,29 @@
             '    </div>',
             '  </div>',
 
-            '  <div class="naFormRow">',
-            '    <label for="naProfileSourceModeSelect">Profile Source</label>',
-            '    <select class="naSelect" id="naProfileSourceModeSelect">',
-            Na__Ui__BuildOptionsHtml(config.profileSourceModeOptions, profileSourceModeValue),
-            '    </select>',
+            '  <div class="na-switch-row">',
+            '    <div class="na-switch-field">',
+            '      <span class="na-switch-field__label">Profile Source</span>',
+            Na__Ui__BuildSwitchHtml(
+                'profileSourceMode',
+                Na__Ui__BuildSwitchOptions(config.profileSourceModeOptions, {
+                    library: 'Library',
+                    scene:   'Scene Pick'
+                }),
+                profileSourceModeValue
+            ),
+            '    </div>',
+            '    <div class="na-switch-field">',
+            '      <span class="na-switch-field__label">Path Mode</span>',
+            Na__Ui__BuildSwitchHtml(
+                'pathMode',
+                Na__Ui__BuildSwitchOptions(config.pathModeOptions, {
+                    selection:   'Selection',
+                    interactive: 'Interactive'
+                }),
+                pathModeValue
+            ),
+            '    </div>',
             '  </div>',
 
             '<div class="naSceneSourceWrap' + (isSceneMode ? '' : ' naSceneSourceWrap--hidden') + '">',
@@ -114,18 +164,23 @@
             '  </div>',
             '</div>',
 
-            '  <div class="naFormRow">',
-            '    <label for="naPathModeSelect">Path Mode</label>',
-            '    <select class="naSelect" id="naPathModeSelect">',
-            Na__Ui__BuildOptionsHtml(config.pathModeOptions, pathModeValue),
-            '    </select>',
-            '  </div>',
-
             '</div>',
 
             '<div class="na-section na-viewport-section">',
-            '  <div class="naViewportWrap">',
+            '  <div class="naViewportWrap' + (isInsertPointPickActive ? ' naViewportWrap--picking' : '') + '">',
             '    <svg class="naViewportSvg" id="naProfileViewportSvg" viewBox="-120 -120 240 240"></svg>',
+            '  </div>',
+            '  <div class="naInsertPointBar">',
+            '    <span class="naInsertPointBar__hint' + (hasCustomInsertPoint ? ' naInsertPointBar__hint--custom' : '') + '">' + insertPointHint + '</span>',
+            '    <div class="naInsertPointBar__actions">',
+            '      <button class="naButtonSecondary' + (isInsertPointPickActive ? ' naButton--pickActive' : '') + '"',
+            '              id="naBtnSetInsertPoint"',
+            '              title="Click a profile vertex in the preview to move the insertion point there">',
+            isInsertPointPickActive ? 'Click a vertex…' : 'Set Insert Point',
+            '      </button>',
+            '      <button class="naButtonSecondary" id="naBtnResetInsertPoint"' + (hasCustomInsertPoint ? '' : ' disabled') + '',
+            '              title="Return the insertion point to the profile\'s authored origin">Reset</button>',
+            '    </div>',
             '  </div>',
             '</div>',
 

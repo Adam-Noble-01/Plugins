@@ -82,18 +82,38 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Profile 2D local points — mirrors
     # -------------------------------------------------------------------------
 
-        def self.Na__Geometry__BuildLocalProfilePoints(profile_data)
+        def self.Na__Geometry__BuildLocalProfilePoints(profile_data, origin_offset = nil)
             vertex_map = self.Na__Geometry__UnifiedVertexMap(profile_data)
             face_records = self.Na__Geometry__UnifiedFaceRecords(profile_data)
             return [] if vertex_map.empty? || face_records.empty?
 
             outer_ids = Array(face_records.first['OuterLoopVertices'])
             return [] if outer_ids.length < 3
-            outer_ids.map { |vertex_id| vertex_map[vertex_id.to_s] }.compact
+            local_points = outer_ids.map { |vertex_id| vertex_map[vertex_id.to_s] }.compact
+            self.Na__Geometry__ApplyOriginOffset(local_points, origin_offset)
         end
 
         def self.Na__Geometry__ApplyMirrorToggles(local_points, toggle_states = {})
             Na__MirrorProfile.Na__Mirror__ApplyToggles(local_points, toggle_states || {})
+        end
+
+        # Re-datums the profile so the user-picked vertex sits on the path.
+        # origin_offset is { 'y' => mm, 'z' => mm } in the profile's own 2D space,
+        # matching the PosY_mm / PosZ_mm axes of the unified schema.
+        def self.Na__Geometry__ApplyOriginOffset(local_points, origin_offset)
+            shift = self.Na__Geometry__OriginOffsetVector(origin_offset)
+            return local_points unless shift
+            local_points.map { |point| point.offset(shift) }
+        end
+
+        def self.Na__Geometry__OriginOffsetVector(origin_offset)
+            return nil unless origin_offset.is_a?(Hash)
+            y_mm = (origin_offset['y'] || origin_offset[:y]).to_f
+            z_mm = (origin_offset['z'] || origin_offset[:z]).to_f
+            return nil if y_mm.zero? && z_mm.zero?
+            Geom::Vector3d.new(-y_mm.mm, -z_mm.mm, 0)
+        rescue
+            nil
         end
 
     # endregion ----------------------------------------------------------------
@@ -215,14 +235,71 @@ module Na__ProfileTools__ProfilePathTracer
             Geom.linear_combination(0.5, incoming_point, 0.5, outgoing_point)
         end
 
-        def self.Na__Geometry__BuildPreviewProfilePolyline(profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {})
-            local_profile_points = self.Na__Geometry__BuildLocalProfilePoints(profile_data)
+        # Single entry point for the interactive tool. Builds the cursor ghost and
+        # the swept cage from the SAME inputs the real build uses, then applies the
+        # identical reverse transform, so the viewport preview cannot drift from
+        # the geometry Generate will actually produce.
+        def self.Na__Geometry__BuildPreviewGeometry(profile_data:, path_data:, start_point:, rotation_step:,
+                                                     toggle_states: {}, reverse_direction: false, origin_offset: nil)
+            effective_rotation_step = reverse_direction ? (rotation_step.to_i + 2) % 4 : rotation_step.to_i
+
+            profile_polyline = self.Na__Geometry__BuildPreviewProfilePolyline(
+                profile_data:  profile_data,
+                path_data:     path_data,
+                start_point:   start_point,
+                rotation_step: effective_rotation_step,
+                toggle_states: toggle_states,
+                origin_offset: origin_offset
+            )
+            sweep_segments = self.Na__Geometry__BuildPreviewSweepSegments(
+                profile_data:  profile_data,
+                path_data:     path_data,
+                rotation_step: effective_rotation_step,
+                toggle_states: toggle_states,
+                origin_offset: origin_offset
+            )
+
+            return { profile_polyline: profile_polyline, sweep_segments: sweep_segments } unless reverse_direction
+
+            # Na__Geometry__BuildProfileAlongPath flips the finished assembly, whose
+            # bounds span the swept solid plus the Helpers path linework. Rebuild
+            # that same bounding box here so the preview lands in the same place.
+            preview_bounds = Geom::BoundingBox.new
+            sweep_segments.each { |point| preview_bounds.add(point) }
+            profile_polyline.each { |point| preview_bounds.add(point) }
+            Array(path_data[:ordered_points]).compact.each { |point| preview_bounds.add(point) }
+            return { profile_polyline: profile_polyline, sweep_segments: sweep_segments } if preview_bounds.empty?
+
+            flip_transform = self.Na__Geometry__BuildReverseFlipTransform(preview_bounds)
+            {
+                profile_polyline: profile_polyline.map { |point| point.transform(flip_transform) },
+                sweep_segments:   sweep_segments.map { |point| point.transform(flip_transform) }
+            }
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Preview geometry build warning: #{error.message}")
+            { profile_polyline: [], sweep_segments: [] }
+        end
+
+        # Mirrors the assembly about the horizontal plane through bounds.max.z:
+        # a Z scale of -1 about the bbox centre, then a lift of the full Z extent.
+        # Shared by the real build and the interactive preview so both agree.
+        def self.Na__Geometry__BuildReverseFlipTransform(bounds)
+            return Geom::Transformation.new unless bounds
+            z_flip = Geom::Transformation.scaling(bounds.center, 1.0, 1.0, -1.0)
+            z_translate = Geom::Transformation.translation(
+                Geom::Vector3d.new(0, 0, bounds.max.z - bounds.min.z)
+            )
+            z_translate * z_flip
+        end
+
+        def self.Na__Geometry__BuildPreviewProfilePolyline(profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, origin_offset: nil)
+            local_profile_points = self.Na__Geometry__BuildLocalProfilePoints(profile_data, origin_offset)
             local_profile_points = self.Na__Geometry__ApplyMirrorToggles(local_profile_points, toggle_states)
             frame_transform = self.Na__Geometry__BuildPathFrame(start_point, path_data)
             self.Na__Geometry__TransformProfilePoints(local_profile_points, frame_transform, rotation_step)
         end
 
-        def self.Na__Geometry__BuildPreviewSweepSegments(profile_data:, path_data:, rotation_step:, toggle_states: {})
+        def self.Na__Geometry__BuildPreviewSweepSegments(profile_data:, path_data:, rotation_step:, toggle_states: {}, origin_offset: nil)
             is_closed_loop = path_data[:is_closed_loop] == true
             ordered_points = self.Na__Geometry__BuildSanitizedPathPoints(path_data[:ordered_points] || [])
             if is_closed_loop &&
@@ -233,7 +310,7 @@ module Na__ProfileTools__ProfilePathTracer
             return [] if ordered_points.length < 2
             return [] if is_closed_loop && ordered_points.length < 3
 
-            local_profile_points = self.Na__Geometry__BuildLocalProfilePoints(profile_data)
+            local_profile_points = self.Na__Geometry__BuildLocalProfilePoints(profile_data, origin_offset)
             local_profile_points = self.Na__Geometry__ApplyMirrorToggles(local_profile_points, toggle_states)
             return [] if local_profile_points.length < 2
 
@@ -328,7 +405,7 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Solid — follow-me along path
     # -------------------------------------------------------------------------
 
-        def self.Na__Geometry__BuildProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, reverse_direction: false)
+        def self.Na__Geometry__BuildProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, reverse_direction: false, origin_offset: nil)
             return { 'isBuilt' => false, 'reason' => 'No active model.' } unless model
             unless self.Na__Geometry__ProfileType(profile_data) == 'na_unified_asset'
                 return { 'isBuilt' => false, 'reason' => 'Only unified schema profiles are supported.' }
@@ -349,7 +426,7 @@ module Na__ProfileTools__ProfilePathTracer
                 is_closed_loop: is_closed_loop
             )
 
-            local_profile_points = self.Na__Geometry__BuildLocalProfilePoints(profile_data)
+            local_profile_points = self.Na__Geometry__BuildLocalProfilePoints(profile_data, origin_offset)
             local_profile_points = self.Na__Geometry__ApplyMirrorToggles(local_profile_points, toggle_states)
             return { 'isBuilt' => false, 'reason' => 'Selected profile has invalid points.' } if local_profile_points.length < 3
 
@@ -380,7 +457,8 @@ module Na__ProfileTools__ProfilePathTracer
                 frame_transform:    frame_transform,
                 rotation_step:      effective_rotation_step,
                 toggle_states:      toggle_states,
-                resolved_path_data: resolved_path_data
+                resolved_path_data: resolved_path_data,
+                origin_offset:      origin_offset
             )
             unless swept['isSwept']
                 self.Na__Geometry__AbortOperationSafely(model)
@@ -390,12 +468,11 @@ module Na__ProfileTools__ProfilePathTracer
 
             self.Na__Geometry__BuildHelpersSubGroup(model, helpers_group, ordered_points, is_closed_loop)
 
+            # Group#transform! moves the instance, not its contents, so the Helpers
+            # edges keep their original local coordinates — which is what lets the
+            # regeneration engine rebuild in un-flipped space.
             if reverse_direction
-                z_flip = Geom::Transformation.scaling(parent_group.bounds.center, 1.0, 1.0, -1.0)
-                parent_group.transform!(z_flip)
-                z_correction = parent_group.bounds.max.z - parent_group.bounds.min.z
-                z_translate = Geom::Transformation.translation(Geom::Vector3d.new(0, 0, z_correction))
-                parent_group.transform!(z_translate)
+                parent_group.transform!(self.Na__Geometry__BuildReverseFlipTransform(parent_group.bounds))
             end
 
             # @delegate: ../02__AppData/Na__ProfileTools__AppData__DataSerializer__
@@ -405,7 +482,10 @@ module Na__ProfileTools__ProfilePathTracer
                 rotation_step: rotation_step,
                 toggle_states: toggle_states,
                 is_closed_loop: is_closed_loop,
-                start_point: start_point
+                start_point: start_point,
+                reverse_direction: reverse_direction,
+                origin_offset: origin_offset,
+                path_points: ordered_points
             )
 
             model.commit_operation
@@ -425,9 +505,14 @@ module Na__ProfileTools__ProfilePathTracer
 
             Na__ObserverRegistry.Na__ObserverRegistry__AttachToHelpers(helpers_group)
 
+            # Runs after the build's commit_operation, so the rename needs its own
+            # transparent operation or it lands on the undo stack unattached.
             if defined?(Na__ContextMenuHandlers) &&
                Na__ContextMenuHandlers.respond_to?(:Na__ContextMenu__UpdateGroupNameSuffix)
+                model = Sketchup.active_model
+                model.start_operation('Na__ProfilePathTracer__TagDynRegen', true, false, true) if model
                 Na__ContextMenuHandlers.Na__ContextMenu__UpdateGroupNameSuffix(parent_group, true)
+                model.commit_operation if model
             end
 
             Na__DebugTools.Na__Debug__Info(
@@ -439,7 +524,8 @@ module Na__ProfileTools__ProfilePathTracer
 
         def self.Na__Geometry__SweepProfileIntoGroup(target_entities:, model:, profile_data:,
                                                         ordered_points:, is_closed_loop:, frame_transform:,
-                                                        rotation_step:, toggle_states:, resolved_path_data:)
+                                                        rotation_step:, toggle_states:, resolved_path_data:,
+                                                        origin_offset: nil)
             sweep_plan = self.Na__Geometry__BuildSweepRailPlan(ordered_points, is_closed_loop, frame_transform)
             return { 'isSwept' => false, 'reason' => sweep_plan[:reason] } unless sweep_plan[:isValid]
 
@@ -459,7 +545,7 @@ module Na__ProfileTools__ProfilePathTracer
             end
 
             face_result = self.Na__Geometry__BuildTransformedProfileFace(
-                target_entities, profile_data, cap_frame, rotation_step, toggle_states
+                target_entities, profile_data, cap_frame, rotation_step, toggle_states, origin_offset
             )
             return { 'isSwept' => false, 'reason' => face_result['reason'] } unless face_result['isValid']
 
@@ -564,17 +650,22 @@ module Na__ProfileTools__ProfilePathTracer
 
         def self.Na__Geometry__StampAssemblyDictionaries(model, parent_group, helpers_group,
                                                           profile_key:, rotation_step:, toggle_states:,
-                                                          is_closed_loop:, start_point:)
+                                                          is_closed_loop:, start_point:,
+                                                          reverse_direction: false, origin_offset: nil,
+                                                          path_points: [])
             return unless defined?(Na__DataSerializer)
 
             trace_id = Na__DataSerializer.Na__DataSerializer__GenerateNextProfileTraceId(model)
             Na__DataSerializer.Na__DataSerializer__StampParent(parent_group, {
-                'ProfileTraceId' => trace_id,
-                'ProfileKey'     => profile_key,
-                'RotationStep'   => rotation_step,
-                'ToggleStates'   => toggle_states,
-                'IsClosedLoop'   => is_closed_loop,
-                'StartPoint'     => start_point
+                'ProfileTraceId'   => trace_id,
+                'ProfileKey'       => profile_key,
+                'RotationStep'     => rotation_step,
+                'ToggleStates'     => toggle_states,
+                'IsClosedLoop'     => is_closed_loop,
+                'StartPoint'       => start_point,
+                'ReverseDirection' => reverse_direction,
+                'OriginOffset'     => origin_offset,
+                'PathPoints'       => path_points
             })
             Na__DataSerializer.Na__DataSerializer__StampHelpers(helpers_group, trace_id)
         rescue => error
@@ -644,13 +735,13 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Transformed profile face
     # -------------------------------------------------------------------------
 
-        def self.Na__Geometry__BuildTransformedProfileFace(entities, profile_data, frame_transform, rotation_step, toggle_states)
+        def self.Na__Geometry__BuildTransformedProfileFace(entities, profile_data, frame_transform, rotation_step, toggle_states, origin_offset = nil)
             vertex_map = self.Na__Geometry__UnifiedVertexMap(profile_data)
             face_records = self.Na__Geometry__UnifiedFaceRecords(profile_data)
             return { 'isValid' => false, 'reason' => 'Unified profile has no vertices.' } if vertex_map.empty?
             return { 'isValid' => false, 'reason' => 'Unified profile has no faces.' } if face_records.empty?
 
-            transformed_vertices = self.Na__Geometry__TransformVertexMap(vertex_map, frame_transform, rotation_step, toggle_states)
+            transformed_vertices = self.Na__Geometry__TransformVertexMap(vertex_map, frame_transform, rotation_step, toggle_states, origin_offset)
             outer_ids = Array(face_records.first['OuterLoopVertices'])
             return { 'isValid' => false, 'reason' => 'Unified profile face has fewer than three vertices.' } if outer_ids.length < 3
 
@@ -664,13 +755,20 @@ module Na__ProfileTools__ProfilePathTracer
             { 'isValid' => true, 'profileFace' => profile_face }
         end
 
-        def self.Na__Geometry__TransformVertexMap(vertex_map, frame_transform, rotation_step, toggle_states)
-            local_points = vertex_map.values
+        # Mirror toggles MUST be applied in local 2D profile space, before the path
+        # frame transform. Mirroring afterwards reflects about the world axes, which
+        # throws the cap face across the model origin and no longer matches the
+        # preview — every other builder here uses the local-first order.
+        def self.Na__Geometry__TransformVertexMap(vertex_map, frame_transform, rotation_step, toggle_states, origin_offset = nil)
+            local_points = self.Na__Geometry__ApplyOriginOffset(vertex_map.values, origin_offset)
+            local_points = self.Na__Geometry__ApplyMirrorToggles(local_points, toggle_states)
             transformed_points = self.Na__Geometry__TransformProfilePoints(local_points, frame_transform, rotation_step)
-            transformed_points = Na__MirrorProfile.Na__Mirror__ApplyToggles(transformed_points, toggle_states || {})
+
+            vertex_ids = vertex_map.keys
+            return {} unless transformed_points.length == vertex_ids.length
 
             transformed_map = {}
-            vertex_map.keys.each_with_index { |vertex_id, index| transformed_map[vertex_id] = transformed_points[index] }
+            vertex_ids.each_with_index { |vertex_id, index| transformed_map[vertex_id] = transformed_points[index] }
             transformed_map
         end
 

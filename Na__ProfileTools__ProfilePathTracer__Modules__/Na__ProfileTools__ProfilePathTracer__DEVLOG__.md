@@ -4,6 +4,232 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.1.6 - 14-Aug-2026 - Dynamic Regen Fix, Insert Point Picker, Switch Controls
+
+### Summary
+Four changes: repaired the Dynamic Regeneration system (it had never fired), made the
+interactive viewport preview honour Reverse, added a pickable insertion point to the 2D
+preview with a constant-size datum marker, and replaced the two binary dropdowns with
+segmented switches on one row.
+
+---
+
+### 1. Dynamic Regeneration — root cause and repair
+
+**Root cause.** `Na__HelpersEntitiesObserver` called five of its own methods as bare
+identifiers:
+
+```ruby
+def onElementModified(_entities, _element)
+    Na__HelpersEntitiesObserver__Schedule    # <-- parsed as a CONSTANT, not a call
+end
+```
+
+These method names start with a capital letter, so Ruby parses a receiver-less, paren-less
+reference as a **constant lookup** and raises `NameError: uninitialized constant`. Every
+edit to the Helpers linework raised inside the observer callback and was discarded. The
+regeneration engine itself was never reached — which is why the feature looked entirely
+dead rather than buggy. Fixed by adding explicit `self.` receivers, matching the
+convention used everywhere else in the codebase.
+
+**Secondary fixes found while verifying the path end to end:**
+
+| Issue | Fix |
+|---|---|
+| Regen fired while the user still had the Helpers group open, so rebuilding the sibling SweptSolid silently failed | Observer now checks `model.active_path` and re-arms a 350 ms timer until the group edit is closed |
+| Closed loops rebuilt with a duplicate closing point, producing a zero-length rail segment | `Na__RegenEngine__SanitizeOrderedPoints` merges coincident points and drops the repeated first/last |
+| Reversed profiles regenerated un-reversed | `ReverseDirection` now persisted; regen re-applies the 180° profile roll. The flip itself lives on the parent group's own transformation, so the Helpers keep un-flipped local coordinates and must **not** be flipped again |
+| Every failure returned a silent `false` | `Na__RegenEngine__ReportFailure` writes the reason to the status bar and the console |
+| Parent lookup was a full model scan over Groups only | Walks up via `group.parent.instances` first; the ID scan now also recurses through ComponentInstance definitions |
+| `[DynRegen]` rename ran outside any operation | Wrapped in its own transparent operation |
+
+**Dictionary schema 1.0.0 -> 1.1.0.** Added `ReverseDirection`, `OriginOffset` and
+`PathPoints` (JSON blob, following the Entity Assembly Studio Pro serializer pattern) so a
+trace carries everything needed to rebuild itself. Older 1.0.0 assemblies still read back —
+the new keys default to false / nil / [].
+
+---
+
+### 1b. Newly drawn Helpers segments now extend the moulding
+
+Regeneration worked, but only for edits to the *existing* path. Drawing new linework into
+the group did nothing, because `Na__Path__BuildSegments` demands exactly one unbranched
+chain — correct for a user selection, wrong for a proxy you are meant to keep drawing into:
+
+| What the user draws | Old result |
+|---|---|
+| A second, separate run | `Selection contains disconnected edge sets.` — rebuild refused |
+| A spur off an existing run (T-junction) | `Branching path detected.` — rebuild refused |
+| An extension at the **start** end | Swept backwards — the start vertex was chosen by `min_by(&:persistent_id)`, so a new lower/higher id at the far end flipped traversal direction |
+
+Added `Na__Path__BuildChains`, which decomposes an arbitrary edge set into maximal
+non-branching chains plus any pure closed loops. Every chain is swept, so all three cases
+above now extend the moulding.
+
+**Structure.** One chain sweeps directly into `Na__ProfileTrace__SweptSolid`, exactly as
+before — no change for existing models. Multiple chains get one `Na__ProfileTrace__Run__NN`
+sub-group each, so a run's closure-seam cleanup cannot erase a neighbouring run's faces.
+Failed runs erase their own empty shell rather than accumulating hollow groups.
+
+**Direction stability.** Chains are oriented and ordered against the assembly's stored
+`StartPoint`. Open runs flip so their start is the end nearest that anchor; closed runs are
+*rotated* to begin at the nearest vertex, which pins the follow-me seam — a loop has no
+natural start, so without this the seam moved whenever the edge set changed.
+
+**Isolation.** Each run sweeps inside its own rescue, so one bad chain is skipped and
+reported rather than aborting the operation and discarding the runs that already succeeded.
+
+**Edge styling.** Newly drawn helper edges get the helpers material applied. Only edges that
+actually differ are painted — writing to an already-correct edge still fires
+`onElementModified`, and a callback delivered after the commit would schedule another
+rebuild, giving a loop that never settles.
+
+**Also tightened:** the edit-context probe matched *any* trace assembly in `active_path`, so
+opening one assembly set every attached observer polling. Now scoped to the observer's own
+Helpers group and its owning assembly.
+
+**Latent fix:** `Na__Path__FindNearestVertex` called `#distance` on entries that may be
+`Sketchup::Vertex`, which has no such method. Unreachable today, but it would have fired the
+moment anyone passed a start point into `Na__Path__OrderEdges`. Now normalises via
+`#position` first.
+
+---
+
+### 2. Interactive preview now reflects Reverse
+
+`Na__PathSelectionTool__RebuildPreviewCache` built its ghost and sweep cage without ever
+passing `reverse_direction`, so the viewport showed the un-reversed profile while Generate
+produced the reversed one.
+
+The flip is now a shared helper, `Na__Geometry__BuildReverseFlipTransform(bounds)` — a Z
+scale of -1 about the bbox centre followed by a lift of the full Z extent — called by both
+the real build and the new `Na__Geometry__BuildPreviewGeometry`. The preview rebuilds the
+same bounding box the build uses (sweep cage + path linework), so the two cannot drift.
+The status bar also shows `| REVERSED` while the tool is live.
+
+**Also fixed: mirror/build parity.** `Na__Geometry__TransformVertexMap` applied mirror
+toggles *after* the path frame transform, i.e. reflecting about the world axes, while every
+other code path mirrors in local 2D profile space *before* the transform. With any mirror
+toggle on, the swept face did not match the preview, and the world mirrors displaced the
+face relative to the path. Reordered to local-first, matching the documented contract in
+`MirrorProfile__.rb`.
+
+---
+
+### 3. Insert point picker + consistent datum marker
+
+**Datum marker.** Was a dashed cross plus dot sized in profile units, so it shrank to a
+speck on large profiles. Now always a diagonal **X**, sized as a fixed fraction of the
+rendered viewBox span (margin included), giving identical on-screen size for a 20 mm bead
+and a 500 mm cornice. It is also drawn at the *active* insertion point rather than assumed
+to sit at (0,0), so it tracks centre mirrors. Suppressed on gallery thumbnails.
+
+**Picker.** "Set Insert Point" reveals a handle on every profile vertex; clicking one
+re-datums the profile to that vertex. Mainly for scene-picked profiles, where the authored
+origin is unforgiving — on a skirting you can now just click the other corner.
+
+The offset is stored as `{ y, z }` in the profile's authored `PosY_mm` / `PosZ_mm` space,
+so it survives rotation and mirroring, and is threaded through generate payload -> dialog ->
+placement engine -> geometry builder -> model dictionary. It resets when the active profile
+changes, since a datum picked on one profile is meaningless on another.
+
+The 2D transform chain was refactored into an ordered op list with the mirror axes frozen
+up front, so the outline and the lone datum point run through the identical transform.
+Verified byte-identical to the previous chain across all 56 combinations of mirror flags x
+rotation x reverse.
+
+---
+
+### 3b. Flip Profile — normalise library handing in place
+
+Profiles are authored from whatever face happened to be selected, so the library has mixed
+handing and the Gallery gives no reliable clue which way a profile will sweep. **Flip
+Profile** in the Edit Profile tab mirrors the asset left-right about its own datum and
+writes it straight back to the library JSON, so the whole library can be walked through and
+normalised to one handing — and a future mis-handed export can be corrected without
+re-exporting the asset.
+
+**What gets mirrored** (`Na__EditProfile__GeometryWriter`):
+
+| Block | Field | Action |
+|---|---|---|
+| `Na__Asset__Profile2D` | Vertices `PosY_mm` | negated (Y is the profile's horizontal axis) |
+| | Faces `OuterLoopVertices` | reversed, keeping winding matched to the normal |
+| `Na__Asset__Mesh3D` | Vertices `PosX_mm`, `Normal_X` | negated (X is the profile-width surrogate) |
+| | Faces `OuterLoop_VertexIds` / `InnerLoops` | reversed |
+| | Faces `Normal[0]` | negated |
+| | `BoundingBox` MinX / MaxX | swapped and negated |
+
+Edges in both blocks are **left alone** — they are stored as vertex-id pairs, not an ordered
+walk, so they stay valid. Edge styling is matched by *length*
+(`Na__Geometry__FindClosestStyleReference`) and a mirror preserves length, so edge colours
+and soft/smooth/hidden flags survive untouched.
+
+**Verified across the whole library:** all 24 profiles mirror cleanly and flipping twice
+restores the original file exactly; edge lengths and signed loop area (including sign) are
+unchanged.
+
+**Atomicity.** The flip rides on the existing metadata save, so it cannot discard text edits
+typed but not yet saved — one read, one patch, one backup, one write. Three failure modes
+were closed while building it:
+
+- Mesh3D sub-blocks now mirror **independently**. An early return on a missing vertex array
+  would have left faces and the bounding box un-mirrored while Profile2D had already
+  flipped — a half-mirrored file written over the only backup. The library validator does
+  permit a Mesh3D block with edges but no vertices, so that shape was reachable.
+- The `.bak` is now written **last**, immediately before the overwrite. Previously a bail-out
+  path burned the user's rollback point without changing the file.
+- `Na__EditProfile__Bridge__Save` now returns whether the call actually reached Ruby. The
+  shared `na_is_saving` guard gates both buttons, so a dispatch that silently went nowhere
+  left Save *and* Flip disabled for the rest of the session.
+
+**Known consequence.** A per-run `OriginOffset` is stored in the profile's own `PosY_mm`
+space, so flipping a profile invalidates the custom insert point on runs already placed from
+it — the datum lands on the mirror image and the run shifts by `2 x y_mm`. Called out in the
+button tooltip; re-pick the insert point on affected runs.
+
+---
+
+### 4. Profile Source / Path Mode switches
+
+Both controls are binary, so a dropdown hid half the information behind a click. Replaced
+with two segmented switches sharing one row: both options always visible, the live one
+filled in. Recovers a full row of vertical space.
+
+---
+
+### Files Touched
+
+| Path | Change |
+|---|---|
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__HelpersEntitiesObserver__.rb` | **Root-cause fix** — `self.` receivers on 5 calls; edit-context deferral via `model.active_path`; documented the capital-letter parsing trap |
+| `02__Src__AppModules/02__AppData/Na__ProfileTools__AppData__DataSerializer__.rb` | Schema 1.1.0: `ReverseDirection`, `OriginOffset`, `PathPoints`; `WritePathPoints`; `ContainingInstance` walk-up; component-aware traversal |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__RegenerationEngine__Main__.rb` | Point sanitisation, reverse-aware rotation, origin offset, path refresh, visible failure reporting; **multi-run sweeping** with per-run isolation, `Run__NN` sub-groups, failed-shell cleanup and helper-edge restyling |
+| `02__Src__AppModules/04__GeometryHelpers/Na__ProfileTools__GeometryHelpers__PathAnalysis__.rb` | **NEW** `Na__Path__BuildChains` / `WalkChainFrom` / `OrientChain` / `RotateLoopToAnchor` / `SortChainsByAnchor`; `FindNearestVertex` normalises Vertex vs Point3d |
+| `02__Src__AppModules/04__GeometryHelpers/Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | `BuildReverseFlipTransform`, `BuildPreviewGeometry`, `ApplyOriginOffset`; mirror-order parity fix; richer dictionary stamping; rename wrapped in an operation |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | Uses the combined preview builder; carries `origin_offset`; REVERSED status flag |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__PlacementEngine__.rb` | `origin_offset:` pass-through; `BuildFromSelection` now forwards rotation / reverse / offset |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__HeadlessRunner__.rb` | Headless honours `rotationStep`, `reverseDirection`, `originOffset` |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__DialogManager__.rb` | `Na__Dialog__NormalizedOriginOffset`; offset threaded to both generate paths |
+| `02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__ProfileTools__Viewport__SvgGenerator__.js` | Op-list transform pipeline; `originOffset` + `showVertexHandles`; constant-scale X datum; returns `sourcePoints`; removed 4 superseded helpers |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js` | `originOffset` / `isInsertPointPickActive` state, 3 new handlers, payload field, reset-on-profile-change |
+| `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__Events__.js` | Switch wiring; insert-point buttons; delegated vertex clicks on the preview SVG |
+| `02__Src__AppModules/33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js` | `BuildSwitchHtml` / `BuildSwitchOptions`; switch row replaces both selects; insert-point bar; removed dead `BuildOptionsHtml` |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__GeometryWriter__.rb` | **NEW** — in-place horizontal mirror of a library profile's stored geometry |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__MetaWriter__.rb` | `flipHorizontal` folded into the same atomic write; `.bak` moved to just before the overwrite; normalised doubled-CR line endings |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__UiSystem__MainUiLogic__.js` | Flip Profile button; shared dispatch helper that releases the busy guard when the bridge is unreachable |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__UiSystem__Bridge__.js` | `Bridge__Save` returns whether the call reached Ruby |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__Main__.rb` | Requires GeometryWriter ahead of MetaWriter |
+| `03__Style__AppStylesheets/Na__ProfileTools__CoreUi__Styles__Index__.css` | Segmented switch styles; `.naProfileOriginCross`; `.naProfileVertexHandle`; insert-point bar; `.naButton--pickActive` |
+
+### Known Pre-existing Issue (not addressed here)
+`Na__ProfileTools__CreateNewProfile__Exporter__.rb` calls
+`Na__EdgeColourManager.Na__EdgeColours__FlatLookup`, which does not exist — the guard above
+it tests a different method name, so the `NoMethodError` is swallowed by a bare rescue and
+edge colour IDs are never resolved for non-`MTE` material names on export.
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.1.5 - 09-Jun-2026 - Added Reverse Profile Direction Toggle
 
 ### Summary

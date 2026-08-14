@@ -618,6 +618,7 @@ module Na__ProfileTools__ProfilePathTracer
             toggle_states = self.Na__Dialog__NormalizedToggleStates(generate_config)
             rotation_step = generate_config['rotationStep'].to_i % 4
             reverse_direction = generate_config['reverseDirection'] == true
+            origin_offset = self.Na__Dialog__NormalizedOriginOffset(generate_config)
 
             if path_mode == 'selection'
                 validation = Na__PathAnalysis.Na__Path__BuildSegments(Sketchup.active_model.selection.to_a)
@@ -641,7 +642,8 @@ module Na__ProfileTools__ProfilePathTracer
                     start_point: path_data[:ordered_points].first,
                     rotation_step: rotation_step,
                     toggle_states: toggle_states,
-                    reverse_direction: reverse_direction
+                    reverse_direction: reverse_direction,
+                    origin_offset: origin_offset
                 )
 
                 return {
@@ -651,7 +653,9 @@ module Na__ProfileTools__ProfilePathTracer
             end
 
             model = Sketchup.active_model
-            interactive_tool = Na__PathSelectionTool.new(profile_key, profile_data, toggle_states, rotation_step, reverse_direction)
+            interactive_tool = Na__PathSelectionTool.new(
+                profile_key, profile_data, toggle_states, rotation_step, reverse_direction, origin_offset
+            )
             model.select_tool(interactive_tool)
 
             {
@@ -749,6 +753,23 @@ module Na__ProfileTools__ProfilePathTracer
                     normalized[toggle_key] = default_value
                 end
             end
+        end
+
+        # originOffset arrives from the 2D preview vertex picker as
+        # { y: <mm>, z: <mm> } in the profile's own PosY_mm / PosZ_mm space.
+        # A zero offset means "use the profile's authored origin" — return nil so
+        # the geometry builder skips the shift entirely.
+        def self.Na__Dialog__NormalizedOriginOffset(generate_config)
+            incoming = generate_config['originOffset']
+            return nil unless incoming.is_a?(Hash)
+
+            y_mm = incoming['y'].to_f
+            z_mm = incoming['z'].to_f
+            return nil if y_mm.zero? && z_mm.zero?
+
+            { 'y' => y_mm, 'z' => z_mm }
+        rescue
+            nil
         end
 
     # endregion ----------------------------------------------------------------
