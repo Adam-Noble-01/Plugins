@@ -21,6 +21,7 @@ module Na__ProfileTools__ProfilePathTracer
         @na_pending_save_meta = nil
         @na_pending_create_validation = false
         @na_pending_export_origin_point = nil
+        @na_pending_replace_geometry_params = nil
 
     # endregion ----------------------------------------------------------------
 
@@ -257,6 +258,42 @@ module Na__ProfileTools__ProfilePathTracer
                     'Na__ProfilePathTracer__ReceiveUpdateProfileMetaResult',
                     { 'isSaved' => false, 'reason' => "Save failed: #{error.message}",
                       'statusMessage' => "Save failed: #{error.message}" }
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_replace_profile_geometry') do |_context, json_payload|
+                params = JSON.parse(json_payload.to_s)
+                result = self.Na__Dialog__HandleReplaceGeometryRequest(params)
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveReplaceGeometryResult', result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Replace profile geometry callback failed.', error)
+                self.Na__Dialog__ClearPendingReplaceGeometry
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveReplaceGeometryResult',
+                    { 'isReplaced' => false, 'isPending' => false,
+                      'reason' => "Geometry re-capture failed: #{error.message}",
+                      'statusMessage' => "Geometry re-capture failed: #{error.message}" }
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_delete_profile') do |_context, json_payload|
+                params = JSON.parse(json_payload.to_s)
+                result = Na__EditProfile__ProfileDeleter.Na__ProfileDeleter__Delete(params)
+
+                # Bootstrap first: the gallery and every key lookup must be
+                # rebuilt from what is now on disk before the dialog is told the
+                # delete landed, or the JS still holds the removed profile.
+                if result['isDeleted']
+                    self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveBootstrap', self.Na__Dialog__BuildBootstrapPayload)
+                end
+
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveDeleteProfileResult', result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Delete profile callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveDeleteProfileResult',
+                    { 'isDeleted' => false, 'reason' => "Delete failed: #{error.message}",
+                      'statusMessage' => "Delete failed: #{error.message}" }
                 )
             end
         end
@@ -601,6 +638,106 @@ module Na__ProfileTools__ProfilePathTracer
             )
         end
 
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Replace Geometry Handlers (Edit Profile tab)
+    # -------------------------------------------------------------------------
+
+        # Everything that can refuse the re-capture is checked BEFORE the picker
+        # tool is armed, so a blocked request never leaves the user stranded in a
+        # model tool waiting for a click that cannot lead anywhere.
+        def self.Na__Dialog__HandleReplaceGeometryRequest(params)
+            params = {} unless params.is_a?(Hash)
+
+            profile_key = params['profileKey'].to_s.strip
+            if profile_key.empty?
+                return self.Na__Dialog__BuildReplaceBlockedPayload('No profile is loaded in the Edit tab.')
+            end
+
+            path_check = Na__EditProfile__LibraryPaths.Na__LibraryPaths__ValidateProfileFile(params['sourceFile'])
+            unless path_check['isValid']
+                return self.Na__Dialog__BuildReplaceBlockedPayload(path_check['reason'], profile_key)
+            end
+
+            validation = Na__ProfileExporter.Na__Exporter__ValidateSelection
+            unless validation['isValid']
+                return self.Na__Dialog__BuildReplaceBlockedPayload(validation['reason'], profile_key)
+            end
+
+            model = Sketchup.active_model
+            unless model
+                return self.Na__Dialog__BuildReplaceBlockedPayload('No active model.', profile_key)
+            end
+
+            @na_pending_replace_geometry_params = params
+            model.select_tool(Na__Dialog__OriginPointPickerTool.new(self, :replace_geometry))
+
+            {
+                'isReplaced'    => false,
+                'isPending'     => true,
+                'profileKey'    => profile_key,
+                'reason'        => nil,
+                'statusMessage' => 'Click in model to set the new origin point for this profile. ESC cancels.'
+            }
+        end
+
+        def self.Na__Dialog__FinalizePendingReplaceGeometry(origin_point)
+            pending_params = @na_pending_replace_geometry_params
+            @na_pending_replace_geometry_params = nil
+
+            unless pending_params.is_a?(Hash)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveReplaceGeometryResult',
+                    self.Na__Dialog__BuildReplaceBlockedPayload('No pending geometry re-capture request was found.')
+                )
+                return
+            end
+
+            result = Na__EditProfile__GeometryReplacer.Na__GeometryReplacer__Replace(pending_params, origin_point)
+            self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveReplaceGeometryResult', result)
+        rescue => error
+            Na__DebugTools.Na__Debug__Error('Finalize replace geometry failed.', error)
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveReplaceGeometryResult',
+                self.Na__Dialog__BuildReplaceBlockedPayload("Geometry re-capture failed: #{error.message}")
+            )
+        end
+
+        def self.Na__Dialog__ClearPendingReplaceGeometry
+            @na_pending_replace_geometry_params = nil
+        end
+
+        def self.Na__Dialog__CancelPendingReplaceGeometry
+            @na_pending_replace_geometry_params = nil
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveReplaceGeometryResult',
+                {
+                    'isReplaced'    => false,
+                    'isPending'     => false,
+                    'isCancelled'   => true,
+                    'reason'        => 'Origin point selection cancelled.',
+                    'statusMessage' => 'Geometry re-capture cancelled — the profile file was not changed.'
+                }
+            )
+        end
+
+        def self.Na__Dialog__BuildReplaceBlockedPayload(reason, profile_key = '')
+            {
+                'isReplaced'    => false,
+                'isPending'     => false,
+                'profileKey'    => profile_key,
+                'reason'        => reason,
+                'statusMessage' => "Geometry re-capture blocked: #{reason}"
+            }
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Generate Handler
+    # -------------------------------------------------------------------------
+
         def self.Na__Dialog__HandleGenerateRequest(generate_config)
             profile_resolution = Na__ProfilePlacementEngine.Na__Engine__ResolveProfileData(generate_config)
             unless profile_resolution['isValid']
@@ -789,11 +926,14 @@ module Na__ProfileTools__ProfilePathTracer
         end
 
         def activate
-            prompt_text = if @na_picker_mode == :create_profile
-                'Click to place 00__OriginPoint for create-profile preview + save. ESC cancels.'
-            else
-                'Click to place 00__OriginPoint helper for export UCS. ESC cancels.'
-            end
+            prompt_text = case @na_picker_mode
+                          when :create_profile
+                              'Click to place 00__OriginPoint for create-profile preview + save. ESC cancels.'
+                          when :replace_geometry
+                              'Click to set the NEW origin point for the profile being edited. ESC cancels — nothing is written until you click.'
+                          else
+                              'Click to place 00__OriginPoint helper for export UCS. ESC cancels.'
+                          end
             Sketchup::set_status_text(prompt_text, NA_STATUS_PROMPT_KEY)
             Sketchup.active_model.active_view.invalidate
         end
@@ -810,8 +950,11 @@ module Na__ProfileTools__ProfilePathTracer
             return unless @na_input_point.valid?
 
             selected_point = @na_input_point.position
-            if @na_picker_mode == :create_profile
+            case @na_picker_mode
+            when :create_profile
                 @na_dialog_manager.Na__Dialog__FinalizePendingCreateProfileOrigin(selected_point)
+            when :replace_geometry
+                @na_dialog_manager.Na__Dialog__FinalizePendingReplaceGeometry(selected_point)
             else
                 @na_dialog_manager.Na__Dialog__FinalizePendingSave(selected_point)
             end
@@ -820,8 +963,11 @@ module Na__ProfileTools__ProfilePathTracer
         end
 
         def onCancel(_reason, view)
-            if @na_picker_mode == :create_profile
+            case @na_picker_mode
+            when :create_profile
                 @na_dialog_manager.Na__Dialog__CancelPendingCreateProfileOrigin
+            when :replace_geometry
+                @na_dialog_manager.Na__Dialog__CancelPendingReplaceGeometry
             else
                 @na_dialog_manager.Na__Dialog__CancelPendingSave
             end

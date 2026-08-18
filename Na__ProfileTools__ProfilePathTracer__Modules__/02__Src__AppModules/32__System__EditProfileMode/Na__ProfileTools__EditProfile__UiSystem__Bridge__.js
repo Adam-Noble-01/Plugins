@@ -3,8 +3,20 @@
    =============================================================================
    FILE       : Na__ProfileTools__EditProfile__UiSystem__Bridge__.js
    NAMESPACE  : window.Na__EditProfile__Bridge__Save
+                window.Na__EditProfile__Bridge__ReplaceGeometry
+                window.Na__EditProfile__Bridge__DeleteProfile
                 window.Na__ProfilePathTracer__ReceiveUpdateProfileMetaResult
-   PURPOSE    : JS -> Ruby bridge for saving edited profile metadata in-place.
+                window.Na__ProfilePathTracer__ReceiveReplaceGeometryResult
+                window.Na__ProfilePathTracer__ReceiveDeleteProfileResult
+   PURPOSE    : JS -> Ruby bridge for the three in-place edits to a library
+                file: metadata save, geometry re-capture, and delete.
+
+   DISPATCH CONTRACT
+                Every send returns true only when the call actually reached
+                Ruby. The panel disables its buttons until a result comes back,
+                so a false is its signal to re-enable immediately — otherwise a
+                dead click latches the panel forever on a result that is never
+                coming.
    ============================================================================= */
 
 (function () {
@@ -33,10 +45,6 @@
     // REGION | Save Bridge Call
     // -------------------------------------------------------------------------
 
-    // Returns true only when the call actually reached Ruby. Callers disable
-    // their button until a result comes back, so a false here is their signal to
-    // re-enable immediately — otherwise the panel latches on "Saving..." forever
-    // with no result ever arriving.
     function Na__EditProfile__Bridge__Save(payload) {
         if (Na__EditBridge__HasCallback('na_profilepathtracer_update_profile_meta')) {
             Na__EditBridge__SetStatus('Saving profile metadata...');
@@ -44,6 +52,41 @@
             return true;
         }
         Na__EditBridge__SetStatus('Save bridge is not available (SketchUp not connected).');
+        return false;
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Replace Geometry Bridge Call
+    // -------------------------------------------------------------------------
+
+    // Ruby validates the live selection and only then arms the origin picker, so
+    // this send never writes anything on its own — the write happens on the
+    // model click that follows.
+    function Na__EditProfile__Bridge__ReplaceGeometry(payload) {
+        if (Na__EditBridge__HasCallback('na_profilepathtracer_replace_profile_geometry')) {
+            Na__EditBridge__SetStatus('Checking SketchUp selection...');
+            window.sketchup.na_profilepathtracer_replace_profile_geometry(JSON.stringify(payload || {}));
+            return true;
+        }
+        Na__EditBridge__SetStatus('Geometry re-capture bridge is not available (SketchUp not connected).');
+        return false;
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Delete Profile Bridge Call
+    // -------------------------------------------------------------------------
+
+    function Na__EditProfile__Bridge__DeleteProfile(payload) {
+        if (Na__EditBridge__HasCallback('na_profilepathtracer_delete_profile')) {
+            Na__EditBridge__SetStatus('Deleting profile data file...');
+            window.sketchup.na_profilepathtracer_delete_profile(JSON.stringify(payload || {}));
+            return true;
+        }
+        Na__EditBridge__SetStatus('Delete bridge is not available (SketchUp not connected).');
         return false;
     }
 
@@ -68,9 +111,45 @@
             }
         }
 
-        if (window.Na__ProfileTools__EditProfile__Tab &&
-            typeof window.Na__ProfileTools__EditProfile__Tab.na_receive_save_result === 'function') {
-            window.Na__ProfileTools__EditProfile__Tab.na_receive_save_result(result);
+        Na__EditBridge__NotifyTab('na_receive_save_result', result);
+    }
+
+    function Na__ProfilePathTracer__ReceiveReplaceGeometryResult(result) {
+        if (!result || typeof result !== 'object') {
+            Na__EditBridge__SetStatus('Geometry re-capture returned no result.');
+            return;
+        }
+
+        Na__EditBridge__SetStatus(result.statusMessage || 'Geometry re-capture finished.');
+
+        if (result.isReplaced && result.profileKey && result.profileRecord) {
+            var store = window.Na__ProfileTools__ProfileStore;
+            if (store) {
+                store.Na__Store__UpdateRecord(result.profileKey, result.profileRecord);
+            }
+        }
+
+        Na__EditBridge__NotifyTab('na_receive_replace_geometry_result', result);
+    }
+
+    // The store is deliberately NOT touched here. Ruby re-sends the whole
+    // bootstrap ahead of this result, which rebuilds the profile map from disk —
+    // patching a single key on top of that would only re-introduce the record
+    // that was just removed.
+    function Na__ProfilePathTracer__ReceiveDeleteProfileResult(result) {
+        if (!result || typeof result !== 'object') {
+            Na__EditBridge__SetStatus('Delete returned no result.');
+            return;
+        }
+
+        Na__EditBridge__SetStatus(result.statusMessage || 'Delete finished.');
+        Na__EditBridge__NotifyTab('na_receive_delete_result', result);
+    }
+
+    function Na__EditBridge__NotifyTab(handlerName, result) {
+        var tab = window.Na__ProfileTools__EditProfile__Tab;
+        if (tab && typeof tab[handlerName] === 'function') {
+            tab[handlerName](result);
         }
     }
 
@@ -81,7 +160,11 @@
     // -------------------------------------------------------------------------
 
     window.Na__EditProfile__Bridge__Save                          = Na__EditProfile__Bridge__Save;
+    window.Na__EditProfile__Bridge__ReplaceGeometry               = Na__EditProfile__Bridge__ReplaceGeometry;
+    window.Na__EditProfile__Bridge__DeleteProfile                 = Na__EditProfile__Bridge__DeleteProfile;
     window.Na__ProfilePathTracer__ReceiveUpdateProfileMetaResult  = Na__ProfilePathTracer__ReceiveUpdateProfileMetaResult;
+    window.Na__ProfilePathTracer__ReceiveReplaceGeometryResult    = Na__ProfilePathTracer__ReceiveReplaceGeometryResult;
+    window.Na__ProfilePathTracer__ReceiveDeleteProfileResult      = Na__ProfilePathTracer__ReceiveDeleteProfileResult;
 
     // endregion ----------------------------------------------------------------
 })();

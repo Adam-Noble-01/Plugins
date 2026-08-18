@@ -3,7 +3,9 @@
    =============================================================================
    FILE       : Na__ProfileTools__UiFeature__Styles__EditProfile__.css
    PURPOSE    : Edit Profile tab — form layout, SVG preview, geometry counts,
-                active-profile indicator on Apply tab, empty / no-selection state.
+                active-profile indicator on Apply tab, empty / no-selection
+                state, and the danger zone (geometry re-capture + delete) with
+                its inline confirmation cards.
    ============================================================================= */
 
 /* ----------------------------------------------------------------- */
@@ -62,6 +64,124 @@
 
 .na-edit-profile-empty p {
     margin              : 0 0 10px;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Danger Zone (geometry re-capture + delete) */
+/* ----------------------------------------------------------------- */
+
+/* Set apart from the Save row above it: these two actions rewrite or remove a
+   library file, and must not read as more buttons in the same cluster. */
+.na-edit-danger {
+    margin              : 14px 16px 4px;
+    padding             : 14px 16px;
+    border              : 1px solid #e4c9c7;
+    border-top          : 3px solid #b3261e;
+    border-radius       : 6px;
+    background          : #fdf7f6;
+}
+
+.na-edit-danger__lead {
+    margin              : 0 0 12px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+}
+
+.na-edit-danger__actions {
+    display             : flex;
+    gap                 : 10px;
+    flex-wrap           : wrap;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Inline Confirmation Cards */
+/* ----------------------------------------------------------------- */
+
+.na-edit-confirm {
+    padding             : 14px 16px;
+    border              : 1px solid var(--na-border);
+    border-left         : 4px solid var(--na-subtle);
+    border-radius       : 4px;
+    background          : var(--na-panel);
+}
+
+.na-edit-confirm--warn {
+    border-left-color   : #b06000;
+}
+
+.na-edit-confirm--danger {
+    border-left-color   : #b3261e;
+}
+
+.na-edit-confirm--busy {
+    border-left-color   : var(--na-accent);
+}
+
+.na-edit-confirm__title {
+    margin-bottom       : 10px;
+    font-size           : 14px;
+    font-weight         : 700;
+    color               : var(--na-text);
+}
+
+.na-edit-confirm__body {
+    font-size           : 12px;
+    line-height         : 1.6;
+    color               : var(--na-subtle);
+}
+
+.na-edit-confirm__body p {
+    margin              : 0 0 8px;
+}
+
+.na-edit-confirm__body ul {
+    margin              : 0 0 8px;
+    padding-left        : 18px;
+}
+
+.na-edit-confirm__body li {
+    margin-bottom       : 3px;
+}
+
+.na-edit-confirm__body code {
+    padding             : 1px 4px;
+    border-radius       : 3px;
+    background          : var(--na-bg);
+    font-size           : 11px;
+}
+
+.na-edit-confirm__irreversible {
+    font-weight         : 700;
+    color               : #b3261e;
+}
+
+/* Full path, wrapped rather than truncated — the user is about to delete this
+   exact file and needs to read all of it. */
+.na-edit-confirm__path {
+    padding             : 7px 8px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : var(--na-bg);
+    color               : var(--na-text);
+    font-family         : Consolas, "Courier New", monospace;
+    font-size           : 11px;
+    word-break          : break-all;
+}
+
+.na-edit-confirm__prompt {
+    font-weight         : 600;
+    color               : var(--na-text);
+}
+
+/* Cancel sits first and the destructive button last, so the pointer never
+   lands on the irreversible action by carrying momentum from the trigger. */
+.na-edit-confirm__actions {
+    display             : flex;
+    gap                 : 10px;
+    flex-wrap           : wrap;
+    margin-top          : 14px;
+    padding-top         : 12px;
+    border-top          : 1px solid var(--na-border);
 }
 
 /* ----------------------------------------------------------------- */

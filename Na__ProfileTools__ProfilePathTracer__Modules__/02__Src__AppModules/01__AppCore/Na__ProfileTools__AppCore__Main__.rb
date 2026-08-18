@@ -73,8 +73,11 @@ require_relative '../33__System__CreateProfileMode/Na__ProfileTools__CreateNewPr
 # REGION | System - Edit Profile
 # -------------------------------------------------------------------------
 
+require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__LibraryPaths__'
 require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__GeometryWriter__'
 require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__MetaWriter__'
+require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__GeometryReplacer__'
+require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__ProfileDeleter__'
 
 # -------------------------------------------------------------------------
 # REGION | AppCore (must load last — depends on all systems above)

@@ -486,11 +486,6 @@ module Na__ProfileTools__ProfilePathTracer
             profile_description = meta_fields['Meta_Description'].to_s
             profile_keywords = Array(meta_fields['Meta_Keywords'])
 
-            mesh_edges = geometry_data['meshEdges'] || []
-            soft_count = mesh_edges.count { |edge| edge['IsSoft'] == true }
-            smooth_count = mesh_edges.count { |edge| edge['IsSmooth'] == true }
-            hard_count = mesh_edges.count { |edge| edge['IsSoft'] != true && edge['IsSmooth'] != true }
-
             {
                 'meta' => {
                     'fileName' => "#{profile_code}.json",
@@ -531,7 +526,20 @@ module Na__ProfileTools__ProfilePathTracer
                         'Na__PanelPlacement__ScaleX' => nil
                     },
                     'Na__Asset__AvailableFinishes' => []
-                },
+                }
+            }.merge(self.Na__Exporter__BuildGeometryBlocks(geometry_data))
+        end
+
+        # Split out from the payload builder so the Edit Profile geometry
+        # re-capture writes byte-identical geometry blocks into an existing file.
+        # Two copies of this shape would drift the moment either side changed.
+        def self.Na__Exporter__BuildGeometryBlocks(geometry_data)
+            mesh_edges = geometry_data['meshEdges'] || []
+            soft_count = mesh_edges.count { |edge| edge['IsSoft'] == true }
+            smooth_count = mesh_edges.count { |edge| edge['IsSmooth'] == true }
+            hard_count = mesh_edges.count { |edge| edge['IsSoft'] != true && edge['IsSmooth'] != true }
+
+            {
                 'Na__Asset__Profile2D' => {
                     'Na__Geometry__OriginNote' => 'Local 0,0 = clicked 00__OriginPoint helper location.',
                     'Na__Geometry__CoordSystem' => 'Y=profile horizontal axis, Z=profile vertical axis | Units=mm',

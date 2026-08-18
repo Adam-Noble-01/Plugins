@@ -295,6 +295,49 @@ body {
     border-color        : #6e2929;
 }
 
+/* Destructive and overwrite-in-place actions. Deliberately the only red and
+   amber buttons in the app, so neither can be mistaken for a routine control. */
+.naButtonDanger {
+    border              : 1px solid #b3261e;
+    background          : #b3261e;
+    color               : #fff;
+    border-radius       : 4px;
+    padding             : 8px 14px;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+    font-weight         : 600;
+}
+
+.naButtonDanger:hover {
+    background          : #8f1d17;
+    border-color        : #8f1d17;
+}
+
+.naButtonWarn {
+    border              : 1px solid #b06000;
+    background          : #b06000;
+    color               : #fff;
+    border-radius       : 4px;
+    padding             : 8px 14px;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+    font-weight         : 600;
+}
+
+.naButtonWarn:hover {
+    background          : #8d4d00;
+    border-color        : #8d4d00;
+}
+
+.naButton[disabled],
+.naButtonDanger[disabled],
+.naButtonWarn[disabled] {
+    opacity             : 0.5;
+    cursor              : default;
+}
+
 /* endregion ----------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------- */

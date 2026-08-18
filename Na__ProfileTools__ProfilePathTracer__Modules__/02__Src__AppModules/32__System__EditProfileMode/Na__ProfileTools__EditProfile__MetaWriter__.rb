@@ -8,7 +8,8 @@
 #              Writes a .bak copy of the previous version before overwriting.
 #
 # SAVE CONTRACT:
-#   1. Validate the sourceFile is inside NA_PROFILE_DATA_DIR (path traversal guard).
+#   1. Validate the sourceFile through Na__EditProfile__LibraryPaths, the guard
+#      shared with the geometry re-capture and delete paths.
 #   2. Patch Name, Description, Keywords in the JSON.
 #   3. Optionally mirror the geometry (params['flipHorizontal']) via
 #      Na__EditProfile__GeometryWriter — folded into this same write so flipping
@@ -24,18 +25,6 @@ require 'json'
 
 module Na__ProfileTools__ProfilePathTracer
     module Na__EditProfile__MetaWriter
-
-    # -------------------------------------------------------------------------
-    # REGION | Constants
-    # -------------------------------------------------------------------------
-
-        # @delegate: ../../04__Data__ProfileLibrary/  (from 32__System__EditProfileMode)
-        NA_PROFILE_DATA_DIR = File.expand_path(
-            '../../04__Data__ProfileLibrary',
-            File.dirname(__FILE__)
-        ).freeze
-
-    # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
     # REGION | Public Surface
@@ -69,26 +58,9 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Path Validation (traversal guard)
     # -------------------------------------------------------------------------
 
+        # @delegate: Na__ProfileTools__EditProfile__LibraryPaths__
         def self.Na__MetaWriter__ValidateSourcePath(source_file)
-            expanded_source = File.expand_path(source_file)
-            expanded_data   = File.expand_path(NA_PROFILE_DATA_DIR)
-
-            unless expanded_source.start_with?(expanded_data)
-                return {
-                    'isValid' => false,
-                    'reason'  => "Source file is outside the permitted profile data directory."
-                }
-            end
-
-            unless File.exist?(expanded_source)
-                return { 'isValid' => false, 'reason' => "Source file not found: #{source_file}" }
-            end
-
-            unless expanded_source.end_with?('.json')
-                return { 'isValid' => false, 'reason' => "Source file is not a .json file." }
-            end
-
-            { 'isValid' => true, 'expandedPath' => expanded_source }
+            Na__EditProfile__LibraryPaths.Na__LibraryPaths__ValidateProfileFile(source_file)
         end
 
     # endregion ----------------------------------------------------------------

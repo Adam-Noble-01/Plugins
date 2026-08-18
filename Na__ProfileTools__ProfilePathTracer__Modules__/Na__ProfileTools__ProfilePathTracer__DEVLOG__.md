@@ -4,6 +4,115 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.1.7 - 15-Aug-2026 - Re-select Profile Geometry + Delete Profile
+
+### Summary
+Creating a profile was a one-shot capture: whatever face was selected and wherever the
+origin was clicked became the library asset permanently. Miss the origin by a few
+millimetres and the only remedy was to export a second profile and delete the first by
+hand, losing the code, keywords and description with it. The Edit Profile tab now has a
+**Rebuild & Remove** zone with two actions — re-capture the geometry in place, and delete
+the profile outright — each behind its own confirmation gate.
+
+---
+
+### 1. Re-select Profile Geometry
+
+Re-runs the Create Profile capture against the **existing** library file. New face, new
+origin point, same asset identity.
+
+| Kept | Replaced |
+|---|---|
+| `Na__Asset__Code`, name, description, keywords | `Na__Asset__Profile2D` |
+| Notes, supplier fields, placement offsets, finishes | `Na__Asset__Mesh3D` |
+| Any hand-added keys inside the geometry blocks | Edge colours, soft/smooth/hidden flags |
+
+**Flow.** Confirm in the dialog → Ruby validates the live selection through the exporter's
+own rules → origin picker arms → user clicks the new datum in the model → `.bak` written →
+file overwritten → record re-parsed and pushed to the store. A `00__OriginPoint` helper is
+dropped at the picked point, matching Create.
+
+**Blocks are shallow-merged, not assigned.** The exporter writes every key the schema needs,
+but a library file may carry hand-added keys inside those blocks and a re-capture is not a
+licence to drop them.
+
+**Selection is re-validated at the pick, not trusted from the arming call.** The user has
+been back in the model since then and may have changed what is selected.
+
+**Not in scope:** runs already placed in the model are not rebuilt. Their geometry was baked
+at generate time; only Dynamic Regeneration touches those.
+
+---
+
+### 2. Delete Profile
+
+Permanently removes the data file from `04__Data__ProfileLibrary`. Ruby re-parses the target
+and checks its key matches the request before unlinking — a file that no longer parses, or
+that holds a different profile, means the dialog and disk have diverged and the request is
+stale. On success the whole bootstrap is re-sent ahead of the delete result, so the Gallery
+and every key lookup rebuild from what is now on disk, and the Edit tab returns to Gallery.
+
+Any sibling `.bak` left by an earlier save is reported in the status message rather than
+silently left behind — the confirmation says the delete is permanent, so an unmentioned
+recovery file on disk would be a surprise in either direction.
+
+---
+
+### 3. Confirmation gates
+
+Both actions sit one stray click from Save, so neither fires on its first click. The button
+opens an inline card naming exactly what is about to happen; only the second,
+differently-placed click reaches Ruby. Nothing is sent, no model tool is armed and no file
+is touched until that confirmation is given.
+
+- Cancel sits first and the destructive button last, so the pointer never lands on the
+  irreversible action by carrying momentum from the trigger.
+- The delete card prints the full file path, wrapped rather than truncated.
+- Switching to a different profile mid-gate closes the gate — a confirmation describing one
+  file while the panel shows another is worse than no confirmation.
+- `naButtonDanger` (red) and `naButtonWarn` (amber) are the only buttons of those colours in
+  the app, so neither can be mistaken for a routine control.
+
+---
+
+### 4. Shared path guard
+
+Three operations can now damage a library file — metadata overwrite, geometry re-capture and
+delete — so the traversal check moved into one module all three call. It also gained a
+`File::SEPARATOR` on the prefix comparison (a sibling folder such as
+`04__Data__ProfileLibrary__Archive` previously passed) and now requires `File.file?` rather
+than `File.exist?`.
+
+### Files Touched
+
+| Path | Change |
+|---|---|
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__LibraryPaths__.rb` | **NEW** — single path guard shared by MetaWriter, GeometryReplacer and ProfileDeleter |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__GeometryReplacer__.rb` | **NEW** — re-capture geometry into an existing file; `.bak`, block merge, meta fold-in, re-parse |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__ProfileDeleter__.rb` | **NEW** — path-guarded, identity-checked permanent delete |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__MetaWriter__.rb` | `Na__MetaWriter__ValidateSourcePath` now delegates to LibraryPaths; local `NA_PROFILE_DATA_DIR` removed |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__UiSystem__MainUiLogic__.js` | Danger zone, both confirmation gates, waiting state, two result receivers; form reads hoisted to `Na__Edit__ReadFormFields` with record fallbacks |
+| `02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__UiSystem__Bridge__.js` | Added `ReplaceGeometry` + `DeleteProfile` sends and their receive handlers |
+| `02__Src__AppModules/33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__Exporter__.rb` | Extracted `Na__Exporter__BuildGeometryBlocks` from `BuildJsonPayload` so create and re-capture share one geometry-block shape |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__DialogManager__.rb` | Two callbacks, replace-geometry handlers, `:replace_geometry` picker mode, pending-state |
+| `02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__Main__.rb` | `require_relative` for the three new Edit Profile modules |
+| `03__Style__AppStylesheets/Na__ProfileTools__CoreUi__Styles__Index__.css` | Added `.naButtonDanger`, `.naButtonWarn`, shared `[disabled]` rule |
+| `03__Style__AppStylesheets/Na__ProfileTools__UiFeature__Styles__EditProfile__.css` | Danger zone panel + inline confirmation card styles |
+
+### Architecture: Re-capture Flow
+```
+Edit tab trigger click        -> confirmation gate opens (nothing sent)
+Confirm click                 -> Bridge__ReplaceGeometry -> HandleReplaceGeometryRequest
+HandleReplaceGeometryRequest  -> path guard + selection validate -> arm OriginPointPickerTool
+Model click                   -> FinalizePendingReplaceGeometry -> GeometryReplacer__Replace
+GeometryReplacer__Replace     -> CollectGeometry -> BuildGeometryBlocks -> merge -> .bak -> write
+                              -> ParseDataFile -> ReceiveReplaceGeometryResult
+ReceiveReplaceGeometryResult  -> Store.UpdateRecord -> na_selected_changed -> panel + card redraw
+ESC in model                  -> CancelPendingReplaceGeometry -> file untouched
+```
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.1.6 - 14-Aug-2026 - Dynamic Regen Fix, Insert Point Picker, Switch Controls
 
 ### Summary
