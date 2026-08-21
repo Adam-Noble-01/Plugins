@@ -8,7 +8,7 @@
 ## Version History
 
 # ---------------------------------------------------------
-### GLB Builder Utility - MaterialHandling v3.2.0 - 21-Aug-2026
+### GLB Builder Utility - MaterialHandling v3.1.1 - 21-Aug-2026
 #### SketchUp Opacity Passthrough for Non-Indexed Materials
 
 **Why**

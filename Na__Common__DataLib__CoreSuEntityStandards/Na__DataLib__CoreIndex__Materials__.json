@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
-        "version"           : "1.4.0",
-        "lastUpdated"       : "22-Jun-2026",
+        "version"           : "1.4.1",
+        "lastUpdated"       : "21-Aug-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json (v1.0.0)"
@@ -11,7 +11,8 @@
         "namingConvention"  : "SketchUpName must match the SketchUp material display_name exactly. Format: MAT{NNN}__{Category}__{Variant}. The prefix MAT + 3 digits + __ is required for the lookup system to recognise a material as indexed.",
         "indexPattern"      : "^MAT\\d{3}__",
         "exemptPrefix"      : "MAT000E__",
-        "exemptNote"        : "MAT000E__ materials are included in indexed_only export mode but do NOT receive PBR enrichment from the library.",
+        "exemptNote"        : "MAT000E__ materials export in EVERY mode (including no_materials / whitecard) but do NOT receive PBR enrichment from the library. Their colour and opacity come from the SketchUp material itself -- the GLB exporter writes the Materials tray Opacity slider as baseColorFactor alpha + alphaMode BLEND -- and ValeVision3D PureEngine exempts them from the opaque whitecard replacement. An exempt material MAY still be catalogued here (see MAT105__GenericGlass__WhitecardTranslucent) so plugins can discover and create it; in that case the entry is a reference recipe for building the SketchUp material, not a set of render-time overrides.",
+        "isExemptNote"      : "IsExempt: true marks a catalogued material whose SketchUpName carries the MAT000E__ exempt prefix. Plugins should create it from the values here, then let the SketchUp material drive colour and opacity downstream.",
         "defaultMaterial"   : "MAT001__Default is the reference template showing ALL possible keys with their default values. Other materials only need to specify keys that differ. Omitted keys inherit the default at render time.",
         "divergenceNote"    : "Window Configurator (Na__ArchTools__3dWindowConfigTool) maintains a local copy of this library at Na__AppConfig__MaterialsLibrary.json (v1.0.0). That local copy is superseded by this centralised file. The ValeDesignSuite WindowPanelConfigurator uses non-indexed strings 'natural-wood' and 'glass' as ComponentMaterial values - these are not part of the indexed MAT system and require alignment in a future update.",
         "GitHub__RepoUrl"   : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
@@ -203,6 +204,19 @@
                 "PbrRoughness"      : 0.05,
                 "DepthWrite"        : false,
                 "EnvMapIntensity"   : 0.8
+            },
+            "MAT105__GenericGlass__WhitecardTranslucent": {
+                "SketchUpName"       : "MAT000E__Glass__WhitecardTranslucent",
+                "Description"        : "Whitecard-safe translucent glazing -- the glass material that stays see-through under ValeVision PureEngine, where every indexed MAT###__ material is replaced by the opaque whitecard. Use it to subtly indicate a glazed element (balustrades, screens, juliet balconies, rooflights) in a whitecard model where a solid panel would hide the elevation behind it. Exempt by the MAT000E__ prefix on SketchUpName: it is never whitecarded, never SSOT-enriched at export, and renders identically under PureEngine and MaxEngine. Opacity travels from the SketchUp Materials tray slider into the GLB as baseColorFactor alpha + alphaMode BLEND, so the values below are the reference recipe for CREATING the material, not render-time overrides -- set the tray Opacity to 20 to match.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(212, 215, 219)",
+                "Opacity"            : 0.20,
+                "Transparent"        : true,
+                "IsDoubleSided"      : true,
+                "DepthWrite"         : false,
+                "PbrRoughness"       : 1.0,
+                "PbrMetallic"        : 0.0,
+                "EnvMapIntensity"    : 0.0
             },
             "MAT120__GenericWood": {
                 "SketchUpName"      : "MAT120__Wood__TimberDefault",

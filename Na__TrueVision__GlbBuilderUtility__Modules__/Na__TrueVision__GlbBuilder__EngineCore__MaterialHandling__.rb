@@ -29,7 +29,7 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
-# 21-Aug-2026 - Version 3.2.0
+# 21-Aug-2026 - Version 3.1.1
 # - SketchUp opacity passthrough for non-indexed materials: MAT000E__ exempt
 #   materials now export their tray Opacity as baseColorFactor alpha with
 #   alphaMode BLEND + doubleSided, so glazing (e.g. MAT000E__Glass__Balcony)
