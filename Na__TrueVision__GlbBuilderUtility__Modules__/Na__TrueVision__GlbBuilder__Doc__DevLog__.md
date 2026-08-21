@@ -8,6 +8,38 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - MaterialHandling v3.2.0 - 21-Aug-2026
+#### SketchUp Opacity Passthrough for Non-Indexed Materials
+
+**Why**
+- `MAT000E__` exempt materials exported with a hardcoded `1.0` alpha. The only
+  code that ever set `alphaMode` was `EnrichGltfMaterial`, which reads an
+  `Opacity` key from the materials library — and exempt materials are exempt from
+  the library by definition, so glazing named e.g. `MAT000E__Glass__Balcony`
+  always arrived downstream opaque no matter what the Materials tray said.
+- Wanted: paint it, set the Opacity slider, export, see through it — with no new
+  SSOT entry and no `MAT###__` index number spent on a one-off.
+
+**Change**
+- `Na__MaterialEngine__EnsureMaterialRegistered` — for non-indexed materials
+  (`MAT000E__` exempt in every mode, plus plain materials under `:all_materials`),
+  reads the SketchUp material alpha and writes `baseColorFactor[3]`,
+  `alphaMode: "BLEND"` and `doubleSided: true` when it is below 1.0. Logs the
+  passthrough with the resolved alpha.
+- New helper `Na__MaterialEngine__ResolveSketchUpAlpha` — `Sketchup::Material#alpha`
+  (0.0 - 1.0, the tray Opacity slider), falling back to the colour's 0 - 255 alpha
+  channel, then to opaque. Clamped.
+
+**Deliberately unchanged**
+- Indexed `MAT###__` materials still take their alpha from `EnrichGltfMaterial`
+  so the materials library stays the single source of truth for them.
+
+**Downstream**
+- ValeVision3D v2.14.6 preserves transparent `MAT000E__` materials through the
+  model loader instead of collapsing them into the opaque whitecard, so exempt
+  glazing reads as see-through under PureEngine as well as MaxEngine.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - MaterialHandling v3.1.0 - 16-Jul-2026
 #### MAT000E__ Exempt Materials Always Export (Including :no_materials)
 

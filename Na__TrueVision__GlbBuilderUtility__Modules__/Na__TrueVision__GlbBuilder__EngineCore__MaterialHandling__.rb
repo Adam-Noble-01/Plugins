@@ -17,7 +17,10 @@
 #   :indexed_only   - Only standard indexed materials (MAT___) and exempt
 #                     materials (MAT000E__) exported
 # - MAT000E__ ("Material Exempt") always writes to the GLB in every mode —
-#   colour + texture, no DataLib / SSOT PBR enrichment.
+#   colour + opacity + texture, no DataLib / SSOT PBR enrichment.
+# - Non-indexed materials (MAT000E__ exempt, plus everything in
+#   :all_materials mode) carry the SketchUp Materials tray Opacity slider
+#   into the glTF as baseColorFactor alpha + alphaMode BLEND.
 # - Integrates with MaterialLookupSystem for PBR enrichment of indexed
 #   materials, injecting opacity, metallic, roughness, and doubleSided
 #   directly into the glTF material entries.
@@ -26,6 +29,13 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 21-Aug-2026 - Version 3.2.0
+# - SketchUp opacity passthrough for non-indexed materials: MAT000E__ exempt
+#   materials now export their tray Opacity as baseColorFactor alpha with
+#   alphaMode BLEND + doubleSided, so glazing (e.g. MAT000E__Glass__Balcony)
+#   reads as see-through downstream in ValeVision3D PureEngine. Indexed
+#   MAT###__ alpha still comes from the SSOT library, unchanged.
+#
 # 16-Jul-2026 - Version 3.1.0
 # - MAT000E__ exempt materials now export in :no_materials mode as well
 #   (colour + texture embed). Whitecard Cloud Sync and TrueVision whitecard
@@ -153,6 +163,22 @@ module TrueVision3D
                 end
             end
 
+            # SKETCHUP OPACITY PASSTHROUGH | MAT000E__ exempt materials (and any
+            # plain material in :all_materials mode) have no SSOT library entry to
+            # supply an Opacity value, so the SketchUp material's own alpha — the
+            # Materials tray Opacity slider — is the only truth available.
+            # Indexed MAT###__ materials are deliberately excluded: EnrichGltfMaterial
+            # owns their alpha so the materials library stays the single source of truth.
+            unless is_indexed
+                su_alpha = self.Na__MaterialEngine__ResolveSketchUpAlpha(material)
+                if su_alpha < 1.0
+                    gltf_material["pbrMetallicRoughness"]["baseColorFactor"][3] = su_alpha  # <-- Alpha channel carries SU opacity
+                    gltf_material["alphaMode"]   = "BLEND"                    # <-- Downstream viewers blend instead of writing opaque
+                    gltf_material["doubleSided"] = true                       # <-- Glazing must read from both sides
+                    Na__Log__Puts "    [MaterialEngine] Opacity passthrough: #{material_name} alpha=#{su_alpha.round(3)}"
+                end
+            end
+
             # Embed texture when material has a valid texture and bin_buffer is available.
             if bin_buffer && material.respond_to?(:texture) && material.texture && material.texture.valid?
                 if respond_to?(:Na__TextureEngine__ExtractAndEmbedTexture)
@@ -177,6 +203,34 @@ module TrueVision3D
             material_index
         end
         # ---------------------------------------------------------------
+
+
+        # HELPER FUNCTION | Resolve SketchUp Material Alpha as 0.0 - 1.0
+        # ---------------------------------------------------------------
+        # Sketchup::Material#alpha reports 0.0 - 1.0 and is the value driven
+        # by the Materials tray Opacity slider (Opacity 50 -> alpha 0.5).
+        # Falls back to the colour's 0 - 255 alpha channel, then to opaque.
+        #
+        # @param material [Sketchup::Material|nil]
+        # @return         [Float] clamped 0.0 (invisible) - 1.0 (opaque)
+        # ---------------------------------------------------------------
+        def self.Na__MaterialEngine__ResolveSketchUpAlpha(material)
+            return 1.0 unless material
+
+            alpha = if material.respond_to?(:alpha)
+                material.alpha.to_f                                       # <-- 0.0 - 1.0 (Materials tray Opacity slider)
+            elsif material.respond_to?(:color) && material.color && material.color.respond_to?(:alpha)
+                material.color.alpha.to_f / 255.0                         # <-- 0 - 255 colour channel fallback
+            else
+                1.0                                                       # <-- No alpha surface available; treat as opaque
+            end
+
+            alpha = 0.0 if alpha < 0.0                                    # <-- Clamp low
+            alpha = 1.0 if alpha > 1.0                                    # <-- Clamp high
+            alpha
+        end
+        # ---------------------------------------------------------------
+
 
         # FUNCTION | Prepare Materials for GLB Export
         # ---------------------------------------------------------------
