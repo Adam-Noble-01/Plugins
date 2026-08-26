@@ -10,6 +10,7 @@
 # =============================================================================
 
 require_relative 'Na__Noble3dModellingTools__FacePatternGenerator__FaceData__'
+require_relative 'Na__Noble3dModellingTools__FacePatternGenerator__RectClip__'
 require_relative 'Na__Noble3dModellingTools__FacePatternGenerator__GeometryBuilder__'
 require_relative 'Na__Noble3dModellingTools__FacePatternGenerator__SlateBuilder__'
 require_relative 'Na__Noble3dModellingTools__FacePatternGenerator__RosemaryBuilder__'

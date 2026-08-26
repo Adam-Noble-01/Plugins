@@ -101,6 +101,7 @@ module Na__Noble3dModellingTools
                 File.join(__dir__, '01__SharedJs', 'Na__FacePattern__Noise__.js'),
                 File.join(__dir__, '01__SharedJs', 'Na__FacePattern__RectGeometry__.js'),
                 File.join(__dir__, '01__SharedJs', 'Na__FacePattern__PolygonClip__.js'),
+                File.join(__dir__, '01__SharedJs', 'Na__FacePattern__RectClip__.js'),
                 File.join(__dir__, '01__SharedJs', 'Na__FacePattern__DxfExport__.js'),
                 File.join(__dir__, '02__PatternGenerators', 'Na__FacePattern__PatioGenerator__.js'),
                 File.join(__dir__, '02__PatternGenerators', 'Na__FacePattern__BrickworkGenerator__.js'),

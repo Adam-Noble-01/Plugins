@@ -54,6 +54,9 @@
         if (normalized.stagger !== undefined) {
             normalized.stagger = String(normalized.stagger) === 'true';
         }
+        if (normalized.trim_to_face !== undefined) {
+            normalized.trim_to_face = String(normalized.trim_to_face) === 'true';
+        }
         normalized.seed = Date.now();
         return normalized;
     }
@@ -209,6 +212,7 @@
             payload.headlap_mm      = Number(values.headlap_mm) || 100;
             payload.side_gap_mm     = Number(values.side_gap_mm) || 0;
             payload.stagger         = values.stagger !== false;
+            payload.trim_to_face    = values.trim_to_face !== false;
         }
 
         if (na_state.patternKey === 'rosemary') {
@@ -219,6 +223,7 @@
             payload.side_gap_mm       = Number(values.side_gap_mm) || 0;
             payload.base_thickness_mm = Math.max(0, Number(values.base_thickness_mm) || 0);
             payload.stagger           = values.stagger !== false;
+            payload.trim_to_face      = values.trim_to_face !== false;
         }
 
         na_state.onApply(payload);

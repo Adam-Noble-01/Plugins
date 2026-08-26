@@ -309,6 +309,15 @@
             "expose_to_hotkeys" : true
         },
         {
+            "command_id"        : "scene_image_exporter",
+            "command_name"      : "Na Noble3d - Scene Image Exporter",
+            "tooltip"           : "Batch export selected scenes to image files with saved presets and saved scene ticks",
+            "status_bar_text"   : "Open Scene Image Exporter",
+            "menu_text"         : "Scene Image Exporter",
+            "handler_key"       : "scene_image_exporter",
+            "expose_to_hotkeys" : true
+        },
+        {
             "command_id"        : "flatten_3d_to_group",
             "command_name"      : "Na Noble3d - Flatten 3D To Group",
             "tooltip"           : "Flatten selected groups/components to a 2D linework group",
@@ -862,6 +871,17 @@
             "description"            : "Reports a breakdown of screen text vs leader count, then offers a delete-all confirmation."
         },
         {
+            "button_id"              : "btn_scene_image_exporter",
+            "tab_name"               : "Misc Utils",
+            "tool_group_name"        : "Image Export",
+            "tool_group_description" : "Batch image export tools that render model scenes straight to disk.",
+            "tool_group_order"       : 20,
+            "button_order"           : 10,
+            "button_label"           : "Scene Image Exporter",
+            "command_id"             : "scene_image_exporter",
+            "description"            : "Tick the scenes you want and batch render them to PNG, JPG, TIF or BMP. Export presets cover size, aspect, line weight, transparency and render overrides. Scene ticks and settings are serialised into a model dictionary, so they are still set the next time the model is opened."
+        },
+        {
             "button_id"              : "btn_image_carousel",
             "tab_name"               : "Misc Utils",
             "tool_group_name"        : "Image Tools",
@@ -1043,6 +1063,10 @@
         },
         {
             "command_id"        : "image_carousel",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "scene_image_exporter",
             "expose_to_hotkeys" : true
         },
         {

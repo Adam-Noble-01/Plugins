@@ -117,6 +117,12 @@ module Na__Noble3dModellingTools
                 Na__SelectSimilarFilter__DialogManager.Na__SelectSimilarFilter__DialogManager__ResetDialog
                 puts '[Na__Noble3dModellingTools] Reload reset Select Similar Filter dialog.'
             end
+
+            if defined?(Na__SceneImageExporter__DialogManager) &&
+               Na__SceneImageExporter__DialogManager.respond_to?(:Na__SceneImageExporter__ResetDialog)
+                Na__SceneImageExporter__DialogManager.Na__SceneImageExporter__ResetDialog
+                puts '[Na__Noble3dModellingTools] Reload reset Scene Image Exporter dialog.'
+            end
         rescue => error
             puts "[Na__Noble3dModellingTools] Feature dialog reset warning: #{error.class}: #{error.message}"
         end

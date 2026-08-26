@@ -49,8 +49,34 @@ window.Na__FacePattern__RosemaryRoofGenerator = (function () {
             headlap:       Number(params.headlap_mm) || preset.headlap,
             sideGap:       Math.max(0, Number(params.side_gap_mm) || 0),
             baseThickness: Math.max(0, Number(params.base_thickness_mm) || 0),
-            stagger:       params.stagger !== false
+            stagger:       params.stagger !== false,
+            trimToFace:    params.trim_to_face !== false
         };
+    }
+    // ------------------------------------------------------------
+
+    // endregion ---------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Base Line Emission
+    // -------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Push the Visible Tile End Line for One Course Tile
+    // ------------------------------------------------------------
+    // Trimmed tiles clip the base line to the face so it stops at the verge
+    // rather than running out past the trimmed tile outline.
+    function na_pushBaseLines(polylines, x, y, options, faceData) {
+        var startPoint = [x, y + options.baseThickness];
+        var endPoint   = [x + options.tileWidth, y + options.baseThickness];
+
+        if (!options.trimToFace) {
+            polylines.push([startPoint, endPoint]);
+            return;
+        }
+
+        window.Na__FacePattern__RectClip
+            .na_clipSegment(startPoint, endPoint, faceData.outer, faceData.holes)
+            .forEach(function (segment) { polylines.push(segment); });
     }
     // ------------------------------------------------------------
 
@@ -72,8 +98,7 @@ window.Na__FacePattern__RosemaryRoofGenerator = (function () {
             return { polylines: [], status: 'Rosemary tile settings are invalid.' };
         }
 
-        var clipApi = window.Na__FacePattern__PolygonClip;
-        var rectApi = window.Na__FacePattern__RectGeometry;
+        var clipApi = window.Na__FacePattern__RectClip;
         var xStep   = options.tileWidth + options.sideGap;
         var yStep   = visibleGauge;
         var drawBase  = options.baseThickness > 0 && options.baseThickness < visibleGauge;
@@ -84,22 +109,16 @@ window.Na__FacePattern__RosemaryRoofGenerator = (function () {
         for (var y = bounds.min_y - yStep; y <= bounds.max_y + yStep; y += yStep) {
             var rowOffset = options.stagger && (row % 2 === 1) ? -(xStep * 0.5) : 0;
             for (var x = bounds.min_x - xStep + rowOffset; x <= bounds.max_x + xStep; x += xStep) {
-                var tile   = rectApi.na_makeRectPolyline(x, y, options.tileWidth, visibleGauge);
-                var inside = true;
-                tile.forEach(function (point) {
-                    if (!clipApi.na_pointInFace(point, context.faceData.outer, context.faceData.holes)) {
-                        inside = false;
-                    }
-                });
-                if (inside) {
-                    polylines.push(tile);
-                    tileCount += 1;
-                    if (drawBase) {
-                        polylines.push([
-                            [x, y + options.baseThickness],
-                            [x + options.tileWidth, y + options.baseThickness]
-                        ]);
-                    }
+                var pieces = clipApi.na_unitPolylines(
+                    x, y, options.tileWidth, visibleGauge, context.faceData, options.trimToFace
+                );
+                if (!pieces.length) { continue; }
+
+                pieces.forEach(function (piece) { polylines.push(piece); });
+                tileCount += 1;
+
+                if (drawBase) {
+                    na_pushBaseLines(polylines, x, y, options, context.faceData);
                 }
             }
             row += 1;
@@ -107,7 +126,7 @@ window.Na__FacePattern__RosemaryRoofGenerator = (function () {
 
         return {
             polylines: polylines,
-            status: tileCount + ' rosemary tile previews generated.',
+            status: tileCount + ' rosemary tile previews generated' + (options.trimToFace ? ' (trimmed to face).' : ' (whole tiles only).'),
             tileOptions: options,
             visibleGauge: visibleGauge
         };

@@ -1,0 +1,255 @@
+<!doctype html>
+<!--
+=============================================================================
+NA NOBLE3D MODELLING TOOLS - SCENE IMAGE EXPORTER - UI LAYOUT
+=============================================================================
+
+FILE       : Na__Noble3dModellingTools__SceneImageExporter__UiLayout__.html
+PURPOSE    : HtmlDialog shell for the Scene Image Exporter feature module.
+             Scene tick list on the left, export settings on the right, and a
+             sticky export bar across the bottom. All assets are inlined by
+             DialogManager via set_html (no external file base URL).
+
+INJECTION  : {{STYLESHEET_CONTENT}}  - Na__Noble3dModellingTools__SceneImageExporter__Styles__.css
+             {{UI_BRIDGE_SCRIPT}}    - Na__Noble3dModellingTools__SceneImageExporter__UiBridge__.js
+
+RUBY -> JS : Na__SceneExporter__ReceivePayload(payload)
+             Na__SceneExporter__ReceiveProgress(status)
+             Na__SceneExporter__ReceiveStatus(message, variant)
+             Na__SceneExporter__ReceiveResolved(resolved)
+             Na__SceneExporter__ReceiveFolder(folder)
+JS -> RUBY : sketchup.na_dialog_ready / na_refresh_scenes / na_save_selection
+             sketchup.na_save_settings / na_choose_folder / na_open_folder
+             sketchup.na_start_export / na_cancel_export / na_js_log
+
+WORKFLOW:
+1. Ruby pushes the scene list, the persisted tick state and the persisted
+   export settings, all read back from the model attribute dictionary.
+2. Every tick and every settings change is written straight back to Ruby, so
+   the state survives a save / close / reopen cycle.
+3. Export renders each ticked scene through Sketchup::View#write_image.
+
+=============================================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Na Noble3d Tools : Scene Image Exporter</title>
+  <style>
+    {{STYLESHEET_CONTENT}}
+  </style>
+</head>
+<body>
+
+  <!-- REGION | App Shell -->
+  <div class="naSceneExp__App">
+
+    <!-- Toolbar -->
+    <div class="naSceneExp__Toolbar">
+      <span class="naSceneExp__ToolbarLabel">Scene Image Exporter</span>
+      <span class="naSceneExp__ToolbarMeta" id="naSceneExp_modelMeta">Loading model...</span>
+      <div class="naSceneExp__ToolbarSpacer"></div>
+      <span class="naSceneExp__LastExport" id="naSceneExp_lastExport"></span>
+      <button id="naSceneExp_btnRefresh" class="naSceneExp__Btn naSceneExp__Btn--secondary" type="button"
+              title="Re-read the scene list from the model">Refresh Scenes</button>
+    </div>
+
+    <!-- Main: scene list + settings -->
+    <div class="naSceneExp__Main">
+
+      <!-- Scene list pane -->
+      <section class="naSceneExp__ScenePane">
+
+        <div class="naSceneExp__PaneHeader">
+          <span class="naSceneExp__PaneTitle">Scenes</span>
+          <span class="naSceneExp__SelectionCount" id="naSceneExp_selectionCount">0 of 0 ticked</span>
+        </div>
+
+        <div class="naSceneExp__SceneToolbar">
+          <button id="naSceneExp_btnAllOn"   class="naSceneExp__Btn naSceneExp__Btn--small" type="button">All On</button>
+          <button id="naSceneExp_btnAllOff"  class="naSceneExp__Btn naSceneExp__Btn--small" type="button">All Off</button>
+          <button id="naSceneExp_btnInvert"  class="naSceneExp__Btn naSceneExp__Btn--small" type="button">Invert</button>
+          <input  id="naSceneExp_sceneFilter" class="naSceneExp__Filter" type="text"
+                  placeholder="Filter scenes..." autocomplete="off" />
+        </div>
+
+        <div class="naSceneExp__SceneList" id="naSceneExp_sceneList"></div>
+
+        <div class="naSceneExp__PaneFooter">
+          Ticks are saved into the model dictionary as you click, so the same set is waiting next time you open this model.
+        </div>
+
+      </section>
+
+      <!-- Settings pane -->
+      <aside class="naSceneExp__SettingsPane">
+
+        <!-- Preset -->
+        <div class="naSceneExp__Group">
+          <div class="naSceneExp__GroupTitle">Export Preset</div>
+
+          <div class="naSceneExp__Field">
+            <select id="naSceneExp_preset" class="naSceneExp__Select"></select>
+            <div class="naSceneExp__Hint" id="naSceneExp_presetHint"></div>
+          </div>
+        </div>
+
+        <!-- Image size -->
+        <div class="naSceneExp__Group">
+          <div class="naSceneExp__GroupTitle">Image Size</div>
+
+          <div class="naSceneExp__Field">
+            <label class="naSceneExp__Label" for="naSceneExp_heightStep">Height</label>
+            <select id="naSceneExp_heightStep" class="naSceneExp__Select"></select>
+          </div>
+
+          <div class="naSceneExp__Field">
+            <label class="naSceneExp__Label" for="naSceneExp_heightCustom">Height override (px)</label>
+            <input id="naSceneExp_heightCustom" class="naSceneExp__Input" type="number" min="64" max="16000" step="1" />
+            <div class="naSceneExp__Hint">SketchUp caps image exports at 16000 px on either edge.</div>
+          </div>
+
+          <div class="naSceneExp__Field">
+            <label class="naSceneExp__Label" for="naSceneExp_aspectMode">Aspect ratio</label>
+            <select id="naSceneExp_aspectMode" class="naSceneExp__Select"></select>
+          </div>
+
+          <div class="naSceneExp__Field naSceneExp__Field--hidden" id="naSceneExp_customAspectRow">
+            <label class="naSceneExp__Label">Custom ratio (width : height)</label>
+            <div class="naSceneExp__InlinePair">
+              <input id="naSceneExp_aspectW" class="naSceneExp__Input" type="number" min="1" max="10000" step="1" />
+              <span class="naSceneExp__InlineSep">:</span>
+              <input id="naSceneExp_aspectH" class="naSceneExp__Input" type="number" min="1" max="10000" step="1" />
+            </div>
+          </div>
+
+          <div class="naSceneExp__Readout" id="naSceneExp_sizeReadout">Resolved size: -</div>
+        </div>
+
+        <!-- Format and line weight -->
+        <div class="naSceneExp__Group">
+          <div class="naSceneExp__GroupTitle">Format &amp; Line Weight</div>
+
+          <div class="naSceneExp__Field">
+            <label class="naSceneExp__Label" for="naSceneExp_fileFormat">File format</label>
+            <select id="naSceneExp_fileFormat" class="naSceneExp__Select"></select>
+          </div>
+
+          <div class="naSceneExp__Field naSceneExp__Field--hidden" id="naSceneExp_jpegRow">
+            <label class="naSceneExp__Label" for="naSceneExp_jpegQuality">JPEG quality</label>
+            <div class="naSceneExp__SliderRow">
+              <input id="naSceneExp_jpegQuality" class="naSceneExp__Slider" type="range" min="0.1" max="1" step="0.01" />
+              <span class="naSceneExp__SliderValue" id="naSceneExp_jpegQualityValue">0.92</span>
+            </div>
+          </div>
+
+          <div class="naSceneExp__Field">
+            <label class="naSceneExp__Label" for="naSceneExp_lineScale">Line weight multiplier</label>
+            <div class="naSceneExp__SliderRow">
+              <input id="naSceneExp_lineScale" class="naSceneExp__Slider" type="range" min="0.1" max="6" step="0.1" />
+              <span class="naSceneExp__SliderValue" id="naSceneExp_lineScaleValue">1.5</span>
+            </div>
+            <div class="naSceneExp__Hint">
+              Maps to the write_image <code>scale_factor</code> option. Scales every viewport dependent element:
+              edge thickness, profile weight, text height, arrow heads and stipple patterns. 1.0 matches the screen.
+            </div>
+          </div>
+
+          <div class="naSceneExp__Field naSceneExp__Field--check" id="naSceneExp_transparentRow">
+            <label class="naSceneExp__Check">
+              <input id="naSceneExp_transparent" type="checkbox" />
+              <span>Transparent background</span>
+            </label>
+            <div class="naSceneExp__Hint">PNG only. Renders the background as alpha for compositing.</div>
+          </div>
+
+          <div class="naSceneExp__Field naSceneExp__Field--check">
+            <label class="naSceneExp__Check naSceneExp__Check--locked">
+              <input type="checkbox" checked disabled />
+              <span>Anti-aliasing (always on)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Render overrides -->
+        <div class="naSceneExp__Group">
+          <div class="naSceneExp__GroupTitle">Render Overrides</div>
+          <div class="naSceneExp__GroupNote">
+            Applied to every exported scene, then restored when the run finishes.
+            Leave on <em>Use scene style</em> to respect each scene's own saved style.
+          </div>
+
+          <div id="naSceneExp_overrideList"></div>
+
+          <div class="naSceneExp__Field naSceneExp__Field--hidden" id="naSceneExp_silhouetteRow">
+            <label class="naSceneExp__Label" for="naSceneExp_silhouetteWidth">Profile edge width</label>
+            <input id="naSceneExp_silhouetteWidth" class="naSceneExp__Input" type="number" min="1" max="15" step="1" />
+          </div>
+
+          <div class="naSceneExp__Field naSceneExp__Field--hidden" id="naSceneExp_extensionRow">
+            <label class="naSceneExp__Label" for="naSceneExp_lineExtension">Edge extension length</label>
+            <input id="naSceneExp_lineExtension" class="naSceneExp__Input" type="number" min="0" max="100" step="1" />
+          </div>
+        </div>
+
+        <!-- File naming -->
+        <div class="naSceneExp__Group">
+          <div class="naSceneExp__GroupTitle">File Naming</div>
+
+          <div class="naSceneExp__Field">
+            <label class="naSceneExp__Label" for="naSceneExp_filenamePattern">Filename pattern</label>
+            <input id="naSceneExp_filenamePattern" class="naSceneExp__Input" type="text" autocomplete="off" />
+            <div class="naSceneExp__TokenRow" id="naSceneExp_tokenRow"></div>
+            <div class="naSceneExp__Hint" id="naSceneExp_sampleName">Example: -</div>
+          </div>
+
+          <div class="naSceneExp__Field">
+            <label class="naSceneExp__Label" for="naSceneExp_overwriteMode">If the file already exists</label>
+            <select id="naSceneExp_overwriteMode" class="naSceneExp__Select"></select>
+          </div>
+        </div>
+
+      </aside>
+
+    </div><!-- /.naSceneExp__Main -->
+
+    <!-- Export bar -->
+    <div class="naSceneExp__ExportBar">
+
+      <div class="naSceneExp__FolderRow">
+        <label class="naSceneExp__Label naSceneExp__Label--inline">Export folder</label>
+        <input id="naSceneExp_folderPath" class="naSceneExp__Input naSceneExp__Input--folder" type="text"
+               readonly placeholder="No folder chosen" />
+        <button id="naSceneExp_btnBrowse"     class="naSceneExp__Btn naSceneExp__Btn--secondary" type="button">Browse...</button>
+        <button id="naSceneExp_btnOpenFolder" class="naSceneExp__Btn naSceneExp__Btn--secondary" type="button">Open</button>
+      </div>
+
+      <div class="naSceneExp__ActionRow">
+        <div class="naSceneExp__ProgressWrap">
+          <div class="naSceneExp__ProgressTrack">
+            <div class="naSceneExp__ProgressFill" id="naSceneExp_progressFill"></div>
+          </div>
+          <div class="naSceneExp__ProgressText" id="naSceneExp_progressText">Ready.</div>
+        </div>
+        <button id="naSceneExp_btnCancel" class="naSceneExp__Btn naSceneExp__Btn--danger" type="button" disabled>Cancel</button>
+        <button id="naSceneExp_btnExport" class="naSceneExp__Btn naSceneExp__Btn--primary" type="button">Export Ticked Scenes</button>
+      </div>
+
+    </div>
+
+    <!-- Status bar -->
+    <div class="naSceneExp__StatusBar">
+      <div class="naSceneExp__StatusText" id="naSceneExp_status">Ready.</div>
+    </div>
+
+  </div><!-- /.naSceneExp__App -->
+  <!-- endregion | App Shell -->
+
+  <script>
+    {{UI_BRIDGE_SCRIPT}}
+  </script>
+
+</body>
+</html>

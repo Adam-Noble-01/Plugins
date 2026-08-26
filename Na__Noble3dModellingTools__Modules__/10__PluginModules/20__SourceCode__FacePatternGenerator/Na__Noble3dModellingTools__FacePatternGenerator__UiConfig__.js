@@ -24,6 +24,17 @@
             fields: [
                 { id: 'module_mm', type: 'number', label: 'Module (mm)', default: 300, min: 100, max: 800, step: 50 },
                 { id: 'joint_mm', type: 'number', label: 'Joint (mm)', default: 10, min: 0, max: 40, step: 1, hint: 'Set 0 for gapless hatch.' },
+                {
+                    id: 'trim_to_face',
+                    type: 'select',
+                    label: 'Trim to Face Edges',
+                    default: 'true',
+                    options: [
+                        { value: 'true', label: 'Yes - overshoot and trim' },
+                        { value: 'false', label: 'No - whole units only' }
+                    ],
+                    hint: 'Yes runs the pattern past the face perimeter and cuts it back to the face edges, filling hips, valleys and verges. No places only whole, untrimmed units.'
+                },
                 { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
             ]
         },
@@ -63,6 +74,17 @@
                 },
                 { id: 'mortar_mm', type: 'number', label: 'Mortar (mm)', default: 10, min: 0, max: 20, step: 1 },
                 { id: 'density_pct', type: 'number', label: 'Density (%)', default: 50, min: 0, max: 100, step: 1 },
+                {
+                    id: 'trim_to_face',
+                    type: 'select',
+                    label: 'Trim to Face Edges',
+                    default: 'true',
+                    options: [
+                        { value: 'true', label: 'Yes - overshoot and trim' },
+                        { value: 'false', label: 'No - whole units only' }
+                    ],
+                    hint: 'Yes runs the pattern past the face perimeter and cuts it back to the face edges, filling hips, valleys and verges. No places only whole, untrimmed units.'
+                },
                 { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
             ]
         },
@@ -102,6 +124,17 @@
                 },
                 { id: 'mortar_mm', type: 'number', label: 'Mortar (mm)', default: 15, min: 0, max: 30, step: 1 },
                 { id: 'density_pct', type: 'number', label: 'Density (%)', default: 50, min: 0, max: 100, step: 1 },
+                {
+                    id: 'trim_to_face',
+                    type: 'select',
+                    label: 'Trim to Face Edges',
+                    default: 'true',
+                    options: [
+                        { value: 'true', label: 'Yes - overshoot and trim' },
+                        { value: 'false', label: 'No - whole units only' }
+                    ],
+                    hint: 'Yes runs the pattern past the face perimeter and cuts it back to the face edges, filling hips, valleys and verges. No places only whole, untrimmed units.'
+                },
                 { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
             ]
         },
@@ -164,6 +197,17 @@
                         { value: 'false', label: 'No' }
                     ]
                 },
+                {
+                    id: 'trim_to_face',
+                    type: 'select',
+                    label: 'Trim to Face Edges',
+                    default: 'true',
+                    options: [
+                        { value: 'true', label: 'Yes - overshoot and trim' },
+                        { value: 'false', label: 'No - whole units only' }
+                    ],
+                    hint: 'Yes runs the pattern past the face perimeter and cuts it back to the face edges, filling hips, valleys and verges. No places only whole, untrimmed units.'
+                },
                 { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
             ]
         },
@@ -201,6 +245,17 @@
                         { value: 'true', label: 'Yes' },
                         { value: 'false', label: 'No' }
                     ]
+                },
+                {
+                    id: 'trim_to_face',
+                    type: 'select',
+                    label: 'Trim to Face Edges',
+                    default: 'true',
+                    options: [
+                        { value: 'true', label: 'Yes - overshoot and trim' },
+                        { value: 'false', label: 'No - whole units only' }
+                    ],
+                    hint: 'Yes runs the pattern past the face perimeter and cuts it back to the face edges, filling hips, valleys and verges. No places only whole, untrimmed units.'
                 },
                 { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
             ]

@@ -16,6 +16,45 @@ and applies the generated linework back onto the face plane.
 
 
 # Na Noble3d Modelling Tools
+## Version 0.5.0 - 25-Aug-2026 - Trim to Face Edges (Overshoot and Cut Back)
+
+### Update 01 - The Problem
+- Every tiling pattern only ever placed units that fitted **wholly** inside the face, so anything meeting a hip, valley, verge or eaves left a ragged untiled band. On a hipped slate roof that band swallowed whole courses at the top of the hip and a wedge along each hip rake — the pattern visibly stopped short of the face perimeter.
+- Slate and rosemary used an all-four-corners `face.classify_point` test on Apply and an all-four-corners point-in-polygon test in the preview; patio, brickwork and stonework used a centroid test plus `PolygonClip.na_clipPolyline`, which only gathered inside vertices and outer-ring crossings and could not produce a correctly ordered trimmed outline on a concave face.
+
+### Update 02 - New Shared Clipper (JS + Ruby Mirror)
+- New `01__SharedJs/Na__FacePattern__RectClip__.js` (`window.Na__FacePattern__RectClip`) and its Ruby mirror `...__FacePatternGenerator__RectClip__.rb` (`Na__FacePatternGenerator__RectClip`). Both must stay in step so the SVG preview and the applied SketchUp geometry agree.
+- Sutherland-Hodgman clips the **face ring against the unit rectangle's four half-planes**, not the other way round. The clip window is the tile rectangle, which is always convex, so the subject ring may be concave — hips, valleys and dormer cheeks all clip correctly. Verified exact against hand-computed areas: a 300x200 tile straddling a 2:3 hip rake returns 23333.33mm² against an expected 23333.33mm², and every emitted vertex sits at distance 0.000mm from the face perimeter.
+- Holes are subtracted with a convex half-plane decomposition (peel the outside slice off each hole edge in turn) whenever the hole footprint inside the unit is convex — window and door openings, the common case. A concave footprint falls back to dropping units centred in the opening, which is the pre-existing behaviour.
+- `na_clipUnitRect` returns `{ polylines, full }`; `full` flags a unit that survived whole so it can stay a clean rectangle — and, in Ruby, stay a component instance rather than becoming loose edges.
+- `na_clipSegment` clips a straight run to the face and returns the inside sub-segments, used for the rosemary base-thickness line on trimmed tiles.
+
+### Update 03 - New Parameter: Trim to Face Edges
+- New `trim_to_face` select on patio, brickwork, stonework, slate and rosemary — **default Yes**. Yes runs the pattern past the face perimeter and cuts it back to the face edges; No places only whole, untrimmed units (the old behaviour, kept because clean uncut modules are sometimes what you want).
+- Shrub is deliberately excluded: it is a single organic outline rather than a tiling grid and keeps its own inside test.
+- `AppCore__.js` normalises the value to a real boolean alongside `stagger` and carries `trim_to_face` into the slate and rosemary apply payloads. `DialogManager__.rb` inlines the new shared JS; `Loader__.rb` requires the Ruby clipper ahead of the builders.
+
+### Update 04 - Generators Now Overshoot Before Trimming
+- Slate and rosemary already ran the course grid one step past the bounding box, so only the fit test changed. Brickwork, stonework and patio previously laid out **inside** the bounding box, so a trim alone would have had nothing to cut: each now grows its layout box by one unit on every side (`na_expandBounds`, one spare module ring for patio) and drops the old `na_clipRectToBounds` pre-clip, which used to truncate units at the bounding box rather than at the real face edge.
+- Stonework's uncoursed skyline packer had a fixed 6000-iteration safety valve that the enlarged layout box could exhaust, leaving the top of a large wall bare. The cap now scales with the layout area (`min(40000, max(6000, cells + 500))`).
+- Status lines now count *units* rather than polylines (a trimmed unit can emit more than one piece) and say which mode produced them.
+- Measured on a 15532 x 3411mm trapezoidal hip slope: slate 507 -> 586 units, 92.1% -> 100.0% coverage; patio 80.1% -> 96.5%; rosemary 97.6% -> 100.0%. Brick and stone land at 83% / 86% because their mortar joints are real gaps.
+
+### Update 05 - Ruby Apply: Instances for Whole Units, Edges for Trimmed Ones
+- `SlateBuilder__.rb` and `RosemaryBuilder__.rb` keep the fast path — a unit passing the `face.classify_point` corner test is still a component instance, so instance counts stay high on a large roof. Only units that fail the corner test go through the 2D clipper, and one that comes back `full` (a numerical edge case) is placed as an instance anyway.
+- Genuinely trimmed units are drawn as closed loose edges in the same group, so Apply is still a single undo step. Rosemary additionally clips its base-thickness line to the face, since a trimmed tile has no component definition to carry it.
+- `na_populate_face` now takes an options hash instead of nine positional arguments and returns `{ instances:, trimmed:, total: }`; the status message reports both counts.
+- New `na_flag` helper reads boolean payload keys. `!!payload_hash.fetch('stagger', true)` was already unsafe for a JSON string `"false"` (truthy in Ruby); `na_flag` treats `false` and `"false"` alike, and both `stagger` and `trim_to_face` now use it.
+
+### Update 06 - Closed Rings Now Render and Export Closed
+- `SvgPreview__.js` drew every ring with `<polyline>`, which does not close the shape — each rectangle was missing its fourth side in the preview, and the face outline and hole overlays were missing their closing edge too. Rings of three or more points now use `<polygon>`; two-point runs (the rosemary base line) stay `<polyline>`.
+- `DxfExport__.js` had the same gap: an *n*-point ring wrote only *n-1* LINE entities. It now appends the closing segment for rings of three or more points, skipping it when the first and last points already coincide. This mattered little for plain rectangles and matters a lot for trimmed offcuts, whose closing edge is the trim line itself.
+
+### Known Limitation
+- A concave hole footprint inside a single unit falls back to the centroid test rather than being carved out. Real openings are convex at tile scale, so this is a corner case; the fallback is no worse than the previous behaviour.
+
+---
+# Na Noble3d Modelling Tools
 ## Version 0.4.1 - 28-Jul-2026 - Rosemary Base Thickness Line + Side Gap Default 0
 
 ### Update 01 - Base Thickness Field (Visible Tile End)

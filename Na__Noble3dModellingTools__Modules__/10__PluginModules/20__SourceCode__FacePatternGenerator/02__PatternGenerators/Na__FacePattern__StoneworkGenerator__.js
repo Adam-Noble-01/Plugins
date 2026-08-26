@@ -63,10 +63,12 @@ window.Na__FacePattern__StoneworkGenerator = (function () {
     // HELPER FUNCTION | Generate Uncoursed Skyline-Packed Stones
     // ------------------------------------------------------------
     function na_generateUncoursed(bounds, preset, seed) {
-        var stones  = [];
-        var skyline = [{ x: bounds.min_x, width: bounds.width, y: bounds.min_y }];
-        var safety  = 0;
-        while (safety < 6000) {
+        var stones     = [];
+        var skyline    = [{ x: bounds.min_x, width: bounds.width, y: bounds.min_y }];
+        var stoneCells = Math.ceil((bounds.width * bounds.height) / (preset.minW * preset.minH));
+        var safetyCap  = Math.min(40000, Math.max(6000, stoneCells + 500));      // <-- Scales with the overshoot margin
+        var safety     = 0;
+        while (safety < safetyCap) {
             safety += 1;
             skyline.sort(function (a, b) { return a.y - b.y; });
             var segment = skyline[0];
@@ -90,6 +92,28 @@ window.Na__FacePattern__StoneworkGenerator = (function () {
     // endregion ---------------------------------------------------------------
 
     // -------------------------------------------------------------------------
+    // REGION | Layout Extent
+    // -------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Grow the Layout Box by One Stone so Edge Units Exist to Trim
+    // ------------------------------------------------------------
+    function na_expandBounds(bounds, marginX, marginY, trimEnabled) {
+        var padX = trimEnabled ? marginX : 0;
+        var padY = trimEnabled ? marginY : 0;
+        return {
+            min_x: bounds.min_x - padX,
+            min_y: bounds.min_y - padY,
+            max_x: bounds.max_x + padX,
+            max_y: bounds.max_y + padY,
+            width: bounds.width + (padX * 2),
+            height: bounds.height + (padY * 2)
+        };
+    }
+    // ------------------------------------------------------------
+
+    // endregion ---------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
     // REGION | Public Generator
     // -------------------------------------------------------------------------
 
@@ -102,43 +126,42 @@ window.Na__FacePattern__StoneworkGenerator = (function () {
         var pattern    = params.pattern_type || 'uncoursed';
         var density    = Math.max(0, Math.min(100, Number(params.density_pct) || 50)) / 100;
         var renderMode = params.render_mode || 'continuous';
+        var trimToFace = params.trim_to_face !== false;
         var seed       = Number(params.seed) || Date.now();
         var mortar     = Math.max(0, Number(params.mortar_mm) || 10);
-        var clipApi    = window.Na__FacePattern__PolygonClip;
-        var rectApi    = window.Na__FacePattern__RectGeometry;
+        var clipApi    = window.Na__FacePattern__RectClip;
         var noiseApi   = window.Na__FacePattern__Noise;
 
+        var layout     = na_expandBounds(bounds, preset.maxW, preset.maxH, trimToFace);
         var stoneRects = pattern === 'coursed'
-            ? na_generateCoursed(bounds, preset, seed)
-            : na_generateUncoursed(bounds, preset, seed);
+            ? na_generateCoursed(layout, preset, seed)
+            : na_generateUncoursed(layout, preset, seed);
 
-        var polylines = [];
+        var polylines  = [];
+        var stoneCount = 0;
         stoneRects.forEach(function (stone, index) {
             if (renderMode === 'artistic') {
                 var noiseVal = noiseApi.na_fbmNoise((stone.x + stone.width) * 0.012, (stone.y + stone.height) * 0.012, seed + index, 3);
                 if (noiseVal > density) { return; }
             }
 
-            var clippedBounds = rectApi.na_clipRectToBounds(
+            var pieces = clipApi.na_unitPolylines(
                 stone.x + (mortar * 0.5),
                 stone.y + (mortar * 0.5),
                 Math.max(1, stone.width - mortar),
                 Math.max(1, stone.height - mortar),
-                bounds
+                context.faceData,
+                trimToFace
             );
-            if (!clippedBounds) { return; }
+            if (!pieces.length) { return; }
 
-            var rect = rectApi.na_makeRectPolyline(clippedBounds.x, clippedBounds.y, clippedBounds.width, clippedBounds.height);
-            var kept = clipApi.na_keepWhenCentroidInside(rect, context.faceData.outer, context.faceData.holes);
-            if (!kept) { return; }
-
-            var clipped = clipApi.na_clipPolyline(kept, context.faceData.outer, context.faceData.holes);
-            if (clipped.length >= 3) { polylines.push(clipped); }
+            pieces.forEach(function (piece) { polylines.push(piece); });
+            stoneCount += 1;
         });
 
         return {
             polylines: polylines,
-            status: polylines.length + ' stone units generated.'
+            status: stoneCount + ' stone units generated' + (trimToFace ? ' (trimmed to face).' : ' (whole stones only).')
         };
     }
     // ------------------------------------------------------------

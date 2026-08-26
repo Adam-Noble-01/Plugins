@@ -50,6 +50,7 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/24__SourceCode__DimensionUtils/Na__Noble3dModellingTools__DimensionUtils__Loader__'
             require_relative '../../10__PluginModules/25__SourceCode__SelectSimilarFilter/Na__Noble3dModellingTools__SelectSimilarFilter__Loader__'
             require_relative '../../10__PluginModules/26__SourceCode__NestedEdgeStateTools/Na__Noble3dModellingTools__NestedEdgeStateTools__Loader__'
+            require_relative '../../10__PluginModules/27__SourceCode__SceneImageExporter/Na__Noble3dModellingTools__SceneImageExporter__Loader__'
 
             @na_feature_modules_loaded = true
             true

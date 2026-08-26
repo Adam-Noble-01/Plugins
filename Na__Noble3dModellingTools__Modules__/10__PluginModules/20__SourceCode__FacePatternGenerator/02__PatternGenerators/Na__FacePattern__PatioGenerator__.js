@@ -83,12 +83,16 @@ window.Na__FacePattern__PatioGenerator = (function () {
         var params    = context.params;
         var moduleSize = Math.max(100, Number(params.module_mm) || 300);
         var joint     = Math.max(0, Number(params.joint_mm) || 0);
+        var trimToFace = params.trim_to_face !== false;
         var seed      = Number(params.seed) || Date.now();
-        var clipApi   = window.Na__FacePattern__PolygonClip;
+        var clipApi   = window.Na__FacePattern__RectClip;
         var rectApi   = window.Na__FacePattern__RectGeometry;
 
-        var gridW = Math.ceil(bounds.width / moduleSize);
-        var gridH = Math.ceil(bounds.height / moduleSize);
+        var overshoot = trimToFace ? 1 : 0;                                     // <-- One spare module ring to trim back
+        var originX   = bounds.min_x - (overshoot * moduleSize);
+        var originY   = bounds.min_y - (overshoot * moduleSize);
+        var gridW = Math.ceil(bounds.width / moduleSize) + (overshoot * 2);
+        var gridH = Math.ceil(bounds.height / moduleSize) + (overshoot * 2);
         var grid  = [];
         for (var gx = 0; gx < gridW; gx += 1) {
             grid[gx] = [];
@@ -111,8 +115,8 @@ window.Na__FacePattern__PatioGenerator = (function () {
                     na_markGrid(grid, x, y, tile.w, tile.h);
                     placed = true;
 
-                    var rectX = bounds.min_x + (x * moduleSize) + (joint * 0.5);
-                    var rectY = bounds.min_y + (y * moduleSize) + (joint * 0.5);
+                    var rectX = originX + (x * moduleSize) + (joint * 0.5);
+                    var rectY = originY + (y * moduleSize) + (joint * 0.5);
                     var rectW = (tile.w * moduleSize) - joint;
                     var rectH = (tile.h * moduleSize) - joint;
                     rawPolylines.push(rectApi.na_makeRectPolyline(rectX, rectY, rectW, rectH));
@@ -122,8 +126,8 @@ window.Na__FacePattern__PatioGenerator = (function () {
                 if (!placed) {
                     na_markGrid(grid, x, y, 1, 1);
                     rawPolylines.push(rectApi.na_makeRectPolyline(
-                        bounds.min_x + (x * moduleSize),
-                        bounds.min_y + (y * moduleSize),
+                        originX + (x * moduleSize),
+                        originY + (y * moduleSize),
                         moduleSize,
                         moduleSize
                     ));
@@ -132,16 +136,25 @@ window.Na__FacePattern__PatioGenerator = (function () {
         }
 
         var clippedPolylines = [];
+        var tileCount        = 0;
         rawPolylines.forEach(function (polyline) {
-            var kept = clipApi.na_keepWhenCentroidInside(polyline, context.faceData.outer, context.faceData.holes);
-            if (!kept) { return; }
-            var clipped = clipApi.na_clipPolyline(kept, context.faceData.outer, context.faceData.holes);
-            if (clipped.length >= 3) { clippedPolylines.push(clipped); }
+            var pieces = clipApi.na_unitPolylines(
+                polyline[0][0],
+                polyline[0][1],
+                polyline[1][0] - polyline[0][0],
+                polyline[3][1] - polyline[0][1],
+                context.faceData,
+                trimToFace
+            );
+            if (!pieces.length) { return; }
+
+            pieces.forEach(function (piece) { clippedPolylines.push(piece); });
+            tileCount += 1;
         });
 
         return {
             polylines: clippedPolylines,
-            status: clippedPolylines.length + ' patio tiles generated.'
+            status: tileCount + ' patio tiles generated' + (trimToFace ? ' (trimmed to face).' : ' (whole tiles only).')
         };
     }
     // ------------------------------------------------------------

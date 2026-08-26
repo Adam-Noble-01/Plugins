@@ -180,6 +180,9 @@ module Na__Noble3dModellingTools
             when 'unsoften_nested_edges'
                 proc { Na__NestedEdgeStateTools.Na__NestedEdgeStateTools__RunUnsoftenNestedEdges }
 
+            when 'scene_image_exporter'
+                proc { Na__SceneImageExporter.Na__SceneImageExporter__Run }
+
             else
                 nil
             end

@@ -3,6 +3,94 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.7.2 - 25-Aug-2026 - Face Pattern Generator: Trim to Face Edges
+
+### Update 01 - Patterns Now Overshoot the Face and Cut Back to Its Perimeter
+- Every tiling pattern previously placed only units that fitted wholly inside the face, so hips, valleys, verges and eaves were left with a ragged untiled band — most obvious on a hipped slate roof, where whole courses went missing up the hip.
+- New `Trim to Face Edges` parameter on patio, brickwork, stonework, slate and rosemary, **on by default**. Off restores the old whole-units-only behaviour, which is still useful when uncut modules are wanted.
+- New shared clipper `Na__FacePattern__RectClip__.js` with a Ruby mirror `...__FacePatternGenerator__RectClip__.rb`: Sutherland-Hodgman clips the face ring against each unit rectangle's four half-planes, so concave outlines clip correctly. Whole units still apply as component instances; only boundary units become trimmed loose edges.
+- Sub-devlog: `10__PluginModules/20__SourceCode__FacePatternGenerator/Na__Noble3dModellingTools__FacePatternGenerator__DEVLOG__.md` (module version 0.5.0).
+
+### Update 02 - Preview and DXF Rings Now Close
+- `SvgPreview__.js` used `<polyline>` for every ring, leaving each rectangle a side short in the preview; `DxfExport__.js` wrote *n-1* LINE entities for an *n*-point ring. Both now close rings of three or more points, which matters most for trimmed offcuts whose closing edge is the trim line.
+
+### Validation Checklist
+- [x] Clipper geometry verified against hand-computed areas — hip rake, apex triangle, concave L-corner, hole straddle and full-containment cases all exact.
+- [x] Trimmed vertices sit at distance 0.000mm from the face perimeter.
+- [x] Coverage on a 15532 x 3411mm trapezoidal hip slope: slate 92.1% -> 100.0%, patio 80.1% -> 96.5%, rosemary 97.6% -> 100.0%.
+- [x] Brick pieces never land inside a window opening on a wall face with two openings.
+- [x] DXF closes a 4-point ring with 4 LINE entities and does not duplicate the closing edge on an already-closed 5-point ring.
+- [ ] Apply on a live hipped roof in SketchUp fills the hip and reports both instance and trimmed counts.
+- [ ] Trim off still applies whole slates only, matching the previous output.
+- [ ] Rosemary base-thickness line follows trimmed tiles at the verge.
+
+### Status
+**Geometry verified outside SketchUp; not yet exercised in a live model.** The
+Ruby clipper is a line-for-line mirror of the JavaScript one that was tested,
+but no Ruby interpreter was available to execute it — the three unticked items
+above are the in-SketchUp confirmation still to do.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.7.1 - 25-Aug-2026 - Scene Image Exporter: Windows Folder Writability Fix
+
+### Update 01 - `File.writable?` Wrongly Rejected Documents and Downloads
+- Exporting into `C:/Users/<user>/Documents` or `Downloads` failed with "Export folder is not writable". Both folders are writable; the guard was wrong.
+- On Windows `File.writable?` maps to `_waccess(path, W_OK)`, which reports the read-only **file** attribute. For directories that attribute is a legacy marker Windows sets on shell folders carrying a `desktop.ini` customisation — verified locally, both folders report `Attributes: ReadOnly, Directory` while accepting writes normally.
+- Replaced with a `na_folder_writable?` probe that writes a temp file into the target folder and removes it in an `ensure` block. Correct on Windows and macOS, and it additionally catches permission-denied shares, full disks and read-only mounts that `File.writable?` reports as fine.
+- Failure message now names the folder and states what to check instead of asserting it is not writable.
+
+### Update 02 - Misc Utils Ordering
+- **Image Export** group `tool_group_order` 5 -> 20, so Scene Image Exporter renders second, below Image Tools > Image Viewer.
+
+### Validation Checklist
+- [x] Documents and Downloads are both accepted as export folders. **Confirmed 25-Aug-2026.**
+- [x] No `.na_scene_exporter_probe_*.tmp` files remain after a run — Documents, Downloads and Desktop all clean, so the `ensure` cleanup fires.
+- [x] Misc Utils lists Image Viewer first, Scene Image Exporter second.
+- [ ] A genuinely unwritable folder still reports a clear failure and does not start a run. *(not yet exercised - no unwritable target tested)*
+
+### Status
+**Confirmed working in live use, SketchUp 2026, 25-Aug-2026.** First end-to-end
+export run completed successfully after the writability fix.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.7.0 - 25-Aug-2026 - New Module: Scene Image Exporter
+
+### Update 01 - New Feature Module: Scene Image Exporter
+- New module at `10__PluginModules/27__SourceCode__SceneImageExporter/`, surfaced as **Misc Utils > Image Export > Scene Image Exporter** and exposed to hotkeys. Replaces the animation-export workaround for getting images out of SketchUp: tick the scenes you want, pick a preset, export.
+- Wired through `ModuleLoaders__Main__.rb`, `PublicAPI__CommandRouter__.rb` (`scene_image_exporter` handler key), the UI command registry (command + button + hotkey binding), and `ReloadManager` dialog reset.
+- Sub-devlog: `10__PluginModules/27__SourceCode__SceneImageExporter/Na__Noble3dModellingTools__SceneImageExporter__DEVLOG__.md`
+
+### Update 02 - Scene Ticks and Export Settings Serialised to a Model Dictionary
+- Scene tick state and every export setting are written to a `Na__SceneImageExporter` attribute dictionary on the model, following the plain-string-per-key pattern used by `Na__ComponentEditorTools::Na__LibrarySerializer` so each key stays readable in SketchUp's native attribute inspector. A 30-scene model with 10 ticked reopens with the same 10 ticked.
+- Writes run inside a transparent operation, so remembering settings never pollutes the undo stack. Stored scene names are filtered against the live page list on load, so renamed or deleted scenes drop out rather than leaving phantom ticks.
+
+### Update 03 - Export Presets and Render Overrides
+- Eleven presets (Standard 4K default, Draft 1080, Presentation 2K, Line Heavy 4K, Fine Line 4K, Transparent 4K, Print A3/A4 @300dpi, Web JPG 2K, Maximum 8K, Custom), ten height steps to the documented 16000 px `write_image` ceiling, and ten aspect modes including live viewport match and A-series.
+- Line weight is driven by the `write_image` `:scale_factor` option (SketchUp 2019.2+), which scales edge width, profile weight, text height, arrow heads and stipple patterns. Anti-aliasing is hard-wired on.
+- Seven tri-state render overrides (profiles, edge extensions, screen text, dimensions, section plane markers, watermarks, model axes) applied per scene and restored afterwards.
+
+### Update 04 - Batch Run Mechanics
+- Scene transitions are suppressed for the run via `model.options['PageOptions']['ShowTransition']`, then restored — this is what turns a 30-scene batch from a fly-through into an instant sequence.
+- The run is a chained `UI.start_timer` at two ticks per scene (activate + override, then capture), which keeps the progress bar live, makes Cancel work between scenes, and stops a scene capturing with the previous scene's camera.
+- OS folder picker, three overwrite policies (overwrite / skip / numbered suffix), token-based filenames defaulting to `{{ModelName}}__{{SceneName}}__{{Date}}__`, and a per-scene failure log that lets one bad scene fail without aborting the rest.
+
+### Validation Checklist
+- [x] Scene Image Exporter button appears under Misc Utils > Image Export.
+- [x] Export writes one file per ticked scene. **Confirmed 25-Aug-2026** (see 0.7.1 - required the writability fix first).
+- [x] Reload Plugin Data loads the new module and re-renders the dialog without errors.
+- [ ] Scene ticks and export settings survive a save / close / reopen cycle.
+- [ ] Presets update size, format, line weight and transparency together; manual edits flip the selector to Custom.
+- [ ] Line weight multiplier visibly changes edge thickness across its range.
+- [ ] Active scene, rendering options and transition setting are restored after every run.
+
+Remaining unticked items are not known failures — they simply have not been
+exercised yet. The persistence round-trip is the one most worth confirming, as
+it is the whole point of the module.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.6.4 - 28-Jul-2026 - Face Pattern Generator: Rosemary Base Thickness + Side Gap Default
 
 ### Update 01 - Rosemary Tile Refinements

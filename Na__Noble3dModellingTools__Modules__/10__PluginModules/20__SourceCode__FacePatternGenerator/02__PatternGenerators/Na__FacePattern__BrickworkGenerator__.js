@@ -78,6 +78,28 @@ window.Na__FacePattern__BrickworkGenerator = (function () {
     // endregion ---------------------------------------------------------------
 
     // -------------------------------------------------------------------------
+    // REGION | Layout Extent
+    // -------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Grow the Layout Box by One Unit so Edge Bricks Exist to Trim
+    // ------------------------------------------------------------
+    function na_expandBounds(bounds, marginX, marginY, trimEnabled) {
+        var padX = trimEnabled ? marginX : 0;
+        var padY = trimEnabled ? marginY : 0;
+        return {
+            min_x: bounds.min_x - padX,
+            min_y: bounds.min_y - padY,
+            max_x: bounds.max_x + padX,
+            max_y: bounds.max_y + padY,
+            width: bounds.width + (padX * 2),
+            height: bounds.height + (padY * 2)
+        };
+    }
+    // ------------------------------------------------------------
+
+    // endregion ---------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
     // REGION | Public Generator
     // -------------------------------------------------------------------------
 
@@ -90,15 +112,17 @@ window.Na__FacePattern__BrickworkGenerator = (function () {
         var mortar     = Math.max(0, Number(params.mortar_mm) || 10);
         var renderMode = params.render_mode || 'continuous';
         var density    = Math.max(0, Math.min(100, Number(params.density_pct) || 50)) / 100;
+        var trimToFace = params.trim_to_face !== false;
         var courseHeight = system.height + mortar;
-        var clipApi    = window.Na__FacePattern__PolygonClip;
+        var clipApi    = window.Na__FacePattern__RectClip;
         var noiseApi   = window.Na__FacePattern__Noise;
-        var rectApi    = window.Na__FacePattern__RectGeometry;
 
-        var polylines  = [];
+        var layout      = na_expandBounds(bounds, system.width + mortar, courseHeight, trimToFace);
+        var polylines   = [];
+        var brickCount  = 0;
         var courseIndex = 0;
-        for (var y = bounds.min_y; y <= bounds.max_y + courseHeight; y += courseHeight) {
-            var bricks = na_getCourseBricks(courseIndex, params, bounds);
+        for (var y = layout.min_y; y <= layout.max_y; y += courseHeight) {
+            var bricks = na_getCourseBricks(courseIndex, params, layout);
             bricks.forEach(function (brick) {
                 if (renderMode === 'artistic') {
                     var nx = (brick.x + (brick.width * 0.5)) * 0.015;
@@ -106,22 +130,18 @@ window.Na__FacePattern__BrickworkGenerator = (function () {
                     if (noiseApi.na_fbmNoise(nx, ny, Number(params.seed) || 0, 3) > density) { return; }
                 }
 
-                var clippedRect = rectApi.na_clipRectToBounds(brick.x, y, brick.width, system.height, bounds);
-                if (!clippedRect) { return; }
+                var pieces = clipApi.na_unitPolylines(brick.x, y, brick.width, system.height, context.faceData, trimToFace);
+                if (!pieces.length) { return; }
 
-                var rect = rectApi.na_makeRectPolyline(clippedRect.x, clippedRect.y, clippedRect.width, clippedRect.height);
-                var kept = clipApi.na_keepWhenCentroidInside(rect, context.faceData.outer, context.faceData.holes);
-                if (!kept) { return; }
-
-                var clipped = clipApi.na_clipPolyline(kept, context.faceData.outer, context.faceData.holes);
-                if (clipped.length >= 3) { polylines.push(clipped); }
+                pieces.forEach(function (piece) { polylines.push(piece); });
+                brickCount += 1;
             });
             courseIndex += 1;
         }
 
         return {
             polylines: polylines,
-            status: polylines.length + ' brick units generated.'
+            status: brickCount + ' brick units generated' + (trimToFace ? ' (trimmed to face).' : ' (whole bricks only).')
         };
     }
     // ------------------------------------------------------------

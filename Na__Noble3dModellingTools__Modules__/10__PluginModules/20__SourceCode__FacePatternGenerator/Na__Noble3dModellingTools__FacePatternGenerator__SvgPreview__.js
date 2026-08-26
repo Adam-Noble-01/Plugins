@@ -68,6 +68,15 @@ window.Na__FacePattern__SvgPreview = (function () {
     }
     // ------------------------------------------------------------
 
+    // HELPER FUNCTION | Pick the SVG Element that Closes a Ring but Not a Run
+    // ------------------------------------------------------------
+    // Rings of three or more points are closed shapes (tiles, face outlines);
+    // two-point runs are open lines such as the rosemary tile base line.
+    function na_shapeTag(polyline) {
+        return polyline.length >= 3 ? 'polygon' : 'polyline';
+    }
+    // ------------------------------------------------------------
+
     // HELPER FUNCTION | Write the ViewBox State to the SVG Element
     // ------------------------------------------------------------
     function na_applyViewBox() {
@@ -112,20 +121,21 @@ window.Na__FacePattern__SvgPreview = (function () {
 
         if (faceData && faceData.outer) {
             markup.push(
-                '<polyline points="' + na_formatPoints(faceData.outer) + '" fill="none" stroke="#7a8798" ' +
+                '<polygon points="' + na_formatPoints(faceData.outer) + '" fill="none" stroke="#7a8798" ' +
                 'stroke-width="2" stroke-dasharray="12,8" vector-effect="non-scaling-stroke"/>'
             );
             (faceData.holes || []).forEach(function (hole) {
                 markup.push(
-                    '<polyline points="' + na_formatPoints(hole) + '" fill="none" stroke="#8c96a5" ' +
+                    '<polygon points="' + na_formatPoints(hole) + '" fill="none" stroke="#8c96a5" ' +
                     'stroke-width="1.5" stroke-dasharray="6,6" vector-effect="non-scaling-stroke"/>'
                 );
             });
         }
 
         (polylines || []).forEach(function (polyline) {
+            var tag = na_shapeTag(polyline);
             markup.push(
-                '<polyline points="' + na_formatPoints(polyline) + '" fill="none" stroke="#1f2933" ' +
+                '<' + tag + ' points="' + na_formatPoints(polyline) + '" fill="none" stroke="#1f2933" ' +
                 'stroke-width="1.4" vector-effect="non-scaling-stroke"/>'
             );
         });

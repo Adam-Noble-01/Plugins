@@ -10,8 +10,9 @@
 // CREATED    : 2026
 //
 // NOTE:
-// Preview uses an all-corners-inside point test; partial edge tiles appear on
-// Apply via Ruby face.classify_point but not in the SVG preview.
+// With Trim to Face Edges on (default) the course grid overshoots the face and
+// every slate is cut back to the face perimeter by RectClip, so hips, valleys
+// and verges fill completely. Off keeps only whole, untrimmed slates.
 //
 // =============================================================================
 
@@ -46,7 +47,8 @@ window.Na__FacePattern__SlateRoofGenerator = (function () {
             slateWidth:  Number(params.slate_width_mm) || preset.width,
             headlap:     Number(params.headlap_mm) || preset.headlap,
             sideGap:     Math.max(0, Number(params.side_gap_mm) || 0),
-            stagger:     params.stagger !== false
+            stagger:     params.stagger !== false,
+            trimToFace:  params.trim_to_face !== false
         };
     }
     // ------------------------------------------------------------
@@ -69,31 +71,30 @@ window.Na__FacePattern__SlateRoofGenerator = (function () {
             return { polylines: [], status: 'Slate settings are invalid.' };
         }
 
-        var clipApi = window.Na__FacePattern__PolygonClip;
-        var rectApi = window.Na__FacePattern__RectGeometry;
+        var clipApi = window.Na__FacePattern__RectClip;
         var xStep   = options.slateWidth + options.sideGap;
         var yStep   = visibleGauge;
-        var polylines = [];
+        var polylines  = [];
+        var slateCount = 0;
         var row = 0;
 
         for (var y = bounds.min_y - yStep; y <= bounds.max_y + yStep; y += yStep) {
             var rowOffset = options.stagger && (row % 2 === 1) ? -(xStep * 0.5) : 0;
             for (var x = bounds.min_x - xStep + rowOffset; x <= bounds.max_x + xStep; x += xStep) {
-                var slate  = rectApi.na_makeRectPolyline(x, y, options.slateWidth, visibleGauge);
-                var inside = true;
-                slate.forEach(function (point) {
-                    if (!clipApi.na_pointInFace(point, context.faceData.outer, context.faceData.holes)) {
-                        inside = false;
-                    }
-                });
-                if (inside) { polylines.push(slate); }
+                var pieces = clipApi.na_unitPolylines(
+                    x, y, options.slateWidth, visibleGauge, context.faceData, options.trimToFace
+                );
+                if (!pieces.length) { continue; }
+
+                pieces.forEach(function (piece) { polylines.push(piece); });
+                slateCount += 1;
             }
             row += 1;
         }
 
         return {
             polylines: polylines,
-            status: polylines.length + ' slate previews generated.',
+            status: slateCount + ' slate previews generated' + (options.trimToFace ? ' (trimmed to face).' : ' (whole slates only).'),
             slateOptions: options,
             visibleGauge: visibleGauge
         };

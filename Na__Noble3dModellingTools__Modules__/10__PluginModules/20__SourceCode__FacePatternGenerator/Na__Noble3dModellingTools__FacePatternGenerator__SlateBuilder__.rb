@@ -14,6 +14,9 @@
 # - Uses face.classify_point for corner-inside tests (handles edge coincidence).
 # - Visible gauge = (slate_length - headlap) / 2 per UK roofing convention.
 # - Half-bond stagger offsets alternate courses by half a slate width + gap.
+# - Trim to Face Edges (default on) runs the courses past the face perimeter and
+#   cuts the overshoot back with RectClip: whole slates stay component instances,
+#   boundary slates are drawn as trimmed loose edges in the same group.
 #
 # =============================================================================
 
@@ -67,25 +70,15 @@ module Na__Noble3dModellingTools
                 group      = model.active_entities.add_group
                 group.name   = 'Na Face Pattern - Slate'
 
-                count = na_populate_face(
-                    group.entities,
-                    definition,
-                    face,
-                    options[:slate_width_mm],
-                    visible_gauge_mm,
-                    options[:side_gap_mm],
-                    options[:lift_mm],
-                    options[:stagger],
-                    options[:rotation_steps]
-                )
+                tally = na_populate_face(group.entities, definition, face, options.merge(visible_gauge_mm: visible_gauge_mm))
 
-                if count.zero?
+                if tally[:total].zero?
                     model.abort_operation
                     return na_result(false, 'No slate instances fit inside the selected face.')
                 end
 
                 model.commit_operation
-                na_result(true, "Slate pattern applied with #{count} instance(s).")
+                na_result(true, na_tally_message(tally, options[:trim_to_face]))
             rescue => error
                 model.abort_operation
                 na_result(false, "Slate build failed: #{error.class}: #{error.message}")
@@ -111,11 +104,26 @@ module Na__Noble3dModellingTools
                 headlap_mm:      payload_hash.fetch('headlap_mm', preset ? preset[2] : 100.0).to_f,
                 side_gap_mm:     [payload_hash.fetch('side_gap_mm', 0.0).to_f, 0.0].max,
                 lift_mm:         payload_hash.fetch('lift_mm', 0.0).to_f,
-                stagger:         !!payload_hash.fetch('stagger', true),
+                stagger:         na_flag(payload_hash, 'stagger', true),
+                trim_to_face:    na_flag(payload_hash, 'trim_to_face', true),
                 rotation_steps:  payload_hash.fetch('rotation_steps', 0).to_i % 4
             }
         end
         private_class_method :na_read_options
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Read a Boolean Payload Flag with a Default
+        # ------------------------------------------------------------
+        def self.na_flag(payload_hash, key, default_value)
+            return default_value unless payload_hash.key?(key)
+
+            value = payload_hash[key]
+            return default_value if value.nil?
+            return false if value == false || value.to_s.strip.downcase == 'false'
+
+            true
+        end
+        private_class_method :na_flag
         # ------------------------------------------------------------
 
         # HELPER FUNCTION | Get or Create the Slate Rectangle Component Definition
@@ -154,24 +162,33 @@ module Na__Noble3dModellingTools
 
         # HELPER FUNCTION | Tile Slate Instances Across the Face in Courses
         # ------------------------------------------------------------
-        def self.na_populate_face(entities, definition, face, slate_width_mm, visible_gauge_mm, side_gap_mm, lift_mm, stagger, rotation_steps = 0)
+        # Returns { instances:, trimmed:, total: }. Whole slates are placed as
+        # component instances; when trimming is on, slates crossing the face
+        # perimeter are drawn as trimmed loose edges instead of being skipped.
+        def self.na_populate_face(entities, definition, face, options)
             basis = na_build_basis(face)
-            return 0 unless basis
+            return { instances: 0, trimmed: 0, total: 0 } unless basis
 
-            na_rotate_basis_clockwise!(basis, rotation_steps)
+            na_rotate_basis_clockwise!(basis, options[:rotation_steps])
 
-            local_vertices = face.outer_loop.vertices.map { |vertex| na_to_local_2d(vertex.position, basis) }
-            min_x, max_x   = local_vertices.map(&:first).minmax
-            min_y, max_y   = local_vertices.map(&:last).minmax
+            slate_width_mm   = options[:slate_width_mm]
+            visible_gauge_mm = options[:visible_gauge_mm]
+            lift_mm          = options[:lift_mm]
+            trim_to_face     = options[:trim_to_face]
 
-            x_step_mm = slate_width_mm + side_gap_mm
+            outer_ring, hole_rings = na_face_local_rings(face, basis)
+            min_x, max_x = outer_ring.map(&:first).minmax
+            min_y, max_y = outer_ring.map(&:last).minmax
+
+            x_step_mm = slate_width_mm + options[:side_gap_mm]
             y_step_mm = visible_gauge_mm
             row_index = 0
             y_mm      = min_y - y_step_mm
-            count     = 0
+            instances = 0
+            trimmed   = 0
 
             while y_mm <= max_y + y_step_mm
-                row_offset_mm = stagger && row_index.odd? ? -(x_step_mm / 2.0) : 0.0
+                row_offset_mm = options[:stagger] && row_index.odd? ? -(x_step_mm / 2.0) : 0.0
                 x_mm = min_x - x_step_mm + row_offset_mm
 
                 while x_mm <= max_x + x_step_mm
@@ -183,13 +200,19 @@ module Na__Noble3dModellingTools
                     ]
 
                     if na_corners_fit_face?(face, corners, basis)
-                        placement_origin = basis[:origin]
-                            .offset(basis[:x_axis], x_mm.mm)
-                            .offset(basis[:y_axis], y_mm.mm)
-                            .offset(basis[:z_axis], lift_mm.mm)
-                        transform = Geom::Transformation.axes(placement_origin, basis[:x_axis], basis[:y_axis], basis[:z_axis])
-                        entities.add_instance(definition, transform)
-                        count += 1
+                        na_place_instance(entities, definition, basis, x_mm, y_mm, lift_mm)
+                        instances += 1
+                    elsif trim_to_face
+                        clip = Na__FacePatternGenerator__RectClip.Na__FacePatternGenerator__ClipUnitRect(
+                            x_mm, y_mm, slate_width_mm, visible_gauge_mm, outer_ring, hole_rings
+                        )
+                        if clip[:full]
+                            na_place_instance(entities, definition, basis, x_mm, y_mm, lift_mm)
+                            instances += 1
+                        elsif !clip[:rings].empty?
+                            clip[:rings].each { |ring| na_draw_ring(entities, ring, basis, lift_mm) }
+                            trimmed += 1
+                        end
                     end
 
                     x_mm += x_step_mm
@@ -199,9 +222,22 @@ module Na__Noble3dModellingTools
                 row_index += 1
             end
 
-            count
+            { instances: instances, trimmed: trimmed, total: instances + trimmed }
         end
         private_class_method :na_populate_face
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Place One Whole Slate Component Instance
+        # ------------------------------------------------------------
+        def self.na_place_instance(entities, definition, basis, x_mm, y_mm, lift_mm)
+            placement_origin = basis[:origin]
+                .offset(basis[:x_axis], x_mm.mm)
+                .offset(basis[:y_axis], y_mm.mm)
+                .offset(basis[:z_axis], lift_mm.mm)
+            transform = Geom::Transformation.axes(placement_origin, basis[:x_axis], basis[:y_axis], basis[:z_axis])
+            entities.add_instance(definition, transform)
+        end
+        private_class_method :na_place_instance
         # ------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -268,6 +304,41 @@ module Na__Noble3dModellingTools
         private_class_method :na_to_local_2d
         # ------------------------------------------------------------
 
+        # HELPER FUNCTION | Project the Face Loops to Local 2D Millimetre Rings
+        # ------------------------------------------------------------
+        def self.na_face_local_rings(face, basis)
+            outer_ring = face.outer_loop.vertices.map { |vertex| na_to_local_2d(vertex.position, basis) }
+            hole_rings = face.loops.reject(&:outer?).map do |loop|
+                loop.vertices.map { |vertex| na_to_local_2d(vertex.position, basis) }
+            end
+            [outer_ring, hole_rings]
+        end
+        private_class_method :na_face_local_rings
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Draw One Trimmed Ring as Closed Loose Edges
+        # ------------------------------------------------------------
+        def self.na_draw_ring(entities, ring, basis, lift_mm)
+            points = ring.map do |xy|
+                basis[:origin]
+                    .offset(basis[:x_axis], xy[0].mm)
+                    .offset(basis[:y_axis], xy[1].mm)
+                    .offset(basis[:z_axis], lift_mm.mm)
+            end
+            return if points.length < 3
+
+            closed = points + [points.first]
+            closed.each_cons(2) do |start_point, end_point|
+                next if start_point.distance(end_point) < 1e-6
+
+                entities.add_line(start_point, end_point)
+            end
+        rescue ArgumentError, TypeError, RuntimeError
+            nil                                                                  # <-- Skip a degenerate sliver, keep tiling
+        end
+        private_class_method :na_draw_ring
+        # ------------------------------------------------------------
+
         # HELPER FUNCTION | Test Whether All Slate Corners Lie on or Inside the Face
         # ------------------------------------------------------------
         def self.na_corners_fit_face?(face, local_corners, basis)
@@ -286,6 +357,17 @@ module Na__Noble3dModellingTools
 # -----------------------------------------------------------------------------
 # REGION | Result Helper
 # -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | Describe the Placed and Trimmed Slate Counts
+        # ------------------------------------------------------------
+        def self.na_tally_message(tally, trim_to_face)
+            return "Slate pattern applied with #{tally[:instances]} instance(s) - whole slates only." unless trim_to_face
+            return "Slate pattern applied with #{tally[:instances]} instance(s)." if tally[:trimmed].zero?
+
+            "Slate pattern applied with #{tally[:instances]} instance(s) and #{tally[:trimmed]} trimmed slate(s)."
+        end
+        private_class_method :na_tally_message
+        # ------------------------------------------------------------
 
         # HELPER FUNCTION | Build Standard Result Hash
         # ------------------------------------------------------------

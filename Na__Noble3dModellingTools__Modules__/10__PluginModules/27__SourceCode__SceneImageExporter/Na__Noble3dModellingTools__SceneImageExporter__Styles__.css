@@ -1,0 +1,644 @@
+/* ============================================================================= */
+/* NA NOBLE3D MODELLING TOOLS - SCENE IMAGE EXPORTER - STYLESHEET                 */
+/*                                                                               */
+/* FILE       : Na__Noble3dModellingTools__SceneImageExporter__Styles__.css      */
+/* PURPOSE    : Light Noble Architecture theme for the Scene Image Exporter      */
+/*              HtmlDialog - scene tick list, settings column, export bar.       */
+/* CREATED    : 2026                                                             */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens (:root Variables)
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    --na-bg-primary         : #f0f0f0;
+    --na-bg-secondary       : #ffffff;
+    --na-bg-tertiary        : #e6e6e6;
+    --na-border             : #d0d0d0;
+    --na-border-strong      : #b8b8b8;
+    --na-text-primary       : #1e1e1e;
+    --na-text-secondary     : #5a5a5a;
+    --na-accent-blue        : #4a90d9;
+    --na-accent-blue-dark   : #3574b5;
+    --na-accent-green       : #3d9a50;
+    --na-accent-red         : #c0392b;
+    --na-accent-amber       : #c97a12;
+    --na-font-family        : 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --na-font-mono          : 'Consolas', 'Menlo', 'Courier New', monospace;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout - Document Reset
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing              : border-box;
+}
+
+html,
+body {
+    margin                  : 0;
+    padding                 : 0;
+    height                  : 100%;
+    overflow                : hidden;
+    font-family             : var(--na-font-family);
+    font-size               : 13px;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-primary);
+}
+
+code {
+    font-family             : var(--na-font-mono);
+    font-size               : 11px;
+    background              : var(--na-bg-tertiary);
+    border-radius           : 3px;
+    padding                 : 1px 4px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | App Shell - Root Layout, Toolbar, Main Split
+ * ----------------------------------------------------------------------------- */
+
+.naSceneExp__App {
+    display                 : flex;
+    flex-direction          : column;
+    height                  : 100vh;
+}
+
+.naSceneExp__Toolbar {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 12px;
+    padding                 : 8px 12px;
+    background              : var(--na-bg-secondary);
+    border-bottom           : 1px solid var(--na-border);
+    flex                    : 0 0 auto;
+}
+
+.naSceneExp__ToolbarLabel {
+    font-size               : 14px;
+    font-weight             : 700;
+    white-space             : nowrap;
+}
+
+.naSceneExp__ToolbarMeta {
+    color                   : var(--na-text-secondary);
+    font-size               : 12px;
+    white-space             : nowrap;
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+    max-width               : 44%;
+}
+
+.naSceneExp__ToolbarSpacer {
+    flex                    : 1 1 auto;
+}
+
+.naSceneExp__LastExport {
+    color                   : var(--na-text-secondary);
+    font-size               : 11px;
+    white-space             : nowrap;
+}
+
+.naSceneExp__Main {
+    display                 : flex;
+    flex                    : 1 1 auto;
+    min-height              : 0;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Scene Pane - Header, Toolbar, Tick List
+ * ----------------------------------------------------------------------------- */
+
+.naSceneExp__ScenePane {
+    display                 : flex;
+    flex-direction          : column;
+    flex                    : 1 1 auto;
+    min-width               : 0;
+    border-right            : 1px solid var(--na-border);
+    background              : var(--na-bg-secondary);
+}
+
+.naSceneExp__PaneHeader {
+    display                 : flex;
+    align-items             : baseline;
+    justify-content         : space-between;
+    gap                     : 10px;
+    padding                 : 10px 12px 6px 12px;
+    flex                    : 0 0 auto;
+}
+
+.naSceneExp__PaneTitle {
+    font-size               : 13px;
+    font-weight             : 700;
+}
+
+.naSceneExp__SelectionCount {
+    font-size               : 12px;
+    color                   : var(--na-text-secondary);
+}
+
+.naSceneExp__SceneToolbar {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 6px;
+    padding                 : 0 12px 8px 12px;
+    border-bottom           : 1px solid var(--na-border);
+    flex                    : 0 0 auto;
+}
+
+.naSceneExp__Filter {
+    flex                    : 1 1 auto;
+    min-width               : 0;
+    padding                 : 4px 8px;
+    font-family             : var(--na-font-family);
+    font-size               : 12px;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-secondary);
+    border                  : 1px solid var(--na-border-strong);
+    border-radius           : 3px;
+}
+
+.naSceneExp__SceneList {
+    flex                    : 1 1 auto;
+    overflow-y              : auto;
+    padding                 : 6px 8px 12px 8px;
+}
+
+.naSceneExp__SceneRow {
+    display                 : flex;
+    align-items             : flex-start;
+    gap                     : 10px;
+    padding                 : 7px 10px;
+    border                  : 1px solid transparent;
+    border-radius           : 4px;
+    cursor                  : pointer;
+    user-select             : none;
+}
+
+.naSceneExp__SceneRow:hover {
+    background              : var(--na-bg-primary);
+    border-color            : var(--na-border);
+}
+
+.naSceneExp__SceneRow--selected {
+    background              : #eaf2fb;
+    border-color            : #c3ddf5;
+}
+
+.naSceneExp__SceneRow--hidden {
+    display                 : none;
+}
+
+.naSceneExp__SceneCheck {
+    margin                  : 2px 0 0 0;
+    flex                    : 0 0 auto;
+    cursor                  : pointer;
+}
+
+.naSceneExp__SceneBody {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 2px;
+    min-width               : 0;
+    flex                    : 1 1 auto;
+}
+
+.naSceneExp__SceneName {
+    font-size               : 13px;
+    font-weight             : 600;
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+    white-space             : nowrap;
+}
+
+.naSceneExp__SceneDesc {
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+    white-space             : nowrap;
+}
+
+.naSceneExp__SceneIndex {
+    flex                    : 0 0 auto;
+    font-family             : var(--na-font-mono);
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    padding-top             : 2px;
+}
+
+.naSceneExp__EmptyState {
+    padding                 : 24px 16px;
+    text-align              : center;
+    font-size               : 12px;
+    color                   : var(--na-text-secondary);
+}
+
+.naSceneExp__PaneFooter {
+    flex                    : 0 0 auto;
+    padding                 : 8px 12px;
+    border-top              : 1px solid var(--na-border);
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    background              : var(--na-bg-primary);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Settings Pane - Groups, Fields, Inputs
+ * ----------------------------------------------------------------------------- */
+
+.naSceneExp__SettingsPane {
+    width                   : 420px;
+    flex                    : 0 0 420px;
+    overflow-y              : auto;
+    padding                 : 12px;
+    background              : var(--na-bg-primary);
+}
+
+.naSceneExp__Group {
+    background              : var(--na-bg-secondary);
+    border                  : 1px solid var(--na-border);
+    border-radius           : 4px;
+    padding                 : 10px 12px 12px 12px;
+    margin-bottom           : 10px;
+}
+
+.naSceneExp__GroupTitle {
+    font-size               : 12px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.4px;
+    color                   : var(--na-text-secondary);
+    margin-bottom           : 8px;
+    padding-bottom          : 6px;
+    border-bottom           : 1px solid var(--na-border);
+}
+
+.naSceneExp__GroupNote {
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    margin-bottom           : 10px;
+    line-height             : 1.45;
+}
+
+.naSceneExp__Field {
+    margin-bottom           : 10px;
+}
+
+.naSceneExp__Field:last-child {
+    margin-bottom           : 0;
+}
+
+.naSceneExp__Field--hidden {
+    display                 : none;
+}
+
+.naSceneExp__Field--check {
+    margin-bottom           : 8px;
+}
+
+.naSceneExp__Label {
+    display                 : block;
+    font-size               : 12px;
+    font-weight             : 600;
+    margin-bottom           : 4px;
+}
+
+.naSceneExp__Label--inline {
+    display                 : inline-block;
+    margin                  : 0;
+    white-space             : nowrap;
+}
+
+.naSceneExp__Select,
+.naSceneExp__Input {
+    width                   : 100%;
+    padding                 : 5px 8px;
+    font-family             : var(--na-font-family);
+    font-size               : 12px;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-secondary);
+    border                  : 1px solid var(--na-border-strong);
+    border-radius           : 3px;
+}
+
+.naSceneExp__Select:focus,
+.naSceneExp__Input:focus,
+.naSceneExp__Filter:focus {
+    outline                 : none;
+    border-color            : var(--na-accent-blue);
+}
+
+.naSceneExp__Input[readonly] {
+    background              : var(--na-bg-tertiary);
+    color                   : var(--na-text-secondary);
+}
+
+.naSceneExp__InlinePair {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 8px;
+}
+
+.naSceneExp__InlineSep {
+    font-weight             : 700;
+    color                   : var(--na-text-secondary);
+}
+
+.naSceneExp__Hint {
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    margin-top              : 4px;
+    line-height             : 1.45;
+}
+
+.naSceneExp__Readout {
+    margin-top              : 8px;
+    padding                 : 6px 8px;
+    font-family             : var(--na-font-mono);
+    font-size               : 12px;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-tertiary);
+    border-radius           : 3px;
+}
+
+.naSceneExp__SliderRow {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 10px;
+}
+
+.naSceneExp__Slider {
+    flex                    : 1 1 auto;
+    min-width               : 0;
+}
+
+.naSceneExp__SliderValue {
+    flex                    : 0 0 auto;
+    min-width               : 42px;
+    text-align              : right;
+    font-family             : var(--na-font-mono);
+    font-size               : 12px;
+}
+
+.naSceneExp__Check {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 8px;
+    font-size               : 12px;
+    cursor                  : pointer;
+}
+
+.naSceneExp__Check--locked {
+    cursor                  : default;
+    color                   : var(--na-text-secondary);
+}
+
+.naSceneExp__TokenRow {
+    display                 : flex;
+    flex-wrap               : wrap;
+    gap                     : 4px;
+    margin-top              : 6px;
+}
+
+.naSceneExp__Token {
+    font-family             : var(--na-font-mono);
+    font-size               : 10px;
+    padding                 : 2px 6px;
+    color                   : var(--na-accent-blue-dark);
+    background              : #eaf2fb;
+    border                  : 1px solid #c3ddf5;
+    border-radius           : 3px;
+    cursor                  : pointer;
+}
+
+.naSceneExp__Token:hover {
+    background              : #d9e9f8;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Render Override Rows
+ * ----------------------------------------------------------------------------- */
+
+.naSceneExp__OverrideRow {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 10px;
+    padding                 : 5px 0;
+    border-bottom           : 1px solid #f0f0f0;
+}
+
+.naSceneExp__OverrideRow:last-child {
+    border-bottom           : none;
+}
+
+.naSceneExp__OverrideLabel {
+    flex                    : 1 1 auto;
+    min-width               : 0;
+    font-size               : 12px;
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+    white-space             : nowrap;
+}
+
+.naSceneExp__OverrideSelect {
+    flex                    : 0 0 150px;
+    padding                 : 4px 6px;
+    font-family             : var(--na-font-family);
+    font-size               : 11px;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-secondary);
+    border                  : 1px solid var(--na-border-strong);
+    border-radius           : 3px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Export Bar - Folder Row, Progress, Actions
+ * ----------------------------------------------------------------------------- */
+
+.naSceneExp__ExportBar {
+    flex                    : 0 0 auto;
+    padding                 : 10px 12px;
+    background              : var(--na-bg-secondary);
+    border-top              : 1px solid var(--na-border);
+}
+
+.naSceneExp__FolderRow {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 8px;
+    margin-bottom           : 10px;
+}
+
+.naSceneExp__Input--folder {
+    flex                    : 1 1 auto;
+    min-width               : 0;
+    font-family             : var(--na-font-mono);
+    font-size               : 11px;
+}
+
+.naSceneExp__ActionRow {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 10px;
+}
+
+.naSceneExp__ProgressWrap {
+    flex                    : 1 1 auto;
+    min-width               : 0;
+}
+
+.naSceneExp__ProgressTrack {
+    height                  : 6px;
+    background              : var(--na-bg-tertiary);
+    border-radius           : 3px;
+    overflow                : hidden;
+}
+
+.naSceneExp__ProgressFill {
+    height                  : 100%;
+    width                   : 0%;
+    background              : var(--na-accent-blue);
+    transition              : width 0.15s ease-out;
+}
+
+.naSceneExp__ProgressFill--done {
+    background              : var(--na-accent-green);
+}
+
+.naSceneExp__ProgressFill--error {
+    background              : var(--na-accent-red);
+}
+
+.naSceneExp__ProgressText {
+    margin-top              : 4px;
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+    white-space             : nowrap;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Buttons
+ * ----------------------------------------------------------------------------- */
+
+.naSceneExp__Btn {
+    padding                 : 6px 12px;
+    font-family             : var(--na-font-family);
+    font-size               : 12px;
+    font-weight             : 600;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-secondary);
+    border                  : 1px solid var(--na-border-strong);
+    border-radius           : 3px;
+    cursor                  : pointer;
+    white-space             : nowrap;
+}
+
+.naSceneExp__Btn:hover:not(:disabled) {
+    background              : var(--na-bg-tertiary);
+}
+
+.naSceneExp__Btn:disabled {
+    opacity                 : 0.45;
+    cursor                  : default;
+}
+
+.naSceneExp__Btn--small {
+    padding                 : 4px 9px;
+    font-size               : 11px;
+}
+
+.naSceneExp__Btn--secondary {
+    background              : var(--na-bg-primary);
+}
+
+.naSceneExp__Btn--primary {
+    color                   : #ffffff;
+    background              : var(--na-accent-blue);
+    border-color            : var(--na-accent-blue-dark);
+    padding                 : 7px 18px;
+}
+
+.naSceneExp__Btn--primary:hover:not(:disabled) {
+    background              : var(--na-accent-blue-dark);
+}
+
+.naSceneExp__Btn--danger {
+    color                   : #ffffff;
+    background              : var(--na-accent-red);
+    border-color            : #96291d;
+}
+
+.naSceneExp__Btn--danger:hover:not(:disabled) {
+    background              : #96291d;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Status Bar
+ * ----------------------------------------------------------------------------- */
+
+.naSceneExp__StatusBar {
+    flex                    : 0 0 auto;
+    padding                 : 6px 12px;
+    background              : var(--na-bg-tertiary);
+    border-top              : 1px solid var(--na-border);
+}
+
+.naSceneExp__StatusText {
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+    white-space             : nowrap;
+}
+
+.naSceneExp__StatusText--success {
+    color                   : var(--na-accent-green);
+    font-weight             : 600;
+}
+
+.naSceneExp__StatusText--warn {
+    color                   : var(--na-accent-amber);
+    font-weight             : 600;
+}
+
+.naSceneExp__StatusText--error {
+    color                   : var(--na-accent-red);
+    font-weight             : 600;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* =============================================================================
+   END OF FILE
+   ============================================================================= */
