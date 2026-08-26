@@ -122,7 +122,29 @@ module Na__ProfileTools__ProfilePathTracer
             if edges.empty?
                 return { isValid: false, reason: 'Helpers sub-group contains no edges.', chains: [] }
             end
-            Na__PathAnalysis.Na__Path__BuildChains(edges, anchor_point)
+
+            # Edge positions are local to the Helpers group. The group normally
+            # carries an identity transform, but if the user has moved or scaled
+            # the Helpers instance itself, that transform must be baked into the
+            # path or the rebuild lands at the pre-move position. The stored
+            # anchor lives in parent space, so it maps into local space first.
+            transform    = helpers_group.transformation
+            local_anchor = self.Na__RegenEngine__MapAnchorToLocal(anchor_point, transform)
+
+            path_result = Na__PathAnalysis.Na__Path__BuildChains(edges, local_anchor)
+            return path_result unless path_result[:isValid]
+
+            path_result[:chains].each do |chain|
+                chain[:ordered_points] = chain[:ordered_points].map { |point| point.transform(transform) }
+            end
+            path_result
+        end
+
+        def self.Na__RegenEngine__MapAnchorToLocal(anchor_point, transform)
+            return nil unless anchor_point
+            anchor_point.transform(transform.inverse)
+        rescue
+            anchor_point
         end
 
     # endregion ----------------------------------------------------------------
@@ -216,9 +238,11 @@ module Na__ProfileTools__ProfilePathTracer
 
             self.Na__RegenEngine__RestyleHelperEdges(model, parent_group)
             Na__DataSerializer.Na__DataSerializer__WritePathPoints(parent_group, runs.first[:ordered_points])
+            self.Na__RegenEngine__StampCurrentFingerprint(parent_group)
 
             model.commit_operation
             @na_in_progress = false
+            self.Na__RegenEngine__ReattachHelpersObserver(parent_group)
             self.Na__RegenEngine__ReportSuccess(parent_group, runs, swept_run_count, first_failure)
             true
         rescue => error
@@ -303,6 +327,32 @@ module Na__ProfileTools__ProfilePathTracer
             )
         rescue => error
             Na__DebugTools.Na__Debug__Warn("RegenEngine: helper edge restyle skipped: #{error.message}")
+        end
+
+        # Written inside the rebuild operation so an undo reverts the stored
+        # fingerprint together with the geometry it describes — the RegenSweep
+        # comparison then still holds and cannot fire a phantom rebuild.
+        def self.Na__RegenEngine__StampCurrentFingerprint(parent_group)
+            return unless defined?(Na__RegenSweep)
+            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
+            return unless helpers_group
+            fingerprint = Na__RegenSweep.Na__RegenSweep__ComputeFingerprint(helpers_group)
+            Na__DataSerializer.Na__DataSerializer__WriteHelpersFingerprint(parent_group, fingerprint) if fingerprint
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("RegenEngine: fingerprint stamp skipped: #{error.message}")
+        end
+
+        # A user edit can silently make a copied assembly unique, swapping the
+        # Helpers definition (and Entities collection) underneath the attached
+        # observer. Re-resolve and re-attach after every rebuild.
+        def self.Na__RegenEngine__ReattachHelpersObserver(parent_group)
+            return unless defined?(Na__ObserverRegistry)
+            return unless Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
+            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
+            return unless helpers_group
+            Na__ObserverRegistry.Na__ObserverRegistry__AttachIfMissing(helpers_group)
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("RegenEngine: observer reattach skipped: #{error.message}")
         end
 
         def self.Na__RegenEngine__ReportSuccess(parent_group, runs, swept_run_count, first_failure)

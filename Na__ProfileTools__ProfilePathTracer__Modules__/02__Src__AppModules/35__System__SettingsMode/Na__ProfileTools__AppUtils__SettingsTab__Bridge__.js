@@ -79,6 +79,17 @@
     // REGION | Dynamic Regeneration Actions
     // -------------------------------------------------------------------------
 
+    window.na_profiletools_settingsOpenPathEditor = function () {
+        na_status('Opening selected trace path for editing...');
+        if (window.Na__ProfileTools__BridgeBase) {
+            window.Na__ProfileTools__BridgeBase.Na__BridgeBase__CallSafe('na_profilepathtracer_open_path_editor');
+        } else if (window.sketchup) {
+            window.sketchup.na_profilepathtracer_open_path_editor();
+        } else {
+            na_status('Open path bridge is not available.');
+        }
+    };
+
     window.na_profiletools_settingsDynRegenEnableAll = function () {
         na_status('Enabling Dynamic Regeneration on all profile traces...');
         if (window.Na__ProfileTools__BridgeBase) {

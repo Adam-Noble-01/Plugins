@@ -83,7 +83,9 @@ require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__
 # REGION | AppCore (must load last — depends on all systems above)
 # -------------------------------------------------------------------------
 
+require_relative 'Na__ProfileTools__AppCore__RegenSweep__'
 require_relative 'Na__ProfileTools__AppCore__HelpersEntitiesObserver__'
+require_relative 'Na__ProfileTools__AppCore__EditPathNavigator__'
 require_relative 'Na__ProfileTools__AppCore__Observers__'
 require_relative 'Na__ProfileTools__AppCore__PluginReloader__'
 require_relative 'Na__ProfileTools__AppCore__DialogManager__'

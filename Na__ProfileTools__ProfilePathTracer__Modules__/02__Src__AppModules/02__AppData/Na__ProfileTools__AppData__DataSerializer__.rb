@@ -23,6 +23,10 @@
 #                                   regeneration always re-derives the real path
 #                                   from the Helpers edges, which may hold several.
 #     DynamicRegenEnabled  String   "true" | "false"
+#     HelpersFingerprint   String   SHA1 of the helpers linework (see
+#                                   Na__RegenSweep). Written inside the same
+#                                   operation as the geometry it describes, so
+#                                   undo/redo keeps stored + actual in sync.
 #     SchemaVersion        String   "1.1.0"
 #     CreatedAt            String   ISO-8601 timestamp
 #
@@ -104,6 +108,56 @@ module Na__ProfileTools__ProfilePathTracer
             true
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: WritePathPoints failed: #{error.message}")
+            false
+        end
+
+        # The fingerprint travels with the geometry through undo/redo (it is a
+        # dictionary value on the parent), so a reverted edit never reads as a
+        # pending change. Callers write it inside their open operation.
+        def self.Na__DataSerializer__WriteHelpersFingerprint(parent_group, fingerprint)
+            return false unless self.Na__DataSerializer__GroupValid?(parent_group)
+            return false unless fingerprint.is_a?(String) && !fingerprint.empty?
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT, true)
+            dict['HelpersFingerprint'] = fingerprint
+            true
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: WriteHelpersFingerprint failed: #{error.message}")
+            false
+        end
+
+        def self.Na__DataSerializer__ReadHelpersFingerprint(parent_group)
+            return nil unless self.Na__DataSerializer__GroupValid?(parent_group)
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+            return nil unless dict
+            value = dict['HelpersFingerprint']
+            value.is_a?(String) ? value : nil
+        rescue
+            nil
+        end
+
+        def self.Na__DataSerializer__ReadTraceId(parent_group)
+            return '' unless self.Na__DataSerializer__GroupValid?(parent_group)
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+            return '' unless dict
+            dict['ProfileTraceId'].to_s
+        rescue
+            ''
+        end
+
+        # Used by the copy repair: a duplicated assembly keeps its cloned id
+        # until re-stamped here (parent id + helpers back-reference together).
+        def self.Na__DataSerializer__RestampTraceId(parent_group, new_trace_id)
+            return false unless self.Na__DataSerializer__GroupValid?(parent_group)
+            return false unless new_trace_id.is_a?(String) && new_trace_id.match?(NA_ID_REGEX)
+
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT, true)
+            dict['ProfileTraceId'] = new_trace_id
+
+            helpers_group = self.Na__DataSerializer__FindHelpersSubGroup(parent_group)
+            self.Na__DataSerializer__StampHelpers(helpers_group, new_trace_id) if helpers_group
+            true
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: RestampTraceId failed: #{error.message}")
             false
         end
 
@@ -210,6 +264,24 @@ module Na__ProfileTools__ProfilePathTracer
             return nil if target_id.empty?
 
             self.Na__DataSerializer__FindParentByIdInModel(target_id)
+        rescue
+            nil
+        end
+
+        # Resolves the Profile Trace assembly for ANY selected entity: the
+        # parent itself, or a descendant such as the SweptSolid or Helpers
+        # sub-group (walks up the containment chain a bounded number of steps).
+        def self.Na__DataSerializer__ResolveTraceParentForEntity(entity)
+            return nil unless entity
+            return entity if self.Na__DataSerializer__IsProfileTraceParent?(entity)
+
+            candidate = entity
+            8.times do
+                candidate = self.Na__DataSerializer__ContainingInstance(candidate)
+                return nil unless candidate
+                return candidate if self.Na__DataSerializer__IsProfileTraceParent?(candidate)
+            end
+            nil
         rescue
             nil
         end

@@ -668,6 +668,14 @@ module Na__ProfileTools__ProfilePathTracer
                 'PathPoints'       => path_points
             })
             Na__DataSerializer.Na__DataSerializer__StampHelpers(helpers_group, trace_id)
+
+            # Baseline for the RegenSweep change detector — stamped inside the
+            # build operation so the fingerprint always travels with the
+            # geometry through undo/redo.
+            if defined?(Na__RegenSweep)
+                fingerprint = Na__RegenSweep.Na__RegenSweep__ComputeFingerprint(helpers_group)
+                Na__DataSerializer.Na__DataSerializer__WriteHelpersFingerprint(parent_group, fingerprint) if fingerprint
+            end
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Assembly dictionary stamp warning: #{error.message}")
         end

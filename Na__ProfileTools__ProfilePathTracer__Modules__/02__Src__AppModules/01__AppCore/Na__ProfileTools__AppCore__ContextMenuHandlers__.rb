@@ -7,9 +7,15 @@
 # PURPOSE    : Right-click context menu items for Profile Trace assemblies.
 #              Registered once on plugin load via UI.add_context_menu_handler.
 #
-# MENU ITEMS (shown only when a single stamped parent assembly is selected)
-#   "Dynamic Regeneration: ON → Toggle OFF"   (or vice versa)
-#   "Regenerate Now"
+# MENU ITEMS (shown when the selection is a stamped assembly OR any part of
+# one — the SweptSolid or Helpers child resolves up to its parent)
+#   "Open Path for Editing"                     drills into the Helpers group
+#   "Disable/Enable Dynamic Regeneration"       toggles the stored flag
+#   "Regenerate Now"                            manual rebuild
+#
+# NOTE: UI.add_context_menu_handler has NO remove counterpart, so registration
+# is guarded against the hot-reload `load` — an unguarded call would stack a
+# duplicate menu section on every reload.
 #
 # =============================================================================
 
@@ -17,22 +23,28 @@ module Na__ProfileTools__ProfilePathTracer
     module Na__ContextMenuHandlers
 
     # -------------------------------------------------------------------------
-    # REGION | Constants
+    # REGION | Constants + State
     # -------------------------------------------------------------------------
 
         NA_DYNREGEN_SUFFIX      = ' [DynRegen]'.freeze
         NA_MENU_TITLE_SEPARATOR = 'Profile Path Tracer'.freeze
 
+        @na_registered       = false unless defined?(@na_registered)
+        @na_last_menu_marker = nil   unless defined?(@na_last_menu_marker)
+        @na_last_menu_time   = 0.0   unless defined?(@na_last_menu_time)
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | Registration
+    # REGION | Registration (hot-reload safe)
     # -------------------------------------------------------------------------
 
         def self.Na__ContextMenu__Register
+            return if @na_registered
             UI.add_context_menu_handler do |menu|
                 self.Na__ContextMenu__BuildMenuIfApplicable(menu)
             end
+            @na_registered = true
         rescue => error
             Na__DebugTools.Na__Debug__Warn("ContextMenuHandlers: registration failed: #{error.message}")
         end
@@ -47,27 +59,69 @@ module Na__ProfileTools__ProfilePathTracer
             model = Sketchup.active_model
             return unless model
 
-            parent_group = self.Na__ContextMenu__ResolveSingleSelectedParent(model)
+            # UI.add_context_menu_handler cannot be unregistered, so a handler
+            # leaked by an old code version (pre reload-guard) may still be
+            # live alongside this one. Building the same popup twice would
+            # duplicate the menu section — dedupe per popup instance.
+            return if self.Na__ContextMenu__AlreadyBuiltForPopup?(menu)
+
+            parent_group = self.Na__ContextMenu__ResolveSelectedParent(model)
             return unless parent_group
+
+            # Self-heal on inspection: right-clicking an assembly is a cheap
+            # moment to re-attach a drifted observer, so the ON/OFF label below
+            # is telling the truth by the time the user reads it.
+            self.Na__ContextMenu__ReconcileObserver(parent_group)
 
             menu.add_separator
             menu.add_item(NA_MENU_TITLE_SEPARATOR) { }
 
+            self.Na__ContextMenu__AddOpenPathItem(menu)
             self.Na__ContextMenu__AddToggleItem(menu, parent_group)
             self.Na__ContextMenu__AddRegenNowItem(menu, parent_group)
         rescue => error
             Na__DebugTools.Na__Debug__Warn("ContextMenuHandlers: menu build failed: #{error.message}")
         end
 
-        def self.Na__ContextMenu__ResolveSingleSelectedParent(model)
+        def self.Na__ContextMenu__AlreadyBuiltForPopup?(menu)
+            marker = menu.object_id
+            now    = Time.now.to_f
+            if @na_last_menu_marker == marker && (now - @na_last_menu_time) < 2.0
+                return true
+            end
+            @na_last_menu_marker = marker
+            @na_last_menu_time   = now
+            false
+        rescue
+            false
+        end
+
+        def self.Na__ContextMenu__ResolveSelectedParent(model)
             selection = model.selection.to_a
             return nil unless selection.length == 1
-
-            group = selection.first
-            return nil unless Na__DataSerializer.Na__DataSerializer__IsProfileTraceParent?(group)
-            group
+            Na__DataSerializer.Na__DataSerializer__ResolveTraceParentForEntity(selection.first)
         rescue
             nil
+        end
+
+        def self.Na__ContextMenu__ReconcileObserver(parent_group)
+            return unless defined?(Na__ObserverRegistry)
+            return unless Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
+            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
+            return unless helpers_group
+            Na__ObserverRegistry.Na__ObserverRegistry__AttachIfMissing(helpers_group)
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("ContextMenuHandlers: reconcile skipped: #{error.message}")
+        end
+
+        def self.Na__ContextMenu__AddOpenPathItem(menu)
+            menu.add_item('Open Path for Editing') do
+                if defined?(Na__EditPathNavigator)
+                    Na__EditPathNavigator.Na__EditPath__OpenForCurrentSelection
+                else
+                    UI.messagebox('Edit Path module is not loaded.')
+                end
+            end
         end
 
         def self.Na__ContextMenu__AddToggleItem(menu, parent_group)
@@ -109,6 +163,10 @@ module Na__ProfileTools__ProfilePathTracer
             if helpers_group
                 if new_state
                     Na__ObserverRegistry.Na__ObserverRegistry__AttachToHelpers(helpers_group)
+                    if defined?(Na__RegenSweep)
+                        Na__RegenSweep.Na__RegenSweep__Resume!
+                        Na__RegenSweep.Na__RegenSweep__ScheduleSweep('toggle-on', full: true)
+                    end
                 else
                     Na__ObserverRegistry.Na__ObserverRegistry__DetachFromHelpers(helpers_group)
                 end
@@ -134,7 +192,7 @@ module Na__ProfileTools__ProfilePathTracer
 end
 
 # =============================================================================
-# SECTION | Auto-register on load (executes once via require_relative)
+# SECTION | Auto-register on load (guarded — runs once even across hot reloads)
 # =============================================================================
 
 Na__ProfileTools__ProfilePathTracer::Na__ContextMenuHandlers.Na__ContextMenu__Register

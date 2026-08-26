@@ -4,6 +4,81 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.2.0 - 26-Aug-2026 - Dynamic Regeneration Rearchitecture (Fingerprint Sweep) + Open Path for Editing
+
+### Summary
+Dynamic Regeneration has been rebuilt around **state comparison instead of event
+chasing**, after a dozen rounds of observer fixes kept failing the same way: extending
+or moving a helper edge never rebuilt the solid, while "Regenerate Now" always worked.
+Online research against the SketchUp API tracker, the official 2016 observer
+changes document, and forum answers from SketchUp staff confirmed the observer layer
+itself was the unfixable part — details below. The new system stores a SHA1
+**fingerprint of the helper linework** on each assembly and re-compares it at cheap,
+reliable trigger points; any mismatch, however caused, rebuilds the solid. A new
+**Open Path for Editing** action (right-click menu + Settings button) drills straight
+into the hard-to-click Helpers linework with the edges pre-selected, and closing the
+group afterwards is itself the rebuild trigger — the same finish-to-rebuild loop
+Profile Builder's Edit Path tool uses.
+
+### Root Causes Found (research-confirmed)
+
+1. **`EntitiesObserver#onElementModified` never fires for moved/stretched edges.**
+   The Move tool changes *vertex positions*, not edge properties, and observers hook
+   the property layer (confirmed by SketchUp staff `tt_su` on the official forums).
+   The old system's primary trigger simply does not exist for the most common edit.
+   Drawing/erasing edges (onElementAdded/Removed) does fire — which is why the
+   feature *sometimes* appeared to work.
+2. **Redo delivers no entity-modified events at all** — only
+   `ModelObserver#onTransactionRedo` fires (documented API inconsistency).
+3. **Copies silently orphan observers.** A copied trace shares its definition; the
+   first UI edit auto-makes-unique, swapping in a fresh definition + fresh Entities
+   collection. The observer stays attached to the *old* collection, permanently deaf.
+   Copies also clone the `ProfileTraceId`, cross-wiring `FindParentByIdInModel`.
+4. **The stored ON flag and the live observer were never reconciled.** Observers only
+   attached on dialog open; undo/redo, copies, model switches and reloads all caused
+   drift — hence the Settings readout "6 enabled / 4 active" and a context menu that
+   said "currently ON" while nothing was attached.
+5. **Hot reload wiped runtime state.** `load` re-ran `@na_registry = {}` (orphaning
+   attached observers), re-ran `@na_app_observer = nil` (leaking the AppObserver),
+   and re-ran `UI.add_context_menu_handler` (stacking duplicate menu sections —
+   the API has no remove counterpart).
+
+### New Architecture
+
+| Piece | Role |
+|---|---|
+| `Na__RegenSweep` *(new)* | Debounced fingerprint sweep. Full sweep walks stamped assemblies, re-attaches missing observers, repairs duplicate ProfileTraceIds (make_unique + restamp), adopts baselines for legacy traces, and rebuilds any assembly whose linework hash changed. Light sweep covers registry-known assemblies only. Failure memo prevents a failing linework state from re-running until it changes again. |
+| `Na__ModelObserver` *(new)* | `onActivePathChanged` (the moment a group edit closes — full sweep), `onTransactionUndo`/`Redo` (full), `onTransactionCommit` (light, catches deep edits by tools like Fredo that never open the group). Callbacks only schedule the timer — never touch the model (the documented crash vector). |
+| `Na__EditPathNavigator` *(new)* | `Model#active_path=` (SU2020+) drills into the Helpers group from the parent (or any child) selection, pre-selecting the path edges. Exit = rebuild. |
+| Fingerprint storage | `HelpersFingerprint` key in the parent dictionary, written **inside** the same operation as the geometry (build + every regen), so undo/redo reverts hash and geometry together and can never produce a phantom rebuild. Hash includes the Helpers group's own transformation, so scaling/moving the Helpers instance now regenerates too (the engine also bakes that transform into the rebuilt path). |
+| `Na__HelpersEntitiesObserver` | Demoted to an accelerator: add/remove events (the reliable ones) just poke the sweep. Registry entries record the helpers *definition* pid so make-unique swaps are detected and re-attached. All module state is `unless defined?` guarded for hot reload. |
+| Self-healing | Sweep triggers, Settings stats readout, right-click menu build, every rebuild, and plugin reload all reconcile observer attachment — the ON flag and reality can no longer drift apart (Detach All Observers now also suspends the sweep; Enable All re-arms it). Observers auto-install at SketchUp startup, no longer only on first dialog open. |
+
+### Files Touched
+
+| Path | Change |
+|---|---|
+| `01__AppCore/Na__ProfileTools__AppCore__RegenSweep__.rb` | **New** — fingerprint sweep engine |
+| `01__AppCore/Na__ProfileTools__AppCore__EditPathNavigator__.rb` | **New** — Open Path for Editing |
+| `01__AppCore/Na__ProfileTools__AppCore__HelpersEntitiesObserver__.rb` | Rewritten — accelerator role, reload-safe registry, definition-pid staleness detection |
+| `01__AppCore/Na__ProfileTools__AppCore__Observers__.rb` | ModelObserver added, reload-safe ivars, startup auto-install |
+| `01__AppCore/Na__ProfileTools__AppCore__ContextMenuHandlers__.rb` | Register-once guard, "Open Path for Editing" item, child-selection resolve, reconcile-on-build |
+| `01__AppCore/Na__ProfileTools__AppCore__DialogManager__.rb` | Open-path callback, reconcile-before-stats, reload reinstalls observers, kill-switch suspends sweep |
+| `01__AppCore/Na__ProfileTools__AppCore__Main__.rb` | Requires for the two new modules |
+| `02__AppData/Na__ProfileTools__AppData__DataSerializer__.rb` | Fingerprint read/write, `ReadTraceId`, `RestampTraceId`, `ResolveTraceParentForEntity` |
+| `04__GeometryHelpers/Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | Baseline fingerprint stamped inside the build operation |
+| `31__System__ApplyProfileMode/Na__ProfileTools__RegenerationEngine__Main__.rb` | Helpers transform baked into rebuilt path, fingerprint stamped in-operation, observer re-attach after rebuild |
+| `35__System__SettingsMode/...SettingsTab__UiLogic__.js` / `...Bridge__.js` | Open Path button, updated Dynamic Regeneration copy |
+
+### Research Sources
+- SketchUp forum "Edge Change Observer" — staff confirmation onElementModified does not fire for edge moves
+- SketchUp forum "Redo observer does not send on modified/on change events"
+- Official "Observers & Operations SketchUp 2016 Changes and Best Practices" + SketchUp/sketchup-safe-observer-events
+- Ruby API docs: ModelObserver (event queuing, onActivePathChanged), Model#active_path= (SU2020), Group#make_unique
+- Profile Builder (mind.sight.studios) Edit Path Tool — rebuild-on-finish workflow
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.1.7 - 15-Aug-2026 - Re-select Profile Geometry + Delete Profile
 
 ### Summary

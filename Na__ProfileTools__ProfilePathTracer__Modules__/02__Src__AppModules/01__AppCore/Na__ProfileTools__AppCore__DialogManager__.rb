@@ -239,13 +239,28 @@ module Na__ProfileTools__ProfilePathTracer
             end
 
             dialog.add_action_callback('na_profilepathtracer_dynregen_detach_all') do |_context|
+                # Emergency kill-switch: also suspends the RegenSweep so the
+                # self-healing pass cannot immediately re-attach everything.
+                Na__RegenSweep.Na__RegenSweep__Suspend! if defined?(Na__RegenSweep)
                 Na__ObserverRegistry.Na__ObserverRegistry__DetachAll if defined?(Na__ObserverRegistry)
-                self.Na__Dialog__SetStatusFromRuby('All Dynamic Regeneration observers detached.')
-                stats = self.Na__Dialog__HandleDynRegenStats
+                self.Na__Dialog__SetStatusFromRuby('All observers detached and change sweep suspended (Enable All re-arms).')
+                stats = self.Na__Dialog__HandleDynRegenStats(reconcile: false)
                 self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveDynRegenStats', stats)
             rescue => error
                 Na__DebugTools.Na__Debug__Error('DynRegen detach-all callback failed.', error)
                 self.Na__Dialog__SetStatusFromRuby("Detach all failed: #{error.message}")
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_open_path_editor') do |_context|
+                if defined?(Na__EditPathNavigator)
+                    result = Na__EditPathNavigator.Na__EditPath__OpenForCurrentSelection
+                    self.Na__Dialog__SetStatusFromRuby(result['statusMessage'])
+                else
+                    self.Na__Dialog__SetStatusFromRuby('Edit Path module is not loaded.')
+                end
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Open path editor callback failed.', error)
+                self.Na__Dialog__SetStatusFromRuby("Open path failed: #{error.message}")
             end
 
             dialog.add_action_callback('na_profilepathtracer_update_profile_meta') do |_context, json_payload|
@@ -334,13 +349,22 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Dynamic Regeneration Handlers
     # -------------------------------------------------------------------------
 
-        def self.Na__Dialog__HandleDynRegenStats
+        def self.Na__Dialog__HandleDynRegenStats(reconcile: true)
             return { 'total' => 0, 'enabled' => 0, 'active' => 0 } unless defined?(Na__DataSerializer) && defined?(Na__ObserverRegistry)
 
             model = Sketchup.active_model
             return { 'total' => 0, 'enabled' => 0, 'active' => 0 } unless model
 
+            # Self-heal before counting: reading the stats is a cheap moment to
+            # re-attach drifted observers, so enabled vs active can only differ
+            # while the sweep is deliberately suspended.
+            if reconcile && defined?(Na__RegenSweep) && !Na__RegenSweep.Na__RegenSweep__Suspended?
+                Na__RegenSweep.Na__RegenSweep__ReconcileOnly(model)
+                Na__RegenSweep.Na__RegenSweep__ScheduleSweep('stats', full: true)
+            end
+
             parents = Na__DataSerializer.Na__DataSerializer__FindAllParentGroups(model)
+            parents = parents.uniq { |g| g.persistent_id rescue g.object_id }
             total   = parents.length
             enabled = parents.count { |g| Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(g) }
             active  = Na__ObserverRegistry.Na__ObserverRegistry__Count
@@ -371,6 +395,13 @@ module Na__ProfileTools__ProfilePathTracer
                 count += 1
             end
             model.commit_operation
+
+            # Re-arm the change sweep (this is the recovery path from the
+            # Detach All Observers kill-switch).
+            if defined?(Na__RegenSweep)
+                Na__RegenSweep.Na__RegenSweep__Resume!
+                Na__RegenSweep.Na__RegenSweep__ScheduleSweep('enable-all', full: true)
+            end
 
             { 'statusMessage' => "Dynamic Regeneration enabled on #{count} profile trace(s)." }
         rescue => error
@@ -813,6 +844,16 @@ module Na__ProfileTools__ProfilePathTracer
                 previous_dialog.close if previous_dialog && previous_dialog.visible?
             rescue => error
                 Na__DebugTools.Na__Debug__Warn("Reload close warning: #{error.message}")
+            end
+
+            # Re-install observers with the freshly loaded code. Module ivars
+            # survive the reload (all are `unless defined?` guarded), so the
+            # uninstall inside InstallOnce can actually remove the old
+            # instances instead of leaking them.
+            begin
+                Na__Observers.Na__Observers__InstallOnce if defined?(Na__Observers)
+            rescue => error
+                Na__DebugTools.Na__Debug__Warn("Reload observer reinstall warning: #{error.message}")
             end
 
             self.Na__Dialog__Show

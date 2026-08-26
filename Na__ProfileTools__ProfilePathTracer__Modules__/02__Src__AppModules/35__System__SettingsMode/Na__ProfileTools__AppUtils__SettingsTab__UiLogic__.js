@@ -52,12 +52,18 @@
         },
         {
             heading: 'Dynamic Regeneration',
-            description: 'Profile traces stamped with Dynamic Regeneration can live-rebuild their swept solid when their helper path edges are edited. Enable or disable this feature per-assembly via the right-click context menu on a Profile Trace group, or use the bulk controls below.',
+            description: 'Profile traces rebuild their swept solid from the helper path linework. Changes are detected by a stored fingerprint of the path: edit the linework (move, stretch, draw, erase), then close the group — the solid rebuilds automatically. Undo, redo and copies are also detected. Use the right-click context menu on any Profile Trace for per-assembly controls.',
             buttons: [
+                {
+                    id: 'na-btn-settings-dynregen-open-path',
+                    label: 'Open Path for Editing',
+                    helper: 'Select a Profile Trace assembly in the model (or any part of one), then click this: it drills straight into the hard-to-click Helpers linework with the path edges pre-selected. Close the group when done and the profile rebuilds.',
+                    onclick: 'na_profiletools_settingsOpenPathEditor'
+                },
                 {
                     id: 'na-btn-settings-dynregen-enable-all',
                     label: 'Enable All',
-                    helper: 'Enables Dynamic Regeneration on every Profile Trace assembly in the current model and attaches observers.',
+                    helper: 'Enables Dynamic Regeneration on every Profile Trace assembly in the current model, attaches observers, and re-arms the change sweep.',
                     onclick: 'na_profiletools_settingsDynRegenEnableAll'
                 },
                 {
@@ -69,7 +75,7 @@
                 {
                     id: 'na-btn-settings-dynregen-detach',
                     label: 'Detach All Observers',
-                    helper: 'Emergency kill-switch: detaches all active EntitiesObservers without changing the stored enabled flag.',
+                    helper: 'Emergency kill-switch: detaches all EntitiesObservers and suspends the automatic change sweep until Enable All (or a plugin reload) re-arms it. The stored enabled flags are not changed.',
                     onclick: 'na_profiletools_settingsDynRegenDetachAll'
                 }
             ]

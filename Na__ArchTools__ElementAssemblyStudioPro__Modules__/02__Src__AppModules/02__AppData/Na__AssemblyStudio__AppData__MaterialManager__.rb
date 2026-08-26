@@ -39,8 +39,8 @@ module Na__AssemblyStudio
             NA_SAFETY_DEFAULT_ID    = "MAT001__Default".freeze
             NA_SAFETY_GLASS_ID      = "MAT101__GenericGlass".freeze
             NA_SAFETY_GLASS_NAME    = "MAT101__Glass__ClearDefault".freeze
-            NA_SAFETY_GLASS_COLOR   = [230, 240, 255].freeze
-            NA_SAFETY_GLASS_ALPHA   = 0.2
+            NA_SAFETY_GLASS_COLOR   = [46, 48, 51].freeze
+            NA_SAFETY_GLASS_ALPHA   = 0.32
 
             @na_materials_library = nil
             @na_material_cache    = {}
