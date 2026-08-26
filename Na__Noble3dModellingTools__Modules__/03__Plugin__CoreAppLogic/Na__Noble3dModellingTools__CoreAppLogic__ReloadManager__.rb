@@ -123,6 +123,12 @@ module Na__Noble3dModellingTools
                 Na__SceneImageExporter__DialogManager.Na__SceneImageExporter__ResetDialog
                 puts '[Na__Noble3dModellingTools] Reload reset Scene Image Exporter dialog.'
             end
+
+            if defined?(Na__SceneDataTransfer__DialogManager) &&
+               Na__SceneDataTransfer__DialogManager.respond_to?(:Na__SceneDataTransfer__ResetDialog)
+                Na__SceneDataTransfer__DialogManager.Na__SceneDataTransfer__ResetDialog
+                puts '[Na__Noble3dModellingTools] Reload reset Scene Data Transfer dialog.'
+            end
         rescue => error
             puts "[Na__Noble3dModellingTools] Feature dialog reset warning: #{error.class}: #{error.message}"
         end

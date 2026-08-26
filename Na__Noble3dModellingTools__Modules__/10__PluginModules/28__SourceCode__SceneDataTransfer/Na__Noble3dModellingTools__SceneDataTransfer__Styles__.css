@@ -1,0 +1,799 @@
+/* ============================================================================= */
+/* NA NOBLE3D MODELLING TOOLS - SCENE DATA TRANSFER - STYLESHEET                  */
+/*                                                                               */
+/* FILE       : Na__Noble3dModellingTools__SceneDataTransfer__Styles__.css       */
+/* PURPOSE    : Light Noble Architecture theme for the Scene Data Transfer       */
+/*              HtmlDialog - capture panel, source card, scene tick list.        */
+/* CREATED    : 2026                                                             */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens (:root Variables)
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    --na-bg-primary         : #f0f0f0;
+    --na-bg-secondary       : #ffffff;
+    --na-bg-tertiary        : #e6e6e6;
+    --na-border             : #d0d0d0;
+    --na-border-strong      : #b8b8b8;
+    --na-text-primary       : #1e1e1e;
+    --na-text-secondary     : #5a5a5a;
+    --na-text-disabled      : #9a9a9a;
+    --na-accent-blue        : #4a90d9;
+    --na-accent-blue-dark   : #3574b5;
+    --na-accent-green       : #3d9a50;
+    --na-accent-red         : #c0392b;
+    --na-accent-amber       : #c97a12;
+    --na-font-family        : 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --na-font-mono          : 'Consolas', 'Menlo', 'Courier New', monospace;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout - Document Reset
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing              : border-box;
+}
+
+html,
+body {
+    margin                  : 0;
+    padding                 : 0;
+    height                  : 100%;
+    overflow                : hidden;
+    font-family             : var(--na-font-family);
+    font-size               : 13px;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-primary);
+}
+
+code {
+    font-family             : var(--na-font-mono);
+    font-size               : 11px;
+    background              : var(--na-bg-tertiary);
+    border-radius           : 3px;
+    padding                 : 1px 4px;
+}
+
+em {
+    font-style              : normal;
+    font-weight             : 600;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | App Shell - Root Layout and Toolbar
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__App {
+    display                 : flex;
+    flex-direction          : column;
+    height                  : 100vh;
+    position                : relative;
+}
+
+.naSceneXfer__Toolbar {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 12px;
+    padding                 : 8px 12px;
+    background              : var(--na-bg-secondary);
+    border-bottom           : 1px solid var(--na-border);
+    flex                    : 0 0 auto;
+}
+
+.naSceneXfer__ToolbarLabel {
+    font-size               : 14px;
+    font-weight             : 700;
+    white-space             : nowrap;
+}
+
+.naSceneXfer__ToolbarMeta {
+    color                   : var(--na-text-secondary);
+    font-size               : 12px;
+    white-space             : nowrap;
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+    max-width               : 60%;
+}
+
+.naSceneXfer__ToolbarSpacer {
+    flex                    : 1 1 auto;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Tab Strip
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__Tabs {
+    display                 : flex;
+    gap                     : 2px;
+    padding                 : 0 12px;
+    background              : var(--na-bg-tertiary);
+    border-bottom           : 1px solid var(--na-border);
+    flex                    : 0 0 auto;
+}
+
+.naSceneXfer__Tab {
+    appearance              : none;
+    border                  : 1px solid transparent;
+    border-bottom           : none;
+    background              : transparent;
+    color                   : var(--na-text-secondary);
+    font-family             : inherit;
+    font-size               : 12px;
+    font-weight             : 600;
+    padding                 : 9px 16px;
+    cursor                  : pointer;
+    border-radius           : 4px 4px 0 0;
+    margin-top              : 4px;
+}
+
+.naSceneXfer__Tab:hover {
+    color                   : var(--na-text-primary);
+    background              : rgba(255, 255, 255, 0.6);
+}
+
+.naSceneXfer__Tab--active {
+    background              : var(--na-bg-secondary);
+    border-color            : var(--na-border);
+    color                   : var(--na-text-primary);
+    margin-bottom           : -1px;
+    padding-bottom          : 10px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Panels
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__Panel {
+    display                 : none;
+    flex                    : 1 1 auto;
+    min-height              : 0;
+    flex-direction          : column;
+    background              : var(--na-bg-secondary);
+}
+
+.naSceneXfer__Panel--active {
+    display                 : flex;
+}
+
+.naSceneXfer__PanelScroll {
+    flex                    : 1 1 auto;
+    min-height              : 0;
+    overflow-y              : auto;
+    padding                 : 14px 16px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Callout Block
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__Callout {
+    border                  : 1px solid var(--na-border);
+    border-left             : 3px solid var(--na-accent-blue);
+    background              : #f6fafd;
+    border-radius           : 4px;
+    padding                 : 11px 13px;
+    font-size               : 12px;
+    line-height             : 1.55;
+    color                   : var(--na-text-secondary);
+    margin-bottom           : 16px;
+}
+
+.naSceneXfer__Callout strong {
+    display                 : block;
+    color                   : var(--na-text-primary);
+    margin-bottom           : 4px;
+}
+
+.naSceneXfer__CalloutWarn {
+    display                 : block;
+    margin-top              : 7px;
+    color                   : var(--na-accent-amber);
+    font-weight             : 600;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Groups and Fields
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__Group {
+    margin-bottom           : 18px;
+}
+
+.naSceneXfer__Group--hidden {
+    display                 : none;
+}
+
+.naSceneXfer__GroupTitle {
+    font-size               : 12px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.04em;
+    color                   : var(--na-text-secondary);
+    padding-bottom          : 5px;
+    border-bottom           : 1px solid var(--na-border);
+    margin-bottom           : 9px;
+}
+
+.naSceneXfer__GroupNote {
+    font-size               : 11px;
+    line-height             : 1.5;
+    color                   : var(--na-text-secondary);
+    margin-bottom           : 9px;
+}
+
+.naSceneXfer__Field {
+    margin-bottom           : 11px;
+}
+
+.naSceneXfer__Label {
+    display                 : block;
+    font-size               : 11px;
+    font-weight             : 600;
+    color                   : var(--na-text-secondary);
+    margin-bottom           : 4px;
+}
+
+.naSceneXfer__Label--inline {
+    display                 : inline-block;
+    margin-bottom           : 0;
+    white-space             : nowrap;
+}
+
+.naSceneXfer__Input {
+    width                   : 100%;
+    font-family             : inherit;
+    font-size               : 12px;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-secondary);
+    border                  : 1px solid var(--na-border-strong);
+    border-radius           : 3px;
+    padding                 : 5px 7px;
+}
+
+.naSceneXfer__Input:focus {
+    outline                 : none;
+    border-color            : var(--na-accent-blue);
+}
+
+.naSceneXfer__Input--path {
+    flex                    : 1 1 auto;
+    font-family             : var(--na-font-mono);
+    font-size               : 11px;
+    background              : var(--na-bg-tertiary);
+}
+
+.naSceneXfer__Hint {
+    font-size               : 11px;
+    line-height             : 1.5;
+    color                   : var(--na-text-secondary);
+    margin-top              : 4px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Domain Toggle List
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__DomainToolbar {
+    display                 : flex;
+    gap                     : 6px;
+    margin-bottom           : 8px;
+}
+
+.naSceneXfer__DomainList {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 3px;
+}
+
+.naSceneXfer__DomainRow {
+    display                 : flex;
+    align-items             : flex-start;
+    gap                     : 9px;
+    padding                 : 7px 9px;
+    border                  : 1px solid var(--na-border);
+    border-radius           : 3px;
+    background              : var(--na-bg-secondary);
+    cursor                  : pointer;
+}
+
+.naSceneXfer__DomainRow:hover {
+    background              : #f7fbff;
+    border-color            : var(--na-accent-blue);
+}
+
+.naSceneXfer__DomainRow--disabled,
+.naSceneXfer__DomainRow--disabled:hover {
+    background              : var(--na-bg-primary);
+    border-color            : var(--na-border);
+    cursor                  : not-allowed;
+    opacity                 : 0.65;
+}
+
+.naSceneXfer__DomainRow input {
+    margin                  : 2px 0 0 0;
+    flex                    : 0 0 auto;
+}
+
+.naSceneXfer__DomainText {
+    flex                    : 1 1 auto;
+    min-width               : 0;
+}
+
+.naSceneXfer__DomainLabel {
+    font-size               : 12px;
+    font-weight             : 600;
+    display                 : block;
+}
+
+.naSceneXfer__DomainRow--disabled .naSceneXfer__DomainLabel {
+    color                   : var(--na-text-disabled);
+}
+
+.naSceneXfer__DomainSummary {
+    font-size               : 11px;
+    line-height             : 1.45;
+    color                   : var(--na-text-secondary);
+    display                 : block;
+    margin-top              : 2px;
+}
+
+.naSceneXfer__DomainShared {
+    display                 : block;
+    font-size               : 10px;
+    line-height             : 1.4;
+    color                   : var(--na-accent-amber);
+    margin-top              : 3px;
+}
+
+.naSceneXfer__DomainBadge {
+    display                 : inline-block;
+    font-size               : 9px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.05em;
+    padding                 : 1px 5px;
+    border-radius           : 2px;
+    background              : var(--na-bg-tertiary);
+    color                   : var(--na-text-secondary);
+    margin-left             : 6px;
+    vertical-align          : 1px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | State and Source Cards
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__StateCard,
+.naSceneXfer__SourceCard {
+    border                  : 1px solid var(--na-border);
+    border-radius           : 4px;
+    background              : var(--na-bg-primary);
+    padding                 : 11px 13px;
+}
+
+.naSceneXfer__SourceCard {
+    margin                  : 0 16px 12px 16px;
+    flex                    : 0 0 auto;
+}
+
+.naSceneXfer__StateEmpty {
+    font-size               : 12px;
+    line-height             : 1.55;
+    color                   : var(--na-text-secondary);
+}
+
+.naSceneXfer__StateGrid {
+    display                 : grid;
+    grid-template-columns   : max-content 1fr;
+    gap                     : 4px 14px;
+    font-size               : 12px;
+}
+
+.naSceneXfer__StateKey {
+    color                   : var(--na-text-secondary);
+    font-weight             : 600;
+}
+
+.naSceneXfer__StateValue {
+    color                   : var(--na-text-primary);
+    word-break              : break-all;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Import Source Row
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__SourceRow {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 8px;
+    padding                 : 12px 16px 10px 16px;
+    flex                    : 0 0 auto;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Import Main Split
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__Main {
+    display                 : flex;
+    flex                    : 1 1 auto;
+    min-height              : 0;
+    border-top              : 1px solid var(--na-border);
+}
+
+.naSceneXfer__ScenePane {
+    display                 : flex;
+    flex-direction          : column;
+    flex                    : 1 1 auto;
+    min-width               : 0;
+    border-right            : 1px solid var(--na-border);
+}
+
+.naSceneXfer__PaneHeader {
+    display                 : flex;
+    align-items             : baseline;
+    justify-content         : space-between;
+    gap                     : 10px;
+    padding                 : 10px 14px 6px 16px;
+    flex                    : 0 0 auto;
+}
+
+.naSceneXfer__PaneTitle {
+    font-size               : 13px;
+    font-weight             : 700;
+}
+
+.naSceneXfer__SelectionCount {
+    font-size               : 12px;
+    color                   : var(--na-text-secondary);
+}
+
+.naSceneXfer__SceneToolbar {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 6px;
+    padding                 : 0 14px 8px 16px;
+    flex                    : 0 0 auto;
+}
+
+.naSceneXfer__Filter {
+    flex                    : 1 1 auto;
+    min-width               : 0;
+    font-family             : inherit;
+    font-size               : 12px;
+    border                  : 1px solid var(--na-border-strong);
+    border-radius           : 3px;
+    padding                 : 4px 7px;
+}
+
+.naSceneXfer__Filter:focus {
+    outline                 : none;
+    border-color            : var(--na-accent-blue);
+}
+
+.naSceneXfer__SceneList {
+    flex                    : 1 1 auto;
+    min-height              : 0;
+    overflow-y              : auto;
+    padding                 : 0 14px 12px 16px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Scene Rows
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__SceneRow {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 9px;
+    padding                 : 6px 8px;
+    border-bottom           : 1px solid #efefef;
+    cursor                  : pointer;
+}
+
+.naSceneXfer__SceneRow:hover {
+    background              : #f7fbff;
+}
+
+.naSceneXfer__SceneRow--hidden {
+    display                 : none;
+}
+
+.naSceneXfer__SceneIndex {
+    flex                    : 0 0 auto;
+    width                   : 26px;
+    font-size               : 11px;
+    font-family             : var(--na-font-mono);
+    color                   : var(--na-text-disabled);
+    text-align              : right;
+}
+
+.naSceneXfer__SceneBody {
+    flex                    : 1 1 auto;
+    min-width               : 0;
+}
+
+.naSceneXfer__SceneName {
+    font-size               : 12px;
+    font-weight             : 600;
+    white-space             : nowrap;
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+}
+
+.naSceneXfer__SceneMeta {
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    white-space             : nowrap;
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+}
+
+.naSceneXfer__SceneFlag {
+    flex                    : 0 0 auto;
+    font-size               : 9px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.05em;
+    padding                 : 2px 6px;
+    border-radius           : 2px;
+    background              : #fdf3e3;
+    color                   : var(--na-accent-amber);
+    border                  : 1px solid #f0dcbb;
+}
+
+.naSceneXfer__EmptyState {
+    padding                 : 22px 10px;
+    text-align              : center;
+    font-size               : 12px;
+    line-height             : 1.6;
+    color                   : var(--na-text-secondary);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Settings Pane
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__SettingsPane {
+    flex                    : 0 0 380px;
+    overflow-y              : auto;
+    padding                 : 12px 16px;
+    background              : var(--na-bg-secondary);
+}
+
+.naSceneXfer__WarningList {
+    max-height              : 160px;
+    overflow-y              : auto;
+    font-size               : 11px;
+    line-height             : 1.5;
+    color                   : var(--na-accent-amber);
+}
+
+.naSceneXfer__WarningItem {
+    padding                 : 3px 0;
+    border-bottom           : 1px solid #f2f2f2;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Action Bar
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__ActionBar {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 10px;
+    padding                 : 10px 16px;
+    background              : var(--na-bg-primary);
+    border-top              : 1px solid var(--na-border);
+    flex                    : 0 0 auto;
+}
+
+.naSceneXfer__ActionSpacer {
+    flex                    : 1 1 auto;
+}
+
+.naSceneXfer__ActionHint {
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Buttons
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__Btn {
+    appearance              : none;
+    font-family             : inherit;
+    font-size               : 12px;
+    font-weight             : 600;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-secondary);
+    border                  : 1px solid var(--na-border-strong);
+    border-radius           : 3px;
+    padding                 : 6px 14px;
+    cursor                  : pointer;
+    white-space             : nowrap;
+}
+
+.naSceneXfer__Btn:hover {
+    background              : var(--na-bg-tertiary);
+}
+
+.naSceneXfer__Btn:disabled {
+    color                   : var(--na-text-disabled);
+    background              : var(--na-bg-primary);
+    border-color            : var(--na-border);
+    cursor                  : not-allowed;
+}
+
+.naSceneXfer__Btn--small {
+    padding                 : 4px 9px;
+    font-size               : 11px;
+}
+
+.naSceneXfer__Btn--primary {
+    color                   : #ffffff;
+    background              : var(--na-accent-blue);
+    border-color            : var(--na-accent-blue-dark);
+    padding                 : 7px 20px;
+}
+
+.naSceneXfer__Btn--primary:hover {
+    background              : var(--na-accent-blue-dark);
+}
+
+.naSceneXfer__Btn--primary:disabled {
+    color                   : #ffffff;
+    background              : #b6cfe8;
+    border-color            : #b6cfe8;
+}
+
+.naSceneXfer__Btn--secondary {
+    background              : var(--na-bg-secondary);
+}
+
+.naSceneXfer__Btn--danger {
+    color                   : var(--na-accent-red);
+    border-color            : #e0b4ae;
+}
+
+.naSceneXfer__Btn--danger:hover {
+    background              : #fbeeec;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Status Bar
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__StatusBar {
+    flex                    : 0 0 auto;
+    padding                 : 6px 16px;
+    background              : var(--na-bg-tertiary);
+    border-top              : 1px solid var(--na-border);
+}
+
+.naSceneXfer__StatusText {
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    white-space             : pre-wrap;
+    max-height              : 46px;
+    overflow-y              : auto;
+}
+
+.naSceneXfer__StatusText--success { color: var(--na-accent-green); font-weight: 600; }
+.naSceneXfer__StatusText--error   { color: var(--na-accent-red);   font-weight: 600; }
+.naSceneXfer__StatusText--warn    { color: var(--na-accent-amber); font-weight: 600; }
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Busy Overlay
+ * ----------------------------------------------------------------------------- */
+
+.naSceneXfer__Busy {
+    display                 : none;
+    position                : absolute;
+    top                     : 0;
+    left                    : 0;
+    right                   : 0;
+    bottom                  : 0;
+    background              : rgba(255, 255, 255, 0.82);
+    align-items             : center;
+    justify-content         : center;
+    z-index                 : 20;
+}
+
+.naSceneXfer__Busy--active {
+    display                 : flex;
+}
+
+.naSceneXfer__BusyCard {
+    text-align              : center;
+    padding                 : 22px 34px;
+    border                  : 1px solid var(--na-border);
+    border-radius           : 5px;
+    background              : var(--na-bg-secondary);
+}
+
+.naSceneXfer__Spinner {
+    width                   : 26px;
+    height                  : 26px;
+    margin                  : 0 auto 12px auto;
+    border                  : 3px solid var(--na-bg-tertiary);
+    border-top-color        : var(--na-accent-blue);
+    border-radius           : 50%;
+    animation               : naSceneXferSpin 0.85s linear infinite;
+}
+
+@keyframes naSceneXferSpin {
+    to { transform: rotate(360deg); }
+}
+
+.naSceneXfer__BusyLabel {
+    font-size               : 13px;
+    font-weight             : 600;
+}
+
+.naSceneXfer__BusyNote {
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+    margin-top              : 5px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+/* ============================================================================= */
+/* END OF FILE                                                                   */
+/* ============================================================================= */

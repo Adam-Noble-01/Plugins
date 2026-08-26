@@ -1,0 +1,217 @@
+<!doctype html>
+<!--
+=============================================================================
+NA NOBLE3D MODELLING TOOLS - SCENE DATA TRANSFER - UI LAYOUT
+=============================================================================
+
+FILE       : Na__Noble3dModellingTools__SceneDataTransfer__UiLayout__.html
+PURPOSE    : HtmlDialog shell for the Scene Data Transfer feature module.
+             Two tabs - Capture writes this model's scenes into it, Import
+             pulls scenes out of another .skp on disk. All assets are inlined
+             by DialogManager via set_html (no external file base URL).
+
+INJECTION  : {{STYLESHEET_CONTENT}}  - Na__Noble3dModellingTools__SceneDataTransfer__Styles__.css
+             {{UI_BRIDGE_SCRIPT}}    - Na__Noble3dModellingTools__SceneDataTransfer__UiBridge__.js
+
+RUBY -> JS : Na__SceneTransfer__ReceivePayload(payload)
+             Na__SceneTransfer__ReceiveStatus(message, variant)
+             Na__SceneTransfer__ReceiveBusy(is_busy, label)
+             Na__SceneTransfer__ReceiveWarnings(warnings)
+JS -> RUBY : sketchup.na_dialog_ready  / na_refresh
+             sketchup.na_capture_model / na_clear_capture
+             sketchup.na_choose_source / na_read_source
+             sketchup.na_save_settings / na_import_scenes / na_js_log
+
+=============================================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Na Noble3d Tools : Scene Data Transfer</title>
+  <style>
+    {{STYLESHEET_CONTENT}}
+  </style>
+</head>
+<body>
+
+  <!-- REGION | App Shell -->
+  <div class="naSceneXfer__App">
+
+    <!-- Toolbar -->
+    <div class="naSceneXfer__Toolbar">
+      <span class="naSceneXfer__ToolbarLabel">Scene Data Transfer</span>
+      <span class="naSceneXfer__ToolbarMeta" id="naSceneXfer_modelMeta">Loading model...</span>
+      <div class="naSceneXfer__ToolbarSpacer"></div>
+      <button id="naSceneXfer_btnRefresh" class="naSceneXfer__Btn naSceneXfer__Btn--secondary" type="button"
+              title="Re-read this model">Refresh</button>
+    </div>
+
+    <!-- Tab strip -->
+    <div class="naSceneXfer__Tabs" role="tablist">
+      <button class="naSceneXfer__Tab naSceneXfer__Tab--active" id="naSceneXfer_tabCapture" type="button" role="tab"
+              data-panel="naSceneXfer_panelCapture">1 &nbsp;Capture &mdash; this model</button>
+      <button class="naSceneXfer__Tab" id="naSceneXfer_tabImport" type="button" role="tab"
+              data-panel="naSceneXfer_panelImport">2 &nbsp;Import &mdash; from another model</button>
+    </div>
+
+    <!-- ================= CAPTURE PANEL ================= -->
+    <section class="naSceneXfer__Panel naSceneXfer__Panel--active" id="naSceneXfer_panelCapture" role="tabpanel">
+
+      <div class="naSceneXfer__PanelScroll">
+
+        <div class="naSceneXfer__Callout">
+          <strong>This writes the scenes of the model you have open now into the model itself.</strong>
+          Every scene is serialised into a hidden carrier component, so the data travels inside the
+          <code>.skp</code> file. Another model can then read those scenes straight off disk without ever
+          opening this one.
+          <span class="naSceneXfer__CalloutWarn">You must save this model afterwards, or the captured data
+          never reaches the file.</span>
+        </div>
+
+        <div class="naSceneXfer__Group">
+          <div class="naSceneXfer__GroupTitle">What to capture</div>
+          <div class="naSceneXfer__GroupNote">
+            Capture stores everything it can. The tick list below controls what is written; anything greyed out
+            is not implemented in this build yet.
+          </div>
+          <div class="naSceneXfer__DomainList" id="naSceneXfer_captureDomains"></div>
+        </div>
+
+        <div class="naSceneXfer__Group">
+          <div class="naSceneXfer__GroupTitle">Embedded data in this model</div>
+          <div class="naSceneXfer__StateCard" id="naSceneXfer_captureState">
+            <div class="naSceneXfer__StateEmpty">No scene data captured in this model yet.</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="naSceneXfer__ActionBar">
+        <button id="naSceneXfer_btnClearCapture" class="naSceneXfer__Btn naSceneXfer__Btn--danger" type="button">
+          Clear Captured Data
+        </button>
+        <div class="naSceneXfer__ActionSpacer"></div>
+        <span class="naSceneXfer__ActionHint" id="naSceneXfer_captureHint"></span>
+        <button id="naSceneXfer_btnCapture" class="naSceneXfer__Btn naSceneXfer__Btn--primary" type="button">
+          Capture Scene Data
+        </button>
+      </div>
+
+    </section>
+
+    <!-- ================= IMPORT PANEL ================= -->
+    <section class="naSceneXfer__Panel" id="naSceneXfer_panelImport" role="tabpanel">
+
+      <div class="naSceneXfer__SourceRow">
+        <label class="naSceneXfer__Label naSceneXfer__Label--inline">Source model</label>
+        <input id="naSceneXfer_sourcePath" class="naSceneXfer__Input naSceneXfer__Input--path" type="text"
+               readonly placeholder="No source model chosen" />
+        <button id="naSceneXfer_btnBrowse"  class="naSceneXfer__Btn naSceneXfer__Btn--secondary" type="button">Browse...</button>
+        <button id="naSceneXfer_btnReread"  class="naSceneXfer__Btn naSceneXfer__Btn--secondary" type="button">Re-read</button>
+      </div>
+
+      <div class="naSceneXfer__SourceCard" id="naSceneXfer_sourceCard">
+        <div class="naSceneXfer__StateEmpty">
+          Pick a <code>.skp</code> that has already had its scenes captured. It is read directly from disk &mdash;
+          the file is never opened and your current model is never disturbed.
+        </div>
+      </div>
+
+      <div class="naSceneXfer__Main">
+
+        <!-- Scene list -->
+        <div class="naSceneXfer__ScenePane">
+
+          <div class="naSceneXfer__PaneHeader">
+            <span class="naSceneXfer__PaneTitle">Scenes in the source model</span>
+            <span class="naSceneXfer__SelectionCount" id="naSceneXfer_selectionCount">0 of 0 ticked</span>
+          </div>
+
+          <div class="naSceneXfer__SceneToolbar">
+            <button id="naSceneXfer_btnAllOn"  class="naSceneXfer__Btn naSceneXfer__Btn--small" type="button">All On</button>
+            <button id="naSceneXfer_btnAllOff" class="naSceneXfer__Btn naSceneXfer__Btn--small" type="button">All Off</button>
+            <button id="naSceneXfer_btnInvert" class="naSceneXfer__Btn naSceneXfer__Btn--small" type="button">Invert</button>
+            <input  id="naSceneXfer_sceneFilter" class="naSceneXfer__Filter" type="text"
+                    placeholder="Filter scenes..." autocomplete="off" />
+          </div>
+
+          <div class="naSceneXfer__SceneList" id="naSceneXfer_sceneList"></div>
+
+        </div>
+
+        <!-- Import settings -->
+        <aside class="naSceneXfer__SettingsPane">
+
+          <div class="naSceneXfer__Group">
+            <div class="naSceneXfer__GroupTitle">What to reconstruct</div>
+            <div class="naSceneXfer__GroupNote">
+              Each imported scene stores <em>only</em> the properties you tick here. Everything else is left
+              unset, so the scene will not override your model's style, shadows or tag visibility.
+            </div>
+
+            <div class="naSceneXfer__DomainToolbar">
+              <button id="naSceneXfer_btnDomAll"  class="naSceneXfer__Btn naSceneXfer__Btn--small" type="button">All</button>
+              <button id="naSceneXfer_btnDomNone" class="naSceneXfer__Btn naSceneXfer__Btn--small" type="button">None</button>
+            </div>
+
+            <div class="naSceneXfer__DomainList" id="naSceneXfer_importDomains"></div>
+          </div>
+
+          <div class="naSceneXfer__Group">
+            <div class="naSceneXfer__GroupTitle">Naming</div>
+
+            <div class="naSceneXfer__Field">
+              <label class="naSceneXfer__Label" for="naSceneXfer_suffix">Suffix for imported scenes</label>
+              <input id="naSceneXfer_suffix" class="naSceneXfer__Input" type="text" autocomplete="off" />
+              <div class="naSceneXfer__Hint" id="naSceneXfer_namePreview">Example: -</div>
+              <div class="naSceneXfer__Hint">
+                If the suffixed name is already taken, a two-digit counter is added, so an import can never
+                overwrite or collide with a scene you already have.
+              </div>
+            </div>
+          </div>
+
+          <div class="naSceneXfer__Group naSceneXfer__Group--hidden" id="naSceneXfer_warningsGroup">
+            <div class="naSceneXfer__GroupTitle">Last import warnings</div>
+            <div class="naSceneXfer__WarningList" id="naSceneXfer_warningList"></div>
+          </div>
+
+        </aside>
+
+      </div>
+
+      <div class="naSceneXfer__ActionBar">
+        <span class="naSceneXfer__ActionHint" id="naSceneXfer_importHint"></span>
+        <div class="naSceneXfer__ActionSpacer"></div>
+        <button id="naSceneXfer_btnImport" class="naSceneXfer__Btn naSceneXfer__Btn--primary" type="button" disabled>
+          Import Ticked Scenes
+        </button>
+      </div>
+
+    </section>
+
+    <!-- Status bar -->
+    <div class="naSceneXfer__StatusBar">
+      <div class="naSceneXfer__StatusText" id="naSceneXfer_status">Ready.</div>
+    </div>
+
+    <!-- Busy overlay -->
+    <div class="naSceneXfer__Busy" id="naSceneXfer_busy">
+      <div class="naSceneXfer__BusyCard">
+        <div class="naSceneXfer__Spinner"></div>
+        <div class="naSceneXfer__BusyLabel" id="naSceneXfer_busyLabel">Working...</div>
+        <div class="naSceneXfer__BusyNote">Large source models can take a moment to read.</div>
+      </div>
+    </div>
+
+  </div><!-- /.naSceneXfer__App -->
+  <!-- endregion | App Shell -->
+
+  <script>
+    {{UI_BRIDGE_SCRIPT}}
+  </script>
+
+</body>
+</html>

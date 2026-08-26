@@ -318,6 +318,24 @@
             "expose_to_hotkeys" : true
         },
         {
+            "command_id"        : "scene_data_transfer",
+            "command_name"      : "Na Noble3d - Scene Data Transfer",
+            "tooltip"           : "Capture scenes into a model, and rebuild scenes from another model without opening it",
+            "status_bar_text"   : "Open Scene Data Transfer",
+            "menu_text"         : "Scene Data Transfer",
+            "handler_key"       : "scene_data_transfer",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "scene_data_transfer_capture",
+            "command_name"      : "Na Noble3d - Capture Scene Data",
+            "tooltip"           : "Serialise every scene in this model into its embedded transfer payload",
+            "status_bar_text"   : "Capture this model's scene data for transfer",
+            "menu_text"         : "Capture Scene Data",
+            "handler_key"       : "scene_data_transfer_capture",
+            "expose_to_hotkeys" : true
+        },
+        {
             "command_id"        : "flatten_3d_to_group",
             "command_name"      : "Na Noble3d - Flatten 3D To Group",
             "tooltip"           : "Flatten selected groups/components to a 2D linework group",
@@ -880,6 +898,28 @@
             "button_label"           : "Scene Image Exporter",
             "command_id"             : "scene_image_exporter",
             "description"            : "Tick the scenes you want and batch render them to PNG, JPG, TIF or BMP. Export presets cover size, aspect, line weight, transparency and render overrides. Scene ticks and settings are serialised into a model dictionary, so they are still set the next time the model is opened."
+        },
+        {
+            "button_id"              : "btn_scene_data_transfer",
+            "tab_name"               : "Misc Utils",
+            "tool_group_name"        : "Scene Data Transfer",
+            "tool_group_description" : "Move complete SketchUp scenes between models, reading the source model straight off disk.",
+            "tool_group_order"       : 30,
+            "button_order"           : 10,
+            "button_label"           : "Scene Data Transfer",
+            "command_id"             : "scene_data_transfer",
+            "description"            : "Rebuilds scenes from another SketchUp model without opening it. Transfers camera, axes, style, fog, shadows, sections and tag visibility."
+        },
+        {
+            "button_id"              : "btn_scene_data_transfer_capture",
+            "tab_name"               : "Misc Utils",
+            "tool_group_name"        : "Scene Data Transfer",
+            "tool_group_description" : "Move complete SketchUp scenes between models, reading the source model straight off disk.",
+            "tool_group_order"       : 30,
+            "button_order"           : 20,
+            "button_label"           : "Capture Scene Data",
+            "command_id"             : "scene_data_transfer_capture",
+            "description"            : "Serialises every scene in the current model into its embedded transfer payload, ready for another model to read. Save the model afterwards."
         },
         {
             "button_id"              : "btn_image_carousel",

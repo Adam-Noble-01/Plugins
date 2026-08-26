@@ -183,6 +183,12 @@ module Na__Noble3dModellingTools
             when 'scene_image_exporter'
                 proc { Na__SceneImageExporter.Na__SceneImageExporter__Run }
 
+            when 'scene_data_transfer'
+                proc { Na__SceneDataTransfer.Na__SceneDataTransfer__Run }
+
+            when 'scene_data_transfer_capture'
+                proc { Na__SceneDataTransfer.Na__SceneDataTransfer__CaptureActiveModel }
+
             else
                 nil
             end
