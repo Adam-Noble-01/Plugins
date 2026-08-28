@@ -3,6 +3,127 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.5.1 - 27-Aug-2026 - Arithmetic in Every Numeric Field
+
+### Context
+Sizing joinery is arithmetic all day long. Trimming 50mm off a 1700mm opening, adding four 100mm packers, splitting a 2400mm run into three equal bays — every one of those meant leaving the dialog, working it out on a calculator, and typing the answer back in. SketchUp's own VCB has accepted arithmetic for years; the dialog's numeric fields had no reason not to. Separately, those fields were `<input type="number">`, which silently discards anything that is not already a valid number — the moment an operator was typed, `.value` read back as an empty string, so an expression could never have been recovered from them even if one had been wanted.
+
+### Feature Summary
+- **Every numeric field is now a small calculator.** Type an expression, press Enter (or click away) and the field resolves it. Covers all four operators plus powers, brackets nested to any depth, and decimals:
+
+    | Typed | Result | Task |
+    |---|---|---|
+    | `1700-50` | 1650 | trim an opening |
+    | `2400+200` | 2600 | grow an opening |
+    | `+200` | current + 200 | nudge without re-reading the field |
+    | `2400/3` | 800 | split a run into three bays |
+    | `800*3` | 2400 | three bays back to a run |
+    | `2400+(100+100+100+100)` | 2800 | four packers added |
+    | `(3000-2*95)/3` | 936.667 | three equal lights inside the stiles |
+
+- **Relative entry.** An expression that *starts* with an operator is applied to the value the field already holds, so `+200` on a 2400 field gives 2600 without retyping 2400. Consecutive relative entries stack — `+200` twice on 2400 lands on 2800, not 2600 twice.
+- **A leading minus is read in context.** In a field that cannot hold a negative (Width, Height, every thickness) `-50` can only sensibly mean "take 50 off", so it is relative. In the four signed fields — Meeting Rail Offset (−600…600), Frame Wall Inset (−50…150), and the per-bar and horizontal glazebar offsets (−500…500) — `-50` stays a literal −50. The UI layer derives this from the control's own minimum; the evaluator never guesses.
+- **Typographic input is folded down.** `×`, `÷`, the real minus sign `−`, en/em dashes, thousands separators and a lone `x` between two numbers (`3x600`) are all accepted, so pasted text and schedule shorthand work.
+- **Up/Down arrows step the field** by the control's own step, ×10 with Shift, clamped to range. This replaces the native stepper that `type="number"` used to provide.
+- **The field widens while focused** (70px → 150px) so a long expression is readable as it is typed; the flex row gives the space back to the slider on blur.
+
+### Bugs Fixed on the Way
+- **Typing anything unreadable used to write `NaN` into the config.** The old handler ran `parseFloat(input.value)` with no finite check, then `Math.max(min, Math.min(max, NaN))` — which is `NaN` — straight into `_config`. Unreadable entries now restore the field's previous value, mark the field red, and put the reason in its tooltip. Nothing is emitted.
+- **Typed widths were clamped to the wrong ceiling in door modes.** The clamp read `config.max` from the descriptor (4000mm for `width_mm`) while the live slider max is widened to 8000mm for sliding/bifold/double sets, so a typed 6000mm bifold width silently snapped back to 4000. The clamp now reads the live DOM attributes and falls back to the descriptor only when they are absent. Same fix on the Interior Door tab, which widens a max in place for an oversized measured opening.
+- **The Interior Door tab fired a control change on every keystroke** with no clamping at all, so a typo could push a value past the control's range. Ordinary typing still updates live, but the value is now resolved and clamped on commit.
+
+### Files Changed
+- `03__AppUtils/Na__AssemblyStudio__AppUtils__ArithmeticEvaluator__.js` **(new)** — `window.Na__Utils__Arithmetic`. Hand-written tokeniser plus recursive-descent parser; no `eval` / `new Function`, so typed text is never executed as code and an unparseable entry returns a clean error rather than throwing. Public API: `na_evaluate`, `na_resolve_field_value`, `na_is_plain_number`, `na_looks_like_expression`, `na_format`, `na_round`.
+- `01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__Controls__.js` — slider entry field `type="number"` → `type="text"`; arithmetic hint in the tooltip on slider and EQ-number fields.
+- `01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__Events__.js` — `na_readLiveRange`, `na_resolveTypedValue`, error marking; slider commit path rewritten; arrow-key stepping; EQ-number field routed through the evaluator.
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js` — the same behaviour for the tab's own imperative slider builder (it does not go through `Na__Ui__Controls`).
+- `03__Style__AppStylesheets/Na__AssemblyStudio__Styles__Combined__.css` — focus widening, `.na-input-error` state.
+- `Na__AssemblyStudio__UiLayout__.html` — evaluator script loads before AppCore.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__ArithmeticEvaluator__Spec__.js` **(new)** — 106-assertion regression suite.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (version 1.5.1)
+
+### How to Test
+Automated first — the suite needs only Node, no install:
+
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__ArithmeticEvaluator__Spec__.js"
+```
+
+It loads the shipped source files unmodified against a minimal DOM stub and covers the grammar, every rejected entry, relative entry, clamping, the shared slider wiring, the EQ-number field and the Interior Door helpers. Expect `106 passed, 0 failed`.
+
+Then in the dialog, after a full SketchUp restart:
+1. Windows tab → Width. Type `1700-50`, Enter → 1650, slider and label follow.
+2. Height showing 2560 → type `+200`, Enter → 2760. Do it again → 2960 (relative entries stack).
+3. Type `2400+(100+100+100+100)` → 2800. Type `2400/3` → 800. Type `(3000-2*95)/3` → 936.667.
+4. Type `1700-` and press Enter → the field goes red, restores 1700, and nothing rebuilds. Start typing again → the red clears.
+5. Focus Width and press Up/Down → steps by 5. Hold Shift → steps by 50. Both stop at the range ends.
+6. Exterior Doors → Double → Active Leaf Width: type `1700/2` → 850. Type `eq` → snaps back to EQ.
+7. Advanced Glazebar Controls → Horizontal Bar 1 Offset (a signed field): type `-50` → literal −50, **not** relative. Confirm the same on Meeting Rail Offset and Frame Wall Inset.
+8. Interior Doors tab → any slider: repeat steps 1–5. Ordinary typing should still update the preview live as you type.
+9. Switch to a MultiFold or Sliding door (width range opens to 8000mm) and type `6000` → it must stick at 6000, not snap to 4000.
+10. Drag a slider, then type `+100` into its field → the nudge must build on the dragged value.
+
+### Backward Compatibility
+- A plain number typed into any field behaves exactly as before. Presets, saved windows and doors, and the Ruby payloads are all untouched — the evaluator lives entirely in the dialog and only ever hands downstream code a finished number.
+- The evaluator is resolved lazily at each use rather than captured at load. If the script ever fails to load, every field falls back to plain-number entry with clamping, and the dialog keeps working.
+
+### Known Limitation
+- The native spinner arrows are gone from the numeric fields — `type="text"` has no stepper. Up/Down (and Shift+Up/Down) do the same job from the keyboard, and the slider sits immediately alongside. Custom stepper buttons could be added if the arrows are missed.
+- Division that does not come out round is rounded to 3 decimal places (`2400/7` → 342.857) and is **not** snapped to the control's step, matching how a typed number has always been treated. The range slider's thumb will sit on the nearest step while the field and the model hold the exact value.
+- Results are clamped to the control's range, so `2400*10` in a 4000mm field lands on 4000 rather than being rejected. The field shows the clamped result, which is the answer that was actually used.
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.5.0 - 26-Aug-2026 - Fixed Panels for Exterior Double + Single Doors
+
+### Context
+Orangeries and conservatories are almost always a long run of equal-width glazed panels where only the centre pair actually opens. Every panel shares the same stiles, rails, fielded bottom panel, glazing bars and finish as the openable doors either side of it — the flanking bays are simply dead joinery. Until now the only way to model that in Assembly Studio was to build every bay as a real exterior double door, which meant each fixed bay came out carrying a handle pair, a ROT hinge marker, an open-state copy and a floor-level swing arc that all had to be deleted by hand. Worse, those fixed bays were named `MOD###__ROT__<deg>-Deg__...` and tagged `:door_closed`, so TrueVision treated them as animatable and hid them the moment the open state was shown.
+
+### Feature Summary
+- **Fixed Panels toggle (exterior double doors)** — `double_door_fixed_panels`, first control in the Double Doors section, default off. When on, the leaves are still built from the identical part set (stiles, rails, midrail, fielded panels, glass, glazing bars, leaded glass, finishes) but every opening artefact is suppressed: **no handles, no ROT rotation-pivot helper, no open-state copy, no swing arc**, in the 3D model, in both 2D previews and in both DXF export paths.
+- **Fixed Panel toggle (exterior single doors)** — `single_door_fixed_panels`, same behaviour under the single-leaf system, for the odd single flanking bay in a run.
+- **Correct animation contract for dead joinery.** A fixed leaf's MOD group takes the existing `MOD###__FIXED__<PanelTag>` naming-contract name (the same form the sliding system already uses for its fixed leaf) instead of `MOD###__ROT__<deg>-Deg__<PanelTag>`, so the TrueVision parser never treats it as animatable. It also moves off `:door_closed` onto the always-visible `:door_panel` tag — a fixed panel must not disappear when the open state is shown.
+- **Swing/hardware controls hide themselves.** With the toggle on, the opening angles, hinge projections, Show 2D Swing Arcs, Create Open-State Copy and the whole Hardware group (pairing, handle asset, height, backset, handle finish) are hidden — they have nothing left to act on.
+- **Two controls deliberately stay visible.** *Swing Direction* still decides which face of the frame the leaf sits against (`na_panel_y_origin_mm`: Inward = near face, Outward = far face), so a fixed panel can be aligned flush with the opening doors beside it. *Active Leaf* + *Active Leaf Width* still set the split between the two panels, which is exactly what an unequal fixed pair needs.
+
+### Files Changed
+- `34__System__ExteriorDoubleDoorSystem/`
+  - `Na__AssemblyStudio__ExtDouble__UiSystem__Config__.js` (`double_door_fixed_panels` toggle, first descriptor)
+  - `Na__AssemblyStudio__ExtDouble__Init__.rb` (new default config key)
+  - `Na__AssemblyStudio__ExtDouble__AssemblyComposer__.rb` (`na_fixed_panels?`; FIXED MOD name + `:door_panel` tag; handle / ROT / open-copy / swing-arc gates)
+  - `Na__AssemblyStudio__ExtDouble__Viewport__PlanGenerator__.js` (closed footprint only — no pivot dot, ghost, arc or handle)
+  - `Na__AssemblyStudio__ExtDouble__Viewport__ElevationGenerator__.js` (no handle)
+  - `Na__AssemblyStudio__ExtDouble__UiSystem__DxfExporter__.js` (`na_fixed_panels`; no handle circle, open outline or arc)
+  - `Na__AssemblyStudio__ExtDouble__DxfExporter__.rb` (`na_fixed_panels?`; same three gates on the Ruby path)
+- `31__System__ExteriorSingleDoorSystem/`
+  - `Na__AssemblyStudio__ExtSingleDoor__UiSystem__Config__.js` (`single_door_fixed_panels` toggle, first descriptor)
+  - `Na__AssemblyStudio__ExtSingleDoor__Init__.rb` (new default config key)
+  - `Na__AssemblyStudio__ExtSingleDoor__AssemblyComposer__.rb` (`na_fixed_panels?`; FIXED MOD name + `:door_panel` tag; handle / ROT / open-copy / swing-arc gates)
+- `20__System__WindowSystem/`
+  - `Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` (`na_setFixedPanelControlVisibility`, `na_updateSingleDoorFixedPanelVisibility`, swing/hardware hide list in `na_updateDoubleDoorSubcontrolVisibility`)
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (version 1.5.0)
+
+### How to Test
+1. Full SketchUp restart (or Reload Scripts + reopen the dialog).
+2. Exterior Doors → Double. **Fixed Panels** should be the first control in the Double Doors section, off by default, and everything below must behave exactly as in V1.4.0.
+3. Turn Fixed Panels on. The opening angles, hinge projections, Show 2D Swing Arcs, Create Open-State Copy and every Hardware control (including Handle Finish) disappear. Active Leaf, Active Leaf Width and Swing Direction stay.
+4. The plan preview drops the red pivot dot, the dashed open-state ghost, the swing arc and the handle — leaving just the two closed footprints. The elevation drops the scroll handles but keeps panels, glazing and bars unchanged.
+5. Create at Cursor. In the outliner the two leaf groups are named `MOD001__FIXED__ExteriorDoubleDoorPanel` / `MOD002__FIXED__...`, there are **no** `ROT###__RotationPoint__...` groups, no rotated open-state copies and no swing-arc groups. The leaves sit on the `Na__DoorPanel` tag, not `Na__Door__Closed`.
+6. Toggle Fixed Panels back off and Update — handles, ROT markers, open copies and swing arcs all return, and the MOD names revert to the `__ROT__<deg>-Deg__` form.
+7. Export DXF with Fixed Panels on — no `NA_DOOR_HARDWARE` circles, and the plan block shows the closed footprint only (no `NA_DOOR_SWING` outline or arc).
+8. Repeat 2–7 on Exterior Doors → Single with the **Fixed Panel** toggle (Swing Side also hides there, since it has no geometric effect on a fixed leaf).
+9. Set Swing Direction to Outward with Fixed Panels on — the fixed leaf must move to the outer face of the frame, matching where an outward-opening leaf would sit.
+10. Build a conservatory run: a fixed double at 1600mm, an opening double at 1600mm, a fixed double at 1600mm, all with the same leaf composition and glazing bars. The three bays should be visually identical apart from the centre pair's handles.
+
+### Backward Compatibility
+- Both keys default to `false`, and the door DataSerializers merge stored configs over the default hash, so every model and preset saved before V1.5.0 loads and rebuilds bit-identically with the full swing/hardware behaviour.
+- The `MOD###__FIXED__<PanelTag>` name and `NA_MOD_NAME_REGEX_FIXED` pattern already existed in the shared DoorNamingContract (used by the sliding system), so no parser change is needed on the TrueVision side.
+- The shared ExtDoorCommon fuse pipeline matches MOD groups on `/^MOD\d{3}/`, so Fuse Parts is unaffected by the renamed groups.
+
+### Known Limitation
+- Fixed Panels is an all-or-nothing switch for the pair — you cannot fix one leaf of a double and leave the other openable. That case is modelled as it would be built: a fixed bay and an opening bay as separate assemblies in the run.
+- With Fixed Panels on, *Active Leaf* is purely a width-split control; the label still reads "Active Leaf" even though nothing opens.
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.4.0 - 12-Aug-2026 - Adjustable Sliding Sash Meeting Rail Position
 
 ### Context

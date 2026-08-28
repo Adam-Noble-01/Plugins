@@ -205,7 +205,7 @@
             ].join('') : '',
 
             '<div class="na-section na-actions-section">',
-            '  <button class="naButton naButtonSecondary' + (state.reverseDirection ? ' naButton--reverseActive' : '') + '" id="naBtnReverseDirection" title="Flip profile direction: rotates 180\u00b0 and flips Z-axis">' + (state.reverseDirection ? '\u21c4 Reversed' : '\u21c4 Reverse') + '</button>',
+            '  <button class="naButton naButtonSecondary' + (state.reverseDirection ? ' naButton--reverseActive' : '') + '" id="naBtnReverseDirection" title="Flip profile direction: rotates 180\u00b0 and flips Z-axis. Hotkey: TAB (works mid-trace)">' + (state.reverseDirection ? '\u21c4 Reversed' : '\u21c4 Reverse') + '</button>',
             '  <button class="naButton naButtonPrimary" id="naBtnGenerate">Generate Profile</button>',
             '</div>'
         ].join('');

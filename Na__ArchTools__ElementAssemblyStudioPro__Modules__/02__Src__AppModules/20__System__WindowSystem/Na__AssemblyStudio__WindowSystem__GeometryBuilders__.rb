@@ -631,7 +631,13 @@ module Na__WindowSystem
         # ------------------------------------------------------------
         # The cill extends from the wall face (not from the inset frame).
         # When frame_wall_inset > 0, the cill still starts at the front of the wall.
-        # 
+        #
+        # A zero projection is legal and gives a flush cill sitting in the
+        # wall face - the slab still has (wall_inset + frame_depth) of depth
+        # behind it. Only a total depth of zero or less is refused, which
+        # needs a zero projection AND a negative inset cancelling the frame
+        # depth; that would be a degenerate solid, not a cill.
+        #
         # @param entities [Sketchup::Entities] Target entities collection
         # @param width [Float] Cill width (matches window width)
         # @param cill_projection [Float] Cill projection from frame
@@ -648,7 +654,8 @@ module Na__WindowSystem
             cill_y = -cill_projection
             cill_z = -cill_height
             cill_depth = cill_projection + wall_inset + frame_depth  # Projects front and extends through inset to back of frame
-            
+            return if cill_depth <= 0                                # Degenerate slab - nothing to build
+
             GeometryHelpers.na_create_cill(entities, cill_x, cill_y, cill_z, width, cill_depth, cill_height, material)
         end
         # ---------------------------------------------------------------

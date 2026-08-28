@@ -68,6 +68,7 @@ module Na__ExteriorDoubleDoorSystem
 
     NA_DEFAULT_DOOR_CONFIG = {
         'double_door_mode'                         => false,
+        'double_door_fixed_panels'                 => false,
         'double_door_active_leaf'                  => 'Left',
         'double_door_active_leaf_width_mm'         => 'EQ',
         'double_door_swing_direction'              => 'Inward',

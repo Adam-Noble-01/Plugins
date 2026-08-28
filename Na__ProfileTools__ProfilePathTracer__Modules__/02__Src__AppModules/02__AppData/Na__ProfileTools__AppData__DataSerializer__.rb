@@ -27,17 +27,22 @@
 #                                   Na__RegenSweep). Written inside the same
 #                                   operation as the geometry it describes, so
 #                                   undo/redo keeps stored + actual in sync.
-#     SchemaVersion        String   "1.1.0"
+#     SchemaVersion        String   "1.2.0"
 #     CreatedAt            String   ISO-8601 timestamp
 #
 #   Helpers sub-group      -> Na__ProfilePathTracer__HelpersInfo
 #     ProfileTraceId       String   Back-reference to the parent assembly id
-#     SchemaVersion        String   "1.1.0"
+#     SchemaVersion        String   "1.2.0"
 #
 # SCHEMA COMPATIBILITY
 #   1.0.0 assemblies (no ReverseDirection / OriginOffset / PathPoints) still
 #   read back cleanly — the added keys default to false / nil / [] so an older
 #   trace regenerates exactly as it did before.
+#   1.2.0 marks assemblies built with the WYSIWYG (mirrored) path frame that
+#   matches the 2D dialog preview. Traces stamped 1.1.0 or earlier were swept
+#   with the legacy right-handed frame; the RegenerationEngine reads this
+#   version and rebuilds them with that legacy frame so regeneration can never
+#   mirror geometry that already stands in a model.
 #
 # PUBLIC API
 #   Na__DataSerializer__StampParent(parent_group, payload_hash)
@@ -66,7 +71,10 @@ module Na__ProfileTools__ProfilePathTracer
 
         NA_PROFILE_TRACE_DICT  = 'Na__ProfilePathTracer__Info'.freeze
         NA_HELPERS_DICT        = 'Na__ProfilePathTracer__HelpersInfo'.freeze
-        NA_SCHEMA_VERSION      = '1.1.0'.freeze
+        # 1.2.0 = swept with the WYSIWYG path frame (matches the 2D dialog).
+        # Earlier versions were swept with the legacy right-handed frame — the
+        # RegenerationEngine keys its frame choice off this stored value.
+        NA_SCHEMA_VERSION      = '1.2.0'.freeze
         NA_ID_PREFIX           = 'NPT'.freeze
         NA_ID_REGEX            = /^NPT\d{4}$/.freeze
         NA_HELPERS_GROUP_NAME  = 'Na__ProfileTrace__Helpers'.freeze

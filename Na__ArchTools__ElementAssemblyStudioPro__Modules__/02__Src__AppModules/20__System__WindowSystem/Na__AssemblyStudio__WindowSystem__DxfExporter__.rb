@@ -322,6 +322,9 @@ module Na__WindowSystem
             bar_width = config["glaze_bar_width_mm"] || 25
             # Advanced Glazebar (Margin + Gothic Arch) options. The values
             # remain in mm here because the DXF stream is mm-based already.
+            # Per-bar nudges are gated on the V1.9.5 Glaze Bar Offsets
+            # toggle (absent key = pre-V1.9.5 config, nudges stay live).
+            glazebar_offsets_enabled = config["glazebar_offsets_enabled"] != false
             advanced_glazebar = {
                 margin_enabled:  config["glazebar_margin_enabled"] == true,
                 margin_offset:   (config["glazebar_margin_offset_mm"] || 0).to_f,
@@ -331,8 +334,8 @@ module Na__WindowSystem
                 arch_height_mm:  (config["glazebar_gothic_arch_height_mm"] || 0).to_f,
                 h_offset:        (config["glazebar_horizontal_offset_mm"] || 0).to_f,                # <-- DxfExporter works in mm so inches/mm collapse to the same value
                 h_offset_mm:     (config["glazebar_horizontal_offset_mm"] || 0).to_f,
-                h_bar_offsets:   (1..(config["horizontal_glaze_bars"] || 0).to_i).map { |i| (config["glazebar_h_offset_#{i}_mm"] || 0).to_f },   # <-- Per-bar vertical nudges (mm)
-                v_bar_offsets:   (1..(config["vertical_glaze_bars"] || 0).to_i).map { |i| (config["glazebar_v_offset_#{i}_mm"] || 0).to_f }      # <-- Per-bar horizontal nudges (mm)
+                h_bar_offsets:   glazebar_offsets_enabled ? (1..(config["horizontal_glaze_bars"] || 0).to_i).map { |i| (config["glazebar_h_offset_#{i}_mm"] || 0).to_f } : [],   # <-- Per-bar vertical nudges (mm)
+                v_bar_offsets:   glazebar_offsets_enabled ? (1..(config["vertical_glaze_bars"] || 0).to_i).map { |i| (config["glazebar_v_offset_#{i}_mm"] || 0).to_f } : []      # <-- Per-bar horizontal nudges (mm)
             }
             has_cill = config["has_cill"] != false
             cill_height = config["cill_height_mm"] || 50

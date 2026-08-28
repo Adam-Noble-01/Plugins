@@ -13,6 +13,13 @@
 #              state copy, swing arc). One-leaf mirror of the double door,
 #              consuming the shared ExtDoorCommon panel/handle/rotation builders.
 #
+# FIXED PANEL MODE:
+# - `single_door_fixed_panels` builds the leaf as dead joinery: the handle,
+#   ROT marker, open-state copy and swing arc are all suppressed, and the MOD
+#   group takes the `MOD###__FIXED__<PanelTag>` contract name on the
+#   always-visible :door_panel tag. Everything else is built exactly as for an
+#   opening door so a fixed panel matches the doors beside it part for part.
+#
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
 #
@@ -107,14 +114,36 @@ module Na__AssemblyComposer
 # REGION | Internal Helpers - Per-Leaf Composition
 # -----------------------------------------------------------------------------
 
+    # HELPER FUNCTION | Fixed-Panel Mode Predicate
+    # ------------------------------------------------------------
+    # Fixed panels are dead joinery: the leaf is still built from the same
+    # stiles, rails, fielded panels and glazing bars as an opening door, but
+    # carries no handle, no ROT hinge marker, no open-state copy and no swing
+    # arc. Mirrors `double_door_fixed_panels` for single flanking panels in an
+    # orangery / conservatory run.
+    def self.na_fixed_panels?(config)
+        GeometryHelpers.na_boolean(config, 'single_door_fixed_panels', false)
+    end
+    private_class_method :na_fixed_panels?
+    # ---------------------------------------------------------------
+
     # HELPER FUNCTION | Compose One Leaf (MOD + Panel + Handle + ROT)
     # ------------------------------------------------------------
     def self.na_compose_leaf(config, parent_entities, leaf, door_id, materials)
+        fixed = na_fixed_panels?(config)
         mod = parent_entities.add_group
-        mod.name = NamingContract.na_format_mod_rot_only(
-            leaf[:index], leaf[:signed_angle_deg], NA_PANEL_TAG
-        )
-        TagManager.na_apply_tag_to_entity(mod, :door_closed)
+        # Fixed leaves take the MOD###__FIXED__<PanelTag> contract name so the
+        # TrueVision parser never treats them as animatable, and sit on the
+        # always-visible :door_panel tag rather than the :door_closed half of
+        # the closed/open pair.
+        mod.name = if fixed
+                       NamingContract.na_format_mod_fixed(leaf[:index], NA_PANEL_TAG)
+                   else
+                       NamingContract.na_format_mod_rot_only(
+                           leaf[:index], leaf[:signed_angle_deg], NA_PANEL_TAG
+                       )
+                   end
+        TagManager.na_apply_tag_to_entity(mod, fixed ? :door_panel : :door_closed)
 
         # @delegate: Na__AssemblyStudio__ExtSingleDoor__PanelLayoutResolver__.rb
         panel_layout = PanelLayoutResolver.na_resolve(config, leaf)
@@ -132,11 +161,13 @@ module Na__AssemblyComposer
         end
 
         # @delegate: Na__AssemblyStudio__ExtSingleDoor__HandleBuilder__.rb
-        HandleBuilder.na_build_leaf_handle(config, mod.entities, leaf, materials[:handle])
+        # Fixed panels carry no ironmongery at all.
+        HandleBuilder.na_build_leaf_handle(config, mod.entities, leaf, materials[:handle]) unless fixed
 
         # MOD and matching ROT are deliberately emitted consecutively.
+        # A fixed leaf has no hinge, so no ROT marker is emitted for it.
         # @delegate: Na__AssemblyStudio__ExtSingleDoor__RotationPivotBuilder__.rb
-        rot = RotationPivotBuilder.na_build(parent_entities, leaf)
+        rot = fixed ? nil : RotationPivotBuilder.na_build(parent_entities, leaf)
         { :leaf => leaf, :panel_layout => panel_layout, :mod => mod, :rot => rot }.freeze
     end
     private_class_method :na_compose_leaf
@@ -311,6 +342,7 @@ module Na__AssemblyComposer
     # HELPER FUNCTION | Build Rotated Open-State Copies of MOD Groups
     # ------------------------------------------------------------
     def self.na_build_open_copies(config, records)
+        return [] if na_fixed_panels?(config)
         return [] unless GeometryHelpers.na_boolean(config, 'single_door_create_open_state_copy', true)
         records.map do |record|
             copy = record[:mod].copy
@@ -326,6 +358,7 @@ module Na__AssemblyComposer
     # HELPER FUNCTION | Build Floor-Level Swing Arc Helper Groups
     # ------------------------------------------------------------
     def self.na_build_swing_groups(config, entities, leaves)
+        return [] if na_fixed_panels?(config)
         return [] unless GeometryHelpers.na_boolean(config, 'single_door_show_swing_arcs', true)
         leaves.map do |leaf|
             group = entities.add_group
@@ -381,7 +414,7 @@ module Na__AssemblyComposer
         return unless dimensions[:frame_bottom_mm] > 0
         height = GeometryHelpers.na_number(config, 'cill_height_mm', 50)
         depth = GeometryHelpers.na_number(config, 'cill_depth_mm', 50)
-        return if height <= 0 || depth <= 0
+        return if height <= 0 || depth < 0                                                          # <-- Zero protrusion is a flush cill, not an absent one
         material = if GeometryHelpers.na_boolean(config, 'paint_cill', false)
                        frame_material
                    else

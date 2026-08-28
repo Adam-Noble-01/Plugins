@@ -346,11 +346,16 @@ body {
     color: var(--na-text-primary);
     font-size: var(--na-font-size-sm);
     text-align: right;
+    transition: width var(--na-transition-fast), border-color var(--na-transition-fast);
 }
 
+/* Numeric fields accept arithmetic ('2400+(100+100+100+100)'), which does not
+   fit in 70px. The field widens while it has focus and the flex row lets the
+   slider give up the space, then both spring back on blur. */
 .na-slider-input:focus {
     outline: none;
     border-color: var(--na-accent-blue);
+    width: 150px;
 }
 
 /* =============================================================================
@@ -479,6 +484,20 @@ body {
 .na-eq-number-input:focus {
     outline      : none;
     border-color : var(--na-accent-blue);
+    width        : 150px;
+}
+
+/* =============================================================================
+   ARITHMETIC ENTRY - UNREADABLE VALUE
+   Every numeric field is a small calculator. When an entry cannot be parsed
+   the field is marked and its previous value is restored, rather than a NaN
+   being written into the configuration.
+   ============================================================================= */
+
+.na-slider-input.na-input-error,
+.na-eq-number-input.na-input-error {
+    border-color : var(--na-accent-red);
+    background   : rgba(244, 67, 54, 0.10);
 }
 
 /* =============================================================================
@@ -797,6 +816,63 @@ body {
 .na-info-input::placeholder {
     color: var(--na-text-muted);
     font-style: italic;
+}
+
+/* Resulting component name preview.
+   The fixed <ID>__<Type>__ head is dimmed and the user's tail is not, so
+   the boundary the field appends at is visible without needing a caption. */
+.na-info-name-preview {
+    display: block;
+    margin-top: 3px;
+    font-family: 'Consolas', 'SF Mono', 'Menlo', monospace;
+    font-size: var(--na-font-size-sm);
+    line-height: 1.3;
+    word-break: break-all;
+}
+
+.na-info-name-preview:empty {
+    display: none;
+}
+
+.na-info-name-preview__fixed {
+    color: var(--na-text-muted);
+}
+
+.na-info-name-preview__tail {
+    color: var(--na-accent-blue);
+    font-weight: 600;
+}
+
+/* =============================================================================
+   APP FOOTER
+   ============================================================================= */
+
+/* Gives the last section of every tab room to breathe. Without it the
+   Window Info block sat flush against the bottom of the dialog and read
+   as a footnote rather than as a section of its own. */
+.na-app-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-top: calc(var(--na-spacing-xl) * 1.5);
+    padding: var(--na-spacing-lg) var(--na-spacing-lg) var(--na-spacing-xl);
+    border-top: 1px solid var(--na-border-color);
+    text-align: center;
+    user-select: none;
+}
+
+.na-app-footer__brand {
+    font-size: var(--na-font-size-sm);
+    font-weight: 600;
+    color: var(--na-text-muted);
+    letter-spacing: 0.4px;
+}
+
+.na-app-footer__copy {
+    font-size: var(--na-font-size-sm);
+    color: var(--na-text-muted);
+    opacity: 0.75;
 }
 
 /* =============================================================================

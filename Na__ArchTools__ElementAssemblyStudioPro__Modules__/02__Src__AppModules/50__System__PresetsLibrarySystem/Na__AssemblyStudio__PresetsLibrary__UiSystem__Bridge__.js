@@ -312,6 +312,14 @@
             merged[key] = values[key];
         });
 
+        // Presets saved before V1.9.5 carry per-bar glaze bar offsets with no
+        // Glaze Bar Offsets toggle. Dropping the defaulted key lets
+        // Na_DynamicUI.na_setConfig derive it from the stored nudges instead
+        // of forcing those presets to render with their offsets ignored.
+        if (typeof values.glazebar_offsets_enabled === 'undefined') {
+            delete merged.glazebar_offsets_enabled;
+        }
+
         Na_DynamicUI.na_setConfig(merged);
         return true;
     }

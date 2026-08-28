@@ -111,12 +111,14 @@ module Na__WindowSystem
         {
             "windowMetadata": [
                 {
-                    "WindowUniqueId"      : null,
-                    "WindowName"          : "New Window",
-                    "WindowDescription"   : "",
-                    "WindowNotes"         : "Created with Element Assembly Studio Pro",
-                    "CreatedDate"         : null,
-                    "LastModified"        : null
+                    "WindowUniqueId"          : null,
+                    "WindowName"              : "New Window",
+                    "WindowDescription"       : "",
+                    "WindowComponentName"     : "",
+                    "WindowComponentBaseName" : "",
+                    "WindowNotes"             : "Created with Element Assembly Studio Pro",
+                    "CreatedDate"             : null,
+                    "LastModified"            : null
                 }
             ],
 
@@ -174,6 +176,7 @@ module Na__WindowSystem
                 "glazebar_gothic_arch_height_mm"        : 400,
                 "glazebar_horizontal_offset_mm"         : 0,
 
+                "glazebar_offsets_enabled"              : false,
                 "glazebar_h_offset_1_mm"                : 0,
                 "glazebar_h_offset_2_mm"                : 0,
                 "glazebar_h_offset_3_mm"                : 0,

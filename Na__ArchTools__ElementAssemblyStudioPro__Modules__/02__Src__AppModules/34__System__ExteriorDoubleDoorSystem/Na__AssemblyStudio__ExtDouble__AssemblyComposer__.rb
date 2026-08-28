@@ -59,12 +59,33 @@ module Na__AssemblyComposer
         }.freeze
     end
 
+    # HELPER FUNCTION | Fixed-Panel Mode Predicate
+    # ------------------------------------------------------------
+    # Fixed panels are dead joinery: the leaves are still built from the same
+    # stiles, rails, fielded panels and glazing bars as an opening pair, but
+    # they carry no handles, no ROT hinge marker, no open-state copy and no
+    # swing arc. Used for orangery / conservatory runs where a long framework
+    # of equal panels flanks a single openable centre pair.
+    def self.na_fixed_panels?(config)
+        GeometryHelpers.na_boolean(config, 'double_door_fixed_panels', false)
+    end
+    private_class_method :na_fixed_panels?
+
     def self.na_compose_leaf(config, parent_entities, leaf, door_id, materials)
+        fixed = na_fixed_panels?(config)
         mod = parent_entities.add_group
-        mod.name = NamingContract.na_format_mod_rot_only(
-            leaf[:index], leaf[:signed_angle_deg], NA_PANEL_TAG
-        )
-        TagManager.na_apply_tag_to_entity(mod, :door_closed)
+        # Fixed leaves take the MOD###__FIXED__<PanelTag> contract name so the
+        # TrueVision parser never treats them as animatable, and sit on the
+        # always-visible :door_panel tag rather than the :door_closed half of
+        # the closed/open pair.
+        mod.name = if fixed
+                       NamingContract.na_format_mod_fixed(leaf[:index], NA_PANEL_TAG)
+                   else
+                       NamingContract.na_format_mod_rot_only(
+                           leaf[:index], leaf[:signed_angle_deg], NA_PANEL_TAG
+                       )
+                   end
+        TagManager.na_apply_tag_to_entity(mod, fixed ? :door_panel : :door_closed)
 
         # @delegate: Na__AssemblyStudio__ExtDouble__PanelLayoutResolver__.rb
         panel_layout = PanelLayoutResolver.na_resolve(config, leaf)
@@ -85,14 +106,18 @@ module Na__AssemblyComposer
 
         # @delegate: Na__AssemblyStudio__ExtDouble__HandleBuilder__.rb
         # Paired (default) => handle pair on both leaves; Single => active leaf only.
-        paired = (config['double_door_handle_pairing'] || 'Paired').to_s.casecmp('Paired').zero?
-        if paired || leaf[:is_active]
-            HandleBuilder.na_build_leaf_handle(config, mod.entities, leaf, materials[:handle])
+        # Fixed panels carry no ironmongery at all.
+        unless fixed
+            paired = (config['double_door_handle_pairing'] || 'Paired').to_s.casecmp('Paired').zero?
+            if paired || leaf[:is_active]
+                HandleBuilder.na_build_leaf_handle(config, mod.entities, leaf, materials[:handle])
+            end
         end
 
         # MOD and matching ROT are deliberately emitted consecutively.
+        # A fixed leaf has no hinge, so no ROT marker is emitted for it.
         # @delegate: Na__AssemblyStudio__ExtDouble__RotationPivotBuilder__.rb
-        rot = RotationPivotBuilder.na_build(parent_entities, leaf)
+        rot = fixed ? nil : RotationPivotBuilder.na_build(parent_entities, leaf)
         { :leaf => leaf, :panel_layout => panel_layout, :mod => mod, :rot => rot }.freeze
     end
     private_class_method :na_compose_leaf
@@ -251,6 +276,7 @@ module Na__AssemblyComposer
     private_class_method :na_glazebar_key
 
     def self.na_build_open_copies(config, records)
+        return [] if na_fixed_panels?(config)
         return [] unless GeometryHelpers.na_boolean(config, 'double_door_create_open_state_copy', true)
         records.map do |record|
             copy = record[:mod].copy
@@ -263,6 +289,7 @@ module Na__AssemblyComposer
     private_class_method :na_build_open_copies
 
     def self.na_build_swing_groups(config, entities, leaves)
+        return [] if na_fixed_panels?(config)
         return [] unless GeometryHelpers.na_boolean(config, 'double_door_show_swing_arcs', true)
         leaves.map do |leaf|
             group = entities.add_group
@@ -306,7 +333,7 @@ module Na__AssemblyComposer
         return unless dimensions[:frame_bottom_mm] > 0
         height = GeometryHelpers.na_number(config, 'cill_height_mm', 50)
         depth = GeometryHelpers.na_number(config, 'cill_depth_mm', 50)
-        return if height <= 0 || depth <= 0
+        return if height <= 0 || depth < 0                                                          # <-- Zero protrusion is a flush cill, not an absent one
         material = if GeometryHelpers.na_boolean(config, 'paint_cill', false)
                        frame_material
                    else

@@ -33,6 +33,15 @@ let na_loadedMetadata           = null;                              // Cached m
 let na_placementModeActive      = false;                             // True while the SketchUp placement tool is active
 let na_hasPendingMeasurement    = false;                             // True between na_receiveMeasurement and the next create/cancel
 
+// Module Variables | Component Name Tail (V1.5.2)
+// ------------------------------------------------------------
+// The Component Name field appends a user-authored tail to the FIXED
+// `<ID>__<TypeTag>__` head that TrueVision / ValeVision parse. Ruby
+// sends the head down as WindowComponentBaseName; JS only ever reads it.
+let na_componentNameBase        = '';                                // Read-only fixed head, e.g. "AWN019__Window__"
+let na_componentNameCommitted   = '';                                // Last tail Ruby confirmed - guards no-op renames
+let na_componentNameTimer       = null;                              // Debounce timer for the rename callback
+
 // endregion ===================================================================
 
 // =============================================================================
@@ -42,6 +51,14 @@ let na_hasPendingMeasurement    = false;                             // True bet
 // CONSTANTS | Live Update Timing
 // ------------------------------------------------------------
 const NA_LIVE_UPDATE_DEBOUNCE_MS = 200;                              // 200ms debounce - covers the heavier Gothic Arch rebuild without feeling laggy on direct edits
+
+// CONSTANTS | Component Name Timing
+// ------------------------------------------------------------
+// Longer than the live-update debounce because this fires on typed
+// prose rather than a dragged slider - 600ms is roughly the pause
+// between words, so a name is renamed once rather than per keystroke.
+// Enter and blur both bypass it and commit immediately.
+const NA_COMPONENT_NAME_DEBOUNCE_MS = 600;
 
 // endregion ===================================================================
 
@@ -131,6 +148,8 @@ window.na_clearCurrentWindow = function() {
 
     const descInput = document.getElementById('na-info-description');         // <-- v0.11.6 Drop the previous window's description
     if (descInput) descInput.value = '';
+
+    na_applyComponentNameFromMetadata(null);                                  // <-- v1.5.2 Drop the previous window's component name + preview
 
     na_toggleEditMode(false);
     na_setPendingMeasurementAvailable(false);                                 // <-- Defensive: a deselect should never leave a stale measurement enabled
@@ -605,16 +624,18 @@ function na_isLiveModeEnabled() {
 function na_buildFullConfig() {
     const uiConfig = Na_DynamicUI.na_getConfig();
     
-    // Get description suffix from the text input
+    // Description is free-text notes only - it never reaches the component name.
     const descInput = document.getElementById('na-info-description');
     const description = descInput ? descInput.value.trim() : '';
-    
+
     return {
         windowMetadata: [
             {
                 WindowUniqueId: na_currentWindowId,
                 WindowName: na_loadedMetadata ? na_loadedMetadata.WindowName : "Na Window",
                 WindowDescription: description,
+                WindowComponentName: na_readComponentName(),
+                WindowComponentBaseName: na_componentNameBase,
                 WindowNotes: na_loadedMetadata ? na_loadedMetadata.WindowNotes : "Created with Element Assembly Studio Pro",
                 CreatedDate: na_loadedMetadata ? na_loadedMetadata.CreatedDate : null,
                 LastModified: na_loadedMetadata ? na_loadedMetadata.LastModified : null
@@ -658,13 +679,191 @@ function na_updateWindowInfo(metadata) {
     const descInput = document.getElementById('na-info-description');
     const createdElem = document.getElementById('na-info-created');
     const modifiedElem = document.getElementById('na-info-modified');
-    
+
     if (idElem) idElem.textContent = metadata.WindowUniqueId || '-';
     if (descInput) descInput.value = metadata.WindowDescription || '';
     if (createdElem) createdElem.textContent = metadata.CreatedDate || '-';
     if (modifiedElem) modifiedElem.textContent = metadata.LastModified || '-';
+
+    na_applyComponentNameFromMetadata(metadata);
 }
 // ---------------------------------------------------------------
+
+// endregion ===================================================================
+
+// =============================================================================
+// REGION | Component Name Tail (V1.5.2)
+// =============================================================================
+//
+// The SketchUp component is named `<base><tail>`:
+//
+//     AWN019__Window__          <- base, fixed, machine-read downstream
+//     GroundFloor__BayWindow    <- tail, free text, Outliner grouping only
+//
+// Nothing here ever composes or edits the base. Ruby owns it, sends it
+// down as WindowComponentBaseName, and re-derives the whole name itself
+// from the ID on every write.
+//
+// The Description field above is unrelated to the name - it is plain
+// notes, saved to the dictionary on Create / Update like any other
+// metadata.
+
+// HELPER FUNCTION | Resolve the Component Name Input Element
+// ------------------------------------------------------------
+function na_getComponentNameInput() {
+    return document.getElementById('na-info-component-name');
+}
+// ---------------------------------------------------------------
+
+// HELPER FUNCTION | Read the Tail Currently Typed Into the Field
+// ------------------------------------------------------------
+function na_readComponentName() {
+    const input = na_getComponentNameInput();
+    return input ? input.value.trim() : '';
+}
+// ---------------------------------------------------------------
+
+// FUNCTION | Repaint the "Resulting Component Name" Preview Line
+// ------------------------------------------------------------
+// Shows the fixed head and the typed tail as one string so it is
+// obvious which part of the name the field is actually appending to.
+function na_updateComponentNamePreview() {
+    const preview = document.getElementById('na-info-component-name-preview');
+    if (!preview) return;
+
+    if (!na_componentNameBase) {
+        preview.textContent = '';
+        return;
+    }
+
+    const head = document.createElement('span');
+    head.className = 'na-info-name-preview__fixed';
+    head.textContent = na_componentNameBase;
+
+    const tail = document.createElement('span');
+    tail.className = 'na-info-name-preview__tail';
+    tail.textContent = na_readComponentName();
+
+    preview.textContent = '';
+    preview.appendChild(head);
+    preview.appendChild(tail);
+}
+// ---------------------------------------------------------------
+
+// HELPER FUNCTION | Load the Field + Preview From an Inbound Metadata Block
+// ------------------------------------------------------------
+function na_applyComponentNameFromMetadata(metadata) {
+    na_clearComponentNameTimer();
+
+    na_componentNameBase      = (metadata && metadata.WindowComponentBaseName) || '';
+    na_componentNameCommitted = (metadata && metadata.WindowComponentName) || '';
+
+    const input = na_getComponentNameInput();
+    if (input) input.value = na_componentNameCommitted;
+
+    na_updateComponentNamePreview();
+}
+// ---------------------------------------------------------------
+
+// HELPER FUNCTION | Cancel Any Pending Debounced Rename
+// ------------------------------------------------------------
+function na_clearComponentNameTimer() {
+    if (na_componentNameTimer) {
+        clearTimeout(na_componentNameTimer);
+        na_componentNameTimer = null;
+    }
+}
+// ---------------------------------------------------------------
+
+// FUNCTION | Schedule a Debounced Rename While the User Types
+// ------------------------------------------------------------
+function na_scheduleComponentNameCommit() {
+    na_clearComponentNameTimer();
+    na_componentNameTimer = setTimeout(function () {
+        na_componentNameTimer = null;
+        na_commitComponentName();
+    }, NA_COMPONENT_NAME_DEBOUNCE_MS);
+}
+// ---------------------------------------------------------------
+
+// FUNCTION | Send the Typed Tail to Ruby for a Rename-Only Round Trip
+// ------------------------------------------------------------
+// Deliberately NOT routed through the live-update pipeline: a rename
+// needs no geometry rebuild, so it stays cheap enough to fire on a
+// keystroke pause even with Live Mode off.
+function na_commitComponentName() {
+    na_clearComponentNameTimer();
+
+    if (!na_isEditMode || !na_currentWindowId) return;                // <-- Nothing in the model to rename yet
+
+    const tail = na_readComponentName();
+    if (tail === na_componentNameCommitted) return;                   // <-- No change since the last confirmed write
+
+    if (typeof sketchup === 'undefined' || typeof sketchup.na_setComponentName !== 'function') {
+        console.log('[NA_BRIDGE] SketchUp not available for rename. Tail:', tail);
+        return;
+    }
+
+    na_componentNameCommitted = tail;                                 // <-- Optimistic; Ruby echoes the sanitised value back
+    sketchup.na_setComponentName(JSON.stringify({
+        componentName: tail,
+        itemId:        na_currentWindowId
+    }));
+}
+// ---------------------------------------------------------------
+
+// FUNCTION | Ruby -> JS - Receive the Name That Actually Landed
+// ------------------------------------------------------------
+// Ruby strips characters SketchUp cannot carry, so the field is
+// rewritten with what the component is really called rather than
+// leaving the user looking at text that was silently discarded.
+window.na_receiveComponentName = function (payloadJson) {
+    try {
+        const payload = JSON.parse(payloadJson);
+        na_componentNameCommitted = payload.componentName || '';
+
+        const input = na_getComponentNameInput();
+        if (input && input.value !== na_componentNameCommitted) {
+            input.value = na_componentNameCommitted;
+        }
+
+        na_updateComponentNamePreview();
+    } catch (e) {
+        console.error('[NA_BRIDGE] Error parsing component name payload:', e);
+    }
+};
+// ---------------------------------------------------------------
+
+// FUNCTION | Bind the Component Name Field's Commit Triggers
+// ------------------------------------------------------------
+// Three ways to commit, matching how the field is actually used:
+//   typing -> debounced,  Enter -> immediate,  leaving -> immediate.
+function na_bindComponentNameField() {
+    const input = na_getComponentNameInput();
+    if (!input) return;
+
+    input.addEventListener('input', function () {
+        na_updateComponentNamePreview();
+        na_scheduleComponentNameCommit();
+    });
+
+    input.addEventListener('keydown', function (evt) {
+        if (evt.key !== 'Enter') return;
+        evt.preventDefault();                                          // <-- Stop the dialog treating Enter as a form submit
+        na_commitComponentName();
+    });
+
+    input.addEventListener('blur', function () {
+        na_commitComponentName();
+    });
+}
+// ---------------------------------------------------------------
+
+// endregion ===================================================================
+
+// =============================================================================
+// REGION | Helper Functions (continued)
+// =============================================================================
 
 // FUNCTION | Fallback DXF Download (When Not in SketchUp)
 // ------------------------------------------------------------
@@ -702,6 +901,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // sets `disabled` but the CSS-class state is owned by JS, so we
     // sync them here once the DOM exists.
     na_setPendingMeasurementAvailable(false);
+
+    na_bindComponentNameField();
 
     na_requestSashHornAssets();
 });

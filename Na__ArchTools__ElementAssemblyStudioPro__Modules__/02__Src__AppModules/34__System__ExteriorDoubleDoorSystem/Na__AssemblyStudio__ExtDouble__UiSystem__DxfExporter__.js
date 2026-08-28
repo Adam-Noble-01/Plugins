@@ -93,6 +93,16 @@ const Na__ExtDouble__DxfExporter = (function () {
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | Fixed-Panel Mode Predicate
+    // ------------------------------------------------------------
+    // Fixed panels export as dead joinery - no handle circle, no open-state
+    // outline and no swing arc.
+    function na_fixed_panels(config) {
+        const raw = (config || {}).double_door_fixed_panels;
+        return raw === true || String(raw).toLowerCase() === 'true';
+    }
+    // ---------------------------------------------------------------
+
     // HELPER FUNCTION | Rotate a Point Around a Pivot by Angle (deg)
     // ------------------------------------------------------------
     function na_rotate(point, pivot, angleDeg) {
@@ -311,7 +321,7 @@ const Na__ExtDouble__DxfExporter = (function () {
             dxf += na_add_leaf_glazebars(config, leaf, glass, lift);
         }
 
-        if (leaf.isActive) {
+        if (leaf.isActive && !na_fixed_panels(config)) {
             const backset = Number(config.double_door_handle_backset_mm || 40);
             const handleX = leaf.side === 'left'
                 ? leaf.originXMm + leaf.widthMm - backset
@@ -344,6 +354,10 @@ const Na__ExtDouble__DxfExporter = (function () {
             leaf.widthMm,
             leaf.thicknessMm
         );
+        // Fixed panels export the closed footprint only - no open-state
+        // outline and no swing arc.
+        if (na_fixed_panels(config)) return dxf;
+
         const corners = [
             { x: leaf.originXMm, y: leaf.originYMm },
             { x: leaf.originXMm + leaf.widthMm, y: leaf.originYMm },

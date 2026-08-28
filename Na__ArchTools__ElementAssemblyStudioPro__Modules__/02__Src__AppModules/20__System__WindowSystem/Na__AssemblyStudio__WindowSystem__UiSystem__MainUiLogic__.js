@@ -562,6 +562,47 @@ const Na_DynamicUI = (function() {
     function na_updateSingleDoorSubcontrolVisibility() {
         if (_config.ext_single_door_mode !== true) return;
         na_updateSharedFieldedPanelVisibility('single_door', true);
+        na_updateSingleDoorFixedPanelVisibility();
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Show/Hide One Control, Respecting Empty Material Cards
+    // ------------------------------------------------------------
+    // Material-card controls render as a hidden placeholder until Ruby pushes
+    // live swatches (controls.js emits `na-material-cards-empty` with
+    // display:none). Revealing that placeholder would show a bare label with no
+    // cards under it, so a control still carrying that class is never un-hidden.
+    function na_setFixedPanelControlVisibility(controlId, visible) {
+        const control = document.querySelector(`[data-control-id="${controlId}"]`);
+        if (!control) return;
+        if (visible && control.classList.contains('na-material-cards-empty')) return;
+        control.style.display = visible ? '' : 'none';
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Hide Swing + Hardware Controls for a Fixed Single Panel
+    // ------------------------------------------------------------
+    // `single_door_fixed_panels` builds the leaf as dead joinery, so the hinge,
+    // swing-output and ironmongery controls have nothing to act on. Swing
+    // Direction deliberately stays visible: it still decides which face of the
+    // frame the leaf sits against, so a fixed panel can line up with the
+    // opening doors beside it in an orangery run.
+    function na_updateSingleDoorFixedPanelVisibility() {
+        const fixedPanel = _config.single_door_fixed_panels === true;
+        const swingAndHardwareIds = [
+            'single_door_swing_side',
+            'single_door_opening_angle_deg',
+            'single_door_hinge_projection_mm',
+            'single_door_show_swing_arcs',
+            'single_door_create_open_state_copy',
+            'single_door_handle_asset_key',
+            'single_door_handle_height_mm',
+            'single_door_handle_backset_mm',
+            'single_door_handle_material_id'
+        ];
+        swingAndHardwareIds.forEach(controlId =>
+            na_setFixedPanelControlVisibility(controlId, !fixedPanel)
+        );
     }
     // ---------------------------------------------------------------
 
@@ -660,6 +701,30 @@ const Na_DynamicUI = (function() {
             const control = document.querySelector(`[data-control-id="${controlId}"]`);
             if (control) control.style.display = visible ? '' : 'none';
         }
+
+        // Fixed Panels builds the pair as dead joinery, so every hinge, swing-
+        // output and ironmongery control has nothing to act on. Two controls
+        // deliberately stay visible: Swing Direction still decides which face of
+        // the frame the leaves sit against (so fixed panels line up with the
+        // opening pair beside them), and Active Leaf + Active Leaf Width still
+        // set the split between the two panels.
+        const fixedPanels = _config.double_door_fixed_panels === true;
+        const swingAndHardwareIds = [
+            'double_door_left_opening_angle_deg',
+            'double_door_right_opening_angle_deg',
+            'double_door_left_hinge_projection_mm',
+            'double_door_right_hinge_projection_mm',
+            'double_door_show_swing_arcs',
+            'double_door_create_open_state_copy',
+            'double_door_handle_pairing',
+            'double_door_handle_asset_key',
+            'double_door_handle_height_mm',
+            'double_door_handle_backset_mm',
+            'double_door_handle_material_id'
+        ];
+        swingAndHardwareIds.forEach(id =>
+            na_setFixedPanelControlVisibility(id, isDoubleDoorMode && !fixedPanels)
+        );
 
         const sharedFieldIds = [
             'double_door_panel_output_mode',
@@ -972,13 +1037,17 @@ const Na_DynamicUI = (function() {
     // ------------------------------------------------------------
     // Transom-style static pool: one offset slider per possible glaze
     // bar (glazebar_h_offset_N_mm / glazebar_v_offset_N_mm, N = 1..8).
-    // Only the sliders for bars that currently exist are shown, so the
-    // GLAZE BARS section stays uncluttered until offsets are relevant.
-    // Hidden sliders keep their values, so restoring a bar count also
-    // restores its nudges.
+    // The pool now lives inside Advanced Glazebar Controls (V1.9.5), so
+    // a slider needs BOTH gates open to show: the Glaze Bar Offsets
+    // toggle is on, AND that bar actually exists. Per-bar nudging is a
+    // rare detail job and sixteen sliders swamped the main GLAZE BARS
+    // section when it sat there.
+    // Hidden sliders keep their values, so restoring a bar count - or
+    // switching the toggle back on - also restores its nudges.
     function na_updateGlazebarOffsetVisibility() {
-        const hBarCount = Math.max(0, Math.min(8, Math.round(Number(_config.horizontal_glaze_bars || 0))));
-        const vBarCount = Math.max(0, Math.min(8, Math.round(Number(_config.vertical_glaze_bars || 0))));
+        const offsetsEnabled = _config.glazebar_offsets_enabled === true;
+        const hBarCount = offsetsEnabled ? Math.max(0, Math.min(8, Math.round(Number(_config.horizontal_glaze_bars || 0)))) : 0;
+        const vBarCount = offsetsEnabled ? Math.max(0, Math.min(8, Math.round(Number(_config.vertical_glaze_bars || 0)))) : 0;
 
         for (let barIndex = 1; barIndex <= 8; barIndex++) {
             const hCtrl = document.querySelector(`[data-control-id="glazebar_h_offset_${barIndex}_mm"]`);
@@ -1819,6 +1888,7 @@ const Na_DynamicUI = (function() {
     // FUNCTION | Set Configuration
     // ------------------------------------------------------------
     function na_setConfig(newConfig) {
+        na_hydrateGlazebarOffsetsEnabled(newConfig);
         _config = { ..._config, ...newConfig };
         na_migrateLegacyLeadedColour(_config);
         na_syncBifoldGlazedFromComposition(_config);
@@ -1832,6 +1902,28 @@ const Na_DynamicUI = (function() {
         
         // Trigger render
         na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Derive glazebar_offsets_enabled For Pre-V1.9.5 Configs
+    // ------------------------------------------------------------
+    // The Glaze Bar Offsets toggle did not exist before V1.9.5, so a
+    // component or preset saved back then carries per-bar nudges with no
+    // toggle key. Turning the toggle on for those keeps their glazing
+    // pattern intact and makes the sliders visible where the values are.
+    // Only fires when the key is genuinely absent - an explicit false
+    // from a newer save is the user's own choice and is left alone.
+    function na_hydrateGlazebarOffsetsEnabled(cfg) {
+        if (!cfg || typeof cfg !== 'object') return;
+        if (typeof cfg.glazebar_offsets_enabled !== 'undefined') return;
+
+        let hasNudge = false;
+        for (let barIndex = 1; barIndex <= 8 && !hasNudge; barIndex++) {
+            const hValue = Number(cfg[`glazebar_h_offset_${barIndex}_mm`]);
+            const vValue = Number(cfg[`glazebar_v_offset_${barIndex}_mm`]);
+            hasNudge = (!isNaN(hValue) && hValue !== 0) || (!isNaN(vValue) && vValue !== 0);
+        }
+        cfg.glazebar_offsets_enabled = hasNudge;
     }
     // ---------------------------------------------------------------
 

@@ -49,6 +49,11 @@
     ];
 
     var na_controls = [
+        // Fixed Panel turns the leaf into dead joinery - no handle, no ROT
+        // hinge marker, no open-state copy, no swing arc. Mirrors the exterior
+        // double door's Fixed Panels toggle so a single flanking panel in an
+        // orangery run is built from the same door parts without hardware.
+        na_checkbox('single_door_fixed_panels', 'Fixed Panel', false, 'Opening'),
         Object.assign(na_select('single_door_swing_side', 'Swing Side', 'Left', [
             { value: 'Left', label: 'Left' }, { value: 'Right', label: 'Right' }
         ], 'Opening'), { type: 'binary_toggle' }),

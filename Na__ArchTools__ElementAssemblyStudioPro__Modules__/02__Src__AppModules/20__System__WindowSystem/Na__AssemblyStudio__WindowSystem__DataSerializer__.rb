@@ -39,6 +39,7 @@
 require 'json'
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
+require_relative '../04__GeometryHelpers/Na__AssemblyStudio__ComponentNameSuffix__'
 
 module Na__AssemblyStudio
 module Na__WindowSystem
@@ -51,6 +52,12 @@ module Na__WindowSystem
         # MODULE REFERENCE | Link to Debug Tools
         # ------------------------------------------------------------
         DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        # ---------------------------------------------------------------
+
+        # MODULE REFERENCE | Shared Component-Name Suffix Authority
+        # ------------------------------------------------------------
+        # @delegate: ../04__GeometryHelpers/Na__AssemblyStudio__ComponentNameSuffix__.rb
+        ComponentNameSuffix = Na__AssemblyStudio::Na__GeometryHelpers::Na__ComponentNameSuffix
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -72,6 +79,15 @@ module Na__WindowSystem
         NA_WINDOW_ID_KEY         = "WindowID".freeze                    # Key for storing WindowID string
         NA_SKETCHUP_INSTANCE_KEY = "SketchUpInstanceName".freeze        # Key for SketchUp instance name
         NA_SKETCHUP_DEF_KEY      = "SketchUpDefinitionName".freeze      # Key for SketchUp definition name
+        NA_COMPONENT_NAME_KEY    = "ComponentName".freeze               # Key for the user-authored name tail (never parsed downstream)
+        # ---------------------------------------------------------------
+
+        # CONSTANT | Fixed Definition-Name Head
+        # ------------------------------------------------------------
+        # `AWN019` + this = the machine-read half of every window name.
+        # TrueVision / ValeVision match on it, so its value is frozen.
+        # ------------------------------------------------------------
+        NA_DEFINITION_NAME_SUFFIX = "__Window__".freeze
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -141,7 +157,7 @@ module Na__WindowSystem
             
             # Priority 2 (Fallback): Try to find by component definition name pattern
             model.definitions.each do |definition_item|
-                if definition_item.name.start_with?("#{window_id}__Window__")
+                if definition_item.name.start_with?(na_window_definition_prefix(window_id))
                     DebugTools.na_debug_serializer("Found definition by name pattern: '#{definition_item.name}'")
                     return definition_item
                 end
@@ -423,28 +439,55 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Build the Fixed Head of a Window's Component Name
+        # ------------------------------------------------------------
+        # `AWN019__Window__`. Everything downstream (TrueVision,
+        # ValeVision, the definition-name fallback lookup above) matches
+        # on this head, so it is composed in exactly one place.
+        def self.na_window_definition_prefix(window_id)
+            "#{window_id}#{NA_DEFINITION_NAME_SUFFIX}"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Read the User-Authored Name Tail Off an Instance
+        # ------------------------------------------------------------
+        # Returns "" for an unnamed window. Read from the live component
+        # name rather than the dictionary so a hand-rename in the
+        # Outliner is reported honestly back to the dialog.
+        def self.na_get_component_name_from_instance(instance)
+            window_id = na_get_window_id_from_instance(instance)
+            return "" unless window_id
+            ComponentNameSuffix.na_current_suffix(instance, na_window_definition_prefix(window_id))
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Set Window ID on Component Instance
         # ------------------------------------------------------------
-        # @param instance [Sketchup::ComponentInstance] The component instance
-        # @param window_id [String] The window ID (e.g., "AWN001")
-        # @param description [String, nil] Optional description suffix (e.g., "GroundFloor__Lounge")
-        def self.na_set_window_id_on_instance(instance, window_id, description = nil)
+        # Names the component `<WindowID>__Window__<ComponentName>`. The
+        # head is fixed; only the optional tail comes from the user.
+        #
+        # @param instance       [Sketchup::ComponentInstance] The component instance
+        # @param window_id      [String] The window ID (e.g., "AWN001")
+        # @param component_name [String, Symbol] User-authored name tail
+        #     (e.g. "GroundFloor__BayWindow"). Defaults to NA_KEEP, which
+        #     preserves whatever tail the component already carries - every
+        #     rebuild path relies on that so an Update never un-names a
+        #     component the user has already labelled.
+        def self.na_set_window_id_on_instance(instance, window_id, component_name = ComponentNameSuffix::NA_KEEP)
             return false unless instance.is_a?(Sketchup::ComponentInstance)
             return false unless na_valid_window_id?(window_id)
-            
-            # Build the full component name: AWN001__Window__ or AWN001__Window__Description
-            full_name = "#{window_id}__Window__"
-            full_name += description if description && !description.strip.empty?
-            
-            # Set instance name and definition name to the same unique name
-            instance.name = full_name
-            instance.definition.name = full_name
-            
+
+            base_prefix = na_window_definition_prefix(window_id)
+            full_name   = ComponentNameSuffix.na_apply(instance, base_prefix, component_name)
+            return false unless full_name
+
             # Store window ID and names in attribute dictionary
             instance.set_attribute(NA_WINDOW_INFO_DICT, NA_WINDOW_ID_KEY, window_id)
             instance.set_attribute(NA_WINDOW_INFO_DICT, NA_SKETCHUP_INSTANCE_KEY, instance.name)
             instance.set_attribute(NA_WINDOW_INFO_DICT, NA_SKETCHUP_DEF_KEY, instance.definition.name)
-            
+            instance.set_attribute(NA_WINDOW_INFO_DICT, NA_COMPONENT_NAME_KEY,
+                                   ComponentNameSuffix.na_extract(full_name, base_prefix))
+
             DebugTools.na_debug_serializer("Set WindowID '#{window_id}' on instance '#{instance.name}'")
             return true
         end

@@ -25,6 +25,9 @@
         // use the profile's own origin. Set by picking a vertex in the 2D preview.
         originOffset: null,
         isInsertPointPickActive: false,
+        // Mirrors the running Na__PathSelectionTool. Only true while a trace is
+        // live, which is the only time TAB is ours to take from focus traversal.
+        isInteractiveToolActive: false,
         previewSourcePoints: [],
         toggleDefinitions: {},
         toggleStates: {},
@@ -181,6 +184,23 @@
         Na__UiState.isInsertPointPickActive = false;
     }
 
+    // Single funnel for the three sources of a Reverse change: the button, the
+    // TAB hotkey handled here, and TAB handled by the tool in the viewport.
+    // shouldNotifyRuby is false for the last one, which is where the change came
+    // from — pushing it back would bounce it straight to the tool again.
+    function Na__Ui__SetReverseDirection(nextReverse, shouldNotifyRuby) {
+        var resolvedReverse = nextReverse === true;
+        if (resolvedReverse === Na__UiState.reverseDirection) return;
+
+        Na__UiState.reverseDirection = resolvedReverse;
+        Na__Ui__Render();
+        Na__Ui__RenderProfilePreview();
+
+        if (shouldNotifyRuby && window.Na__ProfilePathTracer__Bridge__SetReverseDirection) {
+            window.Na__ProfilePathTracer__Bridge__SetReverseDirection(resolvedReverse);
+        }
+    }
+
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
@@ -250,9 +270,7 @@
             Na__Ui__SetStatus('Toggle: ' + toggleKey + ' = ' + (isEnabled ? 'ON' : 'OFF'));
         },
         Na__Events__OnReverseDirectionToggle: function() {
-            Na__UiState.reverseDirection = !Na__UiState.reverseDirection;
-            Na__Ui__Render();
-            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetReverseDirection(!Na__UiState.reverseDirection, true);
             Na__Ui__SetStatus('Reverse direction: ' + (Na__UiState.reverseDirection ? 'ON' : 'OFF'));
         },
         Na__Events__OnGenerate: function() {
@@ -458,6 +476,22 @@
         if (result.statusMessage) { Na__Ui__SetStatus(result.statusMessage); }
     }
 
+    // TAB was pressed in the viewport — repaint the button to match the preview.
+    function Na__ProfilePathTracer__ReceiveReverseDirectionState(payload) {
+        if (!payload || typeof payload !== 'object') return;
+
+        Na__Ui__SetReverseDirection(payload.reverseDirection === true, false);
+        Na__Ui__SetStatus('Reverse direction: ' + (Na__UiState.reverseDirection ? 'ON' : 'OFF') + ' — flipped with TAB.');
+    }
+
+    // Sent when the interactive tool activates and again when it deactivates.
+    function Na__ProfilePathTracer__ReceiveInteractiveToolState(payload) {
+        if (!payload || typeof payload !== 'object') return;
+
+        Na__UiState.isInteractiveToolActive = payload.isInteractiveToolActive === true;
+        Na__Ui__SetReverseDirection(payload.reverseDirection === true, false);
+    }
+
     function Na__ProfilePathTracer__ReceiveEdgeMaterialsStatus(result) {
         if (!result || typeof result !== 'object') return;
         Na__UiState.edgeMaterialsStatus = result.loadStatus || 'pending';
@@ -475,6 +509,8 @@
     window.Na__ProfilePathTracer__ReceiveGenerateResult     = Na__ProfilePathTracer__ReceiveGenerateResult;
     window.Na__ProfilePathTracer__ReceiveSceneProfileStatus = Na__ProfilePathTracer__ReceiveSceneProfileStatus;
     window.Na__ProfilePathTracer__ReceiveEdgeMaterialsStatus = Na__ProfilePathTracer__ReceiveEdgeMaterialsStatus;
+    window.Na__ProfilePathTracer__ReceiveReverseDirectionState = Na__ProfilePathTracer__ReceiveReverseDirectionState;
+    window.Na__ProfilePathTracer__ReceiveInteractiveToolState = Na__ProfilePathTracer__ReceiveInteractiveToolState;
     window.Na__ProfilePathTracer__Ui__Render                = Na__Ui__Render;
     window.Na__ProfilePathTracer__Ui__SetStatusFromBridge   = Na__Ui__SetStatusFromBridge;
 
@@ -489,10 +525,33 @@
     // REGION | Init
     // -------------------------------------------------------------------------
 
+    // The dialog steals focus the moment its Reverse button is clicked, so TAB
+    // has to work here too — otherwise the hotkey would die on the first click.
+    // Only armed while a trace is live, and never over a text field.
+    function Na__Ui__IsTextEntryTarget(target) {
+        if (!target || !target.tagName) return false;
+        var tagName = target.tagName.toUpperCase();
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return true;
+        return target.isContentEditable === true;
+    }
+
+    function Na__Ui__AttachReverseHotkey() {
+        document.addEventListener('keydown', function(keyEvent) {
+            if (keyEvent.key !== 'Tab') return;
+            if (keyEvent.shiftKey || keyEvent.ctrlKey || keyEvent.altKey || keyEvent.metaKey) return;
+            if (!Na__UiState.isInteractiveToolActive) return;
+            if (Na__Ui__IsTextEntryTarget(keyEvent.target)) return;
+
+            keyEvent.preventDefault();
+            Na__UiEventHandlers.Na__Events__OnReverseDirectionToggle();
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         if (window.Na__ProfilePathTracer__Ui__Events && window.Na__ProfilePathTracer__Ui__Events.Na__Ui__AttachHeaderEvents) {
             window.Na__ProfilePathTracer__Ui__Events.Na__Ui__AttachHeaderEvents(Na__UiEventHandlers);
         }
+        Na__Ui__AttachReverseHotkey();
     });
 
     // endregion ----------------------------------------------------------------

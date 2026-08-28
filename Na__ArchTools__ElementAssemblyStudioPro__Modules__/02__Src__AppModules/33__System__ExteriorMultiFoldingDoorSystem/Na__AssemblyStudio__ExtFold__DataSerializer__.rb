@@ -44,6 +44,7 @@
 require 'json'
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
+require_relative '../04__GeometryHelpers/Na__AssemblyStudio__ComponentNameSuffix__'
 require_relative 'Na__AssemblyStudio__ExtFold__AssemblyComposer__'
 
 module Na__AssemblyStudio
@@ -56,6 +57,8 @@ module Na__DataSerializer
 
     DebugTools       = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools                                            # <-- Shared debug logger
     AssemblyComposer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__AssemblyComposer                # <-- ADR id allocator (model-wide scan)
+    # @delegate: ../04__GeometryHelpers/Na__AssemblyStudio__ComponentNameSuffix__.rb
+    ComponentNameSuffix = Na__AssemblyStudio::Na__GeometryHelpers::Na__ComponentNameSuffix
 
 # endregion -------------------------------------------------------------------
 
@@ -302,20 +305,28 @@ module Na__DataSerializer
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Build the Fixed Head of This Door's Component Name
+    # ------------------------------------------------------------
+    def self.na_door_definition_prefix(door_id)
+        "#{door_id}#{Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_DEFINITION_SUFFIX_DOOR}"
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Apply DoorID and Naming to a Component Instance
     # ------------------------------------------------------------
-    # Sets both the instance and definition names to "<DoorID>__BifoldDoor__<Description>"
-    # and writes the DoorID + name pointers to the instance dictionary.
-    def self.na_set_door_id_on_instance(instance, door_id, description = nil)
+    # Sets both the instance and definition names to
+    # "<DoorID>__BifoldDoor__<ComponentName>" and writes the DoorID +
+    # name pointers to the instance dictionary.
+    #
+    # @param component_name [String, Symbol] Optional user-authored name
+    #     tail. Defaults to NA_KEEP so a rebuild never un-names the
+    #     component.
+    def self.na_set_door_id_on_instance(instance, door_id, component_name = ComponentNameSuffix::NA_KEEP)
         return false unless instance.is_a?(Sketchup::ComponentInstance)
         return false unless na_valid_door_id?(door_id)
 
-        suffix = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_DEFINITION_SUFFIX_DOOR
-        full_name = "#{door_id}#{suffix}"
-        full_name += description if description.is_a?(String) && !description.strip.empty?
-
-        instance.name             = full_name
-        instance.definition.name  = full_name
+        full_name = ComponentNameSuffix.na_apply(instance, na_door_definition_prefix(door_id), component_name)
+        return false unless full_name
 
         info_dict = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_DOOR_INFO_DICT
         instance.set_attribute(info_dict, Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::NA_KEY_DOOR_ID,            door_id)

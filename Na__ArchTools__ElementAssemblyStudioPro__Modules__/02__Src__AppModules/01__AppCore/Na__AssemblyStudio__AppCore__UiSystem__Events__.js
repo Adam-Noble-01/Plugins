@@ -11,6 +11,121 @@
 
 const Na__Ui__Events = (function () {
 
+    // -----------------------------------------------------------------------------
+    // REGION | Arithmetic Entry Helpers
+    // -----------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve the Shared Arithmetic Evaluator
+    // ------------------------------------------------------------
+    // Returned lazily rather than captured at load time so the dialog still
+    // works (falling back to plain numbers) if the utils script fails to load.
+    // @return {Object|null} window.Na__Utils__Arithmetic or null
+    function na_arithmetic() {
+        return window.Na__Utils__Arithmetic || null;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Read the Live Clamp Range Off the Rendered Control
+    // ------------------------------------------------------------
+    // The DOM is authoritative, not the descriptor: `width_mm` is declared
+    // max 4000 but has its slider max widened to 8000 in multi-leaf door
+    // modes, and the Interior Door tab widens a max in place when a measured
+    // opening exceeds it. Reading the descriptor here would silently clamp a
+    // legitimate 6000mm bifold width back to 4000.
+    // @param  {Object}  config - Control descriptor
+    // @param  {Element} input  - The text entry field
+    // @return {Object}           { min, max, step } - values may be NaN
+    function na_readLiveRange(config, input) {
+        // Absent means absent: Number(null) is 0, so a missing max attribute
+        // would otherwise read as a hard ceiling of zero and clamp every entry
+        // in the control to nothing.
+        function na_toNumber(candidate) {
+            if (candidate === null || candidate === undefined || candidate === '') return NaN;
+            const value = Number(candidate);
+            return isFinite(value) ? value : NaN;
+        }
+        function na_pick(attributeName, descriptorValue) {
+            const fromDom = na_toNumber(input ? input.getAttribute(attributeName) : null);
+            if (isFinite(fromDom)) return fromDom;
+            return na_toNumber(descriptorValue);
+        }
+        return {
+            min : na_pick('min',  config.min),
+            max : na_pick('max',  config.max),
+            step: na_pick('step', config.step)
+        };
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Flag / Clear a Field That Could Not Be Read
+    // ------------------------------------------------------------
+    // Previously an unreadable entry ran through parseFloat('') -> NaN and was
+    // written straight into the config. Now the field turns red, the reason
+    // replaces its tooltip until the next keystroke, and the caller restores
+    // the last good value instead. The arithmetic hint the field normally
+    // carries is stashed so it can be put back.
+    function na_markInputError(input, message) {
+        if (!input) return;
+        if (!input.classList.contains('na-input-error')) {
+            input.dataset.naTitle = input.getAttribute('title') || '';
+        }
+        input.classList.add('na-input-error');
+        input.setAttribute('title', message || 'Could not read that entry');
+    }
+
+    function na_clearInputError(input) {
+        if (!input || !input.classList.contains('na-input-error')) return;
+        input.classList.remove('na-input-error');
+        input.setAttribute('title', input.dataset.naTitle || '');
+        delete input.dataset.naTitle;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Resolve Typed Text Into a Committed Numeric Value
+    // ------------------------------------------------------------
+    // The single commit path shared by every numeric field. Evaluates the
+    // expression, clamps to the live range, and on failure restores the value
+    // the field held before the edit.
+    //
+    // A leading '-' is only treated as relative when the control cannot hold a
+    // negative (min >= 0). In Meeting Rail Offset (-600..600) or Frame Wall
+    // Inset (-50..150), '-50' stays a literal -50.
+    //
+    // @param  {String}  rawText      - Exactly what the user typed
+    // @param  {Object}  range        - Output of na_readLiveRange
+    // @param  {Number}  previousValue- Value before this edit
+    // @return {Object}                 { ok, value } | { ok: false, error }
+    function na_resolveTypedValue(rawText, range, previousValue) {
+        const arithmetic = na_arithmetic();
+
+        if (!arithmetic) {                                                      // <-- Degrade to plain-number entry
+            const parsed = parseFloat(rawText);
+            if (!isFinite(parsed)) return { ok: false, error: 'Not a number' };
+            let value = parsed;
+            if (isFinite(range.min)) value = Math.max(range.min, value);
+            if (isFinite(range.max)) value = Math.min(range.max, value);
+            return { ok: true, value: value };
+        }
+
+        return arithmetic.na_resolve_field_value(rawText, {
+            currentValue      : previousValue,
+            min               : range.min,
+            max               : range.max,
+            allowRelativeMinus: !(isFinite(range.min) && range.min < 0)
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Format a Committed Value for Display in a Field
+    // ------------------------------------------------------------
+    function na_formatValue(value) {
+        const arithmetic = na_arithmetic();
+        return arithmetic ? arithmetic.na_format(value) : String(value);
+    }
+    // ---------------------------------------------------------------
+
+    // endregion -------------------------------------------------------------------
+
     function na_attachEventListeners(config, onChangeCallback) {
         switch (config.type) {
             case 'slider':         na_attachSliderListeners(config, onChangeCallback); break;
@@ -26,11 +141,27 @@ const Na__Ui__Events = (function () {
     }
 
     // EQ-number: normalizes free text to the literal 'EQ' or a numeric mm value.
-    // Blank / "eq" / "equal" / "=" (case-insensitive) / non-numeric -> 'EQ'.
-    function na_normalizeEqValue(raw) {
+    // Blank / "eq" / "equal" / "=" (case-insensitive) -> 'EQ'. Anything else is
+    // run through the arithmetic evaluator, so the leaf width accepts
+    // '1700/2' or '+50' as readily as a plain number. An entry that cannot be
+    // read falls back to 'EQ', which is this field's documented safe default
+    // and is immediately visible in the field.
+    // @param {String} raw          - Field text
+    // @param {Number} currentValue - Numeric value before the edit, or NaN when 'EQ'
+    function na_normalizeEqValue(raw, currentValue) {
         const text = String(raw == null ? '' : raw).trim();
         if (text === '') return 'EQ';
         if (/^(eq|equal|equals|equ|=)$/i.test(text)) return 'EQ';
+
+        const arithmetic = na_arithmetic();
+        if (arithmetic) {
+            const resolved = arithmetic.na_resolve_field_value(text, {
+                currentValue      : currentValue,
+                allowRelativeMinus: true                                        // <-- A leaf width is never negative
+            });
+            return resolved.ok ? resolved.value : 'EQ';
+        }
+
         const num = parseFloat(text);
         if (!isFinite(num)) return 'EQ';
         return num;
@@ -39,9 +170,21 @@ const Na__Ui__Events = (function () {
     function na_attachEqNumberListener(config, onChangeCallback) {
         const input = document.getElementById(`${config.id}-eqnumber`);
         if (!input) return;
+
+        // Relative entry needs the width the field held before the edit. 'EQ'
+        // carries no number, so relative entry simply has nothing to build on
+        // and the expression is evaluated standalone.
+        let lastCommittedValue = parseFloat(config.default);
+
+        input.addEventListener('focus', () => {
+            const atFocus = parseFloat(input.value);
+            lastCommittedValue = isFinite(atFocus) ? atFocus : NaN;
+        });
+
         input.addEventListener('change', () => {
-            const normalized = na_normalizeEqValue(input.value);
+            const normalized = na_normalizeEqValue(input.value, lastCommittedValue);
             input.value = normalized;
+            lastCommittedValue = (typeof normalized === 'number') ? normalized : NaN;
             if (onChangeCallback) onChangeCallback(config.id, normalized);
         });
     }
@@ -85,28 +228,93 @@ const Na__Ui__Events = (function () {
         }
     }
 
+    // Slider: range + arithmetic-capable entry field.
+    //
+    // The entry field is type="text" (see Na__Ui__Controls.na_createSliderHtml)
+    // so it accepts expressions. Evaluation happens on `change` - which fires
+    // on Enter and on blur - never per keystroke, so a half-typed '1700-' is
+    // never committed.
     function na_attachSliderListeners(config, onChangeCallback) {
         const slider  = document.getElementById(`${config.id}-slider`);
         const input   = document.getElementById(`${config.id}-input`);
         const display = document.getElementById(`${config.id}-display`);
+
+        // Value the field held before the current edit. Seeded on focus (when
+        // the field always shows a committed number, however it got there) and
+        // refreshed on every commit, so consecutive relative entries stack:
+        // '+200' then '+200' on 2400 gives 2800, not 2600 twice.
+        let lastCommittedValue = Number(config.default);
+
+        function na_currentValue() {
+            if (isFinite(lastCommittedValue)) return lastCommittedValue;
+            const fromSlider = slider ? parseFloat(slider.value) : NaN;
+            return isFinite(fromSlider) ? fromSlider : NaN;
+        }
+
+        // `fromSlider` suppresses the write back to the range element, so a
+        // live drag is never assigned to mid-gesture from its own handler.
+        function na_applyValue(value, fromSlider) {
+            lastCommittedValue = value;
+            if (input)             input.value = na_formatValue(value);
+            if (slider && !fromSlider) slider.value = value;
+            if (display)           display.textContent = `${na_formatValue(value)}${config.unit}`;
+            if (onChangeCallback)  onChangeCallback(config.id, value);
+        }
+
         if (slider) {
             slider.addEventListener('input', () => {
                 const value = parseFloat(slider.value);
-                if (input)   input.value = value;
-                if (display) display.textContent = `${value}${config.unit}`;
-                if (onChangeCallback) onChangeCallback(config.id, value);
+                if (!isFinite(value)) return;
+                na_clearInputError(input);
+                na_applyValue(value, true);
             });
         }
-        if (input) {
-            input.addEventListener('change', () => {
-                let value = parseFloat(input.value);
-                value = Math.max(config.min, Math.min(config.max, value));
-                input.value = value;
-                if (slider)  slider.value = value;
-                if (display) display.textContent = `${value}${config.unit}`;
-                if (onChangeCallback) onChangeCallback(config.id, value);
-            });
-        }
+
+        if (!input) return;
+
+        // Re-read on focus so a value set programmatically (loading a saved
+        // window, a linked control, a preset) is what relative entry builds on.
+        input.addEventListener('focus', () => {
+            const atFocus = parseFloat(input.value);
+            if (isFinite(atFocus)) lastCommittedValue = atFocus;
+        });
+
+        // Typing clears a stale error mark; the entry is only judged on commit.
+        input.addEventListener('input', () => na_clearInputError(input));
+
+        input.addEventListener('change', () => {
+            const range    = na_readLiveRange(config, input);
+            const previous = na_currentValue();
+            const resolved = na_resolveTypedValue(input.value, range, previous);
+
+            if (!resolved.ok) {                                                 // <-- Restore, never write NaN
+                na_markInputError(input, resolved.error);
+                input.value = isFinite(previous) ? na_formatValue(previous) : '';
+                return;
+            }
+            na_clearInputError(input);
+            na_applyValue(resolved.value);
+        });
+
+        // Up/Down arrow stepping, which type="number" used to provide natively.
+        // Shift multiplies the step by 10 for coarse moves.
+        input.addEventListener('keydown', (event) => {
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+
+            const range = na_readLiveRange(config, input);
+            const step  = (isFinite(range.step) && range.step > 0) ? range.step : 1;
+            const typed = parseFloat(input.value);
+            const base  = isFinite(typed) ? typed : na_currentValue();          // <-- Step from the typed number when it is one
+            if (!isFinite(base)) return;
+
+            let next = base + (event.key === 'ArrowUp' ? step : -step) * (event.shiftKey ? 10 : 1);
+            if (isFinite(range.min)) next = Math.max(range.min, next);
+            if (isFinite(range.max)) next = Math.min(range.max, next);
+
+            event.preventDefault();
+            na_clearInputError(input);
+            na_applyValue(next);
+        });
     }
 
     function na_attachToggleListener(config, onChangeCallback) {

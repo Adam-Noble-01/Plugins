@@ -230,10 +230,30 @@
             <div class="na-section-header"><h2>Window Info</h2></div>
             <div class="na-info-grid">
                 <div class="na-info-item"><span class="na-info-label">Window ID:</span><span id="na-info-window-id" class="na-info-value">-</span></div>
+
+                <!-- Component Name — appended AFTER the fixed <ID>__<Type>__ head.
+                     The head is owned by Ruby and read by TrueVision / ValeVision;
+                     this field only ever adds an Outliner-grouping tail. -->
+                <div class="na-info-item na-info-item-full">
+                    <span class="na-info-label">Component Name:</span>
+                    <input type="text"
+                           id="na-info-component-name"
+                           class="na-info-input"
+                           placeholder="e.g. GroundFloor__BayWindow"
+                           title="Appended to the component name after the fixed ID and type. Press Enter to apply."
+                           value="">
+                    <span id="na-info-component-name-preview" class="na-info-name-preview"></span>
+                </div>
+
                 <div class="na-info-item na-info-item-full">
                     <span class="na-info-label">Description:</span>
-                    <input type="text" id="na-info-description" class="na-info-input" placeholder="e.g. GroundFloor__Lounge" value="">
+                    <input type="text"
+                           id="na-info-description"
+                           class="na-info-input"
+                           placeholder="Notes for this window (not used in the component name)"
+                           value="">
                 </div>
+
                 <div class="na-info-item"><span class="na-info-label">Created:</span><span id="na-info-created" class="na-info-value">-</span></div>
                 <div class="na-info-item"><span class="na-info-label">Modified:</span><span id="na-info-modified" class="na-info-value">-</span></div>
             </div>
@@ -380,6 +400,18 @@
     </div>
     <!-- endregion ============================================================== -->
 
+    <!-- ==========================================================================
+         REGION | App Footer — shared across every tab
+         Sits inside the scroll container after whichever tab panel is visible,
+         so the last real section of a tab always has clear space beneath it
+         and reads as a section rather than as a footnote pinned to the edge.
+         ========================================================================== -->
+    <footer class="na-app-footer">
+        <span class="na-app-footer__brand">Element Assembly Studio Pro</span>
+        <span class="na-app-footer__copy">&copy; 2026 Noble Architecture</span>
+    </footer>
+    <!-- endregion ============================================================== -->
+
     </main>
     <!-- endregion (Main Content) =============================================== -->
 
@@ -387,6 +419,9 @@
     <!-- ==========================================================================
          REGION | JavaScript Includes (load order matters)
          ========================================================================== -->
+
+    <!-- Shared utilities (no dependencies of their own - must load first) -->
+    <script src="02__Src__AppModules/03__AppUtils/Na__AssemblyStudio__AppUtils__ArithmeticEvaluator__.js"></script>
 
     <!-- AppCore foundation (BridgeBase, MainShell, shared Ui Controls/Events) -->
     <script src="02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__BridgeBase__.js"></script>

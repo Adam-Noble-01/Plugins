@@ -122,7 +122,7 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Path frame — sanitise path — segment tangents
     # -------------------------------------------------------------------------
 
-        def self.Na__Geometry__BuildPathFrame(start_point, path_data)
+        def self.Na__Geometry__BuildPathFrame(start_point, path_data, legacy_frame = false)
             is_closed_loop = path_data[:is_closed_loop] == true
             ordered_points = self.Na__Geometry__BuildSanitizedPathPoints(path_data[:ordered_points] || [])
             if is_closed_loop &&
@@ -137,7 +137,7 @@ module Na__ProfileTools__ProfilePathTracer
             tangent = self.Na__Geometry__BuildStartFrameTangent(ordered_points, nearest_index, is_closed_loop)
             return nil unless tangent
 
-            self.Na__Geometry__BuildPathFrameFromTangent(ordered_points[nearest_index], tangent)
+            self.Na__Geometry__BuildPathFrameFromTangent(ordered_points[nearest_index], tangent, legacy_frame)
         end
 
         def self.Na__Geometry__BuildStartFrameTangent(ordered_points, nearest_index, is_closed_loop)
@@ -168,11 +168,29 @@ module Na__ProfileTools__ProfilePathTracer
             tangent
         end
 
+        # Rotation sign follows the frame's handedness so the rotation pills turn
+        # the profile the same way on screen as the dialog's 2D preview shows.
+        # The mirrored (WYSIWYG) frame is viewed from the front cap — looking back
+        # against the sweep — where a positive roll about the tangent reads
+        # anticlockwise; the dialog renders its rotation steps clockwise, so the
+        # angle is negated. Legacy right-handed frames keep the original sign.
         def self.Na__Geometry__TransformProfilePoints(local_points, frame_transform, rotation_step)
             return [] if local_points.empty? || frame_transform.nil?
             degrees = rotation_step.to_i * 90
+            degrees = -degrees if self.Na__Geometry__FrameMirrored?(frame_transform)
             rotation = Geom::Transformation.rotation(frame_transform.origin, frame_transform.zaxis, degrees.degrees)
             local_points.map { |point| point.transform(frame_transform).transform(rotation) }
+        end
+
+        # True for the WYSIWYG (left-handed) frame, false for a legacy
+        # right-handed one. Deriving this from the frame itself means the
+        # rotation sign and the closed-loop cap frame can never drift out of
+        # step with whichever frame convention a caller built.
+        def self.Na__Geometry__FrameMirrored?(frame_transform)
+            return false unless frame_transform
+            (frame_transform.xaxis * frame_transform.yaxis).dot(frame_transform.zaxis) < 0
+        rescue
+            false
         end
 
         def self.Na__Geometry__BuildSanitizedPathPoints(ordered_points)
@@ -197,7 +215,22 @@ module Na__ProfileTools__ProfilePathTracer
             directions
         end
 
-        def self.Na__Geometry__BuildPathFrameFromTangent(origin_point, tangent_vector)
+        # Maps the profile's authored (PosY, PosZ) plane onto the path.
+        #
+        # HANDEDNESS — the WYSIWYG contract. The exporter captures a face with
+        # axis_y = normal × axis_z, so PosY+ runs to your LEFT as you look at the
+        # face from its front. The dialog's 2D preview renders -PosY to the
+        # right, i.e. the face exactly as you saw it when you captured it. For
+        # the placed geometry to read the same way from its own natural viewpoint
+        # — standing in front of the start cap, looking down the sweep — PosY+
+        # must land to the RIGHT of the direction of travel: x_axis = T × Z.
+        #
+        # The original frame used x_axis = Z × T (PosY+ to the LEFT of travel),
+        # which presented every placed profile as the mirror image of the dialog
+        # — the long-standing "always need to hit Reverse" defect. That frame is
+        # kept behind `legacy_frame: true` so assemblies stamped before dictionary
+        # schema 1.2.0 regenerate exactly as they were built.
+        def self.Na__Geometry__BuildPathFrameFromTangent(origin_point, tangent_vector, legacy_frame = false)
             return nil unless origin_point && tangent_vector
             return nil if tangent_vector.length <= 0.001
 
@@ -205,10 +238,18 @@ module Na__ProfileTools__ProfilePathTracer
             tangent.normalize!
             up = Z_AXIS
             up = X_AXIS if tangent.parallel?(up)
-            x_axis = up * tangent
-            x_axis = X_AXIS if x_axis.length <= 0.001
-            x_axis.normalize!
-            y_axis = tangent * x_axis
+
+            if legacy_frame
+                x_axis = up * tangent
+                x_axis = X_AXIS if x_axis.length <= 0.001
+                x_axis.normalize!
+                y_axis = tangent * x_axis
+            else
+                x_axis = tangent * up
+                x_axis = X_AXIS if x_axis.length <= 0.001
+                x_axis.normalize!
+                y_axis = x_axis * tangent
+            end
             y_axis.normalize!
             Geom::Transformation.axes(origin_point, x_axis, y_axis, tangent)
         end
@@ -554,6 +595,7 @@ module Na__ProfileTools__ProfilePathTracer
             target_entities.erase_entities(profile_face) if profile_face.valid?
 
             self.Na__Geometry__RemoveClosureSeamFaces(target_entities, closure_plane)
+            self.Na__Geometry__EnsureShellFacesOutward(target_entities)
             styled_edge_count = self.Na__Geometry__ApplyUnifiedEdgeStates(
                 target_entities, model, profile_data, path_edge_ids, resolved_path_data
             )
@@ -561,6 +603,44 @@ module Na__ProfileTools__ProfilePathTracer
             { 'isSwept' => true, 'styledEdgeCount' => styled_edge_count }
         rescue => error
             { 'isSwept' => false, 'reason' => error.message }
+        end
+
+        # "Are faces checking out" — follow-me chooses the swept shell's facing
+        # by its own heuristics, and a mirrored cap section can leave the whole
+        # solid inside out (back faces showing). The signed volume of the shell
+        # settles it deterministically: summing p0 · (e1 × e2) over every mesh
+        # triangle gives 6× the enclosed volume, positive when the faces point
+        # outward. A negative total means the shell faces inward, so every face
+        # is reversed. Runs inside the shared sweep helper, so first generation
+        # and every regeneration are covered alike.
+        def self.Na__Geometry__EnsureShellFacesOutward(target_entities)
+            faces = target_entities.grep(Sketchup::Face).select(&:valid?)
+            return 0 if faces.empty?
+
+            signed_volume = 0.0
+            faces.each do |face|
+                mesh = face.mesh
+                (1..mesh.count_polygons).each do |polygon_index|
+                    triangle = mesh.polygon_points_at(polygon_index)
+                    next unless triangle && triangle.length == 3
+                    signed_volume += (triangle[0] - ORIGIN).dot(
+                        (triangle[1] - triangle[0]) * (triangle[2] - triangle[0])
+                    )
+                end
+            end
+            return 0 if signed_volume >= 0.0
+
+            flipped = 0
+            faces.each do |face|
+                next unless face.valid?
+                face.reverse!
+                flipped += 1
+            end
+            Na__DebugTools.Na__Debug__Info("Shell orientation corrected: #{flipped} faces reversed.") if flipped > 0
+            flipped
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Shell orientation check warning: #{error.message}")
+            0
         end
 
         # Builds the follow-me rail, the perpendicular cap frame and (for closed
@@ -594,7 +674,10 @@ module Na__ProfileTools__ProfilePathTracer
             tangent.normalize!
 
             midpoint = Geom.linear_combination(0.5, first_vertex, 0.5, second_vertex)
-            cap_frame = self.Na__Geometry__BuildPathFrameFromTangent(midpoint, tangent)
+            # The cap frame must match the handedness of the start frame it is
+            # standing in for, or a legacy regen would sweep a mirrored section.
+            legacy_frame = !self.Na__Geometry__FrameMirrored?(frame_transform)
+            cap_frame = self.Na__Geometry__BuildPathFrameFromTangent(midpoint, tangent, legacy_frame)
             return { isValid: false, reason: 'Closed-loop cap frame could not be built.' } unless cap_frame
 
             rail_points = [midpoint] + points[1..-1] + [first_vertex, midpoint]

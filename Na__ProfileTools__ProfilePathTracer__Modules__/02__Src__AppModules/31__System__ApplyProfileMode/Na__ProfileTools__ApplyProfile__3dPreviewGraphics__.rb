@@ -11,6 +11,8 @@
 module Na__ProfileTools__ProfilePathTracer
     module Na__PreviewGraphics
 
+        NA_LOOP_CLOSE_TOLERANCE = 0.001
+
         def self.Na__Preview__DrawCrosshair(view, cursor_pos, arm_size)
             cx = cursor_pos.x
             cy = cursor_pos.y
@@ -85,6 +87,30 @@ module Na__ProfileTools__ProfilePathTracer
             view.line_width    = 2
             view.drawing_color = Sketchup::Color.new(0, 155, 110, 180)
             view.draw(GL_LINE_STRIP, transformed_profile_points)
+        end
+
+        # The datum cross-section shown before any path exists. Solid and closed,
+        # unlike the dashed ghost that rides the cursor mid-sweep, because at this
+        # point it is the only thing on screen telling the user which way up the
+        # profile will land.
+        def self.Na__Preview__DrawProfileFace(view, transformed_profile_points)
+            return if transformed_profile_points.nil? || transformed_profile_points.length < 3
+
+            outline_points = self.Na__Preview__ClosedLoopPoints(transformed_profile_points)
+
+            view.line_stipple  = ''
+            view.line_width    = 2
+            view.drawing_color = Sketchup::Color.new(0, 155, 110)
+            view.draw(GL_LINE_STRIP, outline_points)
+        end
+
+        # An authored outer loop does not repeat its first vertex, so GL_LINE_STRIP
+        # would leave the profile visibly open along its closing edge.
+        def self.Na__Preview__ClosedLoopPoints(loop_points)
+            first_point = loop_points.first
+            last_point  = loop_points.last
+            return loop_points if first_point.distance(last_point) <= NA_LOOP_CLOSE_TOLERANCE
+            loop_points + [first_point]
         end
 
     end

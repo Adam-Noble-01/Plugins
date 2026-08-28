@@ -16,6 +16,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../01__AppCore/Na__AssemblyStudio__AppCore__UiBridge__'
 require_relative '../06__Tools__MeasurementTools/Na__AssemblyStudio__MeasurementTools__TwoPointOpeningTool__'
 require_relative '../07__Tools__PlacementTools/Na__AssemblyStudio__PlacementTools__WindowPlacementTool__'
+require_relative '../04__GeometryHelpers/Na__AssemblyStudio__ComponentNameSuffix__'
 require_relative 'Na__AssemblyStudio__WindowSystem__GeometryEngine__'
 require_relative 'Na__AssemblyStudio__WindowSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__WindowSystem__DxfExporter__'
@@ -40,6 +41,7 @@ module Na__AssemblyStudio
             TwoPoint       = Na__AssemblyStudio::Na__MeasurementTools::Na__TwoPointOpeningTool
             PlacementTool  = Na__AssemblyStudio::Na__PlacementTools::Na__WindowPlacementTool
             InsertionFrame = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                  # <-- Wall-aware insertion transform helper
+            ComponentNameSuffix = Na__AssemblyStudio::Na__GeometryHelpers::Na__ComponentNameSuffix        # <-- Optional user-authored name tail (never touches the fixed head)
 
             @na_dialog               = nil
             @na_window_component     = nil
@@ -66,6 +68,7 @@ module Na__AssemblyStudio
                     "na_requestConfig"              => proc { na_send_config_to_dialog },
                     "na_requestSashHornAssets"      => proc { na_send_sash_horn_assets_to_dialog },
                     "na_measureOpening"             => proc { |json = nil| na_handle_measure_opening(json) },                  # <-- Optional live-config JSON from JS
+                    "na_setComponentName"           => proc { |json| na_handle_set_component_name(json) },          # <-- Lightweight rename only; never rebuilds geometry
                     "na_keyboard_tab"               => proc { @na_current_placement_tool.na_rotate if @na_current_placement_tool }
                 }
             end
@@ -116,6 +119,258 @@ module Na__AssemblyStudio
                 end
                 @na_config = UiBridge.na_deep_clone(na_default_config)
             end
+
+            # -----------------------------------------------------------------
+            # REGION | Component Name Tail (V1.5.2)
+            # -----------------------------------------------------------------
+            # Every product on this tab is named `<ID>__<TypeTag>__<Tail>`.
+            # The head is a machine contract read by TrueVision / ValeVision
+            # and is composed only by each system's own DataSerializer. The
+            # tail is free text the user types into WINDOW INFO and exists
+            # purely to group components in the SketchUp Outliner.
+            #
+            # Everything in this region works on `[instance, base_prefix]`
+            # pairs so the five window-tab products (window, bifold,
+            # sliding, exterior single, exterior double) share one path.
+            # -----------------------------------------------------------------
+
+            # HELPER FUNCTION | Resolve Which Component Currently Owns the Name
+            # ------------------------------------------------------------
+            # Checks the door trackers before the generic window tracker
+            # because `na_track_created_component` mirrors every product
+            # onto `@na_window_component`.
+            #
+            # @return [Hash, nil] { :instance, :item_id, :base_prefix, :apply }
+            #     where :apply is a proc taking the sanitised tail and
+            #     re-binding it through the owning system's serializer
+            #     (which also refreshes that system's name pointer keys).
+            def self.na_resolve_named_target
+                inst = @na_single_door_component
+                if inst && inst.valid? && defined?(Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer)
+                    serializer = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer
+                    id         = na_resolve_exterior_single_door_id(inst)
+                    return na_build_named_target(inst, id, serializer) if id
+                end
+
+                inst = @na_double_door_component
+                if inst && inst.valid? && defined?(Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer)
+                    serializer = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer
+                    id         = na_resolve_exterior_double_door_id(inst)
+                    return na_build_named_target(inst, id, serializer) if id
+                end
+
+                inst = @na_sliding_component
+                if inst && inst.valid? && defined?(Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer)
+                    serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
+                    id         = na_resolve_sliding_id(inst)
+                    return na_build_named_target(inst, id, serializer) if id
+                end
+
+                inst = @na_bifold_component
+                if inst && inst.valid? && defined?(Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer)
+                    serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
+                    id         = na_resolve_bifold_id(inst)
+                    return na_build_named_target(inst, id, serializer) if id
+                end
+
+                inst = @na_window_component
+                if inst && inst.valid?
+                    id = DataSerializer.na_get_window_id_from_instance(inst)
+                    if id
+                        return {
+                            :instance    => inst,
+                            :item_id     => id,
+                            :base_prefix => DataSerializer.na_window_definition_prefix(id),
+                            :apply       => proc { |tail| DataSerializer.na_set_window_id_on_instance(inst, id, tail) }
+                        }
+                    end
+                end
+
+                nil
+            rescue StandardError => e
+                DebugTools.na_debug_error("Could not resolve the component to name", e)
+                nil
+            end
+            private_class_method :na_resolve_named_target
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Assemble One Door-Flavoured Named Target
+            # ------------------------------------------------------------
+            # All four exterior door serializers expose the same pair of
+            # entry points, so the descriptor is built once here.
+            def self.na_build_named_target(instance, door_id, serializer)
+                {
+                    :instance    => instance,
+                    :item_id     => door_id,
+                    :base_prefix => serializer.na_door_definition_prefix(door_id),
+                    :apply       => proc { |tail| serializer.na_set_door_id_on_instance(instance, door_id, tail) }
+                }
+            end
+            private_class_method :na_build_named_target
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Read the Requested Name Tail Off a Dialog Payload
+            # ------------------------------------------------------------
+            # Returns NA_KEEP - not "" - when the payload carries no name
+            # key at all, so a caller that predates the field (an old
+            # preset, a hand-built payload) can never blank a name the
+            # user has set.
+            def self.na_requested_component_name(config)
+                return ComponentNameSuffix::NA_KEEP unless config.is_a?(Hash)
+                metadata = config["windowMetadata"]
+                return ComponentNameSuffix::NA_KEEP unless metadata.is_a?(Array) && metadata[0].is_a?(Hash)
+                return ComponentNameSuffix::NA_KEEP unless metadata[0].key?("WindowComponentName")
+                metadata[0]["WindowComponentName"].to_s
+            end
+            private_class_method :na_requested_component_name
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Push the Dialog's Component Name Onto the Live Component
+            # ------------------------------------------------------------
+            # Called from every Update / Live Update path so a rebuild can
+            # never drop, and a Live Mode session can never lag behind,
+            # the name showing in the dialog. Silent no-op when the payload
+            # carries no name key or the name is already correct.
+            #
+            # Create paths deliberately do NOT call this - a new component
+            # is born bare and is named once it is placed and selected.
+            #
+            # @param wrap_in_operation [Boolean] true when the caller is
+            #     NOT already inside a model operation. The exterior
+            #     single / double door engines commit their own operation
+            #     before returning, so the rename that follows needs its
+            #     own transparent wrapper to stay on the same undo step.
+            #     The window / bifold / sliding handlers hold an operation
+            #     open around this call and must pass false - SketchUp
+            #     does not support nested start_operation.
+            # @return [String, nil] The tail that is now on the component
+            def self.na_sync_component_name_from_config(config, wrap_in_operation: false)
+                return nil unless config.is_a?(Hash)
+                requested_raw = na_requested_component_name(config)
+                return nil if requested_raw == ComponentNameSuffix::NA_KEEP
+
+                target = na_resolve_named_target
+                return nil unless target
+
+                requested = ComponentNameSuffix.na_sanitise(requested_raw, target[:base_prefix])
+                current   = ComponentNameSuffix.na_current_suffix(target[:instance], target[:base_prefix])
+                return current if requested == current
+
+                model = Sketchup.active_model
+                model.start_operation("Rename Component", true, false, true) if wrap_in_operation
+                target[:apply].call(requested)
+                model.commit_operation if wrap_in_operation
+                requested
+            rescue StandardError => e
+                begin; Sketchup.active_model.abort_operation if wrap_in_operation; rescue StandardError; end
+                DebugTools.na_debug_error("Component name sync failed (non-fatal)", e)
+                nil
+            end
+            private_class_method :na_sync_component_name_from_config
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Stamp the Live Name Onto an Outbound Dialog Payload
+            # ------------------------------------------------------------
+            # The component's own name is the source of truth, so the
+            # dialog field is populated from it rather than from a
+            # mirrored dictionary key. That migrates every pre-V1.5.2
+            # model with no conversion step, and self-heals after a
+            # rename made by hand in the Outliner.
+            #
+            # `WindowComponentBaseName` is the read-only head shown in the
+            # dialog's live preview so the user can see which part of the
+            # name they are not allowed to touch.
+            def self.na_stamp_component_name_into_config(config, instance, base_prefix)
+                return unless config.is_a?(Hash)
+                metadata = config["windowMetadata"]
+                return unless metadata.is_a?(Array) && metadata[0].is_a?(Hash)
+
+                metadata[0]["WindowComponentName"]     = ComponentNameSuffix.na_current_suffix(instance, base_prefix)
+                metadata[0]["WindowComponentBaseName"] = base_prefix
+            rescue StandardError => e
+                DebugTools.na_debug_error("Component name stamp failed (non-fatal)", e)
+            end
+            private_class_method :na_stamp_component_name_into_config
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Handle the Rename-Only Callback From the Dialog
+            # ------------------------------------------------------------
+            # Fired on Enter / blur / debounce in the Component Name field.
+            # Deliberately does NOT rebuild geometry - a rename is a two
+            # string assignments, and running the full live-update
+            # pipeline on every keystroke would be unusable.
+            #
+            # @param payload_json [String] { "componentName", "itemId" }
+            def self.na_handle_set_component_name(payload_json)
+                payload   = JSON.parse(payload_json.to_s)
+                requested = payload["componentName"]
+                incoming  = payload["itemId"]
+
+                target = na_resolve_named_target
+                unless target
+                    UiBridge.na_send_status(@na_dialog, 'warning', 'Select a component before naming it')
+                    return
+                end
+
+                if incoming.is_a?(String) && !incoming.empty? && incoming != target[:item_id]
+                    DebugTools.na_debug_warn("Rename skipped: stale name for #{incoming}, current is #{target[:item_id]}")
+                    return
+                end
+
+                tail    = ComponentNameSuffix.na_sanitise(requested, target[:base_prefix])
+                current = ComponentNameSuffix.na_current_suffix(target[:instance], target[:base_prefix])
+
+                if tail == current
+                    na_send_component_name_to_dialog(tail, "#{target[:base_prefix]}#{tail}")
+                    return
+                end
+
+                model = Sketchup.active_model
+                model.start_operation("Rename Component", true)
+                target[:apply].call(tail)
+                na_persist_component_name_in_config(tail)
+                model.commit_operation
+
+                full_name = "#{target[:base_prefix]}#{tail}"
+                na_send_component_name_to_dialog(tail, full_name)
+                UiBridge.na_send_status(@na_dialog, 'success', "Renamed: #{full_name}")
+            rescue JSON::ParserError => e
+                DebugTools.na_debug_error("Invalid JSON in component name payload", e)
+            rescue StandardError => e
+                begin; Sketchup.active_model.abort_operation; rescue StandardError; end
+                DebugTools.na_debug_error("Error renaming component", e)
+                UiBridge.na_send_status(@na_dialog, 'error', "Rename failed: #{e.message}")
+            end
+
+            # HELPER FUNCTION | Keep the Cached Config in Step With a Rename
+            # ------------------------------------------------------------
+            # So a later Update / Live Update built from `@na_config`
+            # does not re-apply the pre-rename value.
+            def self.na_persist_component_name_in_config(tail)
+                return unless @na_config.is_a?(Hash)
+                metadata = @na_config["windowMetadata"]
+                return unless metadata.is_a?(Array) && metadata[0].is_a?(Hash)
+                metadata[0]["WindowComponentName"] = tail
+            end
+            private_class_method :na_persist_component_name_in_config
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Echo the Sanitised Name Back to the Dialog
+            # ------------------------------------------------------------
+            # The dialog shows what actually landed on the component, so
+            # any character the sanitiser stripped is visible immediately
+            # rather than surfacing later in the Outliner.
+            def self.na_send_component_name_to_dialog(tail, full_name)
+                UiBridge.na_execute_json_function(
+                    @na_dialog,
+                    'window.na_receiveComponentName',
+                    { "componentName" => tail, "fullName" => full_name }
+                )
+            end
+            private_class_method :na_send_component_name_to_dialog
+            # ---------------------------------------------------------------
+
+            # endregion -------------------------------------------------------
 
             # HELPER FUNCTION | Safely Resolve a Bifold Door ID From an Instance
             # ------------------------------------------------------------
@@ -177,11 +432,17 @@ module Na__AssemblyStudio
                 @na_window_component = instance
                 @na_config           = DataSerializer.na_load_window_data_from_instance(instance, window_id)
                 if @na_config
+                    na_stamp_component_name_into_config(
+                        @na_config, instance, DataSerializer.na_window_definition_prefix(window_id)
+                    )
                     na_send_config_to_dialog
                     UiBridge.na_send_status(@na_dialog, 'info', "Loaded window: #{window_id}")
                 else
                     DebugTools.na_debug_warn("Could not load config for window #{window_id}")
                     @na_config = UiBridge.na_deep_clone(na_default_config)
+                    na_stamp_component_name_into_config(
+                        @na_config, instance, DataSerializer.na_window_definition_prefix(window_id)
+                    )
                     na_send_config_to_dialog
                     UiBridge.na_send_status(@na_dialog, 'warning', "Window #{window_id} selected but no saved config found")
                 end
@@ -223,6 +484,9 @@ module Na__AssemblyStudio
                 bifold_config = na_resolve_bifold_payload(stored)
 
                 @na_config = na_wrap_bifold_config_as_window_payload(door_id, bifold_config)
+                na_stamp_component_name_into_config(
+                    @na_config, instance, bifold_serializer.na_door_definition_prefix(door_id)
+                )
                 na_send_config_to_dialog
                 UiBridge.na_send_status(@na_dialog, 'info', "Loaded bifold door: #{door_id}")
             rescue StandardError => e
@@ -254,6 +518,9 @@ module Na__AssemblyStudio
                 sliding_config = na_resolve_sliding_payload(stored)
 
                 @na_config = na_wrap_sliding_config_as_window_payload(door_id, sliding_config)
+                na_stamp_component_name_into_config(
+                    @na_config, instance, sliding_serializer.na_door_definition_prefix(door_id)
+                )
                 na_send_config_to_dialog
                 UiBridge.na_send_status(@na_dialog, 'info', "Loaded sliding door: #{door_id}")
             rescue StandardError => e
@@ -285,6 +552,9 @@ module Na__AssemblyStudio
                 double_door_config = na_resolve_exterior_double_door_payload(stored)
 
                 @na_config = na_wrap_exterior_double_door_config_as_window_payload(door_id, double_door_config)
+                na_stamp_component_name_into_config(
+                    @na_config, instance, serializer.na_door_definition_prefix(door_id)
+                )
                 na_send_config_to_dialog
                 UiBridge.na_send_status(@na_dialog, 'info', "Loaded exterior double door: #{door_id}")
             rescue StandardError => e
@@ -316,6 +586,9 @@ module Na__AssemblyStudio
                 single_door_config = na_resolve_exterior_single_door_payload(stored)
 
                 @na_config = na_wrap_exterior_single_door_config_as_window_payload(door_id, single_door_config)
+                na_stamp_component_name_into_config(
+                    @na_config, instance, serializer.na_door_definition_prefix(door_id)
+                )
                 na_send_config_to_dialog
                 UiBridge.na_send_status(@na_dialog, 'info', "Loaded exterior single door: #{door_id}")
             rescue StandardError => e
@@ -371,6 +644,7 @@ module Na__AssemblyStudio
                 "glazebar_gothic_arch_height_mm",
                 "glazebar_horizontal_offset_mm",                                                    # <-- V1.9.3 Horizontal Bar Vertical Offset
                 # Per-Bar Glaze Bar Offsets (V1.3.0 - applied after spacing)
+                "glazebar_offsets_enabled",                                                         # <-- V1.9.5 Gate for the per-bar offset pool
                 "glazebar_h_offset_1_mm", "glazebar_h_offset_2_mm",
                 "glazebar_h_offset_3_mm", "glazebar_h_offset_4_mm",
                 "glazebar_h_offset_5_mm", "glazebar_h_offset_6_mm",
@@ -668,12 +942,11 @@ module Na__AssemblyStudio
                     end
                     na_apply_edge_colours_after_build(@na_window_component, config["windowConfiguration"])
 
-                    description = nil
-                    if @na_config["windowMetadata"] && @na_config["windowMetadata"][0]
-                        description = @na_config["windowMetadata"][0]["WindowDescription"]
-                    end
-
-                    DataSerializer.na_set_window_id_on_instance(@na_window_component, window_id, description)
+                    # A brand new component is always born bare - the user names
+                    # it from WINDOW INFO once it is placed and selected. Reading
+                    # the field here would silently clone the previously selected
+                    # component's name onto the new one.
+                    DataSerializer.na_set_window_id_on_instance(@na_window_component, window_id, "")
                     DataSerializer.na_save_window_data(window_id, @na_config)
                     model.commit_operation
 
@@ -812,6 +1085,7 @@ module Na__AssemblyStudio
 
                 na_apply_bifold_fuse_parts(instance, window_config)
                 na_apply_edge_colours_after_build(instance, window_config)
+                na_sync_component_name_from_config(config)
 
                 door_id = bifold_serializer.na_get_door_id_from_instance(instance)
                 if door_id
@@ -845,6 +1119,7 @@ module Na__AssemblyStudio
 
                 na_apply_bifold_fuse_parts(instance, window_config)
                 na_apply_edge_colours_after_build(instance, window_config)
+                na_sync_component_name_from_config(config)
 
                 door_id = bifold_serializer.na_get_door_id_from_instance(instance)
                 if door_id
@@ -1001,6 +1276,7 @@ module Na__AssemblyStudio
 
                 na_apply_sliding_fuse_parts(instance, window_config)
                 na_apply_edge_colours_after_build(instance, window_config)
+                na_sync_component_name_from_config(config)
 
                 door_id = sliding_serializer.na_get_door_id_from_instance(instance)
                 if door_id
@@ -1034,6 +1310,7 @@ module Na__AssemblyStudio
 
                 na_apply_sliding_fuse_parts(instance, window_config)
                 na_apply_edge_colours_after_build(instance, window_config)
+                na_sync_component_name_from_config(config)
 
                 door_id = sliding_serializer.na_get_door_id_from_instance(instance)
                 if door_id
@@ -1152,6 +1429,7 @@ module Na__AssemblyStudio
                 updated = engine.na_update_exterior_double_door(instance, config["windowConfiguration"] || {})
                 if updated
                     @na_config = config
+                    na_sync_component_name_from_config(config, wrap_in_operation: true)
                     UiBridge.na_send_status(@na_dialog, 'success', "Exterior double door updated: #{instance.name}")
                 else
                     UiBridge.na_send_status(@na_dialog, 'error', 'Exterior double door update failed')
@@ -1181,6 +1459,7 @@ module Na__AssemblyStudio
                     transparent: true
                 )
                     @na_config = config
+                    na_sync_component_name_from_config(config, wrap_in_operation: true)
                     Sketchup.active_model.active_view.invalidate
                 end
             rescue StandardError => e
@@ -1237,6 +1516,7 @@ module Na__AssemblyStudio
                 updated = engine.na_update_exterior_single_door(instance, config["windowConfiguration"] || {})
                 if updated
                     @na_config = config
+                    na_sync_component_name_from_config(config, wrap_in_operation: true)
                     UiBridge.na_send_status(@na_dialog, 'success', "Exterior single door updated: #{instance.name}")
                 else
                     UiBridge.na_send_status(@na_dialog, 'error', 'Exterior single door update failed')
@@ -1266,6 +1546,7 @@ module Na__AssemblyStudio
                     transparent: true
                 )
                     @na_config = config
+                    na_sync_component_name_from_config(config, wrap_in_operation: true)
                     Sketchup.active_model.active_view.invalidate
                 end
             rescue StandardError => e
@@ -1392,11 +1673,9 @@ module Na__AssemblyStudio
                 end
                 na_apply_edge_colours_after_build(@na_window_component, config["windowConfiguration"])
 
-                description = nil
-                if @na_config["windowMetadata"] && @na_config["windowMetadata"][0]
-                    description = @na_config["windowMetadata"][0]["WindowDescription"]
-                end
-                DataSerializer.na_set_window_id_on_instance(@na_window_component, window_id, description)
+                DataSerializer.na_set_window_id_on_instance(
+                    @na_window_component, window_id, na_requested_component_name(@na_config)
+                )
                 DataSerializer.na_save_window_data(window_id, @na_config)
                 model.commit_operation
                 UiBridge.na_send_status(@na_dialog, 'success', "Window updated: #{window_id}")
@@ -1497,6 +1776,7 @@ module Na__AssemblyStudio
                     end
                 end
                 na_apply_edge_colours_after_build(target_instance, config["windowConfiguration"])
+                na_sync_component_name_from_config(config)                                       # <-- Live Mode must never drop the user's name tail
 
                 DataSerializer.na_save_window_data(window_id, @na_config)
                 model.commit_operation

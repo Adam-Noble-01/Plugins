@@ -40,6 +40,7 @@ module Na__ExteriorSingleDoorSystem
 
     NA_DEFAULT_DOOR_CONFIG = {
         'ext_single_door_mode'                     => false,
+        'single_door_fixed_panels'                 => false,
         'single_door_swing_side'                   => 'Left',
         'single_door_swing_direction'              => 'Inward',
         'single_door_opening_angle_deg'            => 90,

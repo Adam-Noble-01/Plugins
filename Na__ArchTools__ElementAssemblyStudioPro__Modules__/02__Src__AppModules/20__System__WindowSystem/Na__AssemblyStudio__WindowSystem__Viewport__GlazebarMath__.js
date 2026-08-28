@@ -231,9 +231,17 @@ const Na__GlazebarMath = (function () {
     // ---------------------------------------------------------------
     // prefix is 'glazebar_h_offset_' or 'glazebar_v_offset_'; keys are
     // 1-based ('glazebar_h_offset_1_mm'), the returned array 0-indexed.
+    //
+    // V1.9.5 - The whole pool is gated on `glazebar_offsets_enabled`.
+    // Explicit false returns an empty array so hidden sliders cannot
+    // keep nudging the bars, which is what the toggle promises in the
+    // panel. An ABSENT key means a pre-V1.9.5 config: those had no
+    // toggle, so their stored nudges stay live and the design is
+    // preserved.
     function na_collectBarOffsets(config, prefix, count) {
         const offsets = [];
         if (!config || !count || count <= 0) return offsets;
+        if (config.glazebar_offsets_enabled === false) return offsets;
         for (let i = 1; i <= count; i += 1) {
             const raw = Number(config[prefix + i + '_mm']);
             offsets.push(isNaN(raw) ? 0 : raw);

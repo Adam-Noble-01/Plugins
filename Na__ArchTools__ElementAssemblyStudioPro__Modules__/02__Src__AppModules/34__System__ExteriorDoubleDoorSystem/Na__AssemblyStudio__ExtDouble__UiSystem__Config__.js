@@ -93,6 +93,11 @@ const Na__ExtDouble__UiConfig = (function () {
     // -----------------------------------------------------------------------------
 
     const NA_SHARED_CONTROLS = [
+        // Fixed Panels turns the pair into dead joinery - no handles, no ROT
+        // hinge markers, no open-state copy, no swing arcs. Built for orangery
+        // and conservatory runs where only the centre pair actually opens but
+        // every panel must share the same stile / rail / glazing bar language.
+        na_checkbox('double_door_fixed_panels', 'Fixed Panels', false, 'Opening and Leaves'),
         Object.assign(na_select('double_door_active_leaf', 'Active Leaf', 'Left', [
             { value: 'Left', label: 'Left Leaf' },
             { value: 'Right', label: 'Right Leaf' }

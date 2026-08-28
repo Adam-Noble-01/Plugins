@@ -25,6 +25,15 @@ module Na__DxfExporter
         :dimensions => 'NA_DIMENSIONS'
     }.freeze
 
+    # HELPER FUNCTION | Fixed-Panel Mode Predicate
+    # ------------------------------------------------------------
+    # Fixed panels export as dead joinery - no handle, no open-state plan
+    # outline and no swing arc.
+    def self.na_fixed_panels?(config)
+        GeometryHelpers.na_boolean(config, 'double_door_fixed_panels', false)
+    end
+    private_class_method :na_fixed_panels?
+
     def self.na_build_entities(config)
         # @delegate: Na__AssemblyStudio__ExtDouble__LeafLayoutResolver__.rb
         leaves = LeafLayoutResolver.na_resolve(config)
@@ -108,7 +117,7 @@ module Na__DxfExporter
                 divider[:height_mm]
             )
         end
-        na_add_handle(output, config, leaf) if leaf[:is_active]
+        na_add_handle(output, config, leaf) if leaf[:is_active] && !na_fixed_panels?(config)
     end
     private_class_method :na_add_leaf_elevation
 
@@ -178,6 +187,7 @@ module Na__DxfExporter
                 leaf[:width_mm],
                 leaf[:thickness_mm]
             )
+            next if na_fixed_panels?(config)
             if GeometryHelpers.na_boolean(config, 'double_door_create_open_state_copy', true)
                 na_add_open_leaf_plan(output, config, leaf, plan_offset)
             end

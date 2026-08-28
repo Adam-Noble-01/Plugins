@@ -578,8 +578,14 @@ module Na__WindowSystem
             # N = 1-based bar index). Applied AFTER the spacing math, on top
             # of the uniform offset. Horizontal bars: positive = up (+Z).
             # Vertical bars: positive = right (+X). Converted to inches here.
-            glazebar_h_bar_offsets = (1..h_bars).map { |i| (config["glazebar_h_offset_#{i}_mm"] || 0).to_f * mm_to_inch }
-            glazebar_v_bar_offsets = (1..v_bars).map { |i| (config["glazebar_v_offset_#{i}_mm"] || 0).to_f * mm_to_inch }
+            #
+            # V1.9.5 - The pool is gated on the Glaze Bar Offsets toggle.
+            # Explicit false drops every nudge so the geometry matches what
+            # the panel shows; an absent key is a pre-V1.9.5 config that
+            # never had the toggle, so its nudges stay live.
+            glazebar_offsets_enabled = config["glazebar_offsets_enabled"] != false
+            glazebar_h_bar_offsets = glazebar_offsets_enabled ? (1..h_bars).map { |i| (config["glazebar_h_offset_#{i}_mm"] || 0).to_f * mm_to_inch } : []
+            glazebar_v_bar_offsets = glazebar_offsets_enabled ? (1..v_bars).map { |i| (config["glazebar_v_offset_#{i}_mm"] || 0).to_f * mm_to_inch } : []
 
             # Leaded glass overlay (outer glass face; does not trim glass)
             leaded_resolved = LeadedGlassBuilder.na_resolve_leaded_params(config)

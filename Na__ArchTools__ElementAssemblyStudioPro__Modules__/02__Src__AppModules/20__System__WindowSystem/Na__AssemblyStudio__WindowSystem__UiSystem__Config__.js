@@ -357,9 +357,14 @@ const NA_UI_CONFIG = [
 // Keys: glazebar_h_offset_N_mm / glazebar_v_offset_N_mm (N = 1-based
 // bar index matching the removal-key bar numbering). Applied AFTER the
 // automatic spacing step. Horizontal bars: positive = up. Vertical
-// bars: positive = right. MainUiLogic shows only the first
-// horizontal_glaze_bars / vertical_glaze_bars sliders of each pool
-// (na_updateGlazebarOffsetVisibility) so the UI stays uncluttered.
+// bars: positive = right.
+//
+// V1.9.5 - The pool lives inside Advanced Glazebar Controls behind the
+// `glazebar_offsets_enabled` toggle. Per-bar nudging is a rare detail
+// job, so the sixteen sliders no longer sit in the main GLAZE BARS
+// section where they buried the rest of the panel. MainUiLogic
+// (na_updateGlazebarOffsetVisibility) shows a slider only when the
+// toggle is on AND that bar actually exists.
 const NA_GLAZEBAR_OFFSET_MAX_BARS = 8;
 
 function na_buildGlazebarOffsetDescriptors(axisKey, axisLabel) {
@@ -393,7 +398,6 @@ const NA_GLAZEBAR_CONFIG = [
         step    :  1,
         default :  0
     },
-    ...na_buildGlazebarOffsetDescriptors('h', 'Horizontal'),
     {
         id      :  'vertical_glaze_bars',
         label   :  'Vertical Bars',
@@ -404,7 +408,6 @@ const NA_GLAZEBAR_CONFIG = [
         step    :  1,
         default :  0
     },
-    ...na_buildGlazebarOffsetDescriptors('v', 'Vertical'),
     {
         id      :  'glaze_bar_width_mm',
         label   :  'Bar Width',
@@ -418,7 +421,9 @@ const NA_GLAZEBAR_CONFIG = [
     // -------------------------------------------------------------------------
     // Advanced Glazebar Controls (expandable)
     //
-    // Houses two opt-in decorations driven by toggle children:
+    // Houses three opt-in features driven by toggle children:
+    //   * Bar Offsets     - per-bar signed nudges away from the automatic
+    //                       spacing (the sixteen-slider pool below).
     //   * Margin Glazing  - inset the outermost pair of bars by N mm and
     //                       redistribute interior bars evenly between them.
     //   * Gothic Arch     - overshooting two-centred lancet arches across the
@@ -429,7 +434,7 @@ const NA_GLAZEBAR_CONFIG = [
     // dynamic recomputation lives in MainUiLogic
     // (na_computeGothicArchAmountDefault / na_computeGothicArchHeightDefault).
     // Visibility of dependant sliders is wired in MainUiLogic
-    // (na_updateAdvancedGlazebarVisibility).
+    // (na_updateAdvancedGlazebarVisibility / na_updateGlazebarOffsetVisibility).
     // -------------------------------------------------------------------------
     {
         id      :  'advanced_glazebar_controls',
@@ -437,6 +442,24 @@ const NA_GLAZEBAR_CONFIG = [
         type    :  'expandable',
         default :  false,
         children: [
+            // -----------------------------------------------------------------
+            // Per-Bar Glaze Bar Offsets (V1.9.5 - moved in behind a toggle)
+            //
+            // Off by default. When on, the offset sliders for the bars that
+            // currently exist appear directly beneath. Off means the stored
+            // nudges are ignored everywhere - 2D preview, DXF and 3D - so the
+            // toggle reads the same way in the model as it does in the panel
+            // (gating lives in Na__GlazebarMath.na_collectBarOffsets on the JS
+            // side and in each geometry/DXF producer on the Ruby side).
+            // -----------------------------------------------------------------
+            {
+                id      :  'glazebar_offsets_enabled',
+                label   :  'Glaze Bar Offsets',
+                type    :  'toggle',
+                default :  false
+            },
+            ...na_buildGlazebarOffsetDescriptors('h', 'Horizontal'),
+            ...na_buildGlazebarOffsetDescriptors('v', 'Vertical'),
             {
                 id      :  'glazebar_margin_enabled',
                 label   :  'Glaze Bar Margins',
@@ -601,11 +624,15 @@ const NA_CILL_FRAME_CONFIG = [
         default :  50
     },
     {
+        // Zero protrusion is legal and gives a flush cill sitting in the
+        // wall face. The cill slab still has depth (wall inset + frame
+        // depth) so nothing degenerates - see Na__GeometryBuilders
+        // .na_create_cill_geometry.
         id      :  'cill_depth_mm',
         label   :  'Cill Protrusion',
         unit    :  'mm',
         type    :  'slider',
-        min     :  20,
+        min     :  0,
         max     :  100,
         step    :  5,
         default :  50
@@ -616,7 +643,7 @@ const NA_CILL_FRAME_CONFIG = [
         unit    :  'mm',
         type    :  'slider',
         min     :  50,
-        max     :  140,
+        max     :  180,
         step    :  5,
         default :  70
     },

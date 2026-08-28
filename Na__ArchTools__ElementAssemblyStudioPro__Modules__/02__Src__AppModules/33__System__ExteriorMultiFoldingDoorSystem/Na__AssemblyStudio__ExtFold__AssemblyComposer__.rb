@@ -324,7 +324,7 @@ module Na__AssemblyComposer
 
         cill_height_mm = (config_hash["cill_height_mm"] || 50).to_f
         cill_depth_mm  = (config_hash["cill_depth_mm"]  || 50).to_f
-        return if cill_height_mm <= 0.0 || cill_depth_mm <= 0.0
+        return if cill_height_mm <= 0.0 || cill_depth_mm < 0.0                                       # <-- Zero protrusion is a flush cill, not an absent one
 
         return unless defined?(Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders)
 
@@ -855,6 +855,7 @@ module Na__AssemblyComposer
         mm_to_inch = 1.0 / 25.4
         h_bars = (config_hash["horizontal_glaze_bars"] || 0).to_i
         v_bars = (config_hash["vertical_glaze_bars"]   || 0).to_i
+        offsets_on = config_hash["glazebar_offsets_enabled"] != false                                # <-- V1.9.5 Glaze Bar Offsets toggle (absent key = pre-V1.9.5, nudges stay live)
         {
             margin_enabled:  config_hash["glazebar_margin_enabled"] == true,
             margin_offset:   (config_hash["glazebar_margin_offset_mm"] || 0).to_f * mm_to_inch,
@@ -864,8 +865,8 @@ module Na__AssemblyComposer
             arch_height_mm:  (config_hash["glazebar_gothic_arch_height_mm"] || 0).to_f,
             h_offset:        (config_hash["glazebar_horizontal_offset_mm"] || 0).to_f * mm_to_inch,    # <-- Uniform vertical nudge for horizontal bars
             h_offset_mm:     (config_hash["glazebar_horizontal_offset_mm"] || 0).to_f,
-            h_bar_offsets:   (1..h_bars).map { |i| (config_hash["glazebar_h_offset_#{i}_mm"] || 0).to_f * mm_to_inch },   # <-- Per-bar vertical nudges (inches)
-            v_bar_offsets:   (1..v_bars).map { |i| (config_hash["glazebar_v_offset_#{i}_mm"] || 0).to_f * mm_to_inch }    # <-- Per-bar horizontal nudges (inches)
+            h_bar_offsets:   offsets_on ? (1..h_bars).map { |i| (config_hash["glazebar_h_offset_#{i}_mm"] || 0).to_f * mm_to_inch } : [],   # <-- Per-bar vertical nudges (inches)
+            v_bar_offsets:   offsets_on ? (1..v_bars).map { |i| (config_hash["glazebar_v_offset_#{i}_mm"] || 0).to_f * mm_to_inch } : []    # <-- Per-bar horizontal nudges (inches)
         }
     end
     private_class_method :na_fold_advanced_glazebar_hash

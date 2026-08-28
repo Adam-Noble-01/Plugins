@@ -99,11 +99,18 @@
         ];
     }
 
+    // Fixed panels are dead joinery - no pivot, no open-state ghost, no swing
+    // arc and no handle. Only the closed footprint is drawn.
+    function na_fixedPanels(config) {
+        return na_boolean(config && config.double_door_fixed_panels, false);
+    }
+
     function na_drawLeaf(svg, layout, leaf, palette, config) {
         var closed = na_leafCorners(leaf).map(function (point) {
             return na_point(layout, point.x, point.y);
         });
         na_polygon(svg, closed, palette.leaf);
+        if (na_fixedPanels(config)) return;
 
         var pivot = { x: leaf.hingeXMm, y: leaf.pivotYMm };
         if (na_boolean(config.double_door_create_open_state_copy, true)) {

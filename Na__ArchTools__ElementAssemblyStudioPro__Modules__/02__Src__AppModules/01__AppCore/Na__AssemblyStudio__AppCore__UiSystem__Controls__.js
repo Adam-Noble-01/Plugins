@@ -17,6 +17,13 @@
 
 const Na__Ui__Controls = (function () {
 
+    // Tooltip shown on every numeric entry field. Every one of them is a small
+    // calculator - see Na__AssemblyStudio__AppUtils__ArithmeticEvaluator__.js.
+    const NA_ARITHMETIC_HINT =
+        'Accepts arithmetic: 1700-50, 2400/3, 800*3, 2400+(100+100+100+100). ' +
+        'Start with an operator to work from the current value (+200). ' +
+        'Up/Down arrows step; hold Shift for x10.';
+
     function na_createControl(config) {
         switch (config.type) {
             case 'slider':         return na_createSliderHtml(config);
@@ -32,8 +39,9 @@ const Na__Ui__Controls = (function () {
         }
     }
 
-    // EQ-number: hybrid text input accepting the literal "EQ" (equal split) or a
-    // millimetre number. Used by the double/single door active-leaf-width field.
+    // EQ-number: hybrid text input accepting the literal "EQ" (equal split), a
+    // millimetre number, or an arithmetic expression that resolves to one.
+    // Used by the double/single door active-leaf-width field.
     //   { id, label, type: 'eq_number', default: 'EQ' | <number> }
     function na_createEqNumberHtml(config) {
         const value = (config.default === null || config.default === undefined) ? '' : config.default;
@@ -42,7 +50,8 @@ const Na__Ui__Controls = (function () {
                 <div class="na-toggle-container">
                     <span class="na-control-label">${config.label}</span>
                     <input type="text" class="na-eq-number-input" id="${config.id}-eqnumber"
-                           value="${value}" placeholder="EQ or mm" spellcheck="false">
+                           value="${value}" placeholder="EQ or mm" spellcheck="false"
+                           autocomplete="off" title="EQ for an equal split, or a size. ${NA_ARITHMETIC_HINT}">
                 </div>
             </div>
         `;
@@ -94,6 +103,19 @@ const Na__Ui__Controls = (function () {
         `;
     }
 
+    // Slider: range + numeric entry field sharing one value.
+    //
+    // The entry field is type="text", NOT type="number", so the user can type
+    // arithmetic into it ('1700-50', '2400/3', '+200'). A type="number" input
+    // discards anything that is not already a valid number - `.value` reads
+    // back as '' the moment an operator is typed - so the expression could
+    // never be recovered. Evaluation, clamping and Up/Down arrow stepping all
+    // live in Na__Ui__Events.na_attachSliderListeners.
+    //
+    // min / max / step stay on both elements: they still drive the range
+    // slider, and the events layer reads them as the live clamp range (the
+    // width slider's max is widened to 8000mm in door modes, and the Interior
+    // Door tab widens a max in place for an oversized measured opening).
     function na_createSliderHtml(config) {
         return `
             <div class="na-control-item" data-control-id="${config.id}">
@@ -104,8 +126,9 @@ const Na__Ui__Controls = (function () {
                 <div class="na-slider-container">
                     <input type="range" class="na-slider" id="${config.id}-slider"
                            min="${config.min}" max="${config.max}" step="${config.step}" value="${config.default}">
-                    <input type="number" class="na-slider-input" id="${config.id}-input"
-                           min="${config.min}" max="${config.max}" step="${config.step}" value="${config.default}">
+                    <input type="text" class="na-slider-input" id="${config.id}-input"
+                           min="${config.min}" max="${config.max}" step="${config.step}" value="${config.default}"
+                           autocomplete="off" spellcheck="false" title="${NA_ARITHMETIC_HINT}">
                 </div>
             </div>
         `;

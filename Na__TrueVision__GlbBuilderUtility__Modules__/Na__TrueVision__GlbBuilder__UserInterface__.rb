@@ -38,12 +38,14 @@ module TrueVision3D
                 @export_dialog = UI::HtmlDialog.new(
                     :dialog_title => "TrueVision3D GLB Export Options",                # <-- Dialog title
                     :preferences_key => "TrueVision3D_GLBExport",                      # <-- Preferences key
-                    :scrollable => false,                                              # <-- No scrolling
-                    :resizable => false,                                               # <-- Fixed size
-                    :width => 600,                                                     # <-- Dialog width
-                    :height => 900,                                                    # <-- Dialog height
+                    :scrollable => true,                                               # <-- Allow content scrolling
+                    :resizable => true,                                                # <-- User resizable
+                    :width => 560,                                                     # <-- Dialog width
+                    :height => 660,                                                    # <-- Dialog height (fits 1080p at 100% scale)
+                    :min_width => 420,                                                 # <-- Minimum usable width
+                    :min_height => 380,                                                # <-- Minimum usable height
                     :left => 200,                                                      # <-- X position
-                    :top => 200                                                        # <-- Y position
+                    :top => 120                                                        # <-- Y position
                 )
                 
                 html_content = self.Na__UserInterface__GenerateDialogHtml
@@ -96,7 +98,68 @@ module TrueVision3D
                     total_export_count += element_groups.length
                 end
             end
-            
+
+            # -----------------------------------------------------------
+            # Build export manifest markup (rendered in lower scroll pane)
+            # -----------------------------------------------------------
+            export_list_html = ""                                                      # Accumulated file row markup
+            total_file_count = 0                                                       # Running count of output GLB files
+
+            if total_export_count == 0
+                export_list_html = "<div class='empty-note'>No entities found with valid tag ranges</div>"
+            else
+                # Flat (non-storey) items first
+                tag_groups.each do |filename, entities|
+                    export_list_html += self.Na__UserInterface__BuildFileRow("#{project_prefix}#{filename}#{MESH_MODEL_SUFFIX}.glb", entities.length)
+                    total_file_count += 1
+                    if filename != "01__OrbitHelperCube"
+                        export_list_html += self.Na__UserInterface__BuildFileRow("#{project_prefix}#{filename}#{LINEWORK_MODEL_SUFFIX}.glb", entities.length)
+                        total_file_count += 1
+                    end
+                end
+
+                # Storey-grouped items in collapsible sections
+                if has_storeys
+                    storey_export_plan.each do |storey_name, element_groups|
+                        display_name  = storey_name.gsub("Storey__", "").gsub(/([a-z])([A-Z])/, '\1 \2')
+                        storey_rows   = ""
+                        storey_files  = 0
+
+                        element_groups.each do |element_name, entities|
+                            base_filename = "#{storey_name}__#{element_name}"
+                            storey_rows  += self.Na__UserInterface__BuildFileRow("#{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb", entities.length)
+                            storey_rows  += self.Na__UserInterface__BuildFileRow("#{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb", entities.length)
+                            storey_files += 2
+                        end
+
+                        total_file_count += storey_files
+                        export_list_html += "<details class='storey-block' open>" \
+                                            "<summary class='storey-heading'>&#127970; #{display_name}" \
+                                            "<span class='entity-count'>#{storey_files} files</span></summary>" \
+                                            "#{storey_rows}</details>\n"
+                    end
+                end
+            end
+
+            # -----------------------------------------------------------
+            # Status notes rendered above the manifest in the output pane
+            # -----------------------------------------------------------
+            notes_html = ""
+
+            if has_storeys
+                total_storey_containers = storey_containers.values.map(&:length).sum
+                notes_html += "<div class='note note-storey'><strong>Storey Mode Active:</strong> " \
+                              "#{storey_containers.length} storey key(s), #{total_storey_containers} container(s) detected. " \
+                              "Duplicate storey containers are merged per-storey.</div>"
+            end
+
+            if excluded_count > 0
+                notes_html += "<div class='note note-excluded'><strong>#{excluded_count} layer(s)</strong> matching " \
+                              "'#{EXCLUDED_LAYER_DESCRIPTION}' will be excluded</div>"
+            end
+
+            file_count_label = total_export_count == 0 ? "Nothing to export" : "#{total_file_count} GLB files"
+
             html = <<-HTML
             <!DOCTYPE html>
             <html>
@@ -111,233 +174,332 @@ module TrueVision3D
                         --TrueVisionBorderColor                  : #172b3a;
                         --TrueVisionButtonBackground             : #172b3a;
                         --TrueVisionButtonHover                  : #2a4558;
-                        font-size                                : 14px;
+                        font-size                                : 13px;
                     }
-    
-                    /* Base Layout Styles */
+
+                    *, *::before, *::after { box-sizing: border-box; }
+
+                    /* Base Layout - Fixed Shell With Internal Scroll Panes */
                     html, body {
+                        height                                   : 100%;
                         margin                                   : 0;
-                        padding                                  : 20px;
+                        padding                                  : 0;
+                    }
+
+                    body {
+                        display                                  : flex;
+                        flex-direction                           : column;
+                        overflow                                 : hidden;
                         font-family                              : Arial, sans-serif;
-                        font-size                                : 14px;
+                        font-size                                : 13px;
                         color                                    : var(--FontCol_TrueVisionStandardTextColour);
                         background-color                         : var(--TrueVisionBackgroundColor);
                     }
-    
-                    /* Form Styles */
-                    h1 {
-                        font-size                                : 18px;
-                        margin-bottom                            : 20px;
-                        color                                    : var(--TrueVisionBorderColor);
+
+                    /* Scroll Pane Styling */
+                    .scroll-pane {
+                        overflow-y                               : auto;
+                        overflow-x                               : hidden;
                     }
-    
+
+                    .scroll-pane::-webkit-scrollbar               { width: 11px; }
+                    .scroll-pane::-webkit-scrollbar-track         { background: #e6e8ea; }
+                    .scroll-pane::-webkit-scrollbar-thumb         { background: #9aa5ad; border-radius: 6px; border: 2px solid #e6e8ea; }
+                    .scroll-pane::-webkit-scrollbar-thumb:hover   { background: var(--TrueVisionButtonHover); }
+
+                    /* Header Bar */
+                    .app-header {
+                        flex                                     : 0 0 auto;
+                        padding                                  : 9px 14px;
+                        background                               : var(--TrueVisionBorderColor);
+                        color                                    : #ffffff;
+                    }
+
+                    .app-header h1 {
+                        margin                                   : 0;
+                        font-size                                : 14px;
+                        letter-spacing                           : 0.4px;
+                    }
+
+                    /* Configuration Pane - Top Section */
+                    .config-pane {
+                        flex                                     : 0 1 auto;
+                        min-height                               : 0;
+                        padding                                  : 10px 14px 3px 14px;
+                    }
+
                     .option-group {
-                        margin-bottom                            : 15px;
-                        padding                                  : 10px;
-                        background                               : white;
+                        background                               : #ffffff;
+                        border                                   : 1px solid #e2e5e8;
                         border-radius                            : 4px;
+                        padding                                  : 7px 10px;
+                        margin-bottom                            : 7px;
                     }
-    
+
                     label {
                         display                                  : block;
-                        margin-bottom                            : 5px;
+                        margin                                   : 0;
                         font-weight                              : bold;
+                        font-size                                : 12.5px;
+                        cursor                                   : pointer;
                     }
-    
+
                     input[type="checkbox"] {
-                        margin-right                             : 8px;
+                        margin-right                             : 7px;
                         vertical-align                           : middle;
                     }
-    
+
                     .info-text {
-                        font-size                                : 12px;
-                        color                                    : #666;
-                        margin-top                               : 5px;
-                    }
-    
-                    .excluded-info {
-                        background                               : #fff3cd;
-                        border                                   : 1px solid #ffeaa7;
-                        padding                                  : 8px;
-                        border-radius                            : 4px;
-                        margin-top                               : 10px;
-                        font-size                                : 12px;
-                    }
-                    
-                    .export-info {
-                        background                               : #d4edda;
-                        border                                   : 1px solid #c3e6cb;
-                        padding                                  : 10px;
-                        border-radius                            : 4px;
-                        margin                                   : 15px 0;
-                        font-size                                : 13px;
-                    }
-                    
-                    .export-list {
-                        margin                                   : 10px 0;
-                        padding-left                             : 20px;
-                        font-size                                : 12px;
-                        color                                    : #555;
+                        font-size                                : 11px;
+                        line-height                              : 1.35;
+                        color                                    : #666666;
+                        margin-top                               : 4px;
+                        padding-left                             : 21px;
                     }
 
-                    .storey-heading {
-                        font-weight                              : bold;
-                        font-size                                : 12px;
-                        color                                    : #172b3a;
-                        margin-top                               : 8px;
-                        margin-bottom                            : 4px;
-                        padding-bottom                           : 2px;
-                        border-bottom                            : 1px solid #c3e6cb;
+                    /* Action Bar - Buttons Pinned Below Configuration */
+                    .action-bar {
+                        flex                                     : 0 0 auto;
+                        padding                                  : 5px 14px 10px 14px;
+                        background                               : var(--TrueVisionBackgroundColor);
                     }
 
-                    .storey-badge {
-                        background                               : #e8f4f8;
-                        border                                   : 1px solid #b8daff;
-                        padding                                  : 6px 10px;
-                        border-radius                            : 4px;
-                        margin                                   : 10px 0;
-                        font-size                                : 12px;
-                        color                                    : #172b3a;
+                    .action-row {
+                        display                                  : flex;
+                        gap                                      : 7px;
                     }
-    
-                    /* Button Styles */
-                    .button-group {
-                        margin-top                               : 20px;
-                        text-align                               : center;
+
+                    .action-row.secondary {
+                        margin-top                               : 7px;
+                        padding-top                              : 8px;
+                        border-top                               : 1px solid #dcdfe2;
                     }
-    
+
                     button {
-                        padding                                  : 8px 20px;
-                        margin                                   : 0 5px;
+                        flex                                     : 1 1 auto;
+                        padding                                  : 8px 12px;
                         background                               : var(--TrueVisionButtonBackground);
                         color                                    : white;
                         border                                   : none;
                         border-radius                            : 4px;
                         cursor                                   : pointer;
-                        font-size                                : 14px;
+                        font-family                              : Arial, sans-serif;
+                        font-size                                : 13px;
                     }
-    
-                    button:hover {
+
+                    button:hover:not(:disabled) {
                         background                               : var(--TrueVisionButtonHover);
                     }
-    
+
                     button:disabled {
-                        background                               : #999;
+                        background                               : #999999;
                         cursor                                   : not-allowed;
+                    }
+
+                    .btn-primary                                  { font-weight: bold; }
+                    .btn-cancel                                   { flex: 0 0 110px; background: #6b7780; }
+                    .btn-cancel:hover:not(:disabled)              { background: #566169; }
+                    .btn-setup                                    { background: #2c6e49; font-size: 11.5px; padding: 7px 10px; }
+                    .btn-setup:hover:not(:disabled)               { background: #37855a; }
+                    .btn-reload                                   { flex: 0 0 130px; background: #95a5a6; font-size: 11.5px; padding: 7px 10px; }
+                    .btn-reload:hover:not(:disabled)              { background: #7f8c8d; }
+
+                    /* Output Pane - Bottom Section, Scrolls Independently */
+                    .output-pane {
+                        flex                                     : 1 1 auto;
+                        display                                  : flex;
+                        flex-direction                           : column;
+                        min-height                               : 92px;
+                        border-top                               : 1px solid #c9ccd0;
+                        background                               : #f0f5f0;
+                    }
+
+                    .output-header {
+                        flex                                     : 0 0 auto;
+                        display                                  : flex;
+                        justify-content                          : space-between;
+                        align-items                              : center;
+                        padding                                  : 6px 14px;
+                        background                               : #e1ece3;
+                        border-bottom                            : 1px solid #c3e6cb;
+                        font-size                                : 12px;
+                        font-weight                              : bold;
+                        color                                    : var(--TrueVisionBorderColor);
+                    }
+
+                    .output-count {
+                        font-weight                              : normal;
+                        font-size                                : 11px;
+                        color                                    : #4b5a52;
+                    }
+
+                    .output-body {
+                        flex                                     : 1 1 auto;
+                        min-height                               : 0;
+                        padding                                  : 8px 14px 12px 14px;
+                    }
+
+                    /* File Manifest Rows */
+                    .file-row {
+                        display                                  : flex;
+                        gap                                      : 10px;
+                        align-items                              : baseline;
+                        font-size                                : 11px;
+                        color                                    : #3a4550;
+                        padding                                  : 1px 0;
+                    }
+
+                    .file-name {
+                        flex                                     : 1 1 auto;
+                        min-width                                : 0;
+                        overflow-wrap                            : anywhere;
+                    }
+
+                    .entity-count {
+                        flex                                     : 0 0 auto;
+                        font-size                                : 10px;
+                        font-weight                              : normal;
+                        color                                    : #7b868f;
+                    }
+
+                    .empty-note {
+                        font-style                               : italic;
+                        font-size                                : 12px;
+                        color                                    : #7b868f;
+                    }
+
+                    /* Collapsible Storey Sections */
+                    .storey-block {
+                        margin-top                               : 9px;
+                    }
+
+                    .storey-heading {
+                        display                                  : flex;
+                        justify-content                          : space-between;
+                        align-items                              : baseline;
+                        gap                                      : 10px;
+                        font-weight                              : bold;
+                        font-size                                : 11.5px;
+                        color                                    : var(--TrueVisionBorderColor);
+                        padding                                  : 3px 0;
+                        margin-bottom                            : 3px;
+                        border-bottom                            : 1px solid #c3e6cb;
+                        cursor                                   : pointer;
+                        list-style                               : none;
+                        user-select                              : none;
+                    }
+
+                    .storey-heading::-webkit-details-marker       { display: none; }
+                    .storey-block > summary::before               { content: "▸ "; }
+                    .storey-block[open] > summary::before         { content: "▾ "; }
+
+                    /* Status Notes */
+                    .note {
+                        border-radius                            : 4px;
+                        padding                                  : 6px 9px;
+                        margin-bottom                            : 8px;
+                        font-size                                : 11px;
+                        line-height                              : 1.35;
+                    }
+
+                    .note-storey {
+                        background                               : #e8f4f8;
+                        border                                   : 1px solid #b8daff;
+                        color                                    : var(--TrueVisionBorderColor);
+                    }
+
+                    .note-excluded {
+                        background                               : #fff3cd;
+                        border                                   : 1px solid #ffeaa7;
+                    }
+
+                    /* Footer Strip */
+                    .app-footer {
+                        flex                                     : 0 0 auto;
+                        padding                                  : 6px 14px 7px 14px;
+                        border-top                               : 1px solid #c9ccd0;
+                        background                               : var(--TrueVisionBackgroundColor);
+                        font-size                                : 10.5px;
+                        line-height                              : 1.35;
+                        color                                    : #7b868f;
                     }
                 </style>
             </head>
             <body>
-                <h1>TrueVision3D GLB Builder Utility</h1>
-                
-                <div class="export-info">
-                    <strong>Files to be exported:</strong>
-                    <div class="export-list">
-            HTML
-            
-            if total_export_count == 0
-                html += "        <em>No entities found with valid tag ranges</em>\n"
-            else
-                # Show flat (non-storey) items first
-                tag_groups.each do |filename, entities|
-                    html += "        &bull; #{project_prefix}#{filename}#{MESH_MODEL_SUFFIX}.glb (#{entities.length} entities)<br>\n"
-                    if filename != "01__OrbitHelperCube"
-                        html += "        &bull; #{project_prefix}#{filename}#{LINEWORK_MODEL_SUFFIX}.glb (#{entities.length} entities)<br>\n"
-                    end
-                end
 
-                # Show storey-grouped items
-                if has_storeys
-                    storey_export_plan.each do |storey_name, element_groups|
-                        # Storey section heading
-                        display_name = storey_name.gsub("Storey__", "").gsub(/([a-z])([A-Z])/, '\1 \2')
-                        html += "        <div class='storey-heading'>&#127970; #{display_name}</div>\n"
+                <!-- Header -->
+                <div class="app-header">
+                    <h1>TrueVision3D GLB Builder Utility</h1>
+                </div>
 
-                        element_groups.each do |element_name, entities|
-                            base_filename = "#{storey_name}__#{element_name}"
-                            html += "        &bull; #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb (#{entities.length} entities)<br>\n"
-                            html += "        &bull; #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb (#{entities.length} entities)<br>\n"
-                        end
-                    end
-                end
-            end
+                <!-- Configuration Options (Top) -->
+                <div class="config-pane scroll-pane">
+                    <div class="option-group">
+                        <label>
+                            <input type="checkbox" id="export-materials" checked onchange="Na__TrueVision__GlbBuilder__ToggleMaterials()">
+                            Export Materials
+                        </label>
+                        <div class="info-text">
+                            When unchecked, meshes export with a default whitecard material for clean massing models,
+                            except MAT000E__ exempt materials which still write colour + texture into the GLB.
+                            Materials are resolved per-face only (group/component materials are not inherited).
+                        </div>
+                    </div>
 
-            # Storey mode badge (shown when storey containers are detected)
-            storey_badge_html = ""
-            if has_storeys
-                total_storey_containers = storey_containers.values.map(&:length).sum
-                storey_badge_html = "<div class='storey-badge'><strong>Storey Mode Active:</strong> #{storey_containers.length} storey key(s), #{total_storey_containers} container(s) detected. Duplicate storey containers are merged per-storey.</div>"
-            end
-            
-            html += <<-HTML
+                    <div class="option-group" id="indexed-materials-group">
+                        <label>
+                            <input type="checkbox" id="export-indexed-only" checked>
+                            Export Standard Indexed Materials Only
+                        </label>
+                        <div class="info-text">
+                            Only export materials matching the standard naming convention (MAT001__, MAT101__, etc.)
+                            from the materials library, plus exempt materials (MAT000E__). Custom materials are replaced
+                            with the default whitecard. Uncheck to export all SketchUp materials.
+                        </div>
+                    </div>
+
+                    <div class="option-group">
+                        <label>
+                            <input type="checkbox" id="downscale-textures">
+                            Optimize Large Textures
+                        </label>
+                        <div class="info-text">
+                            Downscale textures larger than 1024px for smaller GLB file sizes.
+                            Uncheck for full-resolution texture export.
+                        </div>
                     </div>
                 </div>
 
-                #{storey_badge_html}
-                
-                <div class="option-group">
-                    <label>
-                        <input type="checkbox" id="export-materials" checked onchange="Na__TrueVision__GlbBuilder__ToggleMaterials()">
-                        Export Materials
-                    </label>
-                    <div class="info-text">
-                        When unchecked, meshes export with a default whitecard material for clean massing models,
-                        except MAT000E__ exempt materials which still write colour + texture into the GLB.
-                        Materials are resolved per-face only (group/component materials are not inherited).
+                <!-- Action Buttons (Top, Always Visible) -->
+                <div class="action-bar">
+                    <div class="action-row">
+                        <button class="btn-primary" onclick="Na__TrueVision__GlbBuilder__PerformExport()" #{total_export_count == 0 ? 'disabled' : ''}>Export GLB Files</button>
+                        <button class="btn-cancel" onclick="Na__TrueVision__GlbBuilder__CancelExport()">Cancel</button>
+                    </div>
+                    <div class="action-row secondary">
+                        <button class="btn-setup" onclick="Na__TrueVision__GlbBuilder__CreateStandardisedTags()">Create Standardised Tags From Index</button>
+                        <button class="btn-reload" onclick="Na__TrueVision__GlbBuilder__ReloadScripts()">&#128260; Reload Scripts</button>
                     </div>
                 </div>
 
-                <div class="option-group" id="indexed-materials-group">
-                    <label>
-                        <input type="checkbox" id="export-indexed-only" checked>
-                        Export Standard Indexed Materials Only
-                    </label>
-                    <div class="info-text">
-                        Only export materials matching the standard naming convention (MAT001__, MAT101__, etc.)
-                        from the materials library, plus exempt materials (MAT000E__). Custom materials are replaced
-                        with the default whitecard. Uncheck to export all SketchUp materials.
-                        MAT000E__ exempt materials always export in every mode.
+                <!-- Export Manifest Output (Bottom, Scrollable) -->
+                <div class="output-pane">
+                    <div class="output-header">
+                        <span>Files to be exported</span>
+                        <span class="output-count">#{file_count_label}</span>
+                    </div>
+                    <div class="output-body scroll-pane">
+                        #{notes_html}
+                        #{export_list_html}
                     </div>
                 </div>
 
-                <div class="option-group">
-                    <label>
-                        <input type="checkbox" id="downscale-textures">
-                        Optimize Large Textures
-                    </label>
-                    <div class="info-text">
-                        Downscale textures larger than 1024px for smaller GLB file sizes.
-                        Uncheck for full-resolution texture export.
-                    </div>
-                </div>
-                
-                <div class="info-text" style="background: #e8f4f8; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                <!-- Footer -->
+                <div class="app-footer">
                     <strong>Export Method:</strong> Non-destructive virtual flattening with recursive traversal.
                     All transformations are accumulated and applied without modifying your model.
                 </div>
-                
-                #{excluded_count > 0 ? "<div class='excluded-info'>#{excluded_count} layer(s) matching '#{EXCLUDED_LAYER_DESCRIPTION}' will be excluded</div>" : ""}
-                
-                <div class="button-group">
-                    <button onclick="Na__TrueVision__GlbBuilder__PerformExport()" #{total_export_count == 0 ? 'disabled' : ''}>Export GLB Files</button>
-                    <button onclick="Na__TrueVision__GlbBuilder__CancelExport()">Cancel</button>
-                </div>
-                
-                <!-- Model Setup Utilities -->
-                <div class="button-group" style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px;">
-                    <div style="font-size: 11px; color: #888; margin-bottom: 8px; text-align: left; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Model Setup</div>
-                    <button onclick="Na__TrueVision__GlbBuilder__CreateStandardisedTags()" style="background: #2c6e49;">
-                        Create Standardised Tags From Index
-                    </button>
-                </div>
-                
-                <!-- Developer Tools -->
-                <div class="button-group" style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px;">
-                    <button onclick="Na__TrueVision__GlbBuilder__ReloadScripts()" style="background: #95a5a6; border-color: #7f8c8d;">
-                        🔄 Reload Scripts
-                    </button>
-                </div>
-                
+
                 <script>
                     function Na__TrueVision__GlbBuilder__ToggleMaterials() {
                         var exportMaterials     = document.getElementById('export-materials').checked;
@@ -363,24 +525,24 @@ module TrueVision3D
                         } else if (exportMaterials && !indexedOnly) {
                             materialExportMode  = 'all_materials';
                         }
-                        
+
                         var params = {
                             selectionOnly        : selectionOnly,
                             downscaleTextures    : downscaleTextures,
                             materialExportMode   : materialExportMode
                         };
-                        
+
                         window.location = 'skp:Na__TrueVision__GlbBuilder__Export@' + JSON.stringify(params);
                     }
-                    
+
                     function Na__TrueVision__GlbBuilder__CancelExport() {
                         window.location = 'skp:Na__TrueVision__GlbBuilder__Cancel';
                     }
-                    
+
                     function Na__TrueVision__GlbBuilder__CreateStandardisedTags() {
                         window.location = 'skp:Na__TrueVision__GlbBuilder__CreateTags';
                     }
-                    
+
                     function Na__TrueVision__GlbBuilder__ReloadScripts() {
                         window.location = 'skp:Na__TrueVision__GlbBuilder__Reload';
                     }
@@ -388,8 +550,16 @@ module TrueVision3D
             </body>
             </html>
             HTML
-            
+
             html
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build a Single File Manifest Row
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__BuildFileRow(file_name, entity_count)
+            "<div class='file-row'><span class='file-name'>#{file_name}</span>" \
+            "<span class='entity-count'>#{entity_count} entities</span></div>\n"
         end
         # ---------------------------------------------------------------
     

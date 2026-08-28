@@ -94,6 +94,16 @@
         }
     }
 
+    // Pushed on every Reverse toggle, not just at Generate, so an interactive
+    // trace that is already running can flip its preview in place.
+    function Na__ProfilePathTracer__Bridge__SetReverseDirection(reverseDirection) {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_set_reverse_direction')) {
+            window.sketchup.na_profilepathtracer_set_reverse_direction(
+                JSON.stringify({ reverseDirection: reverseDirection === true })
+            );
+        }
+    }
+
     function Na__ProfilePathTracer__Bridge__ValidateForExport() {
         if (Na__Bridge__HasCallback('na_profilepathtracer_validate_for_export')) {
             Na__Bridge__SetStatus('Validating selection for export...');
@@ -198,6 +208,7 @@
 
     window.Na__ProfilePathTracer__Bridge__RequestBootstrap        = Na__ProfilePathTracer__Bridge__RequestBootstrap;
     window.Na__ProfilePathTracer__Bridge__Generate                = Na__ProfilePathTracer__Bridge__Generate;
+    window.Na__ProfilePathTracer__Bridge__SetReverseDirection     = Na__ProfilePathTracer__Bridge__SetReverseDirection;
     window.Na__ProfilePathTracer__Bridge__ValidateForExport       = Na__ProfilePathTracer__Bridge__ValidateForExport;
     window.Na__ProfilePathTracer__Bridge__SaveProfile             = Na__ProfilePathTracer__Bridge__SaveProfile;
     window.Na__ProfilePathTracer__Bridge__PickSceneProfile        = Na__ProfilePathTracer__Bridge__PickSceneProfile;

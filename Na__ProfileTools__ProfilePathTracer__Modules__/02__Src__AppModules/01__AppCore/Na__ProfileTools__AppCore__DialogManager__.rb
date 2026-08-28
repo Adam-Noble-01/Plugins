@@ -161,6 +161,13 @@ module Na__ProfileTools__ProfilePathTracer
                 )
             end
 
+            dialog.add_action_callback('na_profilepathtracer_set_reverse_direction') do |_context, json_payload|
+                reverse_config = JSON.parse(json_payload.to_s)
+                self.Na__Dialog__HandleReverseDirectionChange(reverse_config['reverseDirection'] == true)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Set reverse direction callback failed.', error)
+            end
+
             dialog.add_action_callback('na_profilepathtracer_pick_scene_profile') do |_context|
                 model = Sketchup.active_model
                 unless model
@@ -828,7 +835,7 @@ module Na__ProfileTools__ProfilePathTracer
 
             {
                 'isStarted' => true,
-                'statusMessage' => "Interactive drawing active. Rotation #{rotation_step * 90} deg. Click to set start, then draw waypoints. Enter/right-click/double-click to finish."
+                'statusMessage' => "Interactive drawing active. Rotation #{rotation_step * 90} deg. The profile face follows the cursor — TAB reverses it, SHIFT+TAB rotates. Click to set start, then draw waypoints. Enter/right-click/double-click to finish."
             }
         end
 
@@ -891,6 +898,44 @@ module Na__ProfileTools__ProfilePathTracer
             status_message = status_payload['statusMessage'].to_s
             escaped_status = status_message.gsub('\\', '\\\\').gsub("'", "\\\\'")
             @na_dialog.execute_script("window.setTimeout(function(){ if (window.Na__ProfilePathTracer__Ui__SetStatusFromBridge) { window.Na__ProfilePathTracer__Ui__SetStatusFromBridge('#{escaped_status}'); } }, 700);")
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Interactive Tool Sync
+    # -------------------------------------------------------------------------
+
+        # The Reverse button used to be read once, at Generate. It now reaches the
+        # tool that is already running, so the flip lands on the live preview
+        # instead of forcing the trace to be restarted from scratch.
+        def self.Na__Dialog__HandleReverseDirectionChange(reverse_direction)
+            is_applied = Na__PathSelectionTool.Na__PathSelectionTool__ApplyReverseDirection(reverse_direction)
+            return unless is_applied
+            self.Na__Dialog__SetStatusFromRuby(
+                reverse_direction ? 'Reverse direction: ON — live preview flipped.' : 'Reverse direction: OFF — live preview flipped back.'
+            )
+        end
+
+        # TAB toggled Reverse inside the viewport, so the dialog button has to be
+        # repainted or it would sit there claiming the opposite of the preview.
+        def self.Na__Dialog__PushReverseDirectionState(reverse_direction)
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveReverseDirectionState',
+                { 'reverseDirection' => reverse_direction == true }
+            )
+        end
+
+        # Arms / disarms the dialog's own TAB shortcut, so the key only steals
+        # focus traversal while a trace is actually live.
+        def self.Na__Dialog__PushInteractiveToolState(is_active, reverse_direction)
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveInteractiveToolState',
+                {
+                    'isInteractiveToolActive' => is_active == true,
+                    'reverseDirection'        => reverse_direction == true
+                }
+            )
         end
 
     # endregion ----------------------------------------------------------------

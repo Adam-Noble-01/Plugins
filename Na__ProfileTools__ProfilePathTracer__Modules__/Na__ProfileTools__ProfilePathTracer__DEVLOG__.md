@@ -4,6 +4,257 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.4.0 - 28-Aug-2026 - VCB Typed Lengths (+/- arithmetic)
+
+### Summary
+The interactive path tool now takes **typed lengths through the SketchUp measurements
+box**, native-Line-tool style, closing the "you can only get accurate lengths by tracing
+existing geometry" gap. While tracking a direction, `2500` places the waypoint at exactly
+2500; `+100` / `-100` place it at the live tracked length ± 100 (drag to the wall corner's
+inference, type `+100`, get the 10.1 m gutter run). With the cursor still resting on a
+point just placed, typed values act on the **last committed segment** instead — `+100`
+pushes it 100 further along its own direction (click the corner first, then overshoot),
+and a bare number re-lengths it, fixing a sloppy click after the fact. Repeated typing
+keeps revising until the mouse makes a deliberate move. Enter on an empty box, right-click
+and double-click still finish the path exactly as before.
+
+### VCB pitfalls this had to be built around (researched, not guessed)
+
+The routing and parsing rules were confirmed against working implementations already in
+the Plugins folder — MultipleOffsetTool (same author), TIG's ExtrudeTools, Fredo's
+bezierspline — before any code was written:
+
+1. **Enter routing.** With typed text pending, SketchUp delivers `onUserText` and never
+   `onReturn`; with an empty box it delivers `onReturn`. The tool previously acted on the
+   raw `VK_RETURN` inside `onKeyDown`, which would have finished the path before the typed
+   length ever arrived. That handler is deleted — `onReturn` alone finishes on bare Enter.
+2. **Backspace collision.** Backspace is the tool's waypoint-undo, but mid-entry it is the
+   user fixing a typo. `onKeyDown` sees every key (Fredo's whole shortcut system relies on
+   it), so digit/operator keys arm a typing-mode flag and Backspace/Delete pass through to
+   the VCB while it is set. The flag clears on Enter, click, ESC and tool resume — the
+   same lifetime SketchUp gives the pending text itself.
+3. **Parsing.** `String#to_l`, never `to_f` — model units, `mm`/`m`/feet-inch suffixes and
+   the locale decimal separator all behave exactly as in native tools. Parse failure beeps
+   with a hint instead of raising.
+4. **SketchUp wipes the VCB after `onUserText`.** The refreshed value is re-pushed from a
+   0.1 s `UI.start_timer` (the rearm trick lifted from MultipleOffsetTool).
+5. **Stale cursor after a typed placement.** The mouse is still wherever it was left —
+   usually *behind* the new waypoint. Three guards: the preview drops the rubber-band tail
+   while revise mode is armed; finishing ignores the stale cursor point (no phantom
+   backward segment on Enter); and a screen-pixel test (not a zoom-fragile world distance)
+   decides whether the cursor defines a genuine new direction before typed input switches
+   back from revise-last-segment to place-along-direction.
+
+### Live measurements display
+
+`SB_VCB_LABEL` reads "Length"; the value tracks the live segment length on every mouse
+move, falling back to the last committed segment when idle — so the base a relative `+100`
+adds to is always the number sitting in the box. This is what lets "the VCB knows the wall
+is 10 m" work: snap the cursor to the far corner, read 10000, type `+100`, get 10100.
+
+**Trade-off:** the VCB previously set the crosshair size (rarely used); typed lengths now
+own the box. Crosshair stays at its 300 mm default.
+
+### Files Touched
+
+| Path | Change |
+|---|---|
+| `31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | VCB typed-length engine: entry-key shadow tracking, Enter re-routing, `to_l` parsing with +/- arithmetic, live-direction vs revise-last-segment dispatch, revise mode with pixel-move disarm, live VCB value display + rearm timer, stale-cursor guards in preview and finish |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.3.0 - 28-Aug-2026 - WYSIWYG Path Frame (mirrored-build root cause fix)
+
+### Summary
+Every profile this plugin has ever swept was built as the **mirror image of what the 2D
+dialog shows** — the long-standing "profiles always feel back to front, I always end up
+hitting Reverse" experience. Building the pre-drag datum face (v1.2.1) exposed it: the
+crosshair face matched the dialog perfectly, then the drag ghost and the committed solid
+came out flipped. The sweep frame is now built with the opposite handedness so that the
+**captured face, the 2D dialog, the crosshair datum face, the drag ghost and the built
+solid all present the profile identically**. Legacy assemblies regenerate with the old
+frame, keyed off the dictionary schema version, so nothing standing in a model mirrors
+itself on its next rebuild.
+
+### Root cause — a handedness mismatch across three conventions
+
+| Stage | Convention | Effect |
+|---|---|---|
+| **Exporter capture** | `axis_y = normal × axis_z` | Looking at the captured face from its front, PosY+ runs to your **left** |
+| **2D dialog (SVG)** | unconditional `flipY` display op | Draws `-PosY` to the right = shows the face **exactly as you saw it at capture**. The dialog was always right |
+| **Sweep frame (old)** | `x_axis = Z × tangent` | PosY+ lands to the **left of travel** → viewed from the front cap (the natural inspection view, looking back against the sweep) the section reads **mirrored** vs the dialog |
+
+The old frame reproduced the dialog only when viewed from *behind* the start cap, looking
+through the solid along the sweep — a viewpoint nobody uses. Reverse (180° roll + Z-flip
+≈ a left-right mirror about the path) happened to cancel the error, which is why it became
+a reflex.
+
+### The fix
+
+`Na__Geometry__BuildPathFrameFromTangent` now builds `x_axis = tangent × Z` (PosY+ to the
+**right** of travel). Viewed from the front cap, the placed section now reads exactly as
+the dialog draws it. The frame is deliberately left-handed (det −1) — a true mirror of the
+old placement; `BuildTransformedProfileFace` already normal-corrects the cap face, follow-me
+is orientation-agnostic, and edge styling matches by edge length, so nothing downstream
+cared.
+
+**Rotation sign follows the frame.** The dialog renders rotation steps clockwise;
+under the mirrored frame a positive roll about the tangent would read anticlockwise from
+the front-cap view, so `TransformProfilePoints` negates the angle for mirrored frames.
+The new `Na__Geometry__FrameMirrored?` (sign of the frame's determinant) drives both this
+and the closed-loop cap frame in `BuildSweepRailPlan`, so the rotation sense and cap
+handedness can never drift from whichever frame a caller built — no flags threaded
+through the sweep internals.
+
+**Datum probe back to toward-viewer.** Under the WYSIWYG frame, a probe pointing at the
+viewer is what presents the crosshair face true-to-dialog (v1.2.1's away-from-viewer sign
+was compensating for the old mirrored frame).
+
+**"Are faces checking out" — post-sweep shell orientation self-check.** Follow-me chooses
+the swept shell's facing by its own heuristics, and sweeping the mirrored cap section left
+the whole solid inside out (back faces showing). `Na__Geometry__EnsureShellFacesOutward`
+now runs inside `SweepProfileIntoGroup` after the seam cleanup: it computes the shell's
+signed volume (divergence theorem — `p0 · (e1 × e2)` summed over every mesh triangle of
+every face) and, when the total is negative, reverses every face in the run. Deterministic,
+no per-face raycasting, and because it lives in the shared sweep helper it covers first
+generation, every regeneration, and each run of a multi-run rebuild individually. Legacy
+regens pass through it too — a no-op on a healthy shell.
+
+### Legacy assemblies — dictionary schema 1.2.0
+
+New builds stamp `SchemaVersion 1.2.0`. The RegenerationEngine reads the stored version:
+anything older (or unparseable) rebuilds through `legacy_frame: true`, which reproduces
+the original right-handed frame and rotation sign — so editing the path of a pre-existing
+trace regenerates it exactly as it stands, mirrored compensations and all. Regeneration
+never re-stamps the parent payload, so a legacy trace stays legacy for life; only newly
+generated assemblies get the WYSIWYG frame.
+
+**Practical upshot:** existing traces are untouched and keep regenerating as-built. Newly
+placed profiles now come out matching the dialog — profiles that used to need Reverse no
+longer will (and vice versa for any workflow that relied on the old flip).
+
+### Files Touched
+
+| Path | Change |
+|---|---|
+| `04__GeometryHelpers/Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | WYSIWYG frame (+ legacy branch), `FrameMirrored?`, determinant-driven rotation sign, cap frame inherits handedness, `EnsureShellFacesOutward` signed-volume orientation check |
+| `02__AppData/Na__ProfileTools__AppData__DataSerializer__.rb` | `NA_SCHEMA_VERSION` 1.1.0 → 1.2.0, compat notes |
+| `31__System__ApplyProfileMode/Na__ProfileTools__RegenerationEngine__Main__.rb` | `LegacyFrameSchema?`, `legacy_frame` threaded through the rebuild |
+| `31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | Datum probe reverted to toward-viewer (true-to-dialog under the new frame) |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.2.1 - 28-Aug-2026 - Datum Face Preview + Live Reverse + TAB Hotkey
+
+### Summary
+Pressing **Generate Profile** used to drop a bare crosshair into the model. The profile
+itself did not appear until a start point had been clicked *and* the cursor moved, so the
+first time you could see which way the section was facing was after you had already
+committed the start of the path — and hitting **Reverse** at that point did nothing,
+because the flag was only read once, at Generate. The only fix was ESC and start again.
+
+Three changes close that loop:
+
+1. **The cross-section now appears on the crosshair immediately**, before the first click.
+2. **Reverse is live.** The button reaches the running tool, so the preview flips in place
+   at any point during a trace — before the first click or halfway through the path.
+3. **TAB is now Reverse.** Rotation moves to **SHIFT+TAB**.
+
+---
+
+### 1. Datum face preview
+
+Before a start point exists there is no path, and without a path there is no tangent to
+build the section's frame from — which is why nothing was drawn. The tool now synthesises
+a one-segment probe path through the cursor and feeds it to the *same*
+`Na__Geometry__BuildPreviewGeometry` the live sweep uses, so the face, the rotation and
+the reverse flip are all derived exactly as the real build derives them. Only the profile
+outline is drawn from it; the probe's sweep cage is discarded, because drawing it would
+imply a path direction the user has not chosen yet.
+
+**Probe direction: snapped to the crosshair, pointing back at the viewer.** The path
+direction is genuinely unknown at this moment, so the probe takes the model axis
+(±red / ±green) closest to pointing out of the screen — the face always lies along a
+crosshair arm instead of rotating freely with the camera, and snaps to the neighbouring
+axis when an orbit crosses a 45° boundary. Under the WYSIWYG frame (v1.3.0) this presents
+the section exactly as the dialog's 2D preview draws it. Reverse lands it on the other
+side of the crosshair along the same arm, exactly as the build will. Falls back to
+screen-up in plan views, where every vertical face is edge-on anyway.
+
+**The flip bounds still agree with the build.** `BuildReverseFlipTransform` mirrors about
+the top of the assembly bounding box; the probe path is horizontal and passes through the
+datum, so its Z range matches the real assembly's for any flat path.
+
+**The face does not blink out on the first click.** The old code drew nothing while
+`@na_cache_path` was empty, which included the moment between clicking the start point and
+moving the mouse. The datum face now covers that gap too, anchored on the last waypoint.
+
+`Na__Preview__DrawProfileFace` is solid and explicitly closed, unlike the dashed
+`DrawProfileGhost` that rides the cursor mid-sweep — an authored outer loop does not
+repeat its first vertex, so `GL_LINE_STRIP` would otherwise leave the section visibly open.
+
+---
+
+### 2. Live Reverse
+
+SketchUp exposes no way to fetch the active tool object back from the model, so
+`Na__PathSelectionTool` holds a class-level reference to the instance that is running
+(`unless defined?` guarded, so a hot reload mid-draw cannot orphan it). The dialog's
+Reverse button now calls `na_profilepathtracer_set_reverse_direction` on every toggle,
+not just at Generate; the callback finds the live tool, flips it, rebuilds the preview and
+invalidates the view directly — necessary because the dialog holds focus at that moment
+and no mouse move is coming to trigger a redraw.
+
+With no interactive tool running the callback is a no-op: the dialog's own state is the
+only thing that needed updating, and Generate reads it as before.
+
+---
+
+### 3. TAB reverses, SHIFT+TAB rotates
+
+TAB was rotation. Reverse is the correction actually needed mid-trace, so it takes the
+bare key and rotation moves to SHIFT+TAB (still reachable from the rotation pills in
+Advanced Configuration). Shift is tracked via `CONSTRAIN_MODIFIER_KEY` held-state;
+both held flags are cleared on `resume` so a key released while the tool was suspended
+cannot leave SHIFT stuck on.
+
+**TAB works in the dialog too.** Clicking Reverse moves focus to the dialog, so a viewport-
+only hotkey would die on the first click. The dialog arms its own TAB handler — but only
+while a trace is live (Ruby pushes tool activate/deactivate), and never over a text field,
+so TAB keeps its normal focus-traversal job the rest of the time.
+
+**State stays in sync both ways.** TAB in the viewport pushes back to the dialog so the
+button repaints; the dialog's toggle pushes to the tool. Neither echoes the other back.
+
+---
+
+### Known limitation
+
+The side of the line the section finally lands on depends on the path's travel direction
+(`x_axis = Z × tangent`), and that is unknown before the first click. The datum face shows
+shape, roll and reverse state exactly, locked to the crosshair axes — but once the first
+segment is drawn the real tangent takes over, and a path traced in a different direction
+presents the section from its corresponding side. Reverse stays live throughout, so the
+correction is one TAB away either way.
+
+Rotation changed with SHIFT+TAB is not pushed back to the dialog's rotation pills — same
+as the previous TAB-rotate behaviour.
+
+---
+
+### Files Touched
+
+| Path | Change |
+|---|---|
+| `31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | Datum face cache + camera-derived probe tangent, live-tool class registry, public `SetReverseDirection`, TAB/SHIFT+TAB split, held-key reset on resume, status text + extents |
+| `31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__3dPreviewGraphics__.rb` | `Na__Preview__DrawProfileFace` + `ClosedLoopPoints` |
+| `01__AppCore/Na__ProfileTools__AppCore__DialogManager__.rb` | `na_profilepathtracer_set_reverse_direction` callback; `HandleReverseDirectionChange`, `PushReverseDirectionState`, `PushInteractiveToolState` |
+| `31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js` | `Na__Ui__SetReverseDirection` funnel, `isInteractiveToolActive` state, TAB hotkey listener, two Ruby->JS receive handlers |
+| `33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__Bridge__.js` | `Bridge__SetReverseDirection` |
+| `33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js` | Reverse button tooltip names the TAB hotkey |
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.2.0 - 26-Aug-2026 - Dynamic Regeneration Rearchitecture (Fingerprint Sweep) + Open Path for Editing
 
 ### Summary

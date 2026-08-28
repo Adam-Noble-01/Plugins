@@ -183,6 +183,12 @@ module Na__ProfileTools__ProfilePathTracer
             effective_rotation_step =
                 payload['ReverseDirection'] == true ? (rotation_step + 2) % 4 : rotation_step
 
+            # Assemblies stamped before dictionary schema 1.2.0 were swept with
+            # the legacy right-handed path frame. Rebuilding those with the
+            # WYSIWYG frame would silently mirror geometry that already stands
+            # in the model, so the stored schema picks the frame.
+            legacy_frame = self.Na__RegenEngine__LegacyFrameSchema?(payload)
+
             runs = self.Na__RegenEngine__BuildSweepableRuns(path_result[:chains])
             if runs.empty?
                 self.Na__RegenEngine__ReportFailure('helpers linework has no run with two or more distinct points.')
@@ -215,7 +221,8 @@ module Na__ProfileTools__ProfilePathTracer
                     run:             run,
                     rotation_step:   effective_rotation_step,
                     toggle_states:   toggle_states,
-                    origin_offset:   origin_offset
+                    origin_offset:   origin_offset,
+                    legacy_frame:    legacy_frame
                 )
 
                 if swept['isSwept']
@@ -252,6 +259,21 @@ module Na__ProfileTools__ProfilePathTracer
             false
         end
 
+        NA_WYSIWYG_FRAME_SCHEMA = '1.2.0'.freeze
+
+        # True when the assembly predates the WYSIWYG path frame (dictionary
+        # schema 1.2.0) and must therefore be rebuilt with the legacy
+        # right-handed frame it was originally swept with. Unparseable or
+        # missing versions count as legacy — mirroring standing geometry is the
+        # failure mode to avoid.
+        def self.Na__RegenEngine__LegacyFrameSchema?(payload)
+            version_text = (payload.is_a?(Hash) ? payload['SchemaVersion'] : nil).to_s.strip
+            return true if version_text.empty?
+            Gem::Version.new(version_text) < Gem::Version.new(NA_WYSIWYG_FRAME_SCHEMA)
+        rescue
+            true
+        end
+
         # Sanitises every chain and drops the ones too short to sweep, so one
         # stray two-point stub cannot fail the whole rebuild.
         def self.Na__RegenEngine__BuildSweepableRuns(chains)
@@ -271,7 +293,8 @@ module Na__ProfileTools__ProfilePathTracer
         end
 
         def self.Na__RegenEngine__SweepRun(target_entities:, model:, profile_data:, run:,
-                                            rotation_step:, toggle_states:, origin_offset:)
+                                            rotation_step:, toggle_states:, origin_offset:,
+                                            legacy_frame: false)
             resolved_path_data = {
                 ordered_points: run[:ordered_points],
                 ordered_edges:  [],
@@ -279,7 +302,7 @@ module Na__ProfileTools__ProfilePathTracer
             }
 
             frame_transform = Na__GeometryBuilders.Na__Geometry__BuildPathFrame(
-                run[:ordered_points].first, resolved_path_data
+                run[:ordered_points].first, resolved_path_data, legacy_frame
             )
             return { 'isSwept' => false, 'reason' => 'path frame could not be built' } unless frame_transform
 

@@ -20,6 +20,7 @@
 require 'json'
 require 'sketchup.rb'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__DoorNamingContract__'
+require_relative '../04__GeometryHelpers/Na__AssemblyStudio__ComponentNameSuffix__'
 
 module Na__AssemblyStudio
 module Na__ExteriorSingleDoorSystem
@@ -30,6 +31,9 @@ module Na__DataSerializer
 # -----------------------------------------------------------------------------
 
     NamingContract = Na__AssemblyStudio::Na__GeometryHelpers::Na__DoorNamingContract
+
+    # @delegate: ../04__GeometryHelpers/Na__AssemblyStudio__ComponentNameSuffix__.rb
+    ComponentNameSuffix = Na__AssemblyStudio::Na__GeometryHelpers::Na__ComponentNameSuffix
 
 # endregion -------------------------------------------------------------------
 
@@ -59,13 +63,23 @@ module Na__DataSerializer
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Build the Fixed Head of This Door's Component Name
+    # ------------------------------------------------------------
+    def self.na_door_definition_prefix(door_id)
+        "#{door_id}#{NA_DEFINITION_SUFFIX}"
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Bind Door ID Onto Instance and Definition Names
     # ------------------------------------------------------------
-    def self.na_set_door_id_on_instance(instance, door_id)
+    # @param component_name [String, Symbol] Optional user-authored name
+    #     tail appended after the fixed `ADR###__ExteriorSingleDoor__`
+    #     head. Defaults to NA_KEEP so the rebuild inside every Update /
+    #     Live Update preserves a tail the user has already set.
+    def self.na_set_door_id_on_instance(instance, door_id, component_name = ComponentNameSuffix::NA_KEEP)
         return false unless na_valid_instance?(instance) && na_valid_door_id?(door_id)
-        name = "#{door_id}#{NA_DEFINITION_SUFFIX}"
-        instance.name = name
-        instance.definition.name = name
+        name = ComponentNameSuffix.na_apply(instance, na_door_definition_prefix(door_id), component_name)
+        return false unless name
         instance.set_attribute(NA_DOOR_INFO_DICT, NA_KEY_DOOR_ID, door_id)
         instance.set_attribute(NA_DOOR_INFO_DICT, NA_KEY_INSTANCE_NAME, name)
         instance.set_attribute(NA_DOOR_INFO_DICT, NA_KEY_DEFINITION_NAME, name)

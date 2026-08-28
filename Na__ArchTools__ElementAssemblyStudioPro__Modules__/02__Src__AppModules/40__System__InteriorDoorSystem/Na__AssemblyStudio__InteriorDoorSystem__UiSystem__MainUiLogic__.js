@@ -194,6 +194,149 @@
 
 
 // -----------------------------------------------------------------------------
+// REGION | Arithmetic Entry Helpers
+// -----------------------------------------------------------------------------
+//
+// The Interior Door tab builds its sliders imperatively rather than through
+// Na__Ui__Controls, so it carries its own thin wrappers over the shared
+// evaluator. Behaviour is deliberately identical to the Windows tab.
+// @delegate: ../03__AppUtils/Na__AssemblyStudio__AppUtils__ArithmeticEvaluator__.js
+
+    var NA_ARITHMETIC_HINT =
+        'Accepts arithmetic: 1700-50, 2400/3, 800*3, 2400+(100+100+100+100). ' +
+        'Start with an operator to work from the current value (+200). ' +
+        'Up/Down arrows step; hold Shift for x10.';
+
+    // HELPER FUNCTION | Resolve the Shared Arithmetic Evaluator
+    // ------------------------------------------------------------
+    function na_arithmetic() {
+        return window.Na__Utils__Arithmetic || null;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Format a Committed Value for a Field
+    // ------------------------------------------------------------
+    function na_format_number(value) {
+        var arithmetic = na_arithmetic();
+        return arithmetic ? arithmetic.na_format(value) : String(value);
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Test Whether Field Text Needs No Evaluation
+    // ------------------------------------------------------------
+    function na_is_plain_number_text(text) {
+        var arithmetic = na_arithmetic();
+        if (arithmetic) return arithmetic.na_is_plain_number(text);
+        return isFinite(parseFloat(text));
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Test Whether Field Text Opens With an Operator
+    // ------------------------------------------------------------
+    // Marks a relative entry ('+200', '/3'), which must never be applied
+    // mid-keystroke because its prefix parses as a signed number on its own.
+    function na_starts_with_operator(text) {
+        return /^[+\-*/^]/.test(String(text == null ? '' : text).trim());
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Flag / Clear a Field That Could Not Be Read
+    // ------------------------------------------------------------
+    // The field turns red and the reason replaces its tooltip until the next
+    // keystroke; the arithmetic hint it normally carries is stashed so it can
+    // be put back.
+    function na_mark_input_error(input, message) {
+        if (!input) return;
+        if (!input.classList.contains('na-input-error')) {
+            input.dataset.naTitle = input.getAttribute('title') || '';
+        }
+        input.classList.add('na-input-error');
+        input.setAttribute('title', message || 'Could not read that entry');
+    }
+
+    function na_clear_input_error(input) {
+        if (!input || !input.classList.contains('na-input-error')) return;
+        input.classList.remove('na-input-error');
+        input.setAttribute('title', input.dataset.naTitle || '');
+        delete input.dataset.naTitle;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Read the Live Clamp Range Off a Rendered Field
+    // ------------------------------------------------------------
+    // The DOM wins over the descriptor because na_door_patch_slider_dom
+    // widens a max in place when a measured opening exceeds it.
+    function na_read_live_range(input, descriptor) {
+        // Absent means absent: Number(null) is 0, so a missing max attribute
+        // would otherwise read as a hard ceiling of zero and clamp every entry
+        // in the control to nothing.
+        function na_to_number(candidate) {
+            if (candidate === null || candidate === undefined || candidate === '') return NaN;
+            var value = Number(candidate);
+            return isFinite(value) ? value : NaN;
+        }
+        function na_pick(attributeName, descriptorValue) {
+            var fromDom = na_to_number(input ? input.getAttribute(attributeName) : null);
+            if (isFinite(fromDom)) return fromDom;
+            return na_to_number(descriptorValue);
+        }
+        return {
+            min : na_pick('min',  descriptor && descriptor.min),
+            max : na_pick('max',  descriptor && descriptor.max),
+            step: na_pick('step', descriptor && descriptor.step)
+        };
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve Typed Text Into a Committed Numeric Value
+    // ------------------------------------------------------------
+    // @return {Object} { ok: true, value } | { ok: false, error }
+    function na_resolve_typed_value(input, descriptor, previousValue) {
+        var range      = na_read_live_range(input, descriptor);
+        var arithmetic = na_arithmetic();
+
+        if (!arithmetic) {                                                      // <-- Degrade to plain-number entry
+            var parsed = parseFloat(input.value);
+            if (!isFinite(parsed)) return { ok: false, error: 'Not a number' };
+            if (isFinite(range.min)) parsed = Math.max(range.min, parsed);
+            if (isFinite(range.max)) parsed = Math.min(range.max, parsed);
+            return { ok: true, value: parsed };
+        }
+
+        return arithmetic.na_resolve_field_value(input.value, {
+            currentValue      : previousValue,
+            min               : range.min,
+            max               : range.max,
+            allowRelativeMinus: !(isFinite(range.min) && range.min < 0)
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve an Up/Down Arrow Keypress to a Stepped Value
+    // ------------------------------------------------------------
+    // Restores the stepping that type="number" used to provide natively.
+    // Shift multiplies the step by 10.
+    // @return {Number|null} Stepped value, or null when the key is not a stepper
+    function na_resolve_step_key(event, input, descriptor, previousValue) {
+        if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return null;
+
+        var range = na_read_live_range(input, descriptor);
+        var step  = (isFinite(range.step) && range.step > 0) ? range.step : 1;
+        var typed = parseFloat(input.value);
+        var base  = isFinite(typed) ? typed : previousValue;
+        if (!isFinite(base)) return null;
+
+        var next = base + (event.key === 'ArrowUp' ? step : -step) * (event.shiftKey ? 10 : 1);
+        if (isFinite(range.min)) next = Math.max(range.min, next);
+        if (isFinite(range.max)) next = Math.min(range.max, next);
+        return next;
+    }
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
 // REGION | Control HTML Builders
 // -----------------------------------------------------------------------------
 
@@ -227,14 +370,21 @@
         range.step                        = descriptor.step;
         range.value                       = currentValue;
 
+        // type="text", not type="number", so the field accepts arithmetic
+        // ('1700-50', '2400/3', '+200'). A number input discards anything that
+        // is not already a valid number, so the expression could never be read
+        // back. @delegate: ../03__AppUtils/Na__AssemblyStudio__AppUtils__ArithmeticEvaluator__.js
         var number                        = document.createElement('input');
-        number.type                       = 'number';
+        number.type                       = 'text';
         number.className                  = 'na-slider-input';
         number.id                         = descriptor.id + '-input';
         number.min                        = descriptor.min;
         number.max                        = descriptor.max;
         number.step                       = descriptor.step;
         number.value                      = currentValue;
+        number.autocomplete               = 'off';
+        number.spellcheck                 = false;
+        number.title                      = NA_ARITHMETIC_HINT;
 
         sliderContainer.appendChild(range);
         sliderContainer.appendChild(number);
@@ -242,22 +392,89 @@
         wrapper.appendChild(label);
         wrapper.appendChild(sliderContainer);
 
+        // Last committed value, for relative entry and for restoring the field
+        // when an expression cannot be read.
+        var lastCommittedValue = Number(currentValue);
+
+        // `fromSlider` suppresses the write back to the range element, so a
+        // live drag is never assigned to mid-gesture from its own handler.
+        var na_apply = function (value, fromSlider) {
+            lastCommittedValue    = value;
+            if (!fromSlider) range.value = value;
+            number.value          = na_format_number(value);
+            valueSpan.textContent = na_format_number(value) + (descriptor.unit || '');
+            na_handle_control_change(descriptor.id, value);
+        };
+
         var onSlide = function () {
-            number.value = range.value;
-            valueSpan.textContent = range.value + (descriptor.unit || '');
-            na_handle_control_change(descriptor.id, Number(range.value));
+            var value = parseFloat(range.value);
+            if (!isFinite(value)) return;
+            na_clear_input_error(number);
+            na_apply(value, true);
         };
+
+        // Live per-keystroke updates are kept for ordinary typing, but only
+        // while the field still holds a plain, absolute number. The moment an
+        // operator appears the entry is left alone until it is committed, so a
+        // half-typed '1700-' never reaches the model. A leading operator is
+        // excluded too: '+200' passes the plain-number test at '+2', and
+        // applying that live would slam the door to 2mm mid-keystroke.
         var onType = function () {
-            range.value = number.value;
+            na_clear_input_error(number);
+            if (na_starts_with_operator(number.value)) return;
+            if (!na_is_plain_number_text(number.value)) return;
+            var value = parseFloat(number.value);
+            if (!isFinite(value)) return;
+            lastCommittedValue    = value;
+            range.value           = value;
             valueSpan.textContent = number.value + (descriptor.unit || '');
-            na_handle_control_change(descriptor.id, Number(number.value));
+            na_handle_control_change(descriptor.id, value);
         };
+
+        var onCommit = function () {
+            var resolved = na_resolve_typed_value(number, descriptor, lastCommittedValue);
+            if (!resolved.ok) {
+                na_mark_input_error(number, resolved.error);
+                number.value = isFinite(lastCommittedValue) ? na_format_number(lastCommittedValue) : '';
+                return;
+            }
+            na_clear_input_error(number);
+
+            // Ordinary typing has already been applied live by onType, so only
+            // tidy the field text rather than firing a second identical rebuild.
+            if (resolved.value === lastCommittedValue) {
+                number.value          = na_format_number(resolved.value);
+                valueSpan.textContent = na_format_number(resolved.value) + (descriptor.unit || '');
+                return;
+            }
+            na_apply(resolved.value);
+        };
+
+        var onFocus = function () {
+            var atFocus = parseFloat(number.value);
+            if (isFinite(atFocus)) lastCommittedValue = atFocus;
+        };
+
+        var onStepKey = function (event) {
+            var stepped = na_resolve_step_key(event, number, descriptor, lastCommittedValue);
+            if (stepped === null) return;
+            event.preventDefault();
+            na_clear_input_error(number);
+            na_apply(stepped);
+        };
+
         range.addEventListener('input', onSlide);
         number.addEventListener('input', onType);
+        number.addEventListener('change', onCommit);
+        number.addEventListener('focus', onFocus);
+        number.addEventListener('keydown', onStepKey);
 
         na_change_listeners.push(function () {
             range.removeEventListener('input', onSlide);
             number.removeEventListener('input', onType);
+            number.removeEventListener('change', onCommit);
+            number.removeEventListener('focus', onFocus);
+            number.removeEventListener('keydown', onStepKey);
         });
 
         return wrapper;

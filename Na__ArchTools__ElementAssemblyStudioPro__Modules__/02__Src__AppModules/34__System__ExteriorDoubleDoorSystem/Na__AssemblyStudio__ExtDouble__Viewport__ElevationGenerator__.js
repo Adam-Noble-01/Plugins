@@ -588,10 +588,13 @@ const Na__ExtDouble__ElevationGenerator = (function () {
             }
         });
 
+        // Fixed panels carry no ironmongery, so no handle is drawn at all.
+        const fixedRaw = (layout.config || {}).double_door_fixed_panels;
+        const fixedPanels = fixedRaw === true || String(fixedRaw).toLowerCase() === 'true';
         const handlePaired = String(
             (layout.config && layout.config.double_door_handle_pairing) || 'Paired'
         ).toLowerCase() === 'paired';
-        if (leaf.isActive || handlePaired) na_draw_handle(svg, layout, leaf, palette);
+        if (!fixedPanels && (leaf.isActive || handlePaired)) na_draw_handle(svg, layout, leaf, palette);
     }
     // ---------------------------------------------------------------
 
