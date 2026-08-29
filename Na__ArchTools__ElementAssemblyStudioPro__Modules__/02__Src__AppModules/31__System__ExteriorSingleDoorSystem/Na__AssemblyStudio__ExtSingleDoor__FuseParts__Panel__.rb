@@ -9,8 +9,8 @@
 # MODULE     : Na__FuseParts__Panel
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Delegates to the shared exterior-door fuse pipeline with the
-#              single-door naming context. Distinct from the legacy
-#              FuseParts__DoorPanel used by the WindowSystem door_mode path.
+#              single-door naming context. The legacy FuseParts__DoorPanel that
+#              served the WindowSystem door_mode path was retired in V1.5.3.
 #
 # @delegate: ../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__FuseParts__Panel__.rb
 #

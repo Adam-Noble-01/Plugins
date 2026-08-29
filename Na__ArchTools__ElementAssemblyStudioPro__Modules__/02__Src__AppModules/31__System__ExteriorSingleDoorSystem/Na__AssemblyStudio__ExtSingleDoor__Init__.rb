@@ -48,6 +48,7 @@ module Na__ExteriorSingleDoorSystem
         'single_door_show_swing_arcs'              => true,
         'single_door_create_open_state_copy'       => true,
         'single_door_removed_glazebars'            => [],
+        'single_door_leaded_disabled_cells'        => [],
         'single_door_leaf_composition'             => 'GlazedOverFielded',
         'single_door_panel_output_mode'            => 'ThreeDimensional',
         'single_door_panel_profile'                => 'RaisedBevelled',
@@ -88,6 +89,7 @@ module Na__ExteriorSingleDoorSystem
         require_relative 'Na__AssemblyStudio__ExtSingleDoor__FuseParts__Panel__'
         require_relative 'Na__AssemblyStudio__ExtSingleDoor__AssemblyComposer__'
         require_relative 'Na__AssemblyStudio__ExtSingleDoor__DataSerializer__'
+        require_relative 'Na__AssemblyStudio__ExtSingleDoor__DxfExporter__'
         require_relative 'Na__AssemblyStudio__ExtSingleDoor__GeometryEngine__'
         require_relative 'Na__AssemblyStudio__ExtSingleDoor__SelectionHandler__'
         @na_modules_loaded = true

@@ -1,17 +1,18 @@
 # frozen_string_literal: true
 
 # =============================================================================
-# ELEMENT ASSEMBLY STUDIO PRO - EXTERIOR DOUBLE DOOR - DXF EXPORTER
+# ELEMENT ASSEMBLY STUDIO PRO - EXTERIOR SINGLE DOOR - DXF EXPORTER
 # =============================================================================
 #
-# FILE       : Na__AssemblyStudio__ExtDouble__DxfExporter__.rb
-# NAMESPACE  : Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem
+# FILE       : Na__AssemblyStudio__ExtSingleDoor__DxfExporter__.rb
+# NAMESPACE  : Na__AssemblyStudio::Na__ExteriorSingleDoorSystem
 # MODULE     : Na__DxfExporter
 # AUTHOR     : Noble Architecture
-# PURPOSE    : Emit the exterior double door as DXF (elevation + plan) for the
+# PURPOSE    : Emit the exterior single door as DXF (elevation + plan) for the
 #              Export DXF button. Thin adapter over the shared ExtDoorCommon
-#              exporter, which owns the whole entity pipeline so the double
-#              door and the single door export identically.
+#              exporter - the same one the double door uses - so a single door
+#              exports its stiles, rails, fielded panels, glazing bars, handle
+#              and swing arc instead of falling through to the window exporter.
 #
 # @delegate: ../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__DxfExporter__.rb
 #
@@ -20,13 +21,13 @@
 #
 # =============================================================================
 
-require_relative 'Na__AssemblyStudio__ExtDouble__GeometryHelpers__'
-require_relative 'Na__AssemblyStudio__ExtDouble__LeafLayoutResolver__'
-require_relative 'Na__AssemblyStudio__ExtDouble__PanelLayoutResolver__'
+require_relative 'Na__AssemblyStudio__ExtSingleDoor__GeometryHelpers__'
+require_relative 'Na__AssemblyStudio__ExtSingleDoor__LeafLayoutResolver__'
+require_relative 'Na__AssemblyStudio__ExtSingleDoor__PanelLayoutResolver__'
 require_relative '../30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__DxfExporter__'
 
 module Na__AssemblyStudio
-module Na__ExteriorDoubleDoorSystem
+module Na__ExteriorSingleDoorSystem
 module Na__DxfExporter
 
 # -----------------------------------------------------------------------------
@@ -36,13 +37,13 @@ module Na__DxfExporter
     SharedExporter = Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__DxfExporter
 
     NA_PRODUCT = {
-        :prefix         => 'double_door',
-        :label          => 'Exterior Double Door',
-        :leaf_resolver  => Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__LeafLayoutResolver,
-        :panel_resolver => Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__PanelLayoutResolver,
-        :leaf_count     => 2,
-        # Only the active leaf carries the exported handle.
-        :handle_leaf    => ->(_config, leaf) { leaf[:is_active] == true }
+        :prefix         => 'single_door',
+        :label          => 'Exterior Single Door',
+        :leaf_resolver  => Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__LeafLayoutResolver,
+        :panel_resolver => Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__PanelLayoutResolver,
+        :leaf_count     => 1,
+        # One leaf, so the only leaf carries the exported handle.
+        :handle_leaf    => ->(_config, _leaf) { true }
     }.freeze
 
 # endregion -------------------------------------------------------------------
@@ -51,14 +52,14 @@ module Na__DxfExporter
 # REGION | Public API
 # -----------------------------------------------------------------------------
 
-    # FUNCTION | Build DXF Entity Descriptors for a Double-Door Config
+    # FUNCTION | Build DXF Entity Descriptors for a Single-Door Config
     # ------------------------------------------------------------
     def self.na_build_entities(config)
         SharedExporter.na_build_entities(NA_PRODUCT, config)
     end
     # ---------------------------------------------------------------
 
-    # FUNCTION | Export a Double-Door Config as ASCII DXF or Into a Writer
+    # FUNCTION | Export a Single-Door Config as ASCII DXF or Into a Writer
     # ------------------------------------------------------------
     def self.na_export(config, writer = nil)
         SharedExporter.na_export(NA_PRODUCT, config, writer)
@@ -75,7 +76,7 @@ module Na__DxfExporter
 # endregion -------------------------------------------------------------------
 
 end # module Na__DxfExporter
-end # module Na__ExteriorDoubleDoorSystem
+end # module Na__ExteriorSingleDoorSystem
 end # module Na__AssemblyStudio
 
 # =============================================================================

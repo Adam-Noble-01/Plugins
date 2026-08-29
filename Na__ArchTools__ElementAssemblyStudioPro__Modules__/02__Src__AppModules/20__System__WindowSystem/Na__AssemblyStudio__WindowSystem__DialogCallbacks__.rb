@@ -121,7 +121,7 @@ module Na__AssemblyStudio
             end
 
             # -----------------------------------------------------------------
-            # REGION | Component Name Tail (V1.5.2)
+            # REGION | Component Name Tail (V1.5.4)
             # -----------------------------------------------------------------
             # Every product on this tab is named `<ID>__<TypeTag>__<Tail>`.
             # The head is a machine contract read by TrueVision / ValeVision
@@ -273,7 +273,7 @@ module Na__AssemblyStudio
             # ------------------------------------------------------------
             # The component's own name is the source of truth, so the
             # dialog field is populated from it rather than from a
-            # mirrored dictionary key. That migrates every pre-V1.5.2
+            # mirrored dictionary key. That migrates every pre-V1.5.4
             # model with no conversion step, and self-heals after a
             # rename made by hand in the Outliner.
             #
@@ -1693,6 +1693,12 @@ module Na__AssemblyStudio
                     dxf_content = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DxfExporter
                         .na_export_dxf(window_config)
                     default_filename = "exterior_double_door_export.dxf"
+                elsif na_is_exterior_single_door_mode?(window_config)
+                    # @delegate: ../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__DxfExporter__.rb
+                    Na__AssemblyStudio::Na__ExteriorSingleDoorSystem.na_require_modules
+                    dxf_content = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DxfExporter
+                        .na_export_dxf(window_config)
+                    default_filename = "exterior_single_door_export.dxf"
                 else
                     dxf_content = DxfExporter.na_generate_dxf(window_config)
                     default_filename = "window_export.dxf"

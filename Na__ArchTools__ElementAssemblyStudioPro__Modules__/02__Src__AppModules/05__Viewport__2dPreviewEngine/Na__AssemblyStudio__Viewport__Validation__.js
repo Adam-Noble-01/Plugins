@@ -73,6 +73,9 @@
         if (config && config.double_door_mode === true) {
             return na_validateDoubleDoorConfig(config);
         }
+        if (config && config.ext_single_door_mode === true) {            // <-- Single exterior door: schema lives in NA_DOOR_PANEL_CONFIG
+            return na_validateSingleDoorConfig(config);
+        }
         if (config && config.multifold_mode === true) {                  // <-- Bifold mode: schema lives in NA_BIFOLD_DOOR_CONFIG
             return na_validateBifoldConfig(config);
         }
@@ -188,6 +191,50 @@
         if (window.Na__ExtDouble__LeafConfigResolver &&
             typeof window.Na__ExtDouble__LeafConfigResolver.na_validate === 'function') {
             var subsystemValidation = window.Na__ExtDouble__LeafConfigResolver.na_validate(config);
+            if (subsystemValidation && Array.isArray(subsystemValidation.errors)) {
+                subsystemValidation.errors.forEach(function (message) {
+                    if (errors.indexOf(message) === -1) errors.push(message);
+                });
+            }
+        }
+
+        return { valid: errors.length === 0, errors: errors };
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Validate exterior single-door configuration
+    // ------------------------------------------------------------
+    // Mirrors the double-door gate for the one-leaf product: the leaf spans
+    // the whole clear width, so there is a single 300 mm minimum and one
+    // opening angle / hinge projection to check.
+    function na_validateSingleDoorConfig(config) {
+        var errors = [];
+        var width = Number(config.width_mm || 0);
+        var height = Number(config.height_mm || 0);
+        var frameTh = na_getEffectiveFrameThicknesses(config);
+        var innerW = width - frameTh.left - frameTh.right;
+        var innerH = height - frameTh.top - frameTh.bottom;
+        var angle = Number(config.single_door_opening_angle_deg);
+        var projection = Number(config.single_door_hinge_projection_mm || 0);
+
+        if (width < 400) errors.push('Single-door opening width must be at least 400mm');
+        if (height < 1200) errors.push('Single-door opening height must be at least 1200mm');
+        if (innerW <= 0 || innerH <= 0) {
+            errors.push('Single-door frame thickness leaves no clear opening');
+        } else if (innerW < 300) {
+            errors.push('Single-door leaf must be at least 300mm wide');
+        }
+
+        if (!Number.isFinite(angle) || angle < 0 || angle > 180) {
+            errors.push('Opening angle must be between 0 and 180 degrees');
+        }
+        if (projection < 0 || projection > 150) {
+            errors.push('Parliament hinge projection must be between 0 and 150mm');
+        }
+
+        if (window.Na__ExtSingleDoor__LeafConfigResolver &&
+            typeof window.Na__ExtSingleDoor__LeafConfigResolver.na_validate === 'function') {
+            var subsystemValidation = window.Na__ExtSingleDoor__LeafConfigResolver.na_validate(config);
             if (subsystemValidation && Array.isArray(subsystemValidation.errors)) {
                 subsystemValidation.errors.forEach(function (message) {
                     if (errors.indexOf(message) === -1) errors.push(message);

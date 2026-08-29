@@ -301,7 +301,12 @@ module Na__AssemblyComposer
 
         mm = 1.0 / 25.4
         positions = na_final_bar_positions_mm(layout)
-        disabled_source = config['leaded_disabled_cells']
+        # Single doors own their per-cell leaded state under the
+        # single_door_* key so a door and a window in the same session cannot
+        # stomp each other's toggles; the plain window key stays as a fallback
+        # for pre-parity saved doors.
+        disabled_source = config['single_door_leaded_disabled_cells'].is_a?(Array) ?
+            config['single_door_leaded_disabled_cells'] : config['leaded_disabled_cells']
         grid = {
             h_positions: positions[:horizontal].map { |position| position * mm },
             v_positions: positions[:vertical].map { |position| position * mm },

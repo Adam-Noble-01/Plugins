@@ -117,11 +117,11 @@
 
     // FUNCTION | Capture a Window / Exterior-Door Elevation Preview
     // ------------------------------------------------------------
-    // Dispatch mirrors the live viewport: double_door_mode uses the dual
-    // viewport's DOM elevation generator; multifold/sliding use their
-    // string generators (fit box via the shared mode-aware reset fitter);
-    // windows AND single exterior doors render through the standard
-    // window generator (na_resolve_active_svg_markup default branch).
+    // Dispatch mirrors the live viewport: the hinged exterior door products
+    // (double_door_mode / ext_single_door_mode) use their dual-viewport DOM
+    // elevation generators; multifold/sliding use their string generators
+    // (fit box via the shared mode-aware reset fitter); windows render
+    // through the standard window generator.
     // @param  {Object} config - Flat Na_DynamicUI configuration snapshot
     // @return {Object|null}     { viewBox, widthMm, heightMm, svgMarkup }
     function na_capture_window_family_preview(config) {
@@ -130,12 +130,17 @@
             var markup = null;
             var box    = null;
 
-            if (cfg.double_door_mode === true &&
-                window.Na__ExtDouble__ElevationGenerator &&
-                typeof window.Na__ExtDouble__ElevationGenerator.na_render === 'function') {
-                markup = na_render_detached(window.Na__ExtDouble__ElevationGenerator, cfg);
-                if (typeof window.Na__ExtDouble__ElevationGenerator.na_fit_to_content === 'function') {
-                    box = window.Na__ExtDouble__ElevationGenerator.na_fit_to_content(cfg);
+            var hingedGenerator = null;
+            if (cfg.double_door_mode === true) {
+                hingedGenerator = window.Na__ExtDouble__ElevationGenerator;
+            } else if (cfg.ext_single_door_mode === true) {
+                hingedGenerator = window.Na__ExtSingleDoor__ElevationGenerator;
+            }
+
+            if (hingedGenerator && typeof hingedGenerator.na_render === 'function') {
+                markup = na_render_detached(hingedGenerator, cfg);
+                if (typeof hingedGenerator.na_fit_to_content === 'function') {
+                    box = hingedGenerator.na_fit_to_content(cfg);
                 }
             } else if (cfg.multifold_mode === true &&
                        window.Na__ExtFold__ElevationGenerator &&

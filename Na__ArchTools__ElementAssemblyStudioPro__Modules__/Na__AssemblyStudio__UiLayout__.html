@@ -163,17 +163,20 @@
             <div id="na-canvas-wrapper" class="na-canvas-wrapper">
                 <svg id="na-viewport-svg" class="na-viewport-svg"></svg>
             </div>
-            <div id="na-double-door-dual-viewport" class="na-door-dual-viewport" style="display:none;">
+            <!-- Shared dual plan + elevation viewport for the hinged exterior door
+                 products (Double Door and Single Door). Both render through the
+                 ExtDoorCommon generators, so they share one pair of canvases. -->
+            <div id="na-ext-door-dual-viewport" class="na-door-dual-viewport" style="display:none;">
                 <div class="na-door-viewport-cell">
                     <div class="na-door-viewport-label">Plan View</div>
-                    <div id="na-double-door-plan-wrapper" class="na-canvas-wrapper">
-                        <svg id="na-double-door-plan-svg" class="na-viewport-svg"></svg>
+                    <div id="na-ext-door-plan-wrapper" class="na-canvas-wrapper">
+                        <svg id="na-ext-door-plan-svg" class="na-viewport-svg"></svg>
                     </div>
                 </div>
                 <div class="na-door-viewport-cell">
                     <div class="na-door-viewport-label">Elevation View</div>
-                    <div id="na-double-door-elevation-wrapper" class="na-canvas-wrapper">
-                        <svg id="na-double-door-elevation-svg" class="na-viewport-svg"></svg>
+                    <div id="na-ext-door-elevation-wrapper" class="na-canvas-wrapper">
+                        <svg id="na-ext-door-elevation-svg" class="na-viewport-svg"></svg>
                     </div>
                 </div>
             </div>
@@ -200,8 +203,11 @@
             <div id="na-controls-options" class="na-controls-grid"></div>
         </section>
 
+        <!-- Exterior Single Door. Named to match the Double Doors section it is
+             the one-leaf sibling of; both build from the same ExtDoorCommon
+             fielded-panel controls. -->
         <section id="na-section-door-panel" class="na-section" style="display:none;">
-            <div class="na-section-header"><h2>Door Panel</h2></div>
+            <div class="na-section-header"><h2>Single Door</h2></div>
             <div id="na-controls-door-panel" class="na-controls-grid"></div>
         </section>
 
@@ -432,7 +438,7 @@
     <!-- WindowSystem schema (needs to load before WindowSystem MainUiLogic) -->
     <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js"></script>
 
-    <!-- ExteriorSingleDoorSystem schema (door panel sub-controls used when WindowSystem door_mode is enabled) -->
+    <!-- ExteriorSingleDoorSystem schema (leaf / fielded-panel controls used when ext_single_door_mode is active) -->
     <script src="02__Src__AppModules/31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__UiSystem__Config__.js"></script>
 
     <!-- ExteriorSlidingDoorSystem schema (Phase-1 scaffold; activated by WindowSystem sliding_mode toggle in Phase-2) -->
@@ -445,7 +451,12 @@
 
     <!-- @delegate: 02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__Config__.js -->
     <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__Config__.js"></script>
+
+    <!-- ExteriorDoorCommon shared leaf resolver factory -- MUST load before the
+         ExtDouble / ExtSingleDoor resolvers, which bind it at load time -->
+    <script src="02__Src__AppModules/30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__UiSystem__LeafConfigResolver__.js"></script>
     <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__LeafConfigResolver__.js"></script>
+    <script src="02__Src__AppModules/31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__UiSystem__LeafConfigResolver__.js"></script>
 
     <!-- Generic Viewport engine (must load before any tab-specific viewport) -->
     <script src="02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__SvgHelpers__.js"></script>
@@ -468,10 +479,21 @@
     <script src="02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__ElevationGenerator__.js"></script>
     <script src="02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__Viewport__PlanGenerator__.js"></script>
 
+    <!-- ExteriorDoorCommon shared elevation / plan / DXF factories -- MUST load
+         before the ExtDouble / ExtSingleDoor adapters, which bind them at load time -->
+    <script src="02__Src__AppModules/30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__Viewport__ElevationGenerator__.js"></script>
+    <script src="02__Src__AppModules/30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__Viewport__PlanGenerator__.js"></script>
+    <script src="02__Src__AppModules/30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__UiSystem__DxfExporter__.js"></script>
+
     <!-- @delegate: 02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Viewport__ElevationGenerator__.js -->
     <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Viewport__ElevationGenerator__.js"></script>
     <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Viewport__PlanGenerator__.js"></script>
     <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__DxfExporter__.js"></script>
+
+    <!-- ExteriorSingleDoorSystem viewport adapters (dual plan + elevation, DXF fallback) -->
+    <script src="02__Src__AppModules/31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__Viewport__ElevationGenerator__.js"></script>
+    <script src="02__Src__AppModules/31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__Viewport__PlanGenerator__.js"></script>
+    <script src="02__Src__AppModules/31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__UiSystem__DxfExporter__.js"></script>
 
     <!-- WindowSystem main UI logic (Na_DynamicUI + Na_Viewport) -->
     <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js"></script>

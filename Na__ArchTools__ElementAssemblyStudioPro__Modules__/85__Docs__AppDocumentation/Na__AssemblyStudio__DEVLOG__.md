@@ -3,6 +3,217 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.5.4 - 29-Aug-2026 - Component Naming + App Footer
+
+### Context
+Every product this app emits is named `<ID>__<TypeTag>__` — `AWN019__Window__`, `ADR004__ExteriorDoubleDoor__`. That head is a contract: TrueVision, ValeVision and every downstream scanner resolve a product by matching it, so it cannot move. But it also means a model holding thirty windows shows thirty near-identical rows in the Outliner, distinguished only by a three-digit number nobody can map to a room. Finding "the bay window in the lounge" meant clicking through them.
+
+The dialog already had a Description field wired to append itself to the name, but it was doing two jobs badly. It was the only place to write notes about a window, *and* whatever was written there ended up in the component name — so a note like "check cill height with client" became part of the model's naming. And because the name was only rebuilt on Create and Update, typing in that box did nothing visible until the Update button was pressed, which is why it looks unapplied in the screenshot that prompted this work.
+
+Separately, the WINDOW INFO block sat flush against the bottom edge of the dialog with no space beneath it, so it read as a footnote rather than as a section.
+
+### Feature Summary
+- **A new Component Name field** in WINDOW INFO, appended after the fixed head and nothing else:
+
+    | Before | After |
+    |---|---|
+    | `AWN019__Window__` | `AWN019__Window__GroundFloor__BayWindow` |
+    | `ADR004__ExteriorDoubleDoor__` | `ADR004__ExteriorDoubleDoor__Orangery__CentrePair` |
+
+- **The head is never touched.** It is composed only by each system's own DataSerializer, from the ID it already holds. The dialog receives it as a read-only string and can only ever append. Nothing about `AWN019__Window__` changed, so every existing TrueVision / ValeVision parser keeps matching.
+- **A live preview under the field** shows the resulting name in full — the fixed head dimmed, the typed tail in accent blue — so the boundary the field appends at is visible while typing rather than only discoverable in the Outliner afterwards.
+- **Three commit triggers, matching how the field is used.** Typing commits on a 600ms pause; **Enter** commits immediately; leaving the field commits immediately. 600ms is roughly the gap between words, so a name renames once rather than per keystroke.
+- **Renaming does not rebuild geometry.** The field calls a dedicated `na_setComponentName` callback that does two string assignments and a dictionary write. Routing it through the live-update pipeline would have meant a full rebuild on every keystroke pause. Renaming is therefore instant whether Live Mode is on or off.
+- **The name survives every rebuild.** Update, Live Update and the exterior door engines' internal re-bind all preserve the tail. Live Mode can no longer lag behind, and an Update can no longer silently un-name a component.
+- **Description is now purely notes.** It no longer contributes to the component name. Its placeholder says so.
+- **All five window-tab products share one path** — window, exterior single, exterior double, sliding, multi-folding.
+- **A footer** — "Element Assembly Studio Pro / © 2026 Noble Architecture" — with real space above it, on every tab.
+
+### The Name Is the Source of Truth
+The field is populated by reading the tail back off the live `definition.name`, not from a mirrored dictionary key. That choice does three things at once:
+
+- **Every pre-V1.5.4 model migrates with no conversion step.** A window already called `AWN019__Window__GroundFloor__BayWindow` — named through the old Description behaviour — reports `GroundFloor__BayWindow` the moment it is selected, and keeps that name through the next Update. Nothing needs upgrading.
+- **A rename made by hand in the Outliner is reported honestly** rather than being overwritten by a stale dictionary value on the next Update.
+- **There is one place a name can be wrong.** `ComponentName` is still written to the instance dictionary for downstream tools to read, but it is a mirror, never the authority.
+
+### Sanitising
+The tail is cleaned before it touches the model — control characters and `/ \ [ ] : * ? " < > |` are stripped, whitespace runs collapse, leading underscores are dropped (the head already ends in `__`), and the tail is capped at 96 characters. Two guards are worth naming:
+
+- **Paste-guard.** Pasting a whole component name into the field — `AWN019__Window__Lounge` — strips the duplicated head rather than producing `AWN019__Window__AWN019__Window__Lounge`.
+- **SketchUp's own collision marker.** When SketchUp de-duplicates a definition name it appends `#1`. That is SketchUp's bookkeeping, not a user-authored tail, so it is read as an empty name rather than being offered back as one to edit.
+
+Ruby echoes the sanitised result back to the dialog and the field rewrites itself with it, so a stripped character is visible immediately instead of surfacing later in the Outliner.
+
+### Create Is Deliberately Bare
+A newly created component is always born with no tail, even if the field still shows the previously selected component's name. Reading the field at Create time would silently clone one component's name onto another — the old Description behaviour did exactly that. The placement tool selects the new component as soon as it lands, so the field is right there to name it.
+
+### Files Changed
+- `04__GeometryHelpers/Na__AssemblyStudio__ComponentNameSuffix__.rb` **(new)** — `Na__ComponentNameSuffix`, the single authority for the tail. Sanitising, extraction, and the `NA_KEEP` sentinel that makes every rebuild path preserve an existing name by default. Writes only ever run when the name actually changes, so the Live Update path can call it for free.
+- `20__System__WindowSystem/`
+  - `...__DataSerializer__.rb` — `NA_DEFINITION_NAME_SUFFIX` + `na_window_definition_prefix` (the head, now composed in one place), `na_get_component_name_from_instance`, `ComponentName` dictionary key; `na_set_window_id_on_instance` takes a component name defaulting to `NA_KEEP`.
+  - `...__DialogCallbacks__.rb` — new **Component Name Tail** region: target resolution across all five products, `na_sync_component_name_from_config` on every Update / Live Update, `na_stamp_component_name_into_config` on every selection load, and the `na_setComponentName` rename-only callback.
+  - `...__Defaults__.rb` — `WindowComponentName` + `WindowComponentBaseName` metadata keys.
+  - `...__UiSystem__Bridge__.js` — the field's read/preview/debounce/commit wiring and the `na_receiveComponentName` echo.
+- `31__/32__/33__/34__ ExteriorSingle / Sliding / MultiFold / Double DataSerializers` — each gains `na_door_definition_prefix` and a `NA_KEEP`-defaulting component name argument. This is what stops the exterior single + double engines, which re-bind the name inside every update, from wiping the tail.
+- `Na__AssemblyStudio__UiLayout__.html` — Component Name field + preview span; Description re-labelled as notes; app footer.
+- `03__Style__AppStylesheets/Na__AssemblyStudio__Styles__Combined__.css` — `.na-info-name-preview` (dimmed head / accent tail), `.na-app-footer`.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__ComponentName__Spec__.js` **(new)** — 32-assertion suite over the shipped bridge.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (version 1.5.4)
+
+### How to Test
+Automated first — needs only Node, no install:
+
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__ComponentName__Spec__.js"
+```
+
+It drives the real bridge against a DOM stub: selection load, the four exterior door heads, all three commit triggers, the sanitised echo, and deselect. Expect `32 passed, 0 failed`. The arithmetic suite should still report `108 passed, 0 failed`.
+
+Then in the dialog, after a full SketchUp restart:
+1. Windows tab → create a window and let it place. Select it. WINDOW INFO now shows **Component Name** above **Description**, with the preview reading `AWN0nn__Window__`.
+2. Type `GroundFloor__BayWindow` and press **Enter**. The Outliner name becomes `AWN0nn__Window__GroundFloor__BayWindow` immediately — no Update needed. Entity Info agrees.
+3. Type into the field and stop without pressing Enter. The rename lands about half a second later. Click away instead — it lands on blur.
+4. Turn **Live Mode ON** and drag Width. The name must not revert to `AWN0nn__Window__`.
+5. Press **Update Window**. The name must survive that too.
+6. Write anything in **Description** and Update. It must NOT appear in the component name.
+7. Paste `AWN0nn__Window__Lounge` into the Component Name field and press Enter → the name becomes `AWN0nn__Window__Lounge`, not a doubled head.
+8. Type `Lounge/Bay:1` → the field rewrites itself to `LoungeBay1` and that is what lands on the component.
+9. Deselect, then select a different window. The field must show that window's name, not the previous one's.
+10. Repeat 2–5 on Exterior Doors → Single, Double, Sliding and MultiFold. Each preview head should read `ADR0nn__ExteriorSingleDoor__`, `__ExteriorDoubleDoor__`, `__SlidingDoor__`, `__BifoldDoor__`.
+11. **Open a model saved before this build** whose windows were named through the old Description field. Select one — the Component Name field should already show that name, and an Update must not change it.
+12. Scroll to the bottom of each tab. There should be clear space under the last section, then the footer.
+
+### Backward Compatibility
+- The `<ID>__<TypeTag>__` head is byte-identical. No TrueVision / ValeVision / DXF / glTF parser change is needed, and nothing that matches on the head is affected.
+- Old models migrate on selection with no conversion step, because the name itself is what populates the field.
+- A payload with no `WindowComponentName` key — an old preset, a hand-built config — resolves to `NA_KEEP`, so it can never blank a name. Only an explicit empty string clears one.
+- `WindowDescription` is still saved and loaded exactly as before; it simply no longer reaches the name.
+
+### Known Limitation
+- The Component Name field lives in WINDOW INFO, which is hidden until a component is selected, so a name cannot be set at Create time — it is set immediately afterwards, once the component places and selects itself. That is deliberate (see **Create Is Deliberately Bare**).
+- The Interior Doors tab has its own DOOR INFO block with the same Description field, but that block is never shown — nothing populates or reveals it. The Ruby side there already supports an appended name (`Na__Door__Description` feeds `na_set_door_id_on_instance`), so wiring the Interior Doors tab to match is a small follow-on job, not a rewrite. **Not done in this release.**
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.5.3 - 29-Aug-2026 - Exterior Single Door reaches parity with the Double Door
+
+### Context
+Switching the Exterior Doors product from **Double Doors** to **Single Door** dropped you into a section full of panel controls that did nothing. Leaf Composition, Panel Layout, Fielded Section Height, the rails, the stiles — every one of them wrote its value into the config and changed nothing on screen or in the model. The 2D preview drew a plain casement window with a glazing bar grid, not a door.
+
+Nothing was throwing. The dispatcher in `na_resolve_active_svg_markup` handled multifold and sliding, and `na_render` handled double doors on the dual viewport — a single door matched none of them and fell through to `Na__Viewport__SvgGenerator.na_generateWindowSvg`. That generator has never known what a door leaf is, so it drew what it does know: a window. The failure was silent, which is why the section looked like a placeholder.
+
+The Ruby 3D backend was never the problem. `31__System__ExteriorSingleDoorSystem` was overhauled into a full standalone product back in V1.1.2 and already delegates its panel layout, panel geometry, linework, handles, ROT pivots and fuse steps to the shared `30__System__ExteriorDoorCommon__` builders. What was never finished was Phase 3 of that work — the line the V1.1.2 entry left under **Still In Progress**: *"wire `ext_single_door_mode` create/update/selection + dual viewport; retire legacy `door_mode`."* Create, update and selection got wired. The dual viewport and the `door_mode` retirement did not.
+
+### Feature Summary
+- **A single exterior door now previews as a door.** Plan and elevation, in the same dual viewport the double door uses, with the leaf drawn from its own stiles, rails, mid-rail, fielded panels, glazed region, glazing bars, leaded cells, handle, hinge pivot and swing arc.
+- **Every panel control now does what it says.** Leaf Composition (Fully Glazed / Glazed Over Fielded / Fully Fielded), Panel Layout (One / Two Vertical / Two Horizontal / Four / Six / Custom columns × rows), Panel Output (Linework / Three Dimensional), Panel Profile, Fielded Section Height, Separating Midrail, Perimeter Stile, Top Rail, Bottom Rail, Panel Inset, Panel Depth, Panel Bevel Width — all live in both the preview and the build.
+- **Parity is structural now, not copied.** Rather than duplicating the double door's ~1,400 lines into a single-door twin, the shared maths moved into new `ExtDoorCommon` factories and both products became thin adapters over them. The two systems cannot drift apart again because there is only one implementation to drift.
+- **Glaze bars and leaded glass are per-product.** Clicking a bar in the single door's elevation now writes to `single_door_removed_glazebars`, and a leaded cell to `single_door_leaded_disabled_cells`, so a door and a window edited in the same session no longer stomp each other's toggles.
+- **DXF export knows about single doors.** Export DXF emits the single door's own elevation + plan on the same layer scheme as the double door (`NA_FRAME`, `NA_DOOR_LEAF`, `NA_RAIL_STILE`, `NA_DOOR_PANEL`, `NA_GLASS`, `NA_GLAZEBAR`, `NA_DOOR_HARDWARE`, `NA_DOOR_SWING`, `NA_DIMENSIONS`), saving as `exterior_single_door_export.dxf`.
+- **Presets capture a single door properly.** The Presets Gallery thumbnail renders through the single-door elevation generator instead of the window one.
+- **The section is now called "Single Door"**, matching the "Double Doors" section it is the one-leaf sibling of.
+
+### The Legacy `door_mode` Path Is Retired
+The old single door was a *window* with a fielded panel grafted into the bottom of its casement, driven by `door_mode` and a parallel set of `door_panel_*` keys. Nothing has set `door_mode` true since the hierarchical Windows | Exterior Doors switch landed — the JS pins it false on every config sync — so the whole path had been dead code sitting in the middle of the WindowSystem. It is gone:
+
+- `WindowSystem__GeometryEngine__.rb` — `na_render_door_casement_geometry` (81 lines), the `DoorPanelInterface` lambda, the cross-system `require_relative` into the single-door system, and all fourteen `door_mode` / `door_panel_*` parse + params entries.
+- `WindowSystem__Viewport__SvgGenerator__.js` — the whole `Door Mode` region (`na_generateDoorCasementSvg` + `na_generateDoorPanelInnerSvg`, 155 lines) and its three call sites.
+- `WindowSystem__FuseParts__.rb` — the `Door Panel Fusion` region (both `*_DEPRECATED` shims) and the `PanelInterface` delegation inside `na_fuse_window_parts`.
+- `WindowSystem__Defaults__.rb` — `door_mode` plus the twelve `door_panel_*` / `door_mid_rail_width_mm` / `door_base_rail_width_mm` defaults.
+- **Deleted:** `Na__AssemblyStudio__ExtSingleDoor__GeometryBuilder__DoorPanel__.rb`, `Na__AssemblyStudio__ExtSingleDoor__FuseParts__DoorPanel__.rb`, `Na__AssemblyStudio__ExtSingleDoor__PanelInterface__.rb`.
+
+`na_hydrateHierarchyFromModeFlags` still reads a legacy `door_mode: true` off an old saved component and migrates it to `ext_single_door_mode`, so pre-hierarchy doors still open on the right tab. Saved presets that carry `door_mode: false` are simply ignored.
+
+### Architecture
+New shared factories under `30__System__ExteriorDoorCommon__`, each taking a small spec (key prefix, leaf plan, handle rule) and returning a bound module:
+
+| Shared factory | Owns | Double adapter supplies | Single adapter supplies |
+|---|---|---|---|
+| `ExtDoorCommon__UiSystem__LeafConfigResolver__.js` | frame box, effective leaf settings, fielded panel layout, field cells + dividers, validation | two leaves split by active-leaf width; linked / per-leaf overrides | one leaf spanning the clear width; hinge side from `single_door_swing_side` |
+| `ExtDoorCommon__Viewport__ElevationGenerator__.js` | frame, leaf body, field cells, bevels, glazing, glaze bars, leaded cells, click targets, handle, dimension labels | handle on the active leaf, or both when paired | handle unless Fixed Panel |
+| `ExtDoorCommon__Viewport__PlanGenerator__.js` | reveal walls, jambs, closed footprint, open-state ghost, pivot, swing arc, plan handle | as above | as above |
+| `ExtDoorCommon__UiSystem__DxfExporter__.js` | elevation + plan entity stream (browser fallback) | prefix + product label | prefix + product label |
+| `ExtDoorCommon__DxfExporter__.rb` | the same, for the Ruby Export DXF path | resolvers + leaf count | resolvers + leaf count |
+
+`Na_DynamicUI` now carries an `NA_EXT_DOOR_PRODUCTS` table and a `na_getActiveExtDoorProduct()` helper. Everything that used to be hard-coded to `double_door_mode` — the dual-viewport toggle, render / reset / export dispatch, valid glazebar + leaded-cell key sets, hidden-element pruning and reset, the glazebar inset clamp, the viewport resize handle — walks that table instead. Adding a third hinged door product is now one table row plus two adapters.
+
+The dual viewport's DOM ids moved from `na-double-door-*` to `na-ext-door-*`, since both products share those two canvases. The CSS never referenced the ids (only the `.na-door-dual-viewport` / `.na-door-viewport-cell` classes), so nothing else moved.
+
+### Files Changed
+**New — shared**
+- `30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__UiSystem__LeafConfigResolver__.js`
+- `30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__Viewport__ElevationGenerator__.js`
+- `30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__Viewport__PlanGenerator__.js`
+- `30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__UiSystem__DxfExporter__.js`
+- `30__System__ExteriorDoorCommon__/Na__AssemblyStudio__ExtDoorCommon__DxfExporter__.rb`
+
+**New — single door**
+- `31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__UiSystem__LeafConfigResolver__.js`
+- `31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__Viewport__ElevationGenerator__.js`
+- `31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__Viewport__PlanGenerator__.js`
+- `31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__UiSystem__DxfExporter__.js`
+- `31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__DxfExporter__.rb`
+
+**Rewritten as thin adapters (public globals and API unchanged)**
+- `34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__LeafConfigResolver__.js`
+- `34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Viewport__ElevationGenerator__.js`
+- `34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Viewport__PlanGenerator__.js`
+- `34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__DxfExporter__.js`
+- `34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__DxfExporter__.rb`
+
+**Wiring**
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` — product table + `na_getActiveExtDoorProduct`; dual-viewport, render, reset, DXF, key-set, prune, reset-elements, inset-clamp and resize-handle dispatch.
+- `05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Validation__.js` — `na_validateSingleDoorConfig`.
+- `50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__SvgCapture__.js`, `…__Bridge__.js` — single-door thumbnail capture + preset defaults.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb` — Ruby DXF routing for `ext_single_door_mode`.
+- `31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__Init__.rb` — `single_door_leaded_disabled_cells` default; DXF exporter added to the require list.
+- `31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__AssemblyComposer__.rb` — reads `single_door_leaded_disabled_cells` (plain window key kept as fallback).
+- `Na__AssemblyStudio__UiLayout__.html` — shared + single-door scripts, `na-ext-door-*` viewport ids, section renamed to Single Door.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (version 1.5.3)
+
+**Deleted** — the three legacy single-door files listed above.
+
+**New spec**
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__ExteriorDoorParity__Spec__.js` — 109 assertions.
+
+Net: **−2,000 lines**, with a whole product surface added.
+
+### How to Test
+Automated first — needs only Node, no install:
+
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__ExteriorDoorParity__Spec__.js"
+```
+
+It loads the shipped generators unmodified against a minimal SVG/DOM stub and covers leaf geometry, swing side, every composition and preset, rails and stiles, elevation and plan output, DXF layers, validation, and — the point of the exercise — that a single door and a double door with the same 900mm leaf resolve to an **identical panel layout** measured from each leaf's own origin. Expect `109 passed, 0 failed`. The other two suites (`…ArithmeticEvaluator__Spec__.js`, `…ComponentName__Spec__.js`) should still report `108` and `32`.
+
+Then in the dialog, after a full SketchUp restart (Reload Scripts alone may leave stale Ruby loaded):
+1. Windows tab → Product **Exterior Doors** → **Single Door**. The viewport should split into Plan View and Elevation View, and the elevation should show a door: a bottom rail, a mid-rail and a fielded panel under a glazed head — not a window.
+2. **Leaf Composition** → Fully Fielded: the glass disappears and the leaf fills with panels. → Fully Glazed: the mid-rail and fielded section disappear. → back to Glazed Over Fielded.
+3. **Panel Layout** → Six Panel: six fielded panels with muntins between them. → Custom, Columns 3, Rows 2 → six panels in a 3×2 grid.
+4. Drag **Fielded Section Height**, **Separating Midrail Width**, **Bottom Rail Width**, **Perimeter Stile Width** — every one must move geometry in the elevation as you drag.
+5. **Panel Output** → Linework: the panels become outlines. → Three Dimensional: Panel Profile / Depth / Bevel Width reappear.
+6. **Swing Side** Left ↔ Right: the plan pivot and swing arc jump to the other jamb, and the handle jumps with them. **Swing Direction** Inward ↔ Outward flips the arc through the opening.
+7. **Fixed Panel** on → the handle, hinge pivot, swing arc and open-state ghost all disappear from both views; the leaf still builds from the same stiles, rails and panels.
+8. Add glaze bars, then click one in the elevation to hide it. Switch to Double Doors and back — the door's hidden bars must survive, and must not have leaked into the window set.
+9. **Create at Cursor.** The 3D door in SketchUp must match the elevation part for part — stiles, rails, mid-rail, fielded panels, glazing bars, handle, `ROT###` marker.
+10. **Export DXF** → `exterior_single_door_export.dxf`. Elevation on top, plan below, on the door layers.
+11. Regression: switch to **Double Doors** and repeat 2–10. Nothing there should have changed — including per-leaf overrides (Link Leaf Settings off → enable a side override) and the EQ / mm Active Leaf Width field.
+12. Regression: switch back to **Windows**. The casement window preview and build must be untouched.
+
+### Backward Compatibility
+- Exterior single doors already placed in a model keep their baked geometry until you select them and press Update. Their stored config is merged over the current defaults on load, so the two new keys arrive with sensible values.
+- A pre-hierarchy component carrying `door_mode: true` still opens as an Exterior Single Door via `na_hydrateHierarchyFromModeFlags`. It will **not** rebuild the old window-with-a-panel leaf — Update rebuilds it as a proper single door. That is the intended migration, but it does mean the leaf changes shape on first update.
+- The double door's public JS globals (`Na__ExtDouble__LeafConfigResolver`, `…ElevationGenerator`, `…PlanGenerator`, `…DxfExporter`) and its Ruby module (`Na__ExteriorDoubleDoorSystem::Na__DxfExporter.na_export_dxf`) keep the same names and signatures, so anything outside this feature that calls them is unaffected.
+- Saved presets are unchanged. `door_mode` in an old preset is now an ignored key.
+
+### Known Limitation
+- The single door has no per-leaf override section, because it has one leaf. The `single_door_*` keys are always read directly.
+- The handle in both 2D views is still the schematic scroll drawn in code — the Scroll asset's `Elevation2D` / `Plan2D` path exports remain empty. Unchanged from the double door, and both will improve at once when those assets land.
+- The width slider still caps at 4000mm for a single door (8000mm is reserved for the multi-leaf sliding / bifold sets). Deliberate, but if a single leaf over 4m is ever wanted the cap is one entry in `na_applyWidthSliderRange`.
+- `Na__ExtDoorCommon__DxfExporter` (Ruby) and its JS twin remain separate implementations of the same drawing, as they were before. They agree today and the spec pins the JS side, but the Ruby side has no automated coverage — there is no Ruby interpreter outside SketchUp on this machine, so the Ruby half of this change was verified by reading rather than by running.
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.5.1 - 27-Aug-2026 - Arithmetic in Every Numeric Field
 
 ### Context

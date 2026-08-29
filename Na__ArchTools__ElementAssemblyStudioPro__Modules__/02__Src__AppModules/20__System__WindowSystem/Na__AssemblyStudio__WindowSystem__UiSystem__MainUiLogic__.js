@@ -41,7 +41,64 @@ const Na_DynamicUI = (function() {
     let _config = {};                                                // Current configuration state
     let _updateCallback = null;                                      // External update callback function
     let _svgValid = false;                                           // SVG preview validation state
-    
+
+    // MODULE CONSTANT | Hinged Exterior Door Products Sharing the Dual Viewport
+    // ------------------------------------------------------------
+    // Double and single exterior doors are the same product family: both are
+    // built from hinged leaves, both resolve through the shared ExtDoorCommon
+    // resolver / generators, and both render into the dual plan + elevation
+    // viewport rather than the standard window canvas. Everything that used to
+    // be hard-coded to `double_door_mode` now walks this table so the two can
+    // never drift apart again.
+    const NA_EXT_DOOR_PRODUCTS = [
+        {
+            modeKey       : 'double_door_mode',
+            prefix        : 'double_door',
+            resolverKey   : 'Na__ExtDouble__LeafConfigResolver',
+            elevationKey  : 'Na__ExtDouble__ElevationGenerator',
+            planKey       : 'Na__ExtDouble__PlanGenerator',
+            dxfKey        : 'Na__ExtDouble__DxfExporter'
+        },
+        {
+            modeKey       : 'ext_single_door_mode',
+            prefix        : 'single_door',
+            resolverKey   : 'Na__ExtSingleDoor__LeafConfigResolver',
+            elevationKey  : 'Na__ExtSingleDoor__ElevationGenerator',
+            planKey       : 'Na__ExtSingleDoor__PlanGenerator',
+            dxfKey        : 'Na__ExtSingleDoor__DxfExporter'
+        }
+    ];
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Resolve the Active Hinged Exterior Door Product Descriptor
+    // ------------------------------------------------------------
+    // @param  {Object} [config] - Config to test; defaults to the live _config
+    // @return {Object|null}       Product descriptor, or null in window mode
+    function na_getActiveExtDoorProduct(config) {
+        const source = config || _config;
+        if (!source) return null;
+        for (let index = 0; index < NA_EXT_DOOR_PRODUCTS.length; index += 1) {
+            if (source[NA_EXT_DOOR_PRODUCTS[index].modeKey] === true) {
+                return NA_EXT_DOOR_PRODUCTS[index];
+            }
+        }
+        return null;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve the Active Product's Leaf Config Resolver
+    // ------------------------------------------------------------
+    // Returns null when no hinged exterior door is active, or when the
+    // product's resolver script has not loaded.
+    function na_getActiveExtDoorResolver(config) {
+        const product = na_getActiveExtDoorProduct(config);
+        if (!product) return null;
+        const resolver = window[product.resolverKey];
+        return (resolver && typeof resolver.na_resolve === 'function') ? resolver : null;
+    }
+    // ---------------------------------------------------------------
+
+
     // FUNCTION | Initialize the Dynamic UI
     // ------------------------------------------------------------
     function na_init() {
@@ -124,9 +181,11 @@ const Na_DynamicUI = (function() {
         _config.removed_casements = [];
         _config.removed_transom_segments = [];
         _config.removed_glazebars = [];
-        _config.double_door_removed_glazebars = [];
         _config.leaded_disabled_cells = [];
-        _config.double_door_leaded_disabled_cells = [];
+        NA_EXT_DOOR_PRODUCTS.forEach(product => {                     // <-- Per-product hidden-element state
+            _config[`${product.prefix}_removed_glazebars`] = [];
+            _config[`${product.prefix}_leaded_disabled_cells`] = [];
+        });
         na_syncModeFlagsFromHierarchy();
     }
     // ---------------------------------------------------------------
@@ -289,6 +348,9 @@ const Na_DynamicUI = (function() {
     // ------------------------------------------------------------
     function na_syncModeFlagsFromHierarchy() {
         const category = _config.ui_element_category || 'Window';
+        // `door_mode` is the retired WindowSystem door leaf (V1.5.3). Nothing
+        // reads it any more; it is still pinned false so a legacy saved
+        // config that carries it true cannot resurrect the flag downstream.
         _config.door_mode = false;
         _config.ext_single_door_mode = false;
         _config.sliding_mode = false;
@@ -408,10 +470,14 @@ const Na_DynamicUI = (function() {
             }
         }
         
-        // Guard: clamp glazebar_inset to prevent impossible geometry
-        // bar_depth = casement_depth - 2*inset must be >= glass_thickness
-        const clampedMax = _config.double_door_mode === true
-            ? Math.max(0, Number(_config.double_door_leaf_thickness_mm || 50) / 2 - 1)
+        // Guard: clamp glazebar_inset to prevent impossible geometry.
+        // Windows: bar_depth = casement_depth - 2*inset must be >= glass_thickness.
+        // Hinged exterior doors: the bar sits in the leaf, so the leaf thickness
+        // is what bounds the inset. Mirrors the clamp the shared ExtDoorCommon
+        // resolver applies, so the slider cannot show a value the door ignores.
+        const insetProduct = na_getActiveExtDoorProduct();
+        const clampedMax = insetProduct
+            ? Math.max(0, Number(_config[`${insetProduct.prefix}_leaf_thickness_mm`] || 50) / 2 - 1)
             : (function () {
                 const casementDepth = _config.casement_depth_mm || 55;
                 const glassThickness = _config.glass_thickness_mm || 20;
@@ -458,11 +524,13 @@ const Na_DynamicUI = (function() {
             _config.removed_glazebars = [];
         }
         const validGlazebarKeys = na_getValidGlazebarKeySet();
-        if (_config.double_door_mode === true) {
-            if (!Array.isArray(_config.double_door_removed_glazebars)) {
-                _config.double_door_removed_glazebars = [];
+        const activeExtDoor = na_getActiveExtDoorProduct();
+        if (activeExtDoor) {
+            const removedKey = `${activeExtDoor.prefix}_removed_glazebars`;
+            if (!Array.isArray(_config[removedKey])) {
+                _config[removedKey] = [];
             }
-            _config.double_door_removed_glazebars = _config.double_door_removed_glazebars
+            _config[removedKey] = _config[removedKey]
                 .map(key => String(key))
                 .filter(key => validGlazebarKeys.has(key));
         } else {
@@ -476,11 +544,12 @@ const Na_DynamicUI = (function() {
             _config.leaded_disabled_cells = [];
         }
         const validLeadedCellKeys = na_getValidLeadedCellKeySet();
-        if (_config.double_door_mode === true) {
-            if (!Array.isArray(_config.double_door_leaded_disabled_cells)) {
-                _config.double_door_leaded_disabled_cells = [];
+        if (activeExtDoor) {
+            const disabledKey = `${activeExtDoor.prefix}_leaded_disabled_cells`;
+            if (!Array.isArray(_config[disabledKey])) {
+                _config[disabledKey] = [];
             }
-            _config.double_door_leaded_disabled_cells = _config.double_door_leaded_disabled_cells
+            _config[disabledKey] = _config[disabledKey]
                 .map(key => String(key))
                 .filter(key => validLeadedCellKeys.has(key));
         } else {
@@ -619,9 +688,7 @@ const Na_DynamicUI = (function() {
         const panelOutput = _config[`${prefix}_panel_output_mode`] || 'ThreeDimensional';
         const preset = _config[`${prefix}_panel_preset`] || 'OnePanel';
         const hasFielded = composition === 'GlazedOverFielded' || composition === 'FullyFielded';
-        const midRailKey = prefix === 'double_door' || prefix === 'single_door'
-            ? `${prefix}_mid_rail_width_mm`
-            : `${prefix}_mid_rail_width_mm`;
+        const midRailKey = `${prefix}_mid_rail_width_mm`;
 
         const visibilityMap = [
             { id: `${prefix}_panel_output_mode`, visible: hasFielded },
@@ -675,15 +742,19 @@ const Na_DynamicUI = (function() {
 
     // FUNCTION | Toggle Exterior Double-Door Section and Viewports
     // ------------------------------------------------------------
+    // The dual plan + elevation viewport belongs to the hinged exterior door
+    // family as a whole, so it is shown for a single door too and the standard
+    // window canvas is hidden for both.
     function na_updateDoubleDoorVisibility() {
         const isDoubleDoorMode = _config.double_door_mode === true;
+        const isExtDoorMode = na_getActiveExtDoorProduct() !== null;
         const section = document.getElementById('na-section-double-door');
         const standardViewport = document.getElementById('na-canvas-wrapper');
-        const dualViewport = document.getElementById('na-double-door-dual-viewport');
+        const dualViewport = document.getElementById('na-ext-door-dual-viewport');
 
         if (section) section.style.display = isDoubleDoorMode ? '' : 'none';
-        if (standardViewport) standardViewport.style.display = isDoubleDoorMode ? 'none' : '';
-        if (dualViewport) dualViewport.style.display = isDoubleDoorMode ? '' : 'none';
+        if (standardViewport) standardViewport.style.display = isExtDoorMode ? 'none' : '';
+        if (dualViewport) dualViewport.style.display = isExtDoorMode ? '' : 'none';
 
         na_updateDoubleDoorSubcontrolVisibility(isDoubleDoorMode);
     }
@@ -945,10 +1016,9 @@ const Na_DynamicUI = (function() {
     function na_computeMaxGlazebarMarginMm() {
         let glassWidth = na_getGlazingPanelWidthMm();
         let glassHeight = na_getGlazingPanelHeightMm();
-        if (_config.double_door_mode === true &&
-            window.Na__ExtDouble__LeafConfigResolver &&
-            typeof window.Na__ExtDouble__LeafConfigResolver.na_resolve === 'function') {
-            const resolved = window.Na__ExtDouble__LeafConfigResolver.na_resolve(_config);
+        const extDoorResolver = na_getActiveExtDoorResolver();
+        if (extDoorResolver) {
+            const resolved = extDoorResolver.na_resolve(_config);
             const glazedRegions = resolved.leaves
                 .map(leaf => leaf.panelLayout && leaf.panelLayout.glazedRegion)
                 .filter(Boolean);
@@ -1542,11 +1612,10 @@ const Na_DynamicUI = (function() {
     // FUNCTION | Collect Valid Glaze Bar Keys
     // ------------------------------------------------------------
     function na_getValidGlazebarKeySet() {
-        if (_config.double_door_mode === true &&
-            window.Na__ExtDouble__LeafConfigResolver &&
-            typeof window.Na__ExtDouble__LeafConfigResolver.na_resolve === 'function') {
+        const extDoorResolver = na_getActiveExtDoorResolver();
+        if (extDoorResolver) {
             const validKeys = new Set();
-            const resolved = window.Na__ExtDouble__LeafConfigResolver.na_resolve(_config);
+            const resolved = extDoorResolver.na_resolve(_config);
             resolved.leaves.forEach(leaf => {
                 for (let index = 1; index <= leaf.settings.horizontalBars; index += 1) {
                     validKeys.add(na_getGlazebarKey(0, 0, leaf.index - 1, 0, 'horizontal', index));
@@ -1662,11 +1731,16 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
 
-    // FUNCTION | Toggle an Exterior Double-Door Glaze Bar
+    // FUNCTION | Toggle a Hinged Exterior Door Glaze Bar
     // ------------------------------------------------------------
-    function na_toggleDoubleDoorGlazebarRemoval(openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex) {
+    // Writes into the active product's own removal collection
+    // (`double_door_removed_glazebars` / `single_door_removed_glazebars`) so
+    // each product keeps its hidden bars independently of the window set.
+    function na_toggleExtDoorGlazebarRemoval(openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex) {
+        const product = na_getActiveExtDoorProduct();
+        if (!product) return;
         na_toggleGlazebarRemovalInCollection(
-            'double_door_removed_glazebars',
+            `${product.prefix}_removed_glazebars`,
             openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex
         );
     }
@@ -1704,11 +1778,10 @@ const Na_DynamicUI = (function() {
     // gated on leaded_glass_enabled so per-cell choices survive the
     // leaded toggle being switched off and back on.
     function na_getValidLeadedCellKeySet() {
-        if (_config.double_door_mode === true &&
-            window.Na__ExtDouble__LeafConfigResolver &&
-            typeof window.Na__ExtDouble__LeafConfigResolver.na_resolve === 'function') {
+        const extDoorResolver = na_getActiveExtDoorResolver();
+        if (extDoorResolver) {
             const validKeys = new Set();
-            const resolved = window.Na__ExtDouble__LeafConfigResolver.na_resolve(_config);
+            const resolved = extDoorResolver.na_resolve(_config);
             resolved.leaves.forEach(leaf => {
                 for (let row = 0; row <= leaf.settings.horizontalBars; row += 1) {
                     for (let col = 0; col <= leaf.settings.verticalBars; col += 1) {
@@ -1742,11 +1815,13 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
 
-    // FUNCTION | Toggle Leaded Glass For One Exterior Double-Door Cell
+    // FUNCTION | Toggle Leaded Glass For One Hinged Exterior Door Cell
     // ------------------------------------------------------------
-    function na_toggleDoubleDoorLeadedCellState(openingIndex, cellIndex, panelIndex, sashIndex, col, row) {
+    function na_toggleExtDoorLeadedCellState(openingIndex, cellIndex, panelIndex, sashIndex, col, row) {
+        const product = na_getActiveExtDoorProduct();
+        if (!product) return;
         na_toggleLeadedCellStateInCollection(
-            'double_door_leaded_disabled_cells',
+            `${product.prefix}_leaded_disabled_cells`,
             openingIndex, cellIndex, panelIndex, sashIndex, col, row
         );
     }
@@ -1778,22 +1853,22 @@ const Na_DynamicUI = (function() {
         const removedCasementsCount = Array.isArray(_config.removed_casements) ? _config.removed_casements.length : 0;
         const removedTransomSegmentsCount = Array.isArray(_config.removed_transom_segments) ? _config.removed_transom_segments.length : 0;
         const removedGlazebarsCount = Array.isArray(_config.removed_glazebars) ? _config.removed_glazebars.length : 0;
-        const removedDoubleDoorGlazebarsCount = Array.isArray(_config.double_door_removed_glazebars)
-            ? _config.double_door_removed_glazebars.length
-            : 0;
         const disabledLeadedCellsCount = Array.isArray(_config.leaded_disabled_cells)
             ? _config.leaded_disabled_cells.length
             : 0;
-        const disabledDoubleDoorLeadedCellsCount = Array.isArray(_config.double_door_leaded_disabled_cells)
-            ? _config.double_door_leaded_disabled_cells.length
-            : 0;
+        const extDoorHiddenCount = NA_EXT_DOOR_PRODUCTS.reduce((total, product) => {
+            const bars  = _config[`${product.prefix}_removed_glazebars`];
+            const cells = _config[`${product.prefix}_leaded_disabled_cells`];
+            return total +
+                (Array.isArray(bars) ? bars.length : 0) +
+                (Array.isArray(cells) ? cells.length : 0);
+        }, 0);
 
         return removedCasementsCount > 0 ||
             removedTransomSegmentsCount > 0 ||
             removedGlazebarsCount > 0 ||
-            removedDoubleDoorGlazebarsCount > 0 ||
             disabledLeadedCellsCount > 0 ||
-            disabledDoubleDoorLeadedCellsCount > 0;
+            extDoorHiddenCount > 0;
     }
     // ---------------------------------------------------------------
 
@@ -1803,9 +1878,11 @@ const Na_DynamicUI = (function() {
         _config.removed_casements = [];
         _config.removed_transom_segments = [];
         _config.removed_glazebars = [];
-        _config.double_door_removed_glazebars = [];
         _config.leaded_disabled_cells = [];
-        _config.double_door_leaded_disabled_cells = [];
+        NA_EXT_DOOR_PRODUCTS.forEach(product => {
+            _config[`${product.prefix}_removed_glazebars`] = [];
+            _config[`${product.prefix}_leaded_disabled_cells`] = [];
+        });
 
         console.log('[NA_UI] Reset all hidden element state');
         na_onConfigChange();
@@ -2169,9 +2246,10 @@ const Na_DynamicUI = (function() {
         na_toggleCasementRemoval: na_toggleCasementRemoval,
         na_toggleTransomSegmentRemoval: na_toggleTransomSegmentRemoval,
         na_toggleGlazebarRemoval: na_toggleGlazebarRemoval,
-        na_toggleDoubleDoorGlazebarRemoval: na_toggleDoubleDoorGlazebarRemoval,
+        na_toggleExtDoorGlazebarRemoval: na_toggleExtDoorGlazebarRemoval,
         na_toggleLeadedCellState: na_toggleLeadedCellState,
-        na_toggleDoubleDoorLeadedCellState: na_toggleDoubleDoorLeadedCellState,
+        na_toggleExtDoorLeadedCellState: na_toggleExtDoorLeadedCellState,
+        na_getActiveExtDoorProduct: na_getActiveExtDoorProduct,
         na_resetHiddenElements: na_resetHiddenElements,
         na_rebuild_frame_finish_control: na_rebuild_frame_finish_control,
         na_rebuild_edge_colour_controls: na_rebuild_edge_colour_controls
@@ -2205,8 +2283,27 @@ const Na_Viewport = (function() {
     // ------------------------------------------------------------
     let _instance = null;                                            // <-- Shared standard window viewport instance
     let _svgElement = null;                                          // <-- Cached standard SVG element reference
-    let _doubleDoorPlanInstance = null;                              // <-- Exterior Double Door plan viewport
-    let _doubleDoorElevationInstance = null;                         // <-- Exterior Double Door elevation viewport
+    let _extDoorPlanInstance = null;                                 // <-- Hinged exterior door plan viewport
+    let _extDoorElevationInstance = null;                            // <-- Hinged exterior door elevation viewport
+    // ---------------------------------------------------------------
+
+
+    // HELPER FUNCTION | Resolve the Active Hinged Exterior Door Generators
+    // ------------------------------------------------------------
+    // Both the Double Door and the Single Door render into the same dual
+    // viewport through the shared ExtDoorCommon generators, so the painters
+    // and fitters below pick their generator per config rather than being
+    // bound to one product.
+    function na_resolve_ext_door_generators(config) {
+        const product = Na_DynamicUI.na_getActiveExtDoorProduct(config);
+        if (!product) return null;
+        return {
+            product   : product,
+            elevation : window[product.elevationKey] || null,
+            plan      : window[product.planKey] || null,
+            dxf       : window[product.dxfKey] || null
+        };
+    }
     // ---------------------------------------------------------------
 
 
@@ -2245,72 +2342,78 @@ const Na_Viewport = (function() {
             return;
         }
 
-        na_init_double_door_viewports();
+        na_init_ext_door_viewports();
         console.log('[NA_VIEWPORT] Window viewport initialized');
     }
     // ---------------------------------------------------------------
 
-    // FUNCTION | Initialize Exterior Double-Door Plan and Elevation Viewports
+    // FUNCTION | Initialize the Shared Exterior Door Plan and Elevation Viewports
     // ------------------------------------------------------------
-    function na_init_double_door_viewports() {
-        _doubleDoorPlanInstance = window.Na__Viewport__Instance.na_create({
-            wrapperId: 'na-double-door-plan-wrapper',
-            svgId: 'na-double-door-plan-svg',
+    // One pair of canvases serves every hinged exterior door product; the
+    // painter picks the active product's generator on each render.
+    function na_init_ext_door_viewports() {
+        _extDoorPlanInstance = window.Na__Viewport__Instance.na_create({
+            wrapperId: 'na-ext-door-plan-wrapper',
+            svgId: 'na-ext-door-plan-svg',
             initialViewBox: { x: -100, y: -300, width: 2200, height: 900 },
             autoResetOnRender: true,
             fitToContent: function (config) {
-                if (window.Na__ExtDouble__PlanGenerator &&
-                    typeof window.Na__ExtDouble__PlanGenerator.na_fit_to_content === 'function') {
-                    return window.Na__ExtDouble__PlanGenerator.na_fit_to_content(config);
+                const generators = na_resolve_ext_door_generators(config);
+                if (generators && generators.plan &&
+                    typeof generators.plan.na_fit_to_content === 'function') {
+                    return generators.plan.na_fit_to_content(config);
                 }
                 const width = Math.max(800, Number(config.width_mm || 1800));
                 const depth = Math.max(200, Number(config.frame_depth_mm || 70) + 400);
                 return { x: -100, y: -depth, width: width + 200, height: depth * 2 };
             },
-            onRender: na_paint_double_door_plan_svg
+            onRender: na_paint_ext_door_plan_svg
         });
 
-        _doubleDoorElevationInstance = window.Na__Viewport__Instance.na_create({
-            wrapperId: 'na-double-door-elevation-wrapper',
-            svgId: 'na-double-door-elevation-svg',
+        _extDoorElevationInstance = window.Na__Viewport__Instance.na_create({
+            wrapperId: 'na-ext-door-elevation-wrapper',
+            svgId: 'na-ext-door-elevation-svg',
             initialViewBox: { x: -100, y: -2300, width: 2200, height: 2500 },
             autoResetOnRender: true,
             fitToContent: function (config) {
-                if (window.Na__ExtDouble__ElevationGenerator &&
-                    typeof window.Na__ExtDouble__ElevationGenerator.na_fit_to_content === 'function') {
-                    return window.Na__ExtDouble__ElevationGenerator.na_fit_to_content(config);
+                const generators = na_resolve_ext_door_generators(config);
+                if (generators && generators.elevation &&
+                    typeof generators.elevation.na_fit_to_content === 'function') {
+                    return generators.elevation.na_fit_to_content(config);
                 }
                 const width = Math.max(800, Number(config.width_mm || 1800));
                 const height = Math.max(1500, Number(config.height_mm || 2100));
                 return { x: -100, y: -height - 100, width: width + 200, height: height + 250 };
             },
-            onRender: na_paint_double_door_elevation_svg
+            onRender: na_paint_ext_door_elevation_svg
         });
 
-        if (_doubleDoorPlanInstance) _doubleDoorPlanInstance.na_init();
-        if (_doubleDoorElevationInstance) _doubleDoorElevationInstance.na_init();
+        if (_extDoorPlanInstance) _extDoorPlanInstance.na_init();
+        if (_extDoorElevationInstance) _extDoorElevationInstance.na_init();
     }
     // ---------------------------------------------------------------
 
-    // SUB FUNCTION | Paint Exterior Double-Door Plan SVG
+    // SUB FUNCTION | Paint the Active Exterior Door Plan SVG
     // ------------------------------------------------------------
-    function na_paint_double_door_plan_svg(svgEl, config) {
-        if (!window.Na__ExtDouble__PlanGenerator ||
-            typeof window.Na__ExtDouble__PlanGenerator.na_render !== 'function') {
-            throw new Error('Exterior Double Door plan generator is not loaded');
+    function na_paint_ext_door_plan_svg(svgEl, config) {
+        const generators = na_resolve_ext_door_generators(config);
+        if (!generators || !generators.plan ||
+            typeof generators.plan.na_render !== 'function') {
+            throw new Error('Exterior door plan generator is not loaded');
         }
-        window.Na__ExtDouble__PlanGenerator.na_render(svgEl, config);
+        generators.plan.na_render(svgEl, config);
     }
     // ---------------------------------------------------------------
 
-    // SUB FUNCTION | Paint Exterior Double-Door Elevation SVG
+    // SUB FUNCTION | Paint the Active Exterior Door Elevation SVG
     // ------------------------------------------------------------
-    function na_paint_double_door_elevation_svg(svgEl, config) {
-        if (!window.Na__ExtDouble__ElevationGenerator ||
-            typeof window.Na__ExtDouble__ElevationGenerator.na_render !== 'function') {
-            throw new Error('Exterior Double Door elevation generator is not loaded');
+    function na_paint_ext_door_elevation_svg(svgEl, config) {
+        const generators = na_resolve_ext_door_generators(config);
+        if (!generators || !generators.elevation ||
+            typeof generators.elevation.na_render !== 'function') {
+            throw new Error('Exterior door elevation generator is not loaded');
         }
-        window.Na__ExtDouble__ElevationGenerator.na_render(svgEl, config);
+        generators.elevation.na_render(svgEl, config);
     }
     // ---------------------------------------------------------------
 
@@ -2393,18 +2496,18 @@ const Na_Viewport = (function() {
 
     // SUB FUNCTION | Bind Double-Door Elevation Glaze-Bar Click Targets
     // ------------------------------------------------------------
-    function na_bind_double_door_glazebar_click_targets() {
-        if (!_doubleDoorElevationInstance || !window.Na__Viewport__Controls) return;
-        const svgEl = _doubleDoorElevationInstance.na_get_svg();
+    function na_bind_ext_door_glazebar_click_targets() {
+        if (!_extDoorElevationInstance || !window.Na__Viewport__Controls) return;
+        const svgEl = _extDoorElevationInstance.na_get_svg();
         if (!svgEl) return;
-        const interactionState = _doubleDoorElevationInstance.na_get_interaction_state();
+        const interactionState = _extDoorElevationInstance.na_get_interaction_state();
         window.Na__Viewport__Controls.na_setupCasementClickTargets(
             svgEl,
             interactionState,
             null,
             null,
             function (openingIndex, cellIndex, panelIndex, sashIndex, orientation, barIndex) {
-                Na_DynamicUI.na_toggleDoubleDoorGlazebarRemoval(
+                Na_DynamicUI.na_toggleExtDoorGlazebarRemoval(
                     openingIndex,
                     cellIndex,
                     panelIndex,
@@ -2414,7 +2517,7 @@ const Na_Viewport = (function() {
                 );
             },
             function (openingIndex, cellIndex, panelIndex, sashIndex, col, row) {
-                Na_DynamicUI.na_toggleDoubleDoorLeadedCellState(
+                Na_DynamicUI.na_toggleExtDoorLeadedCellState(
                     openingIndex,
                     cellIndex,
                     panelIndex,
@@ -2445,14 +2548,14 @@ const Na_Viewport = (function() {
                 return false;
             }
 
-            if (config && config.double_door_mode === true) {
-                if (!_doubleDoorPlanInstance || !_doubleDoorElevationInstance) {
-                    throw new Error('Exterior Double Door viewports are not initialised');
+            if (na_resolve_ext_door_generators(config)) {
+                if (!_extDoorPlanInstance || !_extDoorElevationInstance) {
+                    throw new Error('Exterior door viewports are not initialised');
                 }
-                const planOk = _doubleDoorPlanInstance.na_render(config);
-                const elevationOk = _doubleDoorElevationInstance.na_render(config);
+                const planOk = _extDoorPlanInstance.na_render(config);
+                const elevationOk = _extDoorElevationInstance.na_render(config);
                 if (!planOk || !elevationOk) return false;
-                na_bind_double_door_glazebar_click_targets();
+                na_bind_ext_door_glazebar_click_targets();
                 na_resetView();
                 window.Na__Viewport__Validation.na_showValidationSuccess();
                 return true;
@@ -2481,9 +2584,9 @@ const Na_Viewport = (function() {
     // ------------------------------------------------------------
     function na_resetView() {
         const config = Na_DynamicUI.na_getConfig();
-        if (config.double_door_mode === true) {
-            if (_doubleDoorPlanInstance) _doubleDoorPlanInstance.na_resetView(config);
-            if (_doubleDoorElevationInstance) _doubleDoorElevationInstance.na_resetView(config);
+        if (na_resolve_ext_door_generators(config)) {
+            if (_extDoorPlanInstance) _extDoorPlanInstance.na_resetView(config);
+            if (_extDoorElevationInstance) _extDoorElevationInstance.na_resetView(config);
             return;
         }
         if (!_instance) return;
@@ -2496,10 +2599,10 @@ const Na_Viewport = (function() {
     // ------------------------------------------------------------
     function na_exportDxf() {
         const config = Na_DynamicUI.na_getConfig();
-        if (config.double_door_mode === true &&
-            window.Na__ExtDouble__DxfExporter &&
-            typeof window.Na__ExtDouble__DxfExporter.na_export_dxf === 'function') {
-            return window.Na__ExtDouble__DxfExporter.na_export_dxf(config);
+        const generators = na_resolve_ext_door_generators(config);
+        if (generators && generators.dxf &&
+            typeof generators.dxf.na_export_dxf === 'function') {
+            return generators.dxf.na_export_dxf(config);
         }
         return window.Na__Export__Dxf.na_exportDxf(config);
     }
@@ -2529,9 +2632,9 @@ const Na_Viewport = (function() {
 function na_initViewportResize() {
     const handle = document.getElementById('na-viewport-resize-handle');
     const wrapper = document.getElementById('na-canvas-wrapper');
-    const doubleDoorPlanWrapper = document.getElementById('na-double-door-plan-wrapper');
-    const doubleDoorElevationWrapper = document.getElementById('na-double-door-elevation-wrapper');
-    
+    const extDoorPlanWrapper = document.getElementById('na-ext-door-plan-wrapper');
+    const extDoorElevationWrapper = document.getElementById('na-ext-door-elevation-wrapper');
+
     if (!handle || !wrapper) {
         console.warn('[NA_VIEWPORT] Resize handle or wrapper not found');
         return;
@@ -2545,8 +2648,8 @@ function na_initViewportResize() {
     handle.addEventListener('mousedown', function(e) {
         isResizing = true;
         startY = e.clientY;
-        const doubleDoorMode = Na_DynamicUI.na_getConfig().double_door_mode === true;
-        const activeWrapper = doubleDoorMode && doubleDoorPlanWrapper ? doubleDoorPlanWrapper : wrapper;
+        const inExtDoorMode = Na_DynamicUI.na_getActiveExtDoorProduct() !== null;
+        const activeWrapper = inExtDoorMode && extDoorPlanWrapper ? extDoorPlanWrapper : wrapper;
         startHeight = activeWrapper.offsetHeight;
         document.body.style.cursor = 'ns-resize';
         e.preventDefault();
@@ -2558,10 +2661,10 @@ function na_initViewportResize() {
         
         const deltaY = e.clientY - startY;
         const newHeight = Math.max(100, Math.min(600, startHeight + deltaY));
-        const doubleDoorMode = Na_DynamicUI.na_getConfig().double_door_mode === true;
-        if (doubleDoorMode) {
-            if (doubleDoorPlanWrapper) doubleDoorPlanWrapper.style.height = newHeight + 'px';
-            if (doubleDoorElevationWrapper) doubleDoorElevationWrapper.style.height = newHeight + 'px';
+        const inExtDoorMode = Na_DynamicUI.na_getActiveExtDoorProduct() !== null;
+        if (inExtDoorMode) {
+            if (extDoorPlanWrapper) extDoorPlanWrapper.style.height = newHeight + 'px';
+            if (extDoorElevationWrapper) extDoorElevationWrapper.style.height = newHeight + 'px';
         } else {
             wrapper.style.height = newHeight + 'px';
         }

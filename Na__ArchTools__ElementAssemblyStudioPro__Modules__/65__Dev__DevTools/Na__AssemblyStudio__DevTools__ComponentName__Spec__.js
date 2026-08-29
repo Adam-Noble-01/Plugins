@@ -5,7 +5,7 @@
    FILE       : Na__AssemblyStudio__DevTools__ComponentName__Spec__.js
    AUTHOR     : Noble Architecture
    PURPOSE    : Regression suite for the WINDOW INFO "Component Name" field -
-                the dialog half of the V1.5.2 component naming feature.
+                the dialog half of the V1.5.4 component naming feature.
    CREATED    : 28-Aug-2026
 
    HOW TO RUN (from anywhere, needs only Node - no install, no dependencies):
@@ -233,7 +233,7 @@ na_select('AWN020', 'AWN020__Window__', '');
 na_expect('unnamed component clears field', na_field.value, '');
 na_expect('preview is head only',           na_preview.textContent, 'AWN020__Window__');
 
-// A pre-V1.5.2 payload carries no name keys at all.
+// A pre-V1.5.4 payload carries no name keys at all.
 na_sent.length = 0;
 global.window.na_setInitialConfig(JSON.stringify({
     windowMetadata: [{ WindowUniqueId: 'AWN021', WindowDescription: 'legacy notes' }],

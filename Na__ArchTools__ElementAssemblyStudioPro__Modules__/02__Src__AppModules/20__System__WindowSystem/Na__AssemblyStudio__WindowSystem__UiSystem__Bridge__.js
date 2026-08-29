@@ -33,7 +33,7 @@ let na_loadedMetadata           = null;                              // Cached m
 let na_placementModeActive      = false;                             // True while the SketchUp placement tool is active
 let na_hasPendingMeasurement    = false;                             // True between na_receiveMeasurement and the next create/cancel
 
-// Module Variables | Component Name Tail (V1.5.2)
+// Module Variables | Component Name Tail (V1.5.4)
 // ------------------------------------------------------------
 // The Component Name field appends a user-authored tail to the FIXED
 // `<ID>__<TypeTag>__` head that TrueVision / ValeVision parse. Ruby
@@ -149,7 +149,7 @@ window.na_clearCurrentWindow = function() {
     const descInput = document.getElementById('na-info-description');         // <-- v0.11.6 Drop the previous window's description
     if (descInput) descInput.value = '';
 
-    na_applyComponentNameFromMetadata(null);                                  // <-- v1.5.2 Drop the previous window's component name + preview
+    na_applyComponentNameFromMetadata(null);                                  // <-- v1.5.4 Drop the previous window's component name + preview
 
     na_toggleEditMode(false);
     na_setPendingMeasurementAvailable(false);                                 // <-- Defensive: a deselect should never leave a stale measurement enabled
@@ -692,7 +692,7 @@ function na_updateWindowInfo(metadata) {
 // endregion ===================================================================
 
 // =============================================================================
-// REGION | Component Name Tail (V1.5.2)
+// REGION | Component Name Tail (V1.5.4)
 // =============================================================================
 //
 // The SketchUp component is named `<base><tail>`:

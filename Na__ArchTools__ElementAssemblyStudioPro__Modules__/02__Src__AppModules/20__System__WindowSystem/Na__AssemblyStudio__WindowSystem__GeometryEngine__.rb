@@ -30,7 +30,6 @@ require_relative 'Na__AssemblyStudio__WindowSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
 require_relative 'Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
 require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
-require_relative '../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__PanelInterface__'
 
 module Na__AssemblyStudio
 module Na__WindowSystem
@@ -48,12 +47,6 @@ module Na__WindowSystem
         LeadedGlassBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
         SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
         InsertionFrame   = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                  # <-- Wall-aware insertion transform helper
-        # Door panel construction crosses the WindowSystem<->ExteriorSingleDoorSystem
-        # contract via the PanelInterface module rather than touching the
-        # builder directly.
-        DoorPanelInterface = lambda do
-            Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::PanelInterface
-        end
 
 # endregion -------------------------------------------------------------------
 
@@ -515,22 +508,6 @@ module Na__WindowSystem
             has_cill = config["has_cill"] != false
             use_individual_sizes = config["casement_sizes_individual"] == true
             sliding_sash_window = config["sliding_sash_window"] == true
-            door_mode = config["door_mode"] == true
-
-            # Door panel parameters
-            door_panel_height = (config["door_panel_height_mm"] || 400).to_f * mm_to_inch
-            door_panel_columns = (config["door_panel_columns"] || 1).to_i.clamp(1, 4)
-            door_panel_rows = (config["door_panel_rows"] || 1).to_i.clamp(1, 3)
-            door_panel_rail_width = (config["door_panel_rail_width_mm"] || 30).to_f * mm_to_inch
-            door_panel_stile_width = (config["door_panel_stile_width_mm"] || 30).to_f * mm_to_inch
-            door_mid_rail_width = (config["door_mid_rail_width_mm"] || 150).to_f * mm_to_inch
-            door_base_rail_width = (config["door_base_rail_width_mm"] || 200).to_f * mm_to_inch
-            door_panel_margin = (config["door_panel_margin_mm"] || 30).to_f * mm_to_inch
-            door_panel_recess_depth = (config["door_panel_recess_depth_mm"] || 8).to_f * mm_to_inch
-            door_panel_trim_width = (config["door_panel_trim_width_mm"] || 5).to_f * mm_to_inch
-            door_panel_trim_depth = (config["door_panel_trim_depth_mm"] || 3).to_f * mm_to_inch
-            door_panel_moulding_inset = (config["door_panel_moulding_inset_mm"] || 5).to_f * mm_to_inch
-            door_panel_show_trim = config["door_panel_show_trim"] == true
             
             # Casements per opening (backward compat: twin_casements true â†’ 2)
             if config.key?("twin_casements") && !config.key?("casements_per_opening")
@@ -673,20 +650,6 @@ module Na__WindowSystem
                 cas_right_stile: cas_right_stile,
                 show_casements: show_casements,
                 sliding_sash_window: sliding_sash_window,
-                door_mode: door_mode,
-                door_panel_height: door_panel_height,
-                door_panel_columns: door_panel_columns,
-                door_panel_rows: door_panel_rows,
-                door_panel_rail_width: door_panel_rail_width,
-                door_panel_stile_width: door_panel_stile_width,
-                door_mid_rail_width: door_mid_rail_width,
-                door_base_rail_width: door_base_rail_width,
-                door_panel_margin: door_panel_margin,
-                door_panel_recess_depth: door_panel_recess_depth,
-                door_panel_trim_width: door_panel_trim_width,
-                door_panel_trim_depth: door_panel_trim_depth,
-                door_panel_moulding_inset: door_panel_moulding_inset,
-                door_panel_show_trim: door_panel_show_trim,
                 casements_per_opening: casements_per_opening,
                 removed_casements: removed_casements,
                 removed_transom_segments: removed_transom_segments,
@@ -1079,17 +1042,13 @@ module Na__WindowSystem
 
         # FUNCTION | Render Opening Panel Geometry
         # ------------------------------------------------------------
-        # Shared panel renderer for standard, sliding sash, and door modes.
-        # In door mode with casement, builds a full-height door with mid-rail,
-        # glass in upper zone, and solid panel content in lower zone.
+        # Shared panel renderer for standard and sliding sash windows.
+        # V1.5.3: the legacy `door_mode` branch that built a fielded door leaf
+        # inside a window casement is gone. Exterior single doors are their own
+        # product now and build through
+        # 31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__AssemblyComposer__.rb.
         def self.na_render_opening_panel_geometry(entities, panel_id, opening_index, cell_index, panel_index, sash_index, panel_x, panel_z, panel_width, panel_height, panel_has_casement, panel_wall_inset, params, frame_material, glass_material)
-            if panel_has_casement && params[:door_mode]
-                na_render_door_casement_geometry(
-                    entities, panel_id, opening_index, cell_index, panel_index, sash_index,
-                    panel_x, panel_z, panel_width, panel_height,
-                    panel_wall_inset, params, frame_material, glass_material
-                )
-            elsif panel_has_casement
+            if panel_has_casement
                 top_rail = na_effective_panel_top_rail(sash_index, params)
                 bottom_rail = na_effective_panel_bottom_rail(sash_index, params)
 
@@ -1237,87 +1196,6 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Render Door Casement Geometry
-        # ------------------------------------------------------------
-        # Builds a full-height door casement with:
-        # - Stiles spanning full height
-        # - Top rail, bottom rail, and mid-rail at the glass/panel junction
-        # - Glass + glaze bars in the upper (glazed) zone
-        # - Solid door panel content in the lower zone
-        def self.na_render_door_casement_geometry(entities, panel_id, opening_index, cell_index, panel_index, sash_index, panel_x, panel_z, panel_width, panel_height, panel_wall_inset, params, frame_material, glass_material)
-            mid_rail_w = params[:door_mid_rail_width]
-            base_rail_w = params[:door_base_rail_width]
-            door_panel_h = [params[:door_panel_height], panel_height - params[:cas_top_rail] - mid_rail_w - base_rail_w - 50.mm].min
-            door_panel_h = [door_panel_h, 0].max
-
-            y_offset = panel_wall_inset + params[:casement_inset]
-            cas_depth = params[:casement_depth]
-
-            # Casement stiles -- full height
-            GeometryHelpers.na_create_casement_stile(entities, panel_id, "Left", panel_x, y_offset, panel_z, params[:cas_left_stile], cas_depth, panel_height, frame_material)
-            GeometryHelpers.na_create_casement_stile(entities, panel_id, "Right", panel_x + panel_width - params[:cas_right_stile], y_offset, panel_z, params[:cas_right_stile], cas_depth, panel_height, frame_material)
-
-            rail_clear_width = panel_width - params[:cas_left_stile] - params[:cas_right_stile]
-
-            # Base rail (bottom of the door)
-            GeometryHelpers.na_create_casement_rail(entities, panel_id, "Bottom", panel_x + params[:cas_left_stile], y_offset, panel_z, rail_clear_width, cas_depth, base_rail_w, frame_material)
-
-            # Top rail
-            GeometryHelpers.na_create_casement_rail(entities, panel_id, "Top", panel_x + params[:cas_left_stile], y_offset, panel_z + panel_height - params[:cas_top_rail], rail_clear_width, cas_depth, params[:cas_top_rail], frame_material)
-
-            # Mid-rail at the junction between panel and glass zones
-            mid_rail_z = panel_z + base_rail_w + door_panel_h
-            GeometryHelpers.na_create_casement_rail(entities, panel_id, "Mid", panel_x + params[:cas_left_stile], y_offset, mid_rail_z, rail_clear_width, cas_depth, mid_rail_w, frame_material)
-
-            # Upper zone: glass + glaze bars
-            glass_x = panel_x + params[:cas_left_stile]
-            glass_z = mid_rail_z + mid_rail_w
-            glass_w = rail_clear_width
-            glass_h = panel_height - params[:cas_top_rail] - mid_rail_w - door_panel_h - base_rail_w
-
-            if glass_h > 0 && glass_w > 0
-                GeometryBuilders.na_create_glass_geometry(
-                    entities, panel_id, glass_w, glass_h, params[:glass_thickness],
-                    glass_x, glass_z, params[:frame_depth], glass_material,
-                    panel_wall_inset, cas_depth, params[:casement_inset]
-                )
-
-                if params[:h_bars] > 0 || params[:v_bars] > 0 || params[:glazebar_gothic_arch_enabled]
-                    GeometryBuilders.na_create_glazebar_geometry(
-                        entities, panel_id, glass_w, glass_h, params[:h_bars], params[:v_bars],
-                        params[:bar_width], params[:glass_thickness], glass_x, glass_z,
-                        params[:frame_depth], frame_material, panel_wall_inset,
-                        cas_depth, params[:casement_inset], params[:glazebar_inset],
-                        params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index,
-                        na_advanced_glazebar_hash(params)
-                    )
-                end
-
-                na_create_leaded_for_glass(
-                    entities, panel_id, glass_w, glass_h, glass_x, glass_z,
-                    panel_wall_inset, params[:glass_thickness], params[:frame_depth],
-                    cas_depth, params[:casement_inset], params,
-                    opening_index, cell_index, panel_index, sash_index
-                )
-            end
-
-            # Lower zone: door panel content (inside casement stiles, between base rail and mid-rail)
-            inner_panel_x = panel_x + params[:cas_left_stile]
-            inner_panel_z = panel_z + base_rail_w
-            inner_panel_w = rail_clear_width
-            inner_panel_h = door_panel_h
-
-            if inner_panel_h > 0 && inner_panel_w > 0
-                context = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::DoorPanelContext.new(
-                    entities, panel_id,
-                    inner_panel_x, inner_panel_z, inner_panel_w, inner_panel_h,
-                    params[:casement_depth], params[:frame_wall_inset], params[:casement_inset],
-                    params, frame_material
-                )
-                DoorPanelInterface.call.na_build_panel(context)
-            end
-        end
-        # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
 
