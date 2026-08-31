@@ -11,13 +11,25 @@
 #   1. Validate the sourceFile through Na__EditProfile__LibraryPaths, the guard
 #      shared with the geometry re-capture and delete paths.
 #   2. Patch Name, Description, Keywords in the JSON.
-#   3. Optionally mirror the geometry (params['flipHorizontal']) via
-#      Na__EditProfile__GeometryWriter — folded into this same write so flipping
-#      cannot silently discard whatever is currently typed into the form.
+#   3. Optionally move the datum (params['originOffset']) via
+#      Na__EditProfile__DatumWriter, then optionally mirror the geometry
+#      (params['flipHorizontal']) via Na__EditProfile__GeometryWriter — both
+#      folded into this same write so neither can silently discard whatever is
+#      currently typed into the form.
 #   4. Write <file>.bak alongside the original — LAST, immediately before the
 #      overwrite, so a path that bails out early cannot burn the rollback point.
 #   5. Write the updated JSON with the same pretty-print state as the exporter.
 #   6. Return the freshly re-parsed profile record (so the store can update).
+#
+# GEOMETRY OP ORDER — datum first, then mirror
+#   Both ops are expressed in the profile's own coordinates, and the mirror is
+#   taken about Y = 0, which IS the datum. Moving the datum first therefore
+#   mirrors about the point the user just chose; doing it the other way round
+#   would mirror about the old origin and then translate by an offset measured
+#   before the mirror, landing the shape somewhere neither op asked for.
+#
+#   The dialog can send both at once — Flip Profile carries any pending datum
+#   pick rather than discarding it — so this order is load-bearing, not defensive.
 #
 # =============================================================================
 
@@ -38,6 +50,9 @@ module Na__ProfileTools__ProfilePathTracer
             new_keywords = Array(params['keywords'])
             flip_horizontal = params['flipHorizontal'] == true
 
+            # @delegate: Na__ProfileTools__EditProfile__DatumWriter__
+            origin_offset = Na__EditProfile__DatumWriter.Na__DatumWriter__ReadOffsetParam(params)
+
             return { 'isSaved' => false, 'reason' => 'Profile key is required.' } if profile_key.empty?
             return { 'isSaved' => false, 'reason' => 'Source file path is required.' } if source_file.empty?
 
@@ -45,7 +60,7 @@ module Na__ProfileTools__ProfilePathTracer
             return validation unless validation['isValid']
 
             self.Na__MetaWriter__WriteMeta(
-                source_file, profile_key, new_name, new_desc, new_keywords, flip_horizontal
+                source_file, profile_key, new_name, new_desc, new_keywords, flip_horizontal, origin_offset
             )
         rescue => error
             Na__DebugTools.Na__Debug__Error('Na__MetaWriter__SaveMeta failed.', error)
@@ -69,12 +84,29 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Write Meta
     # -------------------------------------------------------------------------
 
-        def self.Na__MetaWriter__WriteMeta(source_file, profile_key, new_name, new_desc, new_keywords, flip_horizontal = false)
+        def self.Na__MetaWriter__WriteMeta(source_file, profile_key, new_name, new_desc, new_keywords, flip_horizontal = false, origin_offset = nil)
             expanded_path = File.expand_path(source_file)
             raw_content   = File.read(expanded_path, encoding: 'utf-8')
             data          = JSON.parse(raw_content)
 
             self.Na__MetaWriter__PatchData(data, new_name, new_desc, new_keywords)
+
+            # @delegate: Na__ProfileTools__EditProfile__DatumWriter__
+            # Runs before the mirror: the mirror axis IS the datum, so the datum
+            # has to be where the user put it before the shape is reflected.
+            is_redatumed = false
+            if origin_offset
+                is_redatumed = Na__EditProfile__DatumWriter.Na__DatumWriter__ReDatum(
+                    data, origin_offset['y'], origin_offset['z']
+                )
+                if !is_redatumed && !Na__EditProfile__DatumWriter.Na__DatumWriter__IsZeroOffset?(origin_offset['y'], origin_offset['z'])
+                    return {
+                        'isSaved'    => false,
+                        'reason'     => 'Profile has no movable geometry — the insertion point was not changed.',
+                        'profileKey' => profile_key
+                    }
+                end
+            end
 
             # @delegate: Na__ProfileTools__EditProfile__GeometryWriter__
             is_flipped = false
@@ -104,16 +136,13 @@ module Na__ProfileTools__ProfilePathTracer
                 }
             end
 
-            display_name = new_name.empty? ? profile_key : new_name
-            status_message = if is_flipped
-                                 "Profile \"#{display_name}\" flipped horizontally and saved. Backup written as .bak."
-                             else
-                                 "Profile \"#{display_name}\" saved. Backup written as .bak."
-                             end
+            display_name   = new_name.empty? ? profile_key : new_name
+            status_message = self.Na__MetaWriter__SuccessMessage(display_name, is_redatumed, is_flipped)
 
             {
                 'isSaved'       => true,
                 'isFlipped'     => is_flipped,
+                'isReDatumed'   => is_redatumed,
                 'profileKey'    => profile_key,
                 'profileRecord' => fresh_record,
                 'statusMessage' => status_message,
@@ -123,6 +152,28 @@ module Na__ProfileTools__ProfilePathTracer
             { 'isSaved' => false, 'reason' => "JSON parse error: #{error.message}" }
         rescue => error
             { 'isSaved' => false, 'reason' => "Write failed: #{error.message}" }
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Status Message
+    # -------------------------------------------------------------------------
+
+        # Both geometry ops can land on one write, so the message names each one
+        # that actually happened rather than reporting only the first. Silence
+        # about a geometry change the user did not deliberately trigger — a
+        # pending datum carried along by Flip — is the failure mode here.
+        def self.Na__MetaWriter__SuccessMessage(display_name, is_redatumed, is_flipped)
+            changes = []
+            changes << 'insertion point moved to the picked vertex' if is_redatumed
+            changes << 'flipped horizontally'                       if is_flipped
+
+            if changes.empty?
+                "Profile \"#{display_name}\" saved. Backup written as .bak."
+            else
+                "Profile \"#{display_name}\" saved — #{changes.join(' and ')}. Backup written as .bak."
+            end
         end
 
     # endregion ----------------------------------------------------------------

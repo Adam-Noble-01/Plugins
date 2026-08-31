@@ -1,0 +1,477 @@
+/* ============================================================================= */
+/* NA NOBLE3D MODELLING TOOLS - PAINT DEEP NESTED FACES - STYLESHEET             */
+/*                                                                               */
+/* FILE       : Na__Noble3dModellingTools__PaintDeepNestedFaces__Styles__.css    */
+/* PURPOSE    : Light Noble Architecture theme for the Paint Deep Nested Faces   */
+/*              HtmlDialog - material swatch, nesting toggles, selection stats.  */
+/* CREATED    : 2026                                                             */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens (:root Variables)
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    --na-bg-primary         : #f0f0f0;
+    --na-bg-secondary       : #ffffff;
+    --na-bg-tertiary        : #e6e6e6;
+    --na-border             : #d0d0d0;
+    --na-border-strong      : #b8b8b8;
+    --na-text-primary       : #1e1e1e;
+    --na-text-secondary     : #5a5a5a;
+    --na-accent-blue        : #4a90d9;
+    --na-accent-blue-dark   : #3574b5;
+    --na-accent-green       : #3d9a50;
+    --na-accent-red         : #c0392b;
+    --na-accent-amber       : #c97a12;
+    --na-font-family        : 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --na-font-mono          : 'Consolas', 'Menlo', 'Courier New', monospace;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout - Document Reset
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing              : border-box;
+}
+
+html,
+body {
+    margin                  : 0;
+    padding                 : 0;
+    height                  : 100%;
+    overflow                : hidden;
+    font-family             : var(--na-font-family);
+    font-size               : 13px;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-primary);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | App Shell - Root Layout and Toolbar
+ * ----------------------------------------------------------------------------- */
+
+.naPaintFaces__App {
+    display                 : flex;
+    flex-direction          : column;
+    height                  : 100vh;
+}
+
+.naPaintFaces__Toolbar {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 12px;
+    padding                 : 8px 12px;
+    background              : var(--na-bg-secondary);
+    border-bottom           : 1px solid var(--na-border);
+    flex                    : 0 0 auto;
+}
+
+.naPaintFaces__ToolbarLabel {
+    font-size               : 14px;
+    font-weight             : 700;
+    white-space             : nowrap;
+}
+
+.naPaintFaces__ToolbarSpacer {
+    flex                    : 1 1 auto;
+}
+
+.naPaintFaces__Body {
+    flex                    : 1 1 auto;
+    min-height              : 0;
+    overflow-y              : auto;
+    padding                 : 10px 12px 4px 12px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Grouped Sections
+ * ----------------------------------------------------------------------------- */
+
+.naPaintFaces__Group {
+    background              : var(--na-bg-secondary);
+    border                  : 1px solid var(--na-border);
+    border-radius           : 4px;
+    padding                 : 10px 12px 12px 12px;
+    margin-bottom           : 10px;
+}
+
+.naPaintFaces__GroupTitle {
+    font-size               : 12px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.04em;
+    color                   : var(--na-text-secondary);
+    margin-bottom           : 10px;
+}
+
+.naPaintFaces__Hint {
+    margin-top              : 10px;
+    font-size               : 11px;
+    line-height             : 1.5;
+    color                   : var(--na-text-secondary);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Material Preview Card and Swatch
+ * ----------------------------------------------------------------------------- */
+
+.naPaintFaces__MaterialCard {
+    display                 : flex;
+    align-items             : flex-start;
+    gap                     : 12px;
+}
+
+.naPaintFaces__MaterialCard--empty .naPaintFaces__MaterialName {
+    color                   : var(--na-accent-amber);
+}
+
+.naPaintFaces__SwatchFrame {
+    position                : relative;
+    flex                    : 0 0 auto;
+    width                   : 76px;
+    height                  : 76px;
+    border                  : 1px solid var(--na-border-strong);
+    border-radius           : 4px;
+    overflow                : hidden;
+}
+
+/* Checkerboard sits behind the fill so alpha reads honestly */
+.naPaintFaces__SwatchChecker {
+    position                : absolute;
+    inset                   : 0;
+    background-color        : #ffffff;
+    background-image        : linear-gradient(45deg, #cfcfcf 25%, transparent 25%),
+                              linear-gradient(-45deg, #cfcfcf 25%, transparent 25%),
+                              linear-gradient(45deg, transparent 75%, #cfcfcf 75%),
+                              linear-gradient(-45deg, transparent 75%, #cfcfcf 75%);
+    background-size         : 12px 12px;
+    background-position     : 0 0, 0 6px, 6px -6px, -6px 0px;
+}
+
+.naPaintFaces__SwatchFill {
+    position                : absolute;
+    inset                   : 0;
+    background              : #b4b4b4;
+}
+
+.naPaintFaces__MaterialMeta {
+    flex                    : 1 1 auto;
+    min-width               : 0;
+}
+
+.naPaintFaces__MaterialName {
+    font-size               : 14px;
+    font-weight             : 700;
+    line-height             : 1.3;
+    word-break              : break-word;
+    margin-bottom           : 7px;
+}
+
+.naPaintFaces__MaterialRow {
+    display                 : flex;
+    flex-wrap               : wrap;
+    gap                     : 5px;
+}
+
+.naPaintFaces__Chip {
+    display                 : inline-block;
+    padding                 : 2px 7px;
+    font-size               : 11px;
+    font-family             : var(--na-font-mono);
+    color                   : var(--na-text-secondary);
+    background              : var(--na-bg-tertiary);
+    border-radius           : 3px;
+    white-space             : nowrap;
+}
+
+.naPaintFaces__MaterialNote {
+    margin-top              : 7px;
+    font-size               : 11px;
+    line-height             : 1.5;
+    color                   : var(--na-text-secondary);
+}
+
+.naPaintFaces__MaterialNote:empty {
+    display                 : none;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Back Face Rule Banner
+ * ----------------------------------------------------------------------------- */
+
+.naPaintFaces__RuleBanner {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 9px;
+    margin-top              : 12px;
+    padding                 : 8px 10px;
+    border                  : 1px solid var(--na-border);
+    border-left             : 3px solid var(--na-accent-blue);
+    border-radius           : 3px;
+    background              : #f6f9fd;
+}
+
+.naPaintFaces__RuleBanner--transparent {
+    border-left-color       : var(--na-accent-amber);
+    background              : #fdf8f1;
+}
+
+/* Default material - strips rather than paints, so it reads as neutral */
+.naPaintFaces__RuleBanner--default {
+    border-left-color       : var(--na-text-secondary);
+    background              : var(--na-bg-primary);
+}
+
+.naPaintFaces__RuleBadge {
+    flex                    : 0 0 auto;
+    padding                 : 2px 8px;
+    font-size               : 11px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.03em;
+    color                   : #ffffff;
+    background              : var(--na-accent-blue);
+    border-radius           : 3px;
+}
+
+.naPaintFaces__RuleBanner--transparent .naPaintFaces__RuleBadge {
+    background              : var(--na-accent-amber);
+}
+
+.naPaintFaces__RuleBanner--default .naPaintFaces__RuleBadge {
+    background              : var(--na-text-secondary);
+}
+
+.naPaintFaces__RuleText {
+    font-size               : 12px;
+    line-height             : 1.45;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Checkbox Rows
+ * ----------------------------------------------------------------------------- */
+
+.naPaintFaces__Check {
+    display                 : flex;
+    align-items             : flex-start;
+    gap                     : 9px;
+    padding                 : 7px 0;
+    cursor                  : pointer;
+}
+
+.naPaintFaces__Check + .naPaintFaces__Check {
+    border-top              : 1px solid var(--na-border);
+}
+
+.naPaintFaces__Check input[type="checkbox"] {
+    flex                    : 0 0 auto;
+    width                   : 15px;
+    height                  : 15px;
+    margin                  : 1px 0 0 0;
+    accent-color            : var(--na-accent-blue);
+    cursor                  : pointer;
+}
+
+.naPaintFaces__CheckBody {
+    display                 : block;
+    min-width               : 0;
+}
+
+.naPaintFaces__CheckLabel {
+    display                 : block;
+    font-size               : 13px;
+    font-weight             : 600;
+}
+
+.naPaintFaces__CheckHint {
+    display                 : block;
+    margin-top              : 3px;
+    font-size               : 11px;
+    line-height             : 1.5;
+    color                   : var(--na-text-secondary);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Selection Statistics
+ * ----------------------------------------------------------------------------- */
+
+.naPaintFaces__StatGrid {
+    display                 : flex;
+    gap                     : 8px;
+}
+
+.naPaintFaces__Stat {
+    flex                    : 1 1 0;
+    min-width               : 0;
+    padding                 : 9px 8px;
+    text-align              : center;
+    background              : var(--na-bg-primary);
+    border                  : 1px solid var(--na-border);
+    border-radius           : 3px;
+}
+
+.naPaintFaces__StatValue {
+    display                 : block;
+    font-size               : 20px;
+    font-weight             : 700;
+    line-height             : 1.15;
+}
+
+.naPaintFaces__Stat--zero .naPaintFaces__StatValue {
+    color                   : var(--na-text-secondary);
+}
+
+.naPaintFaces__StatLabel {
+    display                 : block;
+    margin-top              : 3px;
+    font-size               : 11px;
+    color                   : var(--na-text-secondary);
+}
+
+.naPaintFaces__NoteList {
+    margin-top              : 10px;
+}
+
+.naPaintFaces__NoteList:empty {
+    display                 : none;
+}
+
+.naPaintFaces__Note {
+    padding                 : 5px 0 5px 14px;
+    font-size               : 11px;
+    line-height             : 1.5;
+    color                   : var(--na-text-secondary);
+    position                : relative;
+}
+
+.naPaintFaces__Note::before {
+    content                 : '';
+    position                : absolute;
+    left                    : 2px;
+    top                     : 11px;
+    width                   : 5px;
+    height                  : 5px;
+    border-radius           : 50%;
+    background              : var(--na-border-strong);
+}
+
+.naPaintFaces__Note--warn {
+    color                   : var(--na-accent-amber);
+}
+
+.naPaintFaces__Note--warn::before {
+    background              : var(--na-accent-amber);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Buttons
+ * ----------------------------------------------------------------------------- */
+
+.naPaintFaces__Btn {
+    font-family             : var(--na-font-family);
+    font-size               : 12px;
+    font-weight             : 600;
+    padding                 : 6px 14px;
+    color                   : var(--na-text-primary);
+    background              : var(--na-bg-secondary);
+    border                  : 1px solid var(--na-border-strong);
+    border-radius           : 3px;
+    cursor                  : pointer;
+}
+
+.naPaintFaces__Btn:hover:not(:disabled) {
+    background              : var(--na-bg-tertiary);
+}
+
+.naPaintFaces__Btn:disabled {
+    opacity                 : 0.5;
+    cursor                  : default;
+}
+
+.naPaintFaces__Btn--secondary {
+    white-space             : nowrap;
+}
+
+.naPaintFaces__Btn--primary {
+    width                   : 100%;
+    padding                 : 10px 14px;
+    font-size               : 13px;
+    color                   : #ffffff;
+    background              : var(--na-accent-blue);
+    border-color            : var(--na-accent-blue-dark);
+}
+
+.naPaintFaces__Btn--primary:hover:not(:disabled) {
+    background              : var(--na-accent-blue-dark);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Action Bar and Status Bar
+ * ----------------------------------------------------------------------------- */
+
+.naPaintFaces__ActionBar {
+    flex                    : 0 0 auto;
+    padding                 : 10px 12px;
+    background              : var(--na-bg-secondary);
+    border-top              : 1px solid var(--na-border);
+}
+
+.naPaintFaces__StatusBar {
+    flex                    : 0 0 auto;
+    padding                 : 6px 12px;
+    background              : var(--na-bg-tertiary);
+    border-top              : 1px solid var(--na-border);
+}
+
+.naPaintFaces__StatusText {
+    font-size               : 11px;
+    line-height             : 1.5;
+    color                   : var(--na-text-secondary);
+}
+
+.naPaintFaces__StatusText--success {
+    color                   : var(--na-accent-green);
+    font-weight             : 600;
+}
+
+.naPaintFaces__StatusText--warn {
+    color                   : var(--na-accent-red);
+    font-weight             : 600;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* =============================================================================
+ * END OF FILE
+ * ============================================================================= */

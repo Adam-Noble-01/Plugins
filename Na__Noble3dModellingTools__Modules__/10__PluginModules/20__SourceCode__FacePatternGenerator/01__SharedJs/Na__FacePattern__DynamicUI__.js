@@ -5,10 +5,12 @@
 // FILE       : Na__FacePattern__DynamicUI__.js
 // NAMESPACE  : window.Na__FacePattern__DynamicUI
 // AUTHOR     : Adam Noble - Noble Architecture
-// PURPOSE    : JSON-config-driven control panel builder — number inputs and
-//              selects from field-descriptor arrays in UiConfig. Select fields
+// PURPOSE    : JSON-config-driven control panel builder — number inputs,
+//              slider-plus-box pairs, and selects from field-descriptor arrays
+//              in UiConfig. Select fields
 //              with an `applies` map write preset values into linked number
 //              fields; editing a linked field flips the select back to custom.
+//              A `showWhen` map hides a field until its source controls match.
 // CREATED    : 2026
 //
 // =============================================================================
@@ -25,6 +27,7 @@ window.Na__FacePattern__DynamicUI = (function () {
         statusId: null,
         fields: [],
         values: {},
+        groups: {},
         onChange: null
     };
 
@@ -37,6 +40,15 @@ window.Na__FacePattern__DynamicUI = (function () {
     // HELPER FUNCTION | Shorthand for getElementById
     // ------------------------------------------------------------
     function na_el(id) { return document.getElementById(id); }
+    // ------------------------------------------------------------
+
+    // HELPER FUNCTION | Test Whether a Field Carries a Numeric Value
+    // ------------------------------------------------------------
+    // Slider fields are numbers with a range control bolted alongside the box,
+    // so everywhere a number is read or written must treat the two alike.
+    function na_isNumericField(field) {
+        return field.type === 'number' || field.type === 'slider';
+    }
     // ------------------------------------------------------------
 
     // endregion ---------------------------------------------------------------
@@ -59,6 +71,7 @@ window.Na__FacePattern__DynamicUI = (function () {
     function na_setFields(fields) {
         na_state.fields = fields || [];
         na_state.values = {};
+        na_state.groups = {};
         na_render();
     }
     // ------------------------------------------------------------
@@ -92,6 +105,7 @@ window.Na__FacePattern__DynamicUI = (function () {
             input.className = field.type === 'select' ? 'naFacePat__Select' : 'naFacePat__Input';
             input.id = field.id;
 
+            var slider = null;
             if (field.type === 'select') {
                 (field.options || []).forEach(function (option) {
                     var optionEl = document.createElement('option');
@@ -108,16 +122,45 @@ window.Na__FacePattern__DynamicUI = (function () {
                 if (field.step !== undefined) { input.step = field.step; }
             }
 
+            if (field.type === 'slider') {                                      // <-- Range beside the box, both driving one value
+                slider = document.createElement('input');
+                slider.type = 'range';
+                slider.className = 'naFacePat__Slider';
+                slider.id = field.id + '_slider';
+                slider.value = field.default;
+                slider.min  = field.slider_min !== undefined ? field.slider_min : field.min;
+                slider.max  = field.slider_max !== undefined ? field.slider_max : field.max;
+                if (field.step !== undefined) { slider.step = field.step; }
+                input.className = 'naFacePat__Input naFacePat__Input--withSlider';
+            }
+
             function na_onFieldChange() {
-                na_state.values[field.id] = field.type === 'number' ? Number(input.value) : input.value;
+                na_state.values[field.id] = na_isNumericField(field) ? Number(input.value) : input.value;
                 if (field.type === 'select' && field.applies) { na_applyPresetValues(field, input.value); }
-                if (field.type === 'number') { na_syncPresetSelects(field.id); }
+                if (na_isNumericField(field)) { na_syncPresetSelects(field.id); }
+                na_applyFieldVisibility();
                 if (na_state.onChange) { na_state.onChange(field.id, na_state.values[field.id]); }
             }
 
             input.addEventListener('input', na_onFieldChange);
             input.addEventListener('change', na_onFieldChange);
-            group.appendChild(input);
+
+            if (slider) {
+                slider.addEventListener('input', function () {                  // <-- Slider drives the box, then the shared handler
+                    input.value = slider.value;
+                    na_onFieldChange();
+                });
+                input.addEventListener('input', function () { slider.value = input.value; });
+                input.addEventListener('change', function () { slider.value = input.value; });
+
+                var row = document.createElement('div');
+                row.className = 'naFacePat__SliderRow';
+                row.appendChild(slider);
+                row.appendChild(input);
+                group.appendChild(row);
+            } else {
+                group.appendChild(input);
+            }
 
             if (field.hint) {
                 var hint = document.createElement('div');
@@ -126,7 +169,45 @@ window.Na__FacePattern__DynamicUI = (function () {
                 group.appendChild(hint);
             }
 
+            na_state.groups[field.id] = group;
             container.appendChild(group);
+        });
+
+        na_applyFieldVisibility();
+    }
+    // ------------------------------------------------------------
+
+    // endregion ---------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Conditional Field Visibility
+    // -------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Test a Field's showWhen Map Against the Live Control Values
+    // ------------------------------------------------------------
+    // showWhen: { source_field_id: ['allowed', 'values'] } — every named source
+    // must currently hold one of its listed values for the field to show.
+    function na_fieldVisible(field) {
+        if (!field.showWhen) { return true; }
+
+        return Object.keys(field.showWhen).every(function (sourceId) {
+            var allowed = field.showWhen[sourceId] || [];
+            var source  = na_el(sourceId);
+            var current = source ? String(source.value) : String(na_state.values[sourceId]);
+            return allowed.indexOf(current) !== -1;
+        });
+    }
+    // ------------------------------------------------------------
+
+    // HELPER FUNCTION | Show or Hide Every Conditional Control Group
+    // ------------------------------------------------------------
+    // Hidden groups keep their inputs in the DOM, so na_getValues still reports
+    // them and generators can ignore the ones their layout does not use.
+    function na_applyFieldVisibility() {
+        na_state.fields.forEach(function (field) {
+            var group = na_state.groups[field.id];
+            if (!group) { return; }
+            group.style.display = na_fieldVisible(field) ? '' : 'none';
         });
     }
     // ------------------------------------------------------------
@@ -147,6 +228,9 @@ window.Na__FacePattern__DynamicUI = (function () {
             if (!target) { return; }
             target.value = mapping[targetId];
             na_state.values[targetId] = mapping[targetId];
+
+            var pairedSlider = na_el(targetId + '_slider');                     // <-- Keep a slider field's range in step
+            if (pairedSlider) { pairedSlider.value = mapping[targetId]; }
         });
     }
     // ------------------------------------------------------------
@@ -188,7 +272,7 @@ window.Na__FacePattern__DynamicUI = (function () {
         na_state.fields.forEach(function (field) {
             var el = na_el(field.id);
             if (!el) { return; }
-            values[field.id] = field.type === 'number' ? Number(el.value) : el.value;
+            values[field.id] = na_isNumericField(field) ? Number(el.value) : el.value;
         });
         return values;
     }

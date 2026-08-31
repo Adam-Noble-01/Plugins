@@ -207,6 +207,9 @@
       2. Create Profile       — Config (used by Controls)
       3. Viewport engine      — SvgGenerator (used by all tab previews)
       4. ProfileStore         — shared profile/selection state (must precede tab modules)
+         SwapController       — bound-trace / profile hot swap state (needs
+                                BridgeBase + ProfileStore, used by Gallery and
+                                Apply Profile, so it precedes both)
       5. Create Profile       — Controls, Bridge, MainUiLogic
       6. Apply Profile        — MainUiLogic, Events
       7. Settings             — UiLogic, Bridge
@@ -231,6 +234,9 @@
 
 <!-- ProfileStore — shared source of truth (must precede all tab modules) -->
 <script src="02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__ProfileStore__.js"></script>
+
+<!-- SwapController — profile hot swap, spans Gallery + Apply Profile -->
+<script src="02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__SwapController__.js"></script>
 
 <!-- Create New Profile — Controls, Bridge, Main UI Logic -->
 <script src="02__Src__AppModules/33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js"></script>

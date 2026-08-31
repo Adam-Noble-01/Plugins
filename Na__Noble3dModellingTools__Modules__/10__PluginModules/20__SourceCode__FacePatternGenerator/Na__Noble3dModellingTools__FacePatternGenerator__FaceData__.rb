@@ -33,6 +33,11 @@ module Na__Noble3dModellingTools
 
         WORLD_UP = Geom::Vector3d.new(0, 0, 1).freeze
 
+        NA_AXIS_EPSILON    = 1.0e-6                                                    # <-- Below this a direction vector is noise, not a direction
+        NA_UP_SLOPE_MIN    = 0.001                                                     # <-- Original branch point between pitched and horizontal
+        NA_ORTHO_TOLERANCE = 1.0e-4                                                    # <-- Slack on the orthonormality assertion
+        NA_MIN_EXTENT_MM   = 0.001                                                     # <-- A face projecting smaller than this collapsed
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -50,6 +55,11 @@ module Na__Noble3dModellingTools
 
             payload = na_build_face_payload(face)
             return na_result(false, 'Unable to derive a local basis for the selected face.') unless payload
+
+            bounds = payload[:bounds]
+            if bounds[:width].abs < NA_MIN_EXTENT_MM && bounds[:height].abs < NA_MIN_EXTENT_MM
+                return na_result(false, 'The selected face projected to a zero-size outline - it may be degenerate, or nested inside a group scaled to zero on one axis.')
+            end
 
             na_result(true, 'Face captured for pattern generation.', payload: payload)
         rescue => error
@@ -120,44 +130,127 @@ module Na__Noble3dModellingTools
 
         # HELPER FUNCTION | Derive Orthonormal Axes from the Face Normal
         # ------------------------------------------------------------
+        # Every axis goes through na_unit_vector, which returns nil rather than
+        # leaving a degenerate vector in place. A silently collapsed axis used to
+        # project every vertex onto [0, 0], which reads in the dialog as a face
+        # of 0.0mm x 0.0mm rather than as an error.
         def self.na_build_basis(face)
-            normal = face.normal
-            return nil if normal.length < 0.001
+            normal = na_unit_vector(face.normal)
+            return nil unless normal
 
-            normal = Geom::Vector3d.new(normal.x, normal.y, normal.z)
-            normal.normalize!
             normal.reverse! if normal.z < 0                                            # <-- Flip to positive-Z side
 
-            dot        = WORLD_UP.dot(normal)
-            projection = Geom::Vector3d.new(normal.x * dot, normal.y * dot, normal.z * dot)
-            up_slope   = Geom::Vector3d.new(
-                WORLD_UP.x - projection.x,
-                WORLD_UP.y - projection.y,
-                WORLD_UP.z - projection.z
-            )
-
-            if up_slope.length < 0.001
-                x_axis = na_longest_outer_edge_vector(face)                            # <-- Horizontal slab fallback
-                return nil unless x_axis && x_axis.length >= 0.001
-
-                x_axis.normalize!
-                y_axis = normal.cross(x_axis)
-                y_axis.normalize!
-            else
-                up_slope.normalize!
-                y_axis = up_slope
-                x_axis = y_axis.cross(normal)
-                x_axis.normalize!
-            end
+            axes = na_axes_for_normal(face, normal)
+            return nil unless axes
+            return nil unless na_axes_are_orthonormal?(axes[0], axes[1], normal)
 
             {
                 origin: face.outer_loop.vertices.first.position,
-                x_axis: x_axis,
-                y_axis: y_axis,
+                x_axis: axes[0],
+                y_axis: axes[1],
                 z_axis: normal
             }
         end
         private_class_method :na_build_basis
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Choose the In-Plane X and Y Axes for a Face Normal
+        # ------------------------------------------------------------
+        # Pitched surfaces run Y up-slope. Near-horizontal ones have no usable
+        # up-slope, so X seeds from the longest outer edge and falls back to the
+        # world axes; the seeds are tried in turn so one bad candidate cannot
+        # collapse the basis. NA_UP_SLOPE_MIN keeps the original branch point, so
+        # a slab with only a construction tolerance of fall still aligns to its
+        # longest edge rather than to a direction made of floating point noise.
+        def self.na_axes_for_normal(face, normal)
+            up_slope = na_up_slope_vector(normal)
+            if na_vector_length(up_slope) >= NA_UP_SLOPE_MIN
+                y_axis = na_unit_vector(up_slope)
+                x_axis = y_axis ? na_unit_vector(y_axis.cross(normal)) : nil
+                return [x_axis, y_axis] if x_axis && y_axis
+            end
+
+            na_horizontal_axis_seeds(face).each do |seed|
+                x_axis = na_unit_vector(seed)
+                next unless x_axis
+
+                y_axis = na_unit_vector(normal.cross(x_axis))
+                next unless y_axis
+
+                x_axis = na_unit_vector(y_axis.cross(normal))                          # <-- Re-square X against the chosen Y
+                next unless x_axis
+
+                return [x_axis, y_axis]
+            end
+
+            nil
+        end
+        private_class_method :na_axes_for_normal
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | World Up with the Normal Component Removed
+        # ------------------------------------------------------------
+        def self.na_up_slope_vector(normal)
+            dot = WORLD_UP.dot(normal)
+            Geom::Vector3d.new(
+                WORLD_UP.x - (normal.x * dot),
+                WORLD_UP.y - (normal.y * dot),
+                WORLD_UP.z - (normal.z * dot)
+            )
+        end
+        private_class_method :na_up_slope_vector
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Candidate In-Plane Directions for a Horizontal Face
+        # ------------------------------------------------------------
+        def self.na_horizontal_axis_seeds(face)
+            [
+                na_longest_outer_edge_vector(face),                                    # <-- Align the pattern to the slab
+                Geom::Vector3d.new(1, 0, 0),
+                Geom::Vector3d.new(0, 1, 0)
+            ].compact
+        end
+        private_class_method :na_horizontal_axis_seeds
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Plain Float Length of a Vector
+        # ------------------------------------------------------------
+        # Geom::Vector3d#length returns a Length in inches; this keeps the axis
+        # arithmetic in plain floats where the units are meaningless anyway.
+        def self.na_vector_length(vector)
+            return 0.0 unless vector
+
+            Math.sqrt((vector.x * vector.x) + (vector.y * vector.y) + (vector.z * vector.z))
+        end
+        private_class_method :na_vector_length
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Normalise a Vector, or nil When It Carries No Direction
+        # ------------------------------------------------------------
+        # Geom::Vector3d#normalize! leaves a zero-length vector unchanged instead
+        # of raising, so a bare normalize! can hand back a zero axis.
+        def self.na_unit_vector(vector)
+            return nil unless vector
+
+            length = na_vector_length(vector)
+            return nil unless length.finite? && length > NA_AXIS_EPSILON
+
+            Geom::Vector3d.new(vector.x / length, vector.y / length, vector.z / length)
+        end
+        private_class_method :na_unit_vector
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Assert the Three Axes Really Form a Right-Handed Frame
+        # ------------------------------------------------------------
+        def self.na_axes_are_orthonormal?(x_axis, y_axis, z_axis)
+            return false unless x_axis && y_axis && z_axis
+            return false if x_axis.dot(y_axis).abs > NA_ORTHO_TOLERANCE
+            return false if x_axis.dot(z_axis).abs > NA_ORTHO_TOLERANCE
+            return false if y_axis.dot(z_axis).abs > NA_ORTHO_TOLERANCE
+
+            (x_axis.cross(y_axis).dot(z_axis) - 1.0).abs <= NA_ORTHO_TOLERANCE
+        end
+        private_class_method :na_axes_are_orthonormal?
         # ------------------------------------------------------------
 
         # HELPER FUNCTION | Project a Face Loop to Local 2D Millimetre Coordinates

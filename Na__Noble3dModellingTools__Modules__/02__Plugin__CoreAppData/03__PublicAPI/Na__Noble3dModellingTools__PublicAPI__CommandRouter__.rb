@@ -189,6 +189,12 @@ module Na__Noble3dModellingTools
             when 'scene_data_transfer_capture'
                 proc { Na__SceneDataTransfer.Na__SceneDataTransfer__CaptureActiveModel }
 
+            when 'paint_deep_nested_faces'
+                proc { Na__PaintDeepNestedFaces.Na__PaintDeepNestedFaces__Run }
+
+            when 'paint_deep_nested_faces_repeat'
+                proc { Na__PaintDeepNestedFaces.Na__PaintDeepNestedFaces__RunWithSavedSettings }
+
             else
                 nil
             end

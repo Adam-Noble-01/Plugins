@@ -336,6 +336,24 @@
             "expose_to_hotkeys" : true
         },
         {
+            "command_id"        : "paint_deep_nested_faces",
+            "command_name"      : "Na Noble3d - Paint Deep Nested Faces",
+            "tooltip"           : "Paint deep nested faces with the active materials tray material, leaving every edge alone",
+            "status_bar_text"   : "Open Paint Deep Nested Faces",
+            "menu_text"         : "Paint Deep Nested Faces",
+            "handler_key"       : "paint_deep_nested_faces",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "paint_deep_nested_faces_repeat",
+            "command_name"      : "Na Noble3d - Paint Faces With Active Material",
+            "tooltip"           : "Paint the selection immediately with the active material using the saved nesting settings",
+            "status_bar_text"   : "Paint nested faces with the active material",
+            "menu_text"         : "Paint Faces With Active Material",
+            "handler_key"       : "paint_deep_nested_faces_repeat",
+            "expose_to_hotkeys" : true
+        },
+        {
             "command_id"        : "flatten_3d_to_group",
             "command_name"      : "Na Noble3d - Flatten 3D To Group",
             "tooltip"           : "Flatten selected groups/components to a 2D linework group",
@@ -678,6 +696,28 @@
             "button_label"           : "Material Swap In Selection",
             "command_id"             : "material_swap_in_selection",
             "description"            : "Recursively scans the current selection for materials, presents a two-step wizard to choose which materials to replace and what to replace them with, then swaps all matching assignments in one undoable step."
+        },
+        {
+            "button_id"              : "btn_paint_deep_nested_faces",
+            "tab_name"               : "Material Utils",
+            "tool_group_name"        : "Face Painting",
+            "tool_group_description" : "Paint faces inside nested containers with the material held in the SketchUp Materials tray. Edges are never touched.",
+            "tool_group_order"       : 30,
+            "button_order"           : 10,
+            "button_label"           : "Paint Deep Nested Faces",
+            "command_id"             : "paint_deep_nested_faces",
+            "description"            : "Opens a live preview of the active materials tray material and paints every face inside the selection with it, leaving edges alone. Deep Nesting is on by default and reaches every level; switched off it paints only the faces one level inside each selected container. Opaque materials paint the front face and strip the back face to default, transparent materials paint both sides."
+        },
+        {
+            "button_id"              : "btn_paint_deep_nested_faces_repeat",
+            "tab_name"               : "Material Utils",
+            "tool_group_name"        : "Face Painting",
+            "tool_group_description" : "Paint faces inside nested containers with the material held in the SketchUp Materials tray. Edges are never touched.",
+            "tool_group_order"       : 30,
+            "button_order"           : 20,
+            "button_label"           : "Paint Faces With Active Material",
+            "command_id"             : "paint_deep_nested_faces_repeat",
+            "description"            : "One-click repeat of the last Paint Deep Nested Faces setup. Uses the material currently held in the Materials tray and the nesting settings the dialog was last left on, with no dialog. Bind this to a shortcut for day-to-day painting."
         },
         {
             "button_id"              : "btn_load_all_tags",
@@ -1171,6 +1211,14 @@
         },
         {
             "command_id"        : "unsoften_nested_edges",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "paint_deep_nested_faces",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "paint_deep_nested_faces_repeat",
             "expose_to_hotkeys" : true
         }
     ]

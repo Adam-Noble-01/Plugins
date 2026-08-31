@@ -25,6 +25,10 @@
         // use the profile's own origin. Set by picking a vertex in the 2D preview.
         originOffset: null,
         isInsertPointPickActive: false,
+        // The whole controls panel is re-rendered on every change, which would
+        // otherwise snap the Advanced Configuration disclosure shut under the
+        // rotation pill or mirror toggle the user just clicked.
+        isAdvancedConfigOpen: false,
         // Mirrors the running Na__PathSelectionTool. Only true while a trace is
         // live, which is the only time TAB is ours to take from focus traversal.
         isInteractiveToolActive: false,
@@ -40,6 +44,11 @@
         },
         edgeMaterialsStatus: 'pending',
         lastGeneratePayload: null,
+        // Mirror of Na__ProfileTools__SwapController, refreshed on every render.
+        // When a trace is bound, this tab's controls edit THAT placed assembly
+        // and Regenerate Trace applies them; otherwise it behaves exactly as
+        // before and Generate Profile builds a new one.
+        swap: null,
     };
 
     // endregion ----------------------------------------------------------------
@@ -184,6 +193,50 @@
         Na__UiState.isInsertPointPickActive = false;
     }
 
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Bound Trace Helpers (profile hot swap)
+    // -------------------------------------------------------------------------
+
+    function Na__Ui__SwapController() {
+        return window.Na__ProfileTools__SwapController || null;
+    }
+
+    function Na__Ui__ReadSwapState() {
+        var swap = Na__Ui__SwapController();
+        return swap ? swap.Na__Swap__GetState() : null;
+    }
+
+    function Na__Ui__IsTraceBound() {
+        var swap = Na__Ui__SwapController();
+        return !!(swap && swap.Na__Swap__IsBound());
+    }
+
+    // Every placement control funnels through here. Nothing rebuilds on its own
+    // — a rebuild is a full follow-me sweep plus an undo entry, so the user
+    // presses Regenerate Trace when the settings are where they want them.
+    function Na__Ui__MarkTraceDirty() {
+        var swap = Na__Ui__SwapController();
+        if (swap && swap.Na__Swap__IsBound()) swap.Na__Swap__MarkDirty();
+    }
+
+    // Adopts the placement Ruby just stamped on the trace, so the panel shows
+    // what the assembly actually carries rather than whatever was last typed
+    // into this tab for some other purpose.
+    function Na__Ui__AdoptBoundPlacement(placement) {
+        if (!placement) return;
+        Na__UiState.rotationStep = Number(placement.rotationStep || 0) % 4;
+        Na__UiState.originOffset = placement.originOffset || null;
+        Na__UiState.isInsertPointPickActive = false;
+
+        if (placement.toggleStates && typeof placement.toggleStates === 'object') {
+            Object.keys(Na__UiState.toggleDefinitions || {}).forEach(function (toggleKey) {
+                Na__UiState.toggleStates[toggleKey] = placement.toggleStates[toggleKey] === true;
+            });
+        }
+    }
+
     // Single funnel for the three sources of a Reverse change: the button, the
     // TAB hotkey handled here, and TAB handled by the tool in the viewport.
     // shouldNotifyRuby is false for the last one, which is where the change came
@@ -247,18 +300,22 @@
 
             Na__UiState.originOffset = { y: Number(sourcePoint[0]), z: Number(sourcePoint[1]) };
             Na__UiState.isInsertPointPickActive = false;
+            Na__Ui__MarkTraceDirty();
             Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
-            Na__Ui__SetStatus('Insert point moved to Y ' + Math.round(sourcePoint[0]) + 'mm, Z ' + Math.round(sourcePoint[1]) + 'mm.');
+            Na__Ui__SetStatus('Insert point moved to Y ' + Math.round(sourcePoint[0]) + 'mm, Z ' + Math.round(sourcePoint[1]) + 'mm.' +
+                (Na__Ui__IsTraceBound() ? ' Click Regenerate Trace to apply it.' : ''));
         },
         Na__Events__OnResetInsertPoint: function() {
             Na__Ui__ClearInsertPointState();
+            Na__Ui__MarkTraceDirty();
             Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
             Na__Ui__SetStatus('Insert point reset to the profile origin.');
         },
         Na__Events__OnRotateToStep: function(step) {
             Na__UiState.rotationStep = Math.max(0, Math.min(3, Number(step) || 0));
+            Na__Ui__MarkTraceDirty();
             Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
             Na__Ui__SetStatus('Rotation set to ' + (Na__UiState.rotationStep * 90) + ' deg');
@@ -266,6 +323,8 @@
         Na__Events__OnToggleChange: function(toggleKey, isEnabled) {
             if (!toggleKey) return;
             Na__UiState.toggleStates[toggleKey] = isEnabled;
+            Na__Ui__MarkTraceDirty();
+            Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
             Na__Ui__SetStatus('Toggle: ' + toggleKey + ' = ' + (isEnabled ? 'ON' : 'OFF'));
         },
@@ -293,6 +352,37 @@
                 window.Na__ProfilePathTracer__Bridge__ClearSceneProfile();
             }
         },
+        Na__Events__OnAdvancedConfigToggle: function(isOpen) {
+            Na__UiState.isAdvancedConfigOpen = isOpen === true;
+        },
+        Na__Events__OnSwapProfile: function() {
+            var swap = Na__Ui__SwapController();
+            if (!swap) {
+                Na__Ui__SetStatus('Profile swap controller is not loaded.');
+                return;
+            }
+            swap.Na__Swap__RequestBind();
+        },
+        Na__Events__OnRegenerateTrace: function() {
+            var swap = Na__Ui__SwapController();
+            if (!swap || !swap.Na__Swap__IsBound()) {
+                Na__Ui__SetStatus('No Profile Trace is bound — use Swap Profile with a trace selected in the model.');
+                return;
+            }
+            swap.Na__Swap__RegenerateBound({
+                rotationStep: Na__UiState.rotationStep,
+                toggleStates: Na__UiState.toggleStates,
+                originOffset: Na__UiState.originOffset
+            });
+        },
+        Na__Events__OnUnbindTrace: function() {
+            var swap = Na__Ui__SwapController();
+            if (swap) swap.Na__Swap__Unbind();
+        },
+        Na__Events__OnCancelSwapArm: function() {
+            var swap = Na__Ui__SwapController();
+            if (swap) swap.Na__Swap__CancelArm();
+        },
         Na__Events__OnReloadPlugin: function() {
             if (window.Na__ProfilePathTracer__Bridge__ReloadPlugin) {
                 window.Na__ProfilePathTracer__Bridge__ReloadPlugin();
@@ -310,6 +400,7 @@
         const controlsRoot = document.getElementById('naApplyProfileTabBody');
         if (!controlsRoot) return;
 
+        Na__UiState.swap = Na__Ui__ReadSwapState();
         controlsRoot.innerHTML = window.Na__ProfilePathTracer__Ui__Controls.Na__Ui__RenderControls(Na__UiState);
         window.Na__ProfilePathTracer__Ui__Events.Na__Ui__AttachEvents(Na__UiEventHandlers);
     }
@@ -347,19 +438,44 @@
         Na__Ui__RenderProfilePreview();
     }
 
+    // A swap has just landed (or been armed / cancelled / unbound). Adopt the
+    // placement Ruby stamped on the trace so the controls describe the assembly
+    // that is now standing in the model, not the last thing typed here.
+    function Na__Apply__OnSwapStateChanged(payload) {
+        if (payload && payload.isBound === true && payload.isDirty !== true && !payload.isBusy) {
+            Na__Ui__AdoptBoundPlacement(payload.placement);
+        }
+        Na__Ui__Render();
+        Na__Ui__RenderProfilePreview();
+    }
+
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
     // REGION | Tab Lifecycle (mount / unmount contract)
     // -------------------------------------------------------------------------
 
+    let na_is_subscribed = false;
+
     function na_mount() {
         var appCtx = window.Na_AppContext;
-        if (appCtx) {
+        if (appCtx && !na_is_subscribed) {
+            na_is_subscribed = true;
             appCtx.na_subscribe('na_selected_changed',     Na__Apply__OnStoreSelectedChanged);
             appCtx.na_subscribe('na_profile_meta_updated', Na__Apply__OnStoreMetaUpdated);
+            appCtx.na_subscribe('na_swap_state_changed',   Na__Apply__OnSwapStateChanged);
         }
         Na__Ui__SyncProfileKeyFromStore();
+
+        // The swap that routed here dispatched before this tab had ever
+        // mounted, so its placement event was never heard. Adopt it now or the
+        // rotation pills and insert point would describe the last thing typed
+        // in this tab rather than the trace standing in the model.
+        var swapState = Na__Ui__ReadSwapState();
+        if (swapState && swapState.isBound === true && swapState.isDirty !== true) {
+            Na__Ui__AdoptBoundPlacement(swapState.placement);
+        }
+
         Na__Ui__Render();
         Na__Ui__RenderProfilePreview();
     }

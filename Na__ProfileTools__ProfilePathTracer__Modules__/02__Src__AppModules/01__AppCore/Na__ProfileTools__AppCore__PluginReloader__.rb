@@ -21,6 +21,7 @@ module Na__ProfileTools__ProfilePathTracer
             '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__UiSystem__BridgeBase__.js',
             '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__UiSystem__MainShell__.js',
             '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__ProfileStore__.js',
+            '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__SwapController__.js',
             '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__TabRouter__.js',
             '02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__AppContext__.js',
             '02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__ProfileTools__Viewport__SvgGenerator__.js',

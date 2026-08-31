@@ -62,6 +62,7 @@ require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile
 require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__SceneProfileRegistry__'
 require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__SceneProfilePicker__'
 require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__RegenerationEngine__Main__'
+require_relative '../31__System__ApplyProfileMode/Na__ProfileTools__ProfileSwapEngine__Main__'
 
 # -------------------------------------------------------------------------
 # REGION | System - Create New Profile
@@ -75,8 +76,10 @@ require_relative '../33__System__CreateProfileMode/Na__ProfileTools__CreateNewPr
 
 require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__LibraryPaths__'
 require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__GeometryWriter__'
+require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__DatumWriter__'
 require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__MetaWriter__'
 require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__GeometryReplacer__'
+require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__FileRenamer__'
 require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__ProfileDeleter__'
 
 # -------------------------------------------------------------------------

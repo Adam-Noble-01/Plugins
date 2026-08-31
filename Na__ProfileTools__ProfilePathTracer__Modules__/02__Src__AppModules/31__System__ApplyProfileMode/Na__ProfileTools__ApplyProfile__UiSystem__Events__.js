@@ -4,7 +4,8 @@
    FILE       : Na__ProfileTools__ApplyProfile__UiSystem__Events__.js
    NAMESPACE  : window.Na__ProfilePathTracer__Ui__Events
    PURPOSE    : Attach DOM event listeners to Apply Profile tab controls,
-                the Create Profile form, and the header action buttons.
+                the Create Profile form, the bound-trace / profile-swap controls,
+                and the header action buttons.
    ============================================================================= */
 
 (function() {
@@ -87,6 +88,63 @@
             });
         }
 
+        Na__Ui__AttachAdvancedConfigEvents(handlers);
+        Na__Ui__AttachBoundTraceEvents(handlers);
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Advanced Configuration Disclosure
+    // -------------------------------------------------------------------------
+
+    // The panel is re-rendered on every state change, so its open/closed state
+    // has to live in UI state — otherwise the disclosure snaps shut under the
+    // rotation pill or mirror toggle the user just clicked inside it.
+    function Na__Ui__AttachAdvancedConfigEvents(handlers) {
+        var advancedConfig = document.getElementById('naAdvancedConfig');
+        if (!advancedConfig) return;
+
+        advancedConfig.addEventListener('toggle', function() {
+            handlers.Na__Events__OnAdvancedConfigToggle(advancedConfig.open === true);
+        });
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Bound Trace / Profile Swap Events
+    // -------------------------------------------------------------------------
+
+    function Na__Ui__AttachBoundTraceEvents(handlers) {
+        var btnSwapProfile    = document.getElementById('naBtnSwapProfile');
+        var btnRegenerateTrace = document.getElementById('naBtnRegenerateTrace');
+        var btnUnbindTrace    = document.getElementById('naBtnUnbindTrace');
+        var btnCancelSwapArm  = document.getElementById('naBtnCancelSwapArm');
+
+        if (btnSwapProfile) {
+            btnSwapProfile.addEventListener('click', function() {
+                handlers.Na__Events__OnSwapProfile();
+            });
+        }
+
+        if (btnRegenerateTrace) {
+            btnRegenerateTrace.addEventListener('click', function() {
+                handlers.Na__Events__OnRegenerateTrace();
+            });
+        }
+
+        if (btnUnbindTrace) {
+            btnUnbindTrace.addEventListener('click', function() {
+                handlers.Na__Events__OnUnbindTrace();
+            });
+        }
+
+        if (btnCancelSwapArm) {
+            btnCancelSwapArm.addEventListener('click', function() {
+                handlers.Na__Events__OnCancelSwapArm();
+            });
+        }
     }
 
     // endregion ----------------------------------------------------------------

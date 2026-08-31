@@ -23,6 +23,12 @@ module Na__ProfileTools__ProfilePathTracer
         @na_pending_export_origin_point = nil
         @na_pending_replace_geometry_params = nil
 
+        # Set when the context menu arms a profile swap while the dialog is
+        # closed. The HtmlDialog's JS is not alive yet at that moment, so the
+        # bind payload is parked here and flushed on the bootstrap request —
+        # the first point at which the receive handlers definitely exist.
+        @na_pending_swap_bind = nil
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -53,6 +59,60 @@ module Na__ProfileTools__ProfilePathTracer
             @na_dialog.show
         end
 
+        def self.Na__Dialog__Visible?
+            @na_dialog && @na_dialog.visible? ? true : false
+        rescue
+            false
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Public Surface - Profile Swap Arming (context menu entry point)
+    # -------------------------------------------------------------------------
+
+        # Reads the current model selection, binds every Profile Trace it
+        # touches, and hands the Gallery the job of choosing the replacement.
+        # Two routes because the dialog may or may not already be up: a live
+        # dialog is pushed to directly, a closed one is opened and the payload
+        # parked for the bootstrap handshake.
+        def self.Na__Dialog__ArmProfileSwapFromSelection
+            payload = Na__SwapEngine.Na__SwapEngine__BuildBindPayload(Sketchup.active_model)
+
+            unless payload['isBound']
+                Sketchup.status_text = "Profile Path Tracer: #{payload['statusMessage']}"
+                UI.messagebox(payload['statusMessage'])
+                return payload
+            end
+
+            if self.Na__Dialog__Visible?
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveSwapTarget', payload)
+                @na_dialog.bring_to_front
+            else
+                @na_pending_swap_bind = payload
+                Na__ProfileTools__ProfilePathTracer.Na__PublicApi__OpenDialog
+            end
+
+            payload
+        rescue => error
+            # Cleared or a failed open would leave a stale binding parked for
+            # whenever the dialog is next opened by hand.
+            @na_pending_swap_bind = nil
+            Na__DebugTools.Na__Debug__Error('Arm profile swap failed.', error)
+            UI.messagebox("Swap Profile could not be started.\n\n#{error.message}")
+            nil
+        end
+
+        def self.Na__Dialog__FlushPendingSwapBind
+            return unless @na_pending_swap_bind
+            pending = @na_pending_swap_bind
+            @na_pending_swap_bind = nil
+            self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveSwapTarget', pending)
+        rescue => error
+            @na_pending_swap_bind = nil
+            Na__DebugTools.Na__Debug__Warn("Na__Dialog__FlushPendingSwapBind failed: #{error.message}")
+        end
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -81,6 +141,9 @@ module Na__ProfileTools__ProfilePathTracer
             dialog.add_action_callback('na_profilepathtracer_request_bootstrap') do |_context|
                 payload = self.Na__Dialog__BuildBootstrapPayload
                 self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveBootstrap', payload)
+                # Bootstrap first, swap bind second: arming the Gallery before it
+                # holds any profiles would give the user an empty grid to pick from.
+                self.Na__Dialog__FlushPendingSwapBind
             rescue => error
                 Na__DebugTools.Na__Debug__Error('Bootstrap callback failed.', error)
                 self.Na__Dialog__SendToJs(
@@ -270,6 +333,29 @@ module Na__ProfileTools__ProfilePathTracer
                 self.Na__Dialog__SetStatusFromRuby("Open path failed: #{error.message}")
             end
 
+            dialog.add_action_callback('na_profilepathtracer_bind_swap_target') do |_context|
+                payload = Na__SwapEngine.Na__SwapEngine__BuildBindPayload(Sketchup.active_model)
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveSwapTarget', payload)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Bind swap target callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveSwapTarget',
+                    Na__SwapEngine.Na__SwapEngine__UnboundPayload("Swap bind failed: #{error.message}")
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_apply_profile_swap') do |_context, json_payload|
+                request = JSON.parse(json_payload.to_s)
+                result  = Na__SwapEngine.Na__SwapEngine__ApplySwap(request)
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveSwapResult', result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Apply profile swap callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveSwapResult',
+                    Na__SwapEngine.Na__SwapEngine__FailureResult("Swap failed: #{error.message}")
+                )
+            end
+
             dialog.add_action_callback('na_profilepathtracer_update_profile_meta') do |_context, json_payload|
                 params = JSON.parse(json_payload.to_s)
                 result = Na__EditProfile__MetaWriter.Na__MetaWriter__SaveMeta(params)
@@ -295,6 +381,25 @@ module Na__ProfileTools__ProfilePathTracer
                     { 'isReplaced' => false, 'isPending' => false,
                       'reason' => "Geometry re-capture failed: #{error.message}",
                       'statusMessage' => "Geometry re-capture failed: #{error.message}" }
+                )
+            end
+
+            # No bootstrap on the way out, unlike delete. A rename leaves the
+            # profile KEY alone, so the record the store already holds is still
+            # the right one — it just needs its sourceFile refreshed, which the
+            # returned profileRecord carries. Re-bootstrapping would rebuild the
+            # map from disk and reset the selection to the library default,
+            # throwing the user out of the profile they were mid-edit on.
+            dialog.add_action_callback('na_profilepathtracer_rename_profile_file') do |_context, json_payload|
+                params = JSON.parse(json_payload.to_s)
+                result = Na__EditProfile__FileRenamer.Na__FileRenamer__Rename(params)
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveRenameProfileFileResult', result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Rename profile file callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveRenameProfileFileResult',
+                    { 'isRenamed' => false, 'reason' => "Rename failed: #{error.message}",
+                      'statusMessage' => "Rename failed: #{error.message}" }
                 )
             end
 

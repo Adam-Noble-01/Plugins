@@ -38,6 +38,151 @@
                 { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
             ]
         },
+        flooring: {
+            label: 'Floor Tiling',
+            fields: [
+                {
+                    id: 'preset_key',
+                    type: 'select',
+                    label: 'Tile Size Preset',
+                    default: 'floor_600x400',
+                    options: [
+                        { value: 'floor_300x300',  label: 'Tile 300 x 300' },
+                        { value: 'floor_450x450',  label: 'Tile 450 x 450' },
+                        { value: 'floor_600x600',  label: 'Slab 600 x 600' },
+                        { value: 'floor_600x400',  label: 'Slab 600 x 400' },
+                        { value: 'floor_900x600',  label: 'Large Format 900 x 600' },
+                        { value: 'floor_1000x500', label: 'Large Format 1000 x 500' },
+                        { value: 'floor_1200x600', label: 'Large Format 1200 x 600' },
+                        { value: 'floor_1200x200', label: 'Plank 1200 x 200' },
+                        { value: 'floor_600x100',  label: 'Parquet Block 600 x 100' },
+                        { value: 'floor_280x70',   label: 'Parquet Block 280 x 70' },
+                        { value: 'floor_200x100',  label: 'Paver 200 x 100' },
+                        { value: 'custom',         label: 'Custom' }
+                    ],
+                    applies: {
+                        floor_300x300:  { tile_length_mm: 300,  tile_width_mm: 300 },
+                        floor_450x450:  { tile_length_mm: 450,  tile_width_mm: 450 },
+                        floor_600x600:  { tile_length_mm: 600,  tile_width_mm: 600 },
+                        floor_600x400:  { tile_length_mm: 600,  tile_width_mm: 400 },
+                        floor_900x600:  { tile_length_mm: 900,  tile_width_mm: 600 },
+                        floor_1000x500: { tile_length_mm: 1000, tile_width_mm: 500 },
+                        floor_1200x600: { tile_length_mm: 1200, tile_width_mm: 600 },
+                        floor_1200x200: { tile_length_mm: 1200, tile_width_mm: 200 },
+                        floor_600x100:  { tile_length_mm: 600,  tile_width_mm: 100 },
+                        floor_280x70:   { tile_length_mm: 280,  tile_width_mm: 70 },
+                        floor_200x100:  { tile_length_mm: 200,  tile_width_mm: 100 }
+                    }
+                },
+                { id: 'tile_length_mm', type: 'number', label: 'Tile Length (mm)', default: 600, min: 5, max: 5000, step: 5 },
+                { id: 'tile_width_mm', type: 'number', label: 'Tile Width (mm)', default: 400, min: 5, max: 5000, step: 5 },
+                {
+                    id: 'bond',
+                    type: 'select',
+                    label: 'Bond / Layout',
+                    default: 'stack',
+                    options: [
+                        { value: 'stack',           label: 'Stack Bond - grid, straight in line' },
+                        { value: 'running_half',    label: 'Running / Brick Bond - 1/2 offset' },
+                        { value: 'running_third',   label: 'Running Bond - 1/3 offset' },
+                        { value: 'running_quarter', label: 'Running Bond - 1/4 offset' },
+                        { value: 'stack_diagonal',  label: 'Diagonal Grid - 45 degrees' },
+                        { value: 'herringbone',     label: 'Herringbone - square to face' },
+                        { value: 'herringbone_45',  label: 'Herringbone - 45 degrees' },
+                        { value: 'basketweave',     label: 'Basketweave' }
+                    ],
+                    applies: {
+                        stack:           { offset_pct: 0,    rotation_deg: 0 },
+                        running_half:    { offset_pct: 50,   rotation_deg: 0 },
+                        running_third:   { offset_pct: 33.3, rotation_deg: 0 },
+                        running_quarter: { offset_pct: 25,   rotation_deg: 0 },
+                        stack_diagonal:  { offset_pct: 0,    rotation_deg: 45 },
+                        herringbone:     { offset_pct: 0,    rotation_deg: 0 },
+                        herringbone_45:  { offset_pct: 0,    rotation_deg: 45 },
+                        basketweave:     { offset_pct: 0,    rotation_deg: 0 }
+                    },
+                    hint: 'Basketweave keeps the tile length as the block size and fits the tile width to divide it exactly.'
+                },
+                {
+                    id: 'offset_pct',
+                    type: 'number',
+                    label: 'Course Offset (%)',
+                    default: 0,
+                    min: 0,
+                    max: 100,
+                    step: 1,
+                    showWhen: { bond: ['stack', 'running_half', 'running_third', 'running_quarter', 'stack_diagonal'] },
+                    hint: 'Shift applied to each successive course, as a percentage of the tile length. The offset accumulates, so 33% runs 0, 1/3, 2/3 before repeating.'
+                },
+                {
+                    id: 'rotation_deg',
+                    type: 'number',
+                    label: 'Pattern Rotation (°)',
+                    default: 0,
+                    min: -180,
+                    max: 180,
+                    step: 5,
+                    hint: 'Spins the whole layout about the centre of the face. The named 45 degree bonds simply preset this value.'
+                },
+                {
+                    id: 'joint_mm',
+                    type: 'number',
+                    label: 'Joint / Gap (mm)',
+                    default: 0,
+                    min: 0,
+                    max: 50,
+                    step: 0.5,
+                    hint: 'Default 0 draws a gapless hatch - every tile shares its edge with its neighbour. Raise it to draw a real grout joint for detail-stage drawings.'
+                },
+                {
+                    id: 'setting_out',
+                    type: 'select',
+                    label: 'Setting Out',
+                    default: 'centre',
+                    options: [
+                        { value: 'centre', label: 'Centred on face' },
+                        { value: 'corner', label: 'From face corner' }
+                    ],
+                    hint: 'Centred puts a whole tile on the middle of the face so the perimeter cuts balance. From corner starts the first whole tile at the bounding box corner.'
+                },
+                {
+                    id: 'offset_x_mm',
+                    type: 'slider',
+                    label: 'Offset X (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Slides the whole layout along the tile length axis to line a joint up with a corner. Drag the slider or type any value, positive or negative; the box is not limited to the slider travel.'
+                },
+                {
+                    id: 'offset_y_mm',
+                    type: 'slider',
+                    label: 'Offset Y (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Same across the tile width axis. Both offsets follow the pattern rotation, so a rotated layout still nudges along its own grid.'
+                },
+                {
+                    id: 'trim_to_face',
+                    type: 'select',
+                    label: 'Trim to Face Edges',
+                    default: 'true',
+                    options: [
+                        { value: 'true', label: 'Yes - overshoot and trim' },
+                        { value: 'false', label: 'No - whole units only' }
+                    ],
+                    hint: 'Yes runs the pattern past the face perimeter and cuts it back to the face edges, filling hips, valleys and verges. No places only whole, untrimmed units.'
+                },
+                { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
+            ]
+        },
         brickwork: {
             label: 'Brickwork',
             fields: [

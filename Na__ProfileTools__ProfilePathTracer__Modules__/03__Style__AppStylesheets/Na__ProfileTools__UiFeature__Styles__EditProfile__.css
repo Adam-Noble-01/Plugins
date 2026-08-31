@@ -32,6 +32,62 @@
     height              : 200px;
 }
 
+/* The insert-point bar sits inside the preview section here, rather than in its
+   own block as on the Apply tab, so it reads as part of the preview it acts on.
+   Its own classes (.naInsertPointBar*) come from the core stylesheet. */
+.na-edit-profile__preview-section .naInsertPointBar {
+    margin-top          : 10px;
+    align-items         : flex-start;
+}
+
+/* Two stacked lines on this tab where the Apply tab has one: the state, and —
+   only while a pick is pending — what saving it will do to placed runs. */
+.na-edit-datum__text {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 3px;
+    flex                : 1 1 240px;
+    min-width           : 0;
+}
+
+.naInsertPointBar__warn {
+    font-size           : 11px;
+    line-height         : 1.5;
+    color               : #b06000;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Data File Rename Row */
+/* ----------------------------------------------------------------- */
+
+.na-edit-file__rename-row {
+    display             : flex;
+    gap                 : 8px;
+    align-items         : center;
+}
+
+/* The input takes the slack; the button keeps its natural width so its label
+   never wraps as the dialog narrows. */
+.na-edit-file__rename-row .naInput {
+    flex                : 1 1 auto;
+    min-width           : 0;
+}
+
+.na-edit-file__rename-row .naButton {
+    flex                : 0 0 auto;
+    white-space         : nowrap;
+}
+
+/* Indented to the .naFormRow control column (140px label + 10px gap) so it
+   reads as a note on the field above it rather than on the whole section. */
+.na-edit-file__hint {
+    margin              : 6px 0 12px;
+    padding-left        : 150px;
+    font-size           : 11px;
+    line-height         : 1.6;
+    color               : var(--na-subtle);
+}
+
 /* ----------------------------------------------------------------- */
 /* REGION | Geometry Summary Bar */
 /* ----------------------------------------------------------------- */

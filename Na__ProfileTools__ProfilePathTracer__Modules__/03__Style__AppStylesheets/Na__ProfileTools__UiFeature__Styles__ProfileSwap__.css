@@ -1,0 +1,175 @@
+/* =============================================================================
+   NA PROFILE TOOLS - UI FEATURE STYLES - PROFILE SWAP
+   =============================================================================
+   FILE       : Na__ProfileTools__UiFeature__Styles__ProfileSwap__.css
+   PURPOSE    : Hot-swap journey chrome — the Gallery pick banner and armed
+                grid state, plus the Apply Profile tab's bound-trace strip.
+
+   COLOUR NOTE: Both surfaces use the accent blue, never the danger red or the
+                amber reserved for the Edit Profile danger zone. A swap is
+                reversible (undo restores the previous profile and geometry),
+                so it must not read as destructive.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Gallery — Swap Toolbar Button */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-swap-btn {
+    flex-shrink         : 0;
+    white-space         : nowrap;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Gallery — Swap Pick Banner */
+/* ----------------------------------------------------------------- */
+
+.na-gallery-swap-banner {
+    display             : flex;
+    align-items         : center;
+    justify-content     : space-between;
+    gap                 : 12px;
+    padding             : 9px 14px;
+    background          : var(--na-status-bg, #eef3fb);
+    border-bottom       : 1px solid var(--na-accent);
+    box-shadow          : inset 0 2px 0 var(--na-accent);
+    flex-shrink         : 0;
+}
+
+.na-gallery-swap-banner__text {
+    display             : flex;
+    align-items         : baseline;
+    flex-wrap           : wrap;
+    gap                 : 8px;
+    min-width           : 0;
+}
+
+.na-gallery-swap-banner__lead {
+    font-weight         : 700;
+    font-size           : 11px;
+    color               : var(--na-accent);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+}
+
+.na-gallery-swap-banner__trace {
+    font-weight         : 600;
+    color               : var(--na-text);
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-gallery-swap-banner__hint {
+    color               : var(--na-subtle);
+    font-size           : 12px;
+}
+
+.na-gallery-swap-banner__cancel {
+    flex-shrink         : 0;
+    padding             : 5px 12px;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Gallery — Armed Grid State */
+/* ----------------------------------------------------------------- */
+
+/* The grid looks identical whether it is selecting or swapping, so the armed
+   state has to be legible from the cards themselves — not only from the banner
+   that may have scrolled out of view. */
+.na-gallery-grid--swapArmed .na-gallery-card {
+    cursor              : copy;
+}
+
+.na-gallery-grid--swapArmed .na-gallery-card:hover {
+    border-color        : var(--na-accent);
+    box-shadow          : 0 0 0 2px rgba(26, 115, 232, 0.28);
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Apply Profile — Bound Trace Strip */
+/* ----------------------------------------------------------------- */
+
+.na-bound-trace {
+    display             : flex;
+    align-items         : center;
+    justify-content     : space-between;
+    gap                 : 12px;
+    border-left         : 3px solid var(--na-accent);
+    background          : var(--na-status-bg, #eef3fb);
+}
+
+.na-bound-trace--dirty {
+    border-left-color   : #b06000;
+}
+
+.na-bound-trace__body {
+    display             : flex;
+    align-items         : baseline;
+    flex-wrap           : wrap;
+    gap                 : 8px;
+    min-width           : 0;
+}
+
+.na-bound-trace__label {
+    font-weight         : 700;
+    font-size           : 11px;
+    color               : var(--na-accent);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+}
+
+.na-bound-trace--dirty .na-bound-trace__label {
+    color               : #b06000;
+}
+
+.na-bound-trace__name {
+    font-weight         : 600;
+    color               : var(--na-text);
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-bound-trace__clean {
+    font-size           : 12px;
+    color               : var(--na-subtle);
+}
+
+.na-bound-trace__dirty {
+    font-size           : 12px;
+    font-weight         : 600;
+    color               : #b06000;
+}
+
+.na-bound-trace__unbind {
+    flex-shrink         : 0;
+    padding             : 5px 12px;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Apply Profile — Armed Notice */
+/* ----------------------------------------------------------------- */
+
+/* Shown when the swap was armed from this tab and the user has navigated back
+   without picking — otherwise the bound strip would claim everything is settled
+   while a pick is still outstanding. */
+.na-swap-armed {
+    display             : flex;
+    align-items         : center;
+    justify-content     : space-between;
+    gap                 : 12px;
+    background          : var(--na-status-bg, #eef3fb);
+    border-left         : 3px solid var(--na-accent);
+}
+
+.na-swap-armed__text {
+    color               : var(--na-subtle);
+    font-size           : 12px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* =============================================================================
+   END OF FILE
+   ============================================================================= */

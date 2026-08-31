@@ -19,6 +19,10 @@
     },
     "Ut__Notes__3dTextNotes__Standards": {
       "alias": "Text & Notes",
+      "order": 4
+    },
+    "Na__CoreLib__LowPolyAssets": {
+      "alias": "Low Poly Assets",
       "order": 3
     }
   }

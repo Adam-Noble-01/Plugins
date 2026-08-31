@@ -9,9 +9,19 @@
 #
 # MENU ITEMS (shown when the selection is a stamped assembly OR any part of
 # one — the SweptSolid or Helpers child resolves up to its parent)
+#   "Swap Profile..."                           binds the selection and opens
+#                                               the dialog Gallery to pick a
+#                                               replacement profile. This is the
+#                                               ONE item that accepts a
+#                                               multi-selection: every distinct
+#                                               trace touched is swapped at once
 #   "Open Path for Editing"                     drills into the Helpers group
 #   "Disable/Enable Dynamic Regeneration"       toggles the stored flag
 #   "Regenerate Now"                            manual rebuild
+#
+# The three per-assembly items below Swap stay single-selection: each acts on
+# one specific assembly's observer or edit context, and silently fanning them
+# out over a multi-selection would be a different (and surprising) action.
 #
 # NOTE: UI.add_context_menu_handler has NO remove counterpart, so registration
 # is guarded against the hot-reload `load` — an unguarded call would stack a
@@ -65,16 +75,21 @@ module Na__ProfileTools__ProfilePathTracer
             # duplicate the menu section — dedupe per popup instance.
             return if self.Na__ContextMenu__AlreadyBuiltForPopup?(menu)
 
-            parent_group = self.Na__ContextMenu__ResolveSelectedParent(model)
-            return unless parent_group
+            parent_groups = self.Na__ContextMenu__ResolveSelectedParents(model)
+            return if parent_groups.empty?
+
+            menu.add_separator
+            menu.add_item(NA_MENU_TITLE_SEPARATOR) { }
+
+            self.Na__ContextMenu__AddSwapProfileItem(menu, parent_groups)
+
+            return unless parent_groups.length == 1
+            parent_group = parent_groups.first
 
             # Self-heal on inspection: right-clicking an assembly is a cheap
             # moment to re-attach a drifted observer, so the ON/OFF label below
             # is telling the truth by the time the user reads it.
             self.Na__ContextMenu__ReconcileObserver(parent_group)
-
-            menu.add_separator
-            menu.add_item(NA_MENU_TITLE_SEPARATOR) { }
 
             self.Na__ContextMenu__AddOpenPathItem(menu)
             self.Na__ContextMenu__AddToggleItem(menu, parent_group)
@@ -96,12 +111,14 @@ module Na__ProfileTools__ProfilePathTracer
             false
         end
 
-        def self.Na__ContextMenu__ResolveSelectedParent(model)
-            selection = model.selection.to_a
-            return nil unless selection.length == 1
-            Na__DataSerializer.Na__DataSerializer__ResolveTraceParentForEntity(selection.first)
+        # Every distinct trace assembly the selection touches, deduped — the
+        # Swap item is built from this, the single-assembly items only when it
+        # holds exactly one.
+        def self.Na__ContextMenu__ResolveSelectedParents(model)
+            return [] unless defined?(Na__SwapEngine)
+            Na__SwapEngine.Na__SwapEngine__ResolveSelectedTraces(model)
         rescue
-            nil
+            []
         end
 
         def self.Na__ContextMenu__ReconcileObserver(parent_group)
@@ -112,6 +129,24 @@ module Na__ProfileTools__ProfilePathTracer
             Na__ObserverRegistry.Na__ObserverRegistry__AttachIfMissing(helpers_group)
         rescue => error
             Na__DebugTools.Na__Debug__Warn("ContextMenuHandlers: reconcile skipped: #{error.message}")
+        end
+
+        # Hands off to the dialog rather than opening a picker of its own: the
+        # Gallery is already the place where a profile is chosen, thumbnails and
+        # search included, so the swap reuses it instead of duplicating it in a
+        # native list box.
+        def self.Na__ContextMenu__AddSwapProfileItem(menu, parent_groups)
+            label = parent_groups.length == 1 ?
+                'Swap Profile...' :
+                "Swap Profile on #{parent_groups.length} Traces..."
+
+            menu.add_item(label) do
+                if defined?(Na__DialogManager)
+                    Na__DialogManager.Na__Dialog__ArmProfileSwapFromSelection
+                else
+                    UI.messagebox('Profile Path Tracer dialog module is not loaded.')
+                end
+            end
         end
 
         def self.Na__ContextMenu__AddOpenPathItem(menu)

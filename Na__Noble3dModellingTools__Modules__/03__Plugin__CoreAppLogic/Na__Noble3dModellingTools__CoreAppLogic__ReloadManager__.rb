@@ -129,6 +129,12 @@ module Na__Noble3dModellingTools
                 Na__SceneDataTransfer__DialogManager.Na__SceneDataTransfer__ResetDialog
                 puts '[Na__Noble3dModellingTools] Reload reset Scene Data Transfer dialog.'
             end
+
+            if defined?(Na__PaintDeepNestedFaces__DialogManager) &&
+               Na__PaintDeepNestedFaces__DialogManager.respond_to?(:Na__PaintDeepNestedFaces__ResetDialog)
+                Na__PaintDeepNestedFaces__DialogManager.Na__PaintDeepNestedFaces__ResetDialog
+                puts '[Na__Noble3dModellingTools] Reload reset Paint Deep Nested Faces dialog.'
+            end
         rescue => error
             puts "[Na__Noble3dModellingTools] Feature dialog reset warning: #{error.class}: #{error.message}"
         end

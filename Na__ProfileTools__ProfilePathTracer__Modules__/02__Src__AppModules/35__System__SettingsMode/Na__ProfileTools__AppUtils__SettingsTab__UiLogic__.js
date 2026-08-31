@@ -52,7 +52,7 @@
         },
         {
             heading: 'Dynamic Regeneration',
-            description: 'Profile traces rebuild their swept solid from the helper path linework. Changes are detected by a stored fingerprint of the path: edit the linework (move, stretch, draw, erase), then close the group — the solid rebuilds automatically. Undo, redo and copies are also detected. Use the right-click context menu on any Profile Trace for per-assembly controls.',
+            description: 'Profile traces rebuild their swept solid from the helper path linework. Changes are detected by a stored fingerprint of the path: edit the linework (move, stretch, draw, erase), then close the group — the solid rebuilds automatically. Undo, redo and copies are also detected. Use the right-click context menu on any Profile Trace for per-assembly controls, including Swap Profile — which rebuilds the trace along the same path with a different profile picked from the Gallery.',
             buttons: [
                 {
                     id: 'na-btn-settings-dynregen-open-path',

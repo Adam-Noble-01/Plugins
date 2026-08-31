@@ -52,6 +52,7 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/26__SourceCode__NestedEdgeStateTools/Na__Noble3dModellingTools__NestedEdgeStateTools__Loader__'
             require_relative '../../10__PluginModules/27__SourceCode__SceneImageExporter/Na__Noble3dModellingTools__SceneImageExporter__Loader__'
             require_relative '../../10__PluginModules/28__SourceCode__SceneDataTransfer/Na__Noble3dModellingTools__SceneDataTransfer__Loader__'
+            require_relative '../../10__PluginModules/29__SourceCode__PaintDeepNestedFaces/Na__Noble3dModellingTools__PaintDeepNestedFaces__Loader__'
 
             @na_feature_modules_loaded = true
             true

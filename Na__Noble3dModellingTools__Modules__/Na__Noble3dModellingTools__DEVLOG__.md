@@ -3,6 +3,157 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.8.4 - 31-Aug-2026 - Face Pattern Generator: Floor Tiling Setting-Out Offset
+
+### Update 01 - Offset X / Offset Y
+- Floor Tiling gains **Offset X (mm)** and **Offset Y (mm)** beneath Setting Out: a slider for dragging and a box for typing an exact value, either sign, so a joint can be pulled onto a corner. Slider travel is +/-1500mm; the box accepts +/-20000mm for the rare case that needs more.
+- Applied in pattern space, so a rotated layout nudges along its own grid rather than across it. At 0 degrees rotation X and Y read exactly as they look on screen.
+
+### Update 02 - DynamicUI Gains a Slider Control Type
+- Third control type alongside number and select: a range paired with a number box, both driving one value, kept in step in both directions. The box keeps the field id so `na_getValues` and the `applies` preset mechanism are untouched; `slider_min` / `slider_max` set the range travel independently of the box limits.
+- No existing pattern uses it, so the other six panels are unchanged.
+- Sub-devlog: module version 0.6.2.
+
+### Validation Checklist
+- [x] Offsets move every vertex by exactly the amount asked, at fractional and negative values.
+- [x] Gapless at six offsets across all seven bonds: 100% area, zero overlaps, zero gaps.
+- [x] Offset periodic on each layout's own lattice; a 45 degree layout nudges along its own axis.
+- [x] Junk values (`NaN`, `Infinity`, text, empty) fall back to 0 rather than emptying the preview.
+- [x] Slider/box sync both ways; presets still write correctly; RectClip regression and all other suites still pass.
+- [ ] Dragged in the live dialog.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.8.3 - 31-Aug-2026 - Face Pattern Generator: Face Basis Cannot Collapse Silently
+
+### Update 01 - Face Arriving as 0.0mm x 0.0mm
+- Reported straight after 0.8.2: the dialog accepted a face but showed **Face bounds: 0.0mm × 0.0mm** with an empty preview.
+- Cleared the dialog JavaScript first — the assembled script blob was run against a DOM stub with a healthy payload and read back the correct bounds with all seven patterns rendering. A payload whose outline collapses to `[0, 0]` reproduces the reported readout exactly, so the outline arrives collapsed rather than being mishandled. `FaceData__.rb`, which builds it, was untouched by 0.8.2.
+- Cause in the code: `Geom::Vector3d#normalize!` leaves a zero-length vector unchanged instead of raising, so a degenerate axis seed propagated silently into a zero basis, projecting every vertex onto `[0, 0]`.
+
+### Update 02 - Hardening
+- Every axis now goes through `na_unit_vector` (nil, never a zero vector) and the finished frame is checked for orthonormality before use; a basis that cannot be built is a refusal with a message.
+- Horizontal faces — the branch every floor takes — now seed X from the longest outer edge, then world X, then world Y, so a slab always yields a valid frame. The original 0.001 pitched/horizontal branch point is preserved deliberately.
+- `BuildSelectionPayload` rejects a projected outline smaller than 0.001mm in both directions rather than passing a zero-size face to the dialog.
+- Sub-devlog: module version 0.6.1.
+
+### Validation Checklist
+- [x] 20,041 face orientations: new basis identical to old wherever old was valid; recovers in the two degenerate cases where old returned nil.
+- [x] Ruby block-balance check clean; JS suites and the byte-identical RectClip regression all still pass.
+- [ ] `fpg_face_diagnostic.rb` run on the offending face to confirm the root cause.
+
+### Status
+**Root cause not yet confirmed on the specific face.** The synthetic sweep never
+made the old code collapse — it returned nil instead — so the collapse depends on
+live-model behaviour the harness cannot reproduce. The hardening turns a silent
+zero into either a recovery or a named error either way.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.8.2 - 31-Aug-2026 - Face Pattern Generator: Floor Tiling Pattern
+
+### Update 01 - Seventh Pattern Type: Floor Tiling
+- Face Pattern Generator gains a **Floor Tiling** pattern for tiled floors and paving: one tile size, one named bond, drawn as a hatch across the selected face. It is the deterministic counterpart to Patio, which randomly packs six weighted module sizes.
+- Tile size from presets (300x300, 450x450, 600x600, **600x400**, 900x600, 1000x500, 1200x600, 1200x200 plank, 600x100 and 280x70 parquet blocks, 200x100 paver) or free length and width; editing either number flips the preset to Custom.
+- Bonds: Stack (grid, straight in line), Running / Brick 1/2, Running 1/3, Running 1/4, Diagonal Grid 45°, Herringbone square to face, Herringbone 45°, Basketweave. Each preset writes a course offset and a pattern rotation that both stay editable, so any offset percentage and any angle is reachable by hand.
+- **Joint defaults to 0** — a gapless hatch, tiles sharing edges — and can be raised for a real grout joint at detail stage. Setting out is centred on the face by default so perimeter cuts balance.
+
+### Update 02 - Supporting Changes
+- New file `02__PatternGenerators/Na__FacePattern__FloorTilingGenerator__.js`. No Ruby builder: units are plain polylines, so Apply reuses the generic `GeometryBuilder.ApplyPolylines` path and the Ruby `RectClip` mirror is untouched.
+- `Na__FacePattern__RectClip__.js` generalised from axis-aligned rectangles to any convex unit (`na_clipUnitPolygon` / `na_unitPolygonPolylines`), which rotated and herringbone units need; the shared window / opening / full-cover logic now lives in one helper. Output verified byte-identical to the committed version for all five existing patterns across four face shapes with trim on and off.
+- `Na__FacePattern__DynamicUI__.js` gains a `showWhen` field descriptor for conditional controls; no existing pattern uses it.
+- Sub-devlog: `10__PluginModules/20__SourceCode__FacePatternGenerator/Na__Noble3dModellingTools__FacePatternGenerator__DEVLOG__.md` (module version 0.6.0).
+
+### Validation Checklist
+- [x] Dialog script blob assembles as `DialogManager` builds it and evaluates without error; DOM-stub run covers preset writes, custom flip-back, bond presets and `showWhen`.
+- [x] 100.000% area coverage, zero overlaps, zero gaps on all eight bonds over rectangular, concave L-shaped and holed faces, and at eight pattern rotations.
+- [x] Herringbone gapless at eight tile proportions, not just the classic 2:1.
+- [x] No regression: 40 generator/face/trim combinations byte-identical to `HEAD`.
+- [ ] Apply and DXF export exercised on a real face in SketchUp.
+
+### Status
+**Written and statically verified; not yet exercised in SketchUp.** Apply goes
+through the already-proven generic polyline path, but the live round trip has
+not been run.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.8.1 - 30-Aug-2026 - Paint Deep Nested Faces: Default Material Strip Mode
+
+### Update 01 - The Default Material Is nil, Not a Named Material
+- SketchUp has **no Material object and no name string for the Default swatch**. The API represents it as `nil` throughout: `Materials#current` returns `nil` when Default is picked, and `face.material = nil` *is* how the default gets applied. There is no `"[Default]"` to look up.
+- The bracketed-name quirk that looks like an under-the-hood default name is a different thing — library materials carry names like `[Color A01]` in `#name` while `#display_name` strips the brackets.
+- v0.8.0 wrongly read a nil current material as "nothing selected". It is a first class choice and now arms the tool in strip mode.
+
+### Update 02 - Strip Mode
+- Default selected clears both sides of every face reached, through the same traversal and the same painter — stripping deep nested faces is a mode, not a second tool. `back_face_rule` gains a third value, `strip_both`.
+- The dialog switches verb throughout: **Default** badge, "faces to strip", "Strip 4,539 Faces", and a result line reading "Stripped 4,539 faces back to the default material (front and back both cleared)."
+- The Default swatch is drawn as SketchUp draws it — front face colour split diagonally against back face colour, read live from `rendering_options['FaceFrontColor']` and `['FaceBackColor']`, so it tracks the model style.
+
+### Update 03 - Library Material Crash Guard
+- Found while researching the above: `Materials#current` returns a material **not in the model** when a swatch is clicked in a material library rather than In Model, and **applying it to an entity BugSplats SketchUp**. v0.8.0 would have hit this the first time a library swatch was used.
+- The payload now carries an `in_model` flag so the dialog warns before you commit, and the paint path resolves the material inside the undo operation: use it as is if in-model, reuse a same-named model material if one exists, otherwise copy it in (name, colour, alpha, texture, texture size).
+- If the copy cannot be made — built-in textures can return a bare filename with no path — nothing is painted and the message says to paint one face with the Paint Bucket first. A clean refusal rather than a silent colour-only stand-in for a textured material.
+- Sub-devlog: module version 1.1.0.
+
+### Validation Checklist
+- [x] Ruby files pass the block-balance check; `UiBridge__.js` passes `node --check`.
+- [x] Every payload key the JS reads is produced by the probe.
+- [x] `Texture#size=` confirmed to accept `[width, height]` against the API docs.
+- [ ] Default swatch shows the two-tone preview and strips front and back in one undo step.
+- [ ] Library swatch warns, then copies into In Model on paint without crashing.
+
+### Status
+**Written and statically verified; not yet exercised in SketchUp.** The API
+behaviour above is from the official docs and community sources, not a live run.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.8.0 - 30-Aug-2026 - New Module: Paint Deep Nested Faces
+
+### Update 01 - New Feature Module: Paint Deep Nested Faces
+- The face counterpart to the standalone **Na Edge Util - Paint Deep Nested Edges** plugin. Paints every face inside the current selection with the material held in the SketchUp Materials tray, at any nesting depth, and never touches an edge.
+- New module at `10__PluginModules/29__SourceCode__PaintDeepNestedFaces/`, ten files, largest 479 lines.
+- Sub-devlog: `10__PluginModules/29__SourceCode__PaintDeepNestedFaces/Na__Noble3dModellingTools__PaintDeepNestedFaces__DEVLOG__.md` (module version 1.0.0).
+
+### Update 02 - Live Material Preview, No Library
+- This first iteration reads `Sketchup::Materials#current` only — the swatch last clicked in the Materials window — and previews its colour, opacity and name. No SSOT palette is involved yet; library mode is architected for but deliberately deferred.
+- A `Sketchup::MaterialsObserver` keeps the preview live: `onMaterialSetCurrent` for picking a new swatch, `onMaterialChange` for editing the colour or opacity of the one already held. Both callbacks ignore their arguments and re-read from the model, because the API documents that `onMaterialSetCurrent` can be handed a nil `materials` and that the material passed to `onMaterialRemove` must not be touched.
+- The swatch renders over a checkerboard so alpha reads at a glance. Textured materials show the average texture colour with a caption saying so.
+
+### Update 03 - Deep Nesting Default On
+- **On (default)** every face at every level below the selection. **Off** only the faces one level inside each selected container, nested containers below left alone and counted. Directly selected faces are painted in either mode.
+
+### Update 04 - Front and Back Face Standard
+- Driven by `Material#use_alpha?`. Opaque materials paint the front and strip the back to default; transparent materials paint both sides so glass reads correctly from either side. The painter asks the MaterialProbe for the verdict, so the applied rule cannot drift from the previewed one.
+
+### Update 05 - Shared Definitions Reported Before You Commit
+- Painting inside a component with five placements changes all five. The dialog states the shared definition count and how many other placements would change, before the button is pressed. Optional `Isolate shared components first` calls `make_unique` before descending; off by default, matching native SketchUp behaviour.
+
+### Update 06 - Integration
+- Material Utils gains a `Face Painting` group (tool_group_order 30) with two buttons: `Paint Deep Nested Faces` (dialog) and `Paint Faces With Active Material` (one-click repeat, no dialog, shortcut-friendly). Both hotkey-bindable.
+- Router handlers, module loader slot 29, and a ReloadManager dialog reset so a hot reload detaches both observers rather than orphaning them.
+
+### Validation Checklist
+- [x] All Ruby files pass a block-balance check.
+- [x] `UiBridge__.js` passes `node --check`.
+- [x] Registry JSON parses; every button and hotkey binding resolves to a command.
+- [x] Dialog HTML composes with both placeholders replaced.
+- [ ] Dialog opens from Material Utils > Face Painting and previews the tray material.
+- [ ] Swatch and back face rule follow a Materials tray change live.
+- [ ] Opaque paints front and strips back; transparent paints both sides.
+- [ ] Deep Nesting off paints one level only; edges untouched at every depth.
+- [ ] Shared component warning matches the real placement count.
+- [ ] One undo step reverses the whole paint.
+
+### Status
+**Written and statically verified; not yet exercised in SketchUp.** No Ruby
+interpreter is available on this machine, so the Ruby was checked structurally
+rather than executed. The unticked items above are the in-SketchUp confirmation
+still to do.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.7.2 - 25-Aug-2026 - Face Pattern Generator: Trim to Face Edges
 
 ### Update 01 - Patterns Now Overshoot the Face and Cut Back to Its Perimeter

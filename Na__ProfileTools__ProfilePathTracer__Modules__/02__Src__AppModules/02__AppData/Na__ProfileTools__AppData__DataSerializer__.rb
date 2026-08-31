@@ -48,6 +48,7 @@
 #   Na__DataSerializer__StampParent(parent_group, payload_hash)
 #   Na__DataSerializer__StampHelpers(helpers_group, profile_trace_id)
 #   Na__DataSerializer__ReadParentPayload(group) -> Hash or nil
+#   Na__DataSerializer__UpdateParentPlacement(parent_group, updates) -> Boolean
 #   Na__DataSerializer__WritePathPoints(parent_group, points) -> Boolean
 #   Na__DataSerializer__IsProfileTraceParent?(group) -> Boolean
 #   Na__DataSerializer__IsHelpersSubGroup?(group) -> Boolean
@@ -116,6 +117,41 @@ module Na__ProfileTools__ProfilePathTracer
             true
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: WritePathPoints failed: #{error.message}")
+            false
+        end
+
+        # Patches ONLY the placement values a profile hot-swap is allowed to
+        # touch, leaving ProfileTraceId, StartPoint, CreatedAt, SchemaVersion,
+        # ReverseDirection and DynamicRegenEnabled exactly as stamped.
+        #
+        # SchemaVersion in particular must never be bumped here: it is what tells
+        # the RegenerationEngine whether an assembly was swept with the legacy
+        # right-handed path frame, and rewriting it would mirror geometry that
+        # already stands in a model.
+        #
+        # Only keys present in `updates` are written. 'OriginOffset' => nil is a
+        # meaningful instruction (clear the datum), so presence of the key, not
+        # its value, decides whether it is applied.
+        def self.Na__DataSerializer__UpdateParentPlacement(parent_group, updates)
+            return false unless self.Na__DataSerializer__GroupValid?(parent_group)
+            return false unless updates.is_a?(Hash)
+
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT, true)
+            return false unless dict
+
+            dict['ProfileKey']   = updates['ProfileKey'].to_s               if updates.key?('ProfileKey')
+            dict['RotationStep'] = (updates['RotationStep'].to_i % 4).to_s  if updates.key?('RotationStep')
+
+            if updates.key?('ToggleStates')
+                dict['ToggleStates'] = self.Na__DataSerializer__SerialiseToggleStates(updates['ToggleStates'])
+            end
+            if updates.key?('OriginOffset')
+                dict['OriginOffset'] = self.Na__DataSerializer__SerialiseOriginOffset(updates['OriginOffset'])
+            end
+
+            true
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: UpdateParentPlacement failed: #{error.message}")
             false
         end
 

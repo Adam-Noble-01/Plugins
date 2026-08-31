@@ -35,6 +35,7 @@
     // HELPER FUNCTION | Resolve the Generator Module for a Pattern Key
     // ------------------------------------------------------------
     function na_patternGeneratorForKey(key) {
+        if (key === 'flooring')  { return window.Na__FacePattern__FloorTilingGenerator; }
         if (key === 'brickwork') { return window.Na__FacePattern__BrickworkGenerator; }
         if (key === 'stonework') { return window.Na__FacePattern__StoneworkGenerator; }
         if (key === 'shrub')     { return window.Na__FacePattern__ShrubGenerator; }

@@ -180,6 +180,34 @@ body {
     border-color            : var(--na-accent-blue);
 }
 
+/* Slider fields pair a range with a typed box, both driving the same value */
+.naFacePat__SliderRow {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 8px;
+}
+
+.naFacePat__Input--withSlider {
+    width                   : 76px;
+    flex                    : 0 0 auto;
+    text-align              : right;
+}
+
+.naFacePat__Slider {
+    flex                    : 1 1 auto;
+    min-width               : 0;
+    height                  : 20px;
+    padding                 : 0;
+    margin                  : 0;
+    accent-color            : var(--na-accent-blue);
+    background              : transparent;
+    cursor                  : pointer;
+}
+
+.naFacePat__Slider:focus {
+    outline                 : none;
+}
+
 /* DynamicUI injects nested control groups — flatten inner card styling */
 #naFacePat_dynamicControls .naFacePat__ControlGroup {
     background              : transparent;

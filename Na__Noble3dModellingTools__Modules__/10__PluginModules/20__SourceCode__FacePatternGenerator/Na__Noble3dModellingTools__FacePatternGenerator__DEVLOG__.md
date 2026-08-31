@@ -7,7 +7,7 @@
 ## Overview
 
 Unified parametric surface pattern generator that reads a single selected
-SketchUp face, previews six architectural pattern types in an SVG HtmlDialog,
+SketchUp face, previews seven architectural pattern types in an SVG HtmlDialog,
 and applies the generated linework back onto the face plane.
 
 # =============================================================================
@@ -15,6 +15,101 @@ and applies the generated linework back onto the face plane.
 # =============================================================================
 
 
+# Na Noble3d Modelling Tools
+## Version 0.6.2 - 31-Aug-2026 - Floor Tiling Setting-Out Offset (Slider + Typed Box)
+
+### Update 01 - New Field Type: Slider
+- `Na__FacePattern__DynamicUI__.js` gains a third control type, `slider`: a range input and a number box side by side, both driving one value. The box carries the field id so `na_getValues` and the `applies` preset mechanism keep working unchanged; the range takes `<id>_slider`. Dragging the range writes the box then fires the shared change handler, and typing in the box writes the range back.
+- `slider_min` / `slider_max` set the range travel independently of the box's own `min` / `max`, so the slider can stay usable while the box still accepts a value beyond its travel.
+- New `na_isNumericField` covers `number` and `slider` everywhere a value is read or coerced. `na_applyPresetValues` also syncs a paired range, so a preset writing into a slider field moves both halves.
+- New `.naFacePat__SliderRow`, `.naFacePat__Slider` and `.naFacePat__Input--withSlider` styles; the range picks up `--na-accent-blue` through `accent-color`.
+
+### Update 02 - Offset X / Offset Y on Floor Tiling
+- Two `slider` fields sitting with **Setting Out**, which is what they modify: range travel +/-1500mm, box accepting +/-20000mm, 1mm steps, default 0. Either sign, so a layout can be pulled toward a corner from any direction.
+- Applied in **pattern space**, inside `na_layoutOrigin`, so a rotated layout nudges along its own grid rather than across it. At the default 0 degree rotation, pattern space and face space coincide and X / Y read exactly as they look.
+- Every builder derives its row, column and lattice ranges from that origin, so shifting it only changes which indices are visited — coverage stays complete at any offset, with no change to the extent padding.
+- The status line names the offset when either value is non-zero.
+
+### Validation
+- Offsets move every vertex by exactly the amount asked (checked against a one-to-one match of whole units after an equal shift, at six offsets including fractional and negative).
+- Gapless at six offsets across all seven bond options: 100% area, zero overlaps, zero uncovered sample points.
+- Offset is periodic on the layout's own lattice — one tile pitch for the grid bonds, `u = (Lj+Wj, Lj-Wj)` and `v = (-Wj, Wj)` for herringbone, one block for basketweave — each reproducing the base layout exactly.
+- A 45 degree layout nudged 100mm in pattern X lands on the predicted `(100/root2, 100/root2)` face-space position.
+- `undefined`, `null`, `''`, `'abc'`, `NaN` and `Infinity` all fall back to 0 rather than emptying the preview.
+- Slider and box stay in step in both directions; the box still reports a Number, not a string; size presets still write correctly with slider fields present.
+
+---
+# Na Noble3d Modelling Tools
+## Version 0.6.1 - 31-Aug-2026 - Face Basis Cannot Collapse Silently
+
+### Update 01 - Reported Symptom
+- After 0.6.0 the dialog showed **Face bounds: 0.0mm × 0.0mm** with an empty preview and the status line "Face refreshed from current selection." — a face was accepted but arrived with no size.
+
+### Update 02 - Where It Is Not
+- The dialog JavaScript was cleared. The assembled script blob (built exactly as `DialogManager.na_render_html` builds it) was run against a DOM stub and handed a healthy face payload: the meta line read back `Face bounds: 5745.0mm × 6500.0mm` and all seven patterns rendered, the new one included. Feeding the same harness a payload whose outer ring collapses to `[0, 0]` reproduces the reported readout **exactly**.
+- So the payload reaches the dialog and the dialog consumes it correctly; the outline itself arrives collapsed. Nothing in 0.6.0 touches `FaceData__.rb`, which is what builds it.
+
+### Update 03 - The Failure Mode in na_build_basis
+- `Geom::Vector3d#normalize!` leaves a zero-length vector **unchanged** rather than raising. Every axis in `na_build_basis` was normalised with a bare `normalize!`, so a degenerate seed propagated silently: `x_axis` and `y_axis` end up zero, `vector.dot(zero)` is 0 for every vertex, all of `outer` becomes `[0, 0]`, and bounds come out 0 × 0. The dialog has no way to tell that from a real face.
+- Every axis now goes through `na_unit_vector`, which returns nil rather than a zero vector, and the finished frame is checked by `na_axes_are_orthonormal?` before it is handed back. A basis that cannot be built is now a refusal with a message, never a silent zero.
+
+### Update 04 - Horizontal Faces Get Fallback Seeds
+- The horizontal branch had a single seed — the longest outer edge — and no recovery if it came back unusable. It now tries the longest edge, then world X, then world Y, re-squaring X against the chosen Y each time, so a horizontal slab always yields a valid frame. This is the branch every floor takes, and the floor pattern is what sends people to it.
+- `NA_UP_SLOPE_MIN` keeps the original 0.001 branch point between pitched and horizontal deliberately: a slab with only a construction tolerance of fall must still align to its longest edge rather than to a direction made of floating point noise. **Verified across 20,041 face orientations** — including exactly horizontal, exactly vertical, and a sweep through the shallow band either side of the branch point — that the new derivation returns axes identical to the old one in every case where the old one was valid, and recovers in the two degenerate cases where it returned nil.
+
+### Update 05 - Zero-Extent Guard
+- `BuildSelectionPayload` now rejects a payload whose projected outline is smaller than 0.001mm in both directions, with a message naming the likely causes, rather than passing a 0 × 0 face to the dialog.
+
+### Still Open
+- **The root cause on the specific face is not yet confirmed.** The synthetic sweep never made the old code collapse — it returned nil instead — so the collapse depends on something only the live model shows: SketchUp's own `normalize!` on a near-zero vector, a `Length` comparison, or an edge whose endpoints coincide. `fpg_face_diagnostic.rb` prints the normal, the branch taken, the derived axes and the resulting bounds for the selected face and will name it in one run.
+
+---
+# Na Noble3d Modelling Tools
+## Version 0.6.0 - 31-Aug-2026 - Floor Tiling Pattern (Slabs, Bonds, Herringbone)
+
+### Update 01 - New Pattern Type: Floor Tiling
+- Seventh pattern type `flooring` ("Floor Tiling"), sat directly under Patio in the pattern selector. Patio is a *random* greedy packer of six weighted module sizes; this is the deterministic counterpart — one tile size, one named bond, drawn as a hatch across the face.
+- New JS preview generator `02__PatternGenerators/Na__FacePattern__FloorTilingGenerator__.js` (`window.Na__FacePattern__FloorTilingGenerator`). No Ruby builder: the units are plain polylines, so Apply goes through the existing generic `GeometryBuilder.ApplyPolylines` path and the Ruby `RectClip` mirror is untouched.
+
+### Update 02 - Tile Size: Presets Plus Free Length and Width
+- `Tile Size Preset` select writes `tile_length_mm` / `tile_width_mm` through the existing `applies` mechanism, and editing either number flips the select to Custom — the same behaviour slate and rosemary already have.
+- Presets: 300x300, 450x450, 600x600, **600x400**, 900x600, 1000x500, 1200x600, 1200x200 plank, 600x100 and 280x70 parquet blocks, 200x100 paver, Custom. Default is 600 x 400.
+
+### Update 03 - Bond / Layout
+- `Bond / Layout` select: Stack (grid, straight in line), Running / Brick 1/2, Running 1/3, Running 1/4, Diagonal Grid 45°, Herringbone square to face, Herringbone 45°, Basketweave.
+- Each option presets `offset_pct` and `rotation_deg`, both of which stay editable — the named bonds are one-click standards, not a closed list. Any course offset from 0 to 100% and any rotation from -180° to 180° is reachable by hand.
+- The course offset **accumulates** rather than alternating, so 1/3 runs 0, 1/3, 2/3 before repeating (correct third bond); 1/2 degenerates to the familiar alternating brick bond.
+- Basketweave blocks must be square to interlock. The block side is the tile length, the course count is `round(length / width)`, and the course width is fitted to divide the block exactly — the status line reports the fitted width whenever it differs from the value typed in.
+
+### Update 04 - Joint Defaults to Zero (Gapless Hatch)
+- `Joint / Gap (mm)` defaults to **0**: neighbouring tiles share an edge and the result reads as a hatch, which is what a plan-scale floor finish wants. Raising it insets every unit inside its lattice cell so all gaps read the same width, for detail-stage drawings.
+- `Setting Out` select — **Centred on face** (default) puts a whole tile on the middle of the face so the perimeter cuts balance, the way a floor is actually set out; From face corner starts the first whole tile at the bounding box corner.
+
+### Update 05 - General Herringbone Lattice
+- Herringbone is generated from the lattice `u = (Lj + Wj, Lj - Wj)`, `v = (-Wj, Wj)` over cell sizes `Lj = length + joint`, `Wj = width + joint`, each lattice point carrying one lying tile and one standing tile against its right-hand end. The determinant is exactly `2 x Lj x Wj` — the pair's own area — so the tiling is gapless **at any tile proportion**, not only the classic 2:1. Verified at 600x300, 600x400, 600x100, 280x70, 1000x500, 1200x200, 450x450 and 900x250: 100.000% area coverage, zero overlapped sample points, zero uncovered sample points.
+- The naive lattice `u = (L + W, W)` that works for 2:1 tiles overlaps for every other ratio; the `L - W` term in `u` is what generalises it.
+
+### Update 06 - Rotation via a Pattern Space Frame
+- Every layout is built in a rotated pattern space whose origin sits at the face bounding-box centre, then each unit's four corners are mapped back into face-local millimetres before clipping. Rotation is therefore free and exact for all three families — Diagonal Grid and Herringbone 45° are simply the named bonds with `rotation_deg` preset to 45.
+- The pattern-space extent comes from the four face bounding-box corners mapped through the inverse rotation; the map is linear, so those corners bound the region.
+
+### Update 07 - RectClip Generalised to Convex Units
+- Rotated and herringbone units are convex quads, not axis-aligned rectangles, so `01__SharedJs/Na__FacePattern__RectClip__.js` gains `na_clipRingToConvex`, `na_clipUnitPolygon` and `na_unitPolygonPolylines` alongside the rectangle entry points.
+- The window / opening-subtraction / full-cover logic is now shared by both in `na_clipUnitWindow`, which takes a clip function and a thunk for the untrimmed ring, so the whole-unit outline is only built on the path that returns it. **Verified byte-identical output** against the committed version for patio, brickwork, stonework, slate and rosemary across rectangular, L-shaped, hipped and holed faces with trim on and off — 40 combinations, no regression.
+
+### Update 08 - Conditional Fields in DynamicUI
+- `Na__FacePattern__DynamicUI__.js` gains a `showWhen: { source_field_id: ['allowed', 'values'] }` descriptor: a field's control group is hidden until every named source control holds one of its listed values. Used to drop `Course Offset (%)` for herringbone and basketweave, where it means nothing.
+- Hidden groups keep their inputs in the DOM, so `na_getValues` still reports them and no generator has to care. No existing pattern uses `showWhen`, so all six other panels render exactly as before.
+
+### Update 09 - Guard Rail
+- A cell-count estimate runs before any unit is built. Past 24,000 units the generator returns no geometry and a status line naming the count and the limit, rather than locking the dialog up — reachable by typing a 5mm tile onto a large floor.
+
+### Validation
+- `node --check` clean; blob assembled exactly as `DialogManager.na_render_html` builds it, evaluated without error, and driven through a DOM stub: preset writes, custom flip-back, bond presets, and `showWhen` show/hide all behave.
+- Coverage and overlap measured by point sampling on a plain rectangle, a concave L-shape and a face with a rectangular opening: **100.000% area, zero overlaps, zero gaps** on all eight bonds; rotations 0, 15, 30, 45, 60, 90, -37 and 180 all likewise. With a 10mm joint the covered fraction lands within 0.02 of the analytic tile-area / cell-area figure for every family.
+- Not yet exercised inside SketchUp — Apply uses the already-proven generic polyline path, but the live round trip is unverified.
+
+---
 # Na Noble3d Modelling Tools
 ## Version 0.5.0 - 25-Aug-2026 - Trim to Face Edges (Overshoot and Cut Back)
 

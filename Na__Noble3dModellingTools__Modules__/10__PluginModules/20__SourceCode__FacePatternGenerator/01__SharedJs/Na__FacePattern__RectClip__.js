@@ -5,15 +5,19 @@
 // FILE       : Na__FacePattern__RectClip__.js
 // NAMESPACE  : window.Na__FacePattern__RectClip
 // AUTHOR     : Adam Noble - Noble Architecture
-// PURPOSE    : Trim one pattern unit (an axis-aligned rectangle in local face
-//              millimetres) back to the selected face perimeter, so patterns
-//              can overshoot the face and be cut to the boundary on apply.
+// PURPOSE    : Trim one pattern unit (an axis-aligned rectangle, or any convex
+//              ring, in local face millimetres) back to the selected face
+//              perimeter, so patterns can overshoot the face and be cut to the
+//              boundary on apply.
 // CREATED    : 2026
 //
 // DESCRIPTION:
-// - Sutherland-Hodgman clips the face ring against the unit rectangle's four
-//   half-planes. The clip window is the rectangle (always convex), so concave
-//   face outlines - hips, valleys, dormer cheeks - clip correctly.
+// - Sutherland-Hodgman clips the face ring against the unit's half-planes. The
+//   clip window is the unit (always convex), so concave face outlines - hips,
+//   valleys, dormer cheeks - clip correctly.
+// - na_clipUnitRect takes an axis-aligned rectangle; na_clipUnitPolygon takes
+//   any convex ring, which is what the rotated and herringbone floor tiling
+//   units need. Both run the same window / opening / full-cover logic.
 // - Holes are subtracted with a convex half-plane decomposition when the hole
 //   footprint inside the unit is convex (window and door openings); concave
 //   hole footprints fall back to dropping units centred in the opening.
@@ -181,6 +185,33 @@ window.Na__FacePattern__RectClip = (function () {
     }
     // ------------------------------------------------------------
 
+    // FUNCTION | Clip a Ring to an Arbitrary Convex Window Ring
+    // ------------------------------------------------------------
+    // The rectangle case above is this with four axis-aligned edges; rotated
+    // and herringbone units need the general form. The window is wound
+    // counter-clockwise so "inside" is left of every directed edge.
+    function na_clipRingToConvex(ring, windowRing) {
+        var clipWindow = na_toCounterClockwise(windowRing);
+        var result     = ring;
+
+        for (var index = 0; index < clipWindow.length; index += 1) {
+            if (!result || result.length < 3) { return []; }
+
+            var edgeStart = clipWindow[index];
+            var edgeEnd   = clipWindow[(index + 1) % clipWindow.length];
+            var edgeX     = edgeEnd[0] - edgeStart[0];
+            var edgeY     = edgeEnd[1] - edgeStart[1];
+            if ((edgeX * edgeX) + (edgeY * edgeY) < NA_EPSILON) { continue; }   // <-- Degenerate edge, nothing to clip against
+
+            result = na_clipRingToHalfPlane(result, function (point) {
+                return (edgeX * (point[1] - edgeStart[1])) - (edgeY * (point[0] - edgeStart[0]));
+            });
+        }
+
+        return na_dedupeRing(result);
+    }
+    // ------------------------------------------------------------
+
     // endregion ---------------------------------------------------------------
 
     // -------------------------------------------------------------------------
@@ -230,28 +261,26 @@ window.Na__FacePattern__RectClip = (function () {
     // REGION | Unit Clipping
     // -------------------------------------------------------------------------
 
-    // FUNCTION | Trim One Rectangular Pattern Unit to the Face Outline
+    // HELPER FUNCTION | Trim the Face to One Convex Unit Window, Openings Removed
     // ------------------------------------------------------------
-    // Returns { polylines, full } where full flags a unit that survived whole
-    // and can therefore stay a clean rectangle (or a component instance).
-    function na_clipUnitRect(x, y, width, height, outer, holes) {
-        if (width <= 0 || height <= 0 || !outer || outer.length < 3) {
+    // clipToWindow trims any ring to the unit; makeWholeUnit is only called on
+    // the full-cover path, so the untrimmed ring costs nothing when it is cut.
+    function na_clipUnitWindow(clipToWindow, unitArea, makeWholeUnit, outer, holes) {
+        if (!(unitArea > 0) || !outer || outer.length < 3) {
             return { polylines: [], full: false };
         }
 
-        var rect          = { minX: x, minY: y, maxX: x + width, maxY: y + height };
-        var rectArea      = width * height;
-        var areaTolerance = Math.max(NA_MIN_AREA_MM2, rectArea * NA_AREA_FRACTION);
+        var areaTolerance = Math.max(NA_MIN_AREA_MM2, unitArea * NA_AREA_FRACTION);
         var clipApi       = window.Na__FacePattern__PolygonClip;
 
-        var region = na_clipRingToRect(outer, rect);
+        var region = clipToWindow(outer);
         if (Math.abs(na_ringArea(region)) <= areaTolerance) { return { polylines: [], full: false }; }
 
         var regions = [region];
         (holes || []).forEach(function (hole) {
             if (!regions.length || !hole || hole.length < 3) { return; }
 
-            var holeFootprint = na_clipRingToRect(hole, rect);
+            var holeFootprint = clipToWindow(hole);
             if (Math.abs(na_ringArea(holeFootprint)) <= areaTolerance) { return; }   // <-- Opening misses this unit
 
             if (na_isConvexRing(holeFootprint)) {
@@ -270,17 +299,49 @@ window.Na__FacePattern__RectClip = (function () {
             return total + Math.abs(na_ringArea(piece));
         }, 0);
 
-        if (regions.length === 1 && coveredArea >= rectArea - areaTolerance) {
-            return {                                                                // <-- Whole unit fits, return the clean rectangle
-                polylines: [window.Na__FacePattern__RectGeometry.na_makeRectPolyline(x, y, width, height)],
-                full: true
-            };
+        if (regions.length === 1 && coveredArea >= unitArea - areaTolerance) {
+            return { polylines: [makeWholeUnit()], full: true };                     // <-- Whole unit fits, keep the clean outline
         }
 
         return {
             polylines: regions.filter(function (piece) { return piece.length >= 3; }),
             full: false
         };
+    }
+    // ------------------------------------------------------------
+
+    // FUNCTION | Trim One Rectangular Pattern Unit to the Face Outline
+    // ------------------------------------------------------------
+    // Returns { polylines, full } where full flags a unit that survived whole
+    // and can therefore stay a clean rectangle (or a component instance).
+    function na_clipUnitRect(x, y, width, height, outer, holes) {
+        if (width <= 0 || height <= 0) { return { polylines: [], full: false }; }
+
+        var rect = { minX: x, minY: y, maxX: x + width, maxY: y + height };
+        return na_clipUnitWindow(
+            function (ring) { return na_clipRingToRect(ring, rect); },
+            width * height,
+            function () { return window.Na__FacePattern__RectGeometry.na_makeRectPolyline(x, y, width, height); },
+            outer,
+            holes
+        );
+    }
+    // ------------------------------------------------------------
+
+    // FUNCTION | Trim One Convex Polygon Pattern Unit to the Face Outline
+    // ------------------------------------------------------------
+    // The rotated and herringbone floor units are convex quads rather than
+    // axis-aligned rectangles; everything downstream is identical.
+    function na_clipUnitPolygon(unitRing, outer, holes) {
+        if (!unitRing || unitRing.length < 3) { return { polylines: [], full: false }; }
+
+        return na_clipUnitWindow(
+            function (ring) { return na_clipRingToConvex(ring, unitRing); },
+            Math.abs(na_ringArea(unitRing)),
+            function () { return unitRing; },
+            outer,
+            holes
+        );
     }
     // ------------------------------------------------------------
 
@@ -299,6 +360,23 @@ window.Na__FacePattern__RectClip = (function () {
         }
 
         return na_clipUnitRect(x, y, width, height, faceData.outer, faceData.holes).polylines;
+    }
+    // ------------------------------------------------------------
+
+    // FUNCTION | Build the Polylines for One Convex Unit Ring, Honouring the Trim Toggle
+    // ------------------------------------------------------------
+    function na_unitPolygonPolylines(unitRing, faceData, trimEnabled) {
+        if (!unitRing || unitRing.length < 3) { return []; }
+
+        if (trimEnabled === false) {
+            var clipApi = window.Na__FacePattern__PolygonClip;
+            var inside  = unitRing.every(function (point) {
+                return clipApi.na_pointInFace(point, faceData.outer, faceData.holes);
+            });
+            return inside ? [unitRing] : [];
+        }
+
+        return na_clipUnitPolygon(unitRing, faceData.outer, faceData.holes).polylines;
     }
     // ------------------------------------------------------------
 
@@ -372,8 +450,11 @@ window.Na__FacePattern__RectClip = (function () {
 
     return {
         na_clipRingToRect: na_clipRingToRect,
+        na_clipRingToConvex: na_clipRingToConvex,
         na_clipUnitRect: na_clipUnitRect,
+        na_clipUnitPolygon: na_clipUnitPolygon,
         na_unitPolylines: na_unitPolylines,
+        na_unitPolygonPolylines: na_unitPolygonPolylines,
         na_clipSegment: na_clipSegment,
         na_ringArea: na_ringArea,
         na_isConvexRing: na_isConvexRing

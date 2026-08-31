@@ -4,6 +4,246 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.6.0 - 31-Aug-2026 - Editable Insertion Point + On-Disk File Rename
+
+### Summary
+Two Edit Profile tab additions, both aimed at the same annoyance: a profile captured in a
+hurry is stuck with whatever origin and whatever filename it was born with.
+
+1. **Insertion point is now editable and saved.** The same pick-a-vertex control the Apply
+   Profile tab has, but pointed at the library file rather than at one placement. Pick a
+   vertex, press **Save Changes**, and that point becomes the profile's own 0,0 — for the
+   Gallery, for every future placement, and for anything that reads the file. The Apply tab's
+   per-placement override is untouched and still works exactly as before; this just fixes the
+   profiles whose stored datum was wrong from the start, so it stops needing correcting on
+   every single use.
+
+2. **The data file can be renamed from inside the dialog.** A **Data File** field with a
+   **Rename File** button, so a `TEMP__` or `Z-RENAME__` placeholder can be given its real
+   library name without leaving SketchUp, and without the delete-and-re-export dance that was
+   the only alternative.
+
+### Why the insertion point is a translation, not a new field
+
+The datum could have been stored as an offset the consumers apply at read time. It is not —
+picking a vertex **subtracts that point from every stored coordinate**, exactly as the 2D
+preview already does when it shows a custom datum.
+
+That choice is what keeps the change small. Nothing gains a schema field, so the Gallery
+thumbnails, the Apply preview, the placement engine and Dynamic Regeneration all pick the new
+origin up with no code changes at all — they were already drawing whatever the file said. The
+profile's shape and size never change; only its position relative to 0,0 does.
+
+The equivalence that matters — *what you previewed is what got written* — is checked directly
+rather than by eye: rendering the original with a pending offset and rendering the rewritten
+file with no offset produce the same picture for every pickable vertex of every profile in
+the library (max divergence 1.8e-14 mm, i.e. float dust).
+
+### Coordinate map
+
+The two geometry blocks store the same section on different axis names, so a datum move has
+to touch both or they drift apart:
+
+| Block | Field | Moved by |
+|---|---|---|
+| `Na__Asset__Profile2D` | `PosY_mm` / `PosZ_mm` | offset Y / offset Z |
+| `Na__Asset__Mesh3D` | `PosX_mm` / `PosY_mm` | offset Y / offset Z |
+| `Na__Asset__Mesh3D` | `PosZ_mm` | untouched — the section is flat |
+| `Na__Asset__Mesh3D` `BoundingBox` | `MinX`/`MaxX`, `MinY`/`MaxY` | offset Y, offset Z |
+
+Edges are stored as vertex-id **pairs** and faces as id loops, so neither needs touching — a
+translation changes no connectivity, no winding and no length, and length is what edge styling
+is matched on. Coordinates are rounded to 6 dp on the way out, the precision the exporter
+writes: without it, subtracting a vertex from itself lands on `1.42e-14` rather than `0.0` and
+the datum marker sits a hair off the vertex that was just clicked.
+
+### Op order is load-bearing
+
+A save can carry a datum move **and** a mirror at once, because Flip Profile now carries any
+pending pick rather than silently discarding it. The datum moves **first**: the mirror is
+taken about Y = 0, which *is* the datum, so moving it first mirrors about the point the user
+chose. The other order would mirror about the old origin and then translate by an offset
+measured before the mirror — landing the shape somewhere neither op asked for.
+
+### What this does to geometry already in the model
+
+Nothing immediately, and something later — which is why the panel says so, in orange, at the
+moment a pick is pending rather than buried in a tooltip:
+
+- Placed runs are baked geometry. They do not move.
+- Runs with **Dynamic Regeneration** on **will** move to match the next time they rebuild,
+  because `Na__RegenEngine` re-reads the library file by key.
+- A run carrying its own `OriginOffset` had that datum measured in the *old* coordinate space,
+  so it no longer names the same point and wants re-picking — the same caveat Flip Profile has
+  always carried.
+
+This is inherent to editing a library asset in place, not a defect of this feature. It is
+stated plainly instead of being smoothed over.
+
+### Rename: what it is and what it deliberately is not
+
+Lifted from the Component Editor Tools' on-disk rename for `.skp` library files — same
+sanitise, same collision guard, same "return the new path" contract.
+*(@delegate: `Na__ComponentEditorTools__LibraryManager__Editor__.rb`)*
+
+The profile **code** (`Na__Asset__Code`) is untouched. That is what placed traces store in
+their dictionary and what Dynamic Regeneration resolves against, so **renaming the file cannot
+orphan geometry already in a model** — the one thing that would have made this feature not
+worth having. The panel says so under the field.
+
+Guards, in order: the shared `Na__EditProfile__LibraryPaths` traversal check; a re-parse
+confirming the file still holds the profile the dialog is showing (a mismatch means dialog and
+disk have diverged and the request is stale); `File.basename` on the input, so a pasted path or
+a typed `..\` lands in the library folder and nowhere else; the exporter's own character class,
+so a renamed file is indistinguishable from a freshly captured one; and a collision refusal, so
+a rename can never overwrite another profile. A pure re-casing of the same file is allowed
+through, since Windows reports that as a collision with itself.
+
+The sibling `.bak` travels with its profile. A rollback point left under the old name points at
+a file that no longer exists, which is exactly the wrong thing to find when you go looking for
+one — and if a `.bak` already exists under the new name it is left alone and reported, rather
+than a recovery artefact being destroyed to tidy up a stale name.
+
+Rename is **not** in the danger zone, and takes no confirmation gate: it changes what a file is
+called, never what it contains, and it is undone by renaming back. Unlike re-capture and
+delete, there is nothing to lose to a mis-click.
+
+### Files
+
+| File | Change |
+|---|---|
+| `32__System__EditProfileMode/…__DatumWriter__.rb` | **new** — the translation, and the payload reader |
+| `32__System__EditProfileMode/…__FileRenamer__.rb` | **new** — sanitise, guard, rename, patch `meta.fileName` |
+| `32__System__EditProfileMode/…__MetaWriter__.rb` | carries `originOffset`; datum-then-mirror order; combined status message |
+| `32__System__EditProfileMode/…__UiSystem__MainUiLogic__.js` | insert-point bar, vertex picking, Data File row |
+| `32__System__EditProfileMode/…__UiSystem__Bridge__.js` | rename dispatch + receive |
+| `01__AppCore/…__DialogManager__.rb` | `na_profilepathtracer_rename_profile_file` callback |
+| `01__AppCore/…__Main__.rb` | requires the two new modules |
+| `03__Style__AppStylesheets/…__EditProfile__.css` | rename row, datum bar, pending-change warning |
+
+Rename returns no bootstrap, unlike delete: the profile key is unchanged, so patching the one
+record keeps the user in the profile they were mid-edit on instead of resetting the Gallery
+selection to the library default.
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.5.0 - 30-Aug-2026 - Profile Hot Swap (retarget a placed trace)
+
+### Summary
+A placed Profile Trace can now have its **profile swapped without being rebuilt by hand**.
+Right-click any trace (or any part of one) and pick *Swap Profile...*, or use the new
+**Swap Profile** button in the Gallery toolbar or the Apply Profile actions row. The dialog
+binds the trace, routes to the Gallery, and the next card you click rebuilds that trace
+along its existing helper path with the new profile. You land back on Apply Profile with the
+trace still bound, so the insert point, rotation and mirrors can be corrected and applied
+with a new **Regenerate Trace** button — the "swap the gutter, then nudge its datum" loop
+in two clicks instead of delete-and-retrace.
+
+Multi-select is supported for the swap: select several assemblies, pick once, all of them
+rebuild.
+
+### Why this was thin — the hard part was already built
+
+Dynamic Regeneration (v1.2.0) had already made the Helpers linework the authoritative path
+and given `Na__RegenEngine` the job of rebuilding the swept solid from whatever `ProfileKey`
+the parent dictionary carries. A hot swap is therefore *"rewrite one dictionary value, then
+regenerate"* — no new geometry code, and every existing guarantee comes along for free:
+legacy path frames, multi-run chains, seam cleanup, shell orientation, fingerprint stamping
+and observer re-attach.
+
+The new `Na__SwapEngine` is a coordination layer, not a geometry engine.
+
+### What carries over, and what deliberately does not
+
+| Stored value | On swap | Why |
+|---|---|---|
+| `RotationStep`, `ToggleStates` | **kept** | Path-relative — a 90° roll and a Y-mirror still mean the same thing on a different section |
+| `OriginOffset` (insert point) | **reset** | The datum was picked in the OLD profile's PosY/PosZ millimetre space. Carrying it to a different shape would silently misplace the run. Matches what the Apply tab already does when the active profile changes |
+| `StartPoint`, `PathPoints`, Helpers linework | **untouched** | The path is the whole point of the swap |
+| `ReverseDirection` | **not swappable** | Reverse is baked into the assembly's own transformation at build time (a Z mirror about the plane through `bounds.max.z`). Re-applying it later would mirror about a *different* plane and jump the assembly's position. The Reverse button is disabled — not hidden — while a trace is bound, with the reason in its tooltip |
+| `SchemaVersion` | **never rewritten** | It is what tells `Na__RegenEngine` whether an assembly was swept with the legacy right-handed frame. Bumping it would mirror geometry already standing in a model (the v1.3.0 hazard) |
+
+### Failure handling
+
+The dictionary patch and the rebuild are separate model operations — the rebuild opens its
+own *transparent* one, so both land as a single undo step. That leaves a window in which the
+stored key could outrun the geometry, so:
+
+- the incoming key is validated against the library **before** any assembly is touched;
+- a trace whose Helpers group is missing or empty is rejected by a pre-flight check;
+- a rebuild that still fails **rolls the dictionary and the group name back**, and the trace
+  is reported as skipped rather than left claiming a profile it does not have.
+
+On a multi-trace swap each assembly is handled independently: one bad trace is reported by
+id and reason, the rest still swap. Freshly copied assemblies that still share a
+`ProfileTraceId` (until the RegenSweep re-stamps them) would collapse to a single target,
+so the bind says how many were left out instead of silently applying to one of them.
+
+### The journey, and why it spans two tabs
+
+`Na__ProfileTools__SwapController` owns it, because it belongs to neither tab:
+
+1. **Bind** — Ruby reports every distinct trace the model selection touches (a descendant
+   such as the SweptSolid or a face inside it resolves up to its parent, so precise
+   selection is not required).
+2. **Armed** — the Gallery shows a pick banner naming the bound trace and the grid takes an
+   armed style. A card click now means *swap to this*, not *select this*.
+3. **Bound** — the swap runs, and Apply Profile is routed to with the trace still bound.
+
+State is addressed by `ProfileTraceId`, never by object reference, and Ruby re-resolves every
+id from the model at swap time — so clicking around, changing the selection or undoing
+between arming and picking cannot leave a stale binding pointing at the wrong assembly.
+
+Bound state deliberately survives step 3: the insert point is the setting most often worth
+correcting straight after seeing the new profile in place, and re-picking the trace in the
+model to do it would be busywork.
+
+### Regeneration is manual, never automatic
+
+Moving the insert point, changing rotation or flipping a mirror while bound marks the panel
+dirty ("Unapplied changes — click Regenerate Trace") and changes **nothing in the model**.
+Each rebuild is a full follow-me sweep and its own undo entry, so firing one on every stray
+vertex click would be both slow and destructive to the undo stack.
+
+### Fixed along the way
+
+**Advanced Configuration no longer snaps shut.** The controls panel is re-rendered on every
+state change, and the `<details>` disclosure holding the rotation pills and mirror toggles
+was collapsing under the very control the user had just clicked inside it. Its open state now
+lives in UI state and is restored on every render.
+
+**Tab modules no longer stack duplicate event subscriptions.** Gallery and Apply Profile both
+subscribed to the `Na_AppContext` bus on *every* mount, so handlers accumulated one set per
+tab visit. Both now guard with a one-shot flag.
+
+### Known limitation
+
+Undoing a swap restores the geometry, the dictionary and the fingerprint correctly (all one
+operation), but the dialog's bound-trace strip is not notified and will still name the
+post-swap profile until the trace is re-armed with the Swap Profile button.
+
+### Files Touched
+
+| Path | Change |
+|---|---|
+| `31__System__ApplyProfileMode/Na__ProfileTools__ProfileSwapEngine__Main__.rb` | **NEW.** `Na__SwapEngine` — selection resolution, dialog bind payload, validated swap execution with per-trace rollback, generated-name maintenance |
+| `01__AppCore/Na__ProfileTools__AppCore__SwapController__.js` | **NEW.** `Na__ProfileTools__SwapController` — bind / armed / bound state machine, tab routing, dirty marking, Ruby receive handlers |
+| `03__Style__AppStylesheets/Na__ProfileTools__UiFeature__Styles__ProfileSwap__.css` | **NEW.** Gallery pick banner + armed grid state, Apply Profile bound-trace strip |
+| `02__AppData/Na__ProfileTools__AppData__DataSerializer__.rb` | Added `Na__DataSerializer__UpdateParentPlacement` — patches only the placement keys a swap may touch, never `SchemaVersion` / `StartPoint` / `ProfileTraceId` / `DynamicRegenEnabled` |
+| `01__AppCore/Na__ProfileTools__AppCore__ContextMenuHandlers__.rb` | Multi-selection resolution; new *Swap Profile...* item (the only multi-select item — the per-assembly items stay single-selection); removed the now-unused single-parent resolver |
+| `01__AppCore/Na__ProfileTools__AppCore__DialogManager__.rb` | `Na__Dialog__ArmProfileSwapFromSelection` (context-menu entry point, opens the dialog when closed and parks the payload for the bootstrap handshake), `Na__Dialog__Visible?`, `bind_swap_target` + `apply_profile_swap` callbacks |
+| `01__AppCore/Na__ProfileTools__AppCore__Main__.rb` | Requires the swap engine |
+| `01__AppCore/Na__ProfileTools__AppCore__PluginReloader__.rb` | SwapController added to the JS asset manifest |
+| `30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__MainUiLogic__.js` | Swap toolbar button, pick banner, armed grid class, card-click interception, subscription guard |
+| `31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js` | Bound-trace state mirror, placement adoption on mount and on result, dirty marking, swap / regenerate / unbind handlers, advanced-config open state, subscription guard |
+| `31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__Events__.js` | Wiring for the bound-trace controls and the advanced-config disclosure |
+| `33__System__CreateProfileMode/Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js` | Bound-trace strip, armed notice, Swap Profile + Regenerate Trace buttons, Reverse disabled while bound |
+| `35__System__SettingsMode/Na__ProfileTools__AppUtils__SettingsTab__UiLogic__.js` | Dynamic Regeneration description mentions Swap Profile |
+| `03__Style__AppStylesheets/Na__ProfileTools__CoreUi__Styles__Index__.css` | Imports the new stylesheet |
+| `Na__ProfileTools__UiLayout__.html` | Loads SwapController after ProfileStore, before the tab modules |
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.4.0 - 28-Aug-2026 - VCB Typed Lengths (+/- arithmetic)
 
 ### Summary

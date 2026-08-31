@@ -1,0 +1,169 @@
+<!doctype html>
+<!--
+=============================================================================
+NA NOBLE3D MODELLING TOOLS - PAINT DEEP NESTED FACES - UI LAYOUT
+=============================================================================
+
+FILE       : Na__Noble3dModellingTools__PaintDeepNestedFaces__UiLayout__.html
+PURPOSE    : HtmlDialog shell for the Paint Deep Nested Faces feature module.
+             A live preview of the material held in the SketchUp Materials
+             tray, the nesting controls, a live selection readout, and the
+             paint action. All assets are inlined by the DialogManager via
+             set_html (no external file base URL).
+
+INJECTION  : {{STYLESHEET_CONTENT}}  - Na__Noble3dModellingTools__PaintDeepNestedFaces__Styles__.css
+             {{UI_BRIDGE_SCRIPT}}    - Na__Noble3dModellingTools__PaintDeepNestedFaces__UiBridge__.js
+
+RUBY -> JS : Na__PaintFaces__ReceivePayload(payload)
+             Na__PaintFaces__ReceiveMaterial(material)
+             Na__PaintFaces__ReceiveSelection(selection)
+             Na__PaintFaces__ReceiveStatus(message, variant)
+JS -> RUBY : sketchup.na_dialog_ready      / na_refresh
+             sketchup.na_set_deep_nesting  / na_set_isolate_shared
+             sketchup.na_paint_faces       / na_js_log
+
+WORKFLOW:
+1. Ruby reads Sketchup::Materials#current and pushes its colour, opacity and
+   name here. A MaterialsObserver keeps that swatch in step with the tray.
+2. A SelectionObserver pushes a fresh face count every time the selection or
+   the nesting mode changes, so the button always states what it will do.
+3. Paint runs one undoable operation in Ruby and pushes back a result line.
+
+=============================================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Na Noble3d Tools : Paint Deep Nested Faces</title>
+  <style>
+    {{STYLESHEET_CONTENT}}
+  </style>
+</head>
+<body>
+
+  <!-- REGION | App Shell -->
+  <div class="naPaintFaces__App">
+
+    <!-- Toolbar -->
+    <div class="naPaintFaces__Toolbar">
+      <span class="naPaintFaces__ToolbarLabel">Paint Deep Nested Faces</span>
+      <div class="naPaintFaces__ToolbarSpacer"></div>
+      <button id="naPaintFaces_btnRefresh" class="naPaintFaces__Btn naPaintFaces__Btn--secondary" type="button"
+              title="Re-read the active material and the current selection">Refresh</button>
+    </div>
+
+    <!-- Scrolling body -->
+    <div class="naPaintFaces__Body">
+
+      <!-- Active material preview -->
+      <section class="naPaintFaces__Group">
+        <div class="naPaintFaces__GroupTitle">Active Material</div>
+
+        <div class="naPaintFaces__MaterialCard" id="naPaintFaces_materialCard">
+          <div class="naPaintFaces__SwatchFrame">
+            <div class="naPaintFaces__SwatchChecker"></div>
+            <div class="naPaintFaces__SwatchFill" id="naPaintFaces_swatchFill"></div>
+          </div>
+
+          <div class="naPaintFaces__MaterialMeta">
+            <div class="naPaintFaces__MaterialName" id="naPaintFaces_materialName">Reading materials tray...</div>
+            <div class="naPaintFaces__MaterialRow">
+              <span class="naPaintFaces__Chip" id="naPaintFaces_materialHex">-</span>
+              <span class="naPaintFaces__Chip" id="naPaintFaces_materialOpacity">-</span>
+              <span class="naPaintFaces__Chip" id="naPaintFaces_materialType">-</span>
+            </div>
+            <div class="naPaintFaces__MaterialNote" id="naPaintFaces_materialNote"></div>
+          </div>
+        </div>
+
+        <div class="naPaintFaces__RuleBanner" id="naPaintFaces_ruleBanner">
+          <span class="naPaintFaces__RuleBadge" id="naPaintFaces_ruleBadge">Opaque</span>
+          <span class="naPaintFaces__RuleText" id="naPaintFaces_ruleText">
+            Front face painted, back face stripped to default.
+          </span>
+        </div>
+
+        <div class="naPaintFaces__Hint">
+          Click a swatch in the SketchUp Materials tray and this preview follows it. Only colour, opacity
+          and name are read - the material itself is applied untouched. Pick the <strong>Default</strong>
+          swatch to strip materials off nested faces instead of painting them.
+        </div>
+      </section>
+
+      <!-- Nesting controls -->
+      <section class="naPaintFaces__Group">
+        <div class="naPaintFaces__GroupTitle">Nesting Depth</div>
+
+        <label class="naPaintFaces__Check">
+          <input id="naPaintFaces_deepNesting" type="checkbox" checked />
+          <span class="naPaintFaces__CheckBody">
+            <span class="naPaintFaces__CheckLabel">Deep Nesting</span>
+            <span class="naPaintFaces__CheckHint" id="naPaintFaces_deepHint">
+              On: every face at every level below the selection is painted.
+            </span>
+          </span>
+        </label>
+
+        <label class="naPaintFaces__Check">
+          <input id="naPaintFaces_isolateShared" type="checkbox" />
+          <span class="naPaintFaces__CheckBody">
+            <span class="naPaintFaces__CheckLabel">Isolate shared components first</span>
+            <span class="naPaintFaces__CheckHint">
+              Makes a container unique before painting inside it, so other placements of the same
+              component are left alone. Off by default, matching how SketchUp paints natively.
+            </span>
+          </span>
+        </label>
+
+        <div class="naPaintFaces__Hint">
+          Edges are never touched by this tool, at any depth. Locked containers are skipped and reported.
+        </div>
+      </section>
+
+      <!-- Live selection readout -->
+      <section class="naPaintFaces__Group">
+        <div class="naPaintFaces__GroupTitle">Current Selection</div>
+
+        <div class="naPaintFaces__StatGrid">
+          <div class="naPaintFaces__Stat">
+            <span class="naPaintFaces__StatValue" id="naPaintFaces_statFaces">0</span>
+            <span class="naPaintFaces__StatLabel" id="naPaintFaces_statFacesLabel">faces to paint</span>
+          </div>
+          <div class="naPaintFaces__Stat">
+            <span class="naPaintFaces__StatValue" id="naPaintFaces_statContainers">0</span>
+            <span class="naPaintFaces__StatLabel">containers walked</span>
+          </div>
+          <div class="naPaintFaces__Stat">
+            <span class="naPaintFaces__StatValue" id="naPaintFaces_statDepth">0</span>
+            <span class="naPaintFaces__StatLabel">levels deep</span>
+          </div>
+        </div>
+
+        <div class="naPaintFaces__NoteList" id="naPaintFaces_selectionNotes"></div>
+      </section>
+
+    </div><!-- /.naPaintFaces__Body -->
+
+    <!-- Action bar -->
+    <div class="naPaintFaces__ActionBar">
+      <button id="naPaintFaces_btnPaint" class="naPaintFaces__Btn naPaintFaces__Btn--primary" type="button" disabled>
+        Paint Faces
+      </button>
+    </div>
+
+    <!-- Status bar -->
+    <div class="naPaintFaces__StatusBar">
+      <div class="naPaintFaces__StatusText" id="naPaintFaces_status">Ready.</div>
+    </div>
+
+  </div><!-- /.naPaintFaces__App -->
+  <!-- endregion | App Shell -->
+
+  <script>
+    {{UI_BRIDGE_SCRIPT}}
+  </script>
+
+</body>
+</html>
