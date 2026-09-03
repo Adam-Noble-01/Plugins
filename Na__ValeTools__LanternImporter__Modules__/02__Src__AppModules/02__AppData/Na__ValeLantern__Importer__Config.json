@@ -34,7 +34,7 @@
             { "Key": "ridgeBlock",        "Label": "Ridge Octagonal Block",     "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "hipCore",           "Label": "Hip Aluminium Core",        "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "hipBeam",           "Label": "Hip Beam Timber",           "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
-            { "Key": "hipBlocking",       "Label": "Hip Blocking",              "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "hipBlocking",       "Label": "Hip Blocking",              "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "hipFlashing",       "Label": "Hip Lead Flashing",         "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "verge",             "Label": "Verge",                     "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "glazeBarCap",       "Label": "Glazebar Caps",             "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },

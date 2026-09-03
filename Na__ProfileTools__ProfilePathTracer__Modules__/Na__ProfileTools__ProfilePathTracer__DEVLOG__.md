@@ -4,6 +4,226 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.6.3 - 03-Sep-2026 - Edit Path Button on Apply Profile
+
+### Summary
+An **✎ Edit Path** button in the Apply Profile action row, between Swap Profile and the
+primary build buttons. It opens the selected trace's Helpers linework with the path edges
+pre-selected — the nested edges Dynamic Regeneration actually reads.
+
+### No new behaviour, a third door onto existing behaviour
+
+`Na__EditPathNavigator.Na__EditPath__OpenForCurrentSelection` already existed, along with its
+`na_profilepathtracer_open_path_editor` dialog callback. Two things already reached it: the
+right-click **Open Path for Editing** item, and a button in Settings under Dynamic
+Regeneration. Neither is where you are when you are working on a trace, and the right-click
+route needs you to find a clickable spot on the assembly first — which is the same problem the
+navigator exists to solve, one level up.
+
+So this adds a button and a bridge call. **No Ruby changed.** The navigator still resolves the
+trace, drills `model.active_path` into the Helpers sub-group, pre-selects the edges, and closing
+the group fires the RegenSweep that rebuilds the solid.
+
+### Why it is not gated on the bound trace
+
+The action row's other secondary buttons key off `isBound`, but the navigator works off the
+**model selection**, which is a different thing — you can have a bound trace and a selection
+somewhere else entirely. The dialog cannot see the model selection, so any enable/disable rule
+written on this side would be a guess. The button is therefore always present, and Ruby returns
+a specific message for each way it can fail: no trace selected, no Helpers sub-group, locked or
+invalid context, or SketchUp older than 2020. It is disabled only while a swap or rebuild is in
+flight, where changing the active path mid-operation would be genuinely unsafe.
+
+### Verified
+
+Against the real `Na__ProfileTools__UiLayout__.html` with the real module load order and a
+stubbed `window.sketchup`: the button renders in the action row in bound, unbound and busy
+states (disabled only when busy); clicking it fires exactly `na_profilepathtracer_open_path_editor`
+and sets the status line; and with the bridge function removed it degrades to
+"Open path bridge is not available." rather than throwing.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__CreateNewProfile__UiSystem__Controls__.js` | The button, after Swap Profile |
+| `Na__ProfileTools__CreateNewProfile__UiSystem__Bridge__.js` | `Na__ProfilePathTracer__Bridge__OpenPathEditor` |
+| `Na__ProfileTools__ApplyProfile__UiSystem__Events__.js` | Click wiring |
+| `Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js` | `Na__Events__OnOpenPathEditor` handler |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.6.2 - 03-Sep-2026 - Gallery/Index Split + Normalised Index Thumbnails
+
+### Summary
+Follow-up to v1.6.1, from using it. Showing every keyword on every card made the picture wall
+worse, not better — the chips were the tallest thing on a card and the thumbnail, the thing
+actually being browsed, was pushed up into a corner. So the two jobs are now two views instead
+of one compromise.
+
+1. **Gallery is thumbnail and title only.** Keywords are Index's job now.
+2. **Four sizes became two modes.** Medium and Large are gone, and the cycling button is now a
+   `Gallery | Index` segmented switch with both options on screen and the active one lit.
+3. **Index thumbnails are normalised and 20% larger.** They were every size and mostly tiny.
+
+This supersedes v1.6.1's "Small / Medium / Large / Index" cycle and its "every keyword renders
+on the card" behaviour. Everything else from that entry — fixed card widths, `min-content`
+rows, no truncation, the Short Name Alias — stands unchanged.
+
+### Why the index rows were all different heights
+
+`.na-gallery-card__svg` is `width: 100%; height: 100%`, and in an index row the thumb box had no
+definite height. A percentage height against an auto-height container does not resolve, so the
+SVG fell back to sizing itself from its own viewBox ratio — and profile viewBoxes are anything
+from 132x72 to 65x148. A tall narrow door moulding therefore drew itself several times taller
+than a squat gutter, and dragged its whole row with it.
+
+Measured across the 29 library profiles at 900x800: rows came in **18 distinct heights from 30px
+to 241px**. Giving the SVG a definite `height: 53px` in index mode collapses that to **a single
+66px row for every profile** — every thumbnail now scale-to-fits the same square box.
+
+The box is on the SVG rather than on the thumb so the thumb still stretches to the row: a fixed
+thumb height would have left the divider rule short whenever a two-line name made the row
+taller than the thumbnail.
+
+The thumb went 54px → 65px wide, which is the +20% that fixes "tiny".
+
+### Why Gallery hides the chips in CSS rather than omitting them
+
+The card markup is identical in both views and the stylesheet decides what each one shows. That
+is what keeps the mode switch a single `classList` swap on the grid — the same cheap toggle the
+old size button had. Building the chips conditionally would have forced a full re-render on
+every switch, rebuilding all 29 SVG thumbnails to change nothing.
+
+### Why a segmented switch rather than a cycling button
+
+The old button showed the mode you would get by pressing it, never the one you were looking at.
+With four modes that had to be decoded; with two it is just wrong half the time. Both labels are
+now rendered, the active one is filled accent with `cursor: default`, and `aria-pressed` tracks
+the state.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__UiFeature__Styles__Gallery__.css` | `--cards` / `--index` modes replace the four sizes, mode-switch styles, chips hidden in Gallery, index thumb 65px with a 53px SVG box |
+| `Na__ProfileTools__Gallery__UiSystem__MainUiLogic__.js` | `NA_MODE_CLASSES` / `NA_MODE_LABELS`, segmented switch markup, click handler with active-state sync |
+| `Na__ProfileTools__Gallery__UiSystem__CardRenderer__.js` | Comment only — records the one-card-two-views contract |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.6.1 - 03-Sep-2026 - Gallery Grid Rebuild + Short Name Alias
+
+### Summary
+The Gallery was unusable as a browsing surface: card widths changed with the dialog width,
+names were ellipsed, keywords past the fourth were silently dropped, and every card carried a
+`Profile2D` line that said the same thing on all of them. Three changes, one goal — a card you
+can read.
+
+1. **The card is fixed, the column count is what responds.** Each size mode has one card width
+   at every dialog width. Widening adds columns, narrowing removes them; the card itself never
+   reflows. Small / Medium / Large / Index cycle on the toolbar button, and the two middle
+   sizes are new.
+2. **Nothing on a card is clipped any more.** Names wrap instead of ellipsing, every keyword
+   chip renders, and the row grows to fit. The asset-type line is gone.
+3. **Short Name Alias.** A new optional metadata field, second on both the Edit Profile and
+   Create Profile forms, that titles the card. Blank falls back to the full name.
+
+### The layout bug behind the truncation
+
+The grid is a scroll pane with a definite height (`flex: 1` inside the panel body) and its rows
+were the default `grid-auto-rows: auto`. In that combination the browser divides the panel
+height between however many rows exist rather than sizing each row to its content — measured at
+a 900x800 dialog, a 705px grid gave four rows of exactly 160px regardless of what the cards
+needed — and `overflow: hidden` on the card (there to round the corners) then cut off whatever
+did not fit. Every card in the grid was clipped.
+
+`align-content: start` does not prevent this, and the old card was not tall enough to make it
+obvious: a one-line ellipsed name plus at most four chips usually fitted inside the accidental
+row height. Wrapping the name and rendering every keyword would have made it glaring.
+
+`grid-auto-rows: min-content` is the fix. Rows size to their tallest card, the grid scrolls,
+and no card is clipped. Verified against the real stylesheet and the real DOM structure with
+the library's own profile records, at panel widths from 200px to 900px across all four size
+modes: card width constant, column count varying, zero clipped cards, zero clipped text
+elements, no horizontal overflow.
+
+### Why fixed-width tracks rather than `1fr`
+
+`repeat(auto-fill, minmax(110px, 1fr))` stretched cards to soak up leftover space, so a profile
+looked different at every dialog width and text reflowed on every resize. The tracks are now
+`repeat(auto-fill, minmax(0, var(--na-card-w)))`.
+
+The `minmax(0, …)` is the narrow-dialog guard, not decoration: with a bare track width, a panel
+narrower than one card overflows sideways. As a maximum, the single remaining column collapses
+to the panel instead. Below the card width the grid is the one place a card is allowed to be
+narrower than its nominal size, and it is that or a horizontal scrollbar.
+
+### Name wrapping needs break hints
+
+A library name is one unbroken `__`-joined token, so the browser has no legal wrap point in it
+and `overflow-wrap: anywhere` alone breaks mid-segment at whatever column runs out. The card
+renderer inserts `<wbr>` after each underscore run — on already-escaped text, since the markup
+it adds is the point — so the name stacks by segment. `overflow-wrap` stays as the backstop for
+a segment that is itself wider than the card.
+
+### Short Name Alias — schema
+
+| Location | Key |
+|---|---|
+| `Na__Asset__Metadata` | `Na__Asset__ShortName` |
+| `meta` | `Meta_ProfileShortName` |
+| Published record | `shortName` |
+| Create Profile bridge | `Meta_ProfileShortName` |
+| Edit Profile save payload | `shortName` |
+
+Absent on every profile authored before this version, and it stays absent rather than being
+defaulted: an empty alias is what makes a reader fall back to the full name, so seeding it
+would make that fallback unreachable. `Na__Store__ProfileLabel` owns the alias-or-full-name
+rule so no tab re-derives it.
+
+Blank and missing are deliberately different at the writer. A missing `shortName` key means
+"this caller does not manage the field, leave the file alone"; an empty string means "the user
+cleared the box, drop the alias". Collapsing the two would let any partial write wipe an alias
+the user had set — the name field cannot express this, which is why it keeps its old
+"blank means keep what is on disk" rule and the alias does not.
+
+### Where the alias shows
+
+The Gallery card title, and the Gallery search, which matches the alias as well as the name and
+keywords — typing what is on the card has to find the card. An aliased card also gains a hover
+tooltip carrying the full name, because it is the only card hiding anything; un-aliased cards
+lost the tooltip they used to have, which restated the title while covering the chips beneath
+it. Apply Profile and the swap banner still name profiles in full, and are untouched.
+
+### Consequences worth knowing
+
+- An un-aliased profile now produces a **tall** card: the full name wraps over several lines and
+  every keyword is chipped. That is the no-truncation rule doing what it says, and setting an
+  alias is what collapses it back to one line.
+- Keyword chips are bottom-aligned, so cards in a row line up along the chip band and a long
+  name grows the whole row rather than ragging the layout.
+- Re-capture geometry and Flip Profile carry the alias on their writes like every other
+  metadata field, so neither discards a typed-but-unsaved alias.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__UiFeature__Styles__Gallery__.css` | Fixed-width tracks, `grid-auto-rows: min-content`, sm/md/lg sizes, no-clip text rules, wrapping tooltip |
+| `Na__ProfileTools__Gallery__UiSystem__CardRenderer__.js` | Alias title, `<wbr>` hints, all keywords, category line removed, alias-only tooltip, alias search |
+| `Na__ProfileTools__Gallery__UiSystem__MainUiLogic__.js` | Four-way size cycle |
+| `Na__ProfileTools__AppCore__ProfileStore__.js` | `Na__Store__ProfileShortName`, `Na__Store__ProfileLabel`, alias in `ApplyMetaPatch` |
+| `Na__ProfileTools__ApplyProfile__ProfileLibrary__.rb` | Parses the alias onto the published record |
+| `Na__ProfileTools__EditProfile__MetaWriter__.rb` | Writes the alias; nil-vs-blank contract |
+| `Na__ProfileTools__EditProfile__GeometryReplacer__.rb` | Carries the alias through re-capture |
+| `Na__ProfileTools__EditProfile__UiSystem__MainUiLogic__.js` | Alias field, read / patch / save wiring |
+| `Na__ProfileTools__CreateNewProfile__Exporter__.rb` | Alias in the exported schema |
+| `Na__ProfileTools__CreateNewProfile__UiSystem__MainUiLogic__.js` | Alias field on the create form |
+| `Na__ProfileTools__UiFeature__Styles__EditProfile__.css` | `.na-edit-form__hint` shares the existing hint rule |
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.6.0 - 31-Aug-2026 - Editable Insertion Point + On-Disk File Rename
 
 ### Summary

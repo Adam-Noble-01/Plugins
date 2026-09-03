@@ -10,7 +10,7 @@
 # SAVE CONTRACT:
 #   1. Validate the sourceFile through Na__EditProfile__LibraryPaths, the guard
 #      shared with the geometry re-capture and delete paths.
-#   2. Patch Name, Description, Keywords in the JSON.
+#   2. Patch Name, Short Name Alias, Description, Keywords in the JSON.
 #   3. Optionally move the datum (params['originOffset']) via
 #      Na__EditProfile__DatumWriter, then optionally mirror the geometry
 #      (params['flipHorizontal']) via Na__EditProfile__GeometryWriter — both
@@ -50,6 +50,12 @@ module Na__ProfileTools__ProfilePathTracer
             new_keywords = Array(params['keywords'])
             flip_horizontal = params['flipHorizontal'] == true
 
+            # Key-absent and empty-string mean different things for the alias:
+            # absent is "this caller does not manage the field, leave the file
+            # alone", empty is "the user cleared the box, remove the alias".
+            # Collapsing them would let any partial write silently wipe an alias.
+            new_short_name = params.key?('shortName') ? params['shortName'].to_s.strip : nil
+
             # @delegate: Na__ProfileTools__EditProfile__DatumWriter__
             origin_offset = Na__EditProfile__DatumWriter.Na__DatumWriter__ReadOffsetParam(params)
 
@@ -60,7 +66,7 @@ module Na__ProfileTools__ProfilePathTracer
             return validation unless validation['isValid']
 
             self.Na__MetaWriter__WriteMeta(
-                source_file, profile_key, new_name, new_desc, new_keywords, flip_horizontal, origin_offset
+                source_file, profile_key, new_name, new_desc, new_keywords, flip_horizontal, origin_offset, new_short_name
             )
         rescue => error
             Na__DebugTools.Na__Debug__Error('Na__MetaWriter__SaveMeta failed.', error)
@@ -84,12 +90,12 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Write Meta
     # -------------------------------------------------------------------------
 
-        def self.Na__MetaWriter__WriteMeta(source_file, profile_key, new_name, new_desc, new_keywords, flip_horizontal = false, origin_offset = nil)
+        def self.Na__MetaWriter__WriteMeta(source_file, profile_key, new_name, new_desc, new_keywords, flip_horizontal = false, origin_offset = nil, new_short_name = nil)
             expanded_path = File.expand_path(source_file)
             raw_content   = File.read(expanded_path, encoding: 'utf-8')
             data          = JSON.parse(raw_content)
 
-            self.Na__MetaWriter__PatchData(data, new_name, new_desc, new_keywords)
+            self.Na__MetaWriter__PatchData(data, new_name, new_desc, new_keywords, new_short_name)
 
             # @delegate: Na__ProfileTools__EditProfile__DatumWriter__
             # Runs before the mirror: the mirror axis IS the datum, so the datum
@@ -195,13 +201,23 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | JSON Patch
     # -------------------------------------------------------------------------
 
-        def self.Na__MetaWriter__PatchData(data, new_name, new_desc, new_keywords)
+        # new_short_name: nil leaves whatever the file has, a String (empty
+        # included) replaces it. Unlike the name — where blank means "the form
+        # had nothing useful, keep what is on disk" — a blank alias is a real
+        # instruction, because clearing the box is how a profile goes back to
+        # being titled by its full name.
+        def self.Na__MetaWriter__PatchData(data, new_name, new_desc, new_keywords, new_short_name = nil)
             meta       = data['meta']       ||= {}
             asset_meta = data['Na__Asset__Metadata'] ||= {}
 
             unless new_name.empty?
                 asset_meta['Na__Asset__Name'] = new_name
                 meta['Meta_ProfileName']      = new_name
+            end
+
+            unless new_short_name.nil?
+                asset_meta['Na__Asset__ShortName'] = new_short_name
+                meta['Meta_ProfileShortName']      = new_short_name
             end
 
             asset_meta['Na__Asset__Description'] = new_desc

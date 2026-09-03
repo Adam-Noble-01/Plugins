@@ -118,6 +118,7 @@
 
     function Na__Ui__AttachBoundTraceEvents(handlers) {
         var btnSwapProfile    = document.getElementById('naBtnSwapProfile');
+        var btnOpenPathEditor = document.getElementById('naBtnOpenPathEditor');
         var btnRegenerateTrace = document.getElementById('naBtnRegenerateTrace');
         var btnUnbindTrace    = document.getElementById('naBtnUnbindTrace');
         var btnCancelSwapArm  = document.getElementById('naBtnCancelSwapArm');
@@ -125,6 +126,12 @@
         if (btnSwapProfile) {
             btnSwapProfile.addEventListener('click', function() {
                 handlers.Na__Events__OnSwapProfile();
+            });
+        }
+
+        if (btnOpenPathEditor) {
+            btnOpenPathEditor.addEventListener('click', function() {
+                handlers.Na__Events__OnOpenPathEditor();
             });
         }
 

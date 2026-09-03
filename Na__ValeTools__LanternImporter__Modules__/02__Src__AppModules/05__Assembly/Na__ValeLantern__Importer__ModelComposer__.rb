@@ -127,6 +127,17 @@ module Na__ValeLantern
                     return nil
                 end
 
+                # THE CONFIG IS RE-READ PER IMPORT, NOT PER SESSION.
+                #
+                # It is cached because a softening rule is asked for once per part
+                # and a divided lantern has several hundred of them - but the cache
+                # only ever needed to live for the length of one build. Holding it
+                # for the whole SketchUp session meant an edit to the JSON did
+                # nothing until the loader was re-pasted, and the symptom of that is
+                # an import that looks exactly like the edit was wrong. One small
+                # file read per import buys that back.
+                ConfigLoader.na_reset
+
                 DebugTools.na_reset_tally
                 model.start_operation(NA_OPERATION_NAME, true)
 

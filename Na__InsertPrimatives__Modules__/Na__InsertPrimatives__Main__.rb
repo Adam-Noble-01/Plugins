@@ -20,6 +20,18 @@
 # - Na__InsertPrimatives__PlaneMode__               : Rectangle mode parsing, preview, and camera-aligned plane creation
 # - Na__InsertPrimatives__RightClickPopup__         : HtmlDialog right-click primitive menu
 # - Na__InsertPrimatives__KeyboardHandlers__        : Key bindings, VCB callbacks, status text
+# - Na__InsertPrimatives__DrawnGridSnap__           : Shared voxel lattice, plane axis maths, persisted settings
+# - Na__InsertPrimatives__DrawnVcbArithmetic__      : VCB parsing with relative (+/-) arithmetic
+# - Na__InsertPrimatives__DrawnPreviewGraphics__    : Shaded face previews and live dimension labels
+# - Na__InsertPrimatives__DrawnGeometry__           : Drawn plane / volume group creation and rebuild
+# - Na__InsertPrimatives__DrawnToolShared__         : Drag state machine shared by both drag tools
+# - Na__InsertPrimatives__DrawnPlaneTool__          : Click-and-drag rectangle primitive
+# - Na__InsertPrimatives__DrawnVolumeTool__         : Click-and-drag box primitive
+# - Na__InsertPrimatives__DrawnCylinderTool__       : Click-and-drag cylinder primitive (centre anchored)
+# - Na__InsertPrimatives__DrawnRoofGeometry__       : Ridge maths, pitch conversion, roof solid construction
+# - Na__InsertPrimatives__DrawnRoofTools__          : Click-and-drag pitched and hipped roof primitives
+# - Na__InsertPrimatives__DrawnDeepPick__           : Deep nested face picking and instance transformation maths
+# - Na__InsertPrimatives__DrawnPushPullTool__       : Push/pull any face at any nesting depth
 #
 # =============================================================================
 
@@ -29,6 +41,18 @@ require_relative 'Na__InsertPrimatives__3dPreviewGraphics__'
 require_relative 'Na__InsertPrimatives__PlaneMode__'
 require_relative 'Na__InsertPrimatives__RightClickPopup__'
 require_relative 'Na__InsertPrimatives__KeyboardHandlers__'
+require_relative 'Na__InsertPrimatives__DrawnGridSnap__'
+require_relative 'Na__InsertPrimatives__DrawnVcbArithmetic__'
+require_relative 'Na__InsertPrimatives__DrawnPreviewGraphics__'
+require_relative 'Na__InsertPrimatives__DrawnGeometry__'
+require_relative 'Na__InsertPrimatives__DrawnToolShared__'
+require_relative 'Na__InsertPrimatives__DrawnPlaneTool__'
+require_relative 'Na__InsertPrimatives__DrawnVolumeTool__'
+require_relative 'Na__InsertPrimatives__DrawnRoofGeometry__'
+require_relative 'Na__InsertPrimatives__DrawnCylinderTool__'
+require_relative 'Na__InsertPrimatives__DrawnDeepPick__'
+require_relative 'Na__InsertPrimatives__DrawnRoofTools__'
+require_relative 'Na__InsertPrimatives__DrawnPushPullTool__'
 
 module Na__InsertPrimatives
 
@@ -36,20 +60,16 @@ module Na__InsertPrimatives
     # REGION | Helper Functions
     # -----------------------------------------------------------------------------
 
-    # FUNCTION | Round Point to Nearest 5mm Grid Coordinate
+    # FUNCTION | Round Point to the Shared Voxel Grid Coordinate
+    # ------------------------------------------------------------
+    # Delegates to Na__DrawnGrid__SnapPoint so the click-to-place tool and the
+    # click-and-drag tools are guaranteed to land on the *same* lattice — a
+    # separate copy of the rounding maths here would drift the moment the snap
+    # step or the drawing axes changed. Behaviour with the default axes and the
+    # default 5mm step is identical to the original world-space rounding.
     # ------------------------------------------------------------
     def self.round_point_to_nearest_5mm(pt)
-        mm_inch = 25.4
-        step    = 5.0
-        x_mm    = pt.x * mm_inch
-        y_mm    = pt.y * mm_inch
-        z_mm    = pt.z * mm_inch
-
-        rx = (x_mm / step).round * step
-        ry = (y_mm / step).round * step
-        rz = (z_mm / step).round * step
-
-        Geom::Point3d.new(rx / mm_inch, ry / mm_inch, rz / mm_inch)
+        Na__InsertPrimatives.Na__DrawnGrid__SnapPoint(pt)
     end
     # ---------------------------------------------------------------
 
@@ -65,6 +85,7 @@ module Na__InsertPrimatives
     class PrimitiveCubeTool
 
         include Na__InsertPrimatives::KeyboardHandlers
+        include Na__InsertPrimatives::PrimitiveModeSwitching
 
         # INITIALIZE | Tool Constructor
         # ------------------------------------------------------------
@@ -73,7 +94,7 @@ module Na__InsertPrimatives
             @cursor_pos           = nil
             @crosshair_size       = 300.mm
             @primitive_mode       = :cube
-            @plane_faces_enabled  = true
+            @plane_faces_enabled  = Na__InsertPrimatives.Na__DrawnSettings__PlaneFacesEnabled?
             @cube_size_x          = 1000.mm
             @cube_size_y          = 1000.mm
             @cube_size_z          = 1000.mm
@@ -106,6 +127,8 @@ module Na__InsertPrimatives
             puts "Units: mm cm m (bare number = mm)"
             puts "Example: 1m  |  2000,4000,100  |  2m,4m,100mm  |  ..  |  1m,600mm"
             puts "Default: 1000mm x 1000mm x 1000mm"
+            puts "Right-click for Drawn Plane / Drawn Volume click-and-drag modes"
+            puts "Snap grid: #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
             puts "----------------------------------------"
             na_key__update_status_text()
             Na__PrimitiveMode__RefreshVcbDisplay()
@@ -247,9 +270,14 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Toggle Plane Face Creation
+        # The preference lives at module level so it survives switching between
+        # this tool and the click-and-drag tools, and between sessions.
         # ------------------------------------------------------------
         def Na__PrimitiveMode__TogglePlaneFaces
-            @plane_faces_enabled = !@plane_faces_enabled
+            @plane_faces_enabled = Na__InsertPrimatives.Na__DrawnSettings__SetPlaneFacesEnabled(
+                !Na__InsertPrimatives.Na__DrawnSettings__PlaneFacesEnabled?
+            )
+
             view = Sketchup.active_model.active_view
             view.invalidate if view
 
@@ -261,7 +289,14 @@ module Na__InsertPrimatives
         # FUNCTION | Plane Face Creation Enabled?
         # ------------------------------------------------------------
         def Na__PrimitiveMode__PlaneFacesEnabled?
-            @plane_faces_enabled != false
+            @plane_faces_enabled = Na__InsertPrimatives.Na__DrawnSettings__PlaneFacesEnabled?
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Which Primitive Mode Is Running (Popup Highlight)
+        # ------------------------------------------------------------
+        def Na__DrawnMode__ActiveModeKey
+            @primitive_mode == :plane ? :plane : :cube
         end
         # ---------------------------------------------------------------
 

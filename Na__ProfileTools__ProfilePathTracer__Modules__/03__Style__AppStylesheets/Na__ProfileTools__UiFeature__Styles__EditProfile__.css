@@ -80,7 +80,11 @@
 
 /* Indented to the .naFormRow control column (140px label + 10px gap) so it
    reads as a note on the field above it rather than on the whole section. */
-.na-edit-file__hint {
+/* Shared by the Data File section and by the metadata form rows that need a
+   line of explanation. The 150px inset is the 140px label column plus its
+   10px gap, so a hint starts where its field starts. */
+.na-edit-file__hint,
+.na-edit-form__hint {
     margin              : 6px 0 12px;
     padding-left        : 150px;
     font-size           : 11px;

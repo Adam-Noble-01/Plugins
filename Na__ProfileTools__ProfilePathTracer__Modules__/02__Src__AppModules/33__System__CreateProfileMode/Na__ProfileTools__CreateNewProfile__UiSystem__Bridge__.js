@@ -203,6 +203,26 @@
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
+    // REGION | Edit Path Bridge Call
+    // -------------------------------------------------------------------------
+
+    // Same Ruby callback the right-click item and the Settings button already
+    // use, so the Apply Profile button is a third door onto one behaviour rather
+    // than a second implementation of it. Ruby owns resolving the trace from the
+    // model selection and reports back through the status bar — nothing is
+    // decided here, because this side cannot see what is selected in the model.
+    function Na__ProfilePathTracer__Bridge__OpenPathEditor() {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_open_path_editor')) {
+            Na__Bridge__SetStatus('Opening the selected trace path for editing...');
+            window.sketchup.na_profilepathtracer_open_path_editor();
+            return;
+        }
+        Na__Bridge__SetStatus('Open path callback is not available.');
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
     // REGION | Public Exports
     // -------------------------------------------------------------------------
 
@@ -217,6 +237,7 @@
     window.Na__ProfilePathTracer__Bridge__RefreshEdgeMaterials    = Na__ProfilePathTracer__Bridge__RefreshEdgeMaterials;
     window.Na__ProfilePathTracer__Bridge__PurgeEdgeMaterialsCache = Na__ProfilePathTracer__Bridge__PurgeEdgeMaterialsCache;
     window.Na__ProfilePathTracer__Bridge__ReloadPlugin            = Na__ProfilePathTracer__Bridge__ReloadPlugin;
+    window.Na__ProfilePathTracer__Bridge__OpenPathEditor          = Na__ProfilePathTracer__Bridge__OpenPathEditor;
 
     // endregion ----------------------------------------------------------------
 

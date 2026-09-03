@@ -3,7 +3,7 @@
     "fileName"  :  "PRF1302__RainwaterGoods__Gutter__ChamferedGutter__w120_x_h60mm.json",
     "description"  :  "Profile exported by Na__ProfileTools__ProfilePathTracer.",
     "version"  :  "1.0.0",
-    "lastUpdated"  :  "03-Sep-2026",
+    "lastUpdated"  :  "11-May-2026",
     "namingConvention"  :  "All custom keys use Na__ prefixed three-stage naming.",
     "fieldPrefixes"  :  {
       "Na__Asset__"  :  "Top-level asset metadata and content blocks",
@@ -16,9 +16,7 @@
       "Gutter",
       "Rainwater Goods",
       "Roof"
-    ],
-    "Meta_ProfileName"  :  "RainwaterGoods__Gutter__ChamferedGutter__w120_x_h60mm",
-    "Meta_ProfileShortName"  :  "Chamfered Gutter"
+    ]
   },
   "Na__Asset__Metadata"  :  {
     "Na__Asset__Name"  :  "RainwaterGoods__Gutter__ChamferedGutter__w120_x_h60mm",
@@ -46,8 +44,7 @@
     },
     "Na__Asset__AvailableFinishes"  :  [
 
-    ],
-    "Na__Asset__ShortName"  :  "Chamfered Gutter"
+    ]
   },
   "Na__Asset__Profile2D"  :  {
     "Na__Geometry__OriginNote"  :  "Local 0,0 = clicked 00__OriginPoint helper location.",

@@ -3,7 +3,7 @@
     "fileName"  :  "PRF1303__RainwaterGoods__Gutter__FancyGutter__w150_x_h100mm.json",
     "description"  :  "Profile exported by Na__ProfileTools__ProfilePathTracer.",
     "version"  :  "1.0.0",
-    "lastUpdated"  :  "03-Sep-2026",
+    "lastUpdated"  :  "27-May-2026",
     "namingConvention"  :  "All custom keys use Na__ prefixed three-stage naming.",
     "fieldPrefixes"  :  {
       "Na__Asset__"  :  "Top-level asset metadata and content blocks",
@@ -17,9 +17,7 @@
       "Rainwater Good",
       "Roof",
       "Fancy"
-    ],
-    "Meta_ProfileName"  :  "RainwaterGoods__Gutter__FancyGutter__w150_x_h100mm",
-    "Meta_ProfileShortName"  :  "Fancy Gutter"
+    ]
   },
   "Na__Asset__Metadata"  :  {
     "Na__Asset__Name"  :  "RainwaterGoods__Gutter__FancyGutter__w150_x_h100mm",
@@ -47,8 +45,7 @@
     },
     "Na__Asset__AvailableFinishes"  :  [
 
-    ],
-    "Na__Asset__ShortName"  :  "Fancy Gutter"
+    ]
   },
   "Na__Asset__Profile2D"  :  {
     "Na__Geometry__OriginNote"  :  "Local 0,0 = clicked 00__OriginPoint helper location.",

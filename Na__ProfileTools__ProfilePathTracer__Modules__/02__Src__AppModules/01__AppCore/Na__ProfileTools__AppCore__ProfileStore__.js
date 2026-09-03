@@ -119,6 +119,13 @@
             record.displayName              = patch.name;
             assetMeta['Na__Asset__Name']    = patch.name;
         }
+        // Blank is a meaningful value here, not a no-op like a blank name: it is
+        // how the alias is cleared and the card falls back to the full name.
+        if (Object.prototype.hasOwnProperty.call(patch, 'shortName')) {
+            record.shortName                     = patch.shortName;
+            assetMeta['Na__Asset__ShortName']    = patch.shortName;
+            meta['Meta_ProfileShortName']        = patch.shortName;
+        }
         if (Object.prototype.hasOwnProperty.call(patch, 'description')) {
             assetMeta['Na__Asset__Description'] = patch.description;
         }
@@ -142,6 +149,37 @@
             na_dispatch('na_selected_changed', { key: key, record: freshRecord, navigate: false });
         }
         na_dispatch('na_profile_meta_updated', { key: key, record: freshRecord });
+    };
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Short Name Alias Helpers
+    // -------------------------------------------------------------------------
+
+    // The alias is optional and every reader has to agree on the fallback, so
+    // the resolution lives here rather than being re-derived per tab. Reads the
+    // flattened record field first — that is what Ruby publishes and what a live
+    // in-memory patch updates — and only then the raw asset block, so a record
+    // built by hand (the Create Profile preview) still resolves.
+    Na__ProfileTools__ProfileStore.Na__Store__ProfileShortName = function (record) {
+        if (!record) return '';
+        if (typeof record.shortName === 'string' && record.shortName.trim() !== '') {
+            return record.shortName.trim();
+        }
+        var assetData = (record.profileData && record.profileData.assetData) || {};
+        var assetMeta = assetData['Na__Asset__Metadata'] || {};
+        return String(assetMeta['Na__Asset__ShortName'] || '').trim();
+    };
+
+    // What a profile should be CALLED on screen: the alias if one is set, the
+    // full authored name otherwise. Library names are long __-joined strings, so
+    // an alias is the difference between a readable card and an unreadable one.
+    Na__ProfileTools__ProfileStore.Na__Store__ProfileLabel = function (record) {
+        if (!record) return '';
+        var shortName = Na__ProfileTools__ProfileStore.Na__Store__ProfileShortName(record);
+        if (shortName) return shortName;
+        return String(record.displayName || record.profileKey || '');
     };
 
     // endregion ----------------------------------------------------------------

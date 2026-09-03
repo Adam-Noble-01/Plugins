@@ -375,6 +375,18 @@
                 originOffset: Na__UiState.originOffset
             });
         },
+        // Straight through to Ruby. There is nothing to validate here: the
+        // navigator works from the model selection, which this side cannot see,
+        // and it already returns a specific message for every way it can fail
+        // ("select a trace first", "no Helpers sub-group", "locked context").
+        // A guess made here would only be able to say something vaguer.
+        Na__Events__OnOpenPathEditor: function() {
+            if (window.Na__ProfilePathTracer__Bridge__OpenPathEditor) {
+                window.Na__ProfilePathTracer__Bridge__OpenPathEditor();
+                return;
+            }
+            Na__Ui__SetStatus('Open path bridge is not available.');
+        },
         Na__Events__OnUnbindTrace: function() {
             var swap = Na__Ui__SwapController();
             if (swap) swap.Na__Swap__Unbind();

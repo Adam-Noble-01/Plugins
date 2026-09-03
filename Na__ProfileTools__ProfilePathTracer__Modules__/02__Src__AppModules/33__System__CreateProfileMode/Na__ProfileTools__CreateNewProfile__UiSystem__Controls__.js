@@ -285,6 +285,19 @@
             '\u21c6 Swap Profile',
             '  </button>',
 
+            // The helper rail hugs a corner of the swept solid, so double-clicking
+            // into it by hand is close to impossible. That is why the right-click
+            // item exists; this is the same item, reachable without first finding
+            // a right-clickable spot on the assembly. Deliberately NOT gated on
+            // isBound: it acts on the MODEL selection, which is a different thing
+            // from a bound trace, so Ruby resolves it and reports the outcome.
+            '  <button class="naButton naButtonSecondary" id="naBtnOpenPathEditor"' + (isSwapBusy ? ' disabled' : '') + '',
+            '          title="' + (isSwapBusy
+                ? 'Unavailable while a trace is rebuilding.'
+                : 'Select a placed Profile Trace in the model, then click this to open its helper path linework with the edges pre-selected. Close the group when done and the profile rebuilds.') + '">',
+            '\u270e Edit Path',
+            '  </button>',
+
             isBound ? [
                 '<button class="naButton naButtonPrimary" id="naBtnRegenerateTrace"' + (isSwapBusy ? ' disabled' : '') + '',
                 '        title="Rebuild the bound trace with the insert point, rotation and mirrors set above">',

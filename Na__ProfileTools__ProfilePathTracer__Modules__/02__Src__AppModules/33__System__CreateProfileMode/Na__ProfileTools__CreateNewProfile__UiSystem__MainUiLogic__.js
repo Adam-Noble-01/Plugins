@@ -76,6 +76,8 @@
             '<div class="na-section">',
             '  <div class="na-section-header"><h2>Profile Details</h2></div>',
             '  <div class="naFormRow"><label for="naMetaProfileName">Profile Name</label><input class="naInput" id="naMetaProfileName" type="text" placeholder="e.g. Gutter Box 200x100"></div>',
+            '  <div class="naFormRow"><label for="naMetaShortName">Short Name Alias</label><input class="naInput" id="naMetaShortName" type="text" placeholder="e.g. Gutter Box 200" title="A short, readable title for the Gallery card. Leave blank to fall back to the full profile name."></div>',
+            '  <p class="na-edit-form__hint">Titles this profile&rsquo;s Gallery card. Blank falls back to the full name above.</p>',
             '  <div class="naFormRow"><label for="naMetaDescription">Description</label><textarea class="naTextarea" id="naMetaDescription" rows="2" placeholder="A brief description of this profile shape"></textarea></div>',
             '  <div class="naFormRow"><label for="naMetaKeywords">Keywords</label><input class="naInput" id="naMetaKeywords" type="text" placeholder="gutter, box, 200mm (comma separated)"></div>',
             '  <div class="naFormRow"><label for="naMetaProfileId">Profile ID</label><input class="naInput" id="naMetaProfileId" type="text" placeholder="PRF001_GutterBox__200x100"></div>',
@@ -114,6 +116,7 @@
         if (btnSave) {
             btnSave.addEventListener('click', function () {
                 var name     = (document.getElementById('naMetaProfileName') || {}).value || '';
+                var short    = (document.getElementById('naMetaShortName')   || {}).value || '';
                 var desc     = (document.getElementById('naMetaDescription') || {}).value || '';
                 var kwRaw    = (document.getElementById('naMetaKeywords')    || {}).value || '';
                 var id       = (document.getElementById('naMetaProfileId')   || {}).value || '';
@@ -122,7 +125,7 @@
                 na_state.isSaving = true;
                 Na__SetStatus('Saving profile...');
                 if (window.Na__ProfilePathTracer__Bridge__SaveProfile) {
-                    window.Na__ProfilePathTracer__Bridge__SaveProfile({ Meta_ProfileName: name, Meta_Description: desc, Meta_Keywords: keywords, Meta_ProfileId: id });
+                    window.Na__ProfilePathTracer__Bridge__SaveProfile({ Meta_ProfileName: name, Meta_ProfileShortName: short, Meta_Description: desc, Meta_Keywords: keywords, Meta_ProfileId: id });
                 }
             });
         }

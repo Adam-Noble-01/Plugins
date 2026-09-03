@@ -103,7 +103,8 @@ module Na__ProfileTools__ProfilePathTracer
                 data,
                 params['name'].to_s.strip,
                 params['description'].to_s,
-                Array(params['keywords'])
+                Array(params['keywords']),
+                params.key?('shortName') ? params['shortName'].to_s.strip : nil
             )
 
             # @delegate: Na__ProfileTools__EditProfile__MetaWriter__

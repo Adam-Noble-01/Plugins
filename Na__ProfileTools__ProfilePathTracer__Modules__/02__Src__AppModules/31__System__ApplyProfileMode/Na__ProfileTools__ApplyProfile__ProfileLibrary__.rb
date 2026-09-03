@@ -83,6 +83,14 @@ module Na__ProfileTools__ProfilePathTracer
             display_name = meta['Meta_ProfileName'].to_s if display_name.strip.empty?
             display_name = profile_key if display_name.strip.empty?
 
+            # Optional short name alias. Absent on every profile authored before
+            # the field existed, so it stays '' rather than defaulting to
+            # anything — an empty alias is what makes a reader fall back to the
+            # full name, and a default would make that fallback unreachable.
+            short_name = asset_metadata['Na__Asset__ShortName'].to_s
+            short_name = meta['Meta_ProfileShortName'].to_s if short_name.strip.empty?
+            short_name = short_name.strip
+
             keywords = Array(meta['Meta_ProfileKeywords'])
             keywords = Array(meta['Meta_Keywords']) if keywords.empty?
             category = asset_metadata['Na__Asset__Type'].to_s
@@ -92,6 +100,7 @@ module Na__ProfileTools__ProfilePathTracer
             {
                 'profileKey'  => profile_key,
                 'displayName' => display_name,
+                'shortName'   => short_name,
                 'category'    => category,
                 'isEnabled'   => true,
                 'sourceFile'  => file_path,
@@ -155,6 +164,7 @@ module Na__ProfileTools__ProfilePathTracer
                 {
                     'profileKey'  => profile['profileKey'],
                     'displayName' => profile['displayName'] || profile['profileKey'],
+                    'shortName'   => profile['shortName'].to_s,
                     'category'    => profile['category']
                 }
             end

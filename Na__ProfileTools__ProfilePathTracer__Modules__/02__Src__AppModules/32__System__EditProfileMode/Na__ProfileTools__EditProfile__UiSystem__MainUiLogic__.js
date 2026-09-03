@@ -231,6 +231,7 @@
         var keywords   = store ? store.Na__Store__ProfileKeywords(record) : [];
 
         var name        = Na__Edit__Esc(assetMeta['Na__Asset__Name'] || record.displayName || '');
+        var shortName   = Na__Edit__Esc(store ? store.Na__Store__ProfileShortName(record) : '');
         var description = Na__Edit__Esc(assetMeta['Na__Asset__Description'] || '');
         var keywordsStr = Na__Edit__Esc(keywords.join(', '));
         var code        = Na__Edit__Esc(record.profileKey || '');
@@ -258,6 +259,16 @@
             '      <label for="na-edit-name">Name</label>',
             '      <input class="naInput" id="na-edit-name" type="text" value="' + name + '" placeholder="Profile name">',
             '    </div>',
+            '    <div class="naFormRow">',
+            '      <label for="na-edit-short-name">Short Name Alias</label>',
+            '      <input class="naInput" id="na-edit-short-name" type="text" value="' + shortName + '"',
+            '             placeholder="e.g. Classic Cornice 150"',
+            '             title="A short, readable title for the Gallery card. Leave blank to fall back to the full name above.">',
+            '    </div>',
+            '    <p class="na-edit-form__hint">',
+            '      Titles this profile&rsquo;s Gallery card. Blank falls back to the full name, which is usually too long to read',
+            '      at card width. Hovering an aliased card still shows the full name.',
+            '    </p>',
             '    <div class="naFormRow">',
             '      <label for="na-edit-description">Description</label>',
             '      <textarea class="naTextarea" id="na-edit-description" rows="2" placeholder="Brief description">' + description + '</textarea>',
@@ -301,7 +312,7 @@
 
             '  <div class="na-section na-actions-section">',
             '    <button class="naButtonPrimary naButton" id="na-edit-save-btn"',
-            '            title="Write the name, description and keywords above — and any pending insertion point — back into this profile\'s data file. A .bak of the previous version is written first.">',
+            '            title="Write the name, short name alias, description and keywords above — and any pending insertion point — back into this profile\'s data file. A .bak of the previous version is written first.">',
             '      Save Changes',
             '    </button>',
             '    <button class="naButtonSecondary naButton" id="na-edit-flip-btn"',
@@ -539,12 +550,14 @@
     // -------------------------------------------------------------------------
 
     // Falls back to the record rather than to empty strings when a field is not
-    // in the DOM. Every write carries all three metadata fields, so an absent
-    // input reading as "" would blank a description or wipe keywords on disk.
+    // in the DOM. Every write carries all four metadata fields, so an absent
+    // input reading as "" would blank a description, wipe keywords or drop the
+    // short name alias on disk.
     function Na__Edit__ReadFormFields(record) {
-        var nameEl = document.getElementById('na-edit-name');
-        var descEl = document.getElementById('na-edit-description');
-        var kwEl   = document.getElementById('na-edit-keywords');
+        var nameEl  = document.getElementById('na-edit-name');
+        var shortEl = document.getElementById('na-edit-short-name');
+        var descEl  = document.getElementById('na-edit-description');
+        var kwEl    = document.getElementById('na-edit-keywords');
 
         var assetData = (record && record.profileData && record.profileData.assetData) || {};
         var assetMeta = assetData['Na__Asset__Metadata'] || {};
@@ -559,6 +572,7 @@
 
         return {
             name        : nameEl ? nameEl.value : (assetMeta['Na__Asset__Name'] || (record && record.displayName) || ''),
+            shortName   : shortEl ? shortEl.value : (store ? store.Na__Store__ProfileShortName(record) : ''),
             description : descEl ? descEl.value : (assetMeta['Na__Asset__Description'] || ''),
             keywords    : keywords
         };
@@ -576,6 +590,7 @@
             profileKey   : (record && record.profileKey) || na_current_key,
             sourceFile   : (record && record.sourceFile) || '',
             name         : fields.name,
+            shortName    : fields.shortName,
             description  : fields.description,
             keywords     : fields.keywords,
             originOffset : null
@@ -597,6 +612,7 @@
 
     function Na__Edit__WireFormEvents(record) {
         var nameEl  = document.getElementById('na-edit-name');
+        var shortEl = document.getElementById('na-edit-short-name');
         var descEl  = document.getElementById('na-edit-description');
         var kwEl    = document.getElementById('na-edit-keywords');
         var saveBtn = document.getElementById('na-edit-save-btn');
@@ -611,6 +627,7 @@
             var fields = Na__Edit__ReadFormFields(record);
             store.Na__Store__ApplyMetaPatch(key, {
                 name        : fields.name,
+                shortName   : fields.shortName,
                 description : fields.description,
                 keywords    : fields.keywords
             });
@@ -619,6 +636,7 @@
         }
 
         if (nameEl)  nameEl.addEventListener('input',  na_apply_patch);
+        if (shortEl) shortEl.addEventListener('input', na_apply_patch);
         if (descEl)  descEl.addEventListener('input',  na_apply_patch);
         if (kwEl)    kwEl.addEventListener('input',    na_apply_patch);
 

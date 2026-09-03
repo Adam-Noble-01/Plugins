@@ -2,8 +2,36 @@
    NA PROFILE TOOLS - UI FEATURE STYLES - GALLERY
    =============================================================================
    FILE       : Na__ProfileTools__UiFeature__Styles__Gallery__.css
-   PURPOSE    : Gallery tab — toolbar, responsive card grid (sm/md/lg sizes),
-                profile cards, SVG thumbnail frames, keyword chips, empty state.
+   PURPOSE    : Gallery tab — toolbar, Gallery/Index mode switch, fixed-width
+                card grid, full-width index rows, profile cards, SVG thumbnail
+                frames, keyword chips, empty state.
+
+   TWO MODES, NOT FOUR SIZES
+                Gallery is a picture wall: thumbnail and title, nothing else.
+                Index is the detail view: the same profiles as full-width rows
+                that also carry the keyword chips. Each answers one question, so
+                neither needs a size cycle to be useful.
+
+   SIZING CONTRACT — the card is fixed, the COLUMN COUNT is what responds
+                A Gallery card is exactly --na-card-w wide at every window width,
+                so a profile looks identical whatever the dialog is doing.
+                Widening the dialog adds columns; narrowing removes them. Cards
+                are never stretched to soak up leftover space, because a
+                stretched card reflows its text and the grid stops being
+                scannable as a grid.
+
+                minmax(0, var(--na-card-w)) rather than a bare track width: the
+                fixed width is a MAXIMUM, so a dialog narrower than a single card
+                collapses that one column down to the panel rather than
+                overflowing sideways.
+
+   TEXT CONTRACT — nothing on a card is ever clipped
+                No ellipsis, no nowrap, no keyword cap. A truncated name and a
+                dropped keyword are exactly what made the grid useless to search
+                by eye, so names wrap over as many lines as they need and Index
+                renders every keyword. Cards in one row share a height (grid
+                stretch), so a long name grows its whole row rather than ragging
+                the layout.
    ============================================================================= */
 
 /* ----------------------------------------------------------------- */
@@ -30,10 +58,12 @@
     background          : var(--na-tab-strip-bg);
     border-bottom       : 1px solid var(--na-border);
     flex-shrink         : 0;
+    flex-wrap           : wrap;
 }
 
 .na-gallery-search {
     flex                : 1;
+    min-width           : 120px;
     padding             : 7px 10px;
     border              : 1px solid var(--na-border);
     border-radius       : 4px;
@@ -48,48 +78,107 @@
     border-color        : var(--na-accent);
 }
 
-.na-gallery-size-btn {
+/* ----------------------------------------------------------------- */
+/* REGION | Gallery / Index Mode Switch */
+/* ----------------------------------------------------------------- */
+
+/* Both modes stay on screen with the active one lit, rather than one button
+   naming the mode you are about to get. A cycling button has to be read and
+   decoded — this one is read at a glance, and it says where you are. */
+.na-gallery-mode-switch {
+    display             : inline-flex;
     flex-shrink         : 0;
-    min-width           : 68px;
+    background          : #fff;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    overflow            : hidden;
+}
+
+.na-gallery-mode-btn {
+    padding             : 7px 14px;
+    border              : none;
+    background          : transparent;
+    font-family         : inherit;
+    font-size           : 12px;
+    font-weight         : 600;
+    line-height         : 1.2;
+    color               : var(--na-subtle);
+    cursor              : pointer;
+    transition          : background 0.12s, color 0.12s;
+}
+
+.na-gallery-mode-btn + .na-gallery-mode-btn {
+    border-left         : 1px solid var(--na-border);
+}
+
+.na-gallery-mode-btn:hover {
+    background          : var(--na-status-bg);
+    color               : var(--na-text);
+}
+
+.na-gallery-mode-btn--active,
+.na-gallery-mode-btn--active:hover {
+    background          : var(--na-accent);
+    color               : #ffffff;
+    cursor              : default;
 }
 
 /* ----------------------------------------------------------------- */
 /* REGION | Card Grid */
 /* ----------------------------------------------------------------- */
 
+/* grid-auto-rows is load-bearing, not tidying. This grid is a scroll pane with a
+   definite height (flex: 1 inside the panel body), and with the default `auto`
+   rows the browser divides that height between however many rows there are —
+   705px over four rows gives 160px rows whatever the cards actually need, and
+   every card is then cut off by the overflow: hidden that rounds its corners.
+   min-content sizes each row to its tallest card and lets the grid scroll,
+   which is what makes the no-truncation rule above hold at all. */
 .na-gallery-grid {
-    display             : grid;
-    gap                 : 12px;
-    padding             : 14px;
-    overflow-y          : auto;
-    flex                : 1;
-    align-content       : start;
+    --na-card-w           : 148px;
+    display               : grid;
+    grid-template-columns : repeat(auto-fill, minmax(0, var(--na-card-w)));
+    grid-auto-rows        : min-content;
+    justify-content       : center;
+    gap                   : 12px;
+    padding               : 14px;
+    overflow-y            : auto;
+    overflow-x            : hidden;
+    flex                  : 1;
+    align-content         : start;
 }
 
-.na-gallery-grid--sm {
-    grid-template-columns : repeat(auto-fill, minmax(110px, 1fr));
-}
-
-
-.na-gallery-grid--idx {
-    grid-template-columns : 1fr;
+.na-gallery-grid--index {
+    grid-template-columns : minmax(0, 1fr);
+    justify-content       : stretch;
     gap                   : 5px;
     padding               : 10px 14px;
+}
+
+/* ----------------------------------------------------------------- */
+/* REGION | Gallery Mode Overrides */
+/* ----------------------------------------------------------------- */
+
+/* Keywords are Index's job. On a picture wall they turned every card into a
+   different height and buried the thumbnail, which is the thing being browsed.
+   Hidden rather than left out of the markup so switching modes stays a class
+   swap on the grid — no re-render, no rebuilt thumbnails. */
+.na-gallery-grid--cards .na-gallery-card__chips {
+    display               : none;
 }
 
 /* ----------------------------------------------------------------- */
 /* REGION | Index Row Overrides */
 /* ----------------------------------------------------------------- */
 
-.na-gallery-grid--idx .na-gallery-card {
-    display               : flex;
+.na-gallery-grid--index .na-gallery-card {
     flex-direction        : row;
     align-items           : stretch;
 }
 
-.na-gallery-grid--idx .na-gallery-card__thumb {
-    width                 : 54px;
-    min-width             : 54px;
+.na-gallery-grid--index .na-gallery-card__thumb {
+    width                 : 65px;
+    min-width             : 65px;
     aspect-ratio          : unset;
     border-bottom         : none;
     border-right          : 1px solid var(--na-border);
@@ -97,21 +186,31 @@
     flex-shrink           : 0;
 }
 
-.na-gallery-grid--idx .na-gallery-card__meta {
+/* The normaliser. Without a DEFINITE height here the SVG resolves height: 100%
+   against an auto-height box, falls back to its own viewBox ratio, and a tall
+   narrow profile draws itself several times taller than a squat one — which is
+   why index rows were all different heights and most thumbnails were tiny. A
+   fixed square box makes every profile draw at the same scale-to-fit size, and
+   sets the row's minimum height while it is at it. */
+.na-gallery-grid--index .na-gallery-card__svg {
+    height                : 53px;
+    max-height            : 53px;
+}
+
+.na-gallery-grid--index .na-gallery-card__thumb-empty {
+    height                : 53px;
+}
+
+.na-gallery-grid--index .na-gallery-card__meta {
     flex                  : 1;
-    display               : flex;
-    flex-direction        : column;
     justify-content       : center;
-    padding               : 5px 10px;
+    gap                   : 3px;
+    padding               : 6px 10px;
     min-width             : 0;
 }
 
-.na-gallery-grid--idx .na-gallery-card__name {
+.na-gallery-grid--index .na-gallery-card__name {
     font-size             : 12px;
-}
-
-.na-gallery-grid--idx .na-gallery-card__chips {
-    margin-top            : 3px;
 }
 
 /* ----------------------------------------------------------------- */
@@ -119,6 +218,9 @@
 /* ----------------------------------------------------------------- */
 
 .na-gallery-card {
+    display             : flex;
+    flex-direction      : column;
+    min-width           : 0;
     background          : var(--na-panel);
     border              : 1px solid var(--na-border);
     border-radius       : 6px;
@@ -150,6 +252,7 @@
     align-items         : center;
     justify-content     : center;
     overflow            : hidden;
+    flex-shrink         : 0;
 }
 
 .na-gallery-card__svg {
@@ -171,26 +274,26 @@
 /* ----------------------------------------------------------------- */
 
 .na-gallery-card__meta {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    gap                 : 5px;
     padding             : 8px 10px 10px;
+    min-width           : 0;
 }
 
+/* Wraps rather than ellipsing, and breaks inside a word where it must: a full
+   library name is one unbroken __-joined token, so a break-word-only rule would
+   still overflow the card. The renderer supplies <wbr> hints on the separators,
+   which is where the breaks land whenever there is room for them. */
 .na-gallery-card__name {
     font-size           : 12px;
     font-weight         : 600;
+    line-height         : 1.35;
     color               : var(--na-text);
-    white-space         : nowrap;
-    overflow            : hidden;
-    text-overflow       : ellipsis;
-    margin-bottom       : 2px;
-}
-
-.na-gallery-card__category {
-    font-size           : 11px;
-    color               : var(--na-subtle);
-    white-space         : nowrap;
-    overflow            : hidden;
-    text-overflow       : ellipsis;
-    margin-bottom       : 5px;
+    white-space         : normal;
+    overflow-wrap       : anywhere;
+    word-break          : break-word;
 }
 
 .na-gallery-card__chips {
@@ -201,6 +304,7 @@
 
 .na-gallery-card__chip {
     display             : inline-block;
+    max-width           : 100%;
     padding             : 2px 6px;
     background          : var(--na-status-bg);
     color               : var(--na-accent);
@@ -208,6 +312,7 @@
     font-size           : 10px;
     font-weight         : 500;
     line-height         : 1.4;
+    overflow-wrap       : anywhere;
 }
 
 /* ----------------------------------------------------------------- */
@@ -226,6 +331,10 @@
 /* REGION | Card Tooltip (bottom overlay — stays inside card, never clipped) */
 /* ----------------------------------------------------------------- */
 
+/* Only present on cards titled by a short-name alias — the only cards carrying
+   anything the face of the card is not already showing in full. It wraps for
+   the same reason the name does: a truncated tooltip over a truncated title was
+   the whole problem. */
 .na-gallery-card[data-tooltip] {
     position            : relative;
 }
@@ -236,15 +345,15 @@
     bottom              : 0;
     left                : 0;
     right               : 0;
-    background          : rgba(20, 24, 32, 0.82);
+    background          : rgba(20, 24, 32, 0.88);
     color               : #ffffff;
     font-size           : 11px;
     font-weight         : 500;
+    line-height         : 1.35;
     padding             : 5px 8px;
     text-align          : center;
-    white-space         : nowrap;
-    overflow            : hidden;
-    text-overflow       : ellipsis;
+    white-space         : normal;
+    overflow-wrap       : anywhere;
     pointer-events      : none;
     opacity             : 0;
     transition          : opacity 0.08s ease;

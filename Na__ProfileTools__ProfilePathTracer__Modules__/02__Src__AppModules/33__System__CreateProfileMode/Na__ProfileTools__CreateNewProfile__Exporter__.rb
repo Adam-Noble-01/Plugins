@@ -483,6 +483,11 @@ module Na__ProfileTools__ProfilePathTracer
             profile_code = meta_fields['Meta_ProfileId'].to_s.strip
             profile_code = profile_name.gsub(/[^\w\-.]+/, '__') if profile_code.empty?
 
+            # Optional. Left empty rather than seeded from the name: an alias
+            # that duplicates the full name is worse than none, because the
+            # Gallery then shows the long string and believes it was chosen.
+            profile_short_name = meta_fields['Meta_ProfileShortName'].to_s.strip
+
             profile_description = meta_fields['Meta_Description'].to_s
             profile_keywords = Array(meta_fields['Meta_Keywords'])
 
@@ -499,10 +504,12 @@ module Na__ProfileTools__ProfilePathTracer
                         'Na__PanelPlacement__' => 'Reserved placement metadata'
                     },
                     'Meta_ProfileTimestamp' => timestamp,
+                    'Meta_ProfileShortName' => profile_short_name,
                     'Meta_ProfileKeywords' => profile_keywords
                 },
                 'Na__Asset__Metadata' => {
                     'Na__Asset__Name' => profile_name,
+                    'Na__Asset__ShortName' => profile_short_name,
                     'Na__Asset__Code' => profile_code,
                     'Na__Asset__Type' => 'Profile2D',
                     'Na__Asset__Description' => profile_description,

@@ -4,14 +4,14 @@
    FILE       : Na__ProfileTools__Gallery__UiSystem__MainUiLogic__.js
    NAMESPACE  : window.Na__ProfileTools__Gallery__Tab
    PURPOSE    : Gallery tab — SVG-thumbnail card grid, keyword-prioritised search,
-                thumbnail-size cycling, profile selection routing.
+                Gallery/Index view switching, profile selection routing.
                 Implements the Na_TabRouter mount/unmount contract.
 
    SWAP MODE  : While Na__ProfileTools__SwapController is armed, this grid is a
                 replacement picker rather than a selector — a banner names the
                 bound trace and a card click swaps that trace's profile in the
                 model instead of routing to Apply Profile. Everything else about
-                the grid (search, sizing, thumbnails) behaves identically, so
+                the grid (search, view mode, thumbnails) behaves identically, so
                 there is only one place to learn how to find a profile.
    ============================================================================= */
 
@@ -25,13 +25,17 @@
     var NA_BODY_ID        = 'na-tab-gallery-body';
     var NA_GRID_ID        = 'na-gallery-grid';
     var NA_SEARCH_ID      = 'na-gallery-search';
-    var NA_SIZE_BTN_ID    = 'na-gallery-size-btn';
+    var NA_MODE_SWITCH_ID = 'na-gallery-mode-switch';
     var NA_SWAP_BTN_ID    = 'na-gallery-swap-btn';
     var NA_SWAP_CANCEL_ID = 'na-gallery-swap-cancel';
-    var NA_SIZE_CLASSES   = ['na-gallery-grid--sm', 'na-gallery-grid--idx'];
-    var NA_SIZE_LABELS    = ['Small', 'Index'];
+    // Two views of the same list, not four sizes of one. Gallery is thumbnail
+    // and title; Index is full-width rows that also carry the keyword chips.
+    // The stylesheet owns the card width, so nothing here changes with the
+    // window — resizing re-flows the column count and leaves the card alone.
+    var NA_MODE_CLASSES   = ['na-gallery-grid--cards', 'na-gallery-grid--index'];
+    var NA_MODE_LABELS    = ['Gallery', 'Index'];
 
-    var na_size_index     = 0;
+    var na_mode_index     = 0;
     var na_search_query   = '';
     var na_is_mounted     = false;
     var na_is_subscribed  = false;
@@ -64,8 +68,7 @@
     // -------------------------------------------------------------------------
 
     function Na__Gallery__BuildToolbarHtml() {
-        var sizeLabel = NA_SIZE_LABELS[na_size_index];
-        var isArmed   = na_is_armed();
+        var isArmed = na_is_armed();
         return [
             '<div class="na-gallery-toolbar">',
             '  <input id="' + NA_SEARCH_ID + '"',
@@ -77,12 +80,39 @@
             '          title="Select a placed Profile Trace in the model, then click this to swap its profile for one picked here">',
             isArmed ? '&#9679; Picking…' : '&#8646; Swap Profile',
             '  </button>',
-            '  <button id="' + NA_SIZE_BTN_ID + '" class="na-gallery-size-btn naButtonSecondary"',
-            '          title="Cycle thumbnail size">',
-            '    ' + sizeLabel,
-            '  </button>',
+            Na__Gallery__BuildModeSwitchHtml(),
             '</div>'
         ].join('');
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Mode Switch HTML
+    // -------------------------------------------------------------------------
+
+    // Both options are rendered and the active one is lit, rather than one
+    // button showing the mode you would get by pressing it. The old cycling
+    // button never said which view you were looking at, only where the next
+    // click would take you.
+    function Na__Gallery__BuildModeSwitchHtml() {
+        var buttons = NA_MODE_LABELS.map(function (label, index) {
+            var isActive = index === na_mode_index;
+            return [
+                '<button type="button"',
+                '        class="na-gallery-mode-btn' + (isActive ? ' na-gallery-mode-btn--active' : '') + '"',
+                '        data-na-gallery-mode="' + index + '"',
+                '        aria-pressed="' + (isActive ? 'true' : 'false') + '"',
+                '        title="' + (index === 0
+                    ? 'Thumbnail cards — the picture wall. Card width is fixed; resizing the dialog adds or removes columns.'
+                    : 'Full-width rows with keywords — the detail view.') + '">',
+                label,
+                '</button>'
+            ].join('');
+        }).join('');
+
+        return '<div id="' + NA_MODE_SWITCH_ID + '" class="na-gallery-mode-switch" role="group" aria-label="Gallery view mode">' +
+               buttons + '</div>';
     }
 
     // endregion ----------------------------------------------------------------
@@ -161,7 +191,7 @@
         body.innerHTML = [
             Na__Gallery__BuildToolbarHtml(),
             Na__Gallery__BuildSwapBannerHtml(),
-            '<div id="' + NA_GRID_ID + '" class="na-gallery-grid ' + NA_SIZE_CLASSES[na_size_index] + armedClass + '"></div>'
+            '<div id="' + NA_GRID_ID + '" class="na-gallery-grid ' + NA_MODE_CLASSES[na_mode_index] + armedClass + '"></div>'
         ].join('');
 
         Na__Gallery__RenderGrid();
@@ -230,16 +260,33 @@
             });
         }
 
-        var sizeBtn = document.getElementById(NA_SIZE_BTN_ID);
-        if (sizeBtn) {
-            sizeBtn.addEventListener('click', function () {
-                na_size_index = (na_size_index + 1) % NA_SIZE_CLASSES.length;
+        // Switching view is a class swap on the grid — the cards themselves are
+        // identical in both modes and the stylesheet decides what each one shows.
+        // Re-rendering here would rebuild every SVG thumbnail to change nothing.
+        var modeSwitch = document.getElementById(NA_MODE_SWITCH_ID);
+        if (modeSwitch) {
+            modeSwitch.addEventListener('click', function (evt) {
+                var btn = evt.target.closest
+                    ? evt.target.closest('[data-na-gallery-mode]')
+                    : null;
+                if (!btn) return;
+
+                var index = parseInt(btn.getAttribute('data-na-gallery-mode'), 10);
+                if (isNaN(index) || !NA_MODE_CLASSES[index] || index === na_mode_index) return;
+                na_mode_index = index;
+
                 var grid = na_grid();
                 if (grid) {
-                    NA_SIZE_CLASSES.forEach(function (cls) { grid.classList.remove(cls); });
-                    grid.classList.add(NA_SIZE_CLASSES[na_size_index]);
+                    NA_MODE_CLASSES.forEach(function (cls) { grid.classList.remove(cls); });
+                    grid.classList.add(NA_MODE_CLASSES[na_mode_index]);
                 }
-                sizeBtn.textContent = NA_SIZE_LABELS[na_size_index];
+
+                var buttons = modeSwitch.querySelectorAll('[data-na-gallery-mode]');
+                for (var i = 0; i < buttons.length; i++) {
+                    var isActive = i === na_mode_index;
+                    buttons[i].classList.toggle('na-gallery-mode-btn--active', isActive);
+                    buttons[i].setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                }
             });
         }
 
