@@ -102,13 +102,42 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
-    # FUNCTION | Activate the Deep Push/Pull Tool
+    # FUNCTION | Activate the Deep Push/Pull Tool the Camera Calls For
+    # ------------------------------------------------------------
+    # ONE entry point, two tools. The menu item, the keyboard shortcut and the
+    # right-click popup all arrive here, so asking the camera in this one place
+    # is what makes the 2D/3D split invisible to the user — there is no second
+    # button to find and no second shortcut to remember.
+    #
+    # A perspective camera gets DrawnPushPullTool, which is untouched and still
+    # does all the work. A parallel camera gets DrawnPushPull2dTool, its
+    # subclass, which inverts the pick so an edge grabs the wall standing behind
+    # it. The 2D module loads after this file, so the class is looked up at call
+    # time and the 3D tool is the fallback if it is missing.
     # ------------------------------------------------------------
     def self.Na__ModeSwitch__ActivateDrawnPushPullTool
         model = Sketchup.active_model
         return nil unless model
 
-        tool = DrawnPushPullTool.new
+        tool =
+            if defined?(Na__InsertPrimatives::DrawnPushPull2dTool)
+                Na__InsertPrimatives.Na__PushPull2d__NewToolForCamera(model)
+            else
+                DrawnPushPullTool.new
+            end
+
+        model.select_tool(tool)
+        tool
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Activate the Deep Chamfer Tool
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__ActivateDrawnChamferTool
+        model = Sketchup.active_model
+        return nil unless model
+
+        tool = DrawnChamferTool.new
         model.select_tool(tool)
         tool
     end
@@ -189,6 +218,13 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Switch to the Deep Chamfer Tool
+        # ------------------------------------------------------------
+        def Na__DrawnMode__SetChamferMode
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnChamferTool
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Advance the Circle Segment Count to the Next Value
         # ------------------------------------------------------------
         def Na__DrawnMode__CycleCircleSegments
@@ -254,6 +290,18 @@ module Na__InsertPrimatives
         # catch a press or release that happens while the mouse is still.
         NA_DRAWN_MK_CONTROL       = 8
 
+        # SHIFT, the same way, and it can be read the same way for a reason:
+        # MK_SHIFT is a genuine Windows mouse-message bit, so unlike ALT it is
+        # always there in the flags a tool is handed. That is exactly why the
+        # slope modifier is SHIFT — ALT had to be tracked through key events
+        # alone, and a key-up eaten by the Windows menu bar left it stuck.
+        #
+        # Taken from SketchUp's own constants where they are there to be taken,
+        # since the numbers differ by platform. The literals are the Windows
+        # values, and SHIFT is SHIFT on both.
+        NA_DRAWN_MK_SHIFT         = defined?(CONSTRAIN_MODIFIER_MASK) ? CONSTRAIN_MODIFIER_MASK : 4
+        NA_DRAWN_SHIFT_KEY        = defined?(CONSTRAIN_MODIFIER_KEY)  ? CONSTRAIN_MODIFIER_KEY  : 16
+
         NA_DRAWN_SLOT_KEYS        = [:u, :v, :d].freeze
         NA_DRAWN_DRAG_MIN_PX      = 6.0                                        # <-- Below this a press-release is a click
         NA_DRAWN_REVISE_DISARM_PX = 8.0                                        # <-- Mouse travel that ends revise-last mode
@@ -310,6 +358,7 @@ module Na__InsertPrimatives
 
             @na_tab_held          = false
             @na_ctrl_held         = false
+            @na_shift_held        = false                                     # <-- Only the push tools read it; see Na__SlopePush__
             @na_axis_lock         = nil                                       # <-- nil / :x / :y / :z from the arrow keys
             @na_locked_slots      = {}                                        # <-- :u / :v / :d => true once typed
             @na_lock_order        = []                                        # <-- Newest last, so BKSP can peel them off
@@ -432,7 +481,8 @@ module Na__InsertPrimatives
         # ACTIVATE | Reset State and Announce the Tool
         # ------------------------------------------------------------
         def activate
-            @na_ctrl_held = false
+            @na_ctrl_held  = false
+            @na_shift_held = false
             na_drawn__reset_pick_state
             na_drawn__disarm_revise
             na_drawn__print_activation_banner
@@ -459,6 +509,7 @@ module Na__InsertPrimatives
         def resume(view)
             @na_vcb_typing_active = false
             @na_ctrl_held         = false                                     # <-- A key-up missed while away must not stick
+            @na_shift_held        = false                                     # <-- Same again: a modifier released while away must not stick
             @na_last_vcb_text     = nil
             @na_last_vcb_label    = nil
             @na_last_status_text  = nil
@@ -688,6 +739,20 @@ module Na__InsertPrimatives
                 return false
             end
 
+            # SHIFT going down while the mouse is still. A supplement only: the
+            # mouse flags in na_drawn__sync_modifier are the authority for
+            # SHIFT, and they are trustworthy for it. This is here so the
+            # preview and status line react the instant the key is pressed
+            # rather than waiting for the mouse to twitch.
+            if key == NA_DRAWN_SHIFT_KEY && !@na_shift_held
+                @na_shift_held = true
+                na_drawn__update_cursor(view, @na_last_mouse_x, @na_last_mouse_y)
+                na_drawn__update_status_text
+                na_drawn__refresh_vcb
+                view.invalidate if view
+                return false
+            end
+
             # Arrow keys are the axis lock every SketchUp user reaches for, so
             # they are handled before anything else can swallow them.
             axis = na_drawn__axis_for_key(key)
@@ -720,6 +785,14 @@ module Na__InsertPrimatives
 
             if key == COPY_MODIFIER_KEY && @na_ctrl_held
                 @na_ctrl_held = false
+                na_drawn__update_cursor(view, @na_last_mouse_x, @na_last_mouse_y)
+                na_drawn__update_status_text
+                na_drawn__refresh_vcb
+                view.invalidate if view
+            end
+
+            if key == NA_DRAWN_SHIFT_KEY && @na_shift_held
+                @na_shift_held = false
                 na_drawn__update_cursor(view, @na_last_mouse_x, @na_last_mouse_y)
                 na_drawn__update_status_text
                 na_drawn__refresh_vcb
@@ -858,14 +931,38 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Sync the Ctrl Override from a Mouse Event's Flags
+        # FUNCTION | Sync the Ctrl and Shift Overrides from a Mouse Event's Flags
+        # ------------------------------------------------------------
+        # The flags are the authority for both, and both can be read the same
+        # plain way because MK_CONTROL and MK_SHIFT are genuine Windows
+        # mouse-message bits: whatever the keyboard did, the next mouse event
+        # states the truth and a key-up this tool never saw corrects itself.
+        #
+        # WHY THIS IS WORTH A NOTE. The slope modifier was ALT first, and there
+        # is no MK_ALT — so whether a bit ever arrived was up to SketchUp, and
+        # read like Ctrl a missing bit meant "ALT is up" and wiped the state the
+        # key event had just set. Slope mode previewed correctly off the key
+        # event and then committed as an ordinary push, because the button-down
+        # that commits is itself a mouse event. Moving to SHIFT removes the
+        # whole class of problem rather than working around it.
         # ------------------------------------------------------------
         def na_drawn__sync_modifier(flags)
-            held = (flags.to_i & NA_DRAWN_MK_CONTROL) != 0
-            return false if held == @na_ctrl_held
+            bits    = flags.to_i
+            ctrl    = (bits & NA_DRAWN_MK_CONTROL) != 0
+            shift   = (bits & NA_DRAWN_MK_SHIFT) != 0
+            changed = false
 
-            @na_ctrl_held = held
-            true
+            if ctrl != @na_ctrl_held
+                @na_ctrl_held = ctrl
+                changed       = true
+            end
+
+            if shift != @na_shift_held
+                @na_shift_held = shift
+                changed        = true
+            end
+
+            changed
         end
         # ---------------------------------------------------------------
 
@@ -1227,6 +1324,26 @@ module Na__InsertPrimatives
 
             Sketchup::set_status_text(composed, SB_PROMPT)
             @na_last_status_text = composed
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Status Fragment for the Selection Focus
+        # ------------------------------------------------------------
+        # The deep pickers favour whatever the user has selected, which is a
+        # real change to what a click will grab — so it is said out loud rather
+        # than left to be discovered. Empty when nothing is selected, which is
+        # also when the pickers behave exactly as they always did.
+        #
+        # Guarded by respond_to? because this module is mixed into every tool,
+        # including the create tools that never load the deep picker.
+        # ------------------------------------------------------------
+        def na_drawn__focus_hint
+            return '' unless Na__InsertPrimatives.respond_to?(:Na__DeepPick__FocusLabel)
+
+            label = Na__InsertPrimatives.Na__DeepPick__FocusLabel
+            label ? " — favouring #{label}" : ''
+        rescue StandardError
+            ''
         end
         # ---------------------------------------------------------------
 

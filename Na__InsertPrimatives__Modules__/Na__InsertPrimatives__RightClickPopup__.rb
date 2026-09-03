@@ -120,6 +120,7 @@ module Na__InsertPrimatives
         roof_p_cls   = active_key == :drawn_pitched_roof ? 'mode active' : 'mode'
         roof_h_cls   = active_key == :drawn_hipped_roof  ? 'mode active' : 'mode'
         push_cls     = active_key == :drawn_push_pull    ? 'mode active' : 'mode'
+        chamfer_cls  = active_key == :drawn_chamfer      ? 'mode active' : 'mode'
 
         <<~HTML
         <!DOCTYPE html>
@@ -197,6 +198,7 @@ module Na__InsertPrimatives
 
             <div class="heading">Modify</div>
             <button class="#{push_cls}" onclick="sketchup.setPushPullMode()">Deep Push / Pull</button>
+            <button class="#{chamfer_cls}" onclick="sketchup.setChamferMode()">Deep Chamfer</button>
 
             <div class="rule"></div>
             <button id="gridBtn" onclick="sketchup.cycleGridStep()">Snap Grid: #{grid_label}</button>
@@ -284,6 +286,12 @@ module Na__InsertPrimatives
         dialog.add_action_callback("setPushPullMode") do |_action_context|
             Na__InsertPrimatives.Na__RightClickPopup__RunAction(tool_instance) do
                 tool_instance.Na__DrawnMode__SetPushPullMode()
+            end
+        end
+
+        dialog.add_action_callback("setChamferMode") do |_action_context|
+            Na__InsertPrimatives.Na__RightClickPopup__RunAction(tool_instance) do
+                tool_instance.Na__DrawnMode__SetChamferMode()
             end
         end
 

@@ -47,9 +47,14 @@ module Na__InsertPrimatives
 
     NA_DRAWN_TEXT_SIZE           = 12
     NA_DRAWN_TEXT_LINE_HEIGHT    = 16
+    NA_DRAWN_TEXT_CHAR_WIDTH     = 6.6                                        # <-- Estimated px per character at the size and weight above
     NA_DRAWN_TEXT_HALO_OFFSETS   = [[-1, 0], [1, 0], [0, -1], [0, 1]].freeze
 
     NA_DRAWN_CROSSHAIR_ARM       = 250.mm
+
+    NA_DRAWN_ARROW_PIXELS        = 46.0                                       # <-- Shaft length of a direction arrow, on screen
+    NA_DRAWN_ARROW_BARB_PIXELS   = 11.0
+    NA_DRAWN_LABEL_MIN_GAP_PX    = 42.0                                       # <-- Below this two labels are the same label twice
 
     # SketchUp's own axis colours, so a locked ray reads instantly.
     NA_DRAWN_AXIS_COLORS         = {
@@ -59,6 +64,106 @@ module Na__InsertPrimatives
     }.freeze
 
     NA_DRAWN_AXIS_RAY_FALLBACK   = 60.m                                       # <-- Used when pixels_to_model cannot answer
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
+    # REGION | World to Draw Space
+    # -----------------------------------------------------------------------------
+
+    # THE THIRD COORDINATE RULE (the nested-preview fix):
+    # - Two rules were already known and are documented in the chamfer tool:
+    #   entity positions READ are definition-local, and geometry ADDED while an
+    #   editing context is open is interpreted in the editing session's space.
+    # - This is the third, and it is the same pipeline as the second: points
+    #   handed to View#draw / View#draw_line / View#screen_coords while a
+    #   context is open are ALSO read in the editing session's space. Feed those
+    #   calls correct world coordinates with a group open and the whole preview
+    #   renders at edit_transform * point — displaced by exactly the group's
+    #   transform, right shape, right size, wrong place. Skewed as well if the
+    #   group is rotated or scaled.
+    # - Push/pull never met the ADD rule because pushpull takes a scalar, which
+    #   is why the geometry it commits has always landed correctly while the
+    #   preview drifted. The preview is the only half that draws positions.
+    # - So every world point crossing into a view call is converted here, and
+    #   the conversion happens at exactly ONE layer: the functions below that
+    #   touch view.draw* directly. The composite overlays delegate to those and
+    #   must NOT convert again.
+    # - At the model root edit_transform is the identity and this is a no-op,
+    #   which is why loose geometry was never affected.
+
+    # FUNCTION | The World to Draw Space Transformation, or nil at the Root
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawSpace
+        model = Sketchup.active_model
+        return nil unless model && model.respond_to?(:edit_transform)
+
+        edit = model.edit_transform
+        return nil if edit.nil?
+        return nil if edit.respond_to?(:identity?) && edit.identity?
+
+        edit.inverse
+    rescue StandardError
+        nil                                                                   # <-- A failed conversion draws in world, as before
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | One World Point into Draw Space
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__ToDrawPoint(point)
+        space = Na__InsertPrimatives.Na__DrawnPreview__DrawSpace
+        return point unless space && point
+
+        point.transform(space)
+    rescue StandardError
+        point
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | A List of World Points into Draw Space
+    # The transform is resolved once and reused, so a 60-segment cylinder costs
+    # one edit_transform read rather than sixty.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__ToDrawSpace(points)
+        space = Na__InsertPrimatives.Na__DrawnPreview__DrawSpace
+        return points unless space && points
+
+        points.map { |point| point ? point.transform(space) : point }
+    rescue StandardError
+        points
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | A World Direction into Draw Space
+    # ------------------------------------------------------------
+    # Vectors, not points: an axis lock names a WORLD axis and a camera has a
+    # WORLD direction, so both have to be re-expressed in the space the drawing
+    # is going to be read in or the ray and the arrow barbs point off true
+    # inside a rotated group.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__ToDrawVector(vector)
+        space = Na__InsertPrimatives.Na__DrawnPreview__DrawSpace
+        return vector unless space && vector
+
+        moved = vector.transform(space)
+        moved.length > 0 ? moved.normalize : vector
+    rescue StandardError
+        vector
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | A List of Triangle Point Triples into Draw Space
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__ToDrawTriangles(triangles)
+        space = Na__InsertPrimatives.Na__DrawnPreview__DrawSpace
+        return triangles unless space && triangles
+
+        triangles.map { |points| points.map { |point| point.transform(space) } }
+    rescue StandardError
+        triangles
+    end
+    # ---------------------------------------------------------------
 
     # endregion -------------------------------------------------------------------
 
@@ -77,6 +182,9 @@ module Na__InsertPrimatives
 
         vector = Na__InsertPrimatives.Na__DrawnGrid__AxisVector(axis_key)
         return unless vector
+
+        origin = Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(origin)   # <-- Everything below is measured in draw space
+        vector = Na__InsertPrimatives.Na__DrawnPreview__ToDrawVector(vector)
 
         span =
             begin
@@ -119,6 +227,8 @@ module Na__InsertPrimatives
     def self.Na__DrawnPreview__DrawTriangles(view, triangles, fill_color)
         return unless triangles && !triangles.empty?
 
+        triangles = Na__InsertPrimatives.Na__DrawnPreview__ToDrawTriangles(triangles)
+
         view.drawing_color = fill_color
         triangles.each { |points| view.draw(GL_TRIANGLES, points) if points.length == 3 }
     end
@@ -128,6 +238,8 @@ module Na__InsertPrimatives
     # ------------------------------------------------------------
     def self.Na__DrawnPreview__DrawLoop(view, points, border_color, width = 2)
         return unless points && points.length >= 2
+
+        points = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(points)
 
         view.line_stipple  = ''
         view.line_width    = width
@@ -170,12 +282,49 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Estimated Pixel Size of a Text Block
+    # ------------------------------------------------------------
+    # draw_text reports no metrics, so the width is estimated from the character
+    # count at the one size and weight every label in this plugin uses. It only
+    # ever feeds CENTRING, where a few pixels of error moves a label a few
+    # pixels — nothing measures anything by it.
+    #
+    # Returns [width_px, height_px]. The height is exact.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__TextBlockSize(lines)
+        text_lines = (lines.is_a?(Array) ? lines : [lines]).reject { |line| line.to_s.empty? }
+        return [0.0, 0.0] if text_lines.empty?
+
+        widest = text_lines.map { |line| line.to_s.length }.max.to_f
+
+        [widest * NA_DRAWN_TEXT_CHAR_WIDTH, text_lines.length * NA_DRAWN_TEXT_LINE_HEIGHT.to_f]
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Draw a Text Block Centred on a Screen Position
+    # draw_text anchors on the top-left corner, so the block's own size is what
+    # converts a wanted centre into the corner it has to be drawn from.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawCentredScreenText(view, centre_x, centre_y, lines, color = nil)
+        width, height = Na__InsertPrimatives.Na__DrawnPreview__TextBlockSize(lines)
+
+        Na__InsertPrimatives.Na__DrawnPreview__DrawScreenText(
+            view,
+            centre_x.to_f - (width  * 0.5),
+            centre_y.to_f - (height * 0.5),
+            lines, color
+        )
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Draw a Label Anchored to a World Point
     # ------------------------------------------------------------
     def self.Na__DrawnPreview__DrawWorldLabel(view, world_point, lines, offset_x = 14, offset_y = -26, color = nil)
         return unless world_point
 
-        screen_pt = view.screen_coords(world_point)
+        screen_pt = view.screen_coords(
+            Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(world_point)
+        )
         Na__InsertPrimatives.Na__DrawnPreview__DrawScreenText(
             view, screen_pt.x + offset_x, screen_pt.y + offset_y, lines, color
         )
@@ -212,7 +361,10 @@ module Na__InsertPrimatives
         return unless point
 
         arm            = (arm_length || NA_DRAWN_CROSSHAIR_ARM).to_f
-        ax, ay, az     = Na__InsertPrimatives.Na__DrawnGrid__AxisVectors
+        point          = Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(point)
+        ax, ay, az     = Na__InsertPrimatives.Na__DrawnGrid__AxisVectors.map { |axis|
+            Na__InsertPrimatives.Na__DrawnPreview__ToDrawVector(axis)
+        }
         view.line_stipple = ''
         view.line_width   = 2
 
@@ -228,10 +380,57 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Draw a Screen-Sized Direction Arrow From a World Point
+    # ------------------------------------------------------------
+    # Says which way a push is going to travel, at a size that reads the same at
+    # any zoom because it is measured in pixels rather than model units.
+    #
+    # The barbs are laid out with the CAMERA direction, not with a model axis, so
+    # they always open across the screen and the arrow reads as an arrow from
+    # wherever it is being looked at. A direction pointing straight down the
+    # camera has no such side, so the cross degenerates and an arbitrary
+    # perpendicular from Vector3d#axes stands in — the arrow is foreshortened to
+    # nothing in that view anyway.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawDirectionArrow(view, origin, direction, color = nil)
+        return unless view && origin && direction
+
+        camera = view.camera ? view.camera.direction : nil
+        return unless camera && camera.length > 0
+
+        origin    = Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(origin)
+        direction = Na__InsertPrimatives.Na__DrawnPreview__ToDrawVector(direction)
+        camera    = Na__InsertPrimatives.Na__DrawnPreview__ToDrawVector(camera)
+
+        shaft = view.pixels_to_model(NA_DRAWN_ARROW_PIXELS,      origin).to_f
+        barb  = view.pixels_to_model(NA_DRAWN_ARROW_BARB_PIXELS, origin).to_f
+        return unless shaft > 0.0
+
+        tip  = origin.offset(direction, shaft)
+        side = direction.cross(camera)
+        side = direction.axes[0] if side.length == 0
+        side.normalize!
+
+        back = tip.offset(direction.reverse, barb * 1.8)
+
+        view.line_stipple  = ''
+        view.line_width    = 3
+        view.drawing_color = color || NA_DRAWN_ANCHOR_COLOR
+        view.draw_line(origin, tip)
+        view.draw_line(tip, back.offset(side,         barb))
+        view.draw_line(tip, back.offset(side.reverse, barb))
+        view.line_width    = 2
+    rescue StandardError
+        nil                                                                   # <-- Never let a decoration kill the whole draw pass
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Draw a Filled, Bordered Quad
     # ------------------------------------------------------------
     def self.Na__DrawnPreview__DrawFilledQuad(view, points, fill_color, border_color)
         return unless points && points.length == 4
+
+        points = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(points)
 
         view.drawing_color = fill_color
         view.draw(GL_QUADS, points)
@@ -248,6 +447,8 @@ module Na__InsertPrimatives
     def self.Na__DrawnPreview__DrawOutline(view, points, border_color)
         return unless points && points.length >= 2
 
+        points = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(points)
+
         view.line_stipple  = '-'
         view.line_width    = 2
         view.drawing_color = border_color
@@ -260,6 +461,9 @@ module Na__InsertPrimatives
     # ------------------------------------------------------------
     def self.Na__DrawnPreview__DrawFilledBox(view, near_points, far_points, fill_color, border_color)
         return unless near_points && far_points
+
+        near_points = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(near_points)
+        far_points  = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(far_points)
 
         side_faces = [
             [near_points[0], near_points[1], far_points[1],  far_points[0]],
@@ -289,6 +493,8 @@ module Na__InsertPrimatives
     def self.Na__DrawnPreview__DrawFilledPolygon(view, points, fill_color, border_color)
         return unless points && points.length >= 3
 
+        points = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(points)
+
         view.drawing_color = fill_color
         view.draw(GL_TRIANGLE_FAN, points)
 
@@ -305,6 +511,9 @@ module Na__InsertPrimatives
         return unless point_a && point_b
         return if point_a.distance(point_b) < 0.001
 
+        point_a = Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(point_a)
+        point_b = Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(point_b)
+
         view.line_stipple  = ''
         view.line_width    = 4
         view.drawing_color = NA_DRAWN_VOLUME_BORDER_COLOR
@@ -319,6 +528,9 @@ module Na__InsertPrimatives
     # ------------------------------------------------------------
     def self.Na__DrawnPreview__DrawFilledCircle(view, centre, points, fill_color, border_color)
         return unless centre && points && points.length >= 3
+
+        centre = Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(centre)
+        points = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(points)
 
         view.drawing_color = fill_color
         view.draw(GL_TRIANGLE_FAN, [centre] + points + [points[0]])
@@ -337,6 +549,11 @@ module Na__InsertPrimatives
     def self.Na__DrawnPreview__DrawFilledCylinder(view, near_centre, near_points, far_centre, far_points, fill_color, border_color)
         return unless near_points && far_points && near_points.length >= 3
         return unless near_points.length == far_points.length
+
+        near_centre = Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(near_centre)
+        far_centre  = Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(far_centre)
+        near_points = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(near_points)
+        far_points  = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(far_points)
 
         view.drawing_color = fill_color
         view.draw(GL_TRIANGLE_FAN, [near_centre] + near_points + [near_points[0]])
@@ -369,6 +586,9 @@ module Na__InsertPrimatives
     # ------------------------------------------------------------
     def self.Na__DrawnPreview__DrawGuideLine(view, point_a, point_b)
         return unless point_a && point_b
+
+        point_a = Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(point_a)
+        point_b = Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(point_b)
 
         view.line_stipple  = '.'
         view.line_width    = 1

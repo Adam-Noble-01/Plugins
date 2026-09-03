@@ -58,8 +58,12 @@ module Na__InsertPrimatives
             'Na__InsertPrimatives__DrawnVolumeTool__.rb',
             'Na__InsertPrimatives__DrawnCylinderTool__.rb',
             'Na__InsertPrimatives__DrawnDeepPick__.rb',
+            'Na__InsertPrimatives__DrawnSlopePush__.rb',                      # <-- Pure geometry, wanted before the tool that asks it
             'Na__InsertPrimatives__DrawnRoofTools__.rb',
             'Na__InsertPrimatives__DrawnPushPullTool__.rb',
+            'Na__InsertPrimatives__DrawnEdgeLoops__.rb',                      # <-- Reuses the quad ring stitcher, so it must follow it
+            'Na__InsertPrimatives__DrawnPushPull2dTool__.rb',                 # <-- Subclasses the tool above, so it must follow it
+            'Na__InsertPrimatives__DrawnChamferTool__.rb',
             'Na__InsertPrimatives__Main__.rb'
         ].freeze
 

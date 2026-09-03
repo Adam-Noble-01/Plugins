@@ -70,6 +70,44 @@ module Na__ProfileTools__ProfilePathTracer
             view.draw_points([candidate_point], 10, 3, 'x')
         end
 
+        # 'Close Loop' cue - a target ring on the start vertex and a label
+        # beside it, drawn only while the cursor sits inside the closure catch
+        # radius. It answers the one question the ghost cannot: whether the
+        # NEXT CLICK closes the loop or adds another waypoint. Green, to read
+        # as "go" against the teal ghost.
+        def self.Na__Preview__DrawCloseLoopCue(view, start_point)
+            return unless view && start_point
+
+            view.line_stipple  = ''
+            view.line_width    = 3
+            view.draw_points([start_point], 22, 1, Sketchup::Color.new(0, 190, 60))
+            view.draw_points([start_point], 10, 2, Sketchup::Color.new(0, 190, 60))
+
+            label_position = view.screen_coords(start_point)
+            label_position.x += 16
+            label_position.y -= 30
+            view.draw_text(
+                label_position, 'Close Loop',
+                size: 13, bold: true, color: Sketchup::Color.new(0, 140, 40)
+            )
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Close loop cue draw skipped: #{error.message}")
+        end
+
+        # Dotted magenta tie from the snapped cursor back to the start vertex -
+        # magenta being SketchUp's own perpendicular/parallel inference colour -
+        # drawn only while the locked square-to-start snap is holding the
+        # cursor, so the catch is visible the way a native inference would be.
+        def self.Na__Preview__DrawSquareSnapTie(view, cursor_point, reference_point)
+            return unless cursor_point && reference_point
+
+            view.line_stipple  = '.'
+            view.line_width    = 1
+            view.drawing_color = Sketchup::Color.new(255, 0, 255)
+            view.draw(GL_LINE_STRIP, [cursor_point, reference_point])
+            view.line_stipple  = ''
+        end
+
         def self.Na__Preview__DrawSweepSegments(view, sweep_segments)
             return unless sweep_segments.is_a?(Array)
             return if sweep_segments.empty?

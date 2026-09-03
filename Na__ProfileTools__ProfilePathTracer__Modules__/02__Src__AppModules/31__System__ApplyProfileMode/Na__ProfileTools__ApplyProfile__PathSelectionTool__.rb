@@ -26,6 +26,10 @@ module Na__ProfileTools__ProfilePathTracer
         NA_POINT_MERGE_TOLERANCE          = 0.001
         NA_LOOP_CLOSE_SCREEN_TOLERANCE_PX = 14.0
         NA_LOOP_CLOSE_WORLD_TOLERANCE     = 5.mm
+        NA_SQUARE_SNAP_SCREEN_TOLERANCE_PX = 12.0
+        NA_LOOP_CLOSE_DYNAMIC_PX          = 16.0
+        NA_LOOP_CLOSE_SIZE_FRACTION       = 0.01
+        NA_LOOP_CLOSE_MAX_FRACTION        = 0.10
 
         # Windows virtual-key codes that plausibly begin a VCB entry: main-row
         # digits, the numeric keypad (digits + operators + decimal), and the OEM
@@ -46,7 +50,6 @@ module Na__ProfileTools__ProfilePathTracer
         # before any waypoint exists. Only its direction matters — the segment is
         # never drawn and never reaches the build.
         NA_DATUM_PROBE_LENGTH             = 1000.mm
-        NA_DATUM_PROBE_MIN_LENGTH         = 0.001
 
     # endregion ----------------------------------------------------------------
 
@@ -105,6 +108,8 @@ module Na__ProfileTools__ProfilePathTracer
             @na_input_point = Sketchup::InputPoint.new
             @na_previous_input_point = Sketchup::InputPoint.new
             @na_cursor_point = nil
+            @na_square_snap_reference = nil
+            @na_loop_close_armed = false
             @na_waypoints = []
             @na_state = :picking_start
 
@@ -125,6 +130,8 @@ module Na__ProfileTools__ProfilePathTracer
             @na_state = :picking_start
             @na_waypoints = []
             @na_cursor_point = nil
+            @na_square_snap_reference = nil
+            @na_loop_close_armed = false
             @na_key_tab_held = false
             @na_key_shift_held = false
             @na_vcb_typing_active = false
@@ -199,6 +206,8 @@ module Na__ProfileTools__ProfilePathTracer
 
             raw_cursor_point = self.Na__PathSelectionTool__RoundToGrid(@na_input_point.position)
             @na_cursor_point = self.Na__PathSelectionTool__ResolveLoopClosureSnap(raw_cursor_point, view, x, y)
+            @na_cursor_point = self.Na__PathSelectionTool__ResolveLockedSquareSnap(@na_cursor_point, view)
+            view.tooltip = @na_loop_close_armed ? 'Close Loop' : ''
             self.Na__PathSelectionTool__RebuildPreviewCache
             self.Na__PathSelectionTool__UpdateStatusText
             view.invalidate
@@ -215,6 +224,7 @@ module Na__ProfileTools__ProfilePathTracer
 
             clicked_point = self.Na__PathSelectionTool__RoundToGrid(@na_input_point.position)
             clicked_point = self.Na__PathSelectionTool__ResolveLoopClosureSnap(clicked_point, view, x, y)
+            clicked_point = self.Na__PathSelectionTool__ResolveLockedSquareSnap(clicked_point, view)
             if @na_state == :picking_start
                 @na_waypoints = [clicked_point]
                 @na_state = :picking_path
@@ -283,6 +293,12 @@ module Na__ProfileTools__ProfilePathTracer
             Na__PreviewGraphics.Na__Preview__DrawWaypointMarkers(view, @na_waypoints, @na_crosshair_size * 0.15)
             Na__PreviewGraphics.Na__Preview__DrawSweepSegments(view, @na_cache_sweep_segments)
             Na__PreviewGraphics.Na__Preview__DrawProfileGhost(view, @na_cache_profile_polyline)
+            if @na_square_snap_reference && @na_cursor_point
+                Na__PreviewGraphics.Na__Preview__DrawSquareSnapTie(view, @na_cursor_point, @na_square_snap_reference)
+            end
+            if @na_loop_close_armed && !@na_waypoints.empty?
+                Na__PreviewGraphics.Na__Preview__DrawCloseLoopCue(view, @na_waypoints.first)
+            end
         end
 
         def getExtents
@@ -522,40 +538,18 @@ module Na__ProfileTools__ProfilePathTracer
             @na_cache_profile_polyline = preview_geometry[:profile_polyline]
         end
 
-        # Model axis (±X or ±Y) closest to pointing back out of the screen at
-        # the viewer. Snapping to an axis keeps the datum face lying along a
-        # crosshair arm instead of rotating freely with every orbit. The WYSIWYG
-        # sweep frame presents its section true-to-dialog when viewed from the
-        # front cap — looking back against the sweep direction — so a probe
-        # pointing AT the viewer shows the crosshair face exactly as the dialog
-        # draws it. Falls back to screen-up in plan views, where every vertical
-        # face is edge-on anyway.
+        # Fixed -X probe for the pre-click crosshair face. This used to orient
+        # itself to the camera, which made the face flip as you orbited and
+        # promise a handedness the build rule no longer consults — the open-run
+        # traversal is now canonical by axis sign (see
+        # Na__Engine__AlignOpenRunToCanonicalDirection), with no camera in the
+        # decision. The canonical traversal for an X-dominant run is -X, so the
+        # crosshair shows that frame: stable under orbit, and exactly what an X
+        # run builds as. From the first click onward the live ghost takes over,
+        # and it runs through the same alignment as the real build, so
+        # everything after the start point is WYSIWYG by construction.
         def Na__PathSelectionTool__DatumProbeTangent
-            view = Sketchup.active_model.active_view
-            camera = view ? view.camera : nil
-            return X_AXIS unless camera
-
-            toward_viewer = self.Na__PathSelectionTool__SnapToHorizontalAxis(camera.direction.reverse)
-            return toward_viewer if toward_viewer
-
-            screen_up = self.Na__PathSelectionTool__SnapToHorizontalAxis(camera.up)
-            screen_up || X_AXIS
-        rescue
-            X_AXIS
-        end
-
-        def Na__PathSelectionTool__SnapToHorizontalAxis(vector)
-            return nil unless vector
-            x_component = vector.x.to_f
-            y_component = vector.y.to_f
-            return nil if x_component.abs <= NA_DATUM_PROBE_MIN_LENGTH &&
-                          y_component.abs <= NA_DATUM_PROBE_MIN_LENGTH
-
-            if x_component.abs >= y_component.abs
-                x_component >= 0 ? X_AXIS : X_AXIS.reverse
-            else
-                y_component >= 0 ? Y_AXIS : Y_AXIS.reverse
-            end
+            X_AXIS.reverse
         end
 
         def Na__PathSelectionTool__FinishPathIfReady(view, include_cursor_point)
@@ -881,18 +875,86 @@ module Na__ProfileTools__ProfilePathTracer
         end
 
         def Na__PathSelectionTool__ResolveLoopClosureSnap(point, view, x, y)
+            @na_loop_close_armed = false
             return point if point.nil?
             return point unless @na_state == :picking_path
             return point unless @na_waypoints.is_a?(Array) && @na_waypoints.length >= 3
 
             start_point = @na_waypoints.first
             return point unless start_point
-            return start_point if point.distance(start_point) <= NA_LOOP_CLOSE_WORLD_TOLERANCE
+
+            # World-space catch, sized by LoopCloseTolerance rather than a fixed
+            # 5mm - see that method for the scaling contract. Testing the
+            # RESOLVED point (already constrained by any armed lock) keeps this
+            # compatible with the v1.6.8 rule below: the raw mouse never
+            # overrides a lock, but a constrained point that genuinely comes
+            # within the catch of the start closes - overshoot included, since
+            # the catch is a ball around the start, not a gate before it.
+            if point.distance(start_point) <= self.Na__PathSelectionTool__LoopCloseTolerance(view, start_point)
+                @na_loop_close_armed = true
+                return start_point
+            end
+
+            # (v1.6.8) An armed arrow-key lock is an explicit direction
+            # constraint, and the screen test below reads the raw MOUSE position
+            # - which, in the standard SketchUp close-a-loop move, is parked ON
+            # the start vertex to reference its position for the final segment's
+            # length. Snapping then would teleport the cursor off the locked
+            # line and fold the preview shut. While locked, only the world
+            # check above may close the loop.
+            return point if self.Na__AxisLock__Active?
 
             screen_distance = self.Na__PathSelectionTool__ScreenDistancePx(view, x, y, start_point)
-            return start_point if screen_distance && screen_distance <= NA_LOOP_CLOSE_SCREEN_TOLERANCE_PX
+            if screen_distance && screen_distance <= NA_LOOP_CLOSE_SCREEN_TOLERANCE_PX
+                @na_loop_close_armed = true
+                return start_point
+            end
 
             point
+        end
+
+        # How close counts as "at the start". A fixed 5mm was the answer, and it
+        # made closing a building-scale loop a pixel-hunt: at working zoom one
+        # pixel IS several millimetres, so a fraction under refused to close and
+        # a fraction over kinked the loop instead. The radius now scales with
+        # the two things hit-precision actually depends on:
+        #
+        #   zoom  - NA_LOOP_CLOSE_DYNAMIC_PX worth of model distance at the
+        #           start point (pixels_to_model), so the catch is the same
+        #           size ON SCREEN whatever the zoom;
+        #   size  - at least NA_LOOP_CLOSE_SIZE_FRACTION of the drawn path's
+        #           bounding diagonal, so an 11-metre loop keeps a usable catch
+        #           even zoomed right in on the corner.
+        #
+        # Capped at NA_LOOP_CLOSE_MAX_FRACTION of that diagonal so a far-out
+        # zoom cannot swallow the last waypoint of a small loop, and floored at
+        # the old 5mm so it is never LESS forgiving than before.
+        def Na__PathSelectionTool__LoopCloseTolerance(view, start_point)
+            zoom_component = 0.0
+            if view && start_point
+                begin
+                    zoom_component = view.pixels_to_model(NA_LOOP_CLOSE_DYNAMIC_PX, start_point).to_f
+                rescue
+                    zoom_component = 0.0
+                end
+            end
+
+            diagonal       = self.Na__PathSelectionTool__WaypointsDiagonal
+            size_component = diagonal * NA_LOOP_CLOSE_SIZE_FRACTION
+            size_cap       = diagonal * NA_LOOP_CLOSE_MAX_FRACTION
+
+            tolerance = [zoom_component, size_component].max
+            tolerance = size_cap if size_cap > 0.0 && tolerance > size_cap
+            [tolerance, NA_LOOP_CLOSE_WORLD_TOLERANCE.to_f].max
+        end
+
+        def Na__PathSelectionTool__WaypointsDiagonal
+            return 0.0 unless @na_waypoints.is_a?(Array) && @na_waypoints.length >= 2
+            bounds = Geom::BoundingBox.new
+            @na_waypoints.each { |waypoint| bounds.add(waypoint) }
+            bounds.diagonal.to_f
+        rescue
+            0.0
         end
 
         def Na__PathSelectionTool__ScreenDistancePx(view, x, y, target_point)
@@ -914,6 +976,56 @@ module Na__ProfileTools__ProfilePathTracer
             start_point = @na_waypoints.first
             return false unless start_point
             point.distance(start_point) <= NA_POINT_MERGE_TOLERANCE
+        end
+
+        # While an arrow-key lock is armed, offer the one inference the lock
+        # cannot express on its own: the point on the locked line SQUARE to the
+        # path's start vertex. Closing a rectangle needs the current segment to
+        # stop exactly level with the start, and v1.6.8 deliberately stopped the
+        # closure snap teleporting the cursor there - this is the assist that
+        # replaces it. The cursor snaps to the perpendicular foot of the start
+        # on the locked line whenever it passes within a few pixels of it, and
+        # the draw hook ties it back to the start with a dotted line so the
+        # catch reads as an inference rather than a jump. The snapped point
+        # stays ON the locked line by construction.
+        def Na__PathSelectionTool__ResolveLockedSquareSnap(point, view)
+            @na_square_snap_reference = nil
+            return point unless point && view
+            return point unless @na_state == :picking_path
+            return point unless self.Na__AxisLock__Active?
+            return point unless @na_waypoints.is_a?(Array) && @na_waypoints.length >= 2
+
+            anchor        = @na_waypoints.last
+            start_point   = @na_waypoints.first
+            lock_endpoint = self.Na__AxisLock__LockEndpoint(anchor)
+            return point unless lock_endpoint
+
+            direction = lock_endpoint - anchor
+            return point if direction.length <= 0.001
+            direction.normalize!
+
+            offset_along = (start_point - anchor).dot(direction)
+            square_point = anchor.offset(direction, offset_along)
+
+            # A square point on the anchor itself means the start projects onto
+            # the segment's own origin - a zero-length catch with nothing to
+            # offer. And one within closure range of the start means the lock
+            # line runs THROUGH the start, where the world-tolerance closure in
+            # ResolveLoopClosureSnap already owns the catch.
+            return point if square_point.distance(anchor) <= NA_POINT_MERGE_TOLERANCE
+            return point if square_point.distance(start_point) <= self.Na__PathSelectionTool__LoopCloseTolerance(view, start_point)
+
+            cursor_screen = view.screen_coords(point)
+            screen_distance = self.Na__PathSelectionTool__ScreenDistancePx(
+                view, cursor_screen.x, cursor_screen.y, square_point
+            )
+            return point unless screen_distance && screen_distance <= NA_SQUARE_SNAP_SCREEN_TOLERANCE_PX
+
+            @na_square_snap_reference = start_point
+            square_point
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Square snap skipped: #{error.message}")
+            point
         end
 
     # endregion ----------------------------------------------------------------

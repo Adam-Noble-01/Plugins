@@ -4,6 +4,461 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.6.10 - 03-Sep-2026 - Forgiving Loop Closure + "Close Loop" Cue
+
+### Summary
+Closing a loop demanded landing the final click inside a fixed **5mm** world radius of the
+start — at building scale and working zoom, one pixel IS several millimetres, so a fraction
+under refused to close and a fraction over kinked the loop past the start. The catch radius now
+scales with zoom and with the drawn path's size, and an explicit **Close Loop** cue appears
+whenever the cursor is inside it.
+
+### The catch radius — `Na__PathSelectionTool__LoopCloseTolerance`
+
+The largest of three terms, capped by a fourth:
+
+| Term | Value | Covers |
+|---|---|---|
+| zoom | 16px of model distance at the start (`pixels_to_model`) | same on-screen size at any zoom |
+| size | 1% of the waypoints' bounding diagonal | building-scale loops stay catchable zoomed in |
+| floor | the old 5mm | never less forgiving than before |
+| cap | 10% of the diagonal | a far-out zoom cannot swallow a small loop's last waypoint |
+
+Worked numbers for the reported loop (11.5m x 6m, diagonal ~13m): ~230mm catch zoomed to fit,
+~130mm zoomed into the corner. A 300mm loop viewed from far out caps at ~42mm.
+
+The catch is a **ball around the start**, tested against the resolved (lock-constrained)
+point — so overshoot closes exactly like undershoot instead of inverting the closing edge. The
+v1.6.8 contract is untouched: the raw-mouse screen check still never runs while a lock is
+armed, so hovering the start vertex to reference a length still cannot teleport-close; only the
+constrained point genuinely entering the catch does. The v1.6.9 square-snap stands down inside
+the same dynamic radius, so the two catches share one boundary and cannot fight over the
+cursor.
+
+### The cue
+
+While the cursor is inside the catch: a green target ring and dot on the start vertex, a bold
+**Close Loop** label beside it, and the native cursor tooltip says the same — so the user knows
+the next click closes rather than adds a waypoint, before committing it.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | Dynamic `LoopCloseTolerance` + `WaypointsDiagonal`, ball-catch in `ResolveLoopClosureSnap`, armed-state flag, tooltip, draw-hook cue, square-snap stand-down shares the radius |
+| `Na__ProfileTools__ApplyProfile__3dPreviewGraphics__.rb` | `Na__Preview__DrawCloseLoopCue` ring + label renderer |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.6.9 - 03-Sep-2026 - Square-to-Start Snap While Axis-Locked
+
+### Summary
+Completes the v1.6.8 change. Stopping the closure snap from hijacking the axis lock left a
+gap: running the locked segment past the start vertex gave no catch at the point square to it,
+so stopping exactly level with the start — the move that makes the closing edge perpendicular —
+was freehand. The lock now offers that inference itself.
+
+### The rule
+
+While an arrow-key lock is armed and at least two waypoints exist, the tool computes the
+perpendicular foot of the **start vertex** on the locked line (through the last waypoint, along
+the lock direction). When the constrained cursor passes within 12px of that foot, it snaps to
+it — a point that is on the locked line by construction, so the lock is honoured, not
+overridden. A dotted magenta tie (SketchUp's own perpendicular-inference colour) is drawn from
+the snapped cursor back to the start vertex, so the catch reads as an inference rather than a
+jump. The snap applies to both the live preview and the committing click.
+
+Two deliberate refusals: a foot landing on the anchor itself (zero-length catch) is ignored,
+and a foot within closure range of the start means the lock line runs through the start — where
+the v1.6.8 world-tolerance closure already owns the catch — so the square snap stands down
+rather than fighting it.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | `ResolveLockedSquareSnap` + wiring into mouse-move and click, snap-state field, draw-hook hint, 12px tolerance constant |
+| `Na__ProfileTools__ApplyProfile__3dPreviewGraphics__.rb` | `Na__Preview__DrawSquareSnapTie` dotted magenta tie renderer |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.6.8 - 03-Sep-2026 - Loop-Closure Snap Yields to the Axis Lock
+
+### Summary
+The standard SketchUp close-a-loop move — arrow-key lock the closing edge's direction, then
+hover the start vertex to reference its position for the final length — folded the preview shut
+early: the cursor teleported onto the start point and the ghost showed a shortcut closure
+instead of the constrained segment still being drawn.
+
+### Mechanism
+
+The arrow-key lock is a real SketchUp inference lock (`view.lock_inference` with two
+InputPoints), so every pick is already constrained to the locked line — hovering a distant
+vertex projects it onto that line natively, which is exactly the referencing move the user was
+making. But `Na__PathSelectionTool__ResolveLoopClosureSnap` then ran its screen-space
+convenience check against the **raw mouse position**, and in this move the mouse is parked
+directly on the start vertex — distance zero, snap fires, cursor yanked off the locked line
+onto the start, preview closes.
+
+The snap and the lock were answering different questions and the snap won. The lock is an
+explicit statement of direction; a convenience snap must never override an explicit constraint.
+
+### The rule now
+
+While an arrow-key lock is armed, the screen-space closure check is skipped. Closing a locked
+loop still works through the world check, which tests the **constrained point** rather than the
+mouse: run the locked segment into the start (or click the projected start reference — the
+projection lands exactly on it when the lock line passes through) and the loop closes as
+before, give or take the same 5mm slack. Unlocked behaviour is untouched — the 14px screen
+snap remains the easy way to close freehand.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | `ResolveLoopClosureSnap` returns the constrained point untouched while `Na__AxisLock__Active?`; world-tolerance closure retained |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.6.7 - 03-Sep-2026 - Canonical Open-Run Direction (camera removed)
+
+### Summary
+v1.6.5 and v1.6.6 both tried to disambiguate open interactive runs against the camera, and both
+failed in real use. This version removes the camera from the decision entirely and adopts the
+rule field-tested by the user: an open run whose net direction is **positive** along its
+dominant model axis is reversed; a **negative** one is kept. Every open run therefore builds
+with one deterministic traversal per axis, whichever way it was dragged and wherever the camera
+happens to be.
+
+### Why both camera attempts failed — the tie was the common case
+
+A probe snapped to the camera's dominant axis carries no information about a run drawn
+perpendicular to it: the dot product is zero, the alignment rule reads it as a tie, and the run
+is left exactly as drawn. Drawing an X-axis run while viewing down the Y axis is not an edge
+case — it is the normal way to look at the thing you are drawing. So:
+
+| Version | Probe | What actually happened |
+|---|---|---|
+| v1.6.5 | toward viewer | reversed runs that were already correct (parallel case), ignored the rest |
+| v1.6.6 | away from viewer | fixed the parallel case, still ignored every perpendicular run |
+
+Field result after a full SketchUp restart on v1.6.6, viewing along Y: `+X` drag mirrored,
+`-X` drag correct, Y drags fine, `+X`-then-corner mirrored. Exactly the perpendicular hole.
+
+### The rule now (user-specified, field-tested)
+
+`Na__Engine__AlignOpenRunToCanonicalDirection`, replacing `Na__Engine__AlignOpenRunToDatum`:
+
+1. Take the run's **net** direction (last point minus first — negates cleanly under reversal,
+   so the rule converges in one step; a first-segment test does not).
+2. Take the dominant horizontal component (|x| >= |y| picks x, matching the old axis-snap
+   tie-break).
+3. Positive → reverse the point list. Negative → keep. No horizontal component (pure vertical
+   or degenerate) → keep as drawn.
+
+Consequences, all verified in harness: `+X` and `-X` drags build the same solid; likewise
+`+Y`/`-Y`; corners inherit the net sign; 45° runs resolve via the x-wins tie; the rule is
+idempotent and draw-order invariant. Reversal changes traversal order only — the swept solid
+occupies identical space.
+
+One deliberate asymmetry to know about: the user verified negative-along-axis as correct for
+X (`-X` right, `+X` wrong) and specified the same polarity for Y. If a Y drag ever reads
+backwards in practice, the fix is the single `dominant_component < 0` comparison — flip it for
+the Y branch only.
+
+### What was deleted
+
+The entire datum-reference plumbing: capture at start-click, clears on activate/undo, the
+threading through preview and build calls, `SnapToHorizontalAxis`, and the
+`NA_DATUM_PROBE_MIN_LENGTH` constant. The pre-click crosshair face now uses a fixed `-X` probe
+— the canonical X frame — so it no longer flips as you orbit, and from the first click onward
+the live ghost runs through the same alignment as the real build, making everything after the
+start point WYSIWYG by construction.
+
+### Note from the report that prompted this
+
+One of the failing screenshots had **Reverse armed** (status bar `REVERSED`, button lit).
+Reverse still inverts the section on top of the canonical rule — that is its job — so tests of
+the default orientation need it off.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__ApplyProfile__PlacementEngine__.rb` | Canonical rule replaces the datum rule; `datum_reference` parameter removed |
+| `Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | All camera/datum plumbing removed; crosshair probe fixed at `-X` |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.6.6 - 03-Sep-2026 - The Sign Error Under All Of It
+
+### Summary
+One inverted comment, propagated into the datum probe, explains every interactive-mode
+handedness report: the misaligned crosshair face, straight X-axis runs coming out mirrored,
+Y-axis runs being fine, and corners being fine. Fixed at source rather than patched per case.
+
+### The ground truth nobody had checked
+
+`Na__Geometry__BuildPathFrameFromTangent` carried this since v1.3.0:
+
+> The dialog's 2D preview renders -PosY to the right
+
+It renders the opposite. `Na__ProfileTools__Viewport__SvgGenerator__.js` emits
+`point[0] + ',' + (-point[1])` — `PosY` becomes SVG **x unnegated**, and only `PosZ` is
+negated for SVG's downward y. So **+PosY draws on the RIGHT**.
+
+Everything downstream was reasoned from the wrong half of that sentence, including my own
+analysis in v1.6.4 and v1.6.5.
+
+Recomputed from the renderer instead of the prose: with `x_axis = T × Z`, +PosY lands to the
+right of travel, so the placed section reads exactly as the dialog draws it when the run travels
+**away** from the camera — which is how anyone draws into a model.
+
+### What that broke
+
+`Na__PathSelectionTool__DatumProbeTangent` used `camera.direction.reverse` — a probe pointing
+back **at** the viewer — on the strength of that comment. Two consequences, both reported:
+
+1. **The crosshair face was the mirror of the run about to be drawn.** You draw into the model;
+   the probe pointed out of it. That is the "the initial 2D preview is misaligned" report.
+2. **v1.6.5's open-run alignment inherited the reversed reference** and used it to reverse
+   straight runs that were already correct.
+
+### Why X failed and Y did not
+
+`Na__PathSelectionTool__SnapToHorizontalAxis` breaks its tie with `x_component.abs >= y_component.abs`,
+so in a 45° iso view — the normal working view — the probe always snaps to ±X, never ±Y. That
+made the run direction decide which branch it hit:
+
+| Run | vs probe axis | v1.6.5 rule | Result |
+|---|---|---|---|
+| Straight, along X | parallel | fired, reversed it | **mirrored** |
+| Straight, along Y | perpendicular, dot = 0 | tie, kept as drawn | correct |
+| Corner | net not parallel | kept as drawn | correct |
+
+So it was never about X versus Y. It was about which runs were parallel enough to the probe for
+a reversed reference to act on them.
+
+### The fix
+
+`DatumProbeTangent` now snaps `camera.direction` — into the screen, away from the viewer. One
+line. The crosshair face reads true to the dialog, and it now predicts the direction people
+actually draw, so the alignment rule keeps those runs as drawn and only reverses one drawn back
+toward the camera.
+
+### Verified against all three reported cases
+
+Modelled with the corrected renderer convention, at the iso camera in the screenshots:
+
+| Case | Before | After |
+|---|---|---|
+| Single segment along X, drawn away (image 01) | mirrored | **true to dialog** |
+| Single segment along Y, drawn away (image 03) | true to dialog | true to dialog, untouched |
+| Corner run (image 02) | true to dialog | true to dialog, untouched |
+| Crosshair face itself | mirrored, predicts a run drawn toward you | true to dialog, predicts a run drawn away |
+
+The two cases that already worked are provably unchanged, and no axis-specific special case was
+added to get there.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | Probe snaps `camera.direction`, not its reverse |
+| `Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | Handedness comment corrected against the renderer |
+| `Na__ProfileTools__ApplyProfile__PlacementEngine__.rb` | Alignment-rule comment corrected |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.6.5 - 03-Sep-2026 - Open Runs Lock to the Crosshair Preview
+
+### Summary
+v1.6.4 fixed closed loops. Open runs stayed wrong: the crosshair showed the section the right
+way round, and the moment you drew, the sweep came out mirrored. An open run now keeps the
+handedness the crosshair showed, whichever direction you draw it.
+
+### Correction to v1.6.4
+
+That entry claimed Reverse could not undo a path-direction mirror because it was "a Z flip, a
+different axis". **That is wrong**, and the claim has been corrected in place. Measured: the
+`rotation + 2` roll flips both `PosY` and `PosZ`, then the world-Z mirror in
+`Na__Geometry__BuildReverseFlipTransform` restores the vertical, so on a horizontal run Reverse
+is exactly the left-right mirror. Reverse was always the manual escape hatch — the defect was
+needing it every time, not lacking it.
+
+### Why open runs were mirrored
+
+`Na__PathSelectionTool__DatumProbeTangent` orients the crosshair section against a probe
+pointing **back at the camera**, because that is the one direction from which a swept section
+reads true to the dialog. But nobody draws toward themselves — you look at the model and draw
+into it. Measured against a standard iso view:
+
+| Run drawn | Frame x-axis turns | Section reads |
+|---|---|---|
+| Away from viewer | 135° from the crosshair | mirrored |
+| West | 180° | mirrored |
+| Toward viewer | 45° | matches |
+| East | 0° | matches |
+
+So the crosshair was not occasionally misleading, it was misleading in essentially every case a
+user would actually draw. That is the "correct 2D preview, then it flips on extrude" report.
+
+### Why Selection mode still looked right
+
+It is not more correct on open runs. Traced through both: Selection starts at the lowest
+`persistent_id` endpoint, which is the end drawn first; Interactive starts at the first waypoint
+clicked. For a path drawn start-to-end those are the same order, so both modes build identical
+geometry and **neither normalises an open path**. Selection feels reliable because it is mostly
+used on closed loops, and loops have been winding-normalised all along.
+
+### The rule now
+
+The probe tangent is captured **once, when the start point is clicked** — the frame the user was
+looking at when they committed the start. If the run's direction opposes it, the point list is
+reversed. Reversing an open run leaves the geometry identical and flips the frame's x-axis, so
+the section lands on the side the crosshair promised.
+
+Captured at start-click rather than read live, so orbiting mid-draw cannot change the answer
+half way through a run. Applied in `Na__Engine__BuildPathDataFromInteractivePoints`, which the
+live ghost and the build both call, so the cage you rubber-band is the solid you get.
+
+### Net direction, not first segment
+
+The first version of this tested the first drawn segment and was wrong — caught in
+verification, not in review. Reversing a multi-segment run makes a **different** segment the
+first one, so the test could reverse a run and still not satisfy itself: an L drawn north-west
+then north-east reverses into one heading south-west, no better aligned than before.
+
+Net direction (last point minus first) simply negates under reversal, so the rule converges in
+one step and gives the same answer whichever way the run was drawn. For a straight run the two
+tests are identical, which is the case this was reported against.
+
+### Verified
+
+| Case | Before | After |
+|---|---|---|
+| Straight run drawn away from viewer | mirrored | matches crosshair, run reversed |
+| Straight run drawn toward viewer | matches | matches, untouched |
+| Straight run east / west | matches / mirrored | both match |
+| Rule idempotent (applying twice changes nothing) | — | yes |
+| Same answer whichever way the run was drawn | — | yes, except an exact tie |
+
+A run drawn square to the probe scores exactly zero — a run heading due north cannot match a
+crosshair drawn for an east-facing run, because the section must stay perpendicular to the run.
+That tie is left as drawn rather than reversed on a rounding error, which is the pre-existing
+behaviour and the only case where draw order still decides.
+
+Guards checked: no captured reference, fewer than two points, and a zero-length net all pass the
+run through untouched. Closed loops are unaffected — they take the v1.6.4 winding branch and
+never reach this one.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__ApplyProfile__PlacementEngine__.rb` | `Na__Engine__AlignOpenRunToDatum`, its call in the open-path branch, `datum_reference` threaded through `Na__Engine__GenerateFromInteractivePath` |
+| `Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | Captures the probe tangent at start-click, clears it on activate and on undo back to the start, passes it to the live preview and the finish build |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.6.4 - 03-Sep-2026 - Interactive Closed-Loop Winding Parity
+
+### Summary
+A closed loop drawn in **Interactive** mode came out mirrored against the identical loop built
+in **Selection** mode. Selection was right. The cause was not a stray flip applied to one mode
+— it was a normalisation the other two path producers do and Interactive did not.
+
+### First question asked: had something already been flipped?
+
+No. Checked before changing anything, because an extra flip and a missing normalisation look
+the same from the outside and are fixed in opposite directions:
+
+| Suspect | Finding |
+|---|---|
+| `reverse_direction` (TAB / Reverse button) | Identical in preview and build — `rotation + 2` then a Z mirror about the assembly bounds. Shared by both modes, applied once. |
+| WYSIWYG sweep frame | `Na__Geometry__BuildPathFrameFromTangent`, one implementation, both modes. |
+| `legacy_frame` right-handed fallback | Driven by dictionary `SchemaVersion` at regen/swap only. Never mode-dependent. |
+| Transforms inside `Na__PathSelectionTool` | None. Its only `.reverse` calls are camera-vector helpers for the pre-click crosshair, which never reach the build. |
+
+Both modes converge on the same `Na__Geometry__BuildProfileAlongPath` with the same arguments.
+The **only** thing that differed was the order of the path points handed to it.
+
+### The actual cause
+
+The sweep frame is `x_axis = tangent × Z`, so which side of the path the section lands on is
+decided entirely by the direction the points run. Traverse a loop the other way and the profile
+mirrors about the vertical — same shape, back to front.
+
+Reverse *does* undo it — measured, not assumed: the `rotation + 2` roll flips both `PosY` and
+`PosZ`, and the world-Z mirror in `Na__Geometry__BuildReverseFlipTransform` puts the vertical
+back, so the net effect on a horizontal run is exactly the left-right mirror. But having to
+press Reverse on every anticlockwise loop is the defect, not the remedy — it is the same
+"always need to hit Reverse" complaint v1.3.0 set out to end, surviving in the one path
+producer v1.3.0 did not touch.
+
+Three producers feed the builder. Two normalise a closed loop to one winding first:
+
+| Producer | Feeds | Normalises closed-loop winding |
+|---|---|---|
+| `Na__Path__OrderEdges` | Selection mode | yes |
+| `Na__Path__WalkChainFrom` | Dynamic Regeneration | yes |
+| `Na__Engine__BuildPathDataFromInteractivePoints` | **Interactive mode** | **no** |
+
+Interactive was the only path producer in the codebase skipping
+`Na__Path__NormaliseClosedLoopWinding`.
+
+### Measured, not assumed
+
+The frame maths, `Na__Path__DominantPlaneAxis`, `Na__Path__SignedAreaInPlane` and
+`Na__Path__NormaliseClosedLoopWinding` were ported and run against the real
+`Vale__Entablature__Classical__h465mm` section (centroid `PosY -83.4`, `PosZ 311.3`) on a
+4000 x 3000 rectangular loop in plan:
+
+| Loop drawn | Selection | Interactive before | Interactive after |
+|---|---|---|---|
+| Anticlockwise from above | section OUTSIDE | section **INSIDE** | section OUTSIDE |
+| Clockwise from above | section OUTSIDE | section OUTSIDE | section OUTSIDE |
+
+So the defect is closed-loop only and draw-direction dependent: an anticlockwise trace inverted,
+a clockwise trace was already correct. It reads as "always wrong" to anyone who habitually
+traces one way round. Open paths were never affected — the normaliser is gated on closed loops
+in the other two producers too, and for an open run the draw direction *is* the intent.
+
+### The corroborating symptom
+
+Because Dynamic Regeneration normalises the winding the Interactive build never had, an
+anticlockwise interactive loop was also **flipping on its first regeneration** — built one way,
+rebuilt the other the moment the path linework was edited. Same root cause, and it is why the
+fix belongs in the producer rather than at the build site.
+
+Existing traces built this way still carry the un-normalised winding, so they will still correct
+themselves the first time they regenerate. That was already true before this change; new builds
+are now consistent from the start.
+
+### The fix
+
+`Na__Engine__NormaliseInteractiveLoopWinding` calls the **same shared normaliser** the other two
+producers use — not a mode-specific flip, so all three agree by construction rather than by
+three transforms happening to cancel.
+
+It sits inside `Na__Engine__BuildPathDataFromInteractivePoints`, which the live ghost preview
+and the final build both call, so the WYSIWYG contract holds: the cage you see as the loop
+closes is the solid you get.
+
+Reversing moves the user's first click to the far end of the list, and that point becomes the
+frame origin, the follow-me seam and the `StartPoint` the regen anchor is measured from — so the
+list is rotated back to the anchor afterwards, exactly as `Na__Path__RotateLoopToAnchor` does
+for a regenerated chain. Verified as a no-op when the winding was already correct, point-set
+preserving, seam-preserving, and inert on 2-point and zero-area inputs.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__ApplyProfile__PlacementEngine__.rb` | `Na__Engine__NormaliseInteractiveLoopWinding` + its call in `Na__Engine__BuildPathDataFromInteractivePoints` |
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.6.3 - 03-Sep-2026 - Edit Path Button on Apply Profile
 
 ### Summary

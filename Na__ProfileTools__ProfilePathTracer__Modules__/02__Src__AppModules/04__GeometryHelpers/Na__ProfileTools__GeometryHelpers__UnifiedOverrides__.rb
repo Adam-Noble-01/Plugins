@@ -217,13 +217,18 @@ module Na__ProfileTools__ProfilePathTracer
 
         # Maps the profile's authored (PosY, PosZ) plane onto the path.
         #
-        # HANDEDNESS — the WYSIWYG contract. The exporter captures a face with
-        # axis_y = normal × axis_z, so PosY+ runs to your LEFT as you look at the
-        # face from its front. The dialog's 2D preview renders -PosY to the
-        # right, i.e. the face exactly as you saw it when you captured it. For
-        # the placed geometry to read the same way from its own natural viewpoint
-        # — standing in front of the start cap, looking down the sweep — PosY+
-        # must land to the RIGHT of the direction of travel: x_axis = T × Z.
+        # HANDEDNESS — the WYSIWYG contract. The dialog's 2D preview renders
+        # +PosY to the RIGHT: Na__ProfileTools__Viewport__SvgGenerator__ emits
+        # `point[0] + ',' + (-point[1])`, so PosY becomes SVG x unnegated and
+        # only PosZ is flipped for SVG's downward y. (This comment previously
+        # claimed the reverse. It was wrong, and Na__PathSelectionTool's datum
+        # probe was derived from it, which is what put the interactive crosshair
+        # face the mirror of the run about to be drawn.)
+        #
+        # x_axis = T × Z puts PosY+ to the RIGHT of the direction of travel, so
+        # the placed section reads exactly as the dialog draws it when the run
+        # travels AWAY from you — which is how anyone draws into a model, and
+        # how a run reads when you stand at its start and look down it.
         #
         # The original frame used x_axis = Z × T (PosY+ to the LEFT of travel),
         # which presented every placed profile as the mirror image of the dialog

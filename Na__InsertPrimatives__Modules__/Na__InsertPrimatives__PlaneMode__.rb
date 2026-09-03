@@ -196,10 +196,14 @@ module Na__InsertPrimatives
     def self.Na__PlaneMode__DrawPlanePreview(view, origin, sx, sy, rotation_step)
         p0, p1, p2, p3 = Na__PlaneMode__BuildPlaneCorners(origin, sx, sy, view, rotation_step)
 
+        edge_points = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(
+            [p0, p1, p1, p2, p2, p3, p3, p0]
+        )
+
         view.line_stipple  = "-"
         view.line_width    = 2
         view.drawing_color = Sketchup::Color.new(0, 200, 120, 220)
-        view.draw(GL_LINES, [p0, p1, p1, p2, p2, p3, p3, p0])
+        view.draw(GL_LINES, edge_points)
     end
     # ---------------------------------------------------------------
 

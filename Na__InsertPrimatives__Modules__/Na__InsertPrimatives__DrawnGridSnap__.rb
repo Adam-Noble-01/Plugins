@@ -40,6 +40,7 @@ module Na__InsertPrimatives
     NA_DRAWN_GRID_STEP_KEY      = 'DrawnGridStepMm'
     NA_DRAWN_PLANE_FACES_KEY    = 'DrawnPlaneFacesEnabled'
     NA_DRAWN_SEGMENTS_KEY       = 'DrawnCircleSegments'
+    NA_DRAWN_QUAD_PUSH_KEY      = 'DrawnQuadPushEnabled'
 
     NA_DRAWN_DEFAULT_SEGMENTS   = 24                                          # <-- Matches the SketchUp native circle default
     NA_DRAWN_SEGMENT_CYCLE      = [8, 12, 16, 24, 32, 48, 64, 96].freeze      # <-- Right-click menu cycle order
@@ -133,6 +134,38 @@ module Na__InsertPrimatives
         @na_drawn_plane_faces = (enabled ? true : false)
         Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_PLANE_FACES_KEY, @na_drawn_plane_faces)
         @na_drawn_plane_faces
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Quad Push/Pull Preference
+    # When on, Deep Push/Pull leaves the ring of edges the extrusion started
+    # from instead of letting SketchUp melt it into the wall it extended.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__QuadPushEnabled?
+        if @na_drawn_quad_push.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_QUAD_PUSH_KEY, false)
+            @na_drawn_quad_push = (stored == true || stored == 'true' || stored == 1)
+        end
+
+        @na_drawn_quad_push
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Set Quad Push/Pull Preference
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__SetQuadPushEnabled(enabled)
+        @na_drawn_quad_push = (enabled ? true : false)
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_QUAD_PUSH_KEY, @na_drawn_quad_push)
+        @na_drawn_quad_push
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Flip the Quad Push/Pull Preference
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__ToggleQuadPush
+        Na__InsertPrimatives.Na__DrawnSettings__SetQuadPushEnabled(
+            !Na__InsertPrimatives.Na__DrawnSettings__QuadPushEnabled?
+        )
     end
     # ---------------------------------------------------------------
 

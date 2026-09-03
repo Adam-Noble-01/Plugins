@@ -19,7 +19,7 @@
       "Standard"
     ],
     "Meta_ProfileName"  :  "Vale__Entablature__Classical__h465mm",
-    "Meta_ProfileShortName"  :  ""
+    "Meta_ProfileShortName"  :  "Vg Entablature Classical"
   },
   "Na__Asset__Metadata"  :  {
     "Na__Asset__Name"  :  "Vale__Entablature__Classical__h465mm",
@@ -48,7 +48,7 @@
     "Na__Asset__AvailableFinishes"  :  [
 
     ],
-    "Na__Asset__ShortName"  :  ""
+    "Na__Asset__ShortName"  :  "Vg Entablature Classical"
   },
   "Na__Asset__Profile2D"  :  {
     "Na__Geometry__OriginNote"  :  "Local 0,0 = clicked 00__OriginPoint helper location.",

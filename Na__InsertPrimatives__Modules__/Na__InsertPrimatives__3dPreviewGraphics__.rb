@@ -42,16 +42,23 @@ module Na__InsertPrimatives
         cy = cursor_pos.y
         cz = cursor_pos.z
 
+        # An open editing context reads drawn points in the session's space, so
+        # the whole cross is converted before any of it reaches view.draw_line.
+        centre, *arms = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace([
+            cursor_pos,
+            Geom::Point3d.new(cx + arm_size, cy,            cz),
+            Geom::Point3d.new(cx - arm_size, cy,            cz),
+            Geom::Point3d.new(cx,            cy + arm_size, cz),
+            Geom::Point3d.new(cx,            cy - arm_size, cz),
+            Geom::Point3d.new(cx,            cy,            cz + arm_size),
+            Geom::Point3d.new(cx,            cy,            cz - arm_size)
+        ])
+
         view.line_stipple  = ""
         view.line_width    = 2
         view.drawing_color = Sketchup::Color.new(0, 100, 255)
 
-        view.draw_line(cursor_pos, Geom::Point3d.new(cx + arm_size, cy,            cz))
-        view.draw_line(cursor_pos, Geom::Point3d.new(cx - arm_size, cy,            cz))
-        view.draw_line(cursor_pos, Geom::Point3d.new(cx,            cy + arm_size, cz))
-        view.draw_line(cursor_pos, Geom::Point3d.new(cx,            cy - arm_size, cz))
-        view.draw_line(cursor_pos, Geom::Point3d.new(cx,            cy,            cz + arm_size))
-        view.draw_line(cursor_pos, Geom::Point3d.new(cx,            cy,            cz - arm_size))
+        arms.each { |arm_end| view.draw_line(centre, arm_end) }
     end
     # ---------------------------------------------------------------
 
@@ -139,6 +146,8 @@ module Na__InsertPrimatives
             p4, p5,  p5, p6,  p6, p7,  p7, p4,   # top face
             p0, p4,  p1, p5,  p2, p6,  p3, p7    # vertical edges
         ]
+
+        edge_points = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(edge_points)
 
         view.line_stipple  = "-"
         view.line_width    = 2

@@ -31,7 +31,11 @@
 # - Na__InsertPrimatives__DrawnRoofGeometry__       : Ridge maths, pitch conversion, roof solid construction
 # - Na__InsertPrimatives__DrawnRoofTools__          : Click-and-drag pitched and hipped roof primitives
 # - Na__InsertPrimatives__DrawnDeepPick__           : Deep nested face picking and instance transformation maths
-# - Na__InsertPrimatives__DrawnPushPullTool__       : Push/pull any face at any nesting depth
+# - Na__InsertPrimatives__DrawnSlopePush__          : SHIFT pushes along the neighbouring face's plane, not the normal
+# - Na__InsertPrimatives__DrawnPushPullTool__       : Push/pull any face at any nesting depth (3D camera)
+# - Na__InsertPrimatives__DrawnEdgeLoops__          : Inward quad drag cuts an inset edge loop instead of shortening
+# - Na__InsertPrimatives__DrawnPushPull2dTool__     : The same push/pull for a parallel camera, picked through an edge
+# - Na__InsertPrimatives__DrawnChamferTool__        : Chamfer any edge at any nesting depth
 #
 # =============================================================================
 
@@ -51,8 +55,12 @@ require_relative 'Na__InsertPrimatives__DrawnVolumeTool__'
 require_relative 'Na__InsertPrimatives__DrawnRoofGeometry__'
 require_relative 'Na__InsertPrimatives__DrawnCylinderTool__'
 require_relative 'Na__InsertPrimatives__DrawnDeepPick__'
+require_relative 'Na__InsertPrimatives__DrawnSlopePush__'
 require_relative 'Na__InsertPrimatives__DrawnRoofTools__'
 require_relative 'Na__InsertPrimatives__DrawnPushPullTool__'
+require_relative 'Na__InsertPrimatives__DrawnEdgeLoops__'
+require_relative 'Na__InsertPrimatives__DrawnPushPull2dTool__'
+require_relative 'Na__InsertPrimatives__DrawnChamferTool__'
 
 module Na__InsertPrimatives
 

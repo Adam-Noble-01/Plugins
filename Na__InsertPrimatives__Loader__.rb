@@ -61,8 +61,12 @@ main_file     = File.join(plugin_folder, 'Na__InsertPrimatives__Main__.rb')  # <
                     'Na__InsertPrimatives__DrawnRoofGeometry__.rb',
                     'Na__InsertPrimatives__DrawnCylinderTool__.rb',
                     'Na__InsertPrimatives__DrawnDeepPick__.rb',
+                    'Na__InsertPrimatives__DrawnSlopePush__.rb',
                     'Na__InsertPrimatives__DrawnRoofTools__.rb',
                     'Na__InsertPrimatives__DrawnPushPullTool__.rb',
+                    'Na__InsertPrimatives__DrawnEdgeLoops__.rb',
+                    'Na__InsertPrimatives__DrawnPushPull2dTool__.rb',
+                    'Na__InsertPrimatives__DrawnChamferTool__.rb',
                     'Na__InsertPrimatives__Main__.rb'
                 ]
 
@@ -256,6 +260,17 @@ begin
     push_pull_cmd.menu_text       = "Deep Push Pull"
     # ---------------------------------------------------------------
 
+    # COMMAND SETUP | Deep Chamfer Tool
+    # ------------------------------------------------------------
+    chamfer_cmd = UI::Command.new('NA_DeepChamfer') {
+        Na__InsertPrimatives__LoadMainScript(main_file)
+        Na__InsertPrimatives.Na__InsertPrimatives__DeepChamfer               # <-- Activate the deep chamfer tool
+    }
+    chamfer_cmd.tooltip         = "Deep Chamfer"
+    chamfer_cmd.status_bar_text = "Chamfer any edge at any nesting depth, on the voxel grid"
+    chamfer_cmd.menu_text       = "Deep Chamfer"
+    # ---------------------------------------------------------------
+
     # COMMAND SETUP | Hot Reload All Plugin Modules
     # ------------------------------------------------------------
     reload_cmd = UI::Command.new('NA_InsertPrimitivesReloadPluginData') {
@@ -292,6 +307,7 @@ begin
     Na__InsertPrimatives__AddMenuEntry('sep_after_roof')  { |m| m.add_separator }
 
     Na__InsertPrimatives__AddMenuEntry('push_pull')       { |m| m.add_item(push_pull_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('chamfer')         { |m| m.add_item(chamfer_cmd) }
     Na__InsertPrimatives__AddMenuEntry('sep_after_mod')   { |m| m.add_separator }
 
     Na__InsertPrimatives__AddMenuEntry('reload')          { |m| m.add_item(reload_cmd) }
