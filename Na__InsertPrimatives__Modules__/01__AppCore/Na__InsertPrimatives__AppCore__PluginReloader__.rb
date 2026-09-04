@@ -2,7 +2,7 @@
 # NA INSERT PRIMATIVES - PLUGIN RELOADER
 # =============================================================================
 #
-# FILE       : Na__InsertPrimatives__PluginReloader__.rb
+# FILE       : Na__InsertPrimatives__AppCore__PluginReloader__.rb
 # NAMESPACE  : Na__InsertPrimatives::Na__PluginReloader
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Hot reload every module file without restarting SketchUp
@@ -10,8 +10,8 @@
 #
 # DESCRIPTION:
 # - Mirrors the reload managers in Noble3d Modelling Tools and Profile Path
-#   Tracer: load every Ruby file in the modules folder, count what worked, and
-#   report what did not.
+#   Tracer: load every Ruby file under the numbered modules folders, count what
+#   worked, and report what did not.
 #
 # DELIBERATELY SELF-CONTAINED:
 # - This file requires nothing from the rest of the plugin and is loaded by the
@@ -19,9 +19,8 @@
 #   reloader intact, which is the one moment it is actually needed.
 #
 # LOAD ORDER:
-# - Files are ordered by NA_RELOAD_PRIORITY, then anything unlisted alphabetically
-#   after it, so a newly added module still reloads even if nobody remembers to
-#   add it to the list.
+# - Boot files and NA_LOAD_MANIFEST from LoadManifest, then AppCore Main, then
+#   any leftover *.rb alphabetically so a newly added module still reloads.
 # - Order matters less than it looks: reopening a class or module mutates the
 #   object already in memory, so an earlier file holding a reference to a later
 #   one still ends up with the fresh methods.
@@ -42,34 +41,8 @@ module Na__InsertPrimatives
         # REGION | Reload Order
         # -----------------------------------------------------------------------------
 
-        NA_RELOAD_PRIORITY = [
-            'Na__InsertPrimatives__UserInput__VcbFunctions__.rb',
-            'Na__InsertPrimatives__DrawnGridSnap__.rb',
-            'Na__InsertPrimatives__DrawnVcbArithmetic__.rb',
-            'Na__InsertPrimatives__3dPreviewGraphics__.rb',
-            'Na__InsertPrimatives__DrawnPreviewGraphics__.rb',
-            'Na__InsertPrimatives__PlaneMode__.rb',
-            'Na__InsertPrimatives__DrawnGeometry__.rb',
-            'Na__InsertPrimatives__DrawnRoofGeometry__.rb',
-            'Na__InsertPrimatives__RightClickPopup__.rb',
-            'Na__InsertPrimatives__KeyboardHandlers__.rb',
-            'Na__InsertPrimatives__DrawnToolShared__.rb',
-            'Na__InsertPrimatives__DrawnPlaneTool__.rb',
-            'Na__InsertPrimatives__DrawnVolumeTool__.rb',
-            'Na__InsertPrimatives__DrawnCylinderTool__.rb',
-            'Na__InsertPrimatives__DrawnDeepPick__.rb',
-            'Na__InsertPrimatives__DrawnSlopePush__.rb',                      # <-- Pure geometry, wanted before the tool that asks it
-            'Na__InsertPrimatives__DrawnRoofTools__.rb',
-            'Na__InsertPrimatives__DrawnPushPullTool__.rb',
-            'Na__InsertPrimatives__DrawnEdgeLoops__.rb',                      # <-- Reuses the quad ring stitcher, so it must follow it
-            'Na__InsertPrimatives__DrawnPushPull2dTool__.rb',                 # <-- Subclasses the tool above, so it must follow it
-            'Na__InsertPrimatives__DrawnChamferTool__.rb',
-            'Na__InsertPrimatives__Main__.rb'
-        ].freeze
-
         NA_RELOAD_SKIP_FILES = [
-            'Na__InsertPrimatives__PluginReloader__.rb',                      # <-- Never reload the thing doing the reloading
-            'Na__InsertPrimatives__ContextMenu__.rb'                          # <-- Deprecated no-op shim, not required by anything
+            'Na__InsertPrimatives__AppCore__PluginReloader__.rb'              # <-- Never reload the thing doing the reloading
         ].freeze
 
         # Substrings that mark the active tool as belonging to this plugin, so a
@@ -86,7 +59,7 @@ module Na__InsertPrimatives
         # FUNCTION | Folder Holding the Plugin Modules
         # ------------------------------------------------------------
         def self.Na__Reload__ModulesRoot
-            File.dirname(__FILE__)
+            File.expand_path('..', File.dirname(__FILE__))
         end
         # ---------------------------------------------------------------
 
@@ -142,20 +115,59 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Every Module File in Reload Order
+        # FUNCTION | Compare Paths Ignoring Slash Direction and Case
+        # ------------------------------------------------------------
+        def self.Na__Reload__NormalizePath(path)
+            File.expand_path(path).tr('\\', '/').downcase
+        end
+        # ---------------------------------------------------------------
+
+
+        # FUNCTION | Refresh LoadManifest Then Return Every Module File in Order
         # ------------------------------------------------------------
         def self.Na__Reload__OrderedFiles
-            pattern = File.join(Na__InsertPrimatives::Na__PluginReloader.Na__Reload__ModulesRoot, '*.rb')
+            modules_root = Na__InsertPrimatives::Na__PluginReloader.Na__Reload__ModulesRoot
+            skip_names   = NA_RELOAD_SKIP_FILES
+            manifest_rel = '01__AppCore/Na__InsertPrimatives__AppCore__LoadManifest__.rb'
+            manifest_abs = File.expand_path(File.join(modules_root, manifest_rel))
 
-            files = Dir.glob(pattern).reject do |path|
-                NA_RELOAD_SKIP_FILES.include?(File.basename(path))
+            previous_verbose = $VERBOSE
+            begin
+                $VERBOSE = nil
+                load manifest_abs if File.exist?(manifest_abs)
+            rescue ScriptError, StandardError
+                nil
+            ensure
+                $VERBOSE = previous_verbose
             end
 
-            files.sort_by do |path|
-                name  = File.basename(path)
-                index = NA_RELOAD_PRIORITY.index(name)
-                index.nil? ? [1, name] : [0, index]
+            ordered_rel = if defined?(Na__InsertPrimatives::NA_LOAD_BOOT) &&
+                             defined?(Na__InsertPrimatives::NA_LOAD_MANIFEST) &&
+                             defined?(Na__InsertPrimatives::NA_LOAD_MAIN)
+                Na__InsertPrimatives::NA_LOAD_BOOT +
+                    Na__InsertPrimatives::NA_LOAD_MANIFEST +
+                    [Na__InsertPrimatives::NA_LOAD_MAIN]
+            else
+                [manifest_rel]
             end
+
+            ordered_abs = ordered_rel.map do |relative_path|
+                File.expand_path(File.join(modules_root, relative_path)).tr('\\', '/')
+            end.select { |path| File.exist?(path) }
+
+            ordered_keys = ordered_abs.map do |path|
+                Na__InsertPrimatives::Na__PluginReloader.Na__Reload__NormalizePath(path)
+            end
+
+            leftovers = Dir.glob(File.join(modules_root, '**', '*.rb')).reject do |path|
+                next true if skip_names.include?(File.basename(path))
+
+                ordered_keys.include?(
+                    Na__InsertPrimatives::Na__PluginReloader.Na__Reload__NormalizePath(path)
+                )
+            end.sort
+
+            ordered_abs + leftovers
         end
         # ---------------------------------------------------------------
 
@@ -214,6 +226,11 @@ module Na__InsertPrimatives
                 ensure
                     $VERBOSE = previous_verbose
                 end
+            end
+
+            if defined?(Na__InsertPrimatives) &&
+               Na__InsertPrimatives.respond_to?(:Na__Config__Reload)
+                Na__InsertPrimatives.Na__Config__Reload
             end
 
             menu_added = Na__InsertPrimatives::Na__PluginReloader.Na__Reload__RootLoader(failures)

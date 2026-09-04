@@ -25,7 +25,7 @@
 # =============================================================================
 
 require 'sketchup.rb'
-require_relative 'Na__InsertPrimatives__DrawnGridSnap__'
+require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnGridSnap__'
 
 module Na__InsertPrimatives
 

@@ -31,8 +31,8 @@
 # =============================================================================
 
 require 'sketchup.rb'
-require_relative 'Na__InsertPrimatives__DrawnToolShared__'
-require_relative 'Na__InsertPrimatives__DrawnRoofGeometry__'
+require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__DrawnToolShared__'
+require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnRoofGeometry__'
 
 module Na__InsertPrimatives
 
@@ -599,18 +599,18 @@ module Na__InsertPrimatives
         # FUNCTION | Console Report for a Created or Adjusted Roof
         # ------------------------------------------------------------
         def na_drawn__log_roof(action, group, origin, width_len, length_len, rise_len, ridge_axis, pitch, volume)
-            puts "\n"
-            puts '----------------------------------------'
-            puts "#{na_drawn__roof_label.upcase} #{action}"
-            puts "Corner: #{Na__InsertPrimatives.Na__DrawnFormat__PointMm(origin)}"
-            puts "Plan  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(width_len).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(length_len).abs}mm"
-            puts "Rise  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(rise_len).abs}mm"
-            puts "Pitch : #{Na__InsertPrimatives.Na__DrawnFormat__Degrees(pitch)} deg"
-            puts "Ridge : along #{ridge_axis == :u ? 'X' : 'Y'}#{na_drawn__pyramid? ? ' (collapsed to a pyramid apex)' : ''}"
-            puts "Volume: #{volume} m3"
-            puts "Solid : #{Na__InsertPrimatives.Na__DrawnGeom__SolidState(group)}"
-            puts "Grid  : #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
-            puts '----------------------------------------'
+            Na__InsertPrimatives.Na__Debug__Puts "\n"
+            Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
+            Na__InsertPrimatives.Na__Debug__Puts "#{na_drawn__roof_label.upcase} #{action}"
+            Na__InsertPrimatives.Na__Debug__Puts "Corner: #{Na__InsertPrimatives.Na__DrawnFormat__PointMm(origin)}"
+            Na__InsertPrimatives.Na__Debug__Puts "Plan  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(width_len).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(length_len).abs}mm"
+            Na__InsertPrimatives.Na__Debug__Puts "Rise  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(rise_len).abs}mm"
+            Na__InsertPrimatives.Na__Debug__Puts "Pitch : #{Na__InsertPrimatives.Na__DrawnFormat__Degrees(pitch)} deg"
+            Na__InsertPrimatives.Na__Debug__Puts "Ridge : along #{ridge_axis == :u ? 'X' : 'Y'}#{na_drawn__pyramid? ? ' (collapsed to a pyramid apex)' : ''}"
+            Na__InsertPrimatives.Na__Debug__Puts "Volume: #{volume} m3"
+            Na__InsertPrimatives.Na__Debug__Puts "Solid : #{Na__InsertPrimatives.Na__DrawnGeom__SolidState(group)}"
+            Na__InsertPrimatives.Na__Debug__Puts "Grid  : #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
+            Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
         end
         # ---------------------------------------------------------------
 

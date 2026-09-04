@@ -231,7 +231,7 @@ module Na__InsertPrimatives
     def self.Na__PlaneMode__CreatePlaneGeometry(click_point, sx, sy, view, rotation_step, create_face = true)
         model         = Sketchup.active_model
         entities      = model.active_entities
-        snapped_point = round_point_to_nearest_5mm(click_point)
+        snapped_point = Na__InsertPrimatives.Na__DrawnGrid__SnapPoint(click_point)
         p0, p1, p2, p3 = Na__PlaneMode__BuildPlaneCorners(snapped_point, sx, sy, view, rotation_step)
 
         model.start_operation('Insert Primitive Plane', true)
@@ -249,14 +249,14 @@ module Na__InsertPrimatives
 
         model.commit_operation
 
-        puts "\n"
-        puts "----------------------------------------"
-        puts "PRIMITIVE PLANE CREATED"
-        puts "Corner: X=#{snapped_point.x.to_mm.round(2)}mm, Y=#{snapped_point.y.to_mm.round(2)}mm, Z=#{snapped_point.z.to_mm.round(2)}mm"
-        puts "Size: #{sx.to_mm.round}mm x #{sy.to_mm.round}mm"
-        puts "Faces: #{create_face ? 'Enabled' : 'Disabled'}"
-        puts "Rotation: #{rotation_step.to_i * 90}°"
-        puts "----------------------------------------"
+        Na__InsertPrimatives.Na__Debug__Puts "\n"
+        Na__InsertPrimatives.Na__Debug__Puts "----------------------------------------"
+        Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE PLANE CREATED"
+        Na__InsertPrimatives.Na__Debug__Puts "Corner: X=#{snapped_point.x.to_mm.round(2)}mm, Y=#{snapped_point.y.to_mm.round(2)}mm, Z=#{snapped_point.z.to_mm.round(2)}mm"
+        Na__InsertPrimatives.Na__Debug__Puts "Size: #{sx.to_mm.round}mm x #{sy.to_mm.round}mm"
+        Na__InsertPrimatives.Na__Debug__Puts "Faces: #{create_face ? 'Enabled' : 'Disabled'}"
+        Na__InsertPrimatives.Na__Debug__Puts "Rotation: #{rotation_step.to_i * 90}°"
+        Na__InsertPrimatives.Na__Debug__Puts "----------------------------------------"
 
         [plane_group, snapped_point]
     end

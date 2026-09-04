@@ -1,88 +1,19 @@
 # =============================================================================
-# NA INSERT PRIMATIVES - MAIN MODULE
+# NA INSERT PRIMATIVES - PRIMITIVE CUBE / PLANE PLACEMENT TOOL
 # =============================================================================
 #
-# FILE       : Na__InsertPrimatives__Main__.rb
+# FILE       : Na__InsertPrimatives__PrimitiveCubeTool__.rb
 # NAMESPACE  : Na__InsertPrimatives
+# CLASS      : PrimitiveCubeTool
 # AUTHOR     : Noble Architecture
-# PURPOSE    : Core tool logic for the Insert Primatives plugin
+# PURPOSE    : Click-to-place cube and camera-aligned plane on the voxel grid
 # CREATED    : 2026
-#
-# DESCRIPTION:
-# - Defines the Na__InsertPrimatives module
-# - PrimitiveCubeTool interactive placement class
-# - Grid snapping helper
-# - Entry point method for tool activation
-#
-# MODULE ARCHITECTURE:
-# - Na__InsertPrimatives__UserInput__VcbFunctions__ : VCB parsing and unit conversion
-# - Na__InsertPrimatives__3dPreviewGraphics__       : Crosshair and wireframe preview rendering
-# - Na__InsertPrimatives__PlaneMode__               : Rectangle mode parsing, preview, and camera-aligned plane creation
-# - Na__InsertPrimatives__RightClickPopup__         : HtmlDialog right-click primitive menu
-# - Na__InsertPrimatives__KeyboardHandlers__        : Key bindings, VCB callbacks, status text
-# - Na__InsertPrimatives__DrawnGridSnap__           : Shared voxel lattice, plane axis maths, persisted settings
-# - Na__InsertPrimatives__DrawnVcbArithmetic__      : VCB parsing with relative (+/-) arithmetic
-# - Na__InsertPrimatives__DrawnPreviewGraphics__    : Shaded face previews and live dimension labels
-# - Na__InsertPrimatives__DrawnGeometry__           : Drawn plane / volume group creation and rebuild
-# - Na__InsertPrimatives__DrawnToolShared__         : Drag state machine shared by both drag tools
-# - Na__InsertPrimatives__DrawnPlaneTool__          : Click-and-drag rectangle primitive
-# - Na__InsertPrimatives__DrawnVolumeTool__         : Click-and-drag box primitive
-# - Na__InsertPrimatives__DrawnCylinderTool__       : Click-and-drag cylinder primitive (centre anchored)
-# - Na__InsertPrimatives__DrawnRoofGeometry__       : Ridge maths, pitch conversion, roof solid construction
-# - Na__InsertPrimatives__DrawnRoofTools__          : Click-and-drag pitched and hipped roof primitives
-# - Na__InsertPrimatives__DrawnDeepPick__           : Deep nested face picking and instance transformation maths
-# - Na__InsertPrimatives__DrawnSlopePush__          : SHIFT pushes along the neighbouring face's plane, not the normal
-# - Na__InsertPrimatives__DrawnPushPullTool__       : Push/pull any face at any nesting depth (3D camera)
-# - Na__InsertPrimatives__DrawnEdgeLoops__          : Inward quad drag cuts an inset edge loop instead of shortening
-# - Na__InsertPrimatives__DrawnPushPull2dTool__     : The same push/pull for a parallel camera, picked through an edge
-# - Na__InsertPrimatives__DrawnChamferTool__        : Chamfer any edge at any nesting depth
 #
 # =============================================================================
 
 require 'sketchup.rb'
-require_relative 'Na__InsertPrimatives__UserInput__VcbFunctions__'
-require_relative 'Na__InsertPrimatives__3dPreviewGraphics__'
-require_relative 'Na__InsertPrimatives__PlaneMode__'
-require_relative 'Na__InsertPrimatives__RightClickPopup__'
-require_relative 'Na__InsertPrimatives__KeyboardHandlers__'
-require_relative 'Na__InsertPrimatives__DrawnGridSnap__'
-require_relative 'Na__InsertPrimatives__DrawnVcbArithmetic__'
-require_relative 'Na__InsertPrimatives__DrawnPreviewGraphics__'
-require_relative 'Na__InsertPrimatives__DrawnGeometry__'
-require_relative 'Na__InsertPrimatives__DrawnToolShared__'
-require_relative 'Na__InsertPrimatives__DrawnPlaneTool__'
-require_relative 'Na__InsertPrimatives__DrawnVolumeTool__'
-require_relative 'Na__InsertPrimatives__DrawnRoofGeometry__'
-require_relative 'Na__InsertPrimatives__DrawnCylinderTool__'
-require_relative 'Na__InsertPrimatives__DrawnDeepPick__'
-require_relative 'Na__InsertPrimatives__DrawnSlopePush__'
-require_relative 'Na__InsertPrimatives__DrawnRoofTools__'
-require_relative 'Na__InsertPrimatives__DrawnPushPullTool__'
-require_relative 'Na__InsertPrimatives__DrawnEdgeLoops__'
-require_relative 'Na__InsertPrimatives__DrawnPushPull2dTool__'
-require_relative 'Na__InsertPrimatives__DrawnChamferTool__'
 
 module Na__InsertPrimatives
-
-    # -----------------------------------------------------------------------------
-    # REGION | Helper Functions
-    # -----------------------------------------------------------------------------
-
-    # FUNCTION | Round Point to the Shared Voxel Grid Coordinate
-    # ------------------------------------------------------------
-    # Delegates to Na__DrawnGrid__SnapPoint so the click-to-place tool and the
-    # click-and-drag tools are guaranteed to land on the *same* lattice — a
-    # separate copy of the rounding maths here would drift the moment the snap
-    # step or the drawing axes changed. Behaviour with the default axes and the
-    # default 5mm step is identical to the original world-space rounding.
-    # ------------------------------------------------------------
-    def self.round_point_to_nearest_5mm(pt)
-        Na__InsertPrimatives.Na__DrawnGrid__SnapPoint(pt)
-    end
-    # ---------------------------------------------------------------
-
-    # endregion -------------------------------------------------------------------
-
 
     # -----------------------------------------------------------------------------
     # REGION | Tool Class
@@ -123,21 +54,21 @@ module Na__InsertPrimatives
         # ACTIVATE | Called when tool is activated
         # ------------------------------------------------------------
         def activate
-            puts "\n"
-            puts "----------------------------------------"
-            puts "PRIMITIVE TOOL ACTIVATED"
-            puts "Default mode: Cube"
-            puts "Click to place primitive (snaps to 5mm grid)"
-            puts "TAB to rotate 90 degrees around Z axis"
-            puts "VCB mode switch: '..' + Enter => Plane mode"
-            puts "Cube VCB: single value (all sides) or X,Y,Z"
-            puts "Plane VCB: single value or X,Y"
-            puts "Units: mm cm m (bare number = mm)"
-            puts "Example: 1m  |  2000,4000,100  |  2m,4m,100mm  |  ..  |  1m,600mm"
-            puts "Default: 1000mm x 1000mm x 1000mm"
-            puts "Right-click for Drawn Plane / Drawn Volume click-and-drag modes"
-            puts "Snap grid: #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
-            puts "----------------------------------------"
+            Na__InsertPrimatives.Na__Debug__Puts "\n"
+            Na__InsertPrimatives.Na__Debug__Puts "----------------------------------------"
+            Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE TOOL ACTIVATED"
+            Na__InsertPrimatives.Na__Debug__Puts "Default mode: Cube"
+            Na__InsertPrimatives.Na__Debug__Puts "Click to place primitive (snaps to 5mm grid)"
+            Na__InsertPrimatives.Na__Debug__Puts "TAB to rotate 90 degrees around Z axis"
+            Na__InsertPrimatives.Na__Debug__Puts "VCB mode switch: '..' + Enter => Plane mode"
+            Na__InsertPrimatives.Na__Debug__Puts "Cube VCB: single value (all sides) or X,Y,Z"
+            Na__InsertPrimatives.Na__Debug__Puts "Plane VCB: single value or X,Y"
+            Na__InsertPrimatives.Na__Debug__Puts "Units: mm cm m (bare number = mm)"
+            Na__InsertPrimatives.Na__Debug__Puts "Example: 1m  |  2000,4000,100  |  2m,4m,100mm  |  ..  |  1m,600mm"
+            Na__InsertPrimatives.Na__Debug__Puts "Default: 1000mm x 1000mm x 1000mm"
+            Na__InsertPrimatives.Na__Debug__Puts "Right-click for Drawn Plane / Drawn Volume click-and-drag modes"
+            Na__InsertPrimatives.Na__Debug__Puts "Snap grid: #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
+            Na__InsertPrimatives.Na__Debug__Puts "----------------------------------------"
             na_key__update_status_text()
             Na__PrimitiveMode__RefreshVcbDisplay()
         end
@@ -175,7 +106,7 @@ module Na__InsertPrimatives
             return unless @cursor_pos
 
             @ip.draw(view)
-            snapped = Na__InsertPrimatives.round_point_to_nearest_5mm(@cursor_pos)
+            snapped = Na__InsertPrimatives.Na__DrawnGrid__SnapPoint(@cursor_pos)
             Na__InsertPrimatives.Na__Preview__DrawCrosshair(view, @cursor_pos, @crosshair_size)
 
             if @primitive_mode == :plane
@@ -219,7 +150,7 @@ module Na__InsertPrimatives
         # GET MENU | Schedule HtmlDialog Popup Without Adding Native Items
         # ------------------------------------------------------------
         def getMenu(menu, *args)
-            puts "PRIMITIVE TOOL RIGHT CLICK MENU REQUESTED (args=#{args.length})"
+            Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE TOOL RIGHT CLICK MENU REQUESTED (args=#{args.length})"
             Na__PrimitiveMode__ScheduleRightClickPopupFromMenuArgs(args)
             nil
         end
@@ -317,7 +248,7 @@ module Na__InsertPrimatives
 
             UI.start_timer(0.05, false) do
                 begin
-                    puts "PRIMITIVE RIGHT CLICK POPUP FALLBACK REQUESTED"
+                    Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE RIGHT CLICK POPUP FALLBACK REQUESTED"
                     Na__InsertPrimatives.Na__RightClickPopup__ShowPrimitiveMenu(self, x, y)
                 ensure
                     @na_popup_menu_scheduled = false
@@ -398,12 +329,12 @@ module Na__InsertPrimatives
 
             model.commit_operation
 
-            puts "\n"
-            puts "----------------------------------------"
-            puts "PRIMITIVE CUBE REGENERATED"
-            puts "New Size: #{@cube_size_x.to_mm.round}mm x #{@cube_size_y.to_mm.round}mm x #{@cube_size_z.to_mm.round}mm"
-            puts "Rotation: #{Na__InsertPrimatives::KeyboardHandlers::NA_ROTATION_STEPS[@last_rotation_state]}°"
-            puts "----------------------------------------"
+            Na__InsertPrimatives.Na__Debug__Puts "\n"
+            Na__InsertPrimatives.Na__Debug__Puts "----------------------------------------"
+            Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE CUBE REGENERATED"
+            Na__InsertPrimatives.Na__Debug__Puts "New Size: #{@cube_size_x.to_mm.round}mm x #{@cube_size_y.to_mm.round}mm x #{@cube_size_z.to_mm.round}mm"
+            Na__InsertPrimatives.Na__Debug__Puts "Rotation: #{Na__InsertPrimatives::KeyboardHandlers::NA_ROTATION_STEPS[@last_rotation_state]}°"
+            Na__InsertPrimatives.Na__Debug__Puts "----------------------------------------"
         end
         # ---------------------------------------------------------------
 
@@ -443,13 +374,13 @@ module Na__InsertPrimatives
 
             model.commit_operation
 
-            puts "\n"
-            puts "----------------------------------------"
-            puts "PRIMITIVE PLANE REGENERATED"
-            puts "New Size: #{@cube_size_x.to_mm.round}mm x #{@cube_size_y.to_mm.round}mm"
-            puts "Faces: #{@plane_faces_enabled ? 'Enabled' : 'Disabled'}"
-            puts "Rotation: #{Na__InsertPrimatives::KeyboardHandlers::NA_ROTATION_STEPS[@last_rotation_state]}°"
-            puts "----------------------------------------"
+            Na__InsertPrimatives.Na__Debug__Puts "\n"
+            Na__InsertPrimatives.Na__Debug__Puts "----------------------------------------"
+            Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE PLANE REGENERATED"
+            Na__InsertPrimatives.Na__Debug__Puts "New Size: #{@cube_size_x.to_mm.round}mm x #{@cube_size_y.to_mm.round}mm"
+            Na__InsertPrimatives.Na__Debug__Puts "Faces: #{@plane_faces_enabled ? 'Enabled' : 'Disabled'}"
+            Na__InsertPrimatives.Na__Debug__Puts "Rotation: #{Na__InsertPrimatives::KeyboardHandlers::NA_ROTATION_STEPS[@last_rotation_state]}°"
+            Na__InsertPrimatives.Na__Debug__Puts "----------------------------------------"
         end
         # ---------------------------------------------------------------
 
@@ -461,7 +392,7 @@ module Na__InsertPrimatives
 
             model.start_operation('Insert Primitive Cube', true)
 
-            snapped_corner = Na__InsertPrimatives.round_point_to_nearest_5mm(click_point)
+            snapped_corner = Na__InsertPrimatives.Na__DrawnGrid__SnapPoint(click_point)
 
             p0, p1, p2, p3 = Na__InsertPrimatives.Na__Preview__BuildCubeCorners(snapped_corner, @cube_size_x, @cube_size_y, @rotation_step)
 
@@ -480,13 +411,13 @@ module Na__InsertPrimatives
 
             model.commit_operation
 
-            puts "\n"
-            puts "----------------------------------------"
-            puts "PRIMITIVE CUBE CREATED"
-            puts "Corner: X=#{snapped_corner.x.to_mm.round(2)}mm, Y=#{snapped_corner.y.to_mm.round(2)}mm, Z=#{snapped_corner.z.to_mm.round(2)}mm"
-            puts "Size: #{@cube_size_x.to_mm.round}mm x #{@cube_size_y.to_mm.round}mm x #{@cube_size_z.to_mm.round}mm"
-            puts "Rotation: #{Na__InsertPrimatives::KeyboardHandlers::NA_ROTATION_STEPS[@rotation_step]}°"
-            puts "----------------------------------------"
+            Na__InsertPrimatives.Na__Debug__Puts "\n"
+            Na__InsertPrimatives.Na__Debug__Puts "----------------------------------------"
+            Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE CUBE CREATED"
+            Na__InsertPrimatives.Na__Debug__Puts "Corner: X=#{snapped_corner.x.to_mm.round(2)}mm, Y=#{snapped_corner.y.to_mm.round(2)}mm, Z=#{snapped_corner.z.to_mm.round(2)}mm"
+            Na__InsertPrimatives.Na__Debug__Puts "Size: #{@cube_size_x.to_mm.round}mm x #{@cube_size_y.to_mm.round}mm x #{@cube_size_z.to_mm.round}mm"
+            Na__InsertPrimatives.Na__Debug__Puts "Rotation: #{Na__InsertPrimatives::KeyboardHandlers::NA_ROTATION_STEPS[@rotation_step]}°"
+            Na__InsertPrimatives.Na__Debug__Puts "----------------------------------------"
         end
         # ---------------------------------------------------------------
 
@@ -494,28 +425,8 @@ module Na__InsertPrimatives
 
     # endregion -------------------------------------------------------------------
 
-
-    # -----------------------------------------------------------------------------
-    # REGION | Public Entry Point
-    # -----------------------------------------------------------------------------
-
-    # FUNCTION | Insert Primitive Cube (Hotkey Entry Point)
-    # ------------------------------------------------------------
-    # Bind this method in Preferences -> Shortcuts to activate the tool
-    # Method name: Na__InsertPrimatives.Na__InsertPrimatives__InsertCube
-    # ------------------------------------------------------------
-    def self.Na__InsertPrimatives__InsertCube
-        model = Sketchup.active_model
-        return unless model
-
-        model.select_tool(PrimitiveCubeTool.new)
-    end
-    # ---------------------------------------------------------------
-
-    # endregion -------------------------------------------------------------------
-
 end # End Na__InsertPrimatives module
 
 # =============================================================================
-# END OF MAIN MODULE
+# END OF PRIMITIVE CUBE TOOL
 # =============================================================================

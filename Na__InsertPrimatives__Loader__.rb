@@ -8,8 +8,10 @@
 # CREATED    : 2026
 #
 # DESCRIPTION:
-# - Loads the main tool from the Na__InsertPrimatives__Modules__ subfolder
-# - Creates menu item in the Plugins menu
+# - Loads the plugin once at SketchUp startup
+# - Registers the Extensions submenu, including Reload Plugin Data
+# - Tool commands / hotkeys only activate a tool. They never reload Ruby.
+# - After editing modules, use Reload Plugin Data (or restart SketchUp).
 #
 # =============================================================================
 
@@ -19,7 +21,9 @@ require 'sketchup.rb'
 # ------------------------------------------------------------
 plugin_root   = File.dirname(__FILE__)                                      # <-- Plugins folder
 plugin_folder = File.join(plugin_root, 'Na__InsertPrimatives__Modules__')    # <-- Modules subfolder
-main_file     = File.join(plugin_folder, 'Na__InsertPrimatives__Main__.rb')  # <-- Main script
+app_core_dir  = File.join(plugin_folder, '01__AppCore')
+main_file     = File.join(app_core_dir, 'Na__InsertPrimatives__AppCore__Main__.rb')
+reloader_file = File.join(app_core_dir, 'Na__InsertPrimatives__AppCore__PluginReloader__.rb')
 # ---------------------------------------------------------------
 
 
@@ -39,52 +43,90 @@ main_file     = File.join(plugin_folder, 'Na__InsertPrimatives__Main__.rb')  # <
     # ---------------------------------------------------------------
 
 
-    # FUNCTION | Load Main Primitive Tool Script
+    # FUNCTION | Plugin Runtime Is Already in Memory
+    # ------------------------------------------------------------
+    def Na__InsertPrimatives__PluginReady?
+        defined?(Na__InsertPrimatives) &&
+            Na__InsertPrimatives.const_defined?(:DrawnPushPullTool, false) &&
+            Na__InsertPrimatives.const_defined?(:DrawnChamferTool, false) &&
+            Na__InsertPrimatives.respond_to?(:Na__InsertPrimatives__DeepPushPull)
+    end
+    # ---------------------------------------------------------------
+
+
+    # FUNCTION | Activate a Public Tool Entry, or Point at Reload Plugin Data
+    # ------------------------------------------------------------
+    # Shortcuts must stay cheap. If startup failed, recovery is the Reload
+    # Plugin Data menu — the reloader is loaded on its own so it still exists.
+    # ------------------------------------------------------------
+    def Na__InsertPrimatives__RunTool(entry_name)
+        unless defined?(Na__InsertPrimatives) &&
+               Na__InsertPrimatives.respond_to?(entry_name)
+            UI.messagebox(
+                "Na Insert Primatives is not loaded.\n\n" \
+                "Use Extensions > Na__InsertPrimitives > Reload Plugin Data, " \
+                "or restart SketchUp."
+            )
+            return
+        end
+
+        Na__InsertPrimatives.public_send(entry_name)
+    end
+    # ---------------------------------------------------------------
+
+
+    # FUNCTION | Write Loader Diagnostics Only When AppConfig Dev Mode Is On
+    # ------------------------------------------------------------
+    def Na__InsertPrimatives__DebugPuts(*args)
+        return unless defined?(Na__InsertPrimatives) &&
+                      Na__InsertPrimatives.respond_to?(:Na__Config__DevMode?) &&
+                      Na__InsertPrimatives.Na__Config__DevMode?
+
+        puts(*args)
+    end
+    # ---------------------------------------------------------------
+
+
+    # FUNCTION | Load Main Primitive Tool Script (Startup Only)
     # ------------------------------------------------------------
     def Na__InsertPrimatives__LoadMainScript(main_file)
-        if File.exist?(main_file)
-            begin
-                module_folder = File.dirname(main_file)
-                module_files = [
-                    'Na__InsertPrimatives__UserInput__VcbFunctions__.rb',
-                    'Na__InsertPrimatives__3dPreviewGraphics__.rb',
-                    'Na__InsertPrimatives__PlaneMode__.rb',
-                    'Na__InsertPrimatives__RightClickPopup__.rb',
-                    'Na__InsertPrimatives__KeyboardHandlers__.rb',
-                    'Na__InsertPrimatives__DrawnGridSnap__.rb',
-                    'Na__InsertPrimatives__DrawnVcbArithmetic__.rb',
-                    'Na__InsertPrimatives__DrawnPreviewGraphics__.rb',
-                    'Na__InsertPrimatives__DrawnGeometry__.rb',
-                    'Na__InsertPrimatives__DrawnToolShared__.rb',
-                    'Na__InsertPrimatives__DrawnPlaneTool__.rb',
-                    'Na__InsertPrimatives__DrawnVolumeTool__.rb',
-                    'Na__InsertPrimatives__DrawnRoofGeometry__.rb',
-                    'Na__InsertPrimatives__DrawnCylinderTool__.rb',
-                    'Na__InsertPrimatives__DrawnDeepPick__.rb',
-                    'Na__InsertPrimatives__DrawnSlopePush__.rb',
-                    'Na__InsertPrimatives__DrawnRoofTools__.rb',
-                    'Na__InsertPrimatives__DrawnPushPullTool__.rb',
-                    'Na__InsertPrimatives__DrawnEdgeLoops__.rb',
-                    'Na__InsertPrimatives__DrawnPushPull2dTool__.rb',
-                    'Na__InsertPrimatives__DrawnChamferTool__.rb',
-                    'Na__InsertPrimatives__Main__.rb'
-                ]
+        return true if Na__InsertPrimatives__PluginReady?
 
-                module_files.each do |file_name|
-                    Na__InsertPrimatives__ForgetLoadedFeature(File.join(module_folder, file_name))
-                end
-
-                require main_file
-                puts "✓ Na Insert Primatives loaded successfully"
-                true
-            rescue => e
-                puts "✗ Error loading Na Insert Primatives: #{e.message}"
-                puts e.backtrace.join("\n")
-                false
-            end
-        else
+        unless File.exist?(main_file)
             puts "✗ Na Insert Primatives main file not found at: #{main_file}"
+            return false
+        end
+
+        previous_verbose = $VERBOSE
+        begin
+            $VERBOSE = nil
+
+            app_core_dir   = File.dirname(main_file)
+            modules_root   = File.expand_path('..', app_core_dir)
+            manifest_file  = File.join(app_core_dir, 'Na__InsertPrimatives__AppCore__LoadManifest__.rb')
+
+            load manifest_file if File.exist?(manifest_file)
+
+            runtime_paths = if defined?(Na__InsertPrimatives) &&
+                               Na__InsertPrimatives.respond_to?(:Na__LoadManifest__RuntimeAbsolutePaths)
+                Na__InsertPrimatives.Na__LoadManifest__RuntimeAbsolutePaths(modules_root)
+            else
+                [File.expand_path(main_file).tr('\\', '/')]
+            end
+
+            runtime_paths.each do |file_path|
+                Na__InsertPrimatives__ForgetLoadedFeature(file_path)
+            end
+
+            require main_file
+            Na__InsertPrimatives__DebugPuts('✓ Na Insert Primatives loaded successfully')
+            true
+        rescue => e
+            puts "✗ Error loading Na Insert Primatives: #{e.message}"
+            puts e.backtrace.join("\n")
             false
+        ensure
+            $VERBOSE = previous_verbose
         end
     end
     # ---------------------------------------------------------------
@@ -154,7 +196,7 @@ $na_insert_primatives_menu ||= { :submenu => nil, :entries => {} }
 # redefining it from inside itself is a reentrancy knot with nothing to gain.
 unless $na_insert_primatives_reloading
     begin
-        load File.join(plugin_folder, 'Na__InsertPrimatives__PluginReloader__.rb')
+        load reloader_file
     rescue => reloader_error
         puts "✗ Na Insert Primatives reloader failed to load: #{reloader_error.message}"
     end
@@ -183,8 +225,7 @@ begin
     # COMMAND SETUP | Create UI Command
     # ------------------------------------------------------------
     cmd = UI::Command.new('NA_InsertPrimitiveCube') {
-        Na__InsertPrimatives__LoadMainScript(main_file)
-        Na__InsertPrimatives.Na__InsertPrimatives__InsertCube               # <-- Activate the placement tool
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__InsertCube)
     }
     cmd.tooltip         = "Insert Primitive Cube"                           # <-- Tooltip text
     cmd.status_bar_text = "Activate primitive cube placement tool"          # <-- Status bar text
@@ -194,8 +235,7 @@ begin
     # COMMAND SETUP | Drawn Plane Tool (Click and Drag Rectangle)
     # ------------------------------------------------------------
     drawn_plane_cmd = UI::Command.new('NA_DrawPlanePrimitive') {
-        Na__InsertPrimatives__LoadMainScript(main_file)
-        Na__InsertPrimatives.Na__InsertPrimatives__DrawPlane                 # <-- Activate the drag rectangle tool
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DrawPlane)
     }
     drawn_plane_cmd.tooltip         = "Draw Plane Primitive"
     drawn_plane_cmd.status_bar_text = "Click and drag a grid-snapped rectangle primitive"
@@ -205,8 +245,7 @@ begin
     # COMMAND SETUP | Drawn Volume Tool (Click and Drag Box)
     # ------------------------------------------------------------
     drawn_volume_cmd = UI::Command.new('NA_DrawVolumePrimitive') {
-        Na__InsertPrimatives__LoadMainScript(main_file)
-        Na__InsertPrimatives.Na__InsertPrimatives__DrawVolume                # <-- Activate the drag box tool
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DrawVolume)
     }
     drawn_volume_cmd.tooltip         = "Draw Volume Primitive"
     drawn_volume_cmd.status_bar_text = "Click and drag a grid-snapped box primitive"
@@ -216,8 +255,7 @@ begin
     # COMMAND SETUP | Drawn Cylinder Tool (Click and Drag Cylinder)
     # ------------------------------------------------------------
     drawn_cylinder_cmd = UI::Command.new('NA_DrawCylinderPrimitive') {
-        Na__InsertPrimatives__LoadMainScript(main_file)
-        Na__InsertPrimatives.Na__InsertPrimatives__DrawCylinder              # <-- Activate the drag cylinder tool
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DrawCylinder)
     }
     drawn_cylinder_cmd.tooltip         = "Draw Cylinder Primitive"
     drawn_cylinder_cmd.status_bar_text = "Click and drag a cylinder primitive centred on the grid"
@@ -227,8 +265,7 @@ begin
     # COMMAND SETUP | Pitched Roof Tool (Click and Drag Gable Roof)
     # ------------------------------------------------------------
     pitched_roof_cmd = UI::Command.new('NA_DrawPitchedRoofPrimitive') {
-        Na__InsertPrimatives__LoadMainScript(main_file)
-        Na__InsertPrimatives.Na__InsertPrimatives__DrawPitchedRoof           # <-- Activate the gable roof tool
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DrawPitchedRoof)
     }
     pitched_roof_cmd.tooltip         = "Draw Pitched Roof Primitive"
     pitched_roof_cmd.status_bar_text = "Drag a plan footprint then pull up the ridge, or type a pitch"
@@ -238,8 +275,7 @@ begin
     # COMMAND SETUP | Hipped Roof Tool (Click and Drag Hip Roof)
     # ------------------------------------------------------------
     hipped_roof_cmd = UI::Command.new('NA_DrawHippedRoofPrimitive') {
-        Na__InsertPrimatives__LoadMainScript(main_file)
-        Na__InsertPrimatives.Na__InsertPrimatives__DrawHippedRoof            # <-- Activate the hip roof tool
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DrawHippedRoof)
     }
     hipped_roof_cmd.tooltip         = "Draw Hipped Roof Primitive"
     hipped_roof_cmd.status_bar_text = "Drag a plan footprint then pull up the ridge, or type a pitch"
@@ -249,8 +285,7 @@ begin
     # COMMAND SETUP | Deep Push/Pull Tool
     # ------------------------------------------------------------
     push_pull_cmd = UI::Command.new('NA_DeepPushPull') {
-        Na__InsertPrimatives__LoadMainScript(main_file)
-        Na__InsertPrimatives.Na__InsertPrimatives__DeepPushPull              # <-- Activate the deep push/pull tool
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DeepPushPull)
     }
     push_pull_cmd.tooltip         = "Deep Push/Pull"
     push_pull_cmd.status_bar_text = "Push or pull any face at any nesting depth, on the voxel grid"
@@ -263,8 +298,7 @@ begin
     # COMMAND SETUP | Deep Chamfer Tool
     # ------------------------------------------------------------
     chamfer_cmd = UI::Command.new('NA_DeepChamfer') {
-        Na__InsertPrimatives__LoadMainScript(main_file)
-        Na__InsertPrimatives.Na__InsertPrimatives__DeepChamfer               # <-- Activate the deep chamfer tool
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DeepChamfer)
     }
     chamfer_cmd.tooltip         = "Deep Chamfer"
     chamfer_cmd.status_bar_text = "Chamfer any edge at any nesting depth, on the voxel grid"
@@ -280,9 +314,40 @@ begin
             UI.messagebox('Na Insert Primatives reloader is not loaded — restart SketchUp.')
         end
     }
-    reload_cmd.tooltip         = "Reload Na Insert Primatives"
-    reload_cmd.status_bar_text = "Hot reload every Na Insert Primatives module without restarting"
+    reload_cmd.tooltip         = "Hot reload Na Insert Primatives"
+    reload_cmd.status_bar_text = "Reload every module from disk. Tool shortcuts never reload on their own."
     reload_cmd.menu_text       = "Reload Plugin Data"
+    # ---------------------------------------------------------------
+
+    # COMMAND SETUP | Toggle AppConfig Dev Mode
+    # ------------------------------------------------------------
+    # Writes Na__DevMode__Enabled in AppConfig JSON. Checkmark follows the file.
+    # The command block calls module methods, so Reload Plugin Data keeps it live
+    # without replacing this menu item.
+    # ------------------------------------------------------------
+    dev_mode_cmd = UI::Command.new('NA_InsertPrimitivesToggleDevMode') {
+        unless defined?(Na__InsertPrimatives) &&
+               Na__InsertPrimatives.respond_to?(:Na__Config__ToggleDevMode)
+            UI.messagebox(
+                "Na Insert Primatives is not loaded.\n\n" \
+                "Use Reload Plugin Data, or restart SketchUp."
+            )
+            next
+        end
+
+        Na__InsertPrimatives.Na__Config__ToggleDevMode
+    }
+    dev_mode_cmd.tooltip         = "Enable Dev Mode"
+    dev_mode_cmd.status_bar_text = "Write diagnostic console output on or off to AppConfig"
+    dev_mode_cmd.menu_text       = "Enable Dev Mode"
+    dev_mode_cmd.set_validation_proc {
+        unless defined?(Na__InsertPrimatives) &&
+               Na__InsertPrimatives.respond_to?(:Na__Config__DevMode?)
+            next MF_GRAYED
+        end
+
+        Na__InsertPrimatives.Na__Config__DevMode? ? MF_CHECKED : MF_UNCHECKED
+    }
     # ---------------------------------------------------------------
 
     # MENU INTEGRATION | Single Submenu Under Extensions
@@ -310,7 +375,9 @@ begin
     Na__InsertPrimatives__AddMenuEntry('chamfer')         { |m| m.add_item(chamfer_cmd) }
     Na__InsertPrimatives__AddMenuEntry('sep_after_mod')   { |m| m.add_separator }
 
-    Na__InsertPrimatives__AddMenuEntry('reload')          { |m| m.add_item(reload_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('reload')           { |m| m.add_item(reload_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('sep_after_reload') { |m| m.add_separator }
+    Na__InsertPrimatives__AddMenuEntry('dev_mode')         { |m| m.add_item(dev_mode_cmd) }
     # ---------------------------------------------------------------
 
 rescue => loader_menu_error

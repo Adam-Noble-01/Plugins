@@ -3,6 +3,130 @@
 
 # =============================================================================
 
+## Version 5.0.0 - 04-Sep-2026 - Numbered Modules, One Manifest, Instant Tools
+
+### Why This Is 5.0.0
+The 0.4.x line built the modelling suite: click-and-drag primitives, roofs, nested
+push/pull, chamfer. The code outgrew a flat Modules folder and three disagreeing
+load lists. This release is the architecture pass, not a new tool. Tool behaviour
+is unchanged. What changed is how the plugin is laid out, loaded, reloaded, and
+logged.
+
+The `Na__InsertPrimatives` namespace spelling is kept on purpose. English UI still
+says Primitives (`Na__InsertPrimitives` submenu). No toolbar. DEVLOG stays at the
+Modules root.
+
+### Numbered Folder Map
+The plugin now follows the Element Studio / Component Editor pattern: low numbers
+are core and shared, `10+` are product systems.
+
+```
+01__AppCore                 PathResolver, LoadManifest, Main, Reloader, ModeSwitch
+02__AppData                 AppConfig JSON, ConfigLoader, persisted drawn settings
+03__AppUtils                VCB, format, keyboard
+04__GeometryHelpers         grid, solids, roofs, deep pick, slope, edge loops
+05__PreviewGraphics         cube wireframe and drawn overlays
+06__Tools__DrawnShared      drag state machine
+10__System__PlaceCube       click-to-place cube and plane mode
+20__System__DrawnPrimitives plane / volume / cylinder
+21__System__DrawnRoofs      pitched / hipped
+30__System__DeepPushPull    3d + 2d tools, commit, quad ring, 2d pick
+31__System__DeepChamfer     tool, geometry, mitre
+40__UserInterface           right-click HtmlDialog
+```
+
+Folder numbers never appear in filenames. Public entry names and menu keys are
+unchanged, so existing shortcuts do not duplicate.
+
+### One Load List
+Main, the Loader forget-list, and the Reloader used to each carry their own file
+order. Those lists had already drifted. There is now one source of truth:
+
+`01__AppCore/Na__InsertPrimatives__AppCore__LoadManifest__.rb`
+
+Main requires it. The Reloader discovers `**/*.rb`, sorts by that index, then
+loads leftovers alphabetically so a forgotten new file still hot-reloads. The
+Reloader itself is still loaded alone by the root Loader, so a broken module does
+not take Reload Plugin Data down with it.
+
+### Oversized Files Split Along Existing Regions
+Splits followed the `# REGION |` maps that were already in the files. Every
+extract left a `# @delegate:` pointer at the old site. Public method names were
+not renamed.
+
+- Chamfer Geometry + Mitre out of the tool class
+- Push/pull Quad Ring + Commit out of the 3d tool
+- ModeSwitch out of DrawnToolShared
+- PrimitiveCubeTool out of Main (Main is require + entries only)
+- Drawn settings + format out of GridSnap
+- Push/pull 2d pick helpers
+- DeepPick Focus / Pick / ExecuteInContext
+- Right-click popup HTML/CSS/JS builder
+
+`DrawnPreviewGraphics` was left whole: it already has clear regions, and the plan
+marked a further split as lowest priority. A shared Deep-Edit base for push/pull
+and chamfer was an explicit non-goal.
+
+### Hotkeys Must Not Reload the Plugin
+After the nested-folder move, every menu command and shortcut still forgot
+`$LOADED_FEATURES` and re-required the whole plugin. That is ~34 Ruby files, a
+wall of `already initialized constant` warnings, and the delay on Deep Push/Pull.
+
+Tools now only activate. If startup failed, they point at Reload Plugin Data
+instead of recovering by reloading on the spot.
+
+**Extensions → Na__InsertPrimitives → Reload Plugin Data** is the hot-reload path.
+Edit Ruby, use that item (or restart SketchUp). Do not expect a shortcut to pick
+up disk changes by itself.
+
+### AppConfig and Dev Mode
+Diagnostic `puts` (activation banners, create/apply dumps, “loaded successfully”)
+were cheap when the plugin was small and expensive once every hotkey reprinted
+them after a full reload.
+
+New file:
+
+`02__AppData/Na__InsertPrimatives__AppConfig__Main.json`
+
+Keys follow the three-stage `Na__Domain__Name` style:
+
+```json
+{
+    "Na__InsertPrimatives__AppConfig": {
+        "Na__DevMode__Config": {
+            "Na__DevMode__Enabled": false
+        }
+    }
+}
+```
+
+Default is off. Load errors still print. Reload Plugin Data still reports to the
+console, because that is an explicit reload.
+
+**Enable Dev Mode** is a checkable item at the bottom of the Extensions submenu.
+It writes `Na__DevMode__Enabled` immediately. No plugin reload required for the
+flag to take effect.
+
+### Files Added or Relocated (Architecture)
+1. **`Na__InsertPrimatives__AppCore__PathResolver__.rb`** — modules root and plugin root
+2. **`Na__InsertPrimatives__AppCore__LoadManifest__.rb`** — single ordered load list
+3. **`Na__InsertPrimatives__AppData__ConfigLoader__.rb`** — read/write AppConfig; gate `Na__Debug__Puts`
+4. **`Na__InsertPrimatives__AppConfig__Main.json`** — `Na__DevMode__Enabled`
+5. **`Na__InsertPrimatives__DrawnDeepPick__Focus__.rb` / `__Pick__.rb` / `__Context__.rb`**
+6. **`Na__InsertPrimatives__RightClickPopup__Html__.rb`**
+7. **`Na__InsertPrimatives__Loader__.rb`** — startup load only; tools call `Na__InsertPrimatives__RunTool`; Dev Mode menu at the bottom
+
+Plus the Phase 2 extracts already named above (Chamfer Geometry/Mitre, PushPull
+Commit/QuadRing, ModeSwitch, PrimitiveCubeTool, DrawnSettings, DrawnFormat,
+PushPull2d Pick).
+
+### Status: IMPLEMENTED — VERIFIED IN SKETCHUP
+Tools activate without a reload delay. Nested push/pull, chamfer, drawn volume
+and the right-click popup all still work. Reload Plugin Data remains the way to
+pick up Ruby edits.
+
+# =============================================================================
+
 ## Version 0.4.36 - 03-Sep-2026 - Previews Land Where They Are Aimed Inside a Group
 
 ### Reported

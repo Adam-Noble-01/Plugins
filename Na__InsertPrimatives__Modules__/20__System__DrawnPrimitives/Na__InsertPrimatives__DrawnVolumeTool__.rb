@@ -28,7 +28,7 @@
 # =============================================================================
 
 require 'sketchup.rb'
-require_relative 'Na__InsertPrimatives__DrawnToolShared__'
+require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__DrawnToolShared__'
 
 module Na__InsertPrimatives
 
@@ -365,16 +365,16 @@ module Na__InsertPrimatives
         # FUNCTION | Console Report for a Created or Adjusted Volume
         # ------------------------------------------------------------
         def na_drawn__log_volume(headline, group, origin, plane_key, width_len, height_len, depth_len)
-            puts "\n"
-            puts '----------------------------------------'
-            puts headline
-            puts "Anchor: #{Na__InsertPrimatives.Na__DrawnFormat__PointMm(origin)}"
-            puts "Plane : #{NA_DRAWN_PLANE_LABELS[plane_key]} base, extruded along its normal"
-            puts "Size  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(width_len).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(height_len).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(depth_len).abs}mm"
-            puts "Volume: #{Na__InsertPrimatives.Na__DrawnFormat__VolumeM3(width_len, height_len, depth_len)} m3"
-            puts "Solid : #{Na__InsertPrimatives.Na__DrawnGeom__SolidState(group)}"
-            puts "Grid  : #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
-            puts '----------------------------------------'
+            Na__InsertPrimatives.Na__Debug__Puts "\n"
+            Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
+            Na__InsertPrimatives.Na__Debug__Puts headline
+            Na__InsertPrimatives.Na__Debug__Puts "Anchor: #{Na__InsertPrimatives.Na__DrawnFormat__PointMm(origin)}"
+            Na__InsertPrimatives.Na__Debug__Puts "Plane : #{NA_DRAWN_PLANE_LABELS[plane_key]} base, extruded along its normal"
+            Na__InsertPrimatives.Na__Debug__Puts "Size  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(width_len).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(height_len).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(depth_len).abs}mm"
+            Na__InsertPrimatives.Na__Debug__Puts "Volume: #{Na__InsertPrimatives.Na__DrawnFormat__VolumeM3(width_len, height_len, depth_len)} m3"
+            Na__InsertPrimatives.Na__Debug__Puts "Solid : #{Na__InsertPrimatives.Na__DrawnGeom__SolidState(group)}"
+            Na__InsertPrimatives.Na__Debug__Puts "Grid  : #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
+            Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
         end
         # ---------------------------------------------------------------
 

@@ -5,8 +5,7 @@
 # FILE       : Na__InsertPrimatives__DrawnGridSnap__.rb
 # NAMESPACE  : Na__InsertPrimatives
 # AUTHOR     : Noble Architecture
-# PURPOSE    : Shared voxel lattice, plane-axis maths and persisted settings for
-#              the click-and-drag Drawn Plane / Drawn Volume primitive tools
+# PURPOSE    : Shared voxel lattice and plane-axis maths for every primitive tool
 # CREATED    : 2026
 #
 # DESCRIPTION:
@@ -15,8 +14,7 @@
 #   tripod (aligned to an angled wall) gets a grid that follows the wall rather
 #   than world XYZ. With the default axes this is identical to world rounding,
 #   which is what the original round_point_to_nearest_5mm did.
-# - Grid step and plane-face preference persist between sessions via
-#   Sketchup.read_default / write_default.
+# - Grid step and plane-face preference persist via Na__DrawnSettings__* in AppData.
 #
 # PLANE KEYS:
 #   :xy  horizontal plan plane   (normal = model Z)
@@ -68,160 +66,7 @@ module Na__InsertPrimatives
     # endregion -------------------------------------------------------------------
 
 
-    # -----------------------------------------------------------------------------
-    # REGION | Persisted Shared Settings
-    # -----------------------------------------------------------------------------
-
-    # FUNCTION | Current Snap Step in Millimetres
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__GridStepMm
-        if @na_drawn_grid_step_mm.nil?
-            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_GRID_STEP_KEY, NA_DRAWN_DEFAULT_GRID_MM)
-            value  = stored.to_f
-            @na_drawn_grid_step_mm = value > 0.0 ? value : NA_DRAWN_DEFAULT_GRID_MM
-        end
-
-        @na_drawn_grid_step_mm
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Set Snap Step in Millimetres
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__SetGridStepMm(value_mm)
-        value = value_mm.to_f
-        return Na__InsertPrimatives.Na__DrawnSettings__GridStepMm unless value > 0.0
-
-        @na_drawn_grid_step_mm = value
-        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_GRID_STEP_KEY, value)
-        value
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Advance Snap Step to the Next Value in the Cycle
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__CycleGridStepMm
-        current = Na__InsertPrimatives.Na__DrawnSettings__GridStepMm
-        index   = NA_DRAWN_GRID_STEP_CYCLE_MM.index { |step| (step - current).abs < 0.0001 }
-        index   = index.nil? ? 0 : (index + 1) % NA_DRAWN_GRID_STEP_CYCLE_MM.length
-
-        Na__InsertPrimatives.Na__DrawnSettings__SetGridStepMm(NA_DRAWN_GRID_STEP_CYCLE_MM[index])
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Snap Step Rendered for Display (e.g. "5mm")
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__GridStepLabel
-        step = Na__InsertPrimatives.Na__DrawnSettings__GridStepMm
-        step == step.round ? "#{step.round}mm" : "#{step}mm"
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Shared Plane Face Creation Preference
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__PlaneFacesEnabled?
-        if @na_drawn_plane_faces.nil?
-            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_PLANE_FACES_KEY, true)
-            @na_drawn_plane_faces = (stored == true || stored == 'true' || stored == 1)
-        end
-
-        @na_drawn_plane_faces
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Set Shared Plane Face Creation Preference
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__SetPlaneFacesEnabled(enabled)
-        @na_drawn_plane_faces = (enabled ? true : false)
-        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_PLANE_FACES_KEY, @na_drawn_plane_faces)
-        @na_drawn_plane_faces
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Quad Push/Pull Preference
-    # When on, Deep Push/Pull leaves the ring of edges the extrusion started
-    # from instead of letting SketchUp melt it into the wall it extended.
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__QuadPushEnabled?
-        if @na_drawn_quad_push.nil?
-            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_QUAD_PUSH_KEY, false)
-            @na_drawn_quad_push = (stored == true || stored == 'true' || stored == 1)
-        end
-
-        @na_drawn_quad_push
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Set Quad Push/Pull Preference
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__SetQuadPushEnabled(enabled)
-        @na_drawn_quad_push = (enabled ? true : false)
-        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_QUAD_PUSH_KEY, @na_drawn_quad_push)
-        @na_drawn_quad_push
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Flip the Quad Push/Pull Preference
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__ToggleQuadPush
-        Na__InsertPrimatives.Na__DrawnSettings__SetQuadPushEnabled(
-            !Na__InsertPrimatives.Na__DrawnSettings__QuadPushEnabled?
-        )
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Segment Count Used for Circles and Cylinders
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__CircleSegments
-        if @na_drawn_circle_segments.nil?
-            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_SEGMENTS_KEY, NA_DRAWN_DEFAULT_SEGMENTS)
-            count  = stored.to_i
-
-            # An unreadable stored value falls back to the default rather than to
-            # the 3-sided minimum, which would be a bizarre thing to wake up to.
-            @na_drawn_circle_segments = count < NA_DRAWN_MIN_SEGMENTS ?
-                                        NA_DRAWN_DEFAULT_SEGMENTS :
-                                        Na__InsertPrimatives.Na__DrawnSettings__ClampSegments(count)
-        end
-
-        @na_drawn_circle_segments
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Clamp a Segment Count into a Buildable Range
-    # Typed input clamps rather than snapping back to a default, so "2s" gives
-    # the 3-sided minimum instead of silently jumping to 24.
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__ClampSegments(value)
-        count = value.to_i
-        return NA_DRAWN_MIN_SEGMENTS if count < NA_DRAWN_MIN_SEGMENTS
-
-        count > NA_DRAWN_MAX_SEGMENTS ? NA_DRAWN_MAX_SEGMENTS : count
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Set the Segment Count Used for Circles and Cylinders
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__SetCircleSegments(value)
-        count = Na__InsertPrimatives.Na__DrawnSettings__ClampSegments(value)
-        @na_drawn_circle_segments = count
-        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_SEGMENTS_KEY, count)
-        count
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Advance the Segment Count to the Next Value in the Cycle
-    # ------------------------------------------------------------
-    def self.Na__DrawnSettings__CycleCircleSegments
-        current = Na__InsertPrimatives.Na__DrawnSettings__CircleSegments
-        index   = NA_DRAWN_SEGMENT_CYCLE.index(current)
-        index   = index.nil? ? 0 : (index + 1) % NA_DRAWN_SEGMENT_CYCLE.length
-
-        Na__InsertPrimatives.Na__DrawnSettings__SetCircleSegments(NA_DRAWN_SEGMENT_CYCLE[index])
-    end
-    # ---------------------------------------------------------------
-
-    # endregion -------------------------------------------------------------------
-
+    # @delegate: ../02__AppData/Na__InsertPrimatives__AppData__DrawnSettings__.rb
 
     # -----------------------------------------------------------------------------
     # REGION | Voxel Lattice Snapping
@@ -448,72 +293,7 @@ module Na__InsertPrimatives
 
     # endregion -------------------------------------------------------------------
 
-
-    # -----------------------------------------------------------------------------
-    # REGION | Formatting Helpers
-    # -----------------------------------------------------------------------------
-
-    # FUNCTION | Format Internal Inches as a Rounded Millimetre Integer
-    # ------------------------------------------------------------
-    def self.Na__DrawnFormat__Mm(value)
-        (value.to_f * NA_DRAWN_INCH_TO_MM).round
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Format an Area in Internal Units as Square Metres
-    # ------------------------------------------------------------
-    def self.Na__DrawnFormat__AreaM2(u_len, v_len)
-        area_mm2 = (u_len.to_f * NA_DRAWN_INCH_TO_MM).abs * (v_len.to_f * NA_DRAWN_INCH_TO_MM).abs
-        format('%.2f', area_mm2 / 1_000_000.0)
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Format a Volume in Internal Units as Cubic Metres
-    # ------------------------------------------------------------
-    def self.Na__DrawnFormat__VolumeM3(u_len, v_len, d_len)
-        volume_mm3 = (u_len.to_f * NA_DRAWN_INCH_TO_MM).abs *
-                     (v_len.to_f * NA_DRAWN_INCH_TO_MM).abs *
-                     (d_len.to_f * NA_DRAWN_INCH_TO_MM).abs
-        format('%.3f', volume_mm3 / 1_000_000_000.0)
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Format a Circle Area in Internal Units as Square Metres
-    # ------------------------------------------------------------
-    def self.Na__DrawnFormat__CircleAreaM2(radius)
-        radius_mm = (radius.to_f * NA_DRAWN_INCH_TO_MM).abs
-        format('%.2f', (Math::PI * radius_mm * radius_mm) / 1_000_000.0)
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Format a Cylinder Volume in Internal Units as Cubic Metres
-    # ------------------------------------------------------------
-    def self.Na__DrawnFormat__CylinderVolumeM3(radius, height)
-        radius_mm = (radius.to_f * NA_DRAWN_INCH_TO_MM).abs
-        height_mm = (height.to_f * NA_DRAWN_INCH_TO_MM).abs
-        format('%.3f', (Math::PI * radius_mm * radius_mm * height_mm) / 1_000_000_000.0)
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Format an Angle in Degrees to One Decimal Place
-    # ------------------------------------------------------------
-    def self.Na__DrawnFormat__Degrees(value)
-        format('%.1f', value.to_f)
-    end
-    # ---------------------------------------------------------------
-
-    # FUNCTION | Format a Snapped Point as an mm Coordinate String
-    # ------------------------------------------------------------
-    def self.Na__DrawnFormat__PointMm(point)
-        return '' unless point
-
-        "X#{Na__InsertPrimatives.Na__DrawnFormat__Mm(point.x)} " \
-        "Y#{Na__InsertPrimatives.Na__DrawnFormat__Mm(point.y)} " \
-        "Z#{Na__InsertPrimatives.Na__DrawnFormat__Mm(point.z)}"
-    end
-    # ---------------------------------------------------------------
-
-    # endregion -------------------------------------------------------------------
+    # @delegate: ../03__AppUtils/Na__InsertPrimatives__AppUtils__DrawnFormat__.rb
 
 end # End Na__InsertPrimatives module
 

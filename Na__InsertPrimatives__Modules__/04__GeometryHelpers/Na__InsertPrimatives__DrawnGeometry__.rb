@@ -5,8 +5,7 @@
 # FILE       : Na__InsertPrimatives__DrawnGeometry__.rb
 # NAMESPACE  : Na__InsertPrimatives
 # AUTHOR     : Noble Architecture
-# PURPOSE    : Group creation and in-place regeneration for the Drawn Plane and
-#              Drawn Volume primitives
+# PURPOSE    : Group creation and in-place regeneration for Drawn Plane, Volume and Cylinder
 # CREATED    : 2026
 #
 # DESCRIPTION:
@@ -20,12 +19,13 @@
 # GROUP NAMES:
 #   01__DrawnPlane    2D rectangle primitive
 #   01__DrawnVolume   3D box primitive
+#   01__DrawnCylinder centre-anchored cylinder primitive
 #
 # =============================================================================
 
 require 'sketchup.rb'
 require_relative 'Na__InsertPrimatives__DrawnGridSnap__'
-require_relative 'Na__InsertPrimatives__PlaneMode__'
+require_relative '../10__System__PlaceCube/Na__InsertPrimatives__PlaneMode__'
 
 module Na__InsertPrimatives
 

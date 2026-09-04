@@ -45,7 +45,7 @@
 # =============================================================================
 
 require 'sketchup.rb'
-require_relative 'Na__InsertPrimatives__DrawnPushPullTool__'
+require_relative '../30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__QuadRing__'
 
 module Na__InsertPrimatives
 

@@ -9,8 +9,7 @@
 # CREATED    : 2026
 #
 # DESCRIPTION:
-# - One popup serves every primitive tool in the plugin. The four modes are
-#   Cube, Plane, Drawn Plane and Drawn Volume; the running one is highlighted.
+# - One popup serves every primitive tool in the plugin. The running mode is highlighted.
 # - Switching between the click-to-place tool and the click-and-drag tools swaps
 #   the active SketchUp tool, which is why all of them implement the same small
 #   menu interface (see Na__InsertPrimatives::PrimitiveModeSwitching).
@@ -35,7 +34,7 @@ module Na__InsertPrimatives
 
 
     # -----------------------------------------------------------------------------
-    # REGION | Right Click Popup Menu
+    # REGION | Popup Lifecycle
     # -----------------------------------------------------------------------------
 
     # FUNCTION | Show Primitive Popup Menu
@@ -101,131 +100,15 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # endregion -------------------------------------------------------------------
 
-    # FUNCTION | Build Primitive Popup HTML
-    # ------------------------------------------------------------
-    def self.Na__RightClickPopup__BuildHtml(tool_instance)
-        faces_on   = tool_instance.respond_to?(:Na__PrimitiveMode__PlaneFacesEnabled?) ?
-                     tool_instance.Na__PrimitiveMode__PlaneFacesEnabled? : true
-        face_label = faces_on ? "Plane Faces: Disable" : "Plane Faces: Enable"
-        active_key = Na__InsertPrimatives.Na__RightClickPopup__ActiveModeKey(tool_instance)
-        grid_label = Na__InsertPrimatives.Na__RightClickPopup__GridLabel(tool_instance)
-        side_label = Na__InsertPrimatives.Na__RightClickPopup__SegmentsLabel(tool_instance)
 
-        cube_class   = active_key == :cube            ? 'mode active' : 'mode'
-        plane_class  = active_key == :plane           ? 'mode active' : 'mode'
-        drawn_p_cls  = active_key == :drawn_plane     ? 'mode active' : 'mode'
-        drawn_v_cls  = active_key == :drawn_volume    ? 'mode active' : 'mode'
-        drawn_c_cls  = active_key == :drawn_cylinder  ? 'mode active' : 'mode'
-        roof_p_cls   = active_key == :drawn_pitched_roof ? 'mode active' : 'mode'
-        roof_h_cls   = active_key == :drawn_hipped_roof  ? 'mode active' : 'mode'
-        push_cls     = active_key == :drawn_push_pull    ? 'mode active' : 'mode'
-        chamfer_cls  = active_key == :drawn_chamfer      ? 'mode active' : 'mode'
+    # @delegate: Na__InsertPrimatives__RightClickPopup__Html__.rb
 
-        <<~HTML
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                html, body {
-                    margin: 0;
-                    padding: 6px 6px 18px;
-                    font-family: "Segoe UI", Arial, sans-serif;
-                    font-size: 12px;
-                    background: #f3f3f3;
-                    color: #222;
-                    overflow: hidden;
-                    user-select: none;
-                }
 
-                .heading {
-                    margin: 2px 2px 5px;
-                    font-size: 10px;
-                    letter-spacing: 0.06em;
-                    text-transform: uppercase;
-                    color: #777;
-                }
-
-                .rule {
-                    height: 1px;
-                    margin: 7px 2px;
-                    background: #d5d5d5;
-                }
-
-                button {
-                    display: block;
-                    width: 100%;
-                    margin: 0 0 4px;
-                    padding: 7px 8px;
-                    border: 1px solid #bbb;
-                    border-radius: 3px;
-                    background: #fff;
-                    color: #222;
-                    text-align: left;
-                    cursor: pointer;
-                }
-
-                button:hover {
-                    background: #e7f0ff;
-                    border-color: #7aa7e0;
-                }
-
-                button.active {
-                    background: #dce9fb;
-                    border-color: #4b83c8;
-                    font-weight: 600;
-                }
-
-                button:last-child {
-                    margin-bottom: 0;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="heading">Place</div>
-            <button class="#{cube_class}"  onclick="sketchup.setCubeMode()">Cube</button>
-            <button class="#{plane_class}" onclick="sketchup.setPlaneMode()">Plane</button>
-
-            <div class="heading">Draw</div>
-            <button class="#{drawn_p_cls}" onclick="sketchup.setDrawnPlaneMode()">Drawn Plane</button>
-            <button class="#{drawn_v_cls}" onclick="sketchup.setDrawnVolumeMode()">Drawn Volume</button>
-            <button class="#{drawn_c_cls}" onclick="sketchup.setDrawnCylinderMode()">Drawn Cylinder</button>
-
-            <div class="heading">Roof</div>
-            <button class="#{roof_p_cls}" onclick="sketchup.setPitchedRoofMode()">Pitched Roof</button>
-            <button class="#{roof_h_cls}" onclick="sketchup.setHippedRoofMode()">Hipped Roof</button>
-
-            <div class="heading">Modify</div>
-            <button class="#{push_cls}" onclick="sketchup.setPushPullMode()">Deep Push / Pull</button>
-            <button class="#{chamfer_cls}" onclick="sketchup.setChamferMode()">Deep Chamfer</button>
-
-            <div class="rule"></div>
-            <button id="gridBtn" onclick="sketchup.cycleGridStep()">Snap Grid: #{grid_label}</button>
-            <button id="sidesBtn" onclick="sketchup.cycleCircleSegments()">Circle Sides: #{side_label}</button>
-            <button onclick="sketchup.togglePlaneFaces()">#{face_label}</button>
-            <button onclick="sketchup.exitPrimitiveTool()">Exit Primitive Tool</button>
-
-            <script>
-                // Report the real content height so Ruby can shrink the window to
-                // fit. Without this the height is a hand-maintained number that
-                // silently clips the last button every time an entry is added.
-                window.addEventListener('load', function () {
-                    var measured = Math.max(
-                        document.body.scrollHeight,
-                        document.documentElement.scrollHeight
-                    );
-                    if (window.sketchup && sketchup.reportContentHeight) {
-                        sketchup.reportContentHeight(measured);
-                    }
-                });
-            </script>
-        </body>
-        </html>
-        HTML
-    end
-    # ---------------------------------------------------------------
-
+    # -----------------------------------------------------------------------------
+    # REGION | Dialog Callbacks
+    # -----------------------------------------------------------------------------
 
     # FUNCTION | Install Primitive Popup Callbacks
     # ------------------------------------------------------------
@@ -237,7 +120,7 @@ module Na__InsertPrimatives
                 measured = content_height.to_i
                 dialog.set_size(NA_POPUP_WIDTH, measured + NA_POPUP_CHROME_ALLOWANCE) if measured > 0
             rescue StandardError => error
-                puts "PRIMITIVE POPUP RESIZE FAILED: #{error.message}"
+                Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE POPUP RESIZE FAILED: #{error.message}"
             end
         end
 
@@ -308,7 +191,7 @@ module Na__InsertPrimatives
                 label = tool_instance.Na__DrawnMode__CycleGridStep()
                 dialog.execute_script("document.getElementById('gridBtn').textContent = 'Snap Grid: #{label}';")
             rescue StandardError => error
-                puts "PRIMITIVE POPUP GRID CYCLE FAILED: #{error.message}"
+                Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE POPUP GRID CYCLE FAILED: #{error.message}"
             end
         end
 
@@ -318,7 +201,7 @@ module Na__InsertPrimatives
                 count = tool_instance.Na__DrawnMode__CycleCircleSegments()
                 dialog.execute_script("document.getElementById('sidesBtn').textContent = 'Circle Sides: #{count}';")
             rescue StandardError => error
-                puts "PRIMITIVE POPUP SEGMENT CYCLE FAILED: #{error.message}"
+                Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE POPUP SEGMENT CYCLE FAILED: #{error.message}"
             end
         end
 
@@ -340,7 +223,7 @@ module Na__InsertPrimatives
             begin
                 yield if tool_instance
             rescue StandardError => error
-                puts "PRIMITIVE POPUP ACTION FAILED: #{error.message}"
+                Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE POPUP ACTION FAILED: #{error.message}"
             end
         end
     end

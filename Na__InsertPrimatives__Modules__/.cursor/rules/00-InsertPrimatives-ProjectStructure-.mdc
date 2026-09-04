@@ -1,0 +1,40 @@
+---
+description: Insert Primatives folder map, naming, and region style
+alwaysApply: true
+---
+
+# Insert Primatives — Project Structure
+
+**Namespace spelling:** keep `Na__InsertPrimatives` / folder `InsertPrimatives`. Do not rename to Primitives. English UI may say Primitives.
+
+**Loader** stays at Plugins root: `Na__InsertPrimatives__Loader__.rb`. It loads `01__AppCore` Reloader alone, then AppCore Main once at SketchUp startup. Tool commands / hotkeys only activate. After editing Ruby, use **Extensions → Na__InsertPrimitives → Reload Plugin Data** — never re-require the plugin from a tool shortcut. **Enable Dev Mode** at the bottom of that submenu writes `Na__DevMode__Enabled` in AppConfig JSON.
+
+**Load order** lives in one file: `01__AppCore/Na__InsertPrimatives__AppCore__LoadManifest__.rb`. Update that list when adding a Ruby file. Do not add a second require/forget/reload list.
+
+**DEVLOG** (`Na__InsertPrimatives__DEVLOG__.md`) stays at Modules root. Do not move or delete it.
+
+## Numbered folders
+
+- `01__AppCore` — PathResolver, LoadManifest, Main, Reloader, ModeSwitch
+- `02__AppData` — `AppConfig__Main.json` (`Na__DevMode__Enabled`), ConfigLoader, persisted drawn-tool settings
+- `03__AppUtils` — VCB parse, VCB arithmetic, format helpers, keyboard mixin
+- `04__GeometryHelpers` — voxel grid, solids, roof geom, deep pick (hub + Focus/Pick/Context), slope, edge loops
+- `05__PreviewGraphics` — cube wireframe (`Na__Preview__*`) and drawn previews (`Na__DrawnPreview__*`)
+- `06__Tools__DrawnShared` — drag state machine mixin
+- `10__System__PlaceCube` — click-to-place cube tool and plane mode
+- `20__System__DrawnPrimitives` — plane / volume / cylinder tools
+- `21__System__DrawnRoofs` — pitched / hipped roof tools
+- `30__System__DeepPushPull` — nested push/pull 3d + 2d (tool, commit, quad ring, 2d pick)
+- `31__System__DeepChamfer` — nested chamfer (tool, geometry, mitre)
+- `40__UserInterface` — right-click HtmlDialog (lifecycle/callbacks + HTML builder)
+
+Filenames stay `Na__InsertPrimatives__<Domain>__<Purpose>__.rb`. Folder numbers do not appear in filenames.
+
+## Naming and regions
+
+- Module functions: `Na__Domain__FunctionName`
+- Drawn-tool instance helpers: `na_drawn__*`
+- SketchUp Tool API names stay unprefixed (`activate`, `onMouseMove`, `draw`)
+- Tool class names stay `Drawn*Tool` / `PrimitiveCubeTool` (reloader markers depend on them)
+- Regions use `# REGION | Name` / `# endregion`, not Visual Studio `#region`
+- After extracting logic, leave `# @delegate: <relative path>` at the old site
