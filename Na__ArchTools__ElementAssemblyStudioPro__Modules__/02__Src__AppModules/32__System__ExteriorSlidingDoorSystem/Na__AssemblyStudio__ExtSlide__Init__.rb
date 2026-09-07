@@ -124,6 +124,7 @@ module Na__ExteriorSlidingDoorSystem
     # `sliding_door_wall_depth_mm` are migrated on load.
     NA_DEFAULT_DOOR_CONFIG = {
         "sliding_door_mode"               => "FrontSlidesRight",
+        "sliding_door_panel_count"        => 2,                                   # <-- 2 = XO/OX twin track, 3 = XXO/OXX triple track
         "sliding_door_panel_thickness_mm" => 50,
         "sliding_door_rear_setback_mm"    => 60,
         "sliding_door_head_rail_mm"       => 95,

@@ -443,6 +443,7 @@ const Na_DynamicUI = (function() {
         na_updateGlazebarOffsetVisibility();
         na_updateLeadedGlassVisibility();
         na_clampGlazebarMarginOffset();
+        na_updateMullionOffsetVisibility();
         na_updateTransomControlVisibility();
         na_updateWindowOnlyControlsVisibility();                                // <-- Phase 9: Hide casement/mullion/transom/sliding-sash controls in bifold/sliding mode
         na_updateWidthSliderRange();                                            // <-- Phase 10: Expand width to 8000mm in multi-leaf door modes
@@ -1181,6 +1182,29 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Toggle Per-Mullion Offset Slider Visibility
+    // ------------------------------------------------------------
+    // Static pool of six sliders (mullion_offset_N_mm, N = 1..6) matching
+    // the Mullions slider's own range. A slider needs BOTH gates open to
+    // show: the Individual Mullion Offsets toggle is on, AND that mullion
+    // actually exists. Same two-gate rule as the glaze bar offset pool.
+    //
+    // Hidden sliders keep their values, so dropping the mullion count and
+    // raising it again - or toggling the feature off and back on - restores
+    // the layout the user had rather than resetting it to equal lights.
+    function na_updateMullionOffsetVisibility() {
+        const offsetsEnabled = _config.mullion_offsets_enabled === true;
+        const mullionCount = offsetsEnabled
+            ? Math.max(0, Math.min(6, Math.round(Number(_config.mullions || 0))))
+            : 0;
+
+        for (let mullionIndex = 1; mullionIndex <= 6; mullionIndex++) {
+            const control = document.querySelector(`[data-control-id="mullion_offset_${mullionIndex}_mm"]`);
+            if (control) control.style.display = mullionIndex <= mullionCount ? '' : 'none';
+        }
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Toggle Transom Slider Visibility
     // ------------------------------------------------------------
     function na_updateTransomControlVisibility() {
@@ -1223,6 +1247,7 @@ const Na_DynamicUI = (function() {
             'advanced_casement_controls',                                       // <-- Casement depth/inset/glazing thickness expandable
             'mullions',                                                         // <-- Window-only (split openings)
             'mullion_width_mm',                                                 // <-- Window-only mullion thickness
+            'advanced_mullion_controls',                                        // <-- Window-only per-mullion offset pool
             'transoms',                                                         // <-- Window-only (split openings vertically)
             'show_casements'                                                    // <-- Casement-specific toggle
         ];
@@ -1540,14 +1565,14 @@ const Na_DynamicUI = (function() {
             typeof generator.na_getOpeningCellLayout !== 'function' ||
             typeof generator.na_getActiveTransomBottoms !== 'function' ||
             typeof generator.na_getRemovedTransomSegmentSet !== 'function' ||
-            typeof generator.na_getEffectiveFrameThicknesses !== 'function') {
+            typeof generator.na_getEffectiveFrameThicknesses !== 'function' ||
+            !window.Na__MullionMath) {
             return [];
         }
 
         const config = _config;
         const frameThicknesses = generator.na_getEffectiveFrameThicknesses(config);
         const numMullions = config.mullions || 0;
-        const mullionWidth = config.mullion_width_mm || 40;
         const transomCount = Math.max(0, Math.min(3, Math.round(config.transoms || 0)));
         const transomWidth = config.transom_width_mm || 40;
         const transomBottoms = generator.na_getActiveTransomBottoms(config, transomCount);
@@ -1557,20 +1582,22 @@ const Na_DynamicUI = (function() {
         const numOpenings = numMullions + 1;
         const innerWidth = (config.width_mm || 900) - frameThicknesses.left - frameThicknesses.right;
         const innerHeight = (config.height_mm || 1200) - frameThicknesses.top - frameThicknesses.bottom;
-        const totalMullionWidth = numMullions * mullionWidth;
-        const availableWidth = innerWidth - totalMullionWidth;
-        const openingWidth = availableWidth / numOpenings;
+        const mullionLayout = window.Na__MullionMath.na_resolveMullionLayoutFromConfig(
+            config,
+            frameThicknesses.left,
+            innerWidth
+        );
 
         const validKeys = [];
 
         for (let openingIndex = 0; openingIndex < numOpenings; openingIndex++) {
-            const openingX = frameThicknesses.left + (openingIndex * (openingWidth + mullionWidth));
+            const opening = mullionLayout.openings[openingIndex];
             const openingY = frameThicknesses.bottom;
             const openingLayout = generator.na_getOpeningCellLayout(
                 openingIndex,
-                openingX,
+                opening.x,
                 openingY,
-                openingWidth,
+                opening.width,
                 innerHeight,
                 transomBottoms,
                 transomWidth,

@@ -1356,6 +1356,8 @@ module Na__AssemblyStudio
                             "DoorID"        => door_id,
                             "DoorType"      => "SlidingDoor",
                             "Mode"          => window_config["sliding_door_mode"],
+                            "PanelCount"    => Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryHelpers
+                                                   .na_resolve_panel_count(window_config),
                             "CreatedDate"   => is_create ? now : nil,
                             "LastModified"  => now
                         }.compact

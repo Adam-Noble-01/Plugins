@@ -219,8 +219,7 @@ const Na__Viewport__SvgGenerator = (function() {
         const slidingSashWindow = config.sliding_sash_window === true;
         const slidingSashOverlap = Math.max(0, Math.min(60, config.sliding_sash_overlap_mm || 20));
         const casementsPerOpening = Math.max(1, Math.min(6, config.casements_per_opening || 1));
-        const numMullions = config.mullions || 0;
-        const mullionWidth = config.mullion_width_mm || 40;
+        const numMullions = config.mullions || 0;                        // <-- Mullion WIDTH and positions now come from Na__MullionMath below
         const transomCount = Math.max(0, Math.min(3, Math.round(config.transoms || 0)));
         const transomWidth = config.transom_width_mm || 40;
         const transomBottoms = na_getActiveTransomBottoms(config, transomCount);
@@ -286,9 +285,14 @@ const Na__Viewport__SvgGenerator = (function() {
         const numOpenings = numMullions + 1;
         const innerWidth = width - leftFrameThickness - rightFrameThickness;
         const innerHeight = height - topFrameThickness - bottomFrameThickness;
-        const totalMullionWidth = numMullions * mullionWidth;
-        const availableWidth = innerWidth - totalMullionWidth;
-        const openingWidth = availableWidth / numOpenings;
+        // Mullion positions and the resulting light widths come from the
+        // shared resolver so the preview, the DXF stream and the SketchUp
+        // solid all read the same numbers off the same offsets.
+        const mullionLayout = Na__MullionMath.na_resolveMullionLayoutFromConfig(
+            config,
+            leftFrameThickness,
+            innerWidth
+        );
 
         if (leftFrameThickness > 0) {
             svg += na_svgRect(0, 0, leftFrameThickness, height, frameColor, '#000', 1);
@@ -303,13 +307,14 @@ const Na__Viewport__SvgGenerator = (function() {
             svg += na_svgRect(leftFrameThickness, height - topFrameThickness, innerWidth, topFrameThickness, frameColor, '#000', 1);
         }
 
-        for (let m = 1; m <= numMullions; m++) {
-            const mullionX = leftFrameThickness + (m * openingWidth) + ((m - 1) * mullionWidth);
-            svg += na_svgRect(mullionX, bottomFrameThickness, mullionWidth, innerHeight, frameColor, '#000', 1);
-        }
+        mullionLayout.mullions.forEach(mullion => {
+            svg += na_svgRect(mullion.x, bottomFrameThickness, mullion.width, innerHeight, frameColor, '#000', 1);
+        });
 
         for (let i = 0; i < numOpenings; i++) {
-            const openingX = leftFrameThickness + (i * (openingWidth + mullionWidth));
+            const opening = mullionLayout.openings[i];
+            const openingX = opening.x;
+            const openingWidth = opening.width;
             const openingY = bottomFrameThickness;
             const openingLayout = na_getOpeningCellLayout(
                 i,
@@ -1412,7 +1417,6 @@ const Na__Viewport__SvgGenerator = (function() {
         const slidingSashWindow = config.sliding_sash_window === true;
         const casementsPerOpening = Math.max(1, Math.min(6, config.casements_per_opening || 1));
         const numMullions = config.mullions || 0;
-        const mullionWidth = config.mullion_width_mm || 40;
         const transomCount = Math.max(0, Math.min(3, Math.round(config.transoms || 0)));
         const transomWidth = config.transom_width_mm || 40;
         const transomBottoms = na_getActiveTransomBottoms(config, transomCount);
@@ -1429,18 +1433,16 @@ const Na__Viewport__SvgGenerator = (function() {
         const numOpenings = numMullions + 1;
         const innerWidth = (config.width_mm || 900) - leftFrameThickness - rightFrameThickness;
         const innerHeight = (config.height_mm || 1200) - topFrameThickness - bottomFrameThickness;
-        const totalMullionWidth = numMullions * mullionWidth;
-        const availableWidth = innerWidth - totalMullionWidth;
-        const openingWidth = availableWidth / numOpenings;
+        const mullionLayout = Na__MullionMath.na_resolveMullionLayoutFromConfig(config, leftFrameThickness, innerWidth);
 
         for (let openingIndex = 0; openingIndex < numOpenings; openingIndex++) {
-            const openingX = leftFrameThickness + (openingIndex * (openingWidth + mullionWidth));
+            const opening = mullionLayout.openings[openingIndex];
             const openingY = bottomFrameThickness;
             const openingLayout = na_getOpeningCellLayout(
                 openingIndex,
-                openingX,
+                opening.x,
                 openingY,
-                openingWidth,
+                opening.width,
                 innerHeight,
                 transomBottoms,
                 transomWidth,
@@ -1495,7 +1497,6 @@ const Na__Viewport__SvgGenerator = (function() {
         const slidingSashWindow = config.sliding_sash_window === true;
         const casementsPerOpening = Math.max(1, Math.min(6, config.casements_per_opening || 1));
         const numMullions = config.mullions || 0;
-        const mullionWidth = config.mullion_width_mm || 40;
         const transomCount = Math.max(0, Math.min(3, Math.round(config.transoms || 0)));
         const transomWidth = config.transom_width_mm || 40;
         const transomBottoms = na_getActiveTransomBottoms(config, transomCount);
@@ -1508,16 +1509,15 @@ const Na__Viewport__SvgGenerator = (function() {
         const numOpenings = numMullions + 1;
         const innerWidth = (config.width_mm || 900) - frameThicknesses.left - frameThicknesses.right;
         const innerHeight = (config.height_mm || 1200) - frameThicknesses.top - frameThicknesses.bottom;
-        const availableWidth = innerWidth - (numMullions * mullionWidth);
-        const openingWidth = availableWidth / numOpenings;
+        const mullionLayout = Na__MullionMath.na_resolveMullionLayoutFromConfig(config, frameThicknesses.left, innerWidth);
 
         for (let openingIndex = 0; openingIndex < numOpenings; openingIndex++) {
-            const openingX = frameThicknesses.left + (openingIndex * (openingWidth + mullionWidth));
+            const opening = mullionLayout.openings[openingIndex];
             const openingLayout = na_getOpeningCellLayout(
                 openingIndex,
-                openingX,
+                opening.x,
                 frameThicknesses.bottom,
-                openingWidth,
+                opening.width,
                 innerHeight,
                 transomBottoms,
                 transomWidth,

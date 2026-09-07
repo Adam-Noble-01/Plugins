@@ -366,13 +366,23 @@ module Na__WindowSystem
             end
 
             # Calculate openings
+            #
+            # Mullion positions and light widths come from the local mirror of
+            # Na__MullionMath, so a DXF plot matches the preview the user
+            # approved. Offsets are millimetres here, as the whole DXF stream
+            # is - no unit conversion needed.
             num_openings = num_mullions + 1
             inner_width = width - left_frame_thickness - right_frame_thickness
             inner_height = height - top_frame_thickness - bottom_frame_thickness
-            total_mullion_width = num_mullions * mullion_width
-            available_width = inner_width - total_mullion_width
-            opening_width = available_width.to_f / num_openings
-            
+            mullion_offsets = na_collect_mullion_offsets_dxf(config, num_mullions)
+            mullion_layout  = na_compute_mullion_layout_dxf(
+                left_frame_thickness,
+                inner_width,
+                num_mullions,
+                mullion_width,
+                mullion_offsets
+            )
+
             # Draw outer frame (4 rectangles) - skip in frameless mode (frame_thickness == 0)
             if left_frame_thickness > 0
                 entities += na_dxf_rect(0, 0, left_frame_thickness, height, NA_LAYER_FRAME)
@@ -388,20 +398,19 @@ module Na__WindowSystem
             end
             
             # Draw mullions
-            (1..num_mullions).each do |m|
-                mullion_x = left_frame_thickness + (m * opening_width) + ((m - 1) * mullion_width)
-                entities += na_dxf_rect(mullion_x, bottom_frame_thickness, mullion_width, inner_height, NA_LAYER_MULLION)
+            mullion_layout[:mullions].each do |mullion|
+                entities += na_dxf_rect(mullion[:x], bottom_frame_thickness, mullion[:width], inner_height, NA_LAYER_MULLION)
             end
-            
+
             # Draw each opening with casement (if enabled), glass, and glaze bars
             (0...num_openings).each do |i|
-                opening_x = left_frame_thickness + (i * (opening_width + mullion_width))
+                opening = mullion_layout[:openings][i]
                 opening_y = bottom_frame_thickness
                 opening_layout = na_get_opening_layout(
                     i,
-                    opening_x,
+                    opening[:x],
                     opening_y,
-                    opening_width,
+                    opening[:width],
                     inner_height,
                     transom_bottoms,
                     transom_width,
@@ -616,6 +625,105 @@ module Na__WindowSystem
 
             inner_step = (last_pos - first_pos) / (count - 1).to_f
             (0...count).map { |i| first_pos + inner_step * i }
+        end
+        # ---------------------------------------------------------------
+
+        # CONSTANT | Narrowest Light the Mullion Clamp Will Leave (mm)
+        # ------------------------------------------------------------
+        # Mirrors Na__MullionMath.NA_MULLION_MIN_OPENING_MM. Millimetres,
+        # because the DXF stream is millimetres throughout.
+        NA_MULLION_MIN_OPENING_MM = 50.0
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Per-Mullion Offsets (DXF copy)
+        # ------------------------------------------------------------
+        # Local mirror of GeometryBuilders.na_collect_mullion_offsets and
+        # Na__MullionMath.na_collectMullionOffsets, kept local to avoid
+        # cross-loading the geometry builders into the DXF path. No unit
+        # conversion: the DXF stream is already millimetres.
+        def self.na_collect_mullion_offsets_dxf(config, count)
+            return [] unless config.is_a?(Hash)
+            return [] if count.nil? || count <= 0
+            return [] unless config["mullion_offsets_enabled"] == true
+            (1..count).map { |i| (config["mullion_offset_#{i}_mm"] || 0).to_f }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Mullion + Opening Layout (DXF copy)
+        # ------------------------------------------------------------
+        # Local mirror of GeometryBuilders.na_compute_mullion_layout (3D)
+        # and Na__MullionMath.na_computeMullionLayout (2D preview) so all
+        # three representations place the mullions identically.
+        def self.na_compute_mullion_layout_dxf(inner_left, inner_width, count, mullion_width, offsets)
+            safe_count = [count.to_i, 0].max
+            safe_width = [mullion_width.to_f, 0.0].max
+            start      = inner_left.to_f
+            span       = inner_width.to_f
+
+            even_layout = na_compute_even_mullion_layout_dxf(start, span, safe_count, safe_width)
+            return even_layout if safe_count.zero?
+            return even_layout unless offsets.is_a?(Array) && !offsets.empty?
+
+            required_span = (safe_count * safe_width) + ((safe_count + 1) * NA_MULLION_MIN_OPENING_MM)
+            return even_layout if span < required_span
+
+            inner_right = start + span
+            mullions    = []
+            cursor      = start
+
+            (1..safe_count).each do |m|
+                offset  = offsets[m - 1]
+                nominal = even_layout[:mullions][m - 1][:x] + (offset.is_a?(Numeric) ? offset : 0.0)
+
+                remaining = safe_count - m
+                min_x     = cursor + NA_MULLION_MIN_OPENING_MM
+                max_x     = inner_right - safe_width - NA_MULLION_MIN_OPENING_MM -
+                            (remaining * (safe_width + NA_MULLION_MIN_OPENING_MM))
+
+                x = [[nominal, min_x].max, max_x].min
+                mullions << { index: m, x: x, width: safe_width }
+                cursor = x + safe_width
+            end
+
+            openings      = []
+            opening_start = start
+            mullions.each_with_index do |mullion, opening_index|
+                openings << {
+                    index: opening_index,
+                    x:     opening_start,
+                    width: [mullion[:x] - opening_start, 0.0].max
+                }
+                opening_start = mullion[:x] + mullion[:width]
+            end
+            openings << {
+                index: safe_count,
+                x:     opening_start,
+                width: [inner_right - opening_start, 0.0].max
+            }
+
+            { mullions: mullions, openings: openings }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Equal-Lights Mullion Layout (DXF copy)
+        # ------------------------------------------------------------
+        def self.na_compute_even_mullion_layout_dxf(inner_left, inner_width, count, mullion_width)
+            opening_width = (inner_width - (count * mullion_width)) / (count + 1).to_f
+            openings = (0..count).map do |opening_index|
+                {
+                    index: opening_index,
+                    x:     inner_left + (opening_index * (opening_width + mullion_width)),
+                    width: opening_width
+                }
+            end
+            mullions = (1..count).map do |m|
+                {
+                    index: m,
+                    x:     inner_left + (m * opening_width) + ((m - 1) * mullion_width),
+                    width: mullion_width
+                }
+            end
+            { mullions: mullions, openings: openings }
         end
         # ---------------------------------------------------------------
 

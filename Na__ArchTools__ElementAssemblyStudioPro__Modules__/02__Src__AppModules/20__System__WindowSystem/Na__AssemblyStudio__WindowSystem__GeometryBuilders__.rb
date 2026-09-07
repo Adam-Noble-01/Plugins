@@ -473,6 +473,125 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
+        # CONSTANT | Narrowest Light the Mullion Clamp Will Leave
+        # ------------------------------------------------------------
+        # Mirrors Na__MullionMath.NA_MULLION_MIN_OPENING_MM (50mm), in
+        # inches because everything downstream of na_parse_config is.
+        NA_MULLION_MIN_OPENING = (50.0 / 25.4).freeze
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Resolve Mullion + Opening Positions With Per-Mullion Offsets
+        # ------------------------------------------------------------
+        # Mirrors window.Na__MullionMath.na_computeMullionLayout so the
+        # SketchUp solid lands exactly where the 2D preview and the DXF
+        # stream said it would.
+        #
+        # All arguments and returned values are INCHES; offsets are the
+        # already-converted signed nudges (positive = right). Returns
+        #   { mullions: [{ index:, x:, width: }],   # index 1-based
+        #     openings: [{ index:, x:, width: }] }  # index 0-based
+        # where every x is a left edge.
+        #
+        # The walk is sequential and each mullion is clamped against its
+        # left neighbour and against the room the mullions to its right
+        # still need, so no combination of slider values can make two
+        # mullions cross or produce a zero-width light. When the frame is
+        # too narrow to hold the mullions at all the offsets are dropped
+        # and the equal-lights layout is returned - the same degenerate
+        # output this engine produced before V1.6.0.
+        def self.na_compute_mullion_layout(inner_left, inner_width, count, mullion_width, offsets)
+            safe_count = [count.to_i, 0].max
+            safe_width = [mullion_width.to_f, 0.0].max
+            start      = inner_left.to_f
+            span       = inner_width.to_f
+
+            even_layout = na_compute_even_mullion_layout(start, span, safe_count, safe_width)
+            return even_layout if safe_count.zero?
+            return even_layout unless offsets.is_a?(Array) && !offsets.empty?
+
+            required_span = (safe_count * safe_width) + ((safe_count + 1) * NA_MULLION_MIN_OPENING)
+            return even_layout if span < required_span
+
+            inner_right = start + span
+            mullions    = []
+            cursor      = start                                                                     # <-- Right edge of the previous mullion
+
+            (1..safe_count).each do |m|
+                offset  = offsets[m - 1]
+                nominal = even_layout[:mullions][m - 1][:x] + (offset.is_a?(Numeric) ? offset : 0.0)
+
+                remaining = safe_count - m
+                min_x     = cursor + NA_MULLION_MIN_OPENING
+                max_x     = inner_right - safe_width - NA_MULLION_MIN_OPENING -
+                            (remaining * (safe_width + NA_MULLION_MIN_OPENING))
+
+                x = [[nominal, min_x].max, max_x].min
+                mullions << { index: m, x: x, width: safe_width }
+                cursor = x + safe_width
+            end
+
+            openings      = []
+            opening_start = start
+            mullions.each_with_index do |mullion, opening_index|
+                openings << {
+                    index: opening_index,
+                    x:     opening_start,
+                    width: [mullion[:x] - opening_start, 0.0].max
+                }
+                opening_start = mullion[:x] + mullion[:width]
+            end
+            openings << {
+                index: safe_count,
+                x:     opening_start,
+                width: [inner_right - opening_start, 0.0].max
+            }
+
+            { mullions: mullions, openings: openings }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Equal-Lights Mullion Layout (pre-V1.6.0 behaviour)
+        # ------------------------------------------------------------
+        # Mirrors Na__MullionMath.na_computeEvenMullionLayout.
+        def self.na_compute_even_mullion_layout(inner_left, inner_width, count, mullion_width)
+            opening_width = (inner_width - (count * mullion_width)) / (count + 1).to_f
+            openings = (0..count).map do |opening_index|
+                {
+                    index: opening_index,
+                    x:     inner_left + (opening_index * (opening_width + mullion_width)),
+                    width: opening_width
+                }
+            end
+            mullions = (1..count).map do |m|
+                {
+                    index: m,
+                    x:     inner_left + (m * opening_width) + ((m - 1) * mullion_width),
+                    width: mullion_width
+                }
+            end
+            { mullions: mullions, openings: openings }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Collect Per-Mullion Offsets From a Config Hash
+        # ------------------------------------------------------------
+        # Mirrors Na__MullionMath.na_collectMullionOffsets. Reads
+        # `mullion_offset_N_mm` (N = 1-based) and converts to inches.
+        #
+        # The gate is `== true`, NOT `!= false` as the glaze bar pool
+        # uses. The glaze bar offsets predate their own toggle, so an
+        # absent key there means "keep the stored nudges live". The
+        # mullion pool shipped with its toggle, so an absent key can only
+        # mean a window saved before V1.6.0 - and those must build exactly
+        # as they always did.
+        def self.na_collect_mullion_offsets(config, count, mm_to_inch)
+            return [] unless config.is_a?(Hash)
+            return [] if count.nil? || count <= 0
+            return [] unless config["mullion_offsets_enabled"] == true
+            (1..count).map { |i| (config["mullion_offset_#{i}_mm"] || 0).to_f * mm_to_inch }
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Arch-Aligned Bar Positions (3D Mirror of JS Helper)
         # ------------------------------------------------------------
         # Returns vbar centerline positions aligned with the interior

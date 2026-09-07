@@ -63,6 +63,7 @@ require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnDeepPick__'
 require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnSlopePush__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__QuadRing__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__Commit__'
+require_relative 'Na__InsertPrimatives__DrawnPushPull__Revise__'
 
 module Na__InsertPrimatives
     # -----------------------------------------------------------------------------
@@ -75,6 +76,7 @@ module Na__InsertPrimatives
 
         include Na__InsertPrimatives::DrawnToolShared
         include Na__InsertPrimatives::DrawnPushPullCommit
+        include Na__InsertPrimatives::DrawnPushPullRevise                     # <-- Last, so its na_drawn__disarm_revise wraps the mixin's
 
         NA_PP_MIN_AXIS_FACTOR = 0.0872                                        # <-- cos 85 degrees; below this the lock is refused
         NA_PP_HOVER_FILL      = Sketchup::Color.new(  0, 140, 255,  80)
@@ -88,6 +90,7 @@ module Na__InsertPrimatives
         def initialize
             na_drawn__init_shared_state
             na_drawn__clear_target
+            na_drawn__init_replay_state                                       # <-- No push placed yet, so nothing to retype
         end
         # ---------------------------------------------------------------
 
@@ -155,7 +158,8 @@ module Na__InsertPrimatives
                 'Hold SHIFT to push along the NEIGHBOURING face instead — a roof runs on down its own rake',
                 'TAB toggles QUAD mode — the extrusion keeps its start loop as edges, no face',
                 'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
-                'VCB: 300 | +50 | -25   (the typed distance pins and places)'
+                'VCB: 300 | +50 | -25   (the typed distance pins and places)',
+                'After placing, keep typing: 1200 resizes the push, -1200 turns it round'
             ]
         end
         # ---------------------------------------------------------------
@@ -505,8 +509,13 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Is the Quad Ring Armed?
+        # A replay answers with the setting the push it is rebuilding was made
+        # under, not the one in force now: retyping a distance must not quietly
+        # add or drop a quad line because TAB was pressed in between.
         # ------------------------------------------------------------
         def na_drawn__quad_mode?
+            return @na_pp_replaying[:quad] if @na_pp_replaying
+
             Na__InsertPrimatives.Na__DrawnSettings__QuadPushEnabled?
         end
         # ---------------------------------------------------------------
@@ -538,10 +547,15 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Nothing to Revise — a Pushed Face Has Already Moved
+        # FUNCTION | A Placed Push Can Still Have Its Distance Retyped
+        # ------------------------------------------------------------
+        # The shape tools revise by rebuilding a group they still hold. There is
+        # no group here and the pushed face has already moved, so this asks the
+        # Revise module instead, which answers from a record of the push and
+        # rebuilds it by undoing and re-running the commit.
         # ------------------------------------------------------------
         def na_drawn__revise_available?
-            false
+            na_drawn__replay_available?
         end
         # ---------------------------------------------------------------
 
@@ -680,7 +694,10 @@ module Na__InsertPrimatives
 
             case @na_state
             when :idle
-                na_drawn__grab_face(view, x, y)
+                # Taking hold of a face is the "something else" that closes the
+                # measurements box on the previous push, exactly as it does in
+                # the native tool. A click that grabs nothing leaves it open.
+                na_drawn__forget_replay if na_drawn__grab_face(view, x, y)
             when :picking_depth
                 @na_drag_press_active = false
                 na_drawn__update_cursor(view, x, y)
@@ -1070,10 +1087,11 @@ module Na__InsertPrimatives
                 return "#{verb}#{quads} #{text} mm — release or click to place#{slope}"
             end
 
-            focus = na_drawn__focus_hint
+            focus  = na_drawn__focus_hint
+            adjust = na_drawn__replay_hint
 
-            return "Face #{@na_pp_area} m2 — click to grab it#{quads}#{slope}#{focus}" if @na_pp_target
-            "Hover a face to push, at any nesting depth#{quads}#{slope}#{focus}"
+            return "Face #{@na_pp_area} m2 — click to grab it#{quads}#{slope}#{focus}#{adjust}" if @na_pp_target
+            "Hover a face to push, at any nesting depth#{quads}#{slope}#{focus}#{adjust}"
         end
         # ---------------------------------------------------------------
 
@@ -1098,9 +1116,14 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__vcb_label_and_value
             label = na_drawn__slope_mode? ? 'Slope distance' : 'Push distance'
-            return [label, ''] if @na_state != :picking_depth
+            return [label, na_drawn__format_sizes([@na_size_d])] if @na_state == :picking_depth
 
-            [label, na_drawn__format_sizes([@na_size_d])]
+            # A placed push leaves its distance sitting in the box, which is
+            # both the reminder that it can still be retyped and the value a
+            # retype is judged against.
+            return ['Push distance', na_drawn__replay_distance_mm] if na_drawn__replay_available?
+
+            [label, '']
         end
         # ---------------------------------------------------------------
 
@@ -1111,9 +1134,20 @@ module Na__InsertPrimatives
         # REGION | Subclass Contract — Measurements Box Entry
         # -----------------------------------------------------------------------------
 
-        # FUNCTION | A Typed Distance Pins and Places
+        # FUNCTION | A Typed Distance Pins and Places, or Corrects What Is Placed
+        # ------------------------------------------------------------
+        # Two stages take a distance and they read the sign differently, which
+        # is deliberate:
+        #
+        # - MID-DRAG the direction is the mouse's, so + and - are the plugin's
+        #   ordinary relative arithmetic against the live number on screen.
+        # - AFTER PLACING there is no drag left to be relative to, and what a
+        #   SketchUp user types a minus for is to turn the extrusion round. So
+        #   the sign names the direction instead. See the Revise module header.
         # ------------------------------------------------------------
         def na_drawn__handle_vcb_text(text, view)
+            return na_drawn__revise_from_vcb(text, view) if na_drawn__replay_available?
+
             unless @na_state == :picking_depth
                 UI.beep
                 Sketchup::set_status_text('Grab a face before typing a distance', SB_PROMPT)

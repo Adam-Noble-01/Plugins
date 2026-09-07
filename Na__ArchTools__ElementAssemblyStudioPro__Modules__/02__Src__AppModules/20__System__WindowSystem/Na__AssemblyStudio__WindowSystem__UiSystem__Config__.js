@@ -24,6 +24,36 @@
 // REGION | Primary UI Control Configuration
 // =============================================================================
 
+// CONSTANTS | Per-Mullion Offset Slider Pool
+// ------------------------------------------------------------
+// One signed nudge slider per mullion, matching the `mullions` slider's
+// own 0-6 range. Keys: mullion_offset_N_mm (N = 1-based, counted from the
+// left). Applied AFTER the equal-lights spacing step, then clamped so
+// mullions can never cross - see Na__MullionMath.na_computeMullionLayout.
+//
+// The +/-2000mm range is deliberately wider than any single light: at the
+// window's 4000mm maximum width a lone mullion sits at ~2000mm and must
+// still be draggable to either end of the frame.
+const NA_MULLION_OFFSET_MAX_MULLIONS = 6;
+
+function na_buildMullionOffsetDescriptors() {
+    const descriptors = [];
+    for (let mullionIndex = 1; mullionIndex <= NA_MULLION_OFFSET_MAX_MULLIONS; mullionIndex += 1) {
+        descriptors.push({
+            id      :  'mullion_offset_' + mullionIndex + '_mm',
+            label   :  'Mullion ' + mullionIndex + ' Offset',
+            unit    :  'mm',
+            type    :  'slider',
+            min     :  -2000,
+            max     :   2000,
+            step    :  5,
+            default :  0
+        });
+    }
+    return descriptors;
+}
+// ------------------------------------------------------------
+
 // CONSTANTS | Primary UI Control Configuration
 // ------------------------------------------------------------
 const NA_UI_CONFIG = [
@@ -180,12 +210,23 @@ const NA_UI_CONFIG = [
                 default :  55
             },
             {
+                // Signed depth offset for the whole casement assembly - the
+                // sash frame, its glazing, glaze bars, leaded lines and sash
+                // horns all move together, because every one of them derives
+                // its Y from `wall_inset + casement_inset`.
+                //
+                // Positive sets the casement BACK into the frame (the usual
+                // rebated casement). Negative pulls it FORWARD, proud of the
+                // frame face - which is how a lot of older domestic windows
+                // actually sit, the bungalow window that prompted V1.6.0
+                // included. The negative reach matches the positive so the
+                // casement can be driven fully clear of the deepest frame.
                 id      :  'casement_inset_mm',
                 label   :  'Casement Frame Inset',
                 unit    :  'mm',
                 type    :  'slider',
-                min     :  0,
-                max     :  100,
+                min     :  -100,
+                max     :   100,
                 step    :  1,
                 default :  10
             },
@@ -232,14 +273,46 @@ const NA_UI_CONFIG = [
         default :  0
     },
     {
+        // 10mm floor rather than 30mm: slim steel and aluminium sections
+        // genuinely are that thin, and a hairline divider is also the way
+        // to fake a butt-jointed corner light.
         id      :  'mullion_width_mm',
         label   :  'Mullion Width',
         unit    :  'mm',
         type    :  'slider',
-        min     :  30,
+        min     :  10,
         max     :  120,
         step    :  5,
         default :  40
+    },
+    // -------------------------------------------------------------------------
+    // Advanced Mullion Controls (expandable)
+    //
+    // Houses the per-mullion offset pool behind the `mullion_offsets_enabled`
+    // toggle - the same shape as the per-bar glaze bar offsets in Advanced
+    // Glazebar Controls, and for the same reason: unequal lights are a detail
+    // job, so six sliders should not sit permanently in the main DIMENSIONS
+    // section. MainUiLogic (na_updateMullionOffsetVisibility) shows a slider
+    // only when the toggle is on AND that mullion actually exists.
+    //
+    // Positive drives a mullion RIGHT, negative LEFT, measured from where it
+    // would sit if the lights were equal. Zero everywhere - or the toggle off
+    // - reproduces the pre-V1.6.0 layout exactly.
+    // -------------------------------------------------------------------------
+    {
+        id      :  'advanced_mullion_controls',
+        label   :  'Advanced Mullion Controls',
+        type    :  'expandable',
+        default :  false,
+        children: [
+            {
+                id      :  'mullion_offsets_enabled',
+                label   :  'Individual Mullion Offsets',
+                type    :  'toggle',
+                default :  false
+            },
+            ...na_buildMullionOffsetDescriptors()
+        ]
     },
     {
         id      :  'transoms',
@@ -252,11 +325,14 @@ const NA_UI_CONFIG = [
         default :  0
     },
     {
+        // Matches the mullion floor - the two dividers should reach the
+        // same minimum or a slim window cannot be built consistently in
+        // both directions.
         id      :  'transom_width_mm',
         label   :  'Transom Width',
         unit    :  'mm',
         type    :  'slider',
-        min     :  30,
+        min     :  10,
         max     :  120,
         step    :  5,
         default :  40

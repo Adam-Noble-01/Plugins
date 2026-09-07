@@ -152,9 +152,10 @@ module Na__AssemblyComposer
 
     # FUNCTION | Compose the ADR Component Entities for a Sliding Door
     # ------------------------------------------------------------
-    # Builds the static opening frame + optional cill, then the front
-    # + rear leaves with their MOD wrappers, ROT placeholder, and MVE
-    # markers.
+    # Builds the static opening frame + optional cill, then every leaf
+    # in the set (two or three, per `sliding_door_panel_count`) with its
+    # MOD wrapper, plus the ROT placeholder and one MVE marker per
+    # moving leaf.
     #
     # @param config_hash       [Hash]               full sliding-door config
     # @param parent_entities   [Sketchup::Entities] target entities
@@ -174,20 +175,23 @@ module Na__AssemblyComposer
 
         result = { :mod_groups => [], :rot_groups => [], :mve_groups => [] }
 
-        front_descriptor = na_build_front_leaf_descriptor(config_hash, dims)
-        rear_descriptor  = na_build_rear_leaf_descriptor(config_hash, dims)
+        descriptors = na_build_leaf_descriptors(config_hash, dims)             # <-- Lead leaf first, fixed leaf last
 
-        front_mod = na_build_panel_mod_group(config_hash, dims, front_descriptor, parent_entities, door_id, materials)
-        result[:mod_groups] << front_mod if front_mod
-
-        rear_mod  = na_build_panel_mod_group(config_hash, dims, rear_descriptor, parent_entities, door_id, materials)
-        result[:mod_groups] << rear_mod if rear_mod
+        descriptors.each do |descriptor|
+            leaf_mod = na_build_panel_mod_group(config_hash, dims, descriptor, parent_entities, door_id, materials)
+            result[:mod_groups] << leaf_mod if leaf_mod
+        end
 
         rot_group = na_build_placeholder_rot(config_hash, dims, parent_entities)
         result[:rot_groups] << rot_group if rot_group
 
-        front_mve = na_build_panel_mve_marker(config_hash, dims, front_descriptor, parent_entities, 1)
-        result[:mve_groups] << front_mve if front_mve
+        mve_index = 0
+        descriptors.each do |descriptor|
+            next if descriptor[:mve_distance_mm].to_i == 0                     # <-- Fixed leaf carries no MVE marker
+            mve_index += 1
+            leaf_mve = na_build_panel_mve_marker(config_hash, dims, descriptor, parent_entities, mve_index)
+            result[:mve_groups] << leaf_mve if leaf_mve
+        end
 
         na_apply_cill_lift(config_hash, dims, parent_entities)                 # <-- V1.7.1: shift everything up so the cill sits ON the floor
 
@@ -353,70 +357,74 @@ module Na__AssemblyComposer
 # REGION | Internal Helpers - Per-Leaf Descriptors
 # -----------------------------------------------------------------------------
 
-    # HELPER FUNCTION | Build the Descriptor for the Front (Moving) Leaf
+    # HELPER FUNCTION | Build the Ordered Leaf Descriptors for the Whole Set
     # ------------------------------------------------------------
-    # Phase-9: leaf width = inner_w / 2 (frame-aware) and Y origin uses
-    # the new frame-relative panel layout helper.
-    def self.na_build_front_leaf_descriptor(config_hash, dims)
-        slide_mode      = config_hash["sliding_door_mode"].to_s
-        panel_t_mm      = config_hash["sliding_door_panel_thickness_mm"].to_f
-        rear_setback_mm = config_hash["sliding_door_rear_setback_mm"].to_f
-        leaf_w_mm       = GeometryHelpers.na_compute_leaf_width_mm(dims[:inner_w_mm])
-        leaf_h_mm       = dims[:inner_h_mm]
-        signed_travel   = GeometryHelpers.na_resolve_front_leaf_signed_travel_mm(slide_mode, leaf_w_mm)
+    # Returns one descriptor per leaf, ordered by TRACK: index 1 is the
+    # lead leaf on the front track (it carries the handle and travels
+    # furthest), the last index is the fixed leaf on the rearmost track.
+    #
+    # Configuration follows the standard architectural sliding sets:
+    #   2 panels -> XO / OX   one slider parking over one fixed leaf
+    #   3 panels -> XXO / OXX one fixed leaf with two sliders stacking
+    #                         over it on a triple track (~66 % clear
+    #                         opening, the most common three-panel
+    #                         arrangement in minimal-framed systems)
+    #
+    # Both sliders in the three-panel set travel the SAME direction —
+    # the direction set by `sliding_door_mode` — and the fixed leaf sits
+    # at the jamb they stack towards. Track depth increases leaf by leaf
+    # so every slider clears the leaves it has to pass.
+    def self.na_build_leaf_descriptors(config_hash, dims)
+        slide_mode   = config_hash["sliding_door_mode"].to_s
+        panel_t_mm   = config_hash["sliding_door_panel_thickness_mm"].to_f
+        setback_mm   = config_hash["sliding_door_rear_setback_mm"].to_f
+        panel_count  = GeometryHelpers.na_resolve_panel_count(config_hash)
+        leaf_w_mm    = GeometryHelpers.na_compute_leaf_width_mm(dims[:inner_w_mm], panel_count)
+        leaf_h_mm    = dims[:inner_h_mm]
+        stacks_left  = (slide_mode == "FrontSlidesLeft")
 
-        # Origin X relative to inner clear left edge.
-        front_origin_x_mm = (slide_mode == "FrontSlidesLeft") ? leaf_w_mm : 0.0
-        front_y_mm        = GeometryHelpers.na_compute_front_panel_y_origin_in_frame_mm(
-                                panel_t_mm, dims[:frame_depth_mm], dims[:frame_wall_inset_mm]
-                            )
+        (0...panel_count).map do |track_index|
+            is_fixed   = (track_index == panel_count - 1)                          # <-- Rearmost track is always the fixed leaf
+            bay_steps  = panel_count - 1 - track_index                             # <-- Bays this leaf crosses to reach the stack
 
-        {
-            :index           => 1,
-            :role            => :front,
-            :width_mm        => leaf_w_mm,
-            :height_mm       => leaf_h_mm,
-            :origin_x_mm     => front_origin_x_mm,
-            :origin_y_mm     => front_y_mm,
-            :mve_axis        => "X",
-            :mve_distance_mm => signed_travel.to_i,
-            :hinge_x_mm      => front_origin_x_mm,
-            :hinge_y_mm      => front_y_mm,
-            :has_handle      => true
-        }
+            # Bay position across the opening, left -> right. Sliding left
+            # puts the fixed leaf at the left jamb and the lead leaf at the
+            # right; sliding right mirrors it.
+            bay        = stacks_left ? bay_steps : track_index
+            origin_x   = leaf_w_mm * bay
+            origin_y   = GeometryHelpers.na_compute_panel_y_origin_in_frame_mm(
+                             panel_t_mm, dims[:frame_depth_mm], dims[:frame_wall_inset_mm],
+                             setback_mm, track_index
+                         )
+            travel     = is_fixed ? 0 : GeometryHelpers.na_resolve_signed_travel_mm(slide_mode, leaf_w_mm, bay_steps).to_i
+
+            {
+                :index           => track_index + 1,
+                :role            => na_resolve_leaf_role(track_index, panel_count),
+                :width_mm        => leaf_w_mm,
+                :height_mm       => leaf_h_mm,
+                :origin_x_mm     => origin_x,
+                :origin_y_mm     => origin_y,
+                :mve_axis        => "X",
+                :mve_distance_mm => travel,
+                :hinge_x_mm      => origin_x,
+                :hinge_y_mm      => origin_y,
+                :has_handle      => (track_index == 0)                             # <-- Only the lead leaf is grabbed
+            }
+        end
     end
-    private_class_method :na_build_front_leaf_descriptor
+    private_class_method :na_build_leaf_descriptors
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Build the Descriptor for the Rear (Fixed) Leaf
+    # HELPER FUNCTION | Name a Leaf's Role From Its Track Position
     # ------------------------------------------------------------
-    def self.na_build_rear_leaf_descriptor(config_hash, dims)
-        slide_mode      = config_hash["sliding_door_mode"].to_s
-        panel_t_mm      = config_hash["sliding_door_panel_thickness_mm"].to_f
-        rear_setback_mm = config_hash["sliding_door_rear_setback_mm"].to_f
-        leaf_w_mm       = GeometryHelpers.na_compute_leaf_width_mm(dims[:inner_w_mm])
-        leaf_h_mm       = dims[:inner_h_mm]
-
-        rear_origin_x_mm = (slide_mode == "FrontSlidesLeft") ? 0.0 : leaf_w_mm
-        rear_y_mm        = GeometryHelpers.na_compute_rear_panel_y_origin_in_frame_mm(
-                                panel_t_mm, dims[:frame_depth_mm], dims[:frame_wall_inset_mm], rear_setback_mm
-                           )
-
-        {
-            :index           => 2,
-            :role            => :rear_fixed,
-            :width_mm        => leaf_w_mm,
-            :height_mm       => leaf_h_mm,
-            :origin_x_mm     => rear_origin_x_mm,
-            :origin_y_mm     => rear_y_mm,
-            :mve_axis        => "X",
-            :mve_distance_mm => 0,                                                 # <-- Rear leaf is fixed
-            :hinge_x_mm      => rear_origin_x_mm,
-            :hinge_y_mm      => rear_y_mm,
-            :has_handle      => false
-        }
+    # Debug-only label; the geometry is driven entirely by track index.
+    def self.na_resolve_leaf_role(track_index, panel_count)
+        return :rear_fixed   if track_index == panel_count - 1
+        return :front        if track_index == 0
+        :intermediate
     end
-    private_class_method :na_build_rear_leaf_descriptor
+    private_class_method :na_resolve_leaf_role
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -980,8 +988,10 @@ module Na__AssemblyComposer
     # door even though it carries no rotation data.
     def self.na_build_placeholder_rot(config_hash, dims, parent_entities)
         slide_mode      = config_hash["sliding_door_mode"].to_s
-        leaf_w_mm       = GeometryHelpers.na_compute_leaf_width_mm(dims[:inner_w_mm])
-        rot_x_mm        = dims[:frame_left_mm] + ((slide_mode == "FrontSlidesLeft") ? leaf_w_mm : 0.0)
+        panel_count     = GeometryHelpers.na_resolve_panel_count(config_hash)
+        leaf_w_mm       = GeometryHelpers.na_compute_leaf_width_mm(dims[:inner_w_mm], panel_count)
+        lead_bay        = (slide_mode == "FrontSlidesLeft") ? (panel_count - 1) : 0        # <-- Lead leaf's bay across the opening
+        rot_x_mm        = dims[:frame_left_mm] + (leaf_w_mm * lead_bay)
 
         origin_in       = Geom::Point3d.new(
             GeometryHelpers.na_mm_to_inch(rot_x_mm),

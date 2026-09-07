@@ -158,6 +158,16 @@ module Na__WindowSystem
 
                 "mullion_width_mm"                      : 40,
                 "mullions"                              : 0,
+
+                "advanced_mullion_controls"             : false,
+                "mullion_offsets_enabled"               : false,
+                "mullion_offset_1_mm"                   : 0,
+                "mullion_offset_2_mm"                   : 0,
+                "mullion_offset_3_mm"                   : 0,
+                "mullion_offset_4_mm"                   : 0,
+                "mullion_offset_5_mm"                   : 0,
+                "mullion_offset_6_mm"                   : 0,
+
                 "transoms"                              : 0,
                 "transom_width_mm"                      : 40,
                 "transom_1_y_mm"                        : 300,
@@ -234,6 +244,7 @@ module Na__WindowSystem
                 "ui_exterior_door_type"                 : "Double",
 
                 "sliding_door_mode"                     : "FrontSlidesRight",
+                "sliding_door_panel_count"              : 2,
                 "sliding_door_opening_width_mm"         : 2400,
                 "sliding_door_opening_height_mm"        : 2100,
                 "sliding_door_wall_depth_mm"            : 105,

@@ -3,6 +3,133 @@
 
 # =============================================================================
 
+## Version 5.1.0 - 07-Sep-2026 - Retype a Push After You Have Placed It
+
+### Reported
+"To a SketchUp user this is the final last step that feels not quite SketchUp-like.
+Everything else is perfect." Native Push/Pull leaves the measurements box live after
+the click that places the extrusion — type 1200, Enter, and the push you just made
+becomes 1200, again and again until you start something else. Fredo's Joint Push/Pull
+does the same. Deep Push/Pull did not: the moment the push landed, the box went dead
+and the only way to correct a distance was to grab the face again.
+
+### What Changed
+Both variants — the 3d face push and the 2d edge pull — now keep the box live after
+placing. While the tool is idle with a placed push behind it:
+
+- `1200` rebuilds the push at 1200 in the direction it was dragged
+- `-1200` rebuilds it at 1200 the **other** way
+- `1200mm`, `1.2m`, `120cm` all work, same parser as mid-drag
+- Repeat as often as you like; grabbing another face ends it
+
+The status bar says so — `placed 1200 mm, type a distance to adjust it (- reverses)` —
+and the box keeps showing the distance that is standing, so there is always a number to
+correct rather than an empty field to guess at.
+
+### The Sign Is a Direction Here, Not Arithmetic
+Everywhere else in this plugin a leading `+` or `-` is relative arithmetic against the
+live drag: `-25` means 25 less than what the mouse is showing. There is no drag to be
+relative to once the push is placed, and what a SketchUp user reaches for at that moment
+is the other thing entirely — a minus to turn the extrusion round.
+
+So in this one state the sign names the direction. The anchor stays the **original** drag
+direction, never the last value entered, so `-1200` then `1200` lands back where the first
+push was rather than walking off in one direction.
+
+The relative arithmetic is untouched mid-drag. Only the placed state reads a sign as a
+direction, and the status line and the activation banner both say which state you are in.
+
+### Rebuild, Don't Top Up
+The obvious cheap version is to push the already-moved face by the difference. It falls
+apart immediately:
+
+- the quad ring would be stitched a second time, at the new position
+- a slope shear would compound on top of itself
+- a loop cut has no face that moved at all
+- a sign flip would have to drag the face back through its own start plane and hope the
+  walls it made get reabsorbed
+
+So the push is taken off the undo stack with `Sketchup.undo` and **re-run** from the state
+it was made in. Typing 1200 gives byte-for-byte what dragging 1200 would have given, in
+every mode, because it is literally `na_drawn__commit_push` running again. Repeat entries
+cost one undo step in total rather than one each — same as native.
+
+The record carries tool state, not geometry: `@na_pp_target`, the axis lock, the slope
+candidate, whether SHIFT was down, whether TAB quads were armed. Restore those six and the
+commit path recomputes the offset, the slope split and the quad decision itself. There is
+still only one implementation of what a push is, which is why a retype cannot drift from a
+fresh drag.
+
+Quad mode is deliberately read from the record and not from the live setting: pressing TAB
+between placing and retyping must not quietly add or drop a quad line.
+
+### It Refuses Rather Than Guesses
+`Sketchup.undo` pops whatever is on top of the stack. If that is not our push then calling
+it destroys somebody else's work — a user who has already pressed Ctrl+Z themselves being
+the obvious case. So before any undo is attempted the model is asked whether the push is
+still the thing standing there. Two tests, covering each other's blind spots:
+
+1. **The count.** A push adds walls, so the definition holds more entities after it than
+   before. A Ctrl+Z has put that count back. Blind to a slope stretch, which creates
+   nothing.
+2. **The place.** Either a face where the push left one, or — for a push that went clean
+   through and consumed its own face — nothing at all where it started. An undo puts that
+   face back, so finding one at the start point is proof the push is no longer standing.
+   Blind to a push that changes neither, which is what the count is there for.
+
+Fail either and the record is dropped with a line in the status bar, and **nothing is
+undone**.
+
+If the rebuild itself will not build, the push the user actually had is put back down the
+same path that made it, rather than leaving them with an undo and nothing after it.
+
+### Not Armed After a Loop Cut
+The inward-with-quads gesture moves no face, so there is no "where the push left it" to
+test the undo stack against, and an unverifiable undo is not worth the convenience. A loop
+cut ends the chance to retype. Note that with QUADS armed, typing a negative that turns the
+push inward produces a loop cut — the same thing dragging inward produces, which is the
+point: typing and dragging must not disagree.
+
+### Sketchup::Entities Has No valid?
+Worth writing down because it would have been a silent kill. `Sketchup::Entities` is a
+COLLECTION, not an `Entity`, and has no `valid?` — asking one raises `NoMethodError`, and
+a `rescue StandardError` around the availability check would have answered "no" forever
+and taken the whole feature with it without ever printing anything. Touching a purged
+collection raises instead, so it is asked its `length` and the raise is the answer.
+
+### Files Added
+1. **`30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__Revise__.rb`** —
+   `Na__InsertPrimatives::DrawnPushPullRevise`, mixed into `DrawnPushPullTool` last so its
+   `na_drawn__disarm_revise` wraps the mixin's. Listed in the load manifest ahead of the
+   tool.
+
+### Files Touched
+- `DrawnPushPull__Commit__.rb` — snapshot the face's own space before `pushpull` moves it;
+  arm the record after a successful push; console headline says ADJUSTED on a retype
+- `DrawnPushPullTool__.rb` — `na_drawn__revise_available?` now answers from the record
+  instead of a hard `false`; quad mode honours a replay; a successful grab drops the
+  record; status, measurements box and VCB entry routing
+- `DrawnPushPull2dTool__.rb` — same three, with the 2d wording
+- `AppCore__LoadManifest__.rb` — the new file
+
+### Status: IMPLEMENTED — NOT YET VERIFIED IN SKETCHUP
+No Ruby interpreter on the build machine, so this has not been parsed or run. Reload
+Plugin Data and check, in this order:
+
+1. Plain push on loose geometry — place 300, type 1200, type -600, type 900
+2. Same inside a group, and inside a group inside a group
+3. Inside a scaled component — the retyped distance must be the world distance
+4. With QUADS armed — the quad line must move with the retyped push, not double up
+5. SHIFT slope push, then retype — the rake must be kept
+6. Arrow-key axis lock, then retype — the lock must still be what is measured
+7. A push clean through a solid, then retype
+8. Ctrl+Z yourself, then type — must refuse with "no longer the last thing done" and
+   leave the model alone
+9. Ctrl+Z after a retype — must unwind in ONE press, not one per entry
+10. 2d elevation edge pull, then retype
+
+# =============================================================================
+
 ## Version 5.0.0 - 04-Sep-2026 - Numbered Modules, One Manifest, Instant Tools
 
 ### Why This Is 5.0.0

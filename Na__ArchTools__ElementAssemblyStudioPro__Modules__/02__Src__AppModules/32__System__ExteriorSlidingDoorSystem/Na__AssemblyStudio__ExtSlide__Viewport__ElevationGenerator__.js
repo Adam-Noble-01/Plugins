@@ -7,10 +7,10 @@
    PURPOSE    : Renders a 2D elevation SVG of the sliding-door for the
                 live preview viewport in the Windows tab. Shows the
                 window-style outer frame (per-edge jambs + head + bottom),
-                two leaves (front and rear with the rear slightly inset to
-                communicate the wall-depth setback), the slide-direction
-                arrow on top, the setback indicator on the head, and a
-                handle dot on the moving leaf.
+                every leaf in the set (two or three, each tinted by track
+                depth so the fixed leaf reads as the rearmost), the
+                slide-direction arrow on top, the setback indicator on the
+                head, and a handle dot on the lead leaf.
    CREATED    : 17-May-2026
 
    DESCRIPTION:
@@ -29,8 +29,11 @@
      na_svgRect helper flips Y for SVG screen-space (origin top-left becomes
      (0, -y - h)).
    - Two slide modes supported:
-       * FrontSlidesLeft  - front panel on the right, slides left to open
-       * FrontSlidesRight - front panel on the left, slides right to open
+       * FrontSlidesLeft  - lead panel on the right, slides left to open
+       * FrontSlidesRight - lead panel on the left, slides right to open
+   - `sliding_door_panel_count` selects the track count:
+       * 2 - XO / OX  one slider parking over one fixed leaf
+       * 3 - XXO / OXX one fixed leaf with two sliders stacking over it
    - Setback is shown by drawing the rear panel with a small horizontal
      inset glyph at the head + base, mirroring the wall-depth offset.
 
@@ -67,8 +70,9 @@ const Na__ExtSlide__ElevationGenerator = (function () {
     const STROKE_BLACK               = '#1A1A1A';      // <-- Frame and outline stroke
     const STROKE_LIGHT               = '#5A6470';      // <-- Slide arrow / setback chevron stroke
     const FILL_HANDLE                = '#B8392A';      // <-- Handle dot fill (red, easy to spot)
-    const FILL_GLAZING_FRONT         = '#D8E8F2';      // <-- Front leaf glazing fill
-    const FILL_GLAZING_REAR          = '#B8C8D5';      // <-- Rear leaf glazing fill (slightly darker)
+    const FILL_GLAZING_FRONT         = '#D8E8F2';      // <-- Front (lead) leaf glazing fill
+    const FILL_GLAZING_MID           = '#C8D8E4';      // <-- Intermediate track glazing fill (triple track only)
+    const FILL_GLAZING_REAR          = '#B8C8D5';      // <-- Rear fixed leaf glazing fill (darkest)
     const FILL_CILL_DEFAULT          = '#A0908A';      // <-- Default cill (Sapele) tint
     const DEFAULT_FRAME_MATERIAL_ID  = 'MAT120__GenericWood';
     const DEFAULT_CILL_MATERIAL_ID   = 'MAT541__Timber__Sapele';
@@ -94,6 +98,7 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         const stileWidth = Math.max(40, safeNum(config.sliding_door_stile_width_mm, 95));
         const rearSet    = Math.max(20, safeNum(config.sliding_door_rear_setback_mm, 60));
         const slideMode  = String(config.sliding_door_mode || 'FrontSlidesRight');
+        const panelCount = Math.min(3, Math.max(2, Math.round(safeNum(config.sliding_door_panel_count, 2))));
         const isGlazed   = config.sliding_door_glazed !== false;
         const showDims   = config.show_dimensions      !== false;
 
@@ -118,6 +123,7 @@ const Na__ExtSlide__ElevationGenerator = (function () {
             stileWidth     : stileWidth,
             rearSetback    : rearSet,
             slideMode      : slideMode,
+            panelCount     : panelCount,
             isGlazed       : isGlazed,
             showDimensions : showDims,
             frameEdges     : frameEdges,
@@ -237,8 +243,9 @@ const Na__ExtSlide__ElevationGenerator = (function () {
 
     // HELPER FUNCTION | Per-Leaf Context for Shared Click-Target Keys
     // ------------------------------------------------------------
-    // Front leaf = panelIndex 0, rear leaf = panelIndex 1 (matches Ruby
-    // descriptor index - 1 and Window / Double Door 0-based keys).
+    // panelIndex is the TRACK index: 0 = lead leaf, last = fixed leaf
+    // (matches Ruby descriptor index - 1 and Window / Double Door
+    // 0-based keys).
     function na_panel_context(panelIndex) {
         return { openingIndex: 0, cellIndex: 0, panelIndex: panelIndex, sashIndex: 0 };
     }
@@ -312,26 +319,61 @@ const Na__ExtSlide__ElevationGenerator = (function () {
     // REGION | Per-Leaf Drawing (Front + Rear)
     // -----------------------------------------------------------------------------
 
-    // FUNCTION | Build SVG for the Two Sliding Leaves
+    // FUNCTION | Resolve the Bay a Leaf Occupies From Its Track Index
     // ------------------------------------------------------------
-    // Each leaf is half the inner width with a small visual overlap at the
-    // meeting stiles so the user can "see" the order of the panels.
-    // The rear leaf is drawn first, then the front leaf draws on top so its
-    // outline crosses the rear leaf at the overlap.
+    // Track 0 is the lead leaf; the last track is the fixed leaf. When
+    // the set slides left the fixed leaf sits at the left jamb and the
+    // lead leaf at the right, so the bay order reverses.
+    function na_track_to_bay(trackIndex, panelCount, slideMode) {
+        const stacksLeft = slideMode === 'FrontSlidesLeft';
+        return stacksLeft ? (panelCount - 1 - trackIndex) : trackIndex;
+    }
+    // ---------------------------------------------------------------
+
+
+    // FUNCTION | Build SVG for Every Sliding Leaf in the Set
+    // ------------------------------------------------------------
+    // Each leaf is one equal bay of the inner width with a small visual
+    // overlap at the meeting stiles so the user can "see" the order of
+    // the panels. Leaves are drawn back track first so the lead leaf's
+    // outline crosses everything it passes in front of — the same
+    // reading a stacked triple track gives on a real elevation.
     function na_build_leaves(layout, clickBucket) {
         if (layout.innerWidth <= 0 || layout.innerHeight <= 0) return '';
 
-        const halfWidth = layout.innerWidth / 2;
-        const leafW     = halfWidth + (PANEL_OVERLAP_MM / 2);
-
-        const frontIsRight = layout.slideMode === 'FrontSlidesLeft';
-        const frontX       = frontIsRight ? layout.innerLeft + halfWidth - (PANEL_OVERLAP_MM / 2) : layout.innerLeft;
-        const rearX        = frontIsRight ? layout.innerLeft : layout.innerLeft + halfWidth - (PANEL_OVERLAP_MM / 2);
+        const count = layout.panelCount;
+        const bayW  = layout.innerWidth / count;
+        const lap   = PANEL_OVERLAP_MM / 2;
 
         let svg = '';
-        svg += na_build_one_leaf(rearX,  layout.innerBottom, leafW, layout.innerHeight, layout, FILL_GLAZING_REAR,  1, clickBucket);
-        svg += na_build_one_leaf(frontX, layout.innerBottom, leafW, layout.innerHeight, layout, FILL_GLAZING_FRONT, 0, clickBucket);
+        for (let track = count - 1; track >= 0; track -= 1) {
+            const bay    = na_track_to_bay(track, count, layout.slideMode);
+            const isEndL = (bay === 0);
+            const isEndR = (bay === count - 1);
+
+            // Outer edges stay flush with the jambs; interior joints overlap.
+            const leafX = layout.innerLeft + (bay * bayW) - (isEndL ? 0 : lap);
+            const leafW = bayW + (isEndL ? lap : 0) + (isEndR ? lap : 0)
+                                + (!isEndL && !isEndR ? PANEL_OVERLAP_MM : 0);
+
+            svg += na_build_one_leaf(
+                leafX, layout.innerBottom, leafW, layout.innerHeight,
+                layout, na_track_glazing_fill(track, count), track, clickBucket
+            );
+        }
         return svg;
+    }
+    // ---------------------------------------------------------------
+
+
+    // SUB FUNCTION | Pick a Glazing Tint That Reads as Track Depth
+    // ------------------------------------------------------------
+    // Front track is lightest, the fixed rear track darkest, so a
+    // three-panel set reads front-to-back at a glance.
+    function na_track_glazing_fill(trackIndex, panelCount) {
+        if (trackIndex === 0)              return FILL_GLAZING_FRONT;
+        if (trackIndex === panelCount - 1) return FILL_GLAZING_REAR;
+        return FILL_GLAZING_MID;
     }
     // ---------------------------------------------------------------
 
@@ -357,7 +399,7 @@ const Na__ExtSlide__ElevationGenerator = (function () {
 
         let svg = '';
         if (glazedW > 0 && glazedH > 0) {
-            const fill = layout.isGlazed ? glazingColour : (panelIndex === 1 ? '#A8B2BE' : colour);
+            const fill = layout.isGlazed ? glazingColour : (panelIndex === 0 ? colour : '#A8B2BE');
             svg += sg.na_svgRect(glazedX, glazedY, glazedW, glazedH, fill, STROKE_BLACK, 1);
         }
 
@@ -446,10 +488,26 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         if (layout.innerWidth <= 0 || layout.innerHeight <= 0) return '';
 
         const arrowY = layout.innerBottom + layout.innerHeight - SLIDE_ARROW_OFFSET_MM;
-        const cx     = layout.innerLeft   + layout.innerWidth / 2;
         const sign   = (layout.slideMode === 'FrontSlidesLeft') ? -1 : +1;
 
-        return na_build_arrow_horizontal(cx, arrowY, SLIDE_ARROW_LEN_MM, sign);
+        // Twin track keeps its single centred arrow. A triple track marks
+        // each sliding leaf instead, so the fixed leaf is unmistakable and
+        // both sliders read as travelling the same way.
+        if (layout.panelCount <= 2) {
+            const cx = layout.innerLeft + layout.innerWidth / 2;
+            return na_build_arrow_horizontal(cx, arrowY, SLIDE_ARROW_LEN_MM, sign);
+        }
+
+        const bayW = layout.innerWidth / layout.panelCount;
+        const len  = Math.min(SLIDE_ARROW_LEN_MM, bayW * 0.6);
+
+        let svg = '';
+        for (let track = 0; track < layout.panelCount - 1; track += 1) {
+            const bay = na_track_to_bay(track, layout.panelCount, layout.slideMode);
+            const cx  = layout.innerLeft + (bay * bayW) + (bayW / 2);
+            svg += na_build_arrow_horizontal(cx, arrowY, len, sign);
+        }
+        return svg;
     }
     // ---------------------------------------------------------------
 
@@ -475,6 +533,9 @@ const Na__ExtSlide__ElevationGenerator = (function () {
 
     // FUNCTION | Build SVG for the Rear-Setback Chevron (Top-Right or Top-Left)
     // ------------------------------------------------------------
+    // Sits over the fixed leaf's jamb — the end the set stacks towards.
+    // On a triple track the label carries the track multiplier, since
+    // the fixed leaf is two setbacks back from the lead leaf.
     function na_build_setback_glyph(layout) {
         if (layout.innerWidth <= 0 || layout.innerHeight <= 0) return '';
 
@@ -486,13 +547,15 @@ const Na__ExtSlide__ElevationGenerator = (function () {
 
         const svgY = -cy;
         const half = SETBACK_GLYPH_LEN_MM / 2;
+        const gaps = layout.panelCount - 1;
+        const label = `${Math.round(layout.rearSetback)}mm${gaps > 1 ? ` ×${gaps}` : ''}`;
 
         return [
             `<polyline points="${cx - half},${svgY} ${cx + sign * half},${svgY - half} ${cx + 3 * sign * half},${svgY}" `,
             `          fill="none" stroke="${STROKE_LIGHT}" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>`,
             `<text x="${cx + sign * half}" y="${svgY - half - 30}" text-anchor="middle" `,
             `      fill="${STROKE_LIGHT}" font-family="sans-serif" font-size="42" font-weight="600">`,
-            `${Math.round(layout.rearSetback)}mm`,
+            label,
             `</text>`
         ].join('');
     }
@@ -505,20 +568,20 @@ const Na__ExtSlide__ElevationGenerator = (function () {
     // REGION | Handle Marker
     // -----------------------------------------------------------------------------
 
-    // FUNCTION | Build SVG for the Handle Dot on the Front (Sliding) Leaf
+    // FUNCTION | Build SVG for the Handle Dot on the Lead (Sliding) Leaf
     // ------------------------------------------------------------
+    // Only the lead leaf is grabbed, and the handle sits on its leading
+    // stile — the one that closes against the jamb it slides away from.
     function na_build_handle_dot(layout) {
         if (layout.innerWidth <= 0) return '';
 
-        const halfWidth    = layout.innerWidth / 2;
+        const bayW         = layout.innerWidth / layout.panelCount;
         const frontIsRight = layout.slideMode === 'FrontSlidesLeft';
+        const leadBay      = na_track_to_bay(0, layout.panelCount, layout.slideMode);
 
-        const frontCentreX = frontIsRight
-            ? layout.innerLeft + halfWidth + (halfWidth / 2)
-            : layout.innerLeft + (halfWidth / 2);
-
-        const handleSign = frontIsRight ? +1 : -1;
-        const cx = frontCentreX + handleSign * (halfWidth * 0.35);
+        const leadCentreX  = layout.innerLeft + (leadBay * bayW) + (bayW / 2);
+        const handleSign   = frontIsRight ? +1 : -1;
+        const cx = leadCentreX + handleSign * (bayW * 0.35);
         const cy = HANDLE_DEFAULT_HEIGHT_MM;
 
         const svgY = -cy;

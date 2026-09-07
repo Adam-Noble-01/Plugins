@@ -142,7 +142,8 @@ module Na__InsertPrimatives
                 "Distance snaps to the #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} grid — hold CTRL for vertex snapping",
                 'ARROWS lock the measured axis, TAB toggles QUAD mode',
                 'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
-                'VCB: 300 | +50 | -25   (the typed distance pins and places)'
+                'VCB: 300 | +50 | -25   (the typed distance pins and places)',
+                'After placing, keep typing: 1200 resizes the pull, -1200 turns it round'
             ]
         end
         # ---------------------------------------------------------------
@@ -730,30 +731,39 @@ module Na__InsertPrimatives
                 return "#{verb}#{quads} #{text} mm — release or click to place#{slope}"
             end
 
+            adjust = na_drawn__replay_hint
+
             if @na_pp_target
                 focus = na_drawn__focus_hint
-                return "Edge grabs the #{@na_pp_area} m2 wall behind it — click to pull#{quads}#{slope}#{focus}" if @na_pp2d_reason == :edge
-                return "Face #{@na_pp_area} m2 — click to grab it#{quads}#{slope}#{focus}"
+                return "Edge grabs the #{@na_pp_area} m2 wall behind it — click to pull#{quads}#{slope}#{focus}#{adjust}" if @na_pp2d_reason == :edge
+                return "Face #{@na_pp_area} m2 — click to grab it#{quads}#{slope}#{focus}#{adjust}"
             end
 
-            return "#{@na_pp2d_refusal}#{quads}" if @na_pp2d_refusal
-            "Hover an edge — the wall standing behind it is what moves#{quads}#{slope}#{na_drawn__focus_hint}"
+            return "#{@na_pp2d_refusal}#{quads}#{adjust}" if @na_pp2d_refusal
+            "Hover an edge — the wall standing behind it is what moves#{quads}#{slope}#{na_drawn__focus_hint}#{adjust}"
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Measurements Box Label and Live Value
         # ------------------------------------------------------------
         def na_drawn__vcb_label_and_value
-            return [na_drawn__slope_mode? ? 'Slope distance' : 'Pull distance', ''] if @na_state != :picking_depth
+            label = na_drawn__slope_mode? ? 'Slope distance' : 'Pull distance'
+            return [label, na_drawn__format_sizes([@na_size_d])] if @na_state == :picking_depth
 
-            [na_drawn__slope_mode? ? 'Slope distance' : 'Pull distance', na_drawn__format_sizes([@na_size_d])]
+            # Same as the 3d tool: a placed pull leaves its distance in the box
+            # so it can be retyped without grabbing the edge again.
+            return ['Pull distance', na_drawn__replay_distance_mm] if na_drawn__replay_available?
+
+            [label, '']
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | A Typed Distance Pins and Places
+        # FUNCTION | A Typed Distance Pins and Places, or Corrects What Is Placed
+        # The refusal wording is the only difference from the 3d tool, and it
+        # must not fire on a placed pull that is still waiting to be retyped.
         # ------------------------------------------------------------
         def na_drawn__handle_vcb_text(text, view)
-            unless @na_state == :picking_depth
+            unless @na_state == :picking_depth || na_drawn__replay_available?
                 UI.beep
                 Sketchup::set_status_text('Grab an edge before typing a distance', SB_PROMPT)
                 return false

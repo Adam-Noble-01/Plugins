@@ -3,6 +3,137 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.7.0 - 07-Sep-2026 - Three-Panel Sliding Doors (triple track)
+
+### Context
+Sliding exterior doors could only ever be two panels: one slider parking over one fixed leaf, half the aperture open. That is the smallest sliding set there is, and it is the wrong one for most of the openings these doors get drawn into. A 3660mm rear elevation split in two gives two 1830mm leaves — heavy, and it wastes the opening, because half of it can never open.
+
+The three-panel set is the one the minimal-framed systems actually sell. Keller minimal windows — the system IQ Glass supply in the UK — put it plainly: the most popular triple-track design is a three-panel door with one fixed unit and two that slide over that fixed panel. It opens two thirds of the aperture instead of a half, and it puts a full-width pane in the middle of the view rather than a meeting stile.
+
+### Feature Summary
+- **Panel Count**, a new segmented control at the top of the sliding door's OPTIONS, offering **Two Panel** and **Three Panel**.
+- **Three Panel builds the standard XXO / OXX set** — one fixed leaf with two sliders stacking over it on three tracks. Both sliders travel the *same* direction, the one already set by Slide Direction, and the fixed leaf sits at the jamb they stack towards.
+- **Slide Right** puts the fixed leaf at the right jamb and stacks left-to-right (XXO); **Slide Left** mirrors it (OXX).
+- **~66% clear opening**, against 50% for the two-panel set.
+- Leaves are equal thirds of the clear opening, and the 2D preview, the SketchUp solid and the MVE animation markers all agree on the same layout.
+
+### Which Leaf Sits Behind Which
+Three leaves on three tracks only work if the track depths step monotonically, so each slider clears everything it has to pass. Track 0 carries the lead leaf — the one you grab, the one that closes against the far jamb and travels two full bays. Track 1 carries the intermediate slider, one bay of travel. Track 2 carries the fixed leaf.
+
+That ordering extends the two-panel convention rather than replacing it: the moving leaf was already on the front plane with the fixed leaf set back by **Rear Panel Setback**, and a three-panel set simply adds a second step of the same setback. A two-panel door built before this release produces byte-identical geometry — same leaf widths, same Y planes, same travel.
+
+The consequence worth knowing is that the fixed leaf on a triple track sits **two** setbacks into the room, not one. At the 60mm default that is 120mm from the lead leaf's face. The head-of-elevation setback chevron now says `60mm ×2` on a three-panel set so that is visible without opening the section.
+
+### One Descriptor Loop, Not Two Hard-Coded Leaves
+The composer built exactly two leaves from two near-identical hard-coded functions, `na_build_front_leaf_descriptor` and `na_build_rear_leaf_descriptor`. Both have gone. In their place `na_build_leaf_descriptors` returns an ordered list — lead leaf first, fixed leaf last — and the composer loops it for MOD groups and again for MVE markers, emitting one marker per *moving* leaf rather than always exactly one.
+
+Everything downstream was already index-driven and needed no change: MOD naming falls out of the descriptor index and its travel (`MOD003__FIXED__SlidingPanel` for the third leaf), panel IDs and FuseParts names come off the same index, and glaze-bar removal keys and leaded-glass cell keys use `index - 1`, which now simply reaches 2. The fuser walks whatever MODs it finds and never counted them.
+
+The geometry helpers gained the panel count as a parameter with the old two-panel value as its default, so `na_compute_leaf_width_mm` divides by thirds when asked and halves when not. `na_resolve_front_leaf_signed_travel_mm` and `na_compute_rear_panel_y_origin_in_frame_mm` are now thin wrappers over the general per-track versions.
+
+### Nothing Built Before This Moves
+An absent `sliding_door_panel_count` clamps to 2, so every door and preset saved before this release rebuilds as the two-panel set it has always been. The clamp is the single choke point — `na_resolve_panel_count` — and it accepts the string the segmented toggle emits as readily as the number the defaults hold.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.6.0 - 07-Sep-2026 - Advanced Mullion Controls (unequal lights)
+
+### Context
+Mullions were always spaced evenly. Two mullions meant three identical lights, and there was no way to say otherwise. That is not what most of the housing stock looks like: the common domestic three-light window has a wide fixed centre with a narrow opener each side, and the bungalow window that prompted this work is exactly that — a 2800mm frame whose middle light is roughly two and a half times the width of its flanks.
+
+Every other divider in the tool had already grown a way to be positioned by hand. Transoms take absolute heights. Glaze bars take a per-bar signed nudge behind a toggle. Mullions — the one divider that decides how wide each light is — were the last thing still hard-locked to equal spacing.
+
+### Feature Summary
+- **Advanced Mullion Controls**, a new expandable in DIMENSIONS directly under Mullion Width, holding an **Individual Mullion Offsets** toggle and a pool of six offset sliders.
+- **One slider per mullion**, `Mullion 1 Offset` .. `Mullion 6 Offset`, numbered left to right. Positive drives that mullion **right**, negative **left**, measured from where it would sit if the lights were equal. Range ±2000mm, step 5mm, with the usual arithmetic-capable numeric field beside it.
+- **Sliders appear only for mullions that exist**, and only when the toggle is on — the same two-gate rule the glaze bar offset pool uses. Six permanently visible sliders would have swamped the section for what is an occasional detail job.
+- **Hidden sliders keep their values.** Dropping the mullion count and raising it again, or switching the feature off and back on, restores the layout rather than resetting to equal lights.
+- **Everything inside a light follows its new width** — casements, sashes, glazing, glaze bars, leaded lines and transom segments all size to the light they sit in, in all three representations.
+
+Reproducing the reference window is now three moves: Mullions `2`, then Mullion 1 Offset `-300` and Mullion 2 Offset `+300`. That yields lights of 573 / 1473 / 573mm inside the 2700mm inner frame.
+
+### One Layout, Four Producers
+The old equal-lights formula was inlined in seven places across four producers — the SVG preview, the JS DXF fallback, the Ruby DXF stream and the SketchUp geometry engine — plus the validator and two key-collectors that have to mirror the layout exactly. Adding offsets to seven copies of the same two lines is how a preview and a built component end up disagreeing.
+
+So the layout moved into one function, mirrored the way the glazebar math already is:
+
+- `Na__MullionMath.na_computeMullionLayout` **(new JS module)** — 2D preview, JS DXF, validator, key-collectors.
+- `GeometryBuilders.na_compute_mullion_layout` — the SketchUp solid.
+- `DxfExporter.na_compute_mullion_layout_dxf` — the DXF stream, kept local to avoid cross-loading the geometry builders, exactly as the bar-position math already is.
+
+All three take the same arguments and return the same shape: a list of mullions (1-based index, left edge, width) and a list of openings (0-based index, left edge, width). No producer computes a shared `opening_width` any more — each reads its own light's width off the layout.
+
+### Mullions Cannot Cross
+The offsets are applied and then clamped, left to right. Each mullion is held back by its left neighbour and by the room the mullions to its right still need, with a 50mm minimum light throughout. The consequence is that no combination of slider values — including dragging every slider to the same extreme — can make two mullions swap places, escape the frame, or produce a zero-width light that SketchUp would refuse to build a face from.
+
+That 50mm floor is a structural guard, not a design rule. Whether a light is wide enough to hold a *casement* is a larger limit, and the validator still reports that as it always did; its message now names mullion offsets as one of the three things to adjust.
+
+When the frame is too narrow to hold the mullions at all, the offsets are dropped and the equal-lights layout is returned — the same degenerate output the tool produced before, with the validator already saying why.
+
+### Nothing Built Before This Moves
+The toggle gates the whole pool, and an **absent** toggle key counts as off. That is deliberately the opposite of the glaze bar rule, where an absent key means "pre-toggle config, keep the stored nudges live" — the glazebar pool predates its own toggle, so it had configs to preserve. The mullion pool shipped with its toggle, so an absent key can only mean a window saved before V1.6.0, and those must build exactly as they always did. The comment saying so sits in all four copies of the collector, because it is the kind of asymmetry someone will otherwise "fix".
+
+With offsets off, the resolver returns the equal-lights layout — and the spec checks that against the old inlined formula rather than against the new module's own even-spacing branch.
+
+### Three Slider Ranges Opened Up
+Building the reference window turned up three limits that were stopping it being drawn accurately. None needed new machinery — the geometry already handled the values, the sliders just would not reach them.
+
+- **Mullion Width and Transom Width now start at 10mm**, down from 30mm. Slim steel and aluminium sections genuinely are that thin, and a 10mm divider is also the way to fake a butt-jointed corner light. Both floors moved together — a window that can be slim in one direction and not the other cannot be built consistently.
+
+- **Casement Frame Inset now accepts negatives**, down to -100mm from a previous floor of 0. Positive still sets the casement back into the frame, which is the usual rebated casement. Negative pulls it **forward, proud of the frame face** — which is how a great many older domestic windows actually sit, the bungalow window that prompted this release included.
+
+  This needed no geometry work at all. Every consumer of the value already derived its depth as `wall_inset + casement_inset`, so the sash frame, its glazing, the glaze bars, the leaded lines and the sash horns all shift forward together and stay correctly assembled relative to each other. Only the slider's floor was in the way.
+
+  One consequence worth knowing about: the numeric field's arithmetic entry treats a leading `-` as *relative* ("subtract this") only on controls that cannot hold a negative. Now that this one can, typing `-30` sets it to -30 rather than subtracting 30 — the same way Meeting Rail Offset and Frame Wall Inset have always behaved. That is the only way to type a negative at all, and it puts the control in the same class as the other signed sliders.
+
+### Files Changed
+- `20__System__WindowSystem/`
+  - `...__Viewport__MullionMath__.js` **(new)** — `window.Na__MullionMath`. The offset collector, the equal-lights baseline, the clamped layout resolver, and the narrowest-light query the validator needs.
+  - `...__UiSystem__Config__.js` — `na_buildMullionOffsetDescriptors` + the Advanced Mullion Controls expandable; Mullion Width and Transom Width floors 30 → 10mm; Casement Frame Inset floor 0 → -100mm.
+  - `...__UiSystem__MainUiLogic__.js` — `na_updateMullionOffsetVisibility`, wired into `na_onConfigChange`; `advanced_mullion_controls` added to the door-mode hide list; `na_collectValidCasementKeys` moved onto the shared resolver.
+  - `...__Viewport__SvgGenerator__.js` — main composition plus both valid-key collectors now read positions and widths off the layout.
+  - `...__UiSystem__Export__Dxf__.js` — same, with an equal-lights fallback if the math module is ever missing.
+  - `...__GeometryBuilders__.rb` — `na_compute_mullion_layout`, `na_compute_even_mullion_layout`, `na_collect_mullion_offsets`, `NA_MULLION_MIN_OPENING`.
+  - `...__GeometryEngine__.rb` — resolves the layout in `na_parse_config`; mullion creation, `na_create_opening`, `na_get_opening_layout` and both casement builders now carry a per-light width instead of `params[:opening_width]`.
+  - `...__DxfExporter__.rb` — local mirrors of the three helpers, and the mullion / opening loops moved onto them.
+  - `...__Defaults__.rb` — the eight new keys.
+- `05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Validation__.js` — tests the **narrowest** light rather than one shared width; message names mullion offsets.
+- `Na__AssemblyStudio__UiLayout__.html` — MullionMath script tag, ahead of the viewport engine because Validation consumes it.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__MullionMath__Spec__.js` **(new)** — 76-assertion suite over the shipped module.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (version 1.6.0)
+
+### How to Test
+Automated first — needs only Node, no install:
+
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__MullionMath__Spec__.js"
+```
+
+It drives the shipped module: legacy parity at 0/1/2/3/6 mullions, the reference window, the clamping invariants under every extreme, degenerate frames, the config gate, and the narrowest-light query. Expect `76 passed, 0 failed`. The arithmetic suite should still report `108 passed`, component naming `32 passed`, exterior door parity `109 passed`.
+
+Then in the dialog, after a full SketchUp restart:
+1. Windows tab → Width `2800`, Height `1450`, Mullions `2`. Three equal lights.
+2. Open **Advanced Mullion Controls** → turn **Individual Mullion Offsets** on. Exactly two sliders appear, Mullion 1 and Mullion 2.
+3. Mullion 1 Offset `-300`, Mullion 2 Offset `+300`. The preview shows a wide centre light with narrow flanks.
+4. **Export DXF** and open it. The mullions must sit at the same X positions as the preview, not back at equal thirds.
+5. **Create Window**, then measure the mullions in the model. Same positions again.
+6. Turn the toggle **off**. The preview snaps back to equal lights and the sliders disappear — but their values survive: turn it on again and the wide centre returns.
+7. Drag Mullion 1 Offset to `-2000`. The mullion stops with a 50mm light beside it rather than passing the frame, and the validator reports the opening is too narrow.
+8. Drag Mullion 2 Offset to `-2000` as well. Mullion 2 stops beside Mullion 1 — they must not cross or swap.
+9. Set Mullions to `1`, then back to `2`. Mullion 2's slider returns with its stored value.
+10. Add Transoms `1` and Vertical Bars `2`. The transom segments and glaze bars must fill each light's own width, wide centre included.
+11. Switch Product to **Exterior Doors**. Advanced Mullion Controls must disappear with the other window-only controls.
+12. Open a window saved before this build. It must render and rebuild exactly as it did — no mullion movement.
+
+Then the three opened-up ranges:
+
+13. Drag **Mullion Width** and **Transom Width** to their new floor. Both must reach **10mm** and draw a hairline divider rather than stopping at 30.
+14. Advanced Casement Controls → **Casement Frame Inset**. Drag it below zero to `-30`. Create the window and orbit to a side view: the casement, its glazing and its glaze bars must sit **proud of the frame face**, still correctly assembled relative to each other — not detached or intersecting.
+15. Type `-30` into that field rather than dragging. It must commit as **-30**, not subtract 30 from the current value. (Signed sliders take a leading `-` literally; this now behaves like Meeting Rail Offset.)
+16. Set it back to `10`. The casement must return to sitting inside the frame.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.5.4 - 29-Aug-2026 - Component Naming + App Footer
 
 ### Context

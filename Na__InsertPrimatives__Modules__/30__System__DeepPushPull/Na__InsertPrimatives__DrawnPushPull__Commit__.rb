@@ -66,13 +66,25 @@ module Na__InsertPrimatives
             cutting  = na_drawn__loop_cut_mode?                               # <-- Read before the commit; reporting below needs it
             sloped   = na_drawn__slope_mode?
 
+            # Read while the face is still untouched. Nothing below can ask the
+            # face where it started once pushpull has moved it, and that is the
+            # one thing a retype of the distance needs — see the Revise module.
+            snapshot = na_drawn__replay_snapshot(target, model)
+
             unless na_drawn__execute_push(model, target, local_offset)
                 UI.beep
                 Sketchup::set_status_text("Push failed: #{@na_pp_last_error}", SB_PROMPT)
                 na_drawn__report_failure(target, local_offset, sloped)
+                na_drawn__forget_replay
                 na_drawn__reset_pick_state
                 return false
             end
+
+            # Arm the measurements box to accept a new distance for the push
+            # that was just placed, the way native Push/Pull and Joint Push/Pull
+            # both do. Armed here, while every number this push was made from is
+            # still in scope, and read back by na_drawn__revise_push.
+            na_drawn__record_replay(target, snapshot, local_offset, sloped, cutting)
 
             na_drawn__trace("placed #{Na__InsertPrimatives.Na__DrawnFormat__Mm(world_travel).abs}mm")
             na_drawn__log_push(target, world_travel, sloped)
@@ -411,7 +423,9 @@ module Na__InsertPrimatives
         def na_drawn__log_push(target, world_travel, sloped)
             Na__InsertPrimatives.Na__Debug__Puts "\n"
             Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
-            Na__InsertPrimatives.Na__Debug__Puts 'DEEP PUSH/PULL APPLIED'
+            Na__InsertPrimatives.Na__Debug__Puts(
+                @na_pp_replaying ? 'DEEP PUSH/PULL ADJUSTED (retyped distance)' : 'DEEP PUSH/PULL APPLIED'
+            )
             Na__InsertPrimatives.Na__Debug__Puts "Target: #{Na__InsertPrimatives.Na__DeepPick__PathLabel(target)}"
             measured =
                 if    @na_axis_lock then " along #{NA_DRAWN_AXIS_LABELS[@na_axis_lock]}"

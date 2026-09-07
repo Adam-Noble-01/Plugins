@@ -40,6 +40,17 @@
 
     var NA_SLIDING_DOOR_CONFIG = [
         {
+            id: 'sliding_door_panel_count',
+            label: 'Panel Count',
+            type: 'multiway_toggle',
+            default: 2,
+            options: [
+                { value: 2, label: 'Two Panel' },
+                { value: 3, label: 'Three Panel' }
+            ],
+            section: 'Opening'
+        },
+        {
             id: 'sliding_door_mode',
             label: 'Slide Direction',
             type: 'binary_toggle',

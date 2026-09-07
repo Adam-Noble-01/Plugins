@@ -458,6 +458,10 @@
     <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__LeafConfigResolver__.js"></script>
     <script src="02__Src__AppModules/31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__UiSystem__LeafConfigResolver__.js"></script>
 
+    <!-- Shared mullion layout math (equal lights + per-mullion offsets) -- loads
+         ahead of the viewport engine because Validation consumes it too -->
+    <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__MullionMath__.js"></script>
+
     <!-- Generic Viewport engine (must load before any tab-specific viewport) -->
     <script src="02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__SvgHelpers__.js"></script>
     <script src="02__Src__AppModules/05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Validation__.js"></script>

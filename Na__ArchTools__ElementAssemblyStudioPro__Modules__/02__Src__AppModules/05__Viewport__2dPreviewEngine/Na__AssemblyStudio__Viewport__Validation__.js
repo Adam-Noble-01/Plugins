@@ -116,12 +116,29 @@
         var innerHeight        = height - frameThicknesses.top  - frameThicknesses.bottom;
         var totalMullionWidth  = numMullions * mullionWidth;
         var availableWidth     = innerWidth - totalMullionWidth;
-        var openingWidth       = availableWidth / numOpenings;
-        var casementUnitWidth  = openingWidth / casementsPerOpening;
+
+        // With per-mullion offsets the lights are no longer all the same
+        // width, so the test is the NARROWEST one. Falls back to the equal
+        // share if the shared math module is unavailable.
+        var narrowestOpening;
+        if (window.Na__MullionMath) {
+            var mullionLayout = window.Na__MullionMath.na_resolveMullionLayoutFromConfig(
+                config,
+                frameThicknesses.left,
+                innerWidth
+            );
+            narrowestOpening = window.Na__MullionMath.na_minimumOpeningWidth(mullionLayout);
+        } else {
+            narrowestOpening = availableWidth / numOpenings;
+        }
+
+        var casementUnitWidth  = narrowestOpening / casementsPerOpening;
         var minCasementWidth   = showCasements ? (casLeftStile + casRightStile) + 50 : 50;
 
         if (casementUnitWidth < minCasementWidth) {
-            errors.push('Opening too narrow - reduce mullions or increase width');
+            errors.push(numMullions > 0
+                ? 'Opening too narrow - adjust mullion offsets, reduce mullions or increase width'
+                : 'Opening too narrow - reduce mullions or increase width');
         }
 
         var minSingleSashHeight = Math.max(
@@ -303,6 +320,7 @@
         var stileW  = Math.max(40, Number(config.sliding_door_stile_width_mm || 95));
         var headRl  = Math.max(40, Number(config.sliding_door_head_rail_mm   || 95));
         var baseRl  = Math.max(40, Number(config.sliding_door_base_rail_mm   || 200));
+        var panels  = Math.min(3, Math.max(2, Math.round(Number(config.sliding_door_panel_count) || 2)));
         var frameTh = na_getEffectiveFrameThicknesses(config);
 
         if (width  < 800)  errors.push('Sliding opening width must be at least 800mm');
@@ -315,7 +333,7 @@
         if (innerW <= 0 || innerH <= 0) {
             errors.push('Sliding frame thickness leaves no room for leaves - reduce frame edges');
         } else {
-            var perLeafW = innerW / 2;
+            var perLeafW = innerW / panels;
             var minLeafW = (2 * stileW) + 50;
             var minLeafH = headRl + baseRl + 50;
             if (perLeafW < minLeafW) errors.push('Sliding leaves too narrow - reduce stile width or frame edges');

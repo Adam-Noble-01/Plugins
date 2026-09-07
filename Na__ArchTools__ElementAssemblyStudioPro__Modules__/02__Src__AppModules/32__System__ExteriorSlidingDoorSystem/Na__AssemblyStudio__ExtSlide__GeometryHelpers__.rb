@@ -6,8 +6,8 @@
 # NAMESPACE  : Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryHelpers
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Sliding-door specific geometry helpers. Computes per-leaf
-#              width (2-panel sliding door), MVE travel distance, rear
-#              panel Y-setback origin, head/base track depth and panel
+#              width (2- or 3-panel sliding door), MVE travel distance,
+#              per-track Y-setback origin, head/base track depth and panel
 #              Y-origin from the snake_case bifold-parallel config keys.
 # CREATED    : 17-May-2026
 #
@@ -48,6 +48,9 @@ module Na__GeometryHelpers
     NA_TRACK_DEPTH_MULTIPLIER       = 1.6                                              # <-- Track depth = panel_t * 1.6
     NA_GLAZING_DEPTH_RATIO          = 0.6                                              # <-- Glazing pane = 60 % of leaf thickness
     NA_LEAF_OVERLAP_DEFAULT_MM      = 20                                               # <-- Default leaf-to-leaf overlap when sliding closed
+    NA_PANEL_COUNT_DEFAULT          = 2                                                # <-- Twin-track XO / OX set
+    NA_PANEL_COUNT_MIN              = 2                                                # <-- Two tracks is the smallest sliding set
+    NA_PANEL_COUNT_MAX              = 3                                                # <-- Triple-track XXO / OXX set
 
 # endregion -------------------------------------------------------------------
 
@@ -68,13 +71,30 @@ module Na__GeometryHelpers
 # REGION | Public API - Per-Leaf Geometry
 # -----------------------------------------------------------------------------
 
-    # FUNCTION | Compute the Per-Leaf Width for a Two-Panel Sliding Door
+    # FUNCTION | Resolve the Sliding Panel Count From the Config
     # ------------------------------------------------------------
-    # Each leaf occupies half the opening width (no rebate / overlap
-    # built into the leaf — overlap is realised by the front leaf
-    # being set in front of the rear leaf at Y=0 and Y=setback).
-    def self.na_compute_leaf_width_mm(opening_width_mm)
-        opening_width_mm.to_f / 2.0
+    # Accepts the full config hash (or a bare number) and clamps to the
+    # supported track counts. Anything missing or out of range falls
+    # back to the twin-track two-panel set so legacy configs saved
+    # before the triple-track option existed still build correctly.
+    def self.na_resolve_panel_count(config_or_count)
+        raw = config_or_count.is_a?(Hash) ? config_or_count["sliding_door_panel_count"] : config_or_count
+        count = raw.to_i
+        return NA_PANEL_COUNT_DEFAULT if count < NA_PANEL_COUNT_MIN
+        return NA_PANEL_COUNT_MAX     if count > NA_PANEL_COUNT_MAX
+        count
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Compute the Per-Leaf Width for a Sliding Door Set
+    # ------------------------------------------------------------
+    # Every leaf in the set is an equal bay of the clear opening (no
+    # rebate / overlap built into the leaf — overlap is realised by each
+    # leaf running on its own track, stepped back by the setback).
+    # Two panels give half-width leaves, three give thirds.
+    def self.na_compute_leaf_width_mm(opening_width_mm, panel_count = NA_PANEL_COUNT_DEFAULT)
+        count = na_resolve_panel_count(panel_count)
+        opening_width_mm.to_f / count.to_f
     end
     # ---------------------------------------------------------------
 
@@ -155,13 +175,26 @@ module Na__GeometryHelpers
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Resolve Any Leaf's Y-Origin From Its Track Index
+    # ------------------------------------------------------------
+    # Track 0 is the lead leaf (front plane); every subsequent track
+    # steps one setback further into the wall. Depth order must stay
+    # monotonic or the leaves cannot pass one another: on a triple
+    # track the lead leaf clears both the intermediate and the fixed
+    # leaf, and the intermediate clears the fixed.
+    def self.na_compute_panel_y_origin_in_frame_mm(panel_thickness_mm, frame_depth_mm, frame_wall_inset_mm, setback_mm, track_index)
+        front_y = na_compute_front_panel_y_origin_in_frame_mm(panel_thickness_mm, frame_depth_mm, frame_wall_inset_mm)
+        steps   = track_index.to_i
+        steps   = 0 if steps < 0
+        front_y + (setback_mm.to_f * steps)
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Resolve Rear-Leaf Y-Origin Inside the Frame Depth (Phase 9)
     # ------------------------------------------------------------
-    # Rear leaf sits behind the front by the configured setback so the
-    # two leaves run on parallel tracks rather than colliding.
+    # Twin-track convenience wrapper: the rear leaf is simply track 1.
     def self.na_compute_rear_panel_y_origin_in_frame_mm(panel_thickness_mm, frame_depth_mm, frame_wall_inset_mm, rear_setback_mm)
-        front_y = na_compute_front_panel_y_origin_in_frame_mm(panel_thickness_mm, frame_depth_mm, frame_wall_inset_mm)
-        front_y + rear_setback_mm.to_f
+        na_compute_panel_y_origin_in_frame_mm(panel_thickness_mm, frame_depth_mm, frame_wall_inset_mm, rear_setback_mm, 1)
     end
     # ---------------------------------------------------------------
 
@@ -252,15 +285,29 @@ module Na__GeometryHelpers
 # REGION | Public API - Slide Mode Resolution
 # -----------------------------------------------------------------------------
 
-    # FUNCTION | Resolve the Signed MVE X-Distance for the Front Leaf
+    # FUNCTION | Resolve the Signed MVE X-Distance for a Moving Leaf
     # ------------------------------------------------------------
     # `FrontSlidesRight` -> +X displacement, `FrontSlidesLeft` -> -X.
     # Defaults to +X (Right) when the mode is unknown so a degenerate
     # config still produces a sensible model.
-    def self.na_resolve_front_leaf_signed_travel_mm(slide_mode, leaf_width_mm)
-        magnitude = na_compute_slide_travel_mm(leaf_width_mm).to_f
+    # `bay_steps` is how many leaf bays this leaf crosses to reach the
+    # stack: 1 for the leaf next to the fixed one, 2 for the lead leaf
+    # of a triple track. The per-bay overlap is applied to each step so
+    # the open stack keeps its staggered, track-by-track reading.
+    def self.na_resolve_signed_travel_mm(slide_mode, leaf_width_mm, bay_steps = 1)
+        steps     = bay_steps.to_i
+        steps     = 0 if steps < 0
+        magnitude = na_compute_slide_travel_mm(leaf_width_mm).to_f * steps
         return -magnitude if slide_mode.to_s == "FrontSlidesLeft"
         magnitude
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Resolve the Signed MVE X-Distance for the Front Leaf
+    # ------------------------------------------------------------
+    # Twin-track convenience wrapper: the front leaf crosses one bay.
+    def self.na_resolve_front_leaf_signed_travel_mm(slide_mode, leaf_width_mm)
+        na_resolve_signed_travel_mm(slide_mode, leaf_width_mm, 1)
     end
     # ---------------------------------------------------------------
 

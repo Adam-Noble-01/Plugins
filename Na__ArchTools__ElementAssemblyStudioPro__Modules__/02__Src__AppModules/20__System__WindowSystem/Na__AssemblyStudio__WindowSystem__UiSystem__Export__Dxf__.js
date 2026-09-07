@@ -108,7 +108,38 @@ const Na__Export__Dxf = (function() {
         return false;
     }
     // ---------------------------------------------------------------
-    
+
+    // FUNCTION | Equal-Lights Mullion Layout (Na__MullionMath fallback)
+    // ------------------------------------------------------------
+    // Only reached if the shared mullion math module failed to load. Emits
+    // the pre-V1.6.0 equal-lights layout in Na__MullionMath's object shape
+    // so the caller has one code path either way. Offsets are not applied
+    // here - a DXF that silently disagreed with the preview would be worse
+    // than one that falls back to the layout the user had before.
+    function na_buildEvenMullionLayoutFallback(innerLeft, innerWidth, count, mullionWidth) {
+        const openingWidth = (innerWidth - (count * mullionWidth)) / (count + 1);
+        const mullions = [];
+        const openings = [];
+
+        for (let openingIndex = 0; openingIndex <= count; openingIndex += 1) {
+            openings.push({
+                index : openingIndex,
+                x     : innerLeft + (openingIndex * (openingWidth + mullionWidth)),
+                width : openingWidth
+            });
+        }
+        for (let m = 1; m <= count; m += 1) {
+            mullions.push({
+                index : m,
+                x     : innerLeft + (m * openingWidth) + ((m - 1) * mullionWidth),
+                width : mullionWidth
+            });
+        }
+
+        return { mullions: mullions, openings: openings };
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Export Current Model as DXF (Browser Fallback)
     // ------------------------------------------------------------
     // @param {Object} config - Window configuration object
@@ -175,9 +206,13 @@ const Na__Export__Dxf = (function() {
         const numOpenings = numMullions + 1;
         const innerWidth = width - leftFrameThickness - rightFrameThickness;
         const innerHeight = height - topFrameThickness - bottomFrameThickness;
-        const totalMullionWidth = numMullions * mullionWidth;
-        const availableWidth = innerWidth - totalMullionWidth;
-        const openingWidth = availableWidth / numOpenings;
+        // Shared mullion resolver - same offsets, same clamping, same output
+        // as the live preview and the SketchUp solid. Falls back to the
+        // equal-lights layout if the math module somehow failed to load,
+        // which is exactly what this exporter produced before V1.6.0.
+        const mullionLayout = window.Na__MullionMath
+            ? window.Na__MullionMath.na_resolveMullionLayoutFromConfig(config, leftFrameThickness, innerWidth)
+            : na_buildEvenMullionLayoutFallback(leftFrameThickness, innerWidth, numMullions, mullionWidth);
 
         // Outer frame (skip in frameless mode)
         if (leftFrameThickness > 0) {
@@ -194,20 +229,19 @@ const Na__Export__Dxf = (function() {
         }
 
         // Mullions
-        for (let m = 1; m <= numMullions; m++) {
-            const mullionX = leftFrameThickness + (m * openingWidth) + ((m - 1) * mullionWidth);
-            dxf += na_dxfRect(mullionX, bottomFrameThickness, mullionWidth, innerHeight);
-        }
+        mullionLayout.mullions.forEach(mullion => {
+            dxf += na_dxfRect(mullion.x, bottomFrameThickness, mullion.width, innerHeight);
+        });
 
         // Openings
         for (let i = 0; i < numOpenings; i++) {
-            const openingX = leftFrameThickness + (i * (openingWidth + mullionWidth));
+            const opening = mullionLayout.openings[i];
             const openingY = bottomFrameThickness;
             const openingLayout = na_getOpeningCellLayout(
                 i,
-                openingX,
+                opening.x,
                 openingY,
-                openingWidth,
+                opening.width,
                 innerHeight,
                 transomBottoms,
                 transomWidth,

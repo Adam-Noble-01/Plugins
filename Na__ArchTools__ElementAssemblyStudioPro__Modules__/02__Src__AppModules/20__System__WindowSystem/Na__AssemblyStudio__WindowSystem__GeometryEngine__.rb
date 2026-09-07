@@ -613,13 +613,29 @@ module Na__WindowSystem
             end
 
             # Calculate opening layout
+            #
+            # Mullion positions and the resulting light widths come from the
+            # shared resolver, which applies the per-mullion offsets and then
+            # clamps them so no two mullions can cross. With offsets off (or
+            # all zero) it returns the equal-lights layout this engine has
+            # always produced. `opening_width` is retained as the equal-share
+            # figure for diagnostics only - every builder now reads its width
+            # off the layout instead.
             num_openings = num_mullions + 1
             inner_width = width - effective_frame_thicknesses[:left] - effective_frame_thicknesses[:right]
             inner_height = height - effective_frame_thicknesses[:top] - effective_frame_thicknesses[:bottom]
             total_mullion_width = num_mullions * mullion_width
             available_width = inner_width - total_mullion_width
             opening_width = available_width / num_openings
-            
+            mullion_offsets = GeometryBuilders.na_collect_mullion_offsets(config, num_mullions, mm_to_inch)
+            mullion_layout  = GeometryBuilders.na_compute_mullion_layout(
+                effective_frame_thicknesses[:left],
+                inner_width,
+                num_mullions,
+                mullion_width,
+                mullion_offsets
+            )
+
             # Return parsed parameters hash
             {
                 width: width,
@@ -656,6 +672,8 @@ module Na__WindowSystem
                 removed_glazebars: removed_glazebars,
                 num_mullions: num_mullions,
                 mullion_width: mullion_width,
+                mullion_offsets: mullion_offsets,
+                mullion_layout: mullion_layout,
                 transom_count: transom_count,
                 transom_width: transom_width,
                 transom_bottoms: transom_bottoms,
@@ -721,10 +739,9 @@ module Na__WindowSystem
             end
 
             # Create mullions
-            (1..params[:num_mullions]).each do |m|
-                mullion_x = params[:frame_left_thickness] + (m * params[:opening_width]) + ((m - 1) * params[:mullion_width])
+            params[:mullion_layout][:mullions].each do |mullion|
                 GeometryBuilders.na_create_mullion_geometry(
-                    entities, m, mullion_x, params[:inner_height], params[:mullion_width],
+                    entities, mullion[:index], mullion[:x], params[:inner_height], mullion[:width],
                     params[:frame_depth], params[:frame_bottom_thickness], frame_material, params[:frame_wall_inset]
                 )
             end
@@ -784,8 +801,10 @@ module Na__WindowSystem
         # Supports 1-6 casements per opening (bifold/concertina panels).
         # Respects removed casements and removed transom segments.
         def self.na_create_opening(entities, opening_index, params, frame_material, glass_material)
-            opening_x = params[:frame_left_thickness] + (opening_index * (params[:opening_width] + params[:mullion_width]))
-            opening_layout = na_get_opening_layout(opening_index, opening_x, params)
+            opening       = params[:mullion_layout][:openings][opening_index]                                       # <-- Per-light x + width (unequal once mullion offsets are on)
+            opening_x     = opening[:x]
+            opening_width = opening[:width]
+            opening_layout = na_get_opening_layout(opening_index, opening_x, opening_width, params)
             show_casements = params[:show_casements]                                                                # <-- Master casement visibility (per-panel removal handled inside dispatch)
 
             opening_layout[:transom_segments].each do |segment|
@@ -810,6 +829,7 @@ module Na__WindowSystem
                         cell_index,
                         cell[:x],
                         cell[:z],
+                        cell[:width],
                         cell[:height],
                         params,
                         frame_material,
@@ -822,6 +842,7 @@ module Na__WindowSystem
                         cell_index,
                         cell[:x],
                         cell[:z],
+                        cell[:width],
                         cell[:height],
                         show_casements,
                         params,
@@ -858,7 +879,7 @@ module Na__WindowSystem
 
         # FUNCTION | Build Opening Layout
         # ------------------------------------------------------------
-        def self.na_get_opening_layout(opening_index, opening_x, params)
+        def self.na_get_opening_layout(opening_index, opening_x, opening_width, params)
             cells = []
             transom_segments = []
             cell_bottom = 0
@@ -872,7 +893,7 @@ module Na__WindowSystem
                     cells << {
                         x: opening_x,
                         z: opening_z + cell_bottom,
-                        width: params[:opening_width],
+                        width: opening_width,
                         height: cell_height
                     }
                 end
@@ -880,7 +901,7 @@ module Na__WindowSystem
                 transom_segments << {
                     x: opening_x,
                     z: opening_z + transom_bottom,
-                    width: params[:opening_width],
+                    width: opening_width,
                     height: params[:transom_width],
                     transom_index: transom_index
                 }
@@ -893,7 +914,7 @@ module Na__WindowSystem
                 cells << {
                     x: opening_x,
                     z: opening_z + cell_bottom,
-                    width: params[:opening_width],
+                    width: opening_width,
                     height: top_cell_height
                 }
             end
@@ -910,9 +931,9 @@ module Na__WindowSystem
         # Unified method for creating N casement panels within one transom-bounded cell.
         # The fifth-from-right argument is the master `show_casements` flag; per-panel
         # removal (`removed_casements`) is resolved inline for each panel.
-        def self.na_create_multi_casement_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_height, show_casements, params, frame_material, glass_material)
+        def self.na_create_multi_casement_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_width, opening_height, show_casements, params, frame_material, glass_material)
             num_panels = params[:casements_per_opening]
-            panel_width = params[:opening_width] / num_panels.to_f
+            panel_width = opening_width / num_panels.to_f                                                          # <-- This light's own width; lights differ once mullion offsets are on
 
             (0...num_panels).each do |p|
                 panel_x = opening_x + (p * panel_width)
@@ -968,9 +989,9 @@ module Na__WindowSystem
         # ------------------------------------------------------------
         # Creates two vertically stacked casements per horizontal panel.
         # Bottom sash is set back by one casement depth to simulate sliding overlap.
-        def self.na_create_sliding_sash_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_height, params, frame_material, glass_material)
+        def self.na_create_sliding_sash_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_width, opening_height, params, frame_material, glass_material)
             num_panels = params[:casements_per_opening]
-            panel_width = params[:opening_width] / num_panels.to_f
+            panel_width = opening_width / num_panels.to_f                                                          # <-- This light's own width; lights differ once mullion offsets are on
             meeting_rail_y = na_resolve_meeting_rail_height(opening_height, params[:meeting_rail_offset])
             bottom_sash_height = meeting_rail_y                                                              # <-- Cell floor up to the meeting rail
             top_sash_height = opening_height.to_f - meeting_rail_y                                           # <-- Meeting rail up to the cell head
