@@ -50,6 +50,13 @@ module Na__InsertPrimatives
     #   entirely — which is why loose faces could not be pushed at all.
     #   PickHelper#picked_face is the route that reports it, so it is asked
     #   first and the path scan is the fallback rather than the other way round.
+    #
+    # THE PICK IS RELATIVE TO THE OPEN CONTEXT (see the hub header):
+    # - path_at starts "from the active entities" and transformation_at maps the
+    #   leaf "into the coordinates of the active entities" — which are GLOBAL
+    #   while a context is open. So the transform is already the one the tools
+    #   want, and the path is made absolute here so it can be handed to
+    #   Model#active_path=, which only accepts a path from the model root.
     # ------------------------------------------------------------
     def self.Na__DeepPick__FaceAt(view, x, y)
         helper = view.pick_helper
@@ -70,17 +77,19 @@ module Na__InsertPrimatives
         # would kill deep picking outright, which is the tool's whole reason to
         # exist. Nested faces fall through to the path scan below.
         #
-        # The path and transform come from the OPEN CONTEXT, not from nil.
-        # Inside a group the user has opened, its geometry is "loose" to them
-        # but is still nested to the model: handing back nil there would report
-        # depth zero, use the local normal as if it were the world one, and send
-        # the commit to close the user's own context before pushing. At root
-        # both are the identity anyway, so loose geometry is unaffected.
+        # The path is the OPEN CONTEXT's, so the commit knows it is already in
+        # the right place and the depth reads true. The transform is the
+        # IDENTITY: a face in the open context already reports its positions
+        # and normal in global coordinates (the rule in the hub header), so
+        # there is nothing left to apply. Applying edit_transform here — as the
+        # tools did up to 5.1.1 — moved every preview by the open group's own
+        # transform, which was then hidden by an equal and opposite correction
+        # at draw time, and which broke the moment anything ELSE was drawn.
         if direct.is_a?(Sketchup::Face) && Na__InsertPrimatives.Na__DeepPick__InOpenContext?(direct)
             target = Na__InsertPrimatives.Na__DeepPick__BuildTarget(
                 direct,
                 Na__InsertPrimatives.Na__DeepPick__ContextPath,
-                Na__InsertPrimatives.Na__DeepPick__ContextTransform
+                nil
             )
             return target unless Na__InsertPrimatives.Na__DeepPick__LockedOut?(direct, target)
         end
@@ -96,7 +105,9 @@ module Na__InsertPrimatives
 
             if leaf.is_a?(Sketchup::Face)
                 target = Na__InsertPrimatives.Na__DeepPick__BuildTarget(
-                    leaf, helper.path_at(index), helper.transformation_at(index)
+                    leaf,
+                    Na__InsertPrimatives.Na__DeepPick__AbsolutePath(helper.path_at(index)),
+                    helper.transformation_at(index)
                 )
 
                 # Locked geometry is not merely refused, it is not seen at all:
@@ -162,16 +173,26 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
-    # FUNCTION | World Transform of the Context the User Has Open
-    # The identity at root, so loose geometry needs no special case.
+    # FUNCTION | A Pick Path Made Absolute — Model Root to Innermost Instance
     # ------------------------------------------------------------
-    def self.Na__DeepPick__ContextTransform
-        model = Sketchup.active_model
-        return nil unless model && model.respond_to?(:edit_transform)
+    # PickHelper#path_at starts at the ACTIVE entities, so inside an opened
+    # group the instances the user is standing in are simply not in it. Hand
+    # such a path to Model#active_path= and SketchUp refuses it (an instance
+    # path must chain from the root), the commit falls back to editing the
+    # definition from outside, and the display cache goes stale — the whole
+    # saga the push tool was cured of at the root, back again one level down.
+    #
+    # Prepending the open context's own instances gives a path SketchUp will
+    # open, a depth that reads true in the status bar, and a locked test that
+    # sees every ancestor. Only instances are kept; the leaf is dropped, which
+    # is what every path helper here expects.
+    # ------------------------------------------------------------
+    def self.Na__DeepPick__AbsolutePath(relative_path)
+        context = Na__InsertPrimatives.Na__DeepPick__ContextPath || []
 
-        model.edit_transform
+        context + Na__InsertPrimatives.Na__DeepPick__Instances(relative_path)
     rescue StandardError
-        nil
+        Na__InsertPrimatives.Na__DeepPick__Instances(relative_path)
     end
     # ---------------------------------------------------------------
 
@@ -211,6 +232,12 @@ module Na__InsertPrimatives
     # ---------------------------------------------------------------
 
     # FUNCTION | Assemble Everything the Push Tool Needs About a Face
+    # ------------------------------------------------------------
+    # `path` is ABSOLUTE — model root to the innermost instance the face sits
+    # in — so it can be opened, counted and checked for locks. `transformation`
+    # carries the face's REPORTED coordinates to global: transformation_at for
+    # a face inside a closed group, nil (the identity) for a face in the open
+    # context, whose coordinates are global already.
     # ------------------------------------------------------------
     def self.Na__DeepPick__BuildTarget(face, path, transformation)
         xform        = transformation || Geom::Transformation.new
@@ -259,11 +286,12 @@ module Na__InsertPrimatives
 
         # Loose edges are missed by a path scan for the same reason loose faces
         # are — no instance path to walk — and they win for the same safeguard.
+        # Identity transform, as for faces: an open-context edge reports global.
         if direct.is_a?(Sketchup::Edge) && Na__InsertPrimatives.Na__DeepPick__InOpenContext?(direct)
             target = Na__InsertPrimatives.Na__DeepPick__BuildEdgeTarget(
                 direct,
                 Na__InsertPrimatives.Na__DeepPick__ContextPath,
-                Na__InsertPrimatives.Na__DeepPick__ContextTransform
+                nil
             )
             return target unless Na__InsertPrimatives.Na__DeepPick__LockedOut?(direct, target)
         end
@@ -279,7 +307,9 @@ module Na__InsertPrimatives
 
             if leaf.is_a?(Sketchup::Edge)
                 target = Na__InsertPrimatives.Na__DeepPick__BuildEdgeTarget(
-                    leaf, helper.path_at(index), helper.transformation_at(index)
+                    leaf,
+                    Na__InsertPrimatives.Na__DeepPick__AbsolutePath(helper.path_at(index)),
+                    helper.transformation_at(index)
                 )
 
                 if Na__InsertPrimatives.Na__DeepPick__LockedOut?(leaf, target)
@@ -304,6 +334,7 @@ module Na__InsertPrimatives
     # FUNCTION | Assemble Everything the Chamfer Tool Needs About an Edge
     # face_count is carried so the caller can refuse edges that do not border
     # exactly two faces — the only configuration a chamfer is defined for.
+    # `path` and `transformation` follow the same rule as Na__DeepPick__BuildTarget.
     # ------------------------------------------------------------
     def self.Na__DeepPick__BuildEdgeTarget(edge, path, transformation)
         xform = transformation || Geom::Transformation.new

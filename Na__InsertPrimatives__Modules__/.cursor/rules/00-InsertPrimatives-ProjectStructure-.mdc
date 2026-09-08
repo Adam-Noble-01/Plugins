@@ -16,24 +16,31 @@ alwaysApply: true
 ## Numbered folders
 
 - `01__AppCore` — PathResolver, LoadManifest, Main, Reloader, ModeSwitch
-- `02__AppData` — `AppConfig__Main.json` (`Na__DevMode__Enabled`), ConfigLoader, persisted drawn-tool settings
+- `02__AppData` — `AppConfig__Main.json` (`Na__DevMode__Enabled`) + ConfigLoader; `UserConfig__Main.json` (menu placement) + UserConfigLoader (`Na__UserConfig__*`); ToolMemory (`Na__ToolMemory__*`, model attribute dictionary); persisted drawn-tool settings
 - `03__AppUtils` — VCB parse, VCB arithmetic, format helpers, keyboard mixin
 - `04__GeometryHelpers` — voxel grid, solids, roof geom, deep pick (hub + Focus/Pick/Context), slope, edge loops
 - `05__PreviewGraphics` — cube wireframe (`Na__Preview__*`) and drawn previews (`Na__DrawnPreview__*`)
-- `06__Tools__DrawnShared` — drag state machine mixin
+- `06__Tools__DrawnShared` — drag state machine mixin; shared revise for the modifier tools (`DrawnReviseShared` + `Watch` model observer + `Animate` ghost engine)
 - `10__System__PlaceCube` — click-to-place cube tool and plane mode
 - `20__System__DrawnPrimitives` — plane / volume / cylinder tools
 - `21__System__DrawnRoofs` — pitched / hipped roof tools
-- `30__System__DeepPushPull` — nested push/pull 3d + 2d (tool, commit, quad ring, 2d pick)
-- `31__System__DeepChamfer` — nested chamfer (tool, geometry, mitre)
-- `40__UserInterface` — right-click HtmlDialog (lifecycle/callbacks + HTML builder)
+- `30__System__DeepPushPull` — nested push/pull 3d + 2d (tool, commit, quad ring, revise, 2d pick)
+- `31__System__DeepChamfer` — nested chamfer (tool, geometry, mitre, revise)
+- `40__UserInterface` — right-click HtmlDialog (lifecycle/callbacks/placement + HTML builder)
 
 Filenames stay `Na__InsertPrimatives__<Domain>__<Purpose>__.rb`. Folder numbers do not appear in filenames.
+
+**Config split:** `AppConfig__Main.json` is the plugin's own switches. `UserConfig__Main.json` is what the user arranged (menu anchor, position, size) and is written on every popup close. Do not mix the two.
+
+**Retype / repeat contract:** a modifier tool includes `DrawnReviseShared` AFTER `DrawnToolShared`, then its own `Drawn<Tool>Revise` half. Host hooks are `na_revise__*` (memory key, parse, reacquire, rebuild, apply_repeat, draw_ghost, ghost_points). Tool memory is written INSIDE the placing operation only.
+
+**Coordinate rule (SketchUp's, not ours):** in the active editing context and its parents every API coordinate is GLOBAL; inside any closed group it is LOCAL. View drawing, InputPoints and pick rays are always global — never convert preview points. PickHelper paths start at the active context: make them absolute with `Na__DeepPick__AbsolutePath` before `active_path=`, and use `transformation_at` as-is (identity for open-context entities). Entering a context flips its geometry to global: read-before-enter points go through `model.edit_transform` inside the block; read-after-enter points add with the identity. Full write-up in the DeepPick hub header and the 5.1.2 devlog.
 
 ## Naming and regions
 
 - Module functions: `Na__Domain__FunctionName`
 - Drawn-tool instance helpers: `na_drawn__*`
+- Revise-contract instance helpers: `na_revise__*`
 - SketchUp Tool API names stay unprefixed (`activate`, `onMouseMove`, `draw`)
 - Tool class names stay `Drawn*Tool` / `PrimitiveCubeTool` (reloader markers depend on them)
 - Regions use `# REGION | Name` / `# endregion`, not Visual Studio `#region`

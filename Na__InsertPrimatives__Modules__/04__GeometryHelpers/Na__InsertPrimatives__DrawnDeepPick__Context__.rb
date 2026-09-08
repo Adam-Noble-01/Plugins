@@ -18,6 +18,22 @@ module Na__InsertPrimatives
     # REGION | Context-Managed Operations
     # -----------------------------------------------------------------------------
 
+    # FUNCTION | Are Two Editing Contexts the Same Place?
+    # nil is the model root. Compared as arrays because an InstancePath and the
+    # Array a tool built from a pick are the same path in two different clothes.
+    # Shared by the push commit, the chamfer commit and every revise, so the
+    # three can never disagree about what "still in the same group" means.
+    # ------------------------------------------------------------
+    def self.Na__DeepPick__SameContext?(current, wanted)
+        return true if current.nil? && wanted.nil?
+        return false if current.nil? || wanted.nil?
+
+        current.to_a == wanted.to_a
+    rescue StandardError
+        false
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Run a Model Edit Inside the Target's Own Editing Context
     # The lesson the push/pull saga was paid for: editing a definition's entities
     # from OUTSIDE its editing context leaves the model changed but the display
@@ -29,6 +45,17 @@ module Na__InsertPrimatives
     # operation starts (name, true, true, true) so enter-edit-restore unwinds as
     # ONE Ctrl+Z. The flags are strictly conditional — without a context change
     # they would merge the edit into whatever the user did last.
+    #
+    # THE BLOCK IS TOLD WHETHER THE CONTEXT WAS ENTERED, AND MUST CARE:
+    # - Entering a group flips the coordinate space its geometry is reported
+    #   and accepted in, from definition-local to global (the rule in the hub
+    #   header). Points read from the target BEFORE this call are therefore in
+    #   local space when the group was closed, and once it is open the
+    #   collection takes global — so they must go through model.edit_transform
+    #   (read INSIDE the block, where it is the newly opened session's) on the
+    #   way in. Points read inside the block are already global and want no
+    #   transform at all. Nothing entered — the target is in the user's own
+    #   context, or the open failed — and reads and adds share one space.
     #
     # Returns { :success, :error, :entered }.
     # ------------------------------------------------------------
@@ -43,10 +70,8 @@ module Na__InsertPrimatives
         if model.respond_to?(:active_path=)
             begin
                 previous = model.active_path                                  # <-- nil at root, else the user's context
-                same     = (previous.nil? && target_path.nil?) ||
-                           (!previous.nil? && !target_path.nil? && previous.to_a == target_path.to_a)
 
-                unless same
+                unless Na__InsertPrimatives.Na__DeepPick__SameContext?(previous, target_path)
                     model.active_path = target_path
                     entered = true
                 end
@@ -62,7 +87,7 @@ module Na__InsertPrimatives
         end
 
         begin
-            yield
+            yield(entered)
             Na__InsertPrimatives.Na__DeepPick__InvalidateDefinitions(path) unless entered
             model.commit_operation
             result[:success] = true
@@ -92,22 +117,24 @@ module Na__InsertPrimatives
 
     # FUNCTION | Which Space an Entities Collection Wants New Points In
     # ------------------------------------------------------------
-    # Returns the transformation to apply to DEFINITION-LOCAL points before
-    # handing them to entities.add_*. The identity when the collection takes
-    # local coordinates; Model#edit_transform when an open editing session has
-    # moved the goalposts.
+    # Returns the transformation to apply to points READ FROM this collection
+    # a moment ago before handing them back to entities.add_*. Under the rule
+    # in the hub header that is always the identity — a collection reports and
+    # accepts the same space, global while it is open, local while it is
+    # closed — and this probe agrees, because a point that comes back exactly
+    # as it went in is what "same space" looks like.
     #
-    # WHY THIS IS MEASURED AND NOT ASSUMED:
-    # - "When changing the active entities in SketchUp, the coordinate system
-    #   also changes" is documented, but WHICH way it changes for a given
-    #   collection is not, and guessing it wrong is silent: the geometry is
-    #   created, it just lands somewhere else. That cost v0.4.22-v0.4.24 of the
-    #   chamfer tool three releases to track down.
-    # - So it is probed instead. A construction point is inert, costs nothing,
-    #   and is added and erased inside the caller's own operation — invisible in
-    #   the undo stack. Reading its position back says exactly how the
-    #   collection read the input: unchanged means it took the point as local,
-    #   moved means it converted it out of the session's space.
+    # KEPT AS A MEASUREMENT, NOT A GUESS:
+    # - The push tool's quad ring and loop cut hand this points captured INSIDE
+    #   the operation, from the very collection they are added back to. A
+    #   construction point is inert, is added and erased inside the caller's
+    #   own operation, and reading its position back is proof of the space
+    #   rather than a belief about it. It cost three chamfer releases to learn
+    #   that belief is not enough here.
+    # - It is NOT the right tool for points read before a context was entered:
+    #   those are local, the open collection takes global, and the probe would
+    #   still answer identity because the probe point itself round-trips. The
+    #   chamfer commit uses Model#edit_transform for that case instead.
     # ------------------------------------------------------------
     def self.Na__DeepPick__AddTransform(model, entities, sample_local)
         identity = Geom::Transformation.new

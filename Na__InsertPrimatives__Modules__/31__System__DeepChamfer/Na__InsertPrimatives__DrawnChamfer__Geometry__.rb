@@ -189,10 +189,13 @@ module Na__InsertPrimatives
     # ---------------------------------------------------------------
 
     # FUNCTION | Plan Every Face the Chamfer Touches
-    # Called BEFORE the editing context is entered, so every position read is
-    # unambiguously in the definition's local space. Raises on anything it
-    # cannot plan — with nothing entered and nothing erased, a refusal here
-    # costs the model nothing.
+    # Every position read is in the space the faces REPORT at the moment of
+    # the call — the definition's local space for a closed group, global for a
+    # group that is open — and the caller's build_transform must carry the
+    # plan into the space the collection ACCEPTS when the plan is built. Read
+    # before entering and built after: edit_transform. Read and built on the
+    # same side of the open: the identity. Raises on anything it cannot plan —
+    # a refusal before anything is erased costs the model nothing.
     # ------------------------------------------------------------
     def self.Na__DrawnChamfer__BuildPlans(target, solve)
         edge           = target[:edge]

@@ -398,6 +398,7 @@ module Na__InsertPrimatives
 
             cube_group      = entities.add_group
             cube_group.name = "01__PrimitiveCube"
+            Na__InsertPrimatives.Na__DrawnGeom__PinGroupToWorld(cube_group)  # <-- Global corners into a closed group: see DrawnGeometry
 
             face = cube_group.entities.add_face(p0, p1, p2, p3)
             face.reverse! if face.normal.z < 0

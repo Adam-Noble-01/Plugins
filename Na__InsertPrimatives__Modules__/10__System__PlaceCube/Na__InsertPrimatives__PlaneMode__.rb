@@ -238,6 +238,7 @@ module Na__InsertPrimatives
 
         plane_group      = entities.add_group
         plane_group.name = "01__PrimitivePlane"
+        Na__InsertPrimatives.Na__DrawnGeom__PinGroupToWorld(plane_group)     # <-- Global corners into a closed group: see DrawnGeometry
 
         plane_geometry = Na__PlaneMode__AddPlaneEntities(plane_group.entities, [p0, p1, p2, p3], view, create_face)
         unless plane_geometry

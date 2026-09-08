@@ -319,6 +319,29 @@ begin
     reload_cmd.menu_text       = "Reload Plugin Data"
     # ---------------------------------------------------------------
 
+    # COMMAND SETUP | Reset the Right-Click Menu's Remembered Position
+    # ------------------------------------------------------------
+    # The anchored popup opens where it was last left. Unplug the monitor it
+    # was left on and it opens nowhere you can click — so the way back to the
+    # cursor has to live somewhere that is not the popup itself.
+    # ------------------------------------------------------------
+    reset_menu_cmd = UI::Command.new('NA_InsertPrimitivesResetMenuPosition') {
+        unless defined?(Na__InsertPrimatives) &&
+               Na__InsertPrimatives.respond_to?(:Na__RightClickPopup__ResetPlacement)
+            UI.messagebox(
+                "Na Insert Primatives is not loaded.\n\n" \
+                "Use Reload Plugin Data, or restart SketchUp."
+            )
+            next
+        end
+
+        Na__InsertPrimatives.Na__RightClickPopup__ResetPlacement
+    }
+    reset_menu_cmd.tooltip         = "Reset Menu Position"
+    reset_menu_cmd.status_bar_text = "Forget where the right-click primitive menu was left; it opens at the cursor next time"
+    reset_menu_cmd.menu_text       = "Reset Menu Position"
+    # ---------------------------------------------------------------
+
     # COMMAND SETUP | Toggle AppConfig Dev Mode
     # ------------------------------------------------------------
     # Writes Na__DevMode__Enabled in AppConfig JSON. Checkmark follows the file.
@@ -375,9 +398,10 @@ begin
     Na__InsertPrimatives__AddMenuEntry('chamfer')         { |m| m.add_item(chamfer_cmd) }
     Na__InsertPrimatives__AddMenuEntry('sep_after_mod')   { |m| m.add_separator }
 
-    Na__InsertPrimatives__AddMenuEntry('reload')           { |m| m.add_item(reload_cmd) }
-    Na__InsertPrimatives__AddMenuEntry('sep_after_reload') { |m| m.add_separator }
-    Na__InsertPrimatives__AddMenuEntry('dev_mode')         { |m| m.add_item(dev_mode_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('reload')              { |m| m.add_item(reload_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('reset_menu_position') { |m| m.add_item(reset_menu_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('sep_after_reload')    { |m| m.add_separator }
+    Na__InsertPrimatives__AddMenuEntry('dev_mode')            { |m| m.add_item(dev_mode_cmd) }
     # ---------------------------------------------------------------
 
 rescue => loader_menu_error

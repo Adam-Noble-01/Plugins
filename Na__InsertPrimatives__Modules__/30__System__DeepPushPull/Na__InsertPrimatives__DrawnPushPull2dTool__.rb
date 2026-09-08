@@ -143,8 +143,25 @@ module Na__InsertPrimatives
                 'ARROWS lock the measured axis, TAB toggles QUAD mode',
                 'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
                 'VCB: 300 | +50 | -25   (the typed distance pins and places)',
-                'After placing, keep typing: 1200 resizes the pull, -1200 turns it round'
+                'After placing, keep typing: 1200 resizes the pull, -1200 turns it round — the strip replays the change',
+                'Double-click an edge to pull its wall by the last distance placed (remembered in the model)'
             ]
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | What the Operation Is Called in Messages
+        # The same record, the same memory key and the same mechanics as the
+        # 3D tool — only the word changes, because in elevation it is a pull.
+        # ------------------------------------------------------------
+        def na_revise__noun
+            'pull'
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | What Gets Grabbed, in Messages
+        # ------------------------------------------------------------
+        def na_revise__target_noun
+            'an edge'
         end
         # ---------------------------------------------------------------
 
@@ -731,7 +748,7 @@ module Na__InsertPrimatives
                 return "#{verb}#{quads} #{text} mm — release or click to place#{slope}"
             end
 
-            adjust = na_drawn__replay_hint
+            adjust = na_revise__status_hint
 
             if @na_pp_target
                 focus = na_drawn__focus_hint
@@ -751,10 +768,9 @@ module Na__InsertPrimatives
             return [label, na_drawn__format_sizes([@na_size_d])] if @na_state == :picking_depth
 
             # Same as the 3d tool: a placed pull leaves its distance in the box
-            # so it can be retyped without grabbing the edge again.
-            return ['Pull distance', na_drawn__replay_distance_mm] if na_drawn__replay_available?
-
-            [label, '']
+            # so it can be retyped without grabbing the edge again, and with
+            # nothing placed the box shows the distance a double-click repeats.
+            ['Pull distance', na_revise__vcb_value]
         end
         # ---------------------------------------------------------------
 
@@ -763,9 +779,9 @@ module Na__InsertPrimatives
         # must not fire on a placed pull that is still waiting to be retyped.
         # ------------------------------------------------------------
         def na_drawn__handle_vcb_text(text, view)
-            unless @na_state == :picking_depth || na_drawn__replay_available?
+            unless @na_state == :picking_depth || na_revise__available?
                 UI.beep
-                Sketchup::set_status_text('Grab an edge before typing a distance', SB_PROMPT)
+                Sketchup::set_status_text("Grab an edge before typing a distance#{na_revise__status_hint}", SB_PROMPT)
                 return false
             end
 

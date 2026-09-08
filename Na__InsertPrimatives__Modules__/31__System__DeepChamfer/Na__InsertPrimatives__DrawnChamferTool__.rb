@@ -51,29 +51,47 @@
 #   failure raises — the surrounding operation aborts and the model is left
 #   exactly as it was. Failing loudly beats cutting wrongly.
 #
-# THE OPEN-CONTEXT COORDINATE RULE (docs-checked, the nested-failure fix):
+# THE OPEN-CONTEXT COORDINATE RULE (corrected in 5.1.2; see the DeepPick hub):
 # - "When changing the active entities in SketchUp, the coordinate system also
-#   changes" — Model#active_path=. Entity positions READ are always in the
-#   definition's local space, but geometry ADDED while an editing context is
-#   open is interpreted in the EDITING SESSION's coordinates, which is what
-#   Model#edit_transform reports. Push/pull never met this because pushpull
-#   takes a scalar; this tool adds points, so every point is passed through
-#   model.edit_transform at add time. With nothing open that transform is the
-#   identity, which is why loose geometry worked all along. Plans are built
-#   BEFORE the context is entered so every read stays unambiguous.
+#   changes" — Model#active_path=. What changes is the space the OPENED group's
+#   own geometry is reported AND accepted in: global while it is open, its
+#   definition's local space while it is closed. Reads are not "always local".
+# - So the build transform is decided by ONE question — was the context
+#   entered between reading the plan and adding it? A single cut plans BEFORE
+#   entering (local, if the edge sits in a closed group) and adds AFTER, so its
+#   points go through model.edit_transform, read inside the block where it is
+#   the newly opened session's. A batch plans INSIDE the entered context, where
+#   everything it reads is already global, so it adds with the identity. An
+#   edge in the user's own context is never entered and reads and adds in the
+#   same space, identity again. Getting this wrong is silent: the chamfer is
+#   cut, just somewhere else.
+#
+# AFTER CUTTING — RETYPE, REPEAT, AND THE GHOST:
+# - The measurements box stays live after a cut: type 75 and the chamfer just
+#   made becomes 75; +5 and -5 adjust it. Hovering, banking more edges and the
+#   right-click menu all leave that open; grabbing another edge, changing the
+#   model or leaving the tool closes it. Every retype replays the cut-face
+#   preview for a beat, sweeping from the old setback to the new.
+# - A double-click on an edge with no drag behind it cuts it — and anything
+#   banked with it — at the last setback placed, which lives in the model's
+#   own attribute dictionary. Mechanics shared with Deep Push/Pull through
+#   DrawnReviseShared; the chamfer-specific half is DrawnChamferRevise.
 #
 # =============================================================================
 
 require 'sketchup.rb'
 require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__DrawnToolShared__'
+require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__'
 require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnDeepPick__'
 require_relative 'Na__InsertPrimatives__DrawnChamfer__Geometry__'
 require_relative 'Na__InsertPrimatives__DrawnChamfer__Mitre__'
+require_relative 'Na__InsertPrimatives__DrawnChamfer__Revise__'
 
 module Na__InsertPrimatives
 
     # @delegate: Na__InsertPrimatives__DrawnChamfer__Geometry__.rb
     # @delegate: Na__InsertPrimatives__DrawnChamfer__Mitre__.rb
+    # @delegate: Na__InsertPrimatives__DrawnChamfer__Revise__.rb
 
     # -----------------------------------------------------------------------------
     # REGION | Deep Chamfer Tool Class
@@ -84,6 +102,8 @@ module Na__InsertPrimatives
     class DrawnChamferTool
 
         include Na__InsertPrimatives::DrawnToolShared
+        include Na__InsertPrimatives::DrawnReviseShared                       # <-- After DrawnToolShared, so its life-cycle wrappers sit over the mixin's
+        include Na__InsertPrimatives::DrawnChamferRevise                      # <-- The chamfer half of the revise contract
 
         NA_CH_HOVER_COLOR   = Sketchup::Color.new(  0, 110, 235, 235)
         NA_CH_SELECT_COLOR  = Sketchup::Color.new(226, 118,   0, 255)         # <-- Edges banked with SHIFT, waiting for the drag
@@ -95,6 +115,7 @@ module Na__InsertPrimatives
         def initialize
             na_drawn__init_shared_state
             na_drawn__clear_target
+            na_revise__init_state                                             # <-- No cut placed yet, so nothing to retype or repeat
             @na_ch_multi        = []                                          # <-- SHIFT-banked edge targets, surviving hover and drag-cancel
             @na_ch_batch        = []                                          # <-- Driver + banked, fixed at grab time
             @na_ch_batch_solves = []
@@ -203,6 +224,8 @@ module Na__InsertPrimatives
                 'Reaches edges inside groups and components without opening them',
                 "Setback snaps to the #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} grid — hold CTRL for vertex snapping",
                 'VCB: 50 | +5 | -5   (the typed setback pins and cuts)',
+                'After cutting, keep typing: 75 resizes the chamfer, +5 / -5 adjust it — the preview replays the change',
+                'Double-click an edge to cut it at the last setback placed (remembered in the model)',
                 'The edge must border exactly two faces'
             ]
         end
@@ -289,15 +312,25 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Double Click Cuts the Chamfer
+        # FUNCTION | Double Click Cuts the Chamfer, or Repeats the Last Setback
+        # The first Down of the double click has already grabbed the edge. No
+        # travel since means no drag to cut, so the remembered setback is
+        # applied instead — to the grabbed edge and anything banked with it.
         # ------------------------------------------------------------
         def onLButtonDoubleClick(flags, x, y, view)
             na_drawn__sync_modifier(flags)
             return false unless na_drawn__ensure_known_state
             return false unless @na_state == :picking_depth
 
-            na_drawn__update_cursor(view, x, y)
-            na_drawn__commit_chamfer(view)
+            travelled_px = (x.to_f - @na_press_x.to_f).abs + (y.to_f - @na_press_y.to_f).abs
+
+            if travelled_px < NA_DRAWN_DRAG_MIN_PX
+                na_revise__repeat_or_refuse(view)
+            else
+                na_drawn__update_cursor(view, x, y)
+                na_drawn__commit_chamfer(view)
+            end
+
             na_drawn__update_status_text
             na_drawn__refresh_vcb
             view.invalidate if view
@@ -333,13 +366,6 @@ module Na__InsertPrimatives
             return 'No edge grabbed' unless @na_ch_target
 
             "In #{Na__InsertPrimatives.Na__DeepPick__PathLabel(@na_ch_target)}"
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Nothing to Revise — a Cut Edge Is Gone
-        # ------------------------------------------------------------
-        def na_drawn__revise_available?
-            false
         end
         # ---------------------------------------------------------------
 
@@ -605,6 +631,10 @@ module Na__InsertPrimatives
                 )
             end
 
+            # Taking hold of an edge is the "something else" that closes the
+            # measurements box on the previous cut. SHIFT-banking is not — a
+            # bank is a selection, not a cut, and the retype stays open through it.
+            na_revise__forget
             true
         end
         # ---------------------------------------------------------------
@@ -698,6 +728,7 @@ module Na__InsertPrimatives
 
             if @na_state == :idle
                 na_drawn__draw_edge_highlight(view)
+                na_revise__draw_animation(view)                               # <-- The ghost of a retyped cut sweeping to its new setback
                 return
             end
 
@@ -904,23 +935,27 @@ module Na__InsertPrimatives
                 return "Chamfer #{text} mm — release or click to cut"
             end
 
+            adjust = na_revise__status_hint
+
             if @na_ch_target
                 return 'Edge borders more than two faces — pick another' unless @na_ch_target[:face_count] == 2
-                return "Click to grab this edge#{na_drawn__focus_hint}"
+                return "Click to grab this edge#{na_drawn__focus_hint}#{adjust}"
             end
 
             if @na_ch_multi.any?
-                return "#{@na_ch_multi.length} edge#{@na_ch_multi.length == 1 ? '' : 's'} banked — SHIFT+click adds, click one to drag them all"
+                return "#{@na_ch_multi.length} edge#{@na_ch_multi.length == 1 ? '' : 's'} banked — SHIFT+click adds, click one to drag them all#{adjust}"
             end
 
-            "Hover an edge to chamfer, at any nesting depth#{na_drawn__focus_hint}"
+            "Hover an edge to chamfer, at any nesting depth#{na_drawn__focus_hint}#{adjust}"
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Measurements Box Label and Live Value
+        # At idle the box keeps the placed setback while it can still be
+        # retyped, or the remembered one a double-click will repeat.
         # ------------------------------------------------------------
         def na_drawn__vcb_label_and_value
-            return ['Chamfer setback', ''] if @na_state != :picking_depth
+            return ['Chamfer setback', na_revise__vcb_value] if @na_state != :picking_depth
 
             ['Chamfer setback', na_drawn__format_sizes([@na_size_d])]
         end
@@ -933,12 +968,14 @@ module Na__InsertPrimatives
         # REGION | Subclass Contract — Measurements Box Entry
         # -----------------------------------------------------------------------------
 
-        # FUNCTION | A Typed Setback Pins and Cuts
+        # FUNCTION | A Typed Setback Pins and Cuts, or Corrects the Cut Just Made
         # ------------------------------------------------------------
         def na_drawn__handle_vcb_text(text, view)
+            return na_revise__retype(text, view) if na_revise__available?
+
             unless @na_state == :picking_depth
                 UI.beep
-                Sketchup::set_status_text('Grab an edge before typing a setback', SB_PROMPT)
+                Sketchup::set_status_text("Grab an edge before typing a setback#{na_revise__status_hint}", SB_PROMPT)
                 return false
             end
 
@@ -1001,27 +1038,38 @@ module Na__InsertPrimatives
                 return false
             end
 
-            model  = Sketchup.active_model
-            result = Na__InsertPrimatives.Na__DeepPick__ExecuteInContext(model, target[:path], 'Chamfer Edge') do
+            model   = Sketchup.active_model
+            members = na_revise__snapshot_members([target], model)           # <-- Read while the edge still exists; the cut erases it
+
+            result = Na__InsertPrimatives.Na__DeepPick__ExecuteInContext(model, target[:path], 'Chamfer Edge') do |entered|
                 parent   = target[:edge].parent
                 entities = parent.respond_to?(:entities) ? parent.entities : model.active_entities
 
-                # edit_transform IS the open session's coordinate system: the
-                # entered path's accumulated transform once ExecuteInContext has
-                # opened it, and the identity at root — read inside the block so
-                # it reflects whatever actually happened.
-                Na__InsertPrimatives.Na__DrawnChamfer__Build(entities, target, solve, plans, model.edit_transform)
+                # The plans were read BEFORE this block. If the group was just
+                # opened they are local and the collection now takes global, so
+                # they go through edit_transform — read here, where it is the
+                # newly opened session's. Nothing entered, and reads and adds
+                # share one space: the identity. See the header rule.
+                Na__InsertPrimatives.Na__DrawnChamfer__Build(
+                    entities, target, solve, plans, na_drawn__build_transform(model, entered)
+                )
+
+                # The setback a double-click on the next edge will repeat,
+                # written inside the operation so it rides in this undo step.
+                na_revise__remember(model, @na_size_d)
             end
 
             unless result[:success]
                 UI.beep
                 Sketchup::set_status_text("Chamfer failed: #{result[:error]}", SB_PROMPT)
+                na_revise__load_memory                                        # <-- The aborted operation rolled its memory write back too
                 na_drawn__reset_pick_state
                 view.invalidate if view
                 return false
             end
 
             na_drawn__log_chamfer(target, solve)
+            na_revise__capture(members, [solve], 1)                           # <-- Arm the retype while the solve is still in scope
             @na_ch_multi.clear
             na_drawn__reset_pick_state
             view.invalidate if view
@@ -1033,31 +1081,45 @@ module Na__InsertPrimatives
         # Edges are grouped by their instance path, ONE operation per context —
         # so the common case of several edges on the same group undoes in a
         # single Ctrl+Z. Within a group each edge is re-validated, re-solved and
-        # RE-PLANNED just before its own build: adjacent edges share faces, and
+        # RE-PLANNED inside the entered context: adjacent edges share faces, and
         # the first cut rebuilds the face the second one borders, so plans made
-        # up front would hold erased references. Reads are definition-local
-        # whether or not the context is open (the researched rule), so planning
-        # while entered is sound. Any edge failing aborts its whole group —
-        # all-or-nothing per context, never a half-cut group.
+        # up front would hold erased references. Once the context is entered
+        # every position the group reports is GLOBAL (the header rule), so the
+        # solves run with the identity transform and the build adds with the
+        # identity too — nothing here is read before the open and added after
+        # it. Any edge failing aborts its whole group — all-or-nothing per
+        # context, never a half-cut group.
         # ------------------------------------------------------------
         def na_drawn__commit_batch(view, targets)
-            model  = Sketchup.active_model
-            groups = targets.group_by { |t| Na__InsertPrimatives.Na__DeepPick__Instances(t[:path]) }
-            cut    = 0
-            errors = []
+            model      = Sketchup.active_model
+            groups     = targets.group_by { |t| Na__InsertPrimatives.Na__DeepPick__Instances(t[:path]) }
+            cut        = 0
+            errors     = []
+            members    = na_revise__snapshot_members(targets, model)          # <-- Read while every edge still exists
+            cut_edges  = []                                                   # <-- The targets whose group actually cut
+            cut_solves = []                                                   # <-- Their final solved shapes, for the ghost
+            ops        = 0                                                    # <-- One undo step per group that landed
 
             groups.each_value do |group_targets|
+                group_solves = []                                             # <-- Assigned inside the block, read after it
+
                 result = Na__InsertPrimatives.Na__DeepPick__ExecuteInContext(
                     model, group_targets.first[:path], 'Chamfer Edges'
-                ) do
+                ) do |entered|
                     # Validate and solve the whole group first, then mitre any
                     # shared corners, then plan every touched face exactly once,
                     # then erase-and-rebuild in a single pass. Independent
                     # sequential cuts cannot survive edges meeting at a vertex —
                     # the first cut's stray sweep erases the second edge — so
                     # the group is treated as one construction.
+                    #
+                    # Entered, the edges now report global coordinates, so the
+                    # transform that carried them to global a moment ago is
+                    # replaced by the identity for every read below. Not
+                    # entered, they report exactly as they did when picked.
                     working      = []
                     group_solves = []
+                    xform_now    = entered ? Geom::Transformation.new : nil
 
                     group_targets.each do |member|
                         edge = member[:edge]
@@ -1066,7 +1128,11 @@ module Na__InsertPrimatives
                         faces = edge.faces
                         raise 'an edge no longer borders exactly two faces' unless faces.length == 2
 
-                        fresh = member.merge(:faces => faces, :face_count => faces.length)
+                        fresh = member.merge(
+                            :faces          => faces,
+                            :face_count     => faces.length,
+                            :transformation => (xform_now || member[:transformation])
+                        )
                         solve = Na__InsertPrimatives.Na__DrawnChamfer__Solve(fresh, @na_size_d)
                         raise 'an edge could not be solved at this setback' unless solve
 
@@ -1077,12 +1143,24 @@ module Na__InsertPrimatives
                     mitre_error = Na__InsertPrimatives.Na__DrawnChamfer__MitreBatch(working, group_solves)
                     raise mitre_error if mitre_error
 
+                    # Planned and added in the SAME space, so the identity —
+                    # never edit_transform, which would carry global points
+                    # through the open group's transform a second time.
                     plans = Na__InsertPrimatives.Na__DrawnChamfer__BuildGroupPlans(working, group_solves)
-                    Na__InsertPrimatives.Na__DrawnChamfer__BuildGroup(model, working, group_solves, plans, model.edit_transform)
+                    Na__InsertPrimatives.Na__DrawnChamfer__BuildGroup(
+                        model, working, group_solves, plans, Geom::Transformation.new
+                    )
+
+                    # The setback a double-click on the next edge will repeat,
+                    # written inside the operation so it rides in this undo step.
+                    na_revise__remember(model, @na_size_d)
                 end
 
                 if result[:success]
                     cut += group_targets.length
+                    ops += 1
+                    cut_edges.concat(group_targets)
+                    cut_solves.concat(group_solves)
                 else
                     errors << result[:error]
                 end
@@ -1092,6 +1170,7 @@ module Na__InsertPrimatives
                 UI.beep
                 Sketchup::set_status_text("Chamfer failed: #{errors.first}", SB_PROMPT)
                 Na__InsertPrimatives.Na__Debug__Puts "NA CHAMFER batch failed: #{errors.join(' | ')}"
+                na_revise__load_memory                                        # <-- Every operation aborted, so the memory write did too
                 na_drawn__reset_pick_state
                 view.invalidate if view
                 return false
@@ -1109,10 +1188,27 @@ module Na__InsertPrimatives
                 Sketchup::set_status_text("#{cut} edges cut — #{errors.length} group(s) refused, see console", SB_PROMPT)
             end
 
+            # Only the edges that were actually cut are worth retyping: the ones
+            # whose group refused are still standing exactly as they were.
+            cut_members = members.select { |member| cut_edges.include?(member[:target]) }
+            na_revise__capture(cut_members, cut_solves, ops)
+
             @na_ch_multi.clear
             na_drawn__reset_pick_state
             view.invalidate if view
             true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Transform That Carries Pre-Entry Plan Points Into the Session
+        # Read INSIDE the ExecuteInContext block, where edit_transform is the
+        # newly opened session's. Identity when nothing was entered: the plan
+        # was read and is added in one and the same space.
+        # ------------------------------------------------------------
+        def na_drawn__build_transform(model, entered)
+            entered ? model.edit_transform : Geom::Transformation.new
+        rescue StandardError
+            Geom::Transformation.new
         end
         # ---------------------------------------------------------------
 

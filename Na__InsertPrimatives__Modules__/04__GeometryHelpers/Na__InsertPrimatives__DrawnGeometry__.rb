@@ -63,6 +63,36 @@ module Na__InsertPrimatives
 
 
     # -----------------------------------------------------------------------------
+    # REGION | Group Placement
+    # -----------------------------------------------------------------------------
+
+    # FUNCTION | Make a New Group's Axes Coincide With the World's
+    # ------------------------------------------------------------
+    # Every drawn shape is computed in global coordinates (InputPoints and the
+    # voxel grid both are) and then added into a fresh, CLOSED group — whose
+    # entities take coordinates local to the group's own axes. At the model
+    # root a new group's axes are the world's and the two agree. Inside a group
+    # the user has opened they need not: the new group inherits the open
+    # group's placement, so global numbers read as local ones land displaced by
+    # exactly that placement. Setting the transformation to the identity —
+    # which in the open context is read as a GLOBAL identity (the rule in the
+    # DeepPick hub header) — makes local and global the same thing again. The
+    # rebuild paths have always done this; the create paths now do it too.
+    # ------------------------------------------------------------
+    def self.Na__DrawnGeom__PinGroupToWorld(group)
+        return false unless group && group.valid?
+
+        group.transformation = Geom::Transformation.new
+        true
+    rescue StandardError
+        false
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
     # REGION | Drawn Plane Geometry
     # -----------------------------------------------------------------------------
 
@@ -82,6 +112,7 @@ module Na__InsertPrimatives
 
         group      = entities.add_group
         group.name = NA_DRAWN_PLANE_GROUP_NAME
+        Na__InsertPrimatives.Na__DrawnGeom__PinGroupToWorld(group)
 
         geometry = Na__InsertPrimatives.Na__PlaneMode__AddPlaneEntities(group.entities, points, view, create_face)
 
@@ -161,6 +192,7 @@ module Na__InsertPrimatives
 
         group      = entities.add_group
         group.name = NA_DRAWN_VOLUME_GROUP_NAME
+        Na__InsertPrimatives.Na__DrawnGeom__PinGroupToWorld(group)
 
         face = Na__InsertPrimatives.Na__DrawnGeom__AddExtrudedBox(group.entities, points, plane_key, d_len)
 
@@ -245,6 +277,7 @@ module Na__InsertPrimatives
 
         group      = entities.add_group
         group.name = NA_DRAWN_CYLINDER_GROUP_NAME
+        Na__InsertPrimatives.Na__DrawnGeom__PinGroupToWorld(group)
 
         face = Na__InsertPrimatives.Na__DrawnGeom__AddExtrudedCylinder(
             group.entities, centre, plane_key, radius, height, segments

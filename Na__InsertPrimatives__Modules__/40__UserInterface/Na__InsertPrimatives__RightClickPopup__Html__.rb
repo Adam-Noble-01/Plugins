@@ -24,9 +24,10 @@ module Na__InsertPrimatives
         faces_on   = tool_instance.respond_to?(:Na__PrimitiveMode__PlaneFacesEnabled?) ?
                      tool_instance.Na__PrimitiveMode__PlaneFacesEnabled? : true
         face_label = faces_on ? "Plane Faces: Disable" : "Plane Faces: Enable"
-        active_key = Na__InsertPrimatives.Na__RightClickPopup__ActiveModeKey(tool_instance)
-        grid_label = Na__InsertPrimatives.Na__RightClickPopup__GridLabel(tool_instance)
-        side_label = Na__InsertPrimatives.Na__RightClickPopup__SegmentsLabel(tool_instance)
+        active_key   = Na__InsertPrimatives.Na__RightClickPopup__ActiveModeKey(tool_instance)
+        grid_label   = Na__InsertPrimatives.Na__RightClickPopup__GridLabel(tool_instance)
+        side_label   = Na__InsertPrimatives.Na__RightClickPopup__SegmentsLabel(tool_instance)
+        anchor_label = Na__InsertPrimatives.Na__RightClickPopup__AnchorLabel
 
         cube_class   = active_key == :cube            ? 'mode active' : 'mode'
         plane_class  = active_key == :plane           ? 'mode active' : 'mode'
@@ -120,6 +121,9 @@ module Na__InsertPrimatives
             <button id="gridBtn" onclick="sketchup.cycleGridStep()">Snap Grid: #{grid_label}</button>
             <button id="sidesBtn" onclick="sketchup.cycleCircleSegments()">Circle Sides: #{side_label}</button>
             <button onclick="sketchup.togglePlaneFaces()">#{face_label}</button>
+
+            <div class="rule"></div>
+            <button id="anchorBtn" onclick="sketchup.toggleMenuAnchor()">#{anchor_label}</button>
             <button onclick="sketchup.exitPrimitiveTool()">Exit Primitive Tool</button>
 
             <script>

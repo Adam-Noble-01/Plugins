@@ -69,13 +69,14 @@ module Na__InsertPrimatives
             # Read while the face is still untouched. Nothing below can ask the
             # face where it started once pushpull has moved it, and that is the
             # one thing a retype of the distance needs — see the Revise module.
-            snapshot = na_drawn__replay_snapshot(target, model)
+            snapshot = na_revise__snapshot(target, model)
 
             unless na_drawn__execute_push(model, target, local_offset)
                 UI.beep
                 Sketchup::set_status_text("Push failed: #{@na_pp_last_error}", SB_PROMPT)
                 na_drawn__report_failure(target, local_offset, sloped)
-                na_drawn__forget_replay
+                na_revise__forget
+                na_revise__load_memory                                        # <-- The aborted operation rolled its memory write back too
                 na_drawn__reset_pick_state
                 return false
             end
@@ -83,8 +84,9 @@ module Na__InsertPrimatives
             # Arm the measurements box to accept a new distance for the push
             # that was just placed, the way native Push/Pull and Joint Push/Pull
             # both do. Armed here, while every number this push was made from is
-            # still in scope, and read back by na_drawn__revise_push.
-            na_drawn__record_replay(target, snapshot, local_offset, sloped, cutting)
+            # still in scope, and read back by the retype, the repeat and the
+            # ghost — see DrawnReviseShared and the Revise module.
+            na_revise__capture(target, snapshot, local_offset, sloped, cutting)
 
             na_drawn__trace("placed #{Na__InsertPrimatives.Na__DrawnFormat__Mm(world_travel).abs}mm")
             na_drawn__log_push(target, world_travel, sloped)
@@ -156,12 +158,15 @@ module Na__InsertPrimatives
         def na_drawn__execute_push(model, target, local_offset)
             @na_pp_last_error = nil
 
-            # The travel arrives as one local vector and is split here into the
-            # part pushpull can do and the part it cannot. Off slope the second
-            # part is a zero vector and this is the maths the tool always used.
+            # The travel arrives as one vector in the face's REPORTED space and
+            # is split here into the part pushpull can do and the part it
+            # cannot. Off slope the second part is a zero vector and this is the
+            # maths the tool always used. Split BEFORE the context is entered,
+            # because the scalar pushpull is given is measured in the
+            # definition's own units and this is the last moment the face
+            # reports in them.
             split          = Na__InsertPrimatives.Na__SlopePush__SplitOffset(target[:face], local_offset)
             local_distance = split[:distance]
-            shear          = split[:shear]
             @na_pp_split   = split                                            # <-- Kept for the console report, which runs after the push
 
             instances      = Na__InsertPrimatives.Na__DeepPick__Instances(target[:path])
@@ -173,7 +178,7 @@ module Na__InsertPrimatives
             if model.respond_to?(:active_path=)
                 begin
                     previous = model.active_path                              # <-- nil at root, else the user's context
-                    unless na_drawn__same_context?(previous, target_path)
+                    unless Na__InsertPrimatives.Na__DeepPick__SameContext?(previous, target_path)
                         model.active_path = target_path
                         entered = true
                         na_drawn__trace("entered context #{Na__InsertPrimatives.Na__DeepPick__PathLabel(target)}")
@@ -183,6 +188,20 @@ module Na__InsertPrimatives
                     na_drawn__trace("context open failed (#{error.message}) — editing from outside")
                 end
             end
+
+            # THE SPACE FLIPS WHEN THE CONTEXT OPENS. Once its group is entered
+            # the face reports global positions and a global normal, geometry
+            # added beside it is taken as global and a vertex transform applied
+            # to it is read as global (the rule in the DeepPick hub header). So
+            # every VECTOR used from here on is re-expressed in that space: the
+            # world offset the drag measured, split again against the normal
+            # the face now reports. Not entered — the target is in the user's
+            # own context, or the open failed — and the local offset already
+            # matches what the face reports. Only the pushpull scalar keeps the
+            # pre-entry, definition-unit value, because a scalar has no space.
+            working_offset = entered ? na_drawn__push_offset_vector : local_offset
+            working_split  = entered ? Na__InsertPrimatives.Na__SlopePush__SplitOffset(target[:face], working_offset) : split
+            shear          = working_split[:shear]
 
             pushed  = false
             quads   = na_drawn__quad_mode?
@@ -229,8 +248,10 @@ module Na__InsertPrimatives
                 # Read before anything touches the entities: after the push the
                 # normal cannot be asked of a face that may no longer be there,
                 # and the interior point is what identifies the moved face.
-                normal_local = sheared ? face.normal : nil
-                interior     = sheared ? Na__InsertPrimatives.Na__SlopePush__InteriorPoint(face) : nil
+                # Both are in the space the face reports NOW — global if the
+                # context was entered — which is the space working_offset is in.
+                normal_now = sheared ? face.normal : nil
+                interior   = sheared ? Na__InsertPrimatives.Na__SlopePush__InteriorPoint(face) : nil
 
                 if cut
                     # LOOP CUT. Nothing is pushed at all — that is the whole
@@ -238,9 +259,11 @@ module Na__InsertPrimatives
                     # WHOLE travel, not just its normal share: in slope mode the
                     # faces around this one are the sweep of its loop along the
                     # slope, so that is the direction the cut has to follow to
-                    # land in them. Off slope the two are the same vector.
-                    ring_dir  = local_offset.length > 0 ? local_offset.normalize : face.normal
-                    ring_step = local_offset.length.to_f
+                    # land in them. Off slope the two are the same vector. The
+                    # loops were captured a moment ago in the face's current
+                    # space, so the offset must be in that space too.
+                    ring_dir  = working_offset.length > 0 ? working_offset.normalize : face.normal
+                    ring_step = working_offset.length.to_f
                     inset     = Na__InsertPrimatives.Na__EdgeLoops__OffsetLoops(loops, ring_dir, ring_step)
                     unless inset.empty?
                         build = Na__InsertPrimatives.Na__DeepPick__AddTransform(model, entities, inset.first.first)
@@ -249,7 +272,7 @@ module Na__InsertPrimatives
                         )
                     end
                 elsif sheared && interior &&
-                      Na__InsertPrimatives.Na__SlopePush__CanStretch?(face, local_offset)
+                      Na__InsertPrimatives.Na__SlopePush__CanStretch?(face, working_offset)
                     # SLOPE, THE CLEAN WAY. Every face touching this one contains
                     # the slope, so the face can simply be carried along it and
                     # they stretch to follow — exactly what selecting the end of
@@ -260,7 +283,7 @@ module Na__InsertPrimatives
                     # A refusal here is raised rather than swallowed. Falling
                     # through to an ordinary push would hand back geometry that
                     # does not match the preview, which is worse than nothing.
-                    unless Na__InsertPrimatives.Na__SlopePush__Stretch(entities, face, local_offset)
+                    unless Na__InsertPrimatives.Na__SlopePush__Stretch(entities, face, working_offset)
                         raise 'the face would not move along the slope — no vertex transform took'
                     end
 
@@ -282,14 +305,19 @@ module Na__InsertPrimatives
                     # a parallelogram — still planar, whatever the neighbours are
                     # doing.
                     if sheared
+                        # How far the face just travelled, in the space it
+                        # reports in: the normal's share of the WORKING split,
+                        # which is the pre-entry local distance when nothing was
+                        # entered and the global one when the group is open.
+                        along  = working_split[:distance].to_f
                         travel = Geom::Vector3d.new(
-                            normal_local.x.to_f * local_distance,
-                            normal_local.y.to_f * local_distance,
-                            normal_local.z.to_f * local_distance
+                            normal_now.x.to_f * along,
+                            normal_now.y.to_f * along,
+                            normal_now.z.to_f * along
                         )
 
                         moved = Na__InsertPrimatives.Na__SlopePush__MovedFace(
-                            entities, face, interior, travel, normal_local
+                            entities, face, interior, travel, normal_now
                         )
 
                         raise 'the pushed face could not be found again to shear it' unless moved
@@ -320,6 +348,12 @@ module Na__InsertPrimatives
                 end
 
                 Na__InsertPrimatives.Na__DeepPick__InvalidateDefinitions(target[:path]) unless entered
+
+                # The distance a double-click on the next face will repeat.
+                # Written INSIDE the operation so it rides in this undo step
+                # rather than costing the user a second Ctrl+Z.
+                na_revise__remember(model, na_drawn__signed_d)
+
                 model.commit_operation
                 pushed = true
             rescue StandardError => error
@@ -341,17 +375,7 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Are Two Editing Contexts the Same Place?
-        # ------------------------------------------------------------
-        def na_drawn__same_context?(current, wanted)
-            return true if current.nil? && wanted.nil?
-            return false if current.nil? || wanted.nil?
-
-            current.to_a == wanted.to_a
-        rescue StandardError
-            false
-        end
-        # ---------------------------------------------------------------
+        # @delegate: ../04__GeometryHelpers/Na__InsertPrimatives__DrawnDeepPick__Context__.rb (Na__DeepPick__SameContext?)
 
         # FUNCTION | Put the User Back in the Context They Were In
         # Falls back to the model root rather than ever leaving them stranded
@@ -424,7 +448,7 @@ module Na__InsertPrimatives
             Na__InsertPrimatives.Na__Debug__Puts "\n"
             Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
             Na__InsertPrimatives.Na__Debug__Puts(
-                @na_pp_replaying ? 'DEEP PUSH/PULL ADJUSTED (retyped distance)' : 'DEEP PUSH/PULL APPLIED'
+                na_revise__replaying? ? 'DEEP PUSH/PULL ADJUSTED (retyped distance)' : 'DEEP PUSH/PULL APPLIED'
             )
             Na__InsertPrimatives.Na__Debug__Puts "Target: #{Na__InsertPrimatives.Na__DeepPick__PathLabel(target)}"
             measured =

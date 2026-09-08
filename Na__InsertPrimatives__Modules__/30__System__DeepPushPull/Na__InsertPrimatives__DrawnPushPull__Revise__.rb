@@ -5,29 +5,20 @@
 # FILE       : Na__InsertPrimatives__DrawnPushPull__Revise__.rb
 # NAMESPACE  : Na__InsertPrimatives::DrawnPushPullRevise
 # AUTHOR     : Noble Architecture
-# PURPOSE    : Retype the distance of a push AFTER it has already been placed
+# PURPOSE    : The push/pull half of the shared revise contract — capture,
+#              re-acquire, rebuild, repeat and the ghost
 # CREATED    : 2026
 #
 # DESCRIPTION:
-# - Native Push/Pull leaves the measurements box live after the click that
-#   places the extrusion: type 1200, Enter, and the push you just made becomes
-#   1200 — again and again until you start something else. Fredo's Joint
-#   Push/Pull does the same. This tool did not, and it was the one step in the
-#   whole plugin that stopped feeling like SketchUp.
-# - This module is that step. It records everything a completed push was made
-#   from, and a typed distance while idle rebuilds it at the new size.
-#
-# WHY REBUILD RATHER THAN TOP UP:
-# - The obvious cheap version is to push the ALREADY MOVED face by the
-#   difference. It falls apart immediately: the quad ring would be stitched a
-#   second time, a slope shear would compound on top of itself, a loop cut has
-#   no face that moved at all, and a sign flip would have to drag the face back
-#   through its own start plane and hope the walls it made get reabsorbed.
-# - So the push is taken off the undo stack instead and RE-RUN from the state
-#   it was made in. The result of typing 1200 is byte-for-byte the result of
-#   having dragged 1200 in the first place, in every mode, because it is
-#   literally the same commit path running again. Repeat entries cost one undo
-#   step in total rather than one each, which is what native does too.
+# - DrawnReviseShared (06__Tools__DrawnShared) owns the mechanics every
+#   modifier tool has in common: the record, the undo-stack watch, the retype
+#   flow, the double-click guard, the remembered value and the animation
+#   engine. This module supplies what only a push knows:
+#     * what to remember about a placed push so it can be run again
+#     * how to find the face again once the push has been undone
+#     * how to run the commit path wearing the state the push was made in
+#     * what a leading sign means when a distance is retyped
+#     * what the sweeping ghost looks like
 #
 # THE SIGN IS A DIRECTION HERE, NOT ARITHMETIC:
 # - Everywhere else in this plugin a leading + or - is relative arithmetic
@@ -35,116 +26,77 @@
 #   There is no drag to be relative to once the push is placed, and what a
 #   SketchUp user reaches for at that moment is the other thing entirely —
 #   type a minus and the extrusion turns round.
-# - So in this one state the sign names the direction: 1200 is 1200 the way you
-#   dragged, -1200 is 1200 the other way, and the anchor stays the ORIGINAL
-#   drag direction so typing -1200 then 1200 lands you back where you were
-#   rather than walking off in one direction.
+# - So in this one state the sign names the direction: 1200 is 1200 the way
+#   you dragged, -1200 is 1200 the other way, and the anchor stays the
+#   ORIGINAL drag direction so typing -1200 then 1200 lands you back where you
+#   were rather than walking off in one direction.
 #
-# WHY IT REFUSES RATHER THAN GUESSES:
-# - Sketchup.undo pops whatever is on top of the stack, and if that is not our
-#   push then calling it destroys somebody else's work. So before any undo is
-#   attempted the model is asked whether the push is still the thing standing
-#   there: the entity count of the definition it was made in, and a face where
-#   the push left one. Either answer wrong and the record is dropped with a
-#   line saying so, and nothing is undone.
+# THE RECORD CARRIES TOOL STATE, NOT GEOMETRY:
+# - Restore the handful of instance variables the commit path reads — target,
+#   axis lock, slope candidate, whether SHIFT was down, whether QUADS were
+#   armed — and na_drawn__commit_push recomputes the offset, the slope split
+#   and the quad decision itself. There is still only one implementation of
+#   what a push is, which is why a retype cannot drift from a fresh drag.
+# - Quad mode is read from the record and not from the live setting: pressing
+#   TAB between placing and retyping must not quietly add or drop a quad line.
 #
-# NOT ARMED AFTER A LOOP CUT:
-# - The inward-with-quads gesture moves no face, so there is no "where the push
-#   left it" to test the undo stack against, and an unverifiable undo is not
-#   worth the convenience. A loop cut ends the chance to retype, and says so.
+# LOOP CUTS ARE ARMED TOO:
+# - 5.1.0 refused to arm after an inward quad drag because it had no face
+#   movement to verify the undo stack against. The watch has made that
+#   verification unnecessary, so a loop cut retypes like anything else: the
+#   inset moves to the new distance and the ghost shows the ring travelling.
 #
 # =============================================================================
 
 require 'sketchup.rb'
+require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__'
 require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnSlopePush__'
+require_relative '../03__AppUtils/Na__InsertPrimatives__DrawnVcbArithmetic__'
 
 module Na__InsertPrimatives
 
     module DrawnPushPullRevise
 
         # -----------------------------------------------------------------------------
-        # REGION | Record Lifetime
+        # REGION | Host Contract — Identity and Wording
         # -----------------------------------------------------------------------------
 
-        # FUNCTION | Blank Slate — Constructor Only
+        # FUNCTION | Where the Last Distance Lives in the Model Dictionary
+        # Shared by the 3D and 2D variants on purpose: to the user they are one
+        # tool, and a distance pulled in elevation is a distance to repeat in
+        # perspective.
         # ------------------------------------------------------------
-        def na_drawn__init_replay_state
-            @na_pp_replay    = nil
-            @na_pp_replaying = nil
+        def na_revise__memory_key
+            NA_TOOL_MEMORY_PUSH_PULL_KEY
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Drop the Chance to Retype the Last Push
-        # @na_pp_replaying is deliberately left alone: it says a rebuild is
-        # RUNNING, it is owned by na_drawn__with_replay_state, and a commit
-        # that fails part way through one must not clear it out from under it.
+        # FUNCTION | What the Operation Is Called in Messages
         # ------------------------------------------------------------
-        def na_drawn__forget_replay
-            @na_pp_replay = nil
+        def na_revise__noun
+            'push'
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Say Something the Composed Status Line Will Not Wipe
+        # FUNCTION | What Gets Grabbed, in Messages
         # ------------------------------------------------------------
-        # onUserText pushes the composed status line the instant it returns, so
-        # a refusal written inline is gone before anyone reads it. Written a
-        # beat later instead — the same trick, and the same delay, the
-        # measurements box is re-armed on. Clearing the cached line is what
-        # lets the ordinary status text come back on the next mouse move.
-        # ------------------------------------------------------------
-        def na_drawn__replay_notice(message)
-            UI.start_timer(0.1, false) do
-                begin
-                    Sketchup::set_status_text(message, SB_PROMPT)
-                    @na_last_status_text = nil
-                rescue StandardError
-                    nil
-                end
-            end
+        def na_revise__target_noun
+            'a face'
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Is There a Placed Push Still Waiting to Be Retyped?
+        # FUNCTION | What a Leading Sign Means When Retyping
         # ------------------------------------------------------------
-        # Deliberately cheap: this is asked by the status line and the
-        # measurements box on every mouse move. The expensive question — is the
-        # push still the top of the undo stack — is asked once, at the moment a
-        # distance is actually typed.
-        # ------------------------------------------------------------
-        def na_drawn__replay_available?
-            return false unless @na_state == :idle
-            return false unless @na_pp_replay
-
-            na_drawn__replay_entities_live?(@na_pp_replay[:entities])
+        def na_revise__sign_hint
+            ' (- reverses)'
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Is This Entities Collection Still Alive?
+        # FUNCTION | The Placed Distance, Flagged When It Runs Against the Drag
         # ------------------------------------------------------------
-        # Sketchup::Entities is a COLLECTION, not an Entity, so it has no
-        # valid? to ask — calling one would raise NoMethodError, and a rescue
-        # around it would quietly answer "no" forever and take the whole
-        # feature with it. Touching a collection whose definition has been
-        # purged raises instead, so it is asked its length and the raise is
-        # the answer.
-        # ------------------------------------------------------------
-        def na_drawn__replay_entities_live?(entities)
-            return false unless entities
-
-            entities.length
-            true
-        rescue StandardError
-            false
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Anything That Disarms Revise Also Drops the Record
-        # The mixin disarms on activate, which is exactly when a record from a
-        # previous session of the tool must not survive.
-        # ------------------------------------------------------------
-        def na_drawn__disarm_revise
-            super
-            na_drawn__forget_replay
+        def na_revise__placed_label(record)
+            reversed = record[:sign].to_f * record[:anchor_sign].to_f < 0.0
+            "#{na_revise__value_label(record[:value])}#{reversed ? ' REVERSED' : ''}"
         end
         # ---------------------------------------------------------------
 
@@ -156,14 +108,13 @@ module Na__InsertPrimatives
         # -----------------------------------------------------------------------------
 
         # FUNCTION | Read the Face's Own Space BEFORE Anything Moves It
-        # ------------------------------------------------------------
         # Two things, and both only exist while the face is still untouched: a
         # point strictly inside it, and the collection it lives in. The interior
         # point is the whole identification scheme — carried along the push it
         # says where the face ended up, and left where it is it says where the
         # face goes back to.
         # ------------------------------------------------------------
-        def na_drawn__replay_snapshot(target, model)
+        def na_revise__snapshot(target, model)
             face = target && target[:face]
             return nil unless face && face.valid?
 
@@ -184,57 +135,84 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Arm the Retype With Everything the Commit Path Reads
+        # Called after a successful push, while every number it was made from
+        # is still in scope. During a rebuild the anchor direction and the
+        # ghost are carried forward from the record being rebuilt, so a typed
+        # minus always means "the other way from how I dragged" and the ghost
+        # keeps sweeping from the face's ORIGINAL position.
         # ------------------------------------------------------------
-        # The record carries tool state, not geometry: restore these few
-        # instance variables and na_drawn__commit_push recomputes the offset,
-        # the slope split and the quad decision exactly as it did the first
-        # time. That is why a replay cannot drift from a fresh drag — there is
-        # only one implementation of what a push is.
-        # ------------------------------------------------------------
-        def na_drawn__record_replay(target, snapshot, local_offset, sloped, cutting)
-            return na_drawn__forget_replay unless snapshot && local_offset
-            return na_drawn__forget_replay if cutting                         # <-- See the header: a cut leaves nothing to verify against
+        def na_revise__capture(target, snapshot, local_offset, sloped, cutting)
+            return na_revise__forget unless snapshot && local_offset
 
             # Counted off the collection the face is in NOW, not the one it was
             # in before the push: a group whose definition the edit made unique
             # has moved, and a count taken from the collection it left would
             # never match again.
-            entities = na_drawn__replay_live_entities(target[:face], snapshot[:entities])
-            return na_drawn__forget_replay unless entities
+            entities = na_revise__live_entities(target[:face], snapshot[:entities])
+            return na_revise__forget unless entities
 
-            # The anchor is the direction the MOUSE chose, and it is carried
-            # through every retype so a typed minus always means "the other way
-            # from how I dragged" rather than "the other way from last time".
-            anchor = @na_pp_replaying ? @na_pp_replaying[:anchor_sign].to_f : @na_sign_d.to_f
+            replaying = @na_revise_replaying
+            anchor    = replaying ? replaying[:anchor_sign].to_f : @na_sign_d.to_f
+            ghost     = replaying ? replaying[:ghost] : na_revise__build_ghost(target)
 
-            @na_pp_replay = {
+            na_revise__arm({
                 :target      => target,
                 :entities    => entities,
                 :interior    => snapshot[:interior],
                 :normal      => snapshot[:normal],
                 :user_path   => snapshot[:user_path],
-                :count       => na_drawn__replay_entity_count(entities),
+                :counts      => [[entities, na_revise__entity_count(entities)]],
+                :ops         => 1,
                 :offset      => local_offset,
                 :size        => @na_size_d.to_f.abs,
                 :sign        => @na_sign_d.to_f,
+                :value       => @na_size_d.to_f.abs * @na_sign_d.to_f,
                 :anchor_sign => anchor,
                 :axis_lock   => @na_axis_lock,
                 :slope       => @na_pp_slope,
                 :slope_mode  => sloped ? true : false,
-                :quad        => na_drawn__quad_mode?
-            }
+                :quad        => na_drawn__quad_mode?,
+                :cut         => cutting ? true : false,
+                :ghost       => ghost
+            })
         rescue StandardError => error
-            na_drawn__trace("replay not armed — #{error.message}")
-            na_drawn__forget_replay
+            na_drawn__trace("retype not armed — #{error.message}")
+            na_revise__forget
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | How Many Entities the Definition Holds Right Now
+        # FUNCTION | Everything the Ghost Needs, Copied Out While the Face Is Cached
+        # The cached loop and triangles are the face at its ORIGINAL position
+        # — exactly where every rebuild starts from — so the same ghost serves
+        # every later retype. Cloned, because the caches are rebuilt on hover.
         # ------------------------------------------------------------
-        def na_drawn__replay_entity_count(entities)
-            return nil unless entities
+        def na_revise__build_ghost(target)
+            direction = na_drawn__travel_direction || target[:world_normal]
+            edge      = @na_pp2d_edge_world                                   # <-- Only the 2D variant ever sets this
 
-            entities.length.to_i
+            {
+                :loop        => (@na_pp_loop || []).map { |point| point.clone },
+                :triangles   => (@na_pp_triangles || []).map { |points| points.map { |point| point.clone } },
+                :direction   => direction ? direction.clone : nil,
+                :axis_factor => na_drawn__axis_travel_factor,
+                :quad        => na_drawn__quad_mode?,
+                :edge_world  => (edge && edge.length == 2) ? edge.map { |point| point.clone } : nil
+            }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Live Collection a Face Lives In
+        # A group whose definition was made unique by the edit hands back a new
+        # collection, so the face is asked first and the recorded one is only
+        # the fallback for a face that did not survive the push.
+        # ------------------------------------------------------------
+        def na_revise__live_entities(face, fallback)
+            if face && face.valid?
+                parent = face.parent
+                return parent.entities if parent.respond_to?(:entities)
+            end
+
+            na_revise__entity_count(fallback).nil? ? nil : fallback
         rescue StandardError
             nil
         end
@@ -244,44 +222,18 @@ module Na__InsertPrimatives
 
 
         # -----------------------------------------------------------------------------
-        # REGION | Is the Recorded Push Still the Thing on Top of the Stack?
+        # REGION | Host Contract — Re-Acquire After the Undo
         # -----------------------------------------------------------------------------
 
-        # FUNCTION | The Live Collection a Face Lives In
-        # A group whose definition was made unique by the edit hands back a new
-        # collection, so the face is asked first and the recorded one is only
-        # the fallback for a face that did not survive.
-        # ------------------------------------------------------------
-        def na_drawn__replay_live_entities(face, fallback)
-            if face && face.valid?
-                parent = face.parent
-                return parent.entities if parent.respond_to?(:entities)
-            end
-
-            na_drawn__replay_entities_live?(fallback) ? fallback : nil
-        rescue StandardError
-            nil
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | That Same Question, Asked of a Record
-        # ------------------------------------------------------------
-        def na_drawn__replay_entities(record)
-            face = record[:target] && record[:target][:face]
-
-            na_drawn__replay_live_entities(face, record[:entities])
-        end
-        # ---------------------------------------------------------------
-
         # FUNCTION | Is There a Face Sitting at the Recorded Point?
-        # ------------------------------------------------------------
         # The same identification Na__SlopePush__MovedFace does, written out
-        # rather than called, because this one also has to ask about a travel of
-        # NOTHING — where the face started — and Point3d#offset will not take a
-        # zero vector. The recorded face object is tried first because it is one
-        # test and very often the answer; only then is the definition swept.
+        # rather than called, because this one also has to ask about a travel
+        # of NOTHING — where the face started — and Point3d#offset will not
+        # take a zero vector. The recorded face object is tried first because
+        # it is one test and very often the answer; only then is the
+        # definition swept.
         # ------------------------------------------------------------
-        def na_drawn__replay_face_at(entities, record, travel, normal = nil)
+        def na_revise__face_at(entities, record, travel, normal = nil)
             wanted = record[:interior]
             return nil unless entities && wanted
 
@@ -305,45 +257,17 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Refuse to Undo Anything That Is Not Our Own Push
-        # ------------------------------------------------------------
-        # Two tests, and they cover each other's blind spots:
-        #
-        # - THE COUNT. A push adds walls, so the definition holds more entities
-        #   after it than before. A user who has already pressed Ctrl+Z has put
-        #   that count back. Blind to a slope STRETCH, which creates nothing.
-        # - THE PLACE. Either a face where the push left one, or — for a push
-        #   that went clean through and consumed its own face — nothing at all
-        #   where it started. An undo puts that face back, so finding one at the
-        #   start point is proof the push is no longer standing. Blind to a
-        #   push that happens not to change what is at either point, which is
-        #   what the count is there for.
-        #
-        # Failing either means the top of the undo stack is not ours, and the
-        # only safe move is to drop the record without touching it.
-        # ------------------------------------------------------------
-        def na_drawn__replay_still_current?(record)
-            entities = na_drawn__replay_entities(record)
-            return false unless entities
-
-            counted = na_drawn__replay_entity_count(entities)
-            return false unless counted && record[:count] && counted == record[:count]
-
-            return true if na_drawn__replay_face_at(entities, record, record[:offset])
-
-            na_drawn__replay_face_at(entities, record, nil).nil?
-        rescue StandardError
-            false
-        end
-        # ---------------------------------------------------------------
-
         # FUNCTION | Find the Face Again Where the Undo Put It Back
+        # Returns the recorded target wearing the re-found face, or nil.
         # ------------------------------------------------------------
-        def na_drawn__replay_reacquire(record)
-            entities = na_drawn__replay_entities(record)
+        def na_revise__reacquire(record)
+            entities = na_revise__live_entities(record[:target][:face], record[:entities])
             return nil unless entities
 
-            na_drawn__replay_face_at(entities, record, nil, record[:normal])
+            face = na_revise__face_at(entities, record, nil, record[:normal])
+            return nil unless face
+
+            record[:target].merge(:face => face)
         end
         # ---------------------------------------------------------------
 
@@ -351,23 +275,55 @@ module Na__InsertPrimatives
 
 
         # -----------------------------------------------------------------------------
-        # REGION | The Retype Itself
+        # REGION | Host Contract — Rebuild and Repeat
         # -----------------------------------------------------------------------------
 
-        # FUNCTION | Read a Typed Distance as a Signed Push and Rebuild
+        # FUNCTION | Run the Commit Path Again at a Signed Distance
         # ------------------------------------------------------------
+        def na_revise__rebuild(record, target, value, view)
+            placed = false
+
+            na_revise__wearing(record, target, value) do
+                placed = na_drawn__commit_push(view)
+            end
+
+            placed ? true : false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Wear the Tool State the Recorded Push Was Made In
+        # SHIFT and the axis lock are live user state and are put back exactly
+        # as they were found — the user is still holding, or not holding, what
+        # they were holding a moment ago. @na_revise_replaying is what tells
+        # the rest of the tool a rebuild is running: the quad mode override
+        # and the console headline read it, and capture reads it to carry the
+        # original drag direction and the ghost into the new record.
+        # ------------------------------------------------------------
+        def na_revise__wearing(record, target, value)
+            held_shift = @na_shift_held
+            held_axis  = @na_axis_lock
+
+            @na_revise_replaying = record
+            @na_pp_target        = target
+            @na_pp_slope         = record[:slope]
+            @na_shift_held       = record[:slope_mode] ? true : false
+            @na_axis_lock        = record[:axis_lock]
+            @na_size_d           = value.to_f.abs
+            @na_sign_d           = value.to_f < 0.0 ? -1.0 : 1.0
+
+            yield
+        ensure
+            @na_shift_held       = held_shift
+            @na_axis_lock        = held_axis
+            @na_revise_replaying = nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Read a Typed Distance as a Signed Push
         # The parser is the shared one, so units and decimals behave exactly as
         # they do mid-drag. Only the SIGN is read differently — see the header.
         # ------------------------------------------------------------
-        def na_drawn__revise_from_vcb(text, view)
-            record = @na_pp_replay
-
-            unless record
-                UI.beep
-                Sketchup::set_status_text('Nothing placed to adjust — grab a face first', SB_PROMPT)
-                return false
-            end
-
+        def na_revise__parse_retype(text, record)
             tokens = Na__InsertPrimatives.Na__DrawnVcb__ParseEntry(text)
             raise ArgumentError, 'push takes a single distance' if tokens.length > 1
 
@@ -384,137 +340,22 @@ module Na__InsertPrimatives
             # The anchor, never the last value entered: -1200 then 1200 has to
             # land back where the first push was rather than walking on.
             direction = (sign == :minus ? -1.0 : 1.0) * record[:anchor_sign].to_f
-
-            na_drawn__revise_push(view, magnitude.to_f.abs, direction)
+            magnitude.to_f.abs * direction
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Take the Push Back Off the Stack and Make It Again
+        # FUNCTION | Push the Grabbed Face by the Remembered Signed Distance
+        # The sign is relative to the direction the drag measures along — the
+        # face normal, or the slope under SHIFT — so "300 out" repeats as 300
+        # out of whatever face was double-clicked, and an inward loop cut
+        # repeats as an inward loop cut.
         # ------------------------------------------------------------
-        # The record is left exactly as it was until a rebuild has actually
-        # landed, because it is also the recipe for putting the user's own push
-        # back if the new distance turns out to be one the geometry will not
-        # take. An undo with nothing rebuilt after it is the one outcome this
-        # must never leave behind.
-        # ------------------------------------------------------------
-        def na_drawn__revise_push(view, size, sign)
-            record = @na_pp_replay
-            model  = Sketchup.active_model
-            return false unless record && model
-
-            unless na_drawn__replay_still_current?(record)
-                UI.beep
-                na_drawn__replay_notice('That push is no longer the last thing done — nothing adjusted')
-                Na__InsertPrimatives.Na__Debug__Puts 'NA PUSH/PULL: retype refused — the recorded push is not on top of the undo stack'
-                na_drawn__forget_replay
-                return false
-            end
-
-            Sketchup.undo
-            na_drawn__replay_restore_context(model, record)
-
-            face = na_drawn__replay_reacquire(record)
-
-            unless face
-                UI.beep
-                na_drawn__replay_notice('Could not find that face again after undoing — use Redo')
-                Na__InsertPrimatives.Na__Debug__Puts 'NA PUSH/PULL: retype undid the push and lost the face — attempting Redo'
-                begin
-                    Sketchup.send_action('editRedo:')
-                rescue StandardError
-                    nil
-                end
-                na_drawn__forget_replay
-                return false
-            end
-
-            target = record[:target].merge(:face => face)
-            return true if na_drawn__replay_rebuild(record, target, view, size, sign)
-
-            # The new distance would not build. Put back the push that was
-            # standing there a moment ago, down the same path that made it.
-            restored = na_drawn__replay_rebuild(record, target, view, record[:size], record[:sign])
-
-            said =
-                if restored then 'That distance would not build — the push was left as it was'
-                else             'That distance would not build, and the original could not be put back — use Redo'
-                end
-
-            UI.beep
-            na_drawn__replay_notice(said)
-            Na__InsertPrimatives.Na__Debug__Puts "NA PUSH/PULL: retype failed, original #{restored ? 'restored' : 'LOST - press Redo'}"
-            na_drawn__forget_replay unless restored
-            false
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Run the Commit Path Again at a Given Signed Distance
-        # ------------------------------------------------------------
-        def na_drawn__replay_rebuild(record, target, view, size, sign)
-            placed = false
-
-            na_drawn__with_replay_state(record, target, size, sign) do
-                placed = na_drawn__commit_push(view)
-            end
-
-            placed ? true : false
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Wear the Tool State the Recorded Push Was Made In
-        # ------------------------------------------------------------
-        # SHIFT and the axis lock are live user state and are put back exactly
-        # as they were found — the user is still holding, or not holding, what
-        # they were holding a moment ago. @na_pp_replaying is what tells the
-        # rest of the tool a replay is running: the quad mode override and the
-        # console headline both read it, and record_replay reads it to carry the
-        # original drag direction forward into the new record.
-        # ------------------------------------------------------------
-        def na_drawn__with_replay_state(record, target, size, sign)
-            held_shift = @na_shift_held
-            held_axis  = @na_axis_lock
-
-            @na_pp_replaying = record
-            @na_pp_target    = target
-            @na_pp_slope     = record[:slope]
-            @na_shift_held   = record[:slope_mode] ? true : false
-            @na_axis_lock    = record[:axis_lock]
-            @na_size_d       = size.to_f.abs
-            @na_sign_d       = sign.to_f
-
-            yield
-        ensure
-            @na_shift_held   = held_shift
-            @na_axis_lock    = held_axis
-            @na_pp_replaying = nil
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Put the User Back Where the Undo Found Them
-        # ------------------------------------------------------------
-        # A push made inside a group opened that group and closed it again, and
-        # both halves are part of the one undo step. Undoing it can therefore
-        # leave the user standing inside the group they never asked to enter,
-        # and the replay would then run against a context it did not expect.
-        # ------------------------------------------------------------
-        def na_drawn__replay_restore_context(model, record)
-            return false unless model.respond_to?(:active_path=)
-
-            wanted  = record[:user_path]
-            current = model.active_path
-            return false if na_drawn__same_context?(current, wanted)
-
-            model.active_path = wanted
-            na_drawn__trace('replay restored the editing context after the undo')
-            true
-        rescue StandardError => error
-            na_drawn__trace("replay could not restore the editing context — #{error.message}")
-            begin
-                model.active_path = nil
-            rescue StandardError
-                nil
-            end
-            false
+        def na_revise__apply_repeat(value, view)
+            @na_size_d = value.to_f.abs
+            @na_sign_d = value.to_f < 0.0 ? -1.0 : 1.0
+            na_drawn__lock_slot(:d)
+            na_drawn__trace("double-click repeats #{Na__InsertPrimatives.Na__DrawnFormat__Mm(value)}mm")
+            na_drawn__commit_push(view)
         end
         # ---------------------------------------------------------------
 
@@ -522,38 +363,130 @@ module Na__InsertPrimatives
 
 
         # -----------------------------------------------------------------------------
-        # REGION | What the Status Bar and Measurements Box Say About It
+        # REGION | Host Contract — The Ghost
         # -----------------------------------------------------------------------------
 
-        # FUNCTION | The Placed Distance, in Millimetres, Unsigned
+        # FUNCTION | Draw the Face Swept to an Interpolated Distance
+        # The same picture the live drag paints — start loop, moved face, the
+        # rungs between, the travel arrow — at whatever distance the sweep has
+        # reached, with the old and new numbers written on it. An inward quad
+        # value draws as the loop cut it is, because that is what the model
+        # holds at that value.
         # ------------------------------------------------------------
-        def na_drawn__replay_distance_mm
-            return '0' unless @na_pp_replay
+        def na_revise__draw_ghost(view, ghost, value, from_value, to_value)
+            loop_points = ghost[:loop]
+            direction   = ghost[:direction]
+            return false if loop_points.nil? || loop_points.empty? || direction.nil?
 
-            Na__InsertPrimatives.Na__DrawnFormat__Mm(@na_pp_replay[:size]).abs.to_s
-        rescue StandardError
-            '0'
+            factor  = ghost[:axis_factor].to_f
+            factor  = 1.0 if factor.abs < 0.0001
+            world   = value.to_f / factor                                     # <-- An axis lock measures along the axis; the face travels along its normal
+            quads   = ghost[:quad] ? true : false
+            cutting = quads && world < 0.0
+            colours = self.class
+
+            moved_loop = loop_points.map do |point|
+                Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(point, direction, world)
+            end
+
+            Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(
+                view, loop_points,
+                quads ? colours::NA_PP_QUAD_BORDER : colours::NA_PP_HOVER_BORDER, 1
+            )
+
+            if cutting
+                Na__InsertPrimatives.Na__DrawnPreview__DrawTriangles(view, ghost[:triangles], colours::NA_PP_HOVER_FILL)
+                na_revise__draw_ghost_rungs(view, loop_points, moved_loop, colours::NA_PP_QUAD_BORDER)
+                Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(view, moved_loop, colours::NA_PP_QUAD_BORDER, 3)
+            else
+                moved_triangles = (ghost[:triangles] || []).map do |points|
+                    points.map { |point| Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(point, direction, world) }
+                end
+
+                Na__InsertPrimatives.Na__DrawnPreview__DrawTriangles(view, moved_triangles, colours::NA_PP_RESULT_FILL)
+                na_revise__draw_ghost_rungs(view, loop_points, moved_loop, colours::NA_PP_RESULT_BORDER)
+                Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(view, moved_loop, colours::NA_PP_RESULT_BORDER, 2)
+            end
+
+            na_revise__draw_ghost_sweep(view, ghost, direction, world, cutting)
+
+            if world.abs > 0.0
+                Na__InsertPrimatives.Na__DrawnPreview__DrawDirectionArrow(
+                    view, loop_points.first, world < 0.0 ? direction.reverse : direction
+                )
+            end
+
+            from_mm = Na__InsertPrimatives.Na__DrawnFormat__Mm(from_value).abs
+            to_mm   = Na__InsertPrimatives.Na__DrawnFormat__Mm(to_value).abs
+            verb    = cutting ? 'Loop cut' : na_revise__noun.capitalize
+
+            Na__InsertPrimatives.Na__DrawnPreview__DrawWorldLabel(
+                view, moved_loop.first,
+                ["#{verb} #{from_mm} → #{to_mm} mm"],
+                14, -26, NA_DRAWN_TEXT_ACCENT_COLOR
+            )
+            true
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Is the Placed Push Currently Running Against the Drag?
+        # FUNCTION | The Lines Joining Each Start Corner to Its Moved Corner
+        # Drawn straight through view.draw_line, so the two loops are converted
+        # to draw space by hand — the same rule the live preview follows.
         # ------------------------------------------------------------
-        def na_drawn__replay_reversed?
-            return false unless @na_pp_replay
+        def na_revise__draw_ghost_rungs(view, from_loop, to_loop, color)
+            side_from = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(from_loop)
+            side_to   = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(to_loop)
 
-            @na_pp_replay[:sign].to_f * @na_pp_replay[:anchor_sign].to_f < 0.0
+            view.line_stipple  = ''
+            view.line_width    = 1
+            view.drawing_color = color
+
+            side_from.each_with_index do |point, index|
+                view.draw_line(point, side_to[index]) if side_to[index]
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The 2D Variant's Swept Strip, When the Record Came From an Edge
+        # In an elevation the target face is edge-on and shades to nothing; the
+        # strip the grabbed edge sweeps out is what the user watched while
+        # dragging, so it is what the ghost sweeps too.
+        # ------------------------------------------------------------
+        def na_revise__draw_ghost_sweep(view, ghost, direction, world, cutting)
+            edge = ghost[:edge_world]
+            return false unless edge && edge.length == 2
+            return false unless defined?(Na__InsertPrimatives::NA_PP2D_SWEEP_FILL)
+
+            moved = edge.map { |point| Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(point, direction, world) }
+
+            Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuad(
+                view,
+                [edge[0], edge[1], moved[1], moved[0]],
+                Na__InsertPrimatives::NA_PP2D_SWEEP_FILL,
+                cutting ? self.class::NA_PP_QUAD_BORDER : Na__InsertPrimatives::NA_PP2D_SWEEP_BORDER
+            )
+            true
         rescue StandardError
             false
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | The Retype Offer, or an Empty String
+        # FUNCTION | Every Point the Ghost Occupies at a Distance, for the Extents
         # ------------------------------------------------------------
-        def na_drawn__replay_hint
-            return '' unless na_drawn__replay_available?
+        def na_revise__ghost_points(ghost, value)
+            loop_points = ghost[:loop]
+            direction   = ghost[:direction]
+            return [] if loop_points.nil? || loop_points.empty? || direction.nil?
 
-            reversed = na_drawn__replay_reversed? ? ' REVERSED' : ''
-            " — placed #{na_drawn__replay_distance_mm} mm#{reversed}, type a distance to adjust it (- reverses)"
+            factor = ghost[:axis_factor].to_f
+            factor = 1.0 if factor.abs < 0.0001
+            world  = value.to_f / factor
+
+            loop_points + loop_points.map do |point|
+                Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(point, direction, world)
+            end
+        rescue StandardError
+            []
         end
         # ---------------------------------------------------------------
 

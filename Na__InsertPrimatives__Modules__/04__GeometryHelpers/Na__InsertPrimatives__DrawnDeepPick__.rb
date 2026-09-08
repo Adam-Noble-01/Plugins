@@ -16,15 +16,32 @@
 #   cursor together with the accumulated transformation to world space, which is
 #   all that is needed to work on it in place.
 #
-# THE TWO COORDINATE SPACES:
-# - A face lives in its own definition's local space. Its normal, its vertices
-#   and the distance argument to pushpull are all local. The cursor and every
-#   preview are world. transformation_at bridges the two.
-# - A scaled instance makes those two disagree on distance. Transforming the
-#   unit local normal gives a vector whose LENGTH is the scale factor along that
-#   direction, so a world push distance divided by it is the local distance
+# THE COORDINATE RULE (researched 08-Sep-2026; see the 5.1.2 devlog entry):
+# - SketchUp's own statement of it, from the API team: "In the active drawing
+#   context and all its parent coordinate systems all coordinates are global.
+#   In all other coordinate systems they are local." Open a group and every
+#   vertex, normal and transformation of the things INSIDE it is reported in
+#   global coordinates for as long as it stays open; geometry added to it is
+#   taken as global; a transformation applied to it is read as global. Close it
+#   and all of that reverts to the definition's own local space.
+# - The cursor, InputPoint positions, pick rays and everything handed to
+#   View#draw / View#screen_coords are ALWAYS global. There is no draw-space
+#   conversion to make — the 0.4.36 one is gone.
+# - PickHelper is relative to the OPEN context, not the model root: path_at
+#   starts at the active entities and transformation_at maps the leaf into the
+#   active context's coordinates — which are global. So transformation_at IS
+#   the "to world" transform for a face inside a closed group, and the identity
+#   is the right transform for a face in the open context. The path, however,
+#   has to be made absolute before Model#active_path= will open it
+#   (Na__DeepPick__AbsolutePath).
+# - A scaled instance makes local and global disagree on distance. Transforming
+#   the unit local normal gives a vector whose LENGTH is the scale factor along
+#   that direction, so a world push distance divided by it is the local distance
 #   pushpull actually wants. Skip that and a push inside a scaled component
 #   overshoots by exactly the scale factor.
+# - Every target hash carries: an ABSOLUTE :path, and a :transformation that
+#   maps the entity's REPORTED coordinates to global. Read those two words as
+#   the contract and nothing about nesting depth needs to be special-cased.
 #
 # THE SELECTION IS AN INSTRUCTION, NOT DECORATION:
 # - Picking by proximity is a guess about which group was meant, and it is only

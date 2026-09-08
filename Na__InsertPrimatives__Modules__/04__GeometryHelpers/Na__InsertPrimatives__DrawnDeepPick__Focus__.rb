@@ -132,12 +132,13 @@ module Na__InsertPrimatives
                 # transforms a normal. On a crowded pick that is most of the
                 # per-frame cost avoided.
                 if Na__InsertPrimatives.Na__DeepPick__InFocus?(path, focus)
-                    xform  = helper.transformation_at(index)
+                    xform    = helper.transformation_at(index)
+                    absolute = Na__InsertPrimatives.Na__DeepPick__AbsolutePath(path) # <-- The pick path starts at the open context; the target wants the root
                     target =
                         if kind == Sketchup::Face
-                            Na__InsertPrimatives.Na__DeepPick__BuildTarget(leaf, path, xform)
+                            Na__InsertPrimatives.Na__DeepPick__BuildTarget(leaf, absolute, xform)
                         else
-                            Na__InsertPrimatives.Na__DeepPick__BuildEdgeTarget(leaf, path, xform)
+                            Na__InsertPrimatives.Na__DeepPick__BuildEdgeTarget(leaf, absolute, xform)
                         end
 
                     return target unless Na__InsertPrimatives.Na__DeepPick__LockedOut?(leaf, target)

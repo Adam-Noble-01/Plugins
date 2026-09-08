@@ -3,6 +3,374 @@
 
 # =============================================================================
 
+## Version 5.1.2 - 08-Sep-2026 - Stacked Local Axes: One Coordinate Rule for Every Nesting Depth
+
+### Reported
+"The preview is messed up if using the push pull and other tools inside deeply nested
+objects" — Model → Group → Group → Group. And the question behind it: is there any
+awareness of stacked local axes, and how does SketchUp actually handle them?
+
+### The Research
+There was no awareness — there was a belief, written into three file headers, that
+entity positions are always definition-local and that view drawing happens in the
+open group's space. Both are wrong, and the API documentation is thin enough that it
+took the SketchUp team's own words on the forum to settle it.
+
+**The rule, from SketchUp (Eneroth, quoted by DanRathbun):**
+> "In the active drawing context and all its parent coordinate systems all
+> coordinates are global. In all other coordinate systems they are local."
+
+And ThomThom, twelve years earlier: *"SU changes the co-ordinates when you open a
+group/component. When a group or component is open SU returns global co-ordinates
+for the entities in that context."*
+
+What that means in practice:
+
+| Thing | Group CLOSED | Group OPEN (active context or a parent of it) |
+|---|---|---|
+| `Vertex#position`, `Face#normal`, `Face#mesh` | definition-local | **global** |
+| `Group#transformation` | relative to its parent | **global** |
+| points given to `entities.add_*` | local | **global** |
+| `transform_entities` / `transform_by_vectors` | local | **global** (documented) |
+| `Face#pushpull(distance)` | definition units | definition units (a scalar has no space) |
+
+And three things that are **always global**, open context or not: `InputPoint#position`
+("always returns a point that is transformed into model space"), `View#pickray`, and
+everything handed to `View#draw` / `View#screen_coords`. The classic line tool draws
+straight between two InputPoints inside any group; that is the proof.
+
+`PickHelper` is the third piece and it is **relative to the open context**, not the
+model root: `path_at` "starts from the active entities" and `transformation_at` maps
+the leaf "into the coordinates of the active entities" — which are global. So
+`transformation_at` is already the "to world" transform for a face inside a closed
+group, and the **identity** is the right transform for a face in the open context.
+The path, however, is missing the instances the user is standing in, and
+`Model#active_path=` refuses any path that does not chain from the root.
+
+### What Was Actually Wrong
+1. **The deep pick applied `edit_transform` to positions that were already global.**
+   PASS 1 (a face loose in the open context) built its target with the open
+   context's transform. That moves every preview by the open group's own placement.
+2. **0.4.36 cancelled that with an equal and opposite error at draw time.** Every
+   preview point went through `edit_transform.inverse`. For a face in the open
+   context the two cancel, which is why it looked fixed. For a face inside a closed
+   group *below* the open one — picked correctly through `transformation_at` — the
+   inverse is applied to a correct point, and the preview lands displaced by exactly
+   the open group's transform. Open a moved group, hover a face of a group inside it:
+   that is the reported bug. Groups this plugin makes sit at the world origin, which
+   is why every test passed.
+3. **Pick paths were relative, so entering a nested group from inside another one
+   failed.** `active_path = [inner]` is not a valid path from the root; the commit
+   silently fell back to editing the definition from outside, with the stale display
+   cache the push tool was cured of at the root, back one level down.
+4. **The chamfer batch planned faces after entering the group and then pushed the
+   plans through `edit_transform` again.** Read-after-enter positions are already
+   global; the second transform puts the cut somewhere else in any group that is not
+   at the origin. The single-edge cut had the mirror-image gap: an edge loose in an
+   opened, moved group planned in global and was built through the open group's
+   transform.
+5. **The push commit used definition-local vectors inside an entered group.** Loop
+   cuts offset global loops along a local direction, and the slope routes handed
+   local vectors to `transform_by_vectors`, which reads them as global once the group
+   is open. Invisible for a translated group, wrong for a rotated one.
+6. **New shape groups inherited the open group's placement.** Drawing a volume while
+   inside a moved group put global numbers into a group whose axes were not the
+   world's. The rebuild paths already pinned the group to the identity; the create
+   paths did not.
+
+### The Fix: One Contract on the Target Hash
+Every target now carries an **absolute** `:path` (model root to innermost instance)
+and a `:transformation` that carries the entity's **reported** coordinates to global.
+Read those two words as the contract and no code needs to know how deep it is.
+
+- `Na__DeepPick__AbsolutePath` prepends the open context's instances to a pick path.
+  Every scan uses it; PASS 1 passes the context path with a **nil** transform.
+  `Na__DeepPick__ContextTransform` is gone — there was no correct use for it.
+- `Na__DrawnPreview__DrawSpace` returns nil. The `ToDraw*` seams stay as the one
+  place a correction would go, and now hand every point back untouched.
+- `Na__DeepPick__ExecuteInContext` yields `entered` to its block. The chamfer's
+  single cut uses `edit_transform` (read inside the block) only when the group was
+  entered, the identity otherwise; the batch solves and builds with the identity,
+  swapping the members' transforms for the identity once inside.
+- `na_drawn__execute_push` splits the offset **twice**: once before entering, for
+  the pushpull scalar (definition units), and once after, against the normal the
+  face now reports, for every vector — loop-cut direction and step, stretch, shear,
+  the moved-face search. `working_offset` is the world offset when entered and the
+  local one when not.
+- `Na__DrawnGeom__PinGroupToWorld` sets a fresh group's transformation to the
+  identity — read as a global identity inside an open context — before any global
+  point goes into it. Plane, volume, cylinder and roof creation all call it.
+- `Na__DeepPick__AddTransform` is retained for the push ring, where points are read
+  and added on the same side of the open and it measures the identity it expects.
+  Its header now says why it must not be used for read-before-enter points.
+
+### Not Verified: Scaled Instances
+`Face#pushpull` is documented as a distance along the normal and nothing more. The
+tools divide the world travel by the instance scale along the normal on the
+assumption that the scalar is in definition units whether or not the group is open.
+That matched an overshoot observed in 0.4.x; whether it still holds once the context
+is entered has not been measured. A push inside a *scaled* group is the one case in
+the list below to watch for a wrong distance.
+
+### Files Touched
+- `DrawnDeepPick__.rb` (hub header: the rule), `DrawnDeepPick__Pick__.rb`
+  (`AbsolutePath`, identity for open-context picks, `ContextTransform` removed),
+  `DrawnDeepPick__Focus__.rb`, `DrawnDeepPick__Context__.rb` (`yield(entered)`,
+  `AddTransform` header)
+- `DrawnPreviewGraphics__.rb` — draw space is world space
+- `DrawnPushPull__Commit__.rb` — working offset after entering
+- `DrawnChamferTool__.rb`, `DrawnChamfer__Geometry__.rb` — build transform rule
+- `DrawnGeometry__.rb`, `DrawnRoofGeometry__.rb` — `PinGroupToWorld`
+- The project structure rule — the coordinate rule in one paragraph
+
+### Status: IMPLEMENTED — NOT YET VERIFIED IN SKETCHUP
+Build the test model first: a box in a group **moved and rotated** (not at the
+origin), a second such group inside it, a third inside that. Then, in this order:
+
+1. At the root, hover and push a face three groups deep — preview and result land on
+   the face (this always worked; it must still)
+2. Double-click into the outer group; hover a face of the group inside it — the
+   preview must sit ON the face, not displaced by the outer group's move
+3. Push it, then retype — the push must enter the inner group (one Ctrl+Z, the
+   viewport updates at once, the status bar says "In <inner> (2 deep)")
+4. Two groups deep, push a loose face of the group you are in — preview on the face,
+   push along its true normal (rotated group: the old code measured along a rotated
+   copy of the normal)
+5. Quads on, inward loop cut, two deep in a rotated group — the ring lands in the
+   surrounding faces
+6. SHIFT slope push, two deep in a rotated group
+7. Chamfer a loose edge two deep; then SHIFT-bank three edges of a nested group and
+   cut them — every cut lands on its edge
+8. Draw a volume, a plane and a roof while two deep inside a moved group — each
+   appears where the cursor drew it
+9. The 2D elevation pull, inside an opened moved group
+10. A push inside a SCALED group — check the distance (see the note above)
+
+# =============================================================================
+
+## Version 5.1.1 - 08-Sep-2026 - Retype, Repeat, Replay: the Modifier Tools Behave Like SketchUp
+
+### Reported
+"A previous agent did a crappy job at implementing a feature." Native Push/Pull and
+Fredo's Joint Push/Pull both leave the measurements box live after a placement —
+type a new value and the push you just made becomes that value — and both repeat
+the last distance on a double-click of the next face. 5.1.0 built the first half of
+that for the push tools only, refused to arm it after a loop cut (the exact case in
+the screenshot), could not offer it in the chamfer tool at all, verified the undo
+stack by guesswork, and gave no visual sign of what a retype had done. One slip of
+the finger and the only way back was to grab the face again.
+
+Three asks, all delivered:
+
+1. **Retype after placing, in every modifier tool** — Deep Push/Pull 3D, Deep
+   Push/Pull 2D and Deep Chamfer. Forgiving: nothing short of grabbing a new
+   target, changing the model or leaving the tool closes it.
+2. **A visual replay of every retype** — the preview sweeps from the old size to the
+   new, fast, so trying 3000 then 5000 then 4200 is *seen*, not inferred.
+3. **Double-click repeats the last value** — remembered in the model's own
+   attribute dictionary, per tool, until a different value is placed.
+
+Plus the right-click menu now stays where you leave it, from a new UserConfig JSON.
+
+### One Revise System, Shared
+5.1.0 wrote the retype into the push tool alone. This release lifts the mechanics
+every modifier tool has in common into one mixin and leaves each tool with only what
+is genuinely its own:
+
+- **`06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__.rb`** —
+  `DrawnReviseShared`: the record of the last placement, the undo-stack watch, the
+  retype flow (undo → re-acquire → rebuild → animate, with a put-it-back fallback),
+  the double-click repeat and its guard, the remembered value, the status and
+  measurements-box wording. Included AFTER `DrawnToolShared` so its `activate`,
+  `deactivate` and `onCancel` wrap the mixin's.
+- **`Na__InsertPrimatives__DrawnRevise__Watch__.rb`** — `DrawnReviseWatch`, a
+  `Sketchup::ModelObserver` that forwards every transaction event to the tool.
+- **`Na__InsertPrimatives__DrawnRevise__Animate__.rb`** — `DrawnReviseAnimate`, the
+  ghost engine: a repeating timer, an eased value off the wall clock, the draw hook
+  and the extents. It draws nothing itself.
+- **`30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__Revise__.rb`** —
+  rewritten as the push half of the contract: capture, re-acquire the face by its
+  interior point, rebuild through `na_drawn__commit_push` wearing the recorded
+  state, the sign-is-a-direction parse, the ghost.
+- **`31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Revise__.rb`** —
+  new: the chamfer half. An edge is gone once it is cut, so it is remembered by
+  where its two ends were and found again as the one edge in the same collection
+  standing on those points. Batches across groups record how many operations they
+  took and undo that many.
+
+The host contract is eleven small `na_revise__*` hooks, listed in the shared file's
+header. `na_drawn__revise_available?` overrides are gone from both modifier tools;
+they were never called by anything but themselves.
+
+### Told, Not Guessed: How It Knows the Undo Stack Is Still Ours
+`Sketchup.undo` pops whatever is on top. 5.1.0 decided whether that was our push by
+counting entities and probing for a face at the pushed position — which could not be
+made to work for a loop cut (nothing moves) and refused in cases it did not need to.
+
+Now the tool is **told**. The watch rides on the model while a modifier tool is
+active. Any transaction that lands after ours — a commit, an undo, a redo, from any
+source — closes the record. `onCancel(2)`, which SketchUp raises on a user undo, is
+the second witness. A cheap entity-count check stays as a third, run once at the
+moment a size is typed, before anything is undone. While our own undo-and-rebuild
+runs the watch is told to look away, so a retype is not closed by its own footsteps.
+
+That is why a loop cut can be armed now: there is nothing left to verify by probing.
+
+What does NOT close it: moving the mouse, hovering other faces, TAB, the arrows,
+SHIFT, opening the right-click menu, SHIFT-banking more chamfer edges. Only the
+three things that end it natively do.
+
+### The Ghost
+After every successful retype the preview comes back for a beat. For a push: the
+start loop, the face at its moved position, the rungs between and the travel arrow,
+sweeping from the old distance to the new with `Push 3000 → 5000 mm` written on it.
+An inward quad value draws as the loop cut it is. The 2D tool's swept strip comes
+along when the record came from an edge. For a chamfer: the same cut-face painter
+the live drag uses, fed a solve re-scaled to the interpolated setback — every
+chamfer point is its corner vertex plus an offset that grows in proportion to the
+setback, mitred corners included, so one solve describes the cut at every setback.
+
+Timing: 0.30 s of cubic ease-out travel, 0.25 s held at the new size, then clear.
+The ghost geometry is copied out of the record at the start, so a record dropped
+mid-sweep cannot leave a draw pass holding nothing, and the draw is fenced so a ghost
+can never be the thing that kills a frame.
+
+### Double-Click Repeat and the Model Dictionary
+Every successful placement writes its measured value to
+`Na__InsertPrimatives__ToolMemory` on the model —
+`Na__DeepPushPull__LastDistanceMm` (signed: negative is into the material) and
+`Na__DeepChamfer__LastSetbackMm` — in millimetres so the dictionary reads sensibly.
+
+It is written **inside the placing operation**, between `start_operation` and
+`commit_operation`. A model attribute write is itself undoable; written on its own
+it would cost a second Ctrl+Z after every push. Merged into the placement it rides
+in the same step, and undoing the push forgets it too, which is the right answer.
+An aborted operation rolls the write back, so the tool re-reads the dictionary on
+that path rather than trusting what it just set.
+
+A double-click arrives as Down, Up, DoubleClick, Up, and the first Down has already
+grabbed the target. If the mouse has not travelled since the grab (the same 6 px
+click-versus-drag test the tools already use) there is no drag to place, and the
+remembered value is applied — to the face, or to the edge and everything banked
+with it. A double-click landing within 0.55 s of a placement is read as "place, then
+grab the next face" and left alone, because that is what two quick clicks on a busy
+model almost always are. The value is read back on activation, so it survives a
+tool switch, a plugin reload and a reopened file. `2D` and `3D` share one key on
+purpose: to the user they are one tool.
+
+The measurements box at idle now always has a number in it: the placed size while a
+retype is open, otherwise the remembered size a double-click will repeat.
+
+### Sign Conventions, Per Tool
+- **Push/pull, after placing:** the sign is a direction. `1200` is 1200 the way you
+  dragged, `-1200` the other way, anchored to the ORIGINAL drag direction so
+  `-1200` then `1200` lands back where the first push was. Unchanged from 5.1.0.
+- **Chamfer, after cutting:** a setback has no direction, so the sign keeps its
+  plugin-wide meaning — `+5` is five more than the placed setback, `-5` five less,
+  `75` is seventy-five.
+
+### The Menu Stays Where You Put It
+The popup used to open at the cursor on every right-click, so the buttons were
+somewhere new each time and the hand never learned them. It is now **anchored** by
+default: it opens at the cursor the first time only, and after that wherever it was
+last left. Drag it by its title bar and it stays there, at whatever size it was
+resized to, across right-clicks, tools and sessions.
+
+New per-user document, kept apart from AppConfig because a window position has no
+business in a diff of the plugin's own switches:
+
+`02__AppData/Na__InsertPrimatives__UserConfig__Main.json`
+
+```json
+{
+    "Na__InsertPrimatives__UserConfig": {
+        "Na__RightClickMenu__Config": {
+            "Na__RightClickMenu__AnchorMode": "anchored",
+            "Na__RightClickMenu__Position": { "Na__Position__X": null, "Na__Position__Y": null },
+            "Na__RightClickMenu__Size":     { "Na__Size__Width": 216, "Na__Size__Height": null }
+        }
+    }
+}
+```
+
+`Na__InsertPrimatives__AppData__UserConfigLoader__.rb` reads it over the defaults
+(deep-merged, unknown keys carried through), and offers `Na__UserConfig__Get` /
+`Na__UserConfig__Set` by key path. The placement is read back with `get_position` /
+`get_size` (SketchUp 2021.1+) in the moment before the popup closes — the only moment
+it is certain to still have one — and validated: a window already on its way out
+answers with zeros, and a remembered 0,0 is far more likely to be that than a choice.
+A `Menu: Anchored (drag to move)` / `Menu: At Cursor` button at the foot of the popup
+flips the mode in place. **Extensions › Na__InsertPrimitives › Reset Menu Position**
+forgets the spot, for the day a monitor is unplugged and the popup opens off-screen.
+
+A remembered height TALLER than the buttons need is kept as the user's own resize;
+one shorter would clip the last button, so the content wins. The popup is now
+`resizable: true`.
+
+### Shape Tools: No Longer Disarmed by a Twitch
+The plane, volume, cylinder and roof tools revise by rebuilding the group they still
+hold, and that offer was withdrawn the moment the mouse moved eight pixels. No native
+tool does that. The mouse-move disarm, its constant and its anchor coordinates are
+gone from `DrawnToolShared`; only starting a new drag, the group ceasing to exist,
+or leaving the tool ends it.
+
+### Also
+- `Na__DeepPick__SameContext?` in DeepPick Context is now the one answer to "are
+  these two editing contexts the same place" — the push commit, ExecuteInContext
+  and every revise use it; the copy in the Commit mixin is gone.
+- Tool memory and the UserConfig loader are in the load manifest; the project
+  structure rule documents the config split and the revise contract.
+
+### Files Added
+1. `02__AppData/Na__InsertPrimatives__UserConfig__Main.json`
+2. `02__AppData/Na__InsertPrimatives__AppData__UserConfigLoader__.rb`
+3. `02__AppData/Na__InsertPrimatives__AppData__ToolMemory__.rb`
+4. `06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__.rb`
+5. `06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__Watch__.rb`
+6. `06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__Animate__.rb`
+7. `31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Revise__.rb`
+
+### Files Touched
+- `DrawnPushPull__Revise__.rb` — rewritten onto the shared contract
+- `DrawnPushPull__Commit__.rb` — snapshot / capture through the new names; memory
+  write inside the operation; SameContext? from DeepPick
+- `DrawnPushPullTool__.rb` / `DrawnPushPull2dTool__.rb` — includes, double-click
+  repeat, ghost overlay in draw, status and measurements-box wording, hints
+- `DrawnChamferTool__.rb` — includes, member snapshot before the cut, capture after,
+  batch op count, double-click repeat, ghost overlay, status / VCB / VCB entry
+- `DrawnToolShared__.rb` — mouse-move disarm removed
+- `DrawnDeepPick__Context__.rb` — `Na__DeepPick__SameContext?`
+- `RightClickPopup__.rb` / `RightClickPopup__Html__.rb` — anchored placement, size
+  memory, anchor toggle, reset
+- `Na__InsertPrimatives__Loader__.rb` — Reset Menu Position entry
+- `AppCore__LoadManifest__.rb`, `AppCore__Main__.rb`, the project structure rule
+
+### Status: IMPLEMENTED — NOT YET VERIFIED IN SKETCHUP
+No Ruby interpreter on the build machine. Reload Plugin Data and check, in this order:
+
+1. Push a face 300, type 1200, type -600, type 900 — each retype replays the ghost
+   and Ctrl+Z afterwards unwinds the lot in ONE press
+2. Same with QUADS armed dragging INWARD (a loop cut) — the inset retypes and the
+   ghost sweeps the ring
+3. Same inside a group, and inside a group inside a group
+4. Move the mouse a long way, hover other faces, press TAB and an arrow, open and
+   close the right-click menu — then type: the retype must still be open
+5. Ctrl+Z yourself, then type — must say "no longer the last thing done" and leave
+   the model alone; same after editing something with another panel
+6. Push a face, wait a second, double-click another face — same distance; with
+   QUADS on and an inward memory it must loop-cut
+7. Push, then within half a second click a new face — must grab, not repeat
+8. Save, reopen, activate the tool, double-click a face — the distance survived
+9. 2D elevation edge pull, retype, double-click another edge
+10. Chamfer 50, type 75, type +5, type -10; double-click another edge
+11. SHIFT-bank three edges across two groups, cut, retype — both groups move
+12. Right-click: menu opens at the cursor the first time; drag it away, close it,
+    right-click again — it opens where it was left. Toggle the Menu button, check
+    Reset Menu Position, resize it taller and confirm the height is kept
+13. Drawn Volume: draw a box, waggle the mouse, type 2400,1200,300 — it corrects
+
+# =============================================================================
+
 ## Version 5.1.0 - 07-Sep-2026 - Retype a Push After You Have Placed It
 
 ### Reported

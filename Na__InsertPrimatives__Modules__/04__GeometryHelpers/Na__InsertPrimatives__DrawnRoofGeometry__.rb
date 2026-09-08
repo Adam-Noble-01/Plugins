@@ -304,6 +304,7 @@ module Na__InsertPrimatives
 
         group      = entities.add_group
         group.name = NA_DRAWN_ROOF_GROUP_NAMES[kind] || '01__DrawnRoof'
+        Na__InsertPrimatives.Na__DrawnGeom__PinGroupToWorld(group)             # <-- Global loops into a closed group: see DrawnGeometry
 
         if Na__InsertPrimatives.Na__DrawnRoof__AddFaces(group.entities, loops) < 3
             model.abort_operation

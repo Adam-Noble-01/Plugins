@@ -82,7 +82,6 @@ module Na__InsertPrimatives
 
         NA_DRAWN_SLOT_KEYS        = [:u, :v, :d].freeze
         NA_DRAWN_DRAG_MIN_PX      = 6.0                                        # <-- Below this a press-release is a click
-        NA_DRAWN_REVISE_DISARM_PX = 8.0                                        # <-- Mouse travel that ends revise-last mode
         NA_DRAWN_PLANE_LOCK_CYCLE = [:auto, :xy, :xz, :yz].freeze
 
         # Digits, numpad and the main-row = + , - . keys. Seeing one of these
@@ -130,8 +129,6 @@ module Na__InsertPrimatives
             @na_last_status_text  = nil
 
             @na_revise_armed      = false
-            @na_revise_anchor_x   = nil
-            @na_revise_anchor_y   = nil
             @na_last_record       = nil
 
             @na_tab_held          = false
@@ -315,7 +312,6 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def onMouseMove(flags, x, y, view)
             na_drawn__sync_modifier(flags)
-            na_drawn__disarm_revise_if_moved(x, y)
             na_drawn__update_cursor(view, x, y)
             na_drawn__update_status_text
             na_drawn__refresh_vcb
@@ -1021,37 +1017,28 @@ module Na__InsertPrimatives
         # -----------------------------------------------------------------------------
         # REGION | Revise-Last-Shape Arming
         # -----------------------------------------------------------------------------
+        #
+        # The shape tools (plane, volume, cylinder, roofs) revise by rebuilding
+        # the group they still hold, so a typed size after drawing corrects the
+        # shape in place. Until 5.1.1 that offer was withdrawn the moment the
+        # mouse moved eight pixels — a twitch of the hand between clicking and
+        # typing was enough to lose it, which no native tool does. Now only the
+        # things that end it natively end it: starting a new drag, the group
+        # ceasing to exist (an undo), or leaving the tool. The modifier tools
+        # run their own, richer version of this — see DrawnReviseShared.
+        # -----------------------------------------------------------------------------
 
         # FUNCTION | Arm Revise Mode After a Shape Is Committed
         # ------------------------------------------------------------
         def na_drawn__arm_revise
-            @na_revise_armed    = true
-            @na_revise_anchor_x = @na_last_mouse_x
-            @na_revise_anchor_y = @na_last_mouse_y
+            @na_revise_armed = true
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Disarm Revise Mode
         # ------------------------------------------------------------
         def na_drawn__disarm_revise
-            @na_revise_armed    = false
-            @na_revise_anchor_x = nil
-            @na_revise_anchor_y = nil
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Disarm Revise Mode Once the Mouse Deliberately Moves
-        # ------------------------------------------------------------
-        def na_drawn__disarm_revise_if_moved(x, y)
-            return unless @na_revise_armed
-
-            if @na_revise_anchor_x.nil? || @na_revise_anchor_y.nil?
-                na_drawn__disarm_revise
-                return
-            end
-
-            travelled = (x.to_f - @na_revise_anchor_x.to_f).abs + (y.to_f - @na_revise_anchor_y.to_f).abs
-            na_drawn__disarm_revise if travelled > NA_DRAWN_REVISE_DISARM_PX
+            @na_revise_armed = false
         end
         # ---------------------------------------------------------------
 

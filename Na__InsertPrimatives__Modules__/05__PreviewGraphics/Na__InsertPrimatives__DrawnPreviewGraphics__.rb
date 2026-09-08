@@ -72,40 +72,28 @@ module Na__InsertPrimatives
     # REGION | World to Draw Space
     # -----------------------------------------------------------------------------
 
-    # THE THIRD COORDINATE RULE (the nested-preview fix):
-    # - Two rules were already known and are documented in the chamfer tool:
-    #   entity positions READ are definition-local, and geometry ADDED while an
-    #   editing context is open is interpreted in the editing session's space.
-    # - This is the third, and it is the same pipeline as the second: points
-    #   handed to View#draw / View#draw_line / View#screen_coords while a
-    #   context is open are ALSO read in the editing session's space. Feed those
-    #   calls correct world coordinates with a group open and the whole preview
-    #   renders at edit_transform * point — displaced by exactly the group's
-    #   transform, right shape, right size, wrong place. Skewed as well if the
-    #   group is rotated or scaled.
-    # - Push/pull never met the ADD rule because pushpull takes a scalar, which
-    #   is why the geometry it commits has always landed correctly while the
-    #   preview drifted. The preview is the only half that draws positions.
-    # - So every world point crossing into a view call is converted here, and
-    #   the conversion happens at exactly ONE layer: the functions below that
-    #   touch view.draw* directly. The composite overlays delegate to those and
-    #   must NOT convert again.
-    # - At the model root edit_transform is the identity and this is a no-op,
-    #   which is why loose geometry was never affected.
+    # VIEW DRAWING IS GLOBAL. THERE IS NO DRAW SPACE TO CONVERT TO.
+    # - Everything handed to View#draw, View#draw_line and View#screen_coords
+    #   is read in global coordinates, open context or not — the same space
+    #   InputPoint#position and View#pickray speak, which is why the classic
+    #   line tool draws straight between two InputPoints inside any group.
+    # - 0.4.36 believed otherwise and applied edit_transform.inverse to every
+    #   preview point. It "worked" because the deep pick was at the same time
+    #   applying edit_transform to positions that were ALREADY global (the rule
+    #   in the DeepPick hub header): the two errors cancelled for a face in the
+    #   open context, and for nothing else. A face inside a closed group one
+    #   level below the open one was picked correctly and then drawn through
+    #   the inverse — displaced by exactly the open group's transform, which is
+    #   the "preview is messed up inside nested objects" of 5.1.2.
+    # - The pick is fixed at source, so this seam now hands every point back
+    #   untouched. It is kept as the ONE place a correction would go if SketchUp
+    #   ever changed its mind: every function below that touches view.draw*
+    #   still routes through it, and the composite overlays must not convert.
 
-    # FUNCTION | The World to Draw Space Transformation, or nil at the Root
+    # FUNCTION | The World to Draw Space Transformation — nil: They Are the Same Space
     # ------------------------------------------------------------
     def self.Na__DrawnPreview__DrawSpace
-        model = Sketchup.active_model
-        return nil unless model && model.respond_to?(:edit_transform)
-
-        edit = model.edit_transform
-        return nil if edit.nil?
-        return nil if edit.respond_to?(:identity?) && edit.identity?
-
-        edit.inverse
-    rescue StandardError
-        nil                                                                   # <-- A failed conversion draws in world, as before
+        nil
     end
     # ---------------------------------------------------------------
 

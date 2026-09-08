@@ -39,9 +39,11 @@ module Na__InsertPrimatives
 
     NA_LOAD_MANIFEST = [
         '02__AppData/Na__InsertPrimatives__AppData__ConfigLoader__.rb',
+        '02__AppData/Na__InsertPrimatives__AppData__UserConfigLoader__.rb',
         '03__AppUtils/Na__InsertPrimatives__UserInput__VcbFunctions__.rb',
         '04__GeometryHelpers/Na__InsertPrimatives__DrawnGridSnap__.rb',
         '02__AppData/Na__InsertPrimatives__AppData__DrawnSettings__.rb',
+        '02__AppData/Na__InsertPrimatives__AppData__ToolMemory__.rb',
         '03__AppUtils/Na__InsertPrimatives__AppUtils__DrawnFormat__.rb',
         '03__AppUtils/Na__InsertPrimatives__DrawnVcbArithmetic__.rb',
         '05__PreviewGraphics/Na__InsertPrimatives__3dPreviewGraphics__.rb',
@@ -54,6 +56,9 @@ module Na__InsertPrimatives
         '03__AppUtils/Na__InsertPrimatives__KeyboardHandlers__.rb',
         '01__AppCore/Na__InsertPrimatives__AppCore__ModeSwitch__.rb',
         '06__Tools__DrawnShared/Na__InsertPrimatives__DrawnToolShared__.rb',
+        '06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__Watch__.rb',
+        '06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__Animate__.rb',
+        '06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__.rb',
         '10__System__PlaceCube/Na__InsertPrimatives__PrimitiveCubeTool__.rb',
         '20__System__DrawnPrimitives/Na__InsertPrimatives__DrawnPlaneTool__.rb',
         '20__System__DrawnPrimitives/Na__InsertPrimatives__DrawnVolumeTool__.rb',
@@ -73,6 +78,7 @@ module Na__InsertPrimatives
         '30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull2dTool__.rb',
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Geometry__.rb',
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Mitre__.rb',
+        '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Revise__.rb',
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamferTool__.rb'
     ].freeze
 
