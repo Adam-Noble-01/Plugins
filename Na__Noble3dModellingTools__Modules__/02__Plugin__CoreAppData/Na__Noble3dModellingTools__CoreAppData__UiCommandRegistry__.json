@@ -165,6 +165,15 @@
             "expose_to_hotkeys" : true
         },
         {
+            "command_id"        : "mega_explode",
+            "command_name"      : "Na Noble3d - Mega Explode",
+            "tooltip"           : "Recursively explode every nested group and component in the current selection",
+            "status_bar_text"   : "Open Mega Explode",
+            "menu_text"         : "Mega Explode",
+            "handler_key"       : "mega_explode",
+            "expose_to_hotkeys" : true
+        },
+        {
             "command_id"        : "insert_component_in_place",
             "command_name"      : "Na Noble3d - Insert Component In Place",
             "tooltip"           : "Load a SketchUp component file and insert it at its original global coordinates",
@@ -643,6 +652,17 @@
             "description"            : "Converts selected groups into instances of a single shared component. Pick the inference group to set the component axes. Original world positions are preserved."
         },
         {
+            "button_id"              : "btn_mega_explode",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Explode Tools",
+            "tool_group_description" : "Recursively explode nested groups and components in the current selection.",
+            "tool_group_order"       : 15,
+            "button_order"           : 10,
+            "button_label"           : "Mega Explode",
+            "command_id"             : "mega_explode",
+            "description"            : "Recursively explodes every nested group and component in the selection. Optional cleanup can untag, strip materials, delete faces and surfaces, and purge unused."
+        },
+        {
             "button_id"              : "btn_selected_hierarchy_tag_reporter",
             "tab_name"               : "Entity Utils",
             "tool_group_name"        : "Component Inspection",
@@ -1079,6 +1099,10 @@
         },
         {
             "command_id"        : "convert_groups_to_component",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "mega_explode",
             "expose_to_hotkeys" : true
         },
         {

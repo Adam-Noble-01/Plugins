@@ -1,0 +1,226 @@
+<!doctype html>
+<!--
+=============================================================================
+NA NOBLE3D MODELLING TOOLS - MEGA EXPLODE - UI LAYOUT
+=============================================================================
+
+FILE       : Na__Noble3dModellingTools__MegaExplode__UiLayout__.html
+PURPOSE    : HtmlDialog shell for Mega Explode. Live selection stats, cleanup
+             toggles (all off by default), and an in-dialog confirm modal
+             before the recursive explode runs. Assets are inlined by the
+             DialogManager via set_html.
+
+INJECTION  : {{STYLESHEET_CONTENT}}  - Na__Noble3dModellingTools__MegaExplode__Styles__.css
+             {{UI_BRIDGE_SCRIPT}}    - Na__Noble3dModellingTools__MegaExplode__UiBridge__.js
+
+RUBY -> JS : Na__MegaExplode__ReceivePayload(payload)
+             Na__MegaExplode__ReceiveSelection(selection)
+             Na__MegaExplode__ReceiveStatus(message, variant)
+JS -> RUBY : sketchup.na_dialog_ready / na_refresh / na_set_options
+             sketchup.na_explode      / na_js_log
+
+=============================================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Na Noble3d Tools : Mega Explode</title>
+  <style>
+    {{STYLESHEET_CONTENT}}
+  </style>
+</head>
+<body>
+
+  <div class="naMegaExplode__App">
+
+    <div class="naMegaExplode__Toolbar">
+      <span class="naMegaExplode__ToolbarLabel">Mega Explode</span>
+      <div class="naMegaExplode__ToolbarSpacer"></div>
+      <button id="naMegaExplode_btnRefresh" class="naMegaExplode__Btn naMegaExplode__Btn--secondary" type="button"
+              title="Re-read the current selection">Refresh</button>
+    </div>
+
+    <div class="naMegaExplode__Body">
+
+      <section class="naMegaExplode__Group">
+        <div class="naMegaExplode__GroupTitle">What This Does</div>
+        <div class="naMegaExplode__Hint">
+          Recursively explodes every group and component in the current selection,
+          at every nested level, including mixed sibling stacks. Directly selected
+          faces and edges stay in place. The whole run is one SketchUp Undo step.
+        </div>
+      </section>
+
+      <section class="naMegaExplode__Group">
+        <div class="naMegaExplode__GroupTitle">Current Selection</div>
+
+        <div class="naMegaExplode__StatGrid">
+          <div class="naMegaExplode__Stat" id="naMegaExplode_statGroupsWrap">
+            <span class="naMegaExplode__StatValue" id="naMegaExplode_statGroups">0</span>
+            <span class="naMegaExplode__StatLabel">groups</span>
+          </div>
+          <div class="naMegaExplode__Stat" id="naMegaExplode_statComponentsWrap">
+            <span class="naMegaExplode__StatValue" id="naMegaExplode_statComponents">0</span>
+            <span class="naMegaExplode__StatLabel">components</span>
+          </div>
+          <div class="naMegaExplode__Stat" id="naMegaExplode_statDepthWrap">
+            <span class="naMegaExplode__StatValue" id="naMegaExplode_statDepth">0</span>
+            <span class="naMegaExplode__StatLabel">levels deep</span>
+          </div>
+        </div>
+
+        <div class="naMegaExplode__StatGrid naMegaExplode__StatGrid--second">
+          <div class="naMegaExplode__Stat" id="naMegaExplode_statFacesWrap">
+            <span class="naMegaExplode__StatValue" id="naMegaExplode_statFaces">0</span>
+            <span class="naMegaExplode__StatLabel">faces</span>
+          </div>
+          <div class="naMegaExplode__Stat" id="naMegaExplode_statEdgesWrap">
+            <span class="naMegaExplode__StatValue" id="naMegaExplode_statEdges">0</span>
+            <span class="naMegaExplode__StatLabel">edges</span>
+          </div>
+          <div class="naMegaExplode__Stat" id="naMegaExplode_statLockedWrap">
+            <span class="naMegaExplode__StatValue" id="naMegaExplode_statLocked">0</span>
+            <span class="naMegaExplode__StatLabel">locked</span>
+          </div>
+        </div>
+
+        <div class="naMegaExplode__MetaGrid">
+          <div class="naMegaExplode__Meta">
+            <span class="naMegaExplode__MetaLabel">Selected</span>
+            <span class="naMegaExplode__MetaValue" id="naMegaExplode_statSelected">0</span>
+          </div>
+          <div class="naMegaExplode__Meta">
+            <span class="naMegaExplode__MetaLabel">Definitions</span>
+            <span class="naMegaExplode__MetaValue" id="naMegaExplode_statDefinitions">0</span>
+          </div>
+          <div class="naMegaExplode__Meta">
+            <span class="naMegaExplode__MetaLabel">Tagged entities</span>
+            <span class="naMegaExplode__MetaValue" id="naMegaExplode_statTagged">0</span>
+          </div>
+          <div class="naMegaExplode__Meta">
+            <span class="naMegaExplode__MetaLabel">Unique tags</span>
+            <span class="naMegaExplode__MetaValue" id="naMegaExplode_statTags">0</span>
+          </div>
+          <div class="naMegaExplode__Meta">
+            <span class="naMegaExplode__MetaLabel">Unique materials</span>
+            <span class="naMegaExplode__MetaValue" id="naMegaExplode_statMaterials">0</span>
+          </div>
+          <div class="naMegaExplode__Meta">
+            <span class="naMegaExplode__MetaLabel">Other placements</span>
+            <span class="naMegaExplode__MetaValue" id="naMegaExplode_statOthers">0</span>
+          </div>
+        </div>
+
+        <div class="naMegaExplode__NoteList" id="naMegaExplode_selectionNotes"></div>
+      </section>
+
+      <section class="naMegaExplode__Group">
+        <div class="naMegaExplode__GroupTitle">Cleanup Options</div>
+        <div class="naMegaExplode__Hint naMegaExplode__Hint--tight">
+          All off by default. Turn these on when you want exploded geometry ready to purge.
+        </div>
+
+        <label class="naMegaExplode__Check">
+          <input id="naMegaExplode_moveToUntagged" type="checkbox" />
+          <span class="naMegaExplode__CheckBody">
+            <span class="naMegaExplode__CheckLabel">Move all geometry to Untagged</span>
+            <span class="naMegaExplode__CheckHint">
+              SketchUp's default tag is Layer0, shown as Untagged. Every remaining
+              exploded entity is moved there so unused tags can be purged.
+            </span>
+          </span>
+        </label>
+
+        <label class="naMegaExplode__Check">
+          <input id="naMegaExplode_stripMaterials" type="checkbox" />
+          <span class="naMegaExplode__CheckBody">
+            <span class="naMegaExplode__CheckLabel">Strip all materials to Default</span>
+            <span class="naMegaExplode__CheckHint">
+              Clears front-face, back-face and edge materials back to Default
+              (nil in the API). Images are left alone. Helps unused materials purge afterwards.
+            </span>
+          </span>
+        </label>
+
+        <label class="naMegaExplode__Check">
+          <input id="naMegaExplode_deleteFaces" type="checkbox" />
+          <span class="naMegaExplode__CheckBody">
+            <span class="naMegaExplode__CheckLabel">Delete all faces and surfaces</span>
+            <span class="naMegaExplode__CheckHint">
+              Erases exploded faces and SketchUp surfaces (faces joined by soft
+              or smooth edges). Visible bounding edges stay as linework.
+            </span>
+          </span>
+        </label>
+
+        <label class="naMegaExplode__Check">
+          <input id="naMegaExplode_deleteHidden" type="checkbox" />
+          <span class="naMegaExplode__CheckBody">
+            <span class="naMegaExplode__CheckLabel">Delete hidden geometry</span>
+            <span class="naMegaExplode__CheckHint">
+              Erases remaining hidden faces, edges, construction and leftover containers.
+              Hidden edges that still bound a visible face will also erase that face.
+            </span>
+          </span>
+        </label>
+
+        <label class="naMegaExplode__Check">
+          <input id="naMegaExplode_unlockLocked" type="checkbox" />
+          <span class="naMegaExplode__CheckBody">
+            <span class="naMegaExplode__CheckLabel">Unlock locked containers first</span>
+            <span class="naMegaExplode__CheckHint">
+              Locked groups and components cannot explode. Off: they are skipped and
+              reported. On: they are unlocked, then exploded with the rest.
+            </span>
+          </span>
+        </label>
+
+        <label class="naMegaExplode__Check">
+          <input id="naMegaExplode_purgeUnused" type="checkbox" />
+          <span class="naMegaExplode__CheckBody">
+            <span class="naMegaExplode__CheckLabel">Purge unused after explode</span>
+            <span class="naMegaExplode__CheckHint">
+              Removes unused component definitions, materials and tags from the model
+              in the same undo step.
+            </span>
+          </span>
+        </label>
+      </section>
+
+    </div>
+
+    <div class="naMegaExplode__ActionBar">
+      <button id="naMegaExplode_btnExplode" class="naMegaExplode__Btn naMegaExplode__Btn--primary" type="button" disabled>
+        Explode Selection...
+      </button>
+    </div>
+
+    <div class="naMegaExplode__StatusBar">
+      <div class="naMegaExplode__StatusText" id="naMegaExplode_status">Ready.</div>
+    </div>
+
+  </div>
+
+  <div id="naMegaExplode_modal" class="naMegaExplode__Modal">
+    <div class="naMegaExplode__ModalCard" role="dialog" aria-modal="true" aria-labelledby="naMegaExplode_modalTitle">
+      <div class="naMegaExplode__ModalTitle" id="naMegaExplode_modalTitle">Recursively explode everything?</div>
+      <div class="naMegaExplode__ModalBody" id="naMegaExplode_modalBody"></div>
+      <div class="naMegaExplode__ModalActions">
+        <button id="naMegaExplode_btnCancel" class="naMegaExplode__Btn naMegaExplode__Btn--secondary" type="button">
+          Cancel
+        </button>
+        <button id="naMegaExplode_btnConfirm" class="naMegaExplode__Btn naMegaExplode__Btn--danger" type="button">
+          Explode Everything
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    {{UI_BRIDGE_SCRIPT}}
+  </script>
+
+</body>
+</html>

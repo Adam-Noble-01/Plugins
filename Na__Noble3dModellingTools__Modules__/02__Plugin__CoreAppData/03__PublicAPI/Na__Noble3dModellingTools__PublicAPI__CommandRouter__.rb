@@ -195,6 +195,9 @@ module Na__Noble3dModellingTools
             when 'paint_deep_nested_faces_repeat'
                 proc { Na__PaintDeepNestedFaces.Na__PaintDeepNestedFaces__RunWithSavedSettings }
 
+            when 'mega_explode'
+                proc { Na__MegaExplode.Na__MegaExplode__Run }
+
             else
                 nil
             end

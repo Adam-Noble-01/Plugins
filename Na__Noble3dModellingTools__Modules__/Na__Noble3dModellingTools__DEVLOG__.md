@@ -3,6 +3,36 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.8.5 - 09-Sep-2026 - Mega Explode
+
+### Update 01 - New Feature Module: Mega Explode
+- Entity Utils gains **Explode Tools** with **Mega Explode**: recursively explodes every nested group and component in the current selection, including mixed sibling stacks.
+- Dedicated HtmlDialog with live selection stats (groups, components, depth, faces, edges, tags, materials) and an in-dialog confirm modal before the explode runs.
+- Cleanup toggles are all off by default: move exploded geometry to Untagged (Layer0), strip materials to Default, delete faces and surfaces, delete hidden geometry, unlock locked containers first, and purge unused definitions / materials / tags.
+- Sub-devlog: `10__PluginModules/30__SourceCode__MegaExplode/Na__Noble3dModellingTools__MegaExplode__DEVLOG__.md` (module version 1.0.1).
+
+### Update 02 - Hang With Every Cleanup Toggle On
+- Live run with every toggle on froze SketchUp. Not expected cost: four bugs stacked after explode.
+- Hidden delete called `all_connected` on every remaining face and edge, so each call walked the parent mesh.
+- Surface walk treated hidden edges as soft/smooth joins and queued neighbours without a seen-check, so the flood could cover the whole model.
+- Survivors were added to the selection one by one, and the live selection observer kept walking stats on every explode mutation.
+- Fix: remaining ents and queued containers are deduped by `entityID`; hidden delete only inspects remaining ents and each remaining face's own edges; surface walk is soft/smooth only, marks faces seen before enqueue, and caps at 250,000 faces; reselect adds in batches of 500; the dialog detaches the selection observer for the explode, then reattaches.
+
+### Validation Checklist
+- [x] Registry JSON parses; command, button and hotkey binding resolve.
+- [x] Module loader, command router and reload-manager dialog reset wired.
+- [x] UiBridge.js passes `node --check`.
+- [x] Dialog opens from Entity Utils > Explode Tools; search finds "explode".
+- [x] Recursive explode of mixed nested stacks is one undo step.
+- [ ] Locked containers skipped unless unlock is on.
+- [ ] Untagged / strip / purge only run when their toggles are on.
+- [ ] Reload Plugin Data, then retest a nested selection with every cleanup toggle on (1.0.1 hang fix).
+
+### Status
+**Exercised in SketchUp.** Feature is live; the all-toggles hang is patched in module 1.0.1. Reload Plugin Data before retesting that path.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.8.4 - 31-Aug-2026 - Face Pattern Generator: Floor Tiling Setting-Out Offset
 
 ### Update 01 - Offset X / Offset Y

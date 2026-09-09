@@ -135,6 +135,12 @@ module Na__Noble3dModellingTools
                 Na__PaintDeepNestedFaces__DialogManager.Na__PaintDeepNestedFaces__ResetDialog
                 puts '[Na__Noble3dModellingTools] Reload reset Paint Deep Nested Faces dialog.'
             end
+
+            if defined?(Na__MegaExplode__DialogManager) &&
+               Na__MegaExplode__DialogManager.respond_to?(:Na__MegaExplode__ResetDialog)
+                Na__MegaExplode__DialogManager.Na__MegaExplode__ResetDialog
+                puts '[Na__Noble3dModellingTools] Reload reset Mega Explode dialog.'
+            end
         rescue => error
             puts "[Na__Noble3dModellingTools] Feature dialog reset warning: #{error.class}: #{error.message}"
         end
