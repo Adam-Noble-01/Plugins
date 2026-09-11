@@ -2,7 +2,7 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Components__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp component and group naming conventions. Documents the prefix systems, ID formats, sub-part names, and attribute dictionary keys used across all Na__ plugins. Serves as the reference for any plugin that creates or identifies Na__ components in the model. Also defines the Na__DataLib__PipelineExclusions render-pipeline exclusion lists consumed by the TrueVision GLB Builder and the TrueVision3D WebApp renderer.",
-        "version"           : "1.4.4",
+        "version"           : "1.4.5",
         "lastUpdated"       : "11-Sep-2026",
         "sourceFiles"       : [
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__DataSerializer__.rb",
@@ -161,7 +161,7 @@
         },
 
         "SceneEntourage2D__Billboard__": {
-            "Description"           : "2D planar scene entourage components that always face the camera (billboard / camera-follow). People and pets are scene decoration, distinct from SiteVegetation2D__Billboard__ (trees/planting). Two standards share this family: Detailed types (Person, Dog, Cat) are linework with optional whitecard faces; Silhouette types ({Type} prefixed Silhouette, e.g. SilhouettePerson) are fill-only, with faces painted MAT901__Entourage__Silhouette__MidGrey and linework omitted at export by the ProfileLines token __SceneEntourage__Silhouette. Exported with hierarchy preservation and pivot data baked into glTF node extras for ValeVision and TrueVision.",
+            "Description"           : "2D planar scene entourage components that always face the camera (billboard / camera-follow). People and pets are scene decoration, distinct from SiteVegetation2D__Billboard__ (trees/planting). Two standards share this family: Detailed types (Person, Dog, Cat) are linework with optional whitecard faces; Silhouette types ({Type} prefixed Silhouette, e.g. SilhouettePerson) are fill-only and go on tag 61__Scene__Entourage__Silhouette (own GLB segment, so they switch on/off separately in ValeVision), with faces painted MAT901__Entourage__Silhouette__MidGrey and linework omitted at export by the ProfileLines token __SceneEntourage__Silhouette and the tag's LineworkHidden flag. Tag 61 is not this family's detection tag, so silhouettes are detected through the name regex below. Exported with hierarchy preservation and pivot data baked into glTF node extras for ValeVision and TrueVision.",
             "SourcePlugin"          : "Na__TrueVision__GlbBuilderUtility",
             "Tag__SketchUpName"     : "60__Scene__Entourage__2D",
             "ComponentNamePattern"  : "{NN}_{NNNN}__SceneEntourage__{Type}__{Name}__{HeightOrSize}__Var-{NN}",

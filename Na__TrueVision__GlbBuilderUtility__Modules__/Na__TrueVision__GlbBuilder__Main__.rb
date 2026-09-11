@@ -99,7 +99,8 @@ module TrueVision3D
         TREAT_AS_UNTAGGED_DEFAULTS  =   [].freeze                                 # <-- Hardcoded fallback - overridden by DataLib at runtime
         LINEWORK_HIDDEN_DEFAULTS    =   [
             "01__ModelFlag__FloorLevelLines",
-            "01__ModelFlag__BuildingJoinLines"
+            "01__ModelFlag__BuildingJoinLines",
+            "61__Scene__Entourage__Silhouette"                                     # <-- Fill-only entourage silhouettes never export linework
         ].freeze                                                                   # <-- Hardcoded fallback - overridden by DataLib at runtime
         LOGGING_CONSOLE_VERBOSE_DEFAULT     = false                               # <-- Hardcoded fallback - overridden by DataLib/AppConfig at runtime
         LOGGING_TEXT_FILE_ENABLED_DEFAULT   = true                                # <-- Hardcoded fallback - overridden by DataLib/AppConfig at runtime
@@ -472,7 +473,8 @@ module TrueVision3D
             "TrueVision__FirstFloorDecor"                   => [49],                  # <-- First Floor High Detail
             "TrueVision__Vegetation"                        => (50..59),              # <-- Vegetation
             "TrueVision__SceneEntourage2D"                   => [60],                  # <-- 2D camera-follow billboard entourage (people, pets)
-            "TrueVision__SceneContextual"                   => (61..70)               # <-- Scene Context (people, vehicles)
+            "TrueVision__SceneEntourageSilhouette"          => [61],                  # <-- 2D camera-follow fill-only entourage silhouettes (own toggle)
+            "TrueVision__SceneContextual"                   => (62..70)               # <-- Scene Context (people, vehicles)
         }
         SKIP_RANGES             =   [0, 2, 3, 4, 5, 6]                            # <-- Ignored tags - DO NOT EXPORT (tag 01 is now exported as OrbitHelperCube)
         MAX_NESTING_DEPTH       =   4                                             # <-- Maximum nesting depth for validation (4 to support storey container nesting)
@@ -499,6 +501,7 @@ module TrueVision3D
             8  => "SiteBoundaries",                                                # <-- Site boundaries (fences, walls, site lines)
             9  => "SiteVegetation2D",                                              # <-- 2D camera-follow billboard vegetation
             60 => "SceneEntourage2D",                                               # <-- 2D camera-follow billboard entourage (people, pets)
+            61 => "SceneEntourageSilhouette",                                       # <-- 2D camera-follow fill-only entourage silhouettes
             11 => "ExistingWalls",                                                 # <-- Existing Building Walls
             12 => "ExistingFloors",                                                # <-- Existing Building Floors
             13 => "ExistingRoofs",                                                 # <-- Existing Building Roofs

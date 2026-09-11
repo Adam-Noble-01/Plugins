@@ -8,6 +8,46 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.6.1 - 11-Sep-2026
+#### Entourage Silhouettes Get Their Own Tag (61) and GLB Segment
+
+**Why**
+- Fill-only entourage silhouettes (`60_03xx__SceneEntourage__SilhouettePerson__*`, grey
+  `MAT901__Entourage__Silhouette__MidGrey` fill, no linework) shared tag 60 with the Detailed
+  linework entourage, so ValeVision could only switch both on or off together. Scenes and
+  videos need to show one without the other.
+
+**New SSOT data**
+- Tags SSOT v2.2.2: new `61__Scene__Entourage__Silhouette` tag -> `TrueVision__SceneEntourageSilhouette`
+  GLB stem, range `[61]`, storey element `SceneEntourageSilhouette`, `Glb__LineworkHidden: true`
+  and listed in `ExportExclusions.LineworkHiddenTagNames`, so nothing on the tag exports linework.
+  Carved out of the Scene Context range exactly as tag 60 was: `61_70__SceneContextual` narrows to
+  `62_70__SceneContextual` (range `62..70`). Checked before carving: across all 150 Whitecardopedia
+  `project.json` files only 63752 Kay ever exported a SceneContextual GLB, and its current model
+  carries no 61-70 tag (that GLB predates the 02-Jul tag 60 carve-out).
+- Components SSOT v1.4.5: `SceneEntourage2D__Billboard__` description records that silhouettes go on
+  tag 61. No new family: tag 61 is not a family detection tag, so silhouettes on it fall through to
+  the family's name regex and keep their per-component `ShadeFlatness`.
+
+**Code**
+- `Na__TrueVision__GlbBuilder__TagsManager__.rb`: `NA__TAGS_MANAGER__CREATE_PREFIX_RANGES` carve-out
+  widens `(60..60)` -> `(60..61)`, so "Create Standard Tags" makes the new tag.
+- `Na__TrueVision__GlbBuilder__Main__.rb`: hardcoded fallbacks (used only if the DataLib fails to
+  load) updated in parallel: `TrueVision__SceneEntourageSilhouette => [61]`,
+  `TrueVision__SceneContextual => (62..70)`, `61 => "SceneEntourageSilhouette"`, and the tag added to
+  `LINEWORK_HIDDEN_DEFAULTS`.
+
+**Downstream**
+- Cloud Sync: no change. `Na__ValeVisionCloudSync__TagVisibilityCapture__.rb` flattens the local Tags
+  SSOT into `{ Tag__SketchUpName => Glb__ExportFileNameStem }`, so per-scene visibility of tag 61 is
+  captured as `ValeVision__SceneEntourageSilhouette` automatically.
+- ValeVision3D: the toggle menu, Presentation Mode scene visibility and Video Studio layer overrides
+  are all keyed by category, so the new GLB segment is toggleable with no new logic. ValeVision gets
+  a display label and joins the Layout Editor context categories (ValeVision DEVLOG, 11-Sep-2026).
+- The exporter reads the Tags SSOT GitHub-first: push the SSOT before syncing, or tag 61 still
+  exports into SceneContextual while Cloud Sync already captures it as the new category.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - MaterialHandling v3.1.1 - 21-Aug-2026
 #### SketchUp Opacity Passthrough for Non-Indexed Materials
 

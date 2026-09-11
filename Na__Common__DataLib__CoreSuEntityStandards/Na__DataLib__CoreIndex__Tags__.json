@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout).",
-        "version"           : "2.2.1",
-        "lastUpdated"       : "02-Jul-2026",
+        "version"           : "2.2.2",
+        "lastUpdated"       : "11-Sep-2026",
         "namingConvention"  : "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
         "fieldPrefixes"     : {
             "Tag__"    : "Core SketchUp tag identity (name, description)",
@@ -495,16 +495,25 @@
             },
             "60__Scene__Entourage__2D": {
                 "Tag__SketchUpName"          : "60__Scene__Entourage__2D",
-                "Tag__Description"           : "2D planar scene entourage components that always face the camera (billboard / camera-follow). Lightweight background people, pets, and similar linework or face assets authored as flat SketchUp components. Sibling of 09__Site__Vegetation__2D, carved out of the 60-70 Scene Context range. Exported as a dedicated GLB segment for separate visibility control in ValeVision and TrueVision.",
+                "Tag__Description"           : "2D planar scene entourage components that always face the camera (billboard / camera-follow). Lightweight background people, pets, and similar linework or face assets authored as flat SketchUp components. Sibling of 09__Site__Vegetation__2D, carved out of the 60-70 Scene Context range. Exported as a dedicated GLB segment for separate visibility control in ValeVision and TrueVision. Holds the Detailed (linework) entourage standard; fill-only silhouettes go on 61__Scene__Entourage__Silhouette so they switch on/off separately.",
                 "Glb__ExportRangeNumbers"    : [60],
                 "Glb__FullyExcluded"         : false,
                 "Glb__ExportFileNameStem"    : "TrueVision__SceneEntourage2D",
                 "Storey__ElementExportName"  : "SceneEntourage2D"
             },
-            "61_70__SceneContextual": {
-                "Tag__SketchUpName"          : "61_70__SceneContextual",
-                "Tag__Description"           : "Scene context objects - people, vehicles, site elements (tags 61 through 70). 2D camera-follow billboard people/pets use tag 60__Scene__Entourage__2D instead.",
-                "Glb__ExportRangeNumbers"    : [61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
+            "61__Scene__Entourage__Silhouette": {
+                "Tag__SketchUpName"          : "61__Scene__Entourage__Silhouette",
+                "Tag__Description"           : "Fill-only 2D camera-follow entourage silhouettes (SceneEntourage2D__Billboard__ family, {Type} prefixed Silhouette, e.g. 60_0301__SceneEntourage__SilhouettePerson__*). Own GLB segment, so silhouettes switch on/off separately from the Detailed entourage on tag 60 - in the ValeVision layer toggle menu, per SketchUp scene (Cloud Sync tag visibility) and per Video Studio path. Linework is suppressed for everything on this tag. Carved out of the Scene Context range, which narrows to 62-70.",
+                "Glb__ExportRangeNumbers"    : [61],
+                "Glb__FullyExcluded"         : false,
+                "Glb__LineworkHidden"        : true,
+                "Glb__ExportFileNameStem"    : "TrueVision__SceneEntourageSilhouette",
+                "Storey__ElementExportName"  : "SceneEntourageSilhouette"
+            },
+            "62_70__SceneContextual": {
+                "Tag__SketchUpName"          : "62_70__SceneContextual",
+                "Tag__Description"           : "Scene context objects - people, vehicles, site elements (tags 62 through 70). 2D camera-follow billboard people/pets use tag 60__Scene__Entourage__2D, and fill-only silhouettes use 61__Scene__Entourage__Silhouette, instead.",
+                "Glb__ExportRangeNumbers"    : [62, 63, 64, 65, 66, 67, 68, 69, 70],
                 "Glb__FullyExcluded"         : false,
                 "Glb__ExportFileNameStem"    : "TrueVision__SceneContextual"
             }
@@ -572,7 +581,8 @@
             "01__ModelFlag__FloorLevelLines",
             "01__ModelFlag__BuildingJoins__IndicatorLines",
             "01__ModelFlag__BuildingJoinLines",
-            "01__ModelFlag__OverheadObjects__IndicatorLines"
+            "01__ModelFlag__OverheadObjects__IndicatorLines",
+            "61__Scene__Entourage__Silhouette"
         ],
         "LineworkHiddenNote"       : "Entities on these tags export mesh geometry normally but all edges are suppressed in the linework GLB at any nesting depth. A group or component tagged with one of these names short-circuits the entire subtree from edge collection. Both canonical and legacy names are listed for backward compatibility with existing models.",
         "AdvancedSwapOffTagNames"  : [
