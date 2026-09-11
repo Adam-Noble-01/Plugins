@@ -19,7 +19,7 @@ module Na__Noble3dModellingTools
         SCRIPT_METHOD_INDEX = {
             "script_info" => {
                 "name"    => "Na__OrthoMirrorTool",
-                "version" => "1.2.0",
+                "version" => "1.2.1",
                 "purpose" => "2D Mirror Tool for Orthographic Views with Context-Aware Axis Locking"
             },
             "constants" => {

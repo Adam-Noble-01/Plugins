@@ -6,8 +6,8 @@
 // NAMESPACE  : window.Na__FacePattern__DynamicUI
 // AUTHOR     : Adam Noble - Noble Architecture
 // PURPOSE    : JSON-config-driven control panel builder — number inputs,
-//              slider-plus-box pairs, and selects from field-descriptor arrays
-//              in UiConfig. Select fields
+//              slider-plus-box pairs, selects, and section dividers from
+//              field-descriptor arrays in UiConfig. Select fields
 //              with an `applies` map write preset values into linked number
 //              fields; editing a linked field flips the select back to custom.
 //              A `showWhen` map hides a field until its source controls match.
@@ -51,6 +51,34 @@ window.Na__FacePattern__DynamicUI = (function () {
     }
     // ------------------------------------------------------------
 
+    // HELPER FUNCTION | Build the Rule and Subtitle That Opens a Field Section
+    // ------------------------------------------------------------
+    // Section descriptors carry no control of their own — they exist to break a
+    // long parameter list into named runs, and they hold no value.
+    function na_buildSection(field) {
+        var section = document.createElement('div');
+        section.className = 'naFacePat__Section';
+
+        var rule = document.createElement('hr');
+        rule.className = 'naFacePat__SectionRule';
+        section.appendChild(rule);
+
+        var title = document.createElement('div');
+        title.className = 'naFacePat__SectionTitle';
+        title.textContent = field.label;
+        section.appendChild(title);
+
+        if (field.hint) {
+            var hint = document.createElement('div');
+            hint.className = 'naFacePat__Hint';
+            hint.textContent = field.hint;
+            section.appendChild(hint);
+        }
+
+        return section;
+    }
+    // ------------------------------------------------------------
+
     // endregion ---------------------------------------------------------------
 
     // -------------------------------------------------------------------------
@@ -90,6 +118,13 @@ window.Na__FacePattern__DynamicUI = (function () {
 
         container.innerHTML = '';
         na_state.fields.forEach(function (field) {
+            if (field.type === 'section') {                                     // <-- Divider only, no value and no input
+                var section = na_buildSection(field);
+                na_state.groups[field.id] = section;
+                container.appendChild(section);
+                return;
+            }
+
             na_state.values[field.id] = field.default;
 
             var group = document.createElement('div');

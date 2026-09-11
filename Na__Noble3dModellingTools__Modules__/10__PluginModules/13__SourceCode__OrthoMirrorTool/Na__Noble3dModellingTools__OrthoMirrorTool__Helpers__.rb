@@ -34,6 +34,9 @@ module Na__Noble3dModellingTools
         # At the top level edit_transform is identity, so this returns the global
         # axis. Inside a group/component it returns the group's local axis expressed
         # in world coordinates, so the arrow-key lock follows "where the axis is set".
+        # edit_transform is the whole nesting stack, so this holds at any depth. It
+        # is the tool's ONLY use of edit_transform, and it turns a direction, never
+        # a point: clicks and geometry in the active context are already world.
         # ------------------------------------------------------------
         def self.world_axis_for_lock(lock_state, edit_transform)
             base_axis = get_axis_vector(lock_state)                      # <-- Local X/Y/Z (or nil)
@@ -181,9 +184,9 @@ module Na__Noble3dModellingTools
         # ------------------------------------------------------------
         # The mirror plane contains the mirror line and is perpendicular to the view.
         # Normal = cross product of mirror_line and view_direction.
-        # All vectors must be supplied in the SAME coordinate space (the caller works
-        # in the active edit-context's local space so the result applies cleanly to
-        # geometry inside groups/components).
+        # All vectors must be supplied in the SAME coordinate space. The caller
+        # passes world space: the clicks, the camera and the active context's
+        # geometry are all world, at any nesting depth.
         # ------------------------------------------------------------
         def self.calculate_mirror_plane_normal(start_point, end_point, view_direction)
             mirror_line = end_point - start_point                        # <-- Vector along mirror axis

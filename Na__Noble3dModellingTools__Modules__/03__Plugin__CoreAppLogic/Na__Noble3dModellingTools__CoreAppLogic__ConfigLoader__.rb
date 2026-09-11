@@ -139,12 +139,12 @@ module Na__Noble3dModellingTools
                     'expose_to_hotkeys' => true
                 },
                 {
-                    'command_id' => 'convert_components_to_groups',
-                    'command_name' => 'Na Noble3d - Convert Components To Groups',
-                    'tooltip' => 'Convert selected component instances and their nested components into groups',
-                    'status_bar_text' => 'Convert selected components to groups',
-                    'menu_text' => 'Convert Components To Groups',
-                    'handler_key' => 'convert_components_to_groups',
+                    'command_id' => 'group_component_converter',
+                    'command_name' => 'Na Noble3d - Group / Component Converter',
+                    'tooltip' => 'Convert groups to components or components to groups, at the current level or through every nested level',
+                    'status_bar_text' => 'Open Group / Component Converter',
+                    'menu_text' => 'Group / Component Converter',
+                    'handler_key' => 'group_component_converter',
                     'expose_to_hotkeys' => true
                 },
                 {
@@ -256,15 +256,15 @@ module Na__Noble3dModellingTools
                     'description' => 'Creates a grouped wire bounding box around the full extents of the current selection.'
                 },
                 {
-                    'button_id' => 'btn_convert_components_to_groups',
+                    'button_id' => 'btn_group_component_converter',
                     'tab_name' => 'Entity Utils',
                     'tool_group_name' => 'Component Containers',
                     'tool_group_description' => 'Utilities for changing SketchUp entity containers without editing their raw geometry.',
                     'tool_group_order' => 10,
                     'button_order' => 10,
-                    'button_label' => 'Convert Components To Groups',
-                    'command_id' => 'convert_components_to_groups',
-                    'description' => 'Converts selected component instances and nested component instances into independent SketchUp groups.'
+                    'button_label' => 'Group / Component Converter',
+                    'command_id' => 'group_component_converter',
+                    'description' => 'Converts groups to components or components to groups, at the current level or through every nested level, with live counts.'
                 },
                 {
                     'button_id' => 'btn_insert_component_in_place',
@@ -303,7 +303,7 @@ module Na__Noble3dModellingTools
                 { 'command_id' => 'auto_group_utility', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'auto_group_face_islands', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'create_bounding_box', 'expose_to_hotkeys' => true },
-                { 'command_id' => 'convert_components_to_groups', 'expose_to_hotkeys' => true },
+                { 'command_id' => 'group_component_converter', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'insert_component_in_place', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'reload_plugin_data', 'expose_to_hotkeys' => true }
             ]

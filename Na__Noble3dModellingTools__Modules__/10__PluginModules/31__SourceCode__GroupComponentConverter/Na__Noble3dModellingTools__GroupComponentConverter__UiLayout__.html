@@ -1,0 +1,239 @@
+<!doctype html>
+<!--
+=============================================================================
+NA NOBLE3D MODELLING TOOLS - GROUP / COMPONENT CONVERTER - UI LAYOUT
+=============================================================================
+
+FILE       : Na__Noble3dModellingTools__GroupComponentConverter__UiLayout__.html
+PURPOSE    : HtmlDialog shell for the Group / Component Converter. Two
+             switches (direction, reach), a live conversion preview, a
+             per-level nesting report, toggles, and an in-dialog confirm
+             modal. Assets are inlined by the DialogManager via set_html.
+
+INJECTION  : {{STYLESHEET_CONTENT}}  - Na__Noble3dModellingTools__GroupComponentConverter__Styles__.css
+             {{UI_BRIDGE_SCRIPT}}    - Na__Noble3dModellingTools__GroupComponentConverter__UiBridge__.js
+
+RUBY -> JS : Na__GroupComponentConverter__ReceivePayload(payload)
+             Na__GroupComponentConverter__ReceiveSelection(selection)
+             Na__GroupComponentConverter__ReceiveStatus(message, variant)
+JS -> RUBY : sketchup.na_dialog_ready / na_refresh / na_set_options
+             sketchup.na_convert      / na_js_log
+
+=============================================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Na Noble3d Tools : Group / Component Converter</title>
+  <style>
+    {{STYLESHEET_CONTENT}}
+  </style>
+</head>
+<body>
+
+  <div class="naConverter__App">
+
+    <div class="naConverter__Toolbar">
+      <span class="naConverter__ToolbarLabel">Group / Component Converter</span>
+      <div class="naConverter__ToolbarSpacer"></div>
+      <button id="naConverter_btnRefresh" class="naConverter__Btn naConverter__Btn--secondary" type="button"
+              title="Re-read the current selection">Refresh</button>
+    </div>
+
+    <div class="naConverter__Body">
+
+      <section class="naConverter__Group">
+        <div class="naConverter__GroupTitle">Conversion</div>
+
+        <div class="naConverter__SwitchRow">
+          <div class="naConverter__SwitchLabel" id="naConverter_directionLabel">Direction</div>
+          <div class="naConverter__Segmented" role="radiogroup" aria-labelledby="naConverter_directionLabel">
+            <label class="naConverter__Segment">
+              <input id="naConverter_dirGroupsToComponents" type="radio" name="naConverter_direction" value="groups_to_components" />
+              <span class="naConverter__SegmentBody">Groups &rarr; Components</span>
+            </label>
+            <label class="naConverter__Segment">
+              <input id="naConverter_dirComponentsToGroups" type="radio" name="naConverter_direction" value="components_to_groups" />
+              <span class="naConverter__SegmentBody">Components &rarr; Groups</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="naConverter__SwitchRow">
+          <div class="naConverter__SwitchLabel" id="naConverter_scopeLabel">Reach</div>
+          <div class="naConverter__Segmented" role="radiogroup" aria-labelledby="naConverter_scopeLabel">
+            <label class="naConverter__Segment">
+              <input id="naConverter_scopeCurrent" type="radio" name="naConverter_scope" value="current_level" />
+              <span class="naConverter__SegmentBody">Current Level Only</span>
+            </label>
+            <label class="naConverter__Segment">
+              <input id="naConverter_scopeDeep" type="radio" name="naConverter_scope" value="deep_nesting" />
+              <span class="naConverter__SegmentBody">Deep Nesting</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="naConverter__Hint" id="naConverter_scopeHint"></div>
+      </section>
+
+      <section class="naConverter__Group naConverter__Group--preview">
+        <div class="naConverter__GroupTitle">Will Convert</div>
+
+        <div class="naConverter__Preview" id="naConverter_preview">
+          <span class="naConverter__PreviewCount" id="naConverter_previewCount">0</span>
+          <span class="naConverter__PreviewFlow">
+            <span class="naConverter__PreviewWord" id="naConverter_previewFrom">groups</span>
+            <span class="naConverter__PreviewArrow">&rarr;</span>
+            <span class="naConverter__PreviewWord" id="naConverter_previewTo">components</span>
+          </span>
+        </div>
+        <div class="naConverter__PreviewSplit" id="naConverter_previewSplit"></div>
+
+        <div class="naConverter__NoteList" id="naConverter_planNotes"></div>
+      </section>
+
+      <section class="naConverter__Group">
+        <div class="naConverter__GroupTitle">Current Selection</div>
+
+        <div class="naConverter__StatGrid">
+          <div class="naConverter__Stat" id="naConverter_statGroupsWrap">
+            <span class="naConverter__StatValue" id="naConverter_statGroups">0</span>
+            <span class="naConverter__StatLabel">groups</span>
+          </div>
+          <div class="naConverter__Stat" id="naConverter_statComponentsWrap">
+            <span class="naConverter__StatValue" id="naConverter_statComponents">0</span>
+            <span class="naConverter__StatLabel">components</span>
+          </div>
+          <div class="naConverter__Stat" id="naConverter_statDepthWrap">
+            <span class="naConverter__StatValue" id="naConverter_statDepth">0</span>
+            <span class="naConverter__StatLabel">levels deep</span>
+          </div>
+        </div>
+
+        <div class="naConverter__MetaGrid">
+          <div class="naConverter__Meta">
+            <span class="naConverter__MetaLabel">Top-level groups</span>
+            <span class="naConverter__MetaValue" id="naConverter_statTopGroups">0</span>
+          </div>
+          <div class="naConverter__Meta">
+            <span class="naConverter__MetaLabel">Top-level components</span>
+            <span class="naConverter__MetaValue" id="naConverter_statTopComponents">0</span>
+          </div>
+          <div class="naConverter__Meta">
+            <span class="naConverter__MetaLabel">Nested groups</span>
+            <span class="naConverter__MetaValue" id="naConverter_statNestedGroups">0</span>
+          </div>
+          <div class="naConverter__Meta">
+            <span class="naConverter__MetaLabel">Nested components</span>
+            <span class="naConverter__MetaValue" id="naConverter_statNestedComponents">0</span>
+          </div>
+          <div class="naConverter__Meta">
+            <span class="naConverter__MetaLabel">Component definitions</span>
+            <span class="naConverter__MetaValue" id="naConverter_statDefinitions">0</span>
+          </div>
+          <div class="naConverter__Meta">
+            <span class="naConverter__MetaLabel">Locked containers</span>
+            <span class="naConverter__MetaValue" id="naConverter_statLocked">0</span>
+          </div>
+        </div>
+
+        <div class="naConverter__SubTitle">Nesting Breakdown</div>
+        <div class="naConverter__TableWrap">
+          <table class="naConverter__LevelTable">
+            <thead>
+              <tr>
+                <th scope="col">Level</th>
+                <th scope="col">Groups</th>
+                <th scope="col">Components</th>
+              </tr>
+            </thead>
+            <tbody id="naConverter_levelRows"></tbody>
+          </table>
+        </div>
+
+        <div class="naConverter__NoteList" id="naConverter_selectionNotes"></div>
+      </section>
+
+      <section class="naConverter__Group">
+        <div class="naConverter__GroupTitle">Options</div>
+
+        <div id="naConverter_groupOptions">
+          <label class="naConverter__Check">
+            <input id="naConverter_mergeCommon" type="checkbox" />
+            <span class="naConverter__CheckBody">
+              <span class="naConverter__CheckLabel">Common groups become one shared component</span>
+              <span class="naConverter__CheckHint">
+                Groups with the same geometry become instances of one component, however they
+                are moved or rotated, so editing one edits them all. Select Similar's idea, checked
+                exactly: every vertex, edge, face, material and tag must line up, and mirrored
+                copies stay separate. Includes group copies.
+              </span>
+            </span>
+          </label>
+
+          <label class="naConverter__Check" id="naConverter_mergeCopiesRow">
+            <input id="naConverter_mergeCopies" type="checkbox" />
+            <span class="naConverter__CheckBody">
+              <span class="naConverter__CheckLabel">Group copies become one shared component</span>
+              <span class="naConverter__CheckHint" id="naConverter_mergeCopiesHint">
+                Groups still sharing one definition (copied and never edited) become instances
+                of a single component. Off: every group gets its own component definition.
+              </span>
+            </span>
+          </label>
+
+          <div class="naConverter__Hint naConverter__Hint--naming">
+            New definitions take the group's name plus <strong>__Common</strong> when several
+            groups share them, or <strong>__Unique</strong> when one group has its own.
+          </div>
+        </div>
+
+        <label class="naConverter__Check">
+          <input id="naConverter_includeLocked" type="checkbox" />
+          <span class="naConverter__CheckBody">
+            <span class="naConverter__CheckLabel">Include locked containers</span>
+            <span class="naConverter__CheckHint">
+              Off: locked groups and components are skipped with everything inside them.
+              On: they are unlocked, converted and locked again.
+            </span>
+          </span>
+        </label>
+      </section>
+
+    </div>
+
+    <div class="naConverter__ActionBar">
+      <button id="naConverter_btnConvert" class="naConverter__Btn naConverter__Btn--primary" type="button" disabled>
+        Convert...
+      </button>
+    </div>
+
+    <div class="naConverter__StatusBar">
+      <div class="naConverter__StatusText" id="naConverter_status">Ready.</div>
+    </div>
+
+  </div>
+
+  <div id="naConverter_modal" class="naConverter__Modal">
+    <div class="naConverter__ModalCard" role="dialog" aria-modal="true" aria-labelledby="naConverter_modalTitle">
+      <div class="naConverter__ModalTitle" id="naConverter_modalTitle">Convert?</div>
+      <div class="naConverter__ModalBody" id="naConverter_modalBody"></div>
+      <div class="naConverter__ModalActions">
+        <button id="naConverter_btnCancel" class="naConverter__Btn naConverter__Btn--secondary" type="button">
+          Cancel
+        </button>
+        <button id="naConverter_btnConfirm" class="naConverter__Btn naConverter__Btn--confirm" type="button">
+          Convert
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    {{UI_BRIDGE_SCRIPT}}
+  </script>
+
+</body>
+</html>

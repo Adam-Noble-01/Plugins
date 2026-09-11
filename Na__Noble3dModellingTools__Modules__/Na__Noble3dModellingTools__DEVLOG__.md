@@ -3,6 +3,166 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.8.9 - 11-Sep-2026 - Group / Component Converter: Common Groups Share One Component
+
+### Update 01 - 22 Identical Groups Became 22 Components
+- First live run of 0.8.8: 22 identical groups converted into 22 separate component definitions, so editing one changed nothing else.
+- **Group copies become one shared component** only joins groups that still share one definition; these 22 each had their own. **Also merge identical groups** additionally required matching local axes, so moved or rotated copies never matched.
+
+### Update 02 - New Toggle: Common Groups Become One Shared Component
+- Groups with the same geometry become instances of one component, however they are moved or rotated, so every placement edits as one. Off by default; includes group copies, and the Group copies toggle greys out while it is on. The 0.8.8 identical-groups toggle is removed - the new one covers it and more.
+- Candidates are found the Select Similar way - a signature that ignores position and rotation - but merging *replaces* geometry, so each candidate must also pass a full check. The new `ShapeMatcher` registers the two shapes from their centroids and rarest anchor points, then requires every vertex, edge, face (normal, area, materials, tag) and nested placement to land within 0.002" (about 0.05 mm).
+- Each merged group becomes an instance at `group.transformation * offset`, so the shared component sits exactly where each group was. Only proper rotations are produced: a mirrored copy of a handed shape stays separate.
+- Prototyped in Python before the Ruby port: 61 synthetic checks, including exact ground-truth offsets for rotated copies, rejected mirrors, a UV sphere and a 3,721-vertex grid.
+
+### Update 03 - __Common and __Unique Naming
+- Every definition made by Groups -> Components is named last, once its group count is known: `<group name>__Common` when several groups share it, `<group name>__Unique` when one group has it alone (unnamed groups use `Component`). With Common groups off, every new definition reads `__Unique`.
+- Components -> Groups drops those suffixes when naming the group, so round trips do not stack them.
+- Preview and conversion now share one merge registry, so the dialog's `__Common` / `__Unique` counts are what the conversion makes. Live common matching is capped for responsiveness and says so when it stops early; the conversion is uncapped.
+- Sub-devlog: module version 1.0.1.
+
+### Validation Checklist
+- [x] UiBridge.js passes `node --check`; every module file is ASCII.
+- [x] Ruby block balance 0 on all ten module files; called-vs-defined and bare-capitalised-call checks clean.
+- [x] Headless dialog run against a stubbed DOM reads "1 __Common, shared by 22 groups" with the toggle on and "22 ... each named __Unique" with it off.
+- [ ] Reload Plugin Data, then the 22-group case: one `__Common` definition; editing one edits all 22.
+- [ ] Rotated and moved copies land exactly where each group was; a mirrored handed shape stays `__Unique`.
+
+### Status
+**Written and statically verified; not yet exercised in SketchUp.**
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.8.8 - 11-Sep-2026 - Group / Component Converter
+
+### Update 01 - New Feature Module: Group / Component Converter
+- Entity Utils > Component Containers gains **Group / Component Converter**, a dedicated HtmlDialog in the Mega Explode pattern: live selection observer, in-dialog confirm modal, one undo step.
+- Two switches, top of the dialog: **Groups -> Components | Components -> Groups**, then **Current Level Only | Deep Nesting**. Deep Nesting reaches every child and grandchild container as well as the top level.
+- The dialog reports how many groups and components sit at each nested level, and exactly how many will convert, from what to what, before anything changes. Every scan simulates both directions at both reaches, so a switch flip redraws instantly; the converter follows the same rules, so the preview count is the count that converts.
+- Sub-devlog: `10__PluginModules/31__SourceCode__GroupComponentConverter/Na__Noble3dModellingTools__GroupComponentConverter__DEVLOG__.md` (module version 1.0.0).
+
+### Update 02 - Shared Definitions Handled Deliberately
+- Group copies share one definition until edited. A group is made unique before it converts, or before anything inside it changes, so a copy outside the selection is never touched.
+- Groups -> Components: **Group copies become one shared component** (on by default) keeps copies as instances of one definition. **Also merge identical groups** (off) extends that to groups made unique since copying, matched on a local geometry fingerprint.
+- A group nested inside a shared component converts once inside the definition and every placement follows, as SketchUp's own editor would. The dialog counts the placements outside the selection before you confirm.
+- Components -> Groups converts private copies, so other placements stay components. The component's axes survive: its definition is exploded inside a new group at identity, not exploded and regrouped.
+- `Group#to_component` deletes the group and drops its name and lock (tt_selection_toys' own group-copy converter works around the same thing), so both are captured and re-applied with tag, material, visibility, shadows and attribute dictionaries.
+
+### Update 03 - Two Old Buttons Retired
+- **Convert Components To Groups** (module 05) and **Groups To Component** (module 17) are removed from the registry, command router, module loader and config-loader fallback.
+- Their folders are archived, not lost: `00__Archive/Na__Noble3dModellingTools__05__ConvertComponentsToGroups__Retired___11-Sep-2026__.zip` and `00__Archive/Na__Noble3dModellingTools__17__GroupsToComponent__Retired___11-Sep-2026__.zip`.
+- Old behaviour maps onto the new dialog. Convert Components To Groups always went deep, so it is Components -> Groups with Deep Nesting. Groups To Component is Groups -> Components with the merge toggles, minus its picker.
+- The picker compared bounds *sizes* only, so a group drawn around a different local origin could be replaced at the wrong position. The new identical-geometry match compares local bounds corners, so such groups simply stay separate.
+- Keyboard shortcuts bound to the two retired commands need rebinding to **Group / Component Converter**. The stale Extensions menu items stay until SketchUp restarts, and now report an unknown command.
+
+### Validation Checklist
+- [x] Registry JSON parses; every button and hotkey binding resolves to a command; the retired IDs are gone.
+- [x] Module loader slot 31, router handler, reload-manager dialog reset and config-loader fallback wired.
+- [x] UiBridge.js passes `node --check`; every module file is ASCII.
+- [x] Ruby block balance is 0 on all nine new files and the four edited core files; called-vs-defined and bare-capitalised-call checks are clean.
+- [x] Archives verified before the folders were removed: 5 of 5 files each, CRC and sizes match.
+- [ ] Reload Plugin Data, reopen the main dialog: Entity Utils > Component Containers shows the new button; search "convert" finds it.
+- [ ] The preview count equals the converted count in all four switch combinations.
+- [ ] Group copies merge into one component; a group inside a shared component converts once; the outside-placement note shows.
+- [ ] Components -> Groups keeps axes, names, tags and materials; one undo reverses the whole run.
+
+### Status
+**Written and statically verified; not yet exercised in SketchUp.**
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.8.7 - 11-Sep-2026 - Ortho Mirror Lands Where It Is Aimed Inside Nested Groups
+
+### Update 01 - The Mirror Missed Inside a Group
+- Reported: used inside a group - worse in deeply nested groups and components - the mirrored copy lands in the wrong place. The tool had no awareness of stacked local axes.
+- Cause: `execute_mirror_transformation` pushed the two clicks and the camera direction through `edit_transform.inverse` into the open group's local space, built the mirror plane there, then applied it to the copy. But the selection lives in the active context, and SketchUp reports and reads everything there in **world** coordinates. The conversion was a second one on top of SketchUp's own, so the plane moved by the whole nesting stack's offset and turned by its rotation.
+- Fingerprint: open a group moved 1 m along red and mirror across a line parallel to green - the copy lands 2 m out, twice the offset measured across the mirror line. A rotated group gives a skewed copy. At the model root, or in a group sitting at the origin, the conversion is the identity and the mirror was exact - which is how it went unnoticed.
+
+### Update 02 - One Space for Everything
+- SketchUp's rule, from the API team: *"In the active drawing context and all its parent coordinate systems all coordinates are global. In all other coordinate systems they are local."* The research is written up in the Insert Primitives devlog, 5.1.2 "Stacked Local Axes"; the Multiple Offset Tool (0.4.5) already works this way.
+- The mirror is now built from the world clicks and the world camera direction, and applied with `Entities#transform_entities`, which is documented to read the transform as global in the active context. No conversion at any depth.
+- Already correct and unchanged: the preview line, snap markers and dashed axis guide (view drawing is always world), and the arrow-key lock. `world_axis_for_lock` turns the open group's red/green/blue into world directions through `edit_transform` - the whole nesting stack in one matrix - which is now the tool's only use of it.
+- The coordinate rule is written into the Tool file header. The Ruby console reports the nesting depth on each mirror.
+- Module version 1.2.1.
+
+### Files Modified
+- `10__PluginModules/13__SourceCode__OrthoMirrorTool/Na__Noble3dModellingTools__OrthoMirrorTool__Tool__.rb` - header rule; `execute_mirror_transformation` builds and applies in world space
+- `10__PluginModules/13__SourceCode__OrthoMirrorTool/Na__Noble3dModellingTools__OrthoMirrorTool__Helpers__.rb` - comments corrected
+- `10__PluginModules/13__SourceCode__OrthoMirrorTool/Na__Noble3dModellingTools__OrthoMirrorTool__Constants__.rb` - version 1.2.1
+
+### Validation Checklist
+Build the rig first: a box in a group that is **moved and rotated** (not at the origin), a second such group inside it, a third inside that.
+- [ ] Model root, Top view: mirror a loose box across a Green-locked line - behaves exactly as before.
+- [ ] Open a group moved 1 m along red (not rotated), mirror a box across a line parallel to green - the copy sits mirrored across the drawn line, not 2 m out.
+- [ ] Three deep in the moved-and-rotated stack, Top view, Right arrow (Red lock) - the dashed guide follows the group's red axis and the copy mirrors across the drawn line.
+- [ ] Same depth: a free diagonal line (no lock); then Front view with a Blue lock.
+- [ ] Inside a component with several instances - the copy appears in every instance, in the right place in each.
+- [ ] Inside a scaled group - the copy mirrors across the drawn line.
+- [ ] Ruby console reads "Inside group/component (3 deep)" at the bottom of the rig.
+- [ ] One Ctrl+Z removes the mirror and leaves the original as it was.
+
+### Status
+**Implemented, not yet exercised in SketchUp.** Reload Plugin Data, then run the checklist.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.8.6 - 10-Sep-2026 - Face Pattern Generator: Stone Dressing, Pattern Position, Panel Defaults
+
+### Update 01 - Stonework Gains Corner Bevel and Edge Roughness
+- **Corner Bevel (mm)** rounds every corner off with a tangent arc; **Edge Roughness (%)** then breaks the edges up with FBM noise. Bevel runs first, which is the order that turns a cut block into a tumbled, weathered stone rather than a rough block with rounded points.
+- Reported as features lost in the port. They were not: a pickaxe across the whole history finds `pRoughness` and `pTumbled` **only in the module devlog's Known Limitations, never in any source file**. The prose came across in the 0.1.0 migration from the Maker.js prototype and the code behind it did not, so this is an implementation rather than a restoration.
+- Erosion displaces **inward only**, so a stone already trimmed to the face cannot climb back off it. That is what lets the dressing run after the trim, which matters because `RectClip` clips by Sutherland-Hodgman and needs a convex window - a weathered stone is not one.
+- Dressed outlines are ordinary polylines through `GeometryBuilder`, so they reach the model and the DXF, not just the SVG preview. The old "preview-only" limitation is closed.
+- New shared module `01__SharedJs/Na__FacePattern__UnitShape__.js`, inlined by DialogManager.
+
+### Update 02 - Pattern Position On Face
+- `DynamicUI` gains a `section` control type - a rule plus a subtitle, holding no value and no input. Existing panels are unaffected.
+- **Floor Tiling** and **Stonework** both group Setting Out and Offset X / Y under **Pattern Position On Face**, closed off by a **Pattern Output To Face** section over Trim and Lift.
+- Stonework gains the Floor Tiling setting-out controls it never had: Setting Out (default **From face corner**) plus Offset X / Y sliders.
+- Coursed rows and columns are now generated from indices anchored in pattern space rather than positions walked from the layout edge, so an offset slides the wall rigidly instead of re-rolling it. Uncoursed cannot be indexed - the skyline packer is sequential - so its region snaps to a 500mm lattice and it repacks only when the covered area steps a whole lattice.
+
+### Update 03 - Panel Defaults
+- The tool now opens on **Floor Tiling** rather than Patio, and Floor Tiling heads the Pattern Type dropdown.
+- Floor Tiling opens on **Running / Brick Bond - 1/2 offset** (Course Offset 50) rather than Stack Bond.
+- Stonework opens on **Coursed Rough**, listed first.
+- **Density (%)** is hidden unless Render Mode is Artistic, on Stonework and Brickwork both. Each generator reads it only inside its `renderMode === 'artistic'` branch, so in Continuous it was a row that did nothing.
+
+### Update 04 - A Wall That Holds Still While It Is Tuned
+- `AppCore` stamps `params.seed` with the clock on every regenerate, so the whole wall re-rolled on each keystroke - roughness and bevel cannot be judged against a layout that will not sit still.
+- Stonework now hashes its own seed from a new **Random Seed** box and ignores the clock stamp. Same settings, same wall; change the number to re-roll deliberately. No other pattern is affected.
+
+### Update 05 - Two Pre-Existing Faults Found While Testing
+- **Uncoursed stonework left real holes.** The skyline packer discarded any leftover strip narrower than `minW x 0.6` rather than letting it, so a wall was permanently gappy - **21.9% of sample points uncovered** on a 3000 x 2000mm face at a true zero joint. A segment too narrow to re-let is now taken whole. Coverage is 0% uncovered for coursed and uncoursed, from either setting-out.
+- **A typed 0 mortar was silently 10mm.** `Number(params.mortar_mm) || 10` treats 0 as absent. Now `|| 0`, so a gapless stone hatch is actually gapless.
+
+### Update 06 - Where This Work Nearly Went
+- The first round was written into a git worktree under `.claude/worktrees/`, which SketchUp never loads - the repository *is* the live plugin folder, and SketchUp only scans that folder's root. **Reload Plugin Data** was correctly re-requiring unchanged files the whole time, which read as a broken reload. Everything now sits in the live folder.
+- Adding a *new* JS file changes DialogManager's inline list, so the dialog must be closed, **Reload Plugin Data** pressed, and only then reopened. `StoneworkGenerator` checks `typeof shapeApi.na_dressRing === 'function'` and falls back to clean blocks, so a stale blob degrades rather than throwing.
+- Sub-devlog: `10__PluginModules/20__SourceCode__FacePatternGenerator/Na__Noble3dModellingTools__FacePatternGenerator__DEVLOG__.md` (module versions 0.6.3 and 0.6.4).
+
+### Validation Checklist
+- [x] All JS passes `node --check`; the dialog blob assembled exactly as `DialogManager.na_render_html` builds it (19 scripts) evaluates clean and drives through a DOM stub.
+- [x] Bevel tangent points land at exactly the radius asked for (10, 25, 40mm); a bevel larger than the stone is clamped, keeps positive area, stays inside the block.
+- [x] Bevel + erosion lies inside the bevel-only ring, which is what proves the bevel ran first.
+- [x] Erosion monotone across 0/10/25/40/60/80/100%: always bites deeper, always removes more area, never exceeds the amplitude.
+- [x] Nothing leaves the face - zero points more than 0.01mm off the outline on an L-shaped face and a face with an opening, at two dressing levels.
+- [x] No two stones touch at any roughness: closest approach 15.00 / 7.15 / 5.15mm at 0 / 50 / 100%, against a 15mm nominal joint.
+- [x] Coursed offsets translate every surviving stone exactly, at +37, +150, -220, +1000.5, +90 and -310mm.
+- [x] Face fully covered - coursed and uncoursed, corner and centred setting-out.
+- [x] Junk values (`NaN`, `Infinity`, text, empty, negative, out-of-range) on roughness, bevel, both offsets and the seed all still draw finite rings.
+- [x] Density hides on Continuous, appears on Artistic, hides again, and still reports 50 while hidden - Stonework and Brickwork.
+- [x] All seven patterns still generate from their own defaults; the six untouched ones are unchanged.
+- [x] Segment budget measured against the 75,000 apply ceiling; the status line warns and names the knobs when a wall goes over.
+- [x] Live dialog: Coursed Rough at roughness 97% / bevel 17mm renders tumbled stone against a real face.
+- [ ] Live dialog: **Apply to Face** with dressing on - check the group, the edge count and a single undo.
+- [ ] Live dialog: **Download DXF** with dressing on.
+- [ ] Live dialog: Offset X / Y dragged on Coursed (should slide) and Uncoursed (repacks per 500mm step).
+
+### Status
+**Preview exercised in SketchUp.** Apply and DXF with dressing enabled are not yet confirmed in-app.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.8.5 - 09-Sep-2026 - Mega Explode
 
 ### Update 01 - New Feature Module: Mega Explode

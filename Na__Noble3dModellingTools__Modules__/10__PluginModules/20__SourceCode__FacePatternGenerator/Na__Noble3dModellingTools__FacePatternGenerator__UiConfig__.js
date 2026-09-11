@@ -19,25 +19,6 @@
     // -------------------------------------------------------------------------
 
     var NA_PATTERN_CONFIG = {
-        patio: {
-            label: 'Patio',
-            fields: [
-                { id: 'module_mm', type: 'number', label: 'Module (mm)', default: 300, min: 100, max: 800, step: 50 },
-                { id: 'joint_mm', type: 'number', label: 'Joint (mm)', default: 10, min: 0, max: 40, step: 1, hint: 'Set 0 for gapless hatch.' },
-                {
-                    id: 'trim_to_face',
-                    type: 'select',
-                    label: 'Trim to Face Edges',
-                    default: 'true',
-                    options: [
-                        { value: 'true', label: 'Yes - overshoot and trim' },
-                        { value: 'false', label: 'No - whole units only' }
-                    ],
-                    hint: 'Yes runs the pattern past the face perimeter and cuts it back to the face edges, filling hips, valleys and verges. No places only whole, untrimmed units.'
-                },
-                { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
-            ]
-        },
         flooring: {
             label: 'Floor Tiling',
             fields: [
@@ -80,7 +61,7 @@
                     id: 'bond',
                     type: 'select',
                     label: 'Bond / Layout',
-                    default: 'stack',
+                    default: 'running_half',
                     options: [
                         { value: 'stack',           label: 'Stack Bond - grid, straight in line' },
                         { value: 'running_half',    label: 'Running / Brick Bond - 1/2 offset' },
@@ -107,7 +88,7 @@
                     id: 'offset_pct',
                     type: 'number',
                     label: 'Course Offset (%)',
-                    default: 0,
+                    default: 50,
                     min: 0,
                     max: 100,
                     step: 1,
@@ -133,6 +114,11 @@
                     max: 50,
                     step: 0.5,
                     hint: 'Default 0 draws a gapless hatch - every tile shares its edge with its neighbour. Raise it to draw a real grout joint for detail-stage drawings.'
+                },
+                {
+                    id: 'section_position',
+                    type: 'section',
+                    label: 'Pattern Position On Face'
                 },
                 {
                     id: 'setting_out',
@@ -169,6 +155,30 @@
                     step: 1,
                     hint: 'Same across the tile width axis. Both offsets follow the pattern rotation, so a rotated layout still nudges along its own grid.'
                 },
+                {
+                    id: 'section_output',
+                    type: 'section',
+                    label: 'Pattern Output To Face'
+                },
+                {
+                    id: 'trim_to_face',
+                    type: 'select',
+                    label: 'Trim to Face Edges',
+                    default: 'true',
+                    options: [
+                        { value: 'true', label: 'Yes - overshoot and trim' },
+                        { value: 'false', label: 'No - whole units only' }
+                    ],
+                    hint: 'Yes runs the pattern past the face perimeter and cuts it back to the face edges, filling hips, valleys and verges. No places only whole, untrimmed units.'
+                },
+                { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
+            ]
+        },
+        patio: {
+            label: 'Patio',
+            fields: [
+                { id: 'module_mm', type: 'number', label: 'Module (mm)', default: 300, min: 100, max: 800, step: 50 },
+                { id: 'joint_mm', type: 'number', label: 'Joint (mm)', default: 10, min: 0, max: 40, step: 1, hint: 'Set 0 for gapless hatch.' },
                 {
                     id: 'trim_to_face',
                     type: 'select',
@@ -218,7 +228,17 @@
                     ]
                 },
                 { id: 'mortar_mm', type: 'number', label: 'Mortar (mm)', default: 10, min: 0, max: 20, step: 1 },
-                { id: 'density_pct', type: 'number', label: 'Density (%)', default: 50, min: 0, max: 100, step: 1 },
+                {
+                    id: 'density_pct',
+                    type: 'number',
+                    label: 'Density (%)',
+                    default: 50,
+                    min: 0,
+                    max: 100,
+                    step: 1,
+                    showWhen: { render_mode: ['artistic'] },
+                    hint: 'Artistic mode only — the share of units the noise field keeps, so a lower value opens more gaps in a ruined wall.'
+                },
                 {
                     id: 'trim_to_face',
                     type: 'select',
@@ -240,10 +260,10 @@
                     id: 'pattern_type',
                     type: 'select',
                     label: 'Pattern Type',
-                    default: 'uncoursed',
+                    default: 'coursed',
                     options: [
-                        { value: 'uncoursed', label: 'Uncoursed / Snecked' },
-                        { value: 'coursed', label: 'Coursed Rough' }
+                        { value: 'coursed', label: 'Coursed Rough' },
+                        { value: 'uncoursed', label: 'Uncoursed / Snecked' }
                     ]
                 },
                 {
@@ -268,7 +288,96 @@
                     ]
                 },
                 { id: 'mortar_mm', type: 'number', label: 'Mortar (mm)', default: 15, min: 0, max: 30, step: 1 },
-                { id: 'density_pct', type: 'number', label: 'Density (%)', default: 50, min: 0, max: 100, step: 1 },
+                {
+                    id: 'bevel_mm',
+                    type: 'slider',
+                    label: 'Corner Bevel (mm)',
+                    default: 0,
+                    min: 0,
+                    max: 200,
+                    slider_min: 0,
+                    slider_max: 60,
+                    step: 1,
+                    hint: 'Rounds every corner off before the edge breakup runs, which is what turns a cut block into a tumbled stone. A corner never eats more than 45% of either edge it sits on, so small stones stay stones.'
+                },
+                {
+                    id: 'roughness_pct',
+                    type: 'slider',
+                    label: 'Edge Roughness (%)',
+                    default: 25,
+                    min: 0,
+                    max: 100,
+                    slider_min: 0,
+                    slider_max: 100,
+                    step: 1,
+                    hint: 'Breaks the edges up with noise after the bevel — higher is more erosion. Stone is only ever eaten into, so a rough wall stays inside the face and inside its own joints. 0 draws clean rectangles.'
+                },
+                {
+                    id: 'density_pct',
+                    type: 'number',
+                    label: 'Density (%)',
+                    default: 50,
+                    min: 0,
+                    max: 100,
+                    step: 1,
+                    showWhen: { render_mode: ['artistic'] },
+                    hint: 'Artistic mode only — the share of units the noise field keeps, so a lower value opens more gaps in a ruined wall.'
+                },
+                {
+                    id: 'seed_value',
+                    type: 'number',
+                    label: 'Random Seed',
+                    default: 1,
+                    min: 1,
+                    max: 9999,
+                    step: 1,
+                    hint: 'Change this number to re-roll the whole wall. Hold it and the stones stay put, so roughness and bevel can be tuned against one layout.'
+                },
+                {
+                    id: 'section_position',
+                    type: 'section',
+                    label: 'Pattern Position On Face'
+                },
+                {
+                    id: 'setting_out',
+                    type: 'select',
+                    label: 'Setting Out',
+                    default: 'corner',
+                    options: [
+                        { value: 'corner', label: 'From face corner' },
+                        { value: 'centre', label: 'Centred on face' }
+                    ],
+                    hint: 'From corner starts the first course at the bounding box corner. Centred puts a whole average stone across the middle of the face so the perimeter cuts balance.'
+                },
+                {
+                    id: 'offset_x_mm',
+                    type: 'slider',
+                    label: 'Offset X (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Slides the whole wall along the course direction to line a perp end up with an opening. Drag the slider or type any value, positive or negative; the box is not limited to the slider travel.'
+                },
+                {
+                    id: 'offset_y_mm',
+                    type: 'slider',
+                    label: 'Offset Y (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Same up the face, to bring a course bed down onto a cill or plinth. Coursed slides rigidly; uncoursed repacks as the covered area steps.'
+                },
+                {
+                    id: 'section_output',
+                    type: 'section',
+                    label: 'Pattern Output To Face'
+                },
                 {
                     id: 'trim_to_face',
                     type: 'select',
@@ -425,7 +534,7 @@
     // FUNCTION | Return the Field Descriptor Set for a Pattern Key
     // ------------------------------------------------------------
     function na_getPatternConfig(patternKey) {
-        return NA_PATTERN_CONFIG[patternKey] || NA_PATTERN_CONFIG.patio;
+        return NA_PATTERN_CONFIG[patternKey] || NA_PATTERN_CONFIG.flooring;
     }
     // ------------------------------------------------------------
 

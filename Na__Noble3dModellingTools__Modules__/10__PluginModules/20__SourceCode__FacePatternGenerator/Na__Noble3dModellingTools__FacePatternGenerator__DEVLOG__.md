@@ -16,6 +16,82 @@ and applies the generated linework back onto the face plane.
 
 
 # Na Noble3d Modelling Tools
+## Version 0.6.4 - 10-Sep-2026 - Floor Tiling Leads, Density Follows Artistic
+
+### Update 01 - Floor Tiling Is What the Tool Opens On
+- `NA_PATTERN_CONFIG` now lists `flooring` first, so it heads the Pattern Type dropdown, and `AppCore` starts there instead of on `patio`. The unknown-key fallback in `na_getPatternConfig` follows the same order rather than pointing at a pattern that is no longer first.
+- The Pattern Selection hint lists the seven in their new order.
+
+### Update 02 - Density Only Appears in Artistic Mode
+- `density_pct` is the noise threshold that thins a ruined wall, and both `StoneworkGenerator` and `BrickworkGenerator` read it **only** inside their `renderMode === 'artistic'` branch. In Continuous it does nothing whatsoever except take up a row.
+- It now carries `showWhen: { render_mode: ['artistic'] }` on both patterns, and a hint that says what it actually controls. Hidden groups keep their input in the DOM, so `na_getValues` still reports 50 and neither generator needed a line changed.
+
+### Update 03 - Where 0.6.3 Actually Landed
+- The 0.6.3 bond default was reported as not having taken. It had - but only inside a git worktree under `.claude/worktrees/`, which SketchUp never loads, because the repository *is* the live plugin folder and SketchUp only scans that folder's root. **Reload Plugin Data** was correctly re-requiring unchanged files the whole time.
+- All 0.6.3 and 0.6.4 work now sits in the live plugin folder. On a freshly built panel `bond` reads `running_half` and `offset_pct` reads 50.
+- Note for future sessions: adding a *new* JS file changes the Ruby DialogManager's inline list, so the dialog must be closed, **Reload Plugin Data** pressed, and only then reopened. `StoneworkGenerator` now checks `typeof shapeApi.na_dressRing === 'function'` and falls back to clean blocks, so a stale blob degrades instead of throwing.
+
+### Validation
+- Dialog blob assembled from DialogManager's own script list, evaluated, and driven through a DOM stub: Floor Tiling heads a seven-entry dropdown; density is hidden on the Continuous default, appears on Artistic, hides again on Continuous, and still reports 50 while hidden - for Stonework and Brickwork both; the Floor Tiling panel opens with "Running / Brick Bond - 1/2 offset" selected and Course Offset 50.
+- The generator and geometry suites from 0.6.3 were re-run unchanged against the live files: all pass.
+
+---
+# Na Noble3d Modelling Tools
+## Version 0.6.3 - 10-Sep-2026 - Stone Dressing Restored: Corner Bevel and Edge Erosion
+
+### Update 01 - Where The Missing Parameters Actually Went
+- `pRoughness` and `pTumbled` have sat in this devlog's Known Limitations since 0.1.0. A pickaxe across the whole repository history finds those two names **only in the devlog, never in any source file** - they came across in the prose when the Maker.js `Prototype__StoneworkGenerator` was migrated, and the code behind them did not. They were lost in the migration, not in a later edit.
+- This version implements both properly, and against the applied model geometry rather than the preview alone.
+
+### Update 02 - New Shared Module: `01__SharedJs/Na__FacePattern__UnitShape__.js`
+- One entry point, `na_dressRing(ring, { bevel_mm, amplitude_mm, seed })`, run on a unit ring **after** it has been trimmed to the face.
+- **Bevel first.** Each corner is cut back along both its edges and rejoined with a quadratic Bezier whose control point is the corner itself, so the arc leaves and meets its edges tangentially. The cut is capped at 45% of either edge, so a small stone stays a stone. Reflex corners - the notch a trim leaves in an offcut - are deliberately left sharp: arcing one throws the curve into the notch and off the face, and a cut is not a weathered corner anyway.
+- **Erosion second.** Straight runs are broken into segments about the size of the bite, then every point is pulled along the bisector of the two edge normals meeting at it by `amplitude x FBM(x, y)`. The bisector is built from **normalised** normals - a raw sum is length-weighted, and a long edge meeting a short one at a clip seam swings the direction well away from true inward.
+- **Displacement is inward only.** A ring already cut to the face therefore cannot climb back off it, which is what lets the dressing run after the trim rather than before it. That ordering matters: `RectClip` clips the face against the unit window by Sutherland-Hodgman, which requires the window to be convex, and a weathered stone is not.
+- The noise field is sampled in face space off one wall-level seed, so neighbouring stones weather in step and a joint opens and closes along its length instead of every stone shrinking on its own.
+
+### Update 03 - Two New Stonework Controls
+- **Corner Bevel (mm)** - slider 0-60, box to 200, default 0. Rounds the block off before the breakup runs, which is what turns a cut block into a tumbled stone.
+- **Edge Roughness (%)** - slider 0-100, default 25. At 100% the bite reaches 15% of a stone's short side. At 0 the generator returns the ring object untouched, so the old clean rectangles are reproduced exactly.
+- Both are ordinary polylines through `GeometryBuilder.ApplyPolylines`, so the dressed outline reaches the model and the DXF, not only the SVG. **The "preview-only" entry in Known Limitations is now closed.**
+
+### Update 04 - Erosion Cannot Eat Through a Thin Offcut
+- The amplitude cap was first taken from the ring's bounding box, which is safe for a whole stone but not for a trimmed one: the clipper can hand back a 361 x 193mm ring carrying a **0.97mm tab** along one edge, and a 14mm bite went straight through it and out onto the face.
+- Concave rings - only offcuts are concave - now cast their inward direction against the ring's own edges and take at most half the first hit. Whole stones are convex and skip the cast entirely, so nothing is paid for the common case.
+- Verified on an L-shaped face and a face with an opening, at roughness 60/bevel 20 and roughness 100/bevel 60: **zero points more than 0.01mm off the face outline**, across 5122, 3570, 5272 and 3672 points.
+
+### Update 05 - A Wall That Holds Still While It Is Tuned
+- `AppCore.na_normalizeValues` stamps `params.seed` with `Date.now()` on every regenerate, so the entire wall re-rolled on each keystroke. Roughness and bevel are unusable against a layout that will not sit still.
+- Stonework now derives its own seed by hashing (FNV-1a) its pattern type, stone size and a new **Random Seed** box, and ignores the clock stamp. Same settings, same wall; change the seed number to re-roll deliberately. No other pattern is affected.
+
+### Update 06 - Pattern Position On Face
+- New `section` field type in `DynamicUI__.js`: a rule plus a subtitle, carrying no value and no input. `na_getValues` skips it, `showWhen` can still hide it, and no section id reaches any generator.
+- **Floor Tiling** and **Stonework** both group Setting Out and Offset X / Y under **Pattern Position On Face**, with a closing **Pattern Output To Face** section over Trim and Lift so the run has an end as well as a beginning.
+- Stonework gains the Floor Tiling controls: Setting Out (**default From face corner**) and Offset X / Y sliders, +/-1500mm travel, box to +/-20000mm.
+- Coursed rows and columns are now generated from **indices anchored in pattern space** rather than positions walked from the layout edge, each course carrying its own random phase so the perp ends do not line up at the origin. An offset therefore slides the wall rigidly - verified that every surviving stone translates by exactly the amount asked at +37, +150, -220, +1000.5 and +90 / -310mm. Uncoursed cannot be indexed (the skyline packer is sequential), so its region snaps to a 500mm lattice and it repacks only when the covered area steps a whole lattice.
+
+### Update 07 - Defaults
+- **Stonework Pattern Type** now defaults to **Coursed Rough**, and Coursed is listed first.
+- **Floor Tiling Bond / Layout** now defaults to **Running / Brick Bond - 1/2 offset**, with `offset_pct` default raised to 50 to match the preset it would write.
+
+### Update 08 - Two Pre-Existing Faults Found While Testing
+- **Uncoursed left real holes.** The skyline packer discarded any leftover strip narrower than `minW x 0.6` instead of letting it, so a wall was permanently gappy - measured **21.9% of sample points uncovered** on a 3000 x 2000mm face with a true zero joint. A segment too narrow to re-let is now taken whole by the stone being placed. Coverage is **0% uncovered** for coursed and uncoursed, from either setting-out.
+- **A typed 0 mortar was silently 10mm.** `Number(params.mortar_mm) || 10` treats 0 as absent. The fallback is now `|| 0`, so a gapless stone hatch is actually gapless, matching the behaviour the Patio hint already promises.
+
+### Update 09 - Segment Budget
+- A dressed stone runs about 24 segments against 4, so `GeometryBuilder`'s 75,000-segment apply ceiling is now reachable. The generator counts its own output and, when it goes over, says so in the status line and names the knobs to turn rather than letting Apply refuse with no explanation.
+- Measured at full dressing: 910 x 900mm face **750 segments**; 3 x 2m **4,234**; 6 x 3m **11,426**; 6 x 3m in small stones **24,196**; 12 x 6m in small stones **90,150** (warned).
+
+### Validation
+- All JS passes `node --check`. The dialog blob was assembled exactly as `DialogManager.na_render_html` builds it (19 scripts, 4,509 lines), evaluated, and driven through a DOM stub.
+- Dressing: bevel tangent points land at exactly the radius asked for along each edge (10, 25 and 40mm); a bevel larger than the stone is clamped, keeps positive area and stays inside the block; the combined result lies inside the bevel-only ring, which is what proves the bevel ran first.
+- Erosion is monotone - a higher setting always bites deeper and always removes more area, checked at 0/10/25/40/60/80/100%. The bite varies rather than offsetting uniformly (sd 2.81mm, range 10.94mm against a 20mm amplitude) and never exceeds the amplitude.
+- No two stones touch at any roughness: closest approach 15.00mm at 0%, 7.15mm at 50%, 5.15mm at 100%, against a 15mm nominal joint.
+- Degenerate inputs - `undefined`, `null`, `''`, `'abc'`, `NaN`, `Infinity`, negatives and out-of-range values on roughness, bevel, both offsets and the seed - all still draw finite rings.
+- All seven patterns still generate from their own defaults; the six untouched ones are unchanged.
+
+---
+# Na Noble3d Modelling Tools
 ## Version 0.6.2 - 31-Aug-2026 - Floor Tiling Setting-Out Offset (Slider + Typed Box)
 
 ### Update 01 - New Field Type: Slider
@@ -364,9 +440,10 @@ ignores `polylines` and regenerates from the selection.
   active context (model root or open group/component).
 - Slate preview shows only fully-inside slates; partial edge-clipped slates
   appear on Apply but not in the SVG preview.
-- `pRoughness` and `pTumbled` are preview-only parameters for Stonework; the
-  Ruby GeometryBuilder creates straight-edge rectangles. A polygon-point
-  distortion pass could be added to GeometryBuilder in a future version.
+- ~~`pRoughness` and `pTumbled` are preview-only parameters for Stonework.~~
+  **Resolved in 0.6.3** - Corner Bevel and Edge Roughness dress the polylines
+  themselves, so the applied geometry and the DXF carry the same outline as
+  the preview.
 - Shrub is a single silhouette, not a repeating tile. It scales to the
   user-defined width/height and is placed at the face interior centroid.
 

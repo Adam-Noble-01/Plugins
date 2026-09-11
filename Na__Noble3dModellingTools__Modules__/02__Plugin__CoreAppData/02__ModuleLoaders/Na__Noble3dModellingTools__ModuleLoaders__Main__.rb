@@ -28,7 +28,6 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/02__SourceCode__LatticeMaker/Na__Noble3dModellingTools__LatticeMaker__Loader__'
             require_relative '../../10__PluginModules/03__SourceCode__AutoGroupUtility/Na__Noble3dModellingTools__AutoGroupUtility__Loader__'
             require_relative '../../10__PluginModules/04__SourceCode__AutoGroupFaceIslands/Na__Noble3dModellingTools__AutoGroupFaceIslands__Loader__'
-            require_relative '../../10__PluginModules/05__SourceCode__ConvertComponentsToGroups/Na__Noble3dModellingTools__ConvertComponentsToGroups__Loader__'
             require_relative '../../10__PluginModules/06__SourceCode__InsertComponentInPlace/Na__Noble3dModellingTools__InsertComponentInPlace__Loader__'
             require_relative '../../10__PluginModules/07__SourceCode__CreateBoundingBox/Na__Noble3dModellingTools__CreateBoundingBox__Loader__'
             require_relative '../../10__PluginModules/08__SourceCode__MaterialUtils/Na__Noble3dModellingTools__MaterialUtils__Loader__'
@@ -40,7 +39,6 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/14__SourceCode__ImageCarousel/Na__Noble3dModellingTools__ImageCarousel__Loader__'
             require_relative '../../10__PluginModules/15__SourceCode__Flatten3dTo2d/Na__Noble3dModellingTools__Flatten3dTo2d__Loader__'
             require_relative '../../10__PluginModules/16__SourceCode__PdfVectorImporter/Na__Noble3dModellingTools__PdfVectorImporter__Loader__'
-            require_relative '../../10__PluginModules/17__SourceCode__GroupsToComponent/Na__Noble3dModellingTools__GroupsToComponent__Loader__'
             require_relative '../../10__PluginModules/18__SourceCode__MultipleOffsetTool/Na__Noble3dModellingTools__MultipleOffsetTool__Loader__'
             require_relative '../../10__PluginModules/19__SourceCode__PngToLinework/Na__Noble3dModellingTools__PngToLinework__Loader__'
             require_relative '../../10__PluginModules/20__SourceCode__FacePatternGenerator/Na__Noble3dModellingTools__FacePatternGenerator__Loader__'
@@ -54,6 +52,7 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/28__SourceCode__SceneDataTransfer/Na__Noble3dModellingTools__SceneDataTransfer__Loader__'
             require_relative '../../10__PluginModules/29__SourceCode__PaintDeepNestedFaces/Na__Noble3dModellingTools__PaintDeepNestedFaces__Loader__'
             require_relative '../../10__PluginModules/30__SourceCode__MegaExplode/Na__Noble3dModellingTools__MegaExplode__Loader__'
+            require_relative '../../10__PluginModules/31__SourceCode__GroupComponentConverter/Na__Noble3dModellingTools__GroupComponentConverter__Loader__'
 
             @na_feature_modules_loaded = true
             true

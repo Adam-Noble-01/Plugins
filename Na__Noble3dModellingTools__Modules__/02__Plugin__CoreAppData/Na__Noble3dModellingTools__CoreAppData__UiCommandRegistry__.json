@@ -147,21 +147,12 @@
             "expose_to_hotkeys" : true
         },
         {
-            "command_id"        : "convert_components_to_groups",
-            "command_name"      : "Na Noble3d - Convert Components To Groups",
-            "tooltip"           : "Convert selected component instances and their nested components into groups",
-            "status_bar_text"   : "Convert selected components to groups",
-            "menu_text"         : "Convert Components To Groups",
-            "handler_key"       : "convert_components_to_groups",
-            "expose_to_hotkeys" : true
-        },
-        {
-            "command_id"        : "convert_groups_to_component",
-            "command_name"      : "Na Noble3d - Groups To Component",
-            "tooltip"           : "Convert selected groups to instances of a shared component in place",
-            "status_bar_text"   : "Convert selected groups to a single component",
-            "menu_text"         : "Groups To Component",
-            "handler_key"       : "convert_groups_to_component",
+            "command_id"        : "group_component_converter",
+            "command_name"      : "Na Noble3d - Group / Component Converter",
+            "tooltip"           : "Convert groups to components or components to groups, at the current level or through every nested level",
+            "status_bar_text"   : "Open Group / Component Converter",
+            "menu_text"         : "Group / Component Converter",
+            "handler_key"       : "group_component_converter",
             "expose_to_hotkeys" : true
         },
         {
@@ -619,15 +610,15 @@
             "description"            : "Opens the Component Editor dialog for the selected component or group. Edit instance name, definition, attributes, and thumbnails."
         },
         {
-            "button_id"              : "btn_convert_components_to_groups",
+            "button_id"              : "btn_group_component_converter",
             "tab_name"               : "Entity Utils",
             "tool_group_name"        : "Component Containers",
             "tool_group_description" : "Utilities for changing SketchUp entity containers without editing their raw geometry.",
             "tool_group_order"       : 10,
             "button_order"           : 10,
-            "button_label"           : "Convert Components To Groups",
-            "command_id"             : "convert_components_to_groups",
-            "description"            : "Converts selected component instances and nested component instances into independent SketchUp groups."
+            "button_label"           : "Group / Component Converter",
+            "command_id"             : "group_component_converter",
+            "description"            : "Converts groups to components or components to groups in one dialog. Current Level Only converts the selected containers; Deep Nesting also reaches every child and grandchild. Live counts show how many groups and components are nested at each level and exactly how many will convert, from what to what. Group copies can share one component definition."
         },
         {
             "button_id"              : "btn_insert_component_in_place",
@@ -639,17 +630,6 @@
             "button_label"           : "Insert Component In Place",
             "command_id"             : "insert_component_in_place",
             "description"            : "Loads a selected .skp file as a component and inserts it at world identity for Xref-style placement."
-        },
-        {
-            "button_id"              : "btn_convert_groups_to_component",
-            "tab_name"               : "Entity Utils",
-            "tool_group_name"        : "Component Containers",
-            "tool_group_description" : "Utilities for changing SketchUp entity containers without editing their raw geometry.",
-            "tool_group_order"       : 10,
-            "button_order"           : 30,
-            "button_label"           : "Groups To Component",
-            "command_id"             : "convert_groups_to_component",
-            "description"            : "Converts selected groups into instances of a single shared component. Pick the inference group to set the component axes. Original world positions are preserved."
         },
         {
             "button_id"              : "btn_mega_explode",
@@ -1094,11 +1074,7 @@
             "expose_to_hotkeys" : true
         },
         {
-            "command_id"        : "convert_components_to_groups",
-            "expose_to_hotkeys" : true
-        },
-        {
-            "command_id"        : "convert_groups_to_component",
+            "command_id"        : "group_component_converter",
             "expose_to_hotkeys" : true
         },
         {

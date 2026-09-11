@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Components__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp component and group naming conventions. Documents the prefix systems, ID formats, sub-part names, and attribute dictionary keys used across all Na__ plugins. Serves as the reference for any plugin that creates or identifies Na__ components in the model. Also defines the Na__DataLib__PipelineExclusions render-pipeline exclusion lists consumed by the TrueVision GLB Builder and the TrueVision3D WebApp renderer.",
-        "version"           : "1.4.3",
-        "lastUpdated"       : "15-Jul-2026",
+        "version"           : "1.4.4",
+        "lastUpdated"       : "11-Sep-2026",
         "sourceFiles"       : [
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__DataSerializer__.rb",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__WindowConfiguratorTool__GeometryEngine__.rb",
@@ -161,7 +161,7 @@
         },
 
         "SceneEntourage2D__Billboard__": {
-            "Description"           : "2D planar scene entourage components that always face the camera (billboard / camera-follow). People and pets are scene decoration, distinct from SiteVegetation2D__Billboard__ (trees/planting). Geometry is typically linework-only or linework with optional faces. Exported with hierarchy preservation and pivot data baked into glTF node extras for ValeVision and TrueVision.",
+            "Description"           : "2D planar scene entourage components that always face the camera (billboard / camera-follow). People and pets are scene decoration, distinct from SiteVegetation2D__Billboard__ (trees/planting). Two standards share this family: Detailed types (Person, Dog, Cat) are linework with optional whitecard faces; Silhouette types ({Type} prefixed Silhouette, e.g. SilhouettePerson) are fill-only, with faces painted MAT901__Entourage__Silhouette__MidGrey and linework omitted at export by the ProfileLines token __SceneEntourage__Silhouette. Exported with hierarchy preservation and pivot data baked into glTF node extras for ValeVision and TrueVision.",
             "SourcePlugin"          : "Na__TrueVision__GlbBuilderUtility",
             "Tag__SketchUpName"     : "60__Scene__Entourage__2D",
             "ComponentNamePattern"  : "{NN}_{NNNN}__SceneEntourage__{Type}__{Name}__{HeightOrSize}__Var-{NN}",
@@ -189,6 +189,46 @@
                 "60_0200__SceneEntourage__Person__Woman__1.65m-Height__Var-01": {
                     "SemanticName"  : "60_0200__SceneEntourage__Person__Woman__1.65m-Height__Var-01",
                     "Description"   : "Adult female figure - 1.65m height - 2D camera-follow billboard variant 01 (placeholder, awaiting asset)"
+                },
+                "60_0301__SceneEntourage__SilhouettePerson__Man__1.8m-Height__Var-01": {
+                    "SemanticName"  : "60_0301__SceneEntourage__SilhouettePerson__Man__1.8m-Height__Var-01",
+                    "Description"   : "Adult male silhouette - 1.8m height - fill-only 2D camera-follow billboard variant 01. Faces painted MAT901__Entourage__Silhouette__MidGrey, no linework (placeholder, awaiting asset)",
+                    "Behaviours"    : {
+                        "CameraFollow" : true,
+                        "YawOnly"      : true,
+                        "AoExclude"    : true,
+                        "ShadeFlatness": 1.0
+                    }
+                },
+                "60_0302__SceneEntourage__SilhouettePerson__Man__1.78m-Height__Var-02": {
+                    "SemanticName"  : "60_0302__SceneEntourage__SilhouettePerson__Man__1.78m-Height__Var-02",
+                    "Description"   : "Adult male silhouette - 1.78m height - fill-only 2D camera-follow billboard variant 02. Faces painted MAT901__Entourage__Silhouette__MidGrey, no linework (placeholder, awaiting asset)",
+                    "Behaviours"    : {
+                        "CameraFollow" : true,
+                        "YawOnly"      : true,
+                        "AoExclude"    : true,
+                        "ShadeFlatness": 1.0
+                    }
+                },
+                "60_0321__SceneEntourage__SilhouettePerson__Woman__1.65m-Height__Var-01": {
+                    "SemanticName"  : "60_0321__SceneEntourage__SilhouettePerson__Woman__1.65m-Height__Var-01",
+                    "Description"   : "Adult female silhouette - 1.65m height - fill-only 2D camera-follow billboard variant 01. Faces painted MAT901__Entourage__Silhouette__MidGrey, no linework (placeholder, awaiting asset)",
+                    "Behaviours"    : {
+                        "CameraFollow" : true,
+                        "YawOnly"      : true,
+                        "AoExclude"    : true,
+                        "ShadeFlatness": 1.0
+                    }
+                },
+                "60_0322__SceneEntourage__SilhouettePerson__Woman__1.70m-Height__Var-02": {
+                    "SemanticName"  : "60_0322__SceneEntourage__SilhouettePerson__Woman__1.70m-Height__Var-02",
+                    "Description"   : "Adult female silhouette - 1.70m height - fill-only 2D camera-follow billboard variant 02. Faces painted MAT901__Entourage__Silhouette__MidGrey, no linework (placeholder, awaiting asset)",
+                    "Behaviours"    : {
+                        "CameraFollow" : true,
+                        "YawOnly"      : true,
+                        "AoExclude"    : true,
+                        "ShadeFlatness": 1.0
+                    }
                 },
                 "60_0500__SceneEntourage__Dog__Labrador__0.8m-Height__Var-01": {
                     "SemanticName"  : "60_0500__SceneEntourage__Dog__Labrador__0.8m-Height__Var-01",
@@ -291,7 +331,8 @@
                 "__Plant__SubComp__Stem",
                 "__Plant__SubComp__Branches",
                 "__Plant__SubGroup__LeavesContainer",
-                "__Plant__SubComp__Leaf__Individual"
+                "__Plant__SubComp__Leaf__Individual",
+                "__SceneEntourage__Silhouette"
             ]
         }
     },

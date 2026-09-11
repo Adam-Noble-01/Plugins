@@ -78,8 +78,8 @@ module Na__Noble3dModellingTools
             when 'create_bounding_box'
                 proc { Na__CreateBoundingBox.Na__CreateBoundingBox__Run }
 
-            when 'convert_components_to_groups'
-                proc { Na__ConvertComponentsToGroups.Na__ConvertComponentsToGroups__Run }
+            when 'group_component_converter'
+                proc { Na__GroupComponentConverter.Na__GroupComponentConverter__Run }
 
             when 'insert_component_in_place'
                 proc { Na__InsertComponentInPlace.Na__InsertComponentInPlace__Run }
@@ -137,9 +137,6 @@ module Na__Noble3dModellingTools
 
             when 'pdf_vector_importer'
                 proc { Na__PdfVectorImporter.Na__PdfVectorImporter__Run }
-
-            when 'convert_groups_to_component'
-                proc { Na__GroupsToComponent.Na__GroupsToComponent__Run }
 
             when 'png_to_linework'
                 proc { Na__PngToLinework.Na__PngToLinework__Run }

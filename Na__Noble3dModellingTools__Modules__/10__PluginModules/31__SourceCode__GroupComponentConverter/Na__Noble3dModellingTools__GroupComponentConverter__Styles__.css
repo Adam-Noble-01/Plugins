@@ -1,0 +1,654 @@
+/* ============================================================================= */
+/* NA NOBLE3D MODELLING TOOLS - GROUP / COMPONENT CONVERTER - STYLESHEET         */
+/*                                                                               */
+/* FILE       : Na__Noble3dModellingTools__GroupComponentConverter__Styles__.css */
+/* PURPOSE    : Light Noble Architecture theme for the converter HtmlDialog      */
+/* CREATED    : 2026                                                             */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    --na-bg-primary       : #f0f0f0;
+    --na-bg-secondary     : #ffffff;
+    --na-bg-tertiary      : #e6e6e6;
+    --na-bg-accent-soft   : #eaf2fb;
+    --na-border           : #d0d0d0;
+    --na-border-strong    : #b8b8b8;
+    --na-text-primary     : #1e1e1e;
+    --na-text-secondary   : #5a5a5a;
+    --na-accent-blue      : #4a90d9;
+    --na-accent-blue-dark : #3574b5;
+    --na-accent-green     : #3d9a50;
+    --na-accent-red       : #c0392b;
+    --na-accent-amber     : #c97a12;
+    --na-font-family      : 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing            : border-box;
+}
+
+html,
+body {
+    margin                : 0;
+    padding               : 0;
+    height                : 100%;
+    overflow              : hidden;
+    font-family           : var(--na-font-family);
+    font-size             : 13px;
+    color                 : var(--na-text-primary);
+    background            : var(--na-bg-primary);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | App Shell
+ * ----------------------------------------------------------------------------- */
+
+.naConverter__App {
+    display               : flex;
+    flex-direction        : column;
+    height                : 100vh;
+}
+
+.naConverter__Toolbar {
+    display               : flex;
+    align-items           : center;
+    gap                   : 12px;
+    padding               : 8px 12px;
+    background            : var(--na-bg-secondary);
+    border-bottom         : 1px solid var(--na-border);
+    flex                  : 0 0 auto;
+}
+
+.naConverter__ToolbarLabel {
+    font-size             : 14px;
+    font-weight           : 700;
+    white-space           : nowrap;
+}
+
+.naConverter__ToolbarSpacer {
+    flex                  : 1 1 auto;
+}
+
+.naConverter__Body {
+    flex                  : 1 1 auto;
+    min-height            : 0;
+    overflow-y            : auto;
+    padding               : 10px 12px 4px 12px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Grouped Sections
+ * ----------------------------------------------------------------------------- */
+
+.naConverter__Group {
+    background            : var(--na-bg-secondary);
+    border                : 1px solid var(--na-border);
+    border-radius         : 4px;
+    padding               : 10px 12px 12px 12px;
+    margin-bottom         : 10px;
+}
+
+.naConverter__GroupTitle {
+    font-size             : 12px;
+    font-weight           : 700;
+    text-transform        : uppercase;
+    letter-spacing        : 0.04em;
+    color                 : var(--na-text-secondary);
+    margin-bottom         : 10px;
+}
+
+.naConverter__SubTitle {
+    font-size             : 11px;
+    font-weight           : 700;
+    text-transform        : uppercase;
+    letter-spacing        : 0.04em;
+    color                 : var(--na-text-secondary);
+    margin                : 14px 0 6px 0;
+}
+
+.naConverter__Hint {
+    font-size             : 11px;
+    line-height           : 1.5;
+    color                 : var(--na-text-secondary);
+}
+
+.naConverter__Hint:empty {
+    display               : none;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Segmented Switches
+ * ----------------------------------------------------------------------------- */
+
+.naConverter__SwitchRow {
+    margin-bottom         : 10px;
+}
+
+.naConverter__SwitchLabel {
+    font-size             : 11px;
+    font-weight           : 600;
+    color                 : var(--na-text-secondary);
+    margin-bottom         : 4px;
+}
+
+.naConverter__Segmented {
+    display               : flex;
+    padding               : 3px;
+    gap                   : 3px;
+    background            : var(--na-bg-tertiary);
+    border                : 1px solid var(--na-border);
+    border-radius         : 5px;
+}
+
+.naConverter__Segment {
+    position              : relative;
+    flex                  : 1 1 0;
+    min-width             : 0;
+    cursor                : pointer;
+}
+
+.naConverter__Segment input[type="radio"] {
+    position              : absolute;
+    opacity               : 0;
+    width                 : 1px;
+    height                : 1px;
+    margin                : 0;
+    pointer-events        : none;
+}
+
+.naConverter__SegmentBody {
+    display               : block;
+    padding               : 7px 8px;
+    text-align            : center;
+    font-size             : 12px;
+    font-weight           : 600;
+    line-height           : 1.3;
+    white-space           : nowrap;
+    overflow              : hidden;
+    text-overflow         : ellipsis;
+    color                 : var(--na-text-secondary);
+    border-radius         : 3px;
+    transition            : background 0.12s ease, color 0.12s ease;
+}
+
+.naConverter__Segment:hover .naConverter__SegmentBody {
+    color                 : var(--na-text-primary);
+    background            : rgba(255, 255, 255, 0.6);
+}
+
+.naConverter__Segment input[type="radio"]:checked + .naConverter__SegmentBody {
+    color                 : #ffffff;
+    background            : var(--na-accent-blue);
+    box-shadow            : 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.naConverter__Segment input[type="radio"]:focus-visible + .naConverter__SegmentBody {
+    outline               : 2px solid var(--na-accent-blue-dark);
+    outline-offset        : 1px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Conversion Preview
+ * ----------------------------------------------------------------------------- */
+
+.naConverter__Group--preview {
+    border-color          : var(--na-accent-blue);
+    background            : var(--na-bg-accent-soft);
+}
+
+.naConverter__Preview {
+    display               : flex;
+    align-items           : baseline;
+    flex-wrap             : wrap;
+    gap                   : 4px 10px;
+}
+
+.naConverter__PreviewCount {
+    font-size             : 32px;
+    font-weight           : 700;
+    line-height           : 1;
+    color                 : var(--na-accent-blue-dark);
+}
+
+.naConverter__Preview--zero .naConverter__PreviewCount {
+    color                 : var(--na-text-secondary);
+}
+
+.naConverter__PreviewFlow {
+    display               : inline-flex;
+    align-items           : baseline;
+    gap                   : 6px;
+    font-size             : 15px;
+    font-weight           : 600;
+}
+
+.naConverter__PreviewArrow {
+    color                 : var(--na-accent-blue-dark);
+}
+
+.naConverter__PreviewSplit {
+    margin-top            : 6px;
+    font-size             : 11px;
+    color                 : var(--na-text-secondary);
+}
+
+.naConverter__PreviewSplit:empty {
+    display               : none;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Statistics
+ * ----------------------------------------------------------------------------- */
+
+.naConverter__StatGrid {
+    display               : flex;
+    gap                   : 8px;
+}
+
+.naConverter__Stat {
+    flex                  : 1 1 0;
+    min-width             : 0;
+    padding               : 9px 8px;
+    text-align            : center;
+    background            : var(--na-bg-primary);
+    border                : 1px solid var(--na-border);
+    border-radius         : 3px;
+}
+
+.naConverter__StatValue {
+    display               : block;
+    font-size             : 20px;
+    font-weight           : 700;
+    line-height           : 1.15;
+}
+
+.naConverter__Stat--zero .naConverter__StatValue {
+    color                 : var(--na-text-secondary);
+}
+
+.naConverter__StatLabel {
+    display               : block;
+    margin-top            : 3px;
+    font-size             : 11px;
+    color                 : var(--na-text-secondary);
+}
+
+.naConverter__MetaGrid {
+    display               : grid;
+    grid-template-columns : 1fr 1fr;
+    gap                   : 6px 10px;
+    margin-top            : 10px;
+}
+
+.naConverter__Meta {
+    display               : flex;
+    justify-content       : space-between;
+    gap                   : 8px;
+    padding               : 5px 0;
+    border-bottom         : 1px solid var(--na-border);
+}
+
+.naConverter__MetaLabel {
+    color                 : var(--na-text-secondary);
+    font-size             : 11px;
+}
+
+.naConverter__MetaValue {
+    font-weight           : 600;
+    font-size             : 12px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Nesting Breakdown Table
+ * ----------------------------------------------------------------------------- */
+
+.naConverter__TableWrap {
+    max-height            : 190px;
+    overflow              : auto;
+    border                : 1px solid var(--na-border);
+    border-radius         : 3px;
+}
+
+.naConverter__LevelTable {
+    width                 : 100%;
+    border-collapse       : collapse;
+    font-size             : 12px;
+}
+
+.naConverter__LevelTable th,
+.naConverter__LevelTable td {
+    padding               : 5px 8px;
+    text-align            : right;
+    border-bottom         : 1px solid var(--na-border);
+}
+
+.naConverter__LevelTable th:first-child,
+.naConverter__LevelTable td:first-child {
+    text-align            : left;
+}
+
+.naConverter__LevelTable th {
+    position              : sticky;
+    top                   : 0;
+    font-size             : 11px;
+    font-weight           : 600;
+    color                 : var(--na-text-secondary);
+    background            : var(--na-bg-primary);
+}
+
+.naConverter__LevelTable tbody tr:last-child td {
+    border-bottom         : none;
+}
+
+.naConverter__LevelTable td.naConverter__Cell--zero {
+    color                 : var(--na-border-strong);
+}
+
+.naConverter__LevelTable td.naConverter__Cell--target {
+    font-weight           : 700;
+    color                 : var(--na-accent-blue-dark);
+}
+
+.naConverter__LevelTable td.naConverter__Cell--empty {
+    text-align            : center;
+    color                 : var(--na-text-secondary);
+}
+
+.naConverter__LevelTag {
+    margin-left           : 6px;
+    font-size             : 10px;
+    color                 : var(--na-text-secondary);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Notes
+ * ----------------------------------------------------------------------------- */
+
+.naConverter__NoteList {
+    margin-top            : 10px;
+}
+
+.naConverter__NoteList:empty {
+    display               : none;
+}
+
+.naConverter__Note {
+    padding               : 5px 0 5px 14px;
+    font-size             : 11px;
+    line-height           : 1.5;
+    color                 : var(--na-text-secondary);
+    position              : relative;
+}
+
+.naConverter__Note::before {
+    content               : '';
+    position              : absolute;
+    margin-left           : -12px;
+    margin-top            : 6px;
+    width                 : 5px;
+    height                : 5px;
+    border-radius         : 50%;
+    background            : var(--na-border-strong);
+}
+
+.naConverter__Note--warn {
+    color                 : var(--na-accent-amber);
+}
+
+.naConverter__Note--warn::before {
+    background            : var(--na-accent-amber);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Checkbox Rows
+ * ----------------------------------------------------------------------------- */
+
+.naConverter__Check {
+    display               : flex;
+    align-items           : flex-start;
+    gap                   : 9px;
+    padding               : 7px 0;
+    cursor                : pointer;
+}
+
+#naConverter_groupOptions + .naConverter__Check,
+.naConverter__Check + .naConverter__Check {
+    border-top            : 1px solid var(--na-border);
+}
+
+#naConverter_groupOptions[hidden] + .naConverter__Check {
+    border-top            : none;
+}
+
+.naConverter__Hint--naming {
+    padding               : 8px 0 7px 24px;
+    border-top            : 1px solid var(--na-border);
+}
+
+.naConverter__Check--disabled {
+    opacity               : 0.5;
+    cursor                : default;
+}
+
+.naConverter__Check input[type="checkbox"] {
+    flex                  : 0 0 auto;
+    width                 : 15px;
+    height                : 15px;
+    margin                : 1px 0 0 0;
+    accent-color          : var(--na-accent-blue);
+    cursor                : pointer;
+}
+
+.naConverter__Check--disabled input[type="checkbox"] {
+    cursor                : default;
+}
+
+.naConverter__CheckBody {
+    display               : block;
+    min-width             : 0;
+}
+
+.naConverter__CheckLabel {
+    display               : block;
+    font-size             : 13px;
+    font-weight           : 600;
+}
+
+.naConverter__CheckHint {
+    display               : block;
+    margin-top            : 3px;
+    font-size             : 11px;
+    line-height           : 1.5;
+    color                 : var(--na-text-secondary);
+}
+
+[hidden] {
+    display               : none !important;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Buttons, Action Bar, Status
+ * ----------------------------------------------------------------------------- */
+
+.naConverter__Btn {
+    font-family           : var(--na-font-family);
+    font-size             : 12px;
+    font-weight           : 600;
+    padding               : 6px 14px;
+    color                 : var(--na-text-primary);
+    background            : var(--na-bg-secondary);
+    border                : 1px solid var(--na-border-strong);
+    border-radius         : 3px;
+    cursor                : pointer;
+}
+
+.naConverter__Btn:hover:not(:disabled) {
+    background            : var(--na-bg-tertiary);
+}
+
+.naConverter__Btn:disabled {
+    opacity               : 0.5;
+    cursor                : default;
+}
+
+.naConverter__Btn--secondary {
+    white-space           : nowrap;
+}
+
+.naConverter__Btn--primary {
+    width                 : 100%;
+    padding               : 10px 14px;
+    font-size             : 13px;
+    color                 : #ffffff;
+    background            : var(--na-accent-blue);
+    border-color          : var(--na-accent-blue-dark);
+}
+
+.naConverter__Btn--primary:hover:not(:disabled) {
+    background            : var(--na-accent-blue-dark);
+}
+
+.naConverter__Btn--confirm {
+    color                 : #ffffff;
+    background            : var(--na-accent-blue);
+    border-color          : var(--na-accent-blue-dark);
+}
+
+.naConverter__Btn--confirm:hover:not(:disabled) {
+    background            : var(--na-accent-blue-dark);
+}
+
+.naConverter__ActionBar {
+    flex                  : 0 0 auto;
+    padding               : 10px 12px;
+    background            : var(--na-bg-secondary);
+    border-top            : 1px solid var(--na-border);
+}
+
+.naConverter__StatusBar {
+    flex                  : 0 0 auto;
+    padding               : 6px 12px;
+    background            : var(--na-bg-tertiary);
+    border-top            : 1px solid var(--na-border);
+}
+
+.naConverter__StatusText {
+    font-size             : 11px;
+    line-height           : 1.5;
+    color                 : var(--na-text-secondary);
+}
+
+.naConverter__StatusText--success {
+    color                 : var(--na-accent-green);
+    font-weight           : 600;
+}
+
+.naConverter__StatusText--warn {
+    color                 : var(--na-accent-red);
+    font-weight           : 600;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Confirm Modal
+ * ----------------------------------------------------------------------------- */
+
+.naConverter__Modal {
+    position              : fixed;
+    inset                 : 0;
+    z-index               : 40;
+    display               : none;
+    align-items           : center;
+    justify-content       : center;
+    padding               : 18px;
+    background            : rgba(20, 20, 20, 0.48);
+}
+
+.naConverter__Modal.is-open {
+    display               : flex;
+}
+
+.naConverter__ModalCard {
+    width                 : 100%;
+    max-width             : 390px;
+    background            : var(--na-bg-secondary);
+    border                : 1px solid var(--na-border-strong);
+    border-radius         : 6px;
+    box-shadow            : 0 12px 28px rgba(0, 0, 0, 0.22);
+    padding               : 16px 16px 14px 16px;
+}
+
+.naConverter__ModalTitle {
+    font-size             : 15px;
+    font-weight           : 700;
+    margin-bottom         : 10px;
+}
+
+.naConverter__ModalBody {
+    font-size             : 12px;
+    line-height           : 1.55;
+    color                 : var(--na-text-secondary);
+    margin-bottom         : 14px;
+}
+
+.naConverter__ModalBody p {
+    margin                : 0 0 8px 0;
+}
+
+.naConverter__ModalBody p:last-child {
+    margin-bottom         : 0;
+}
+
+.naConverter__ModalActions {
+    display               : flex;
+    justify-content       : flex-end;
+    gap                   : 8px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* =============================================================================
+ * END OF FILE
+ * ============================================================================= */

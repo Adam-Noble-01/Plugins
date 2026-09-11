@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
-        "version"           : "1.4.2",
-        "lastUpdated"       : "26-Aug-2026",
+        "version"           : "1.4.3",
+        "lastUpdated"       : "11-Sep-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json (v1.0.0)"
@@ -364,6 +364,23 @@
                 "PbrRoughness"    : 0.6,
                 "PbrMetallic"     : 0.85,
                 "EnvMapIntensity" : 0.5
+            }
+        },
+
+        "MAT900__SceneEntourageSeries__": {
+            "MAT901__Entourage__Silhouette__MidGrey": {
+                "SketchUpName"       : "MAT901__Entourage__Silhouette__MidGrey",
+                "Description"        : "Entourage silhouette fill -- flat mid grey at 50% opacity for fill-only camera-follow billboards (60_03xx__SceneEntourage__SilhouettePerson__*). Paint the faces, not the component. Matte, non-reflective, double-sided, no depth write, AO and profile-line excluded. Rendered from this entry by ValeVision MaxEngine (needs a __MaxModel Cloud Sync export); whitecard exports and PureEngine replace it with the whitecard like every indexed material.",
+                "BaseColor"          : "rgb(125, 125, 125)",
+                "Opacity"            : 0.50,
+                "Transparent"        : true,
+                "IsDoubleSided"      : true,
+                "DepthWrite"         : false,
+                "PbrRoughness"       : 1.0,
+                "PbrMetallic"        : 0.0,
+                "EnvMapIntensity"    : 0.0,
+                "AoExclude"          : true,
+                "ProfileLineExclude" : true
             }
         }
 

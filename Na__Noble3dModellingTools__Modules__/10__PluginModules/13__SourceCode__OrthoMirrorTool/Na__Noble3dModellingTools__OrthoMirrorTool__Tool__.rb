@@ -7,6 +7,20 @@
 # PURPOSE    : Interactive Sketchup::Tool class for 2D camera-based mirroring
 # CREATED    : 2026
 #
+# THE COORDINATE RULE (see the 0.8.7 devlog entry):
+# - SketchUp's own statement: "In the active drawing context and all its
+#   parent coordinate systems all coordinates are global. In all other
+#   coordinate systems they are local." The selection always lives in the
+#   active context, so while a group is open its geometry, its instances'
+#   transformations and any transform applied to it are all WORLD.
+# - The clicks (InputPoint), the camera and everything drawn in the view are
+#   WORLD as well. The mirror is therefore built and applied in world space
+#   with no conversion, at any nesting depth.
+# - edit_transform (the whole nesting stack in one matrix) is used for one
+#   thing only: turning the open group's red/green/blue into world DIRECTIONS
+#   for the arrow-key lock. Pushing the clicks through its inverse as well
+#   moved the mirror plane by the whole stack - the bug fixed in 1.2.1.
+#
 # =============================================================================
 
 module Na__Noble3dModellingTools
@@ -504,6 +518,11 @@ module Na__Noble3dModellingTools
 
             # FUNCTION | Execute Mirror Transformation
             # ------------------------------------------------------------
+            # Everything here is WORLD space: the two clicks, the camera, the
+            # selection's instances, and the transform handed to transform_entities
+            # (documented to read as global in the active context). No
+            # edit_transform - see the coordinate rule in the file header.
+            # ------------------------------------------------------------
             def execute_mirror_transformation(view)
                 model     = Sketchup.active_model
                 selection = model.selection
@@ -515,21 +534,10 @@ module Na__Noble3dModellingTools
                     return
                 end
 
-                # Resolve the active edit-context transform so the mirror is BUILT and
-                # APPLIED in the same (local) space as the geometry being copied. At the
-                # model root this is identity; inside a group/component it is that
-                # context's local->world transform.
-                edit_transform = model.edit_transform
-                inverse_edit   = edit_transform.inverse
-
-                local_start = @start_point.transform(inverse_edit)
-                local_end   = @end_point.transform(inverse_edit)
-
-                world_view_direction = Na__OrthoMirrorTool.get_camera_view_direction(view)
-                local_view_direction = world_view_direction.transform(inverse_edit)
+                view_direction = Na__OrthoMirrorTool.get_camera_view_direction(view)
 
                 plane_normal = Na__OrthoMirrorTool.calculate_mirror_plane_normal(
-                    local_start, local_end, local_view_direction
+                    @start_point, @end_point, view_direction
                 )
 
                 if plane_normal.nil?
@@ -539,15 +547,16 @@ module Na__Noble3dModellingTools
                     return
                 end
 
-                midpoint         = Geom::Point3d.linear_combination(0.5, local_start, 0.5, local_end)
+                midpoint         = Geom::Point3d.linear_combination(0.5, @start_point, 0.5, @end_point)
                 mirror_transform = Na__OrthoMirrorTool.build_mirror_transform(midpoint, plane_normal)
+                context_depth    = (model.active_path || []).length          # <-- Console only; the maths is depth-blind
 
                 model.start_operation('Mirror Selection', true)
 
                 begin
                     source_group  = entities.add_group(selection.to_a)
                     mirrored_copy = entities.add_instance(source_group.definition, source_group.transformation)
-                    mirrored_copy.transform!(mirror_transform)
+                    entities.transform_entities(mirror_transform, [mirrored_copy])
                     source_group.explode
 
                     mirrored_count = finalize_mirror_result(selection, mirrored_copy)
@@ -557,9 +566,9 @@ module Na__Noble3dModellingTools
                     puts "\n"
                     puts "----------------------------------------"
                     puts "MIRROR OPERATION COMPLETE"
-                    puts "Context: #{edit_transform.identity? ? 'Model root' : 'Inside group/component'}"
+                    puts "Context: #{context_depth.zero? ? 'Model root' : "Inside group/component (#{context_depth} deep)"}"
                     puts "Mirror axis: #{format_point(@start_point)} to #{format_point(@end_point)}"
-                    puts "Plane normal (local): [#{plane_normal.x.round(3)}, #{plane_normal.y.round(3)}, #{plane_normal.z.round(3)}]"
+                    puts "Plane normal (world): [#{plane_normal.x.round(3)}, #{plane_normal.y.round(3)}, #{plane_normal.z.round(3)}]"
                     puts "Mirrored entities: #{mirrored_count}"
                     puts "----------------------------------------"
 

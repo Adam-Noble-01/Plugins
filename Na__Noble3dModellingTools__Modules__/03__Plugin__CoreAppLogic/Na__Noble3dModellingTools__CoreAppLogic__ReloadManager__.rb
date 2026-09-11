@@ -141,6 +141,12 @@ module Na__Noble3dModellingTools
                 Na__MegaExplode__DialogManager.Na__MegaExplode__ResetDialog
                 puts '[Na__Noble3dModellingTools] Reload reset Mega Explode dialog.'
             end
+
+            if defined?(Na__GroupComponentConverter__DialogManager) &&
+               Na__GroupComponentConverter__DialogManager.respond_to?(:Na__GroupComponentConverter__ResetDialog)
+                Na__GroupComponentConverter__DialogManager.Na__GroupComponentConverter__ResetDialog
+                puts '[Na__Noble3dModellingTools] Reload reset Group / Component Converter dialog.'
+            end
         rescue => error
             puts "[Na__Noble3dModellingTools] Feature dialog reset warning: #{error.class}: #{error.message}"
         end

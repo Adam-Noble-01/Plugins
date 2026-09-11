@@ -20,7 +20,7 @@
 
     var na_state = {
         faceData: null,
-        patternKey: 'patio',
+        patternKey: 'flooring',
         polylines: [],
         rotationSteps: 0,
         onApply: null
