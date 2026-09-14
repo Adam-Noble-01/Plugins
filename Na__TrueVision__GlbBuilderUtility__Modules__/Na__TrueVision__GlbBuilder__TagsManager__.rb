@@ -15,6 +15,7 @@
 # - Parses tag entries and constructs SketchUp tags (layers) in the active model
 # - Checks for tag existence before attempting creation to avoid duplicates
 # - Wraps creation in a single SketchUp operation for clean undo support
+# - Files new site plan tags (71-75, SitePlan__ entries) in the "Site Plan" tag folder
 #
 # =============================================================================
 
@@ -36,12 +37,16 @@ module TrueVision3D
         # are system-managed 2D billboard tags like tag 9 (SiteVegetation2D), so they
         # are carved out for auto-creation even though they sit inside the excluded
         # furniture/context number range.
+        # Tags 71-75 are the site plan tags (entries carrying SitePlan__ExportFileNameStem):
+        # fully excluded from the model export, but created here so a model can be tagged
+        # up for the Site Plan Export. New ones are filed in the "Site Plan" tag folder.
         # ------------------------------------------------------------
         NA__TAGS_MANAGER__CREATE_PREFIX_RANGES = [
             (1..1),
             (7..9),
             (10..29),
             (60..61),
+            (71..75),
             (90..93)
         ].freeze
         # ------------------------------------------------------------
@@ -74,6 +79,8 @@ module TrueVision3D
 
             library         = tags_data['Na__DataLib__CoreIndex__Tags']
             tag_entries     = []
+            site_plan_cfg   = tags_data['SitePlanExportConfig']
+            site_plan_folder = (site_plan_cfg.is_a?(Hash) && site_plan_cfg['SketchUpTagFolderName'].is_a?(String)) ? site_plan_cfg['SketchUpTagFolderName'] : 'Site Plan'
 
             return nil unless library.is_a?(Hash)
 
@@ -92,15 +99,17 @@ module TrueVision3D
                     # even when Glb__FullyExcluded is true — these are user-facing modelling flags
                     is_model_flag   = tag_name.include?('ModelFlag') || entry['Glb__LineworkHidden'] == true
                     is_storey       = entry['Storey__IsContainer'] == true
+                    is_site_plan    = entry['SitePlan__ExportFileNameStem'].is_a?(String)
 
-                    # Skip fully-excluded tags unless they are model-flag or storey containers
-                    next if entry['Glb__FullyExcluded'] == true && !is_model_flag && !is_storey
+                    # Skip fully-excluded tags unless they are model-flag, storey container or site plan tags
+                    next if entry['Glb__FullyExcluded'] == true && !is_model_flag && !is_storey && !is_site_plan
 
                     tag_entries << {
                         'name'              => tag_name,
                         'description'       => entry['Tag__Description'],
                         'line_style_name'   => entry['Layout__LineStyleName'],
-                        'edge_colour_rgb'   => entry['Layout__EdgeColourRGB']
+                        'edge_colour_rgb'   => entry['Layout__EdgeColourRGB'],
+                        'folder_name'       => (is_site_plan ? site_plan_folder : nil)
                     }
                 end
             end
@@ -224,6 +233,27 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | File a Newly Created Tag in a Named Tag Folder
+        # ---------------------------------------------------------------
+        # Site plan tags are filed in the folder SitePlanExportConfig names
+        # ("Site Plan"). Tag folders exist from SketchUp 2021; on anything
+        # older the tag simply stays at the top level.
+        # ---------------------------------------------------------------
+        def self.Na__TagsManager__FileTagInFolder(model, layer, folder_name)
+            return if folder_name.nil? || folder_name.empty?
+
+            layers = model.layers
+            return unless layers.respond_to?(:add_folder) && layers.respond_to?(:each_folder)
+
+            folder = nil
+            layers.each_folder { |candidate| folder = candidate if candidate.name == folder_name }
+            folder ||= layers.add_folder(folder_name)
+            folder.add_layer(layer) if folder.respond_to?(:add_layer)
+        rescue => e
+            puts "    [TagsManager] Could not file '#{layer.name}' in tag folder '#{folder_name}': #{e.message}"
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Create Standardised Tags From Index
         # ------------------------------------------------------------
         def self.Na__TagsManager__CreateStandardisedTags
@@ -255,6 +285,7 @@ module TrueVision3D
                         begin
                             new_layer = model.layers.add(tag_name)
                             self.Na__TagsManager__ApplyTagStyling(new_layer, tag_entry)
+                            self.Na__TagsManager__FileTagInFolder(model, new_layer, tag_entry['folder_name'])
                             created_tags << tag_name
                             puts "  [OK]   Tag created: #{tag_name}"
                         rescue => e

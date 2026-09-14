@@ -2,8 +2,8 @@
     "meta": {
         "fileName"               : "Na__DataLib__CoreIndex__EdgeMaterials__.json",
         "description"            : "Single source of truth for all Noble Architecture standard edge linework colours. Used by Na__EdgeUtil__PaintDeepNestedEdges to create SketchUp edge materials and populate the colour palette UI. Each MTE colour key becomes the SketchUp material name when applied to edges.",
-        "version"                : "2.0.0",
-        "lastUpdated"            : "15-Mar-2026",
+        "version"                : "2.1.0",
+        "lastUpdated"            : "14-Sep-2026",
         "sourceFiles"            : [
             "Na__EdgeUtil__PaintDeepNestedEdges__Modules__/Na__EdgeUtil__PaintDeepNestedEdges__EdgeConfigData__.json (v1.0.0 - superseded)"
         ],
@@ -181,6 +181,14 @@
                 "HsbValue"       : [288, 79, 67],
                 "Description"    : "Purple accent - Material Design Purple 800",
                 "SwatchName"     : "Purple"
+            },
+            "MTE205__LineColour__Blue": {
+                "SketchUpName"   : "MTE205__LineColour__Blue",
+                "HexValue"       : "#1E88E5",
+                "RgbValue"       : [30, 136, 229],
+                "HsbValue"       : [208, 87, 90],
+                "Description"    : "Blue accent - Material Design Blue 600. Site plan blue line (other land owned by the applicant) and drainage.",
+                "SwatchName"     : "Blue"
             }
         }
 

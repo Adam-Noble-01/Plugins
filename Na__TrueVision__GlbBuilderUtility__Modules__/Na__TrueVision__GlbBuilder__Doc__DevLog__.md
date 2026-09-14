@@ -8,6 +8,48 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.6.2 - 14-Sep-2026
+#### Site Plan Tags (71-75) Join the SSOT - Create Them, Then Tag a Model
+
+**Why**
+- TrueVision3D is gaining Site Plan drawings - block plans at 1:500 and location plans at 1:1250 -
+  drawn from 2D site plan data exported out of SketchUp, one GLB per tag. The plan lives in the public
+  repo: `na-apps/30__TrueVision__CoreAppCode/TrueVision__PLAN__SitePlanDrawings__.md`.
+- This version adds only the tags, so a model can be tagged up. The Site Plan Export itself comes next.
+
+**New SSOT data**
+- Tags SSOT v2.3.0 - new section `71_75__SitePlanTags__`, 18 tags. Similar layers share a number and
+  differ by name (Adam, 14-Sep-2026):
+  - 71 Base Map - OsMapping, Amendments, Contours
+  - 72 Boundary - RedLine, BlueLine, WallsAndFences, SettingOutLines
+  - 73 Buildings - Existing, ToBeDemolished, Proposed, ProposedSecondary
+  - 74 External Works - HardSurfaces, ParkingAndAccess, DrainageAndServices
+  - 75 Soft Landscape - Trees, HedgesAndPlanting, TreesToRemove, RootProtectionAreas
+- New `SitePlan__` fields on each entry: export stem, layer label and group, draw order, whether closed
+  faces export as fills, default line colour (MTE id), line type (TrueVision EdgeStyles alias), weight in
+  paper mm, fill colour and opacity, and the scales the layer shows at by default.
+- New top-level `SitePlanExportConfig`: folder `SitePlan__DrawingData`, manifest name, file suffixes, tag
+  pattern `^\d{2}__SitePlan__`, scales [500, 1250], SketchUp tag folder "Site Plan".
+- Every site plan tag is in `ExportExclusions.FullyExcludedTagNames` (the model export never writes it, at
+  any depth) and `AdvancedSwapOffTagNames` (Edge Paint leaves its edges alone). No entry carries
+  `Glb__ExportFileNameStem`, so the Cloud Sync stem map is unchanged.
+- EdgeMaterials SSOT v2.1.0: `MTE205__LineColour__Blue` `#1E88E5` (Material Blue 600), for the blue line
+  and drainage.
+
+**Code**
+- `Na__TrueVision__GlbBuilder__TagsManager__.rb`: `NA__TAGS_MANAGER__CREATE_PREFIX_RANGES` gains `(71..75)`.
+  Entries carrying `SitePlan__ExportFileNameStem` are created although fully excluded, and each new one is
+  filed in the "Site Plan" tag folder (SketchUp 2021 and later; older versions keep it at the top level).
+- `Na__TrueVision__GlbBuilder__TagsIndex__.json` (local fallback) gains the 18 tags.
+- README range table gains the 71-75 row.
+
+**Downstream**
+- Top-level groups on 71-75 were already ignored by the model export (no export range); the exclusion list
+  now keeps nested ones out as well - once the SSOT is on GitHub, because the exporter reads it GitHub-first
+  through a 30-minute cache. The Tags Manager reads the local file first, so the tags can be created before
+  a push.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.6.1 - 11-Sep-2026
 #### Entourage Silhouettes Get Their Own Tag (61) and GLB Segment
 

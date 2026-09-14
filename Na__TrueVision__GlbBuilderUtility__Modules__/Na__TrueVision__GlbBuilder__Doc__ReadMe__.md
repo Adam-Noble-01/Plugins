@@ -51,6 +51,7 @@
 `NaModel__Vegetation`                         = *"50__" -> "59__"*        # <-- Vegetation (Trees, Bushes, etc.)
 `NaModel__SceneEntourage2D`                   = *"60__"*                  # <-- 2D camera-follow billboard entourage (people, pets). Sibling of tag 09 SiteVegetation2D.
 `NaModel__SceneContextual`                    = *"61__" -> "70__"*        # <-- Scene Context (people, vehicles, etc.)
+`NaModel__SitePlan__{Layer}`                  = *"71__" -> "75__"*        # <-- Site plan layers: never in model GLBs; one GLB per tag NAME from the Site Plan Export (similar layers share a number)
 `NaModel__Storey__GroundFloor`                = *"90__"*                  # <-- Ground Floor Storey Container (see Storey-Based Export below)
 `NaModel__Storey__FirstFloor`                 = *"91__"*                  # <-- First Floor Storey Container
 `NaModel__Storey__SecondFloor`                = *"92__"*                  # <-- Second Floor Storey Container
