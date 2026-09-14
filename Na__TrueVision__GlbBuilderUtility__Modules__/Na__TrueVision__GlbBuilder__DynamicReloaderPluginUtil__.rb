@@ -36,6 +36,11 @@ module TrueVision3D
                     TrueVision3D::GlbBuilderUtility.Na__PublicApi__CreateStandardisedTags
                 }
 
+                # Add site plan export menu item (site plan tags 71-75 -> SitePlan__DrawingData)
+                truevision_submenu.add_item("Export Site Plan Data") {
+                    TrueVision3D::GlbBuilderUtility.Na__PublicApi__ExportSitePlanData
+                }
+
                 @menu_registered = true
                 puts "✓ TrueVision3D GLB Builder Utility menu registered via Na__DynamicReloader__RegisterMenu"
             rescue => e

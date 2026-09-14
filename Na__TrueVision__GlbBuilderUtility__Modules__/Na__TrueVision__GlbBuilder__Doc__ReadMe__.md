@@ -166,6 +166,20 @@ When children are nested inside a storey container (90-93), the following child 
 
 # ---------------------------------------------------------
 
+## Site Plan Export (Tags 71-75)
+
+- Site plan tags (`71__SitePlan__...` to `75__SitePlan__...`, from the Tags SSOT) never go into model GLBs.
+- **Export Site Plan Data** (dialog button or Extensions menu) writes them to the project's
+  `30__TrueVision__AppContent/SitePlan__DrawingData/` folder:
+  - one `{prefix}TrueVision__SitePlan__{Layer}__LineworkModel__.glb` per tag with geometry;
+  - a `__FillModel__.glb` of face rings for fill tags (proposed buildings, trees, hedges);
+  - `TrueVision__SitePlanData__Manifest__.json`.
+- Tag groups or raw geometry anywhere in the model. The nearest site plan tag above an edge or face decides its layer.
+- The ProjectVision build pipeline (option 3) publishes the folder; TrueVision3D Site Plan drawings read it.
+- Logic handled by `Na__TrueVision__GlbBuilder__SitePlanExport__.rb`.
+
+# ---------------------------------------------------------
+
 ## Material and Texture Export System
 
 ### Material Export Modes

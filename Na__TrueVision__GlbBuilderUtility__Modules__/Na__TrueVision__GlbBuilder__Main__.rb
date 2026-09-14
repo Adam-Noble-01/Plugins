@@ -76,6 +76,11 @@ require_relative 'Na__TrueVision__GlbBuilder__UserInterface__'
 require_relative 'Na__TrueVision__GlbBuilder__DynamicReloaderPluginUtil__'
 require_relative 'Na__TrueVision__GlbBuilder__TagsManager__'
 require_relative 'Na__TrueVision__GlbBuilder__Logging__'
+begin
+    require_relative 'Na__TrueVision__GlbBuilder__SitePlanExport__'                  # <-- Guarded: a fault here must never stop the model export loading
+rescue ScriptError, StandardError => e
+    puts "✗ [GlbBuilder] Site Plan Export module failed to load (model export unaffected): #{e.class}: #{e.message}"
+end
 require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module TrueVision3D
@@ -91,6 +96,7 @@ module TrueVision3D
         TEXTURE_SCALE_FACTOR        =   0.25                                      # <-- Scale factor for texture downscaling (25%)
         EXCLUDED_LAYER_PATTERN      =   /^TrueVision_.*_DoNotExportGLTF$/         # <-- Regex pattern for excluded layers (hardcoded fallback)
         EXCLUDED_LAYER_DESCRIPTION  =   "TrueVision_*_DoNotExportGLTF".freeze     # <-- Human-readable description for excluded layers
+        SITE_PLAN_TAG_PATTERN       =   /^\d{2}__SitePlan__/                      # <-- Site plan tags (71-75): never written to model GLBs, even while the GitHub SSOT predates them
         ALWAYS_EXCLUDED_LAYER_NAMES =   [
             "02__Linetype__DoorSwings",
             "02__ClearanceLines",
@@ -590,6 +596,22 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__PublicApi__CreateStandardisedTags
             self.Na__TagsManager__CreateStandardisedTags
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Export Site Plan Data (called from UI or menu)
+        # ---------------------------------------------------------------
+        def self.Na__PublicApi__ExportSitePlanData
+            unless self.respond_to?(:Na__SitePlan__Run)
+                UI.messagebox("The Site Plan Export module did not load. Check the Ruby Console, then use Reload Scripts.")
+                return false
+            end
+            self.Na__SitePlan__Run(Sketchup.active_model)
+        rescue => e
+            puts "ERROR in Na__PublicApi__ExportSitePlanData: #{e.message}"
+            puts "Backtrace: #{e.backtrace.first(5).join("\n")}"
+            UI.messagebox("Site plan export error: #{e.message}\n\nCheck the Ruby Console for details.")
+            false
         end
         # ---------------------------------------------------------------
 

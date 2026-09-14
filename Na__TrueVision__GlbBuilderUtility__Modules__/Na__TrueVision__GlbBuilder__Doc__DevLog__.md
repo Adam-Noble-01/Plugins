@@ -8,6 +8,83 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.7.2 - 14-Sep-2026
+#### Site Plan Export - The Checks Are Listed Where You Read Them
+
+**Why**
+- After a site plan export the completion message said "Some layers need a look - see the summary shown before
+  export, or the log".
+- By then the summary had closed, and the log did not contain the checks.
+
+**Changed:** `Na__TrueVision__GlbBuilder__SitePlanExport__.rb` (1.1.1)
+- **In the log.** Every check is written to the export log as a warning line, "Check {tag}: {text}".
+- **In the message.** The completion message lists the checks itself (up to eight): which layers, and why.
+- **No duplicates.** The skipped-edge log lines from 2.7.1 are now part of those check lines.
+- **Unchanged.** What exports is the same.
+
+**Not run in SketchUp.** Block-balance check only. Reload Scripts, then export again.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.7.1 - 14-Sep-2026
+#### Site Plan Export - Skipped Edges Are Counted, Not Silent
+
+**Why**
+- PS01's neighbouring buildings group held 416 edges in the 16:49 entity tree, and the export wrote 394 lines.
+- The Site Plan Export skips hidden, soft and smooth edges, and hidden groups or components. It said nothing
+  about them, so a gap in the linework could only be found by counting.
+
+**Changed:** `Na__TrueVision__GlbBuilder__SitePlanExport__.rb` (1.1.0)
+- **Counted.** Every skipped edge and hidden object counts against the site plan layer it would have drawn on.
+- **Reported in three places:** the summary before export ("Check:"), a warning line in the export log, and
+  the manifest's `Layer__Warnings`.
+- **A tag whose edges are all skipped** is reported, not counted as unused.
+- **"Nothing to export"** now says when skipped edges are the reason.
+- **What exports is unchanged.** The site plan still draws what SketchUp shows.
+
+**Not run in SketchUp.** There is no Ruby outside SketchUp on the studio PC. A block-balance check passes on
+this module and on two known-good modules. Reload Scripts, re-export, and read the summary.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.7.0 - 14-Sep-2026
+#### Site Plan Export - One GLB per Site Plan Tag, Fills and a Manifest
+
+**Why**
+- Adam tagged up the first site plan model (PS01_M10__SitePlanModel). The dialog's Export GLB Files was
+  greyed out, correctly: that is the model export, and site plan tags never go into model GLBs.
+  Nothing yet wrote the site plan data itself.
+
+**New module** `Na__TrueVision__GlbBuilder__SitePlanExport__.rb` (1.0.0)
+- Reads the site plan layers from the Tags SSOT (local file first, then the DataLib cache): every entry
+  carrying `SitePlan__ExportFileNameStem`, with `SitePlanExportConfig` over its defaults.
+- Walks the whole model. An edge or face belongs to the nearest site plan tag on itself or on a group or
+  component above it. Tag visibility is ignored; hidden objects, soft, smooth and hidden edges, and
+  fully excluded reference tags are skipped.
+- Per layer: `{prefix}{Stem}__LineworkModel__.glb` (one non-indexed LINES primitive, POSITION + COLOR_0,
+  world metres, Y up - the model GLBs' frame). For fill tags, `{prefix}{Stem}__FillModel__.glb`: one
+  LINE_LOOP primitive per face ring, with `Na__SitePlanFace` / `Na__SitePlanRing` extras.
+- `TrueVision__SitePlanData__Manifest__.json` last: prefix, source model, export time, SSOT version,
+  north angle, bounds, and per layer the files, counts, bounds, style (MTE ids resolved to hex), scales
+  and warnings.
+- Older site plan GLBs in the folder that this export did not write are offered for deletion.
+- Before writing: a summary of every layer with geometry, the unused tag count, and checks (a layer
+  that is not flat, faces on a lines-only tag, a fill tag without faces, geometry far from the origin).
+- File prefix: `PS01_M10__...` and `PS01__...` model names both give `PS01__`.
+- Refuses to run while a group or component is open for editing.
+- The export folder: pick `SitePlan__DrawingData`, or pick `30__TrueVision__AppContent` and it exports
+  into (and creates) its site plan folder. Any other name asks first. The last folder is remembered.
+
+**Wiring**
+- Dialog: an **Export Site Plan Data** button, enabled when the model has site plan tags. A note counts
+  them. The empty-export line says to use the site plan export, and the excluded-tags note says what it
+  really counts.
+- Extensions menu: Na__TrueVision3D > Export Site Plan Data (appears after a SketchUp restart).
+- Main: `Na__PublicApi__ExportSitePlanData`. The module is required inside a guard, so a fault in it can
+  never stop the model export loading.
+
+**Not yet verified in SketchUp** - there is no Ruby outside SketchUp on the studio PC. Reload Scripts, then run
+the export on PS01_M10.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.6.2 - 14-Sep-2026
 #### Site Plan Tags (71-75) Join the SSOT - Create Them, Then Tag a Model
 
@@ -42,12 +119,17 @@
   filed in the "Site Plan" tag folder (SketchUp 2021 and later; older versions keep it at the top level).
 - `Na__TrueVision__GlbBuilder__TagsIndex__.json` (local fallback) gains the 18 tags.
 - README range table gains the 71-75 row.
+- `Na__TrueVision__GlbBuilder__Main__.rb` / `CoreExport__.rb`: new `SITE_PLAN_TAG_PATTERN` (`^\d{2}__SitePlan__`).
+  `Na__ExportCore__IdentifyExcludedLayers` excludes any tag matching it, as well as the names in
+  `FullyExcludedTagNames`.
 
 **Downstream**
-- Top-level groups on 71-75 were already ignored by the model export (no export range); the exclusion list
-  now keeps nested ones out as well - once the SSOT is on GitHub, because the exporter reads it GitHub-first
-  through a 30-minute cache. The Tags Manager reads the local file first, so the tags can be created before
-  a push.
+- Top-level groups on 71-75 were already ignored by the model export (no export range). Nested site plan
+  geometry is now kept out at any depth too: by pattern straight away, and by name once the SSOT is on
+  GitHub (the exporter reads it GitHub-first through a 30-minute cache). The Tags Manager reads the local
+  file first, so the tags can be created before a push.
+- The Site Plan Export itself - one GLB per tag, fills, manifest - is not in this version. When it is built it
+  must use its own exclusion set: `@excluded_layers` now removes every site plan tag.
 
 # ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.6.1 - 11-Sep-2026

@@ -71,6 +71,7 @@ module TrueVision3D
         def self.Na__UserInterface__GenerateDialogHtml
             excluded_count = @excluded_layers.length                                 # Count excluded layers
             model = Sketchup.active_model
+            site_plan_tag_count = model.layers.count { |layer| layer.name =~ SITE_PLAN_TAG_PATTERN }  # Site plan tags (71-75) in this model
             project_prefix = self.Na__Helpers__ExtractProjectPrefix(model)              # Extract project prefix
             tag_groups = self.Na__ExportCore__OrganizeEntitiesByTags(model)             # Get tag groups
 
@@ -106,7 +107,11 @@ module TrueVision3D
             total_file_count = 0                                                       # Running count of output GLB files
 
             if total_export_count == 0
-                export_list_html = "<div class='empty-note'>No entities found with valid tag ranges</div>"
+                export_list_html = if site_plan_tag_count > 0
+                    "<div class='empty-note'>No model layers to export. This model holds site plan tags: use Export Site Plan Data.</div>"
+                else
+                    "<div class='empty-note'>No entities found with valid tag ranges</div>"
+                end
             else
                 # Flat (non-storey) items first
                 tag_groups.each do |filename, entities|
@@ -153,9 +158,14 @@ module TrueVision3D
                               "Duplicate storey containers are merged per-storey.</div>"
             end
 
+            if site_plan_tag_count > 0
+                notes_html += "<div class='note note-siteplan'><strong>#{site_plan_tag_count} site plan tag(s)</strong> (71-75) in this model. " \
+                              "They never go into model GLBs: use <strong>Export Site Plan Data</strong>.</div>"
+            end
+
             if excluded_count > 0
-                notes_html += "<div class='note note-excluded'><strong>#{excluded_count} layer(s)</strong> matching " \
-                              "'#{EXCLUDED_LAYER_DESCRIPTION}' will be excluded</div>"
+                notes_html += "<div class='note note-excluded'><strong>#{excluded_count} tag(s)</strong> left out of model GLBs " \
+                              "(reference, helper and site plan tags, and '#{EXCLUDED_LAYER_DESCRIPTION}')</div>"
             end
 
             file_count_label = total_export_count == 0 ? "Nothing to export" : "#{total_file_count} GLB files"
@@ -303,6 +313,9 @@ module TrueVision3D
                     .btn-setup:hover:not(:disabled)               { background: #37855a; }
                     .btn-reload                                   { flex: 0 0 130px; background: #95a5a6; font-size: 11.5px; padding: 7px 10px; }
                     .btn-reload:hover:not(:disabled)              { background: #7f8c8d; }
+                    .btn-siteplan                                 { background: #9b2f2f; font-weight: bold; }
+                    .btn-siteplan:hover:not(:disabled)            { background: #b53a3a; }
+                    .action-row.siteplan                          { margin-top: 7px; }
 
                     /* Output Pane - Bottom Section, Scrolls Independently */
                     .output-pane {
@@ -408,6 +421,12 @@ module TrueVision3D
                         color                                    : var(--TrueVisionBorderColor);
                     }
 
+                    .note-siteplan {
+                        background                               : #fbeaea;
+                        border                                   : 1px solid #e8b4b4;
+                        color                                    : #6b1f1f;
+                    }
+
                     .note-excluded {
                         background                               : #fff3cd;
                         border                                   : 1px solid #ffeaa7;
@@ -476,6 +495,9 @@ module TrueVision3D
                         <button class="btn-primary" onclick="Na__TrueVision__GlbBuilder__PerformExport()" #{total_export_count == 0 ? 'disabled' : ''}>Export GLB Files</button>
                         <button class="btn-cancel" onclick="Na__TrueVision__GlbBuilder__CancelExport()">Cancel</button>
                     </div>
+                    <div class="action-row siteplan">
+                        <button class="btn-siteplan" onclick="Na__TrueVision__GlbBuilder__ExportSitePlan()" #{site_plan_tag_count == 0 ? 'disabled' : ''} title="One linework GLB per site plan tag (71-75), fills and a manifest, into SitePlan__DrawingData">Export Site Plan Data</button>
+                    </div>
                     <div class="action-row secondary">
                         <button class="btn-setup" onclick="Na__TrueVision__GlbBuilder__CreateStandardisedTags()">Create Standardised Tags From Index</button>
                         <button class="btn-reload" onclick="Na__TrueVision__GlbBuilder__ReloadScripts()">&#128260; Reload Scripts</button>
@@ -537,6 +559,10 @@ module TrueVision3D
 
                     function Na__TrueVision__GlbBuilder__CancelExport() {
                         window.location = 'skp:Na__TrueVision__GlbBuilder__Cancel';
+                    }
+
+                    function Na__TrueVision__GlbBuilder__ExportSitePlan() {
+                        window.location = 'skp:Na__TrueVision__GlbBuilder__ExportSitePlan';
                     }
 
                     function Na__TrueVision__GlbBuilder__CreateStandardisedTags() {
@@ -632,6 +658,18 @@ module TrueVision3D
                 end
             end
             
+            # Callback: Export Site Plan Data (site plan tags 71-75 -> SitePlan__DrawingData)
+            dialog.add_action_callback("Na__TrueVision__GlbBuilder__ExportSitePlan") do |action_context|
+                dialog.close
+                begin
+                    TrueVision3D::GlbBuilderUtility.Na__PublicApi__ExportSitePlanData
+                rescue => e
+                    Na__Log__Warn "    ✗ Error in site plan export callback: #{e.message}"
+                    Na__Log__Warn e.backtrace.join("\n")
+                    UI.messagebox("Site plan export error: #{e.message}")
+                end
+            end
+
             dialog.add_action_callback("Na__TrueVision__GlbBuilder__Cancel") do |action_context|
                 dialog.close
             end

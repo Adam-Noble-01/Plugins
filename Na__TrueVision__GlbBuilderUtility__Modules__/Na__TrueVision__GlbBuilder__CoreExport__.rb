@@ -478,7 +478,9 @@ module TrueVision3D
             linework_hidden_names    = self.Na__ExportConfig__LineworkHiddenTagNames
 
             model.layers.each do |layer|
-                if layer.name =~ exclusion_pattern || fully_excluded_names.include?(layer.name)
+                # Site plan tags (71-75) match by pattern as well as by name, so an SSOT cached from
+                # GitHub before they existed still keeps site plan geometry out of every model GLB.
+                if layer.name =~ exclusion_pattern || layer.name =~ SITE_PLAN_TAG_PATTERN || fully_excluded_names.include?(layer.name)
                     @excluded_layers << layer.name
                 elsif treat_as_untagged_names.include?(layer.name)
                     @treat_as_untagged_layers << layer.name
