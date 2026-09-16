@@ -372,4 +372,149 @@ na_edit_context=NA_DIALOG.instance_variable_get(:@na_context)
 na_array.transformation=Geom::Transformation.translation([15,25,35])
 Na__Spec__Reject('late edit after external move accepted') { NA_DIALOG.Na__Dialog__CheckContext('context'=>na_edit_context) }
 Na__Spec__Check('external edit rotates session token') { NA_DIALOG.instance_variable_get(:@na_context)!=na_edit_context }
+
+# REGION | Negative margins and nested WORLD-versus-definition coordinates
+na_outward = NA_LAYOUT.Na__Layout__Resolve(na_config.merge('distribution'=>'inset','inset_mm'=>-50),na_points)
+Na__Spec__Check('negative leading margin extends backwards') { Na__Spec__Near(na_outward[:positions].first[:point].x*25.4,-50) }
+Na__Spec__Check('negative trailing margin extends forwards') { Na__Spec__Near(na_outward[:positions].last[:point].x*25.4+100,1050) }
+Na__Spec__Check('corner merge defaults off') { NA_CONFIG.Na__Config__Resolve()['merge_corners']==false }
+Na__Spec__Check('corner merge and signed margins serialize') { NA_CONFIG.Na__Config__Resolve(JSON.generate(na_config.merge('merge_corners'=>true,'inset_mm'=>-80)))['inset_mm']==-80 }
+na_model.edit_transform = Geom::Transformation.axes(Geom::Point3d.new(500,800,200),Y_AXIS,Geom::Vector3d.new(-1,0,0),Z_AXIS)
+na_world_path = [Geom::Point3d.new(30,70,90),Geom::Point3d.new(90,70,90)]
+na_model.selection = Na__Spec__Selection.new
+na_nested_array = nil
+%w[draw selection].each do |na_mode|
+    na_nested_array = NA_GEOMETRY.na_create_array(na_world_path,na_object_config.merge('path_source'=>na_mode))
+    na_local_path = NA_DATA.Na__Data__Points(NA_DATA.Na__Data__Load(na_nested_array))
+    Na__Spec__Check("#{na_mode} creates at world origin without double parent transform") { ORIGIN.transform(na_nested_array.transformation)==na_world_path.first }
+    Na__Spec__Check("#{na_mode} saved path reproduces original world points") { na_local_path.map { |na_point| na_point.transform(na_nested_array.transformation) }==na_world_path }
+end
+NA_DIALOG.instance_variable_set(:@na_target,na_nested_array)
+NA_DIALOG.instance_variable_set(:@na_replacing,true)
+Na__Spec__Check('redraw frame does not multiply active parent again') { NA_DIALOG.Na__Dialog__PreviewFrame().to_a==na_nested_array.transformation.to_a }
+NA_DIALOG.instance_variable_set(:@na_replacing,false)
+Na__Spec__Check('new path preview remains world space') { NA_DIALOG.Na__Dialog__PreviewFrame().to_a==Geom::Transformation.new.to_a }
+
+# REGION | Actual source mesh, three closed nested transforms and cache invalidation
+module Sketchup
+    class Face; end
+    class Edge; end
+end
+class Na__Spec__Face < Sketchup::Face
+    attr_accessor :na_reads
+    def initialize; @na_reads=0; end
+    def hidden?; false; end
+    def layer; Struct.new(:visible?).new(true); end
+    def material; nil; end
+    def mesh(_na_flags)
+        @na_reads+=1
+        Struct.new(:points,:polygons).new([Geom::Point3d.new(1,2,3),Geom::Point3d.new(4,2,3),Geom::Point3d.new(1,7,8)],[[1,-2,3]])
+    end
+end
+class Na__Spec__Entity
+    def hidden?; false; end
+    def layer; Struct.new(:visible?).new(true); end
+    def material; nil; end
+end
+class Na__Spec__Definition
+    attr_accessor :na_revision
+    def guid; @na_revision || 'initial'; end
+end
+NA_PREVIEW = Na__ArrayBuilderTools::Na__ArrayBuilder__PreviewGeometry
+na_mesh_face = Na__Spec__Face.new
+na_leaf = na_model.definitions.add('Preview leaf')
+na_leaf.entities << na_mesh_face
+na_mesh_root = na_leaf
+na_accumulated = Geom::Transformation.new
+3.times do |na_index|
+    na_parent = na_model.definitions.add('Preview parent')
+    na_transform = Geom::Transformation.axes(Geom::Point3d.new(10+na_index,20+na_index,30+na_index),Y_AXIS,Geom::Vector3d.new(-1,0,0),Z_AXIS) * Geom::Transformation.scaling(2,3,4)
+    na_parent.entities.add_instance(na_mesh_root,na_transform)
+    na_mesh_root = na_parent
+    na_accumulated = na_transform * na_accumulated
+end
+NA_REGISTRY.Na__Registry__SetDefinition(na_mesh_root,'Nested mesh',[2,3,4])
+na_mesh_source = NA_REGISTRY.Na__Registry__GetPlacementInfo()
+na_mesh_plan = NA_LAYOUT.Na__Layout__Resolve(na_object_config,na_points,na_mesh_source)
+na_mesh_geometry = NA_PREVIEW.Na__Preview__Resolve(na_mesh_plan)
+na_mesh = na_mesh_geometry[:mesh]
+Na__Spec__Check('source preview is actual triangle, not bounding box') { na_mesh[:points].length==3 && na_mesh[:triangles].length==1 }
+Na__Spec__Check('nested source transforms accumulate parent first once') { na_mesh[:points].first==Geom::Point3d.new(1,2,3).transform(na_accumulated) }
+Na__Spec__Check('negative PolygonMesh indices are normalised') { na_mesh[:triangles].first.first(3)==[0,1,2] }
+NA_PREVIEW.Na__Preview__Resolve(na_mesh_plan)
+Na__Spec__Check('source mesh reused for all instances and requests') { na_mesh_face.na_reads==1 }
+na_mesh_root.na_revision='changed'
+NA_PREVIEW.Na__Preview__Resolve(na_mesh_plan)
+Na__Spec__Check('source revision invalidates mesh') { na_mesh_face.na_reads==2 }
+na_frame = Geom::Transformation.translation([300,400,500])
+na_batches = NA_PREVIEW.Na__Preview__DrawBatches(na_mesh_geometry,na_frame)
+na_expected = na_mesh[:points].first.transform(na_frame * NA_LAYOUT.Na__Layout__Transform(na_mesh_plan[:positions].first,na_mesh_plan[:config],na_mesh_source))
+Na__Spec__Check('native mesh preview uses final geometry placement') { na_batches[:faces].values.first.first==na_expected }
+na_payload = NA_PREVIEW.Na__Preview__Payload(na_mesh_geometry,na_mesh_plan)
+Na__Spec__Check('HTML sends single mesh plus instance matrices') { na_payload['mesh']['points'].length==3 && na_payload['instances'].length==na_mesh_plan[:positions].length }
+Na__Spec__Check('preview does not create geometry') { na_mesh_root.entities.length==1 }
+
+# REGION | Native union dispatch only for overlapping corner neighbours
+NA_CORNERS = Na__ArrayBuilderTools::Na__ArrayBuilder__CornerMerger
+class Na__Spec__UnionUnit < Na__Spec__Entity
+    attr_accessor :na_unions, :na_union_fail
+    def union(na_other)
+        @na_unions=(@na_unions||0)+1
+        return nil if @na_union_fail
+        Na__Spec__UnionUnit.new
+    end
+end
+na_merge_plan = NA_LAYOUT.Na__Layout__Resolve(na_config.merge('distribution'=>'normalise','unit_depth_mm'=>80,'merge_corners'=>true),na_corner)
+na_merge_units = na_merge_plan[:positions].map { Na__Spec__UnionUnit.new }
+na_before_units = na_merge_units.dup
+NA_CORNERS.Na__Corners__Merge(na_merge_units,na_merge_plan)
+Na__Spec__Check('overlapping corner invokes exactly one union') { na_before_units.sum { |na_unit| na_unit.na_unions || 0 }==1 }
+Na__Spec__Check('merged result remains marked generated for later edits') { na_merge_units.any? { |na_unit| na_unit.get_attribute(NA_DATA::NA_INSTANCE_DICT,'role')=='unit' } }
+na_off_units = na_merge_plan[:positions].map { Na__Spec__UnionUnit.new }
+NA_CORNERS.Na__Corners__Merge(na_off_units,na_merge_plan.merge(config:na_merge_plan[:config].merge('merge_corners'=>false)))
+Na__Spec__Check('disabled corner merge never calls union') { na_off_units.all? { |na_unit| na_unit.na_unions.nil? } }
+na_gap_plan = NA_LAYOUT.Na__Layout__Resolve(na_config.merge('distribution'=>'inset','inset_mm'=>100,'merge_corners'=>true),na_corner)
+na_gap_units = na_gap_plan[:positions].map { Na__Spec__UnionUnit.new }
+NA_CORNERS.Na__Corners__Merge(na_gap_units,na_gap_plan)
+Na__Spec__Check('separate corners never call union') { na_gap_units.all? { |na_unit| na_unit.na_unions.nil? } }
+na_failed_units = na_merge_plan[:positions].map { na_unit=Na__Spec__UnionUnit.new; na_unit.na_union_fail=true; na_unit }
+Na__Spec__Reject('failed union cannot silently commit') { NA_CORNERS.Na__Corners__Merge(na_failed_units,na_merge_plan) }
+
+# REGION | Reload the real module set twice with isolated UI/observer doubles
+require File.join(na_root,'Na__ArrayBuilder__ModelObservers__')
+module Sketchup
+    def self.add_observer(na_observer); (@na_observers||=[]) << na_observer; end
+    def self.remove_observer(na_observer); (@na_observers||=[]).delete(na_observer); end
+    def self.na_observers; @na_observers||=[]; end
+end
+class Na__Spec__Selection
+    def add_observer(na_observer); (@na_observers||=[]) << na_observer; end
+    def remove_observer(na_observer); (@na_observers||=[]).delete(na_observer); end
+    def na_observers; @na_observers||=[]; end
+end
+class Na__Spec__Model
+    def add_observer(na_observer); (@na_observers||=[]) << na_observer; end
+    def remove_observer(na_observer); (@na_observers||=[]).delete(na_observer); end
+    def na_observers; @na_observers||=[]; end
+end
+module UI
+    class HtmlDialog
+        def close; @na_close.call; end
+    end
+    def self.messagebox(na_message); raise na_message; end
+end
+NA_RELOAD = Na__ArrayBuilderTools::Na__ArrayBuilder__PluginReloader
+na_reload_files = NA_RELOAD::NA_MODULE_ORDER.map { |na_name| File.join(na_root,"Na__ArrayBuilder__#{na_name}__.rb") }
+na_reload_snapshot = {config:na_object_config.merge('spacing_mm'=>333),model:na_model,target:na_nested_array,scope:'linked',source:na_mesh_source,source_name:'Nested mesh'}
+na_model.selection.clear
+na_model.selection.add(na_nested_array)
+2.times { NA_RELOAD.Na__Reload__Run(na_reload_files,na_reload_snapshot) }
+NA_DIALOG.Na__Dialog__Receive(JSON.generate('action'=>'ready'))
+Na__Spec__Check('reload retains uncommitted parameters') { NA_DIALOG.instance_variable_get(:@na_config)['spacing_mm']==333 }
+Na__Spec__Check('reload restores selected edit target and scope') { NA_DIALOG.instance_variable_get(:@na_target)==na_nested_array && NA_DIALOG.instance_variable_get(:@na_scope)=='linked' }
+Na__Spec__Check('reload restores custom source after registry reinitialisation') { NA_REGISTRY.Na__Registry__GetPlacementInfo()[:definition]==na_mesh_root }
+Na__Spec__Check('repeat reload does not duplicate model observers') { na_model.na_observers.length==1 && na_model.selection.na_observers.length==1 && Sketchup.na_observers.length==1 }
+Na__Spec__Check('reload handshake restores metrics in new dialog') { NA_DIALOG.na_get_dialog.na_scripts.any? { |na_script| na_script.include?('"metrics"') } }
+Na__Spec__Check('reload returns to Settings with success feedback') { NA_DIALOG.na_get_dialog.na_scripts.any? { |na_script| na_script.include?('"settings"') } }
+Dir[File.join(__dir__,'*.rb.test')].each { |na_file| RubyVM::InstructionSequence.compile_file(na_file) }
 puts "Array Builder: #{$na_checks} core regression checks passed."

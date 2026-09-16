@@ -179,8 +179,7 @@ module Na__ArrayBuilderTools
 
             view.line_width = 3
             view.drawing_color = NA_PATH_COLOR
-            na_transform = Sketchup.active_model.edit_transform
-            na_display_points = @na_path_points.map { |na_point| na_point.transform(na_transform) }
+            na_display_points = @na_path_points
             view.draw_polyline(na_display_points)
 
             na_draw_direction_arrow(view, na_display_points)
@@ -193,7 +192,8 @@ module Na__ArrayBuilderTools
         # ------------------------------------------------------------
         def getExtents
             bb = Geom::BoundingBox.new
-            @na_path_points.each { |pt| bb.add(pt.transform(Sketchup.active_model.edit_transform)) }
+            @na_path_points.each { |pt| bb.add(pt) }
+            Na__Tool__AddPreviewExtents(bb)
             bb
         end
         # ---------------------------------------------------------------

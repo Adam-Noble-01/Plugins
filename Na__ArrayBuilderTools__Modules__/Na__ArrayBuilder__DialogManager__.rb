@@ -14,6 +14,8 @@ require_relative 'Na__ArrayBuilder__PathTool__'
 require_relative 'Na__ArrayBuilder__SelectionArrayTool__'
 require_relative 'Na__ArrayBuilder__GeometryBuilder__'
 require_relative 'Na__ArrayBuilder__PresetsLibrary__'
+require_relative 'Na__ArrayBuilder__PreviewGeometry__'
+require_relative 'Na__ArrayBuilder__PluginReloader__'
 
 module Na__ArrayBuilderTools
     module Na__ArrayBuilder__DialogManager
@@ -28,6 +30,8 @@ module Na__ArrayBuilderTools
                 return
             end
             @na_ready = false
+            @na_last_preview = nil
+            @na_reloaded = false
             @na_live = Sketchup.read_default('Na__ArrayBuilderTools', 'live', true)
             @na_scope = 'single'
             @na_target = @na_tool = @na_picker = nil
@@ -63,6 +67,7 @@ module Na__ArrayBuilderTools
         end
 
         def self.Na__Dialog__NewContext
+            Na__ArrayBuilder__PreviewGeometry.Na__Preview__Clear()
             @na_context = SecureRandom.hex(12)
             @na_edit_path = @na_model ? (@na_model.active_path || []).map(&:persistent_id) : []
         end
@@ -99,6 +104,11 @@ module Na__ArrayBuilderTools
                 if @na_open_edit
                     @na_open_edit = false
                     Na__Dialog__EditSelected()
+                end
+                if @na_reloaded
+                    @na_reloaded = false
+                    Na__Dialog__Send('tab', 'settings')
+                    na_send_status_to_dialog('success', 'Array Builder reloaded. Your current settings have been retained.')
                 end
                 return
             end
@@ -164,11 +174,39 @@ module Na__ArrayBuilderTools
                 Na__Dialog__NewContext()
                 Na__Dialog__PushState()
                 Na__Dialog__Preview()
+            when 'reload'
+                Na__ArrayBuilder__PluginReloader.Na__Reload__Schedule({
+                    config: Na__ArrayBuilder__Configuration.Na__Config__Resolve(na_payload.fetch('config')),
+                    target: @na_target, scope: @na_scope, model: @na_model,
+                    source: Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo(),
+                    source_name: Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetDisplayName()
+                })
+                na_send_status_to_dialog('info', 'Reloading Array Builder…')
             end
         rescue StandardError => na_error
             na_send_status_to_dialog('error', na_error.message)
         ensure
             @na_busy = false
+        end
+
+        # FUNCTION | Restore Draft State Without Applying Geometry Changes
+        # ------------------------------------------------------------
+        def self.Na__Dialog__RestoreReload(na_snapshot)
+            return unless @na_model == na_snapshot[:model]
+            @na_config = na_snapshot[:config]
+            @na_scope = na_snapshot[:scope]
+            na_target = na_snapshot[:target]
+            if na_target && na_target.valid? && !na_target.locked? &&
+               @na_model.active_entities.include?(na_target) && @na_model.selection.to_a == [na_target]
+                @na_target = na_target
+                @na_signature = Na__Dialog__Signature()
+            end
+            na_source = na_snapshot[:source]
+            if na_source && na_source[:definition].valid?
+                Na__ArrayBuilder__ObjectRegistry.Na__Registry__SetDefinition(na_source[:definition], na_snapshot[:source_name], na_source[:scale])
+            end
+            Na__Dialog__NewContext()
+            @na_reloaded = true
         end
 
 # endregion -------------------------------------------------------------------
@@ -246,10 +284,8 @@ module Na__ArrayBuilderTools
         def self.Na__Dialog__CommitPath(na_points, na_config)
             Na__Dialog__CheckContext('context' => @na_context)
             if @na_replacing && @na_target
-                na_context_inverse = @na_model.edit_transform.inverse
                 na_entity_inverse = @na_target.transformation.inverse
                 na_local = na_points.map do |na_point|
-                    na_point = na_point.transform(na_context_inverse) if na_config['path_source'] == 'draw'
                     na_point.transform(na_entity_inverse)
                 end
                 na_source = na_config['type'] == 'object' ? Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo : nil
@@ -285,8 +321,7 @@ module Na__ArrayBuilderTools
         # FUNCTION | Draw Replacement Previews in the Existing Array's Frame
         # ------------------------------------------------------------
         def self.Na__Dialog__PreviewFrame
-            na_frame = @na_model.edit_transform
-            @na_replacing && @na_target ? na_frame * @na_target.transformation : na_frame
+            @na_replacing && @na_target ? @na_target.transformation : Geom::Transformation.new
         end
 
         # Existing SketchUp tools use these compatibility bridge entry points.
@@ -363,28 +398,35 @@ module Na__ArrayBuilderTools
             na_send_status_to_dialog('warning', na_error.message)
         end
 
-        # FUNCTION | Throttle the Panel Preview While the Native View Stays Fluid
+        # FUNCTION | Debounce Actual Geometry; Never Add Preview Entities to Model
         # ------------------------------------------------------------
         def self.Na__Dialog__QueuePreview(na_plan)
             @na_pending_plan = na_plan
-            return if @na_preview_timer || !@na_ready
+            UI.stop_timer(@na_preview_timer) if @na_preview_timer
+            return unless @na_ready
             na_context = @na_context
-            @na_preview_timer = UI.start_timer(0.1, false) do
+            @na_preview_timer = UI.start_timer(0.12, false) do
                 @na_preview_timer = nil
                 if @na_ready && @na_tool && @na_context == na_context && @na_pending_plan
-                    Na__Dialog__SendPlanPreview(@na_pending_plan, false, true)
+                    na_plan = @na_pending_plan
+                    na_geometry = Na__ArrayBuilder__PreviewGeometry.Na__Preview__Resolve(na_plan)
+                    @na_tool.Na__Tool__SetGeometryPreview(na_plan, na_geometry, Na__Dialog__PreviewFrame())
+                    Na__Dialog__SendPlanPreview(na_plan, false, true, na_geometry)
                 end
             rescue StandardError => na_error
                 na_send_status_to_dialog('warning', na_error.message)
             end
         end
 
-        def self.Na__Dialog__SendPlanPreview(na_plan, na_sample, na_placing = false)
-            na_boxes = na_plan[:positions].first(400).map do |na_position|
-                Na__ArrayBuilder__LayoutEngine.Na__Layout__Corners(na_position, na_plan[:config], na_plan[:source]).map { |na_point| na_point.to_a.map { |na_value| na_value * 25.4 } }
-            end
-            Na__Dialog__Send('preview', { 'boxes' => na_boxes, 'path' => na_plan[:points].map { |na_point| na_point.to_a.map { |na_value| na_value * 25.4 } },
-                'sample' => na_sample, 'placing' => na_placing, 'truncated' => na_plan[:positions].length > 400 })
+        def self.Na__Dialog__CancelPreview
+            UI.stop_timer(@na_preview_timer) if @na_preview_timer
+            @na_preview_timer = @na_pending_plan = nil
+        end
+
+        def self.Na__Dialog__SendPlanPreview(na_plan, na_sample, na_placing = false, na_geometry = nil)
+            na_geometry ||= Na__ArrayBuilder__PreviewGeometry.Na__Preview__Resolve(na_plan)
+            na_payload = Na__ArrayBuilder__PreviewGeometry.Na__Preview__Payload(na_geometry, na_plan)
+            Na__Dialog__Send('preview', na_payload.merge('sample' => na_sample, 'placing' => na_placing))
         end
 
         def self.Na__Dialog__PushState

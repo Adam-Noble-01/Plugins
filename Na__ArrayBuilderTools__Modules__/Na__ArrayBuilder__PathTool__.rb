@@ -12,7 +12,7 @@
 # DESCRIPTION:
 # - Crosshair-based tool for defining multi-segment paths
 # - Click to add waypoints, Enter / right-click / double-click to finish
-# - Live wireframe preview of array units along the path
+# - Debounced actual-geometry preview of array units along the path
 # - Displays count, spacing, and total length info overlay
 # - Unit dimensions / distribution maths / preview rendering live in
 #   Na__ArrayBuilder__PreviewRenderMixin (shared with the selection
@@ -30,6 +30,7 @@ require_relative 'Na__ArrayBuilder__ObjectRegistry__'
 require_relative 'Na__ArrayBuilder__Distribution__'
 require_relative 'Na__ArrayBuilder__PreviewRenderMixin__'
 require_relative 'Na__ArrayBuilder__AxisLockMixin__'
+require_relative 'Na__ArrayBuilder__PathInference__'
 
 module Na__ArrayBuilderTools
 
@@ -64,6 +65,7 @@ module Na__ArrayBuilderTools
             @ip = Sketchup::InputPoint.new
             @ip_prev = Sketchup::InputPoint.new
             @cursor_pos = nil
+            @na_path_snap = nil
             @waypoints = []
             @state = :picking_start
 
@@ -93,6 +95,7 @@ module Na__ArrayBuilderTools
             @state = :picking_start
             @waypoints = []
             @cursor_pos = nil
+            @na_path_snap = nil
             na_reset_preview_cache
             Na__ArrayBuilder__DialogManager.na_reset_preview_info_memo if defined?(Na__ArrayBuilder__DialogManager)
             Na__AxisLock__InitState()
@@ -119,14 +122,7 @@ module Na__ArrayBuilderTools
         # the previous InputPoint, which can shadow view.lock_inference
         # and was the reason arrow-key locking appeared to do nothing.
         def onMouseMove(flags, x, y, view)
-            if @state == :picking_path && !@waypoints.empty? && !Na__AxisLock__Active?
-                @ip.pick(view, x, y, @ip_prev)
-            else
-                @ip.pick(view, x, y)
-            end
-            return unless @ip.valid?
-
-            @cursor_pos = na_round_to_grid(@ip.position)
+            return unless Na__Path__PickCursor(x, y, view)
             na_rebuild_preview_cache
             na_update_status_text
             view.invalidate
@@ -154,23 +150,29 @@ module Na__ArrayBuilderTools
 
         # FUNCTION | Left Mouse Button Down Handler
         # ------------------------------------------------------------
-        # Profile-Builder-style: every click adds a waypoint. The first
-        # click sets the start; subsequent clicks append. Finishing the
-        # path is a separate gesture (Enter / right-click / double-click).
+        # Use exactly the same inference resolver as the visible preview.
+        # Clicking the highlighted start closes the loop and builds the array.
         def onLButtonDown(_flags, x, y, view)
-            @ip.pick(view, x, y)
-            return unless @ip.valid?
-
-            clicked = na_round_to_grid(@ip.position)
+            return unless Na__Path__PickCursor(x, y, view)
+            clicked = @cursor_pos
+            na_closing = @na_path_snap && @na_path_snap[:kind] == :start
 
             if @state == :picking_start
                 @waypoints = [clicked]
                 @state = :picking_path
             else
+                return if @waypoints.last.distance(clicked) < 0.001
                 @waypoints << clicked
             end
 
-            @ip_prev.copy!(@ip)
+            # A virtual inference is not a model vertex. Seed native inference
+            # from its exact committed point, not the unsnapped InputPoint.
+            @ip_prev = Sketchup::InputPoint.new(clicked)
+            @na_path_snap = nil
+            if na_closing
+                na_finish_path_if_ready(view)
+                return
+            end
             Na__AxisLock__ReanchorAfterCommit(view)
             na_rebuild_preview_cache
             na_update_status_text
@@ -230,6 +232,7 @@ module Na__ArrayBuilderTools
                 return false
             end
             super
+            Na__Path__RefreshCursor(view)
         end
         # ---------------------------------------------------------------
 
@@ -239,6 +242,7 @@ module Na__ArrayBuilderTools
             return unless @cursor_pos
 
             na_draw_crosshair(view, @cursor_pos)
+            @ip.draw(view) if !@na_path_snap && @ip.valid? && @ip.display?
 
             if @state == :picking_path && !@waypoints.empty?
                 na_draw_path(view)
@@ -249,6 +253,7 @@ module Na__ArrayBuilderTools
 
                 na_draw_preview_units(view, positions)
                 na_draw_array_info_text(view, positions, preview_path, @cursor_pos)
+                Na__Path__DrawStartInference(view)
 
                 @dialog_manager.na_send_preview_info(
                     positions.length,
@@ -265,6 +270,7 @@ module Na__ArrayBuilderTools
             bb = Geom::BoundingBox.new
             @waypoints.each { |wp| bb.add(wp) }
             bb.add(@cursor_pos) if @cursor_pos
+            Na__Tool__AddPreviewExtents(bb)
             bb
         end
         # ---------------------------------------------------------------
@@ -283,6 +289,68 @@ module Na__ArrayBuilderTools
         end
 
         private
+
+        # FUNCTION | Pick, Infer and Commit in the Same World Coordinate Space
+        # ------------------------------------------------------------
+        def Na__Path__PickCursor(na_x, na_y, na_view)
+            @na_mouse_position = [na_x, na_y]
+            if @state == :picking_path && !@waypoints.empty? && !Na__AxisLock__Active?
+                @ip.pick(na_view, na_x, na_y, @ip_prev)
+            else
+                @ip.pick(na_view, na_x, na_y)
+            end
+            unless @ip.valid?
+                @cursor_pos = @na_path_snap = nil
+                na_view.tooltip = ''
+                na_view.invalidate
+                return false
+            end
+            na_lock = nil
+            if Na__AxisLock__Active? && !@waypoints.empty?
+                na_endpoint = Na__AxisLock__GetAxisEndpoint(@waypoints.last)
+                na_lock = na_endpoint - @waypoints.last if na_endpoint
+            end
+            @na_path_snap = Na__ArrayBuilder__PathInference.Na__Inference__Resolve(@waypoints, @ip.position, na_view, na_lock, @na_path_snap)
+            # Never round an inferred endpoint or a locked line off its target.
+            @cursor_pos = if @na_path_snap
+                @na_path_snap[:point]
+            elsif na_lock || @ip.degrees_of_freedom < 3
+                @ip.position
+            else
+                na_round_to_grid(@ip.position)
+            end
+            na_view.tooltip = @na_path_snap ? @na_path_snap[:label] : @ip.tooltip
+            true
+        end
+
+        def Na__Path__RefreshCursor(na_view)
+            return unless @na_mouse_position
+            Na__Path__PickCursor(*@na_mouse_position, na_view)
+            na_rebuild_preview_cache
+            na_update_status_text
+            na_view.invalidate
+        end
+
+        # FUNCTION | Keep the Start Visible and Show the Aligned Closing Corner
+        # ------------------------------------------------------------
+        def Na__Path__DrawStartInference(na_view)
+            na_first = @waypoints.first
+            na_view.draw_points([na_first], 10, 2, Sketchup::Color.new(30,150,85))
+            na_screen = na_view.screen_coords(na_first)
+            na_view.draw_text([na_screen.x + 12, na_screen.y + 8], 'Start', color: Sketchup::Color.new(25,110,65), size: 10)
+            return unless @na_path_snap
+            na_colour = Sketchup::Color.new(*@na_path_snap[:colour])
+            if @na_path_snap[:kind] == :alignment
+                na_view.drawing_color = na_colour
+                na_view.line_width = 2
+                na_view.line_stipple = '-'
+                na_view.draw(GL_LINES, [na_first, @cursor_pos])
+                na_view.line_stipple = ''
+            end
+            na_view.draw_points([@cursor_pos], 12, 1, na_colour)
+            na_cursor_screen = na_view.screen_coords(@cursor_pos)
+            na_view.draw_text([na_cursor_screen.x + 15, na_cursor_screen.y - 22], @na_path_snap[:label], color: na_colour, size: 11)
+        end
 
         # =============================================================
         # REGION | Crosshair Drawing
@@ -390,6 +458,7 @@ module Na__ArrayBuilderTools
             return if @waypoints.empty?
 
             @waypoints.pop
+            @na_path_snap = nil
 
             if @waypoints.empty?
                 @state    = :picking_start
@@ -399,6 +468,7 @@ module Na__ArrayBuilderTools
             end
 
             Na__AxisLock__ReanchorAfterCommit(view)
+            Na__Path__RefreshCursor(view)
             na_rebuild_preview_cache
             na_update_status_text
             view.invalidate
@@ -443,6 +513,7 @@ module Na__ArrayBuilderTools
             type_label = @array_type == 'object' ? 'Object' : 'Block'
 
             lock_suffix = Na__AxisLock__BuildStatusFragment()
+            lock_suffix += " | #{@na_path_snap[:label]}" if @na_path_snap
 
             new_text =
                 if @state == :picking_start

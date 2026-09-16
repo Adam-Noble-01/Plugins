@@ -17,7 +17,8 @@ module Na__ArrayBuilderTools
             'spacing_mm' => 115.0, 'distribution' => 'fixed', 'inset_mm' => 200.0,
             'anchor_mode' => 'local_axis', 'keep_upright' => false,
             'reverse_path' => false, 'path_source' => 'draw',
-            'offset_lateral_mm' => 0.0, 'offset_vertical_mm' => 0.0
+            'offset_lateral_mm' => 0.0, 'offset_vertical_mm' => 0.0,
+            'merge_corners' => false
         }.freeze
         NA_ENUMS = {
             'type' => %w[block object], 'distribution' => %w[fixed normalise inset],
@@ -37,13 +38,14 @@ module Na__ArrayBuilderTools
             NA_DEFAULTS.each do |na_key, na_default|
                 next unless na_default.is_a?(Numeric)
                 na_value = Float(na_result[na_key]) rescue nil
-                na_min = na_key.start_with?('offset_') ? -NA_LIMIT : (na_key.start_with?('unit_') ? 0.1 : 0.0)
+                na_signed = na_key.start_with?('offset_') || na_key == 'inset_mm'
+                na_min = na_signed ? -NA_LIMIT : (na_key.start_with?('unit_') ? 0.1 : 0.0)
                 unless na_value && na_value.finite? && na_value.between?(na_min, NA_LIMIT)
                     raise ArgumentError, "#{na_key.tr('_', ' ')} must be between #{na_min} and #{NA_LIMIT.to_i}."
                 end
                 na_result[na_key] = na_value
             end
-            %w[keep_upright reverse_path].each do |na_key|
+            %w[keep_upright reverse_path merge_corners].each do |na_key|
                 raise ArgumentError, "Invalid #{na_key}." unless [true, false].include?(na_result[na_key])
             end
             na_result

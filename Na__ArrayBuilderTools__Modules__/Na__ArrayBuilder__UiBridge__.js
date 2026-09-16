@@ -6,6 +6,7 @@
    ============================================================================= */
 
 import { Na__UiInput__ParseLength } from './Na__ArrayBuilder__UiInput__.js';
+import { Na__Parameters__Install, Na__Parameters__Sync, Na__Parameters__Commit } from './Na__ArrayBuilder__UiParameters__.js';
 import { Na__Preview__Markup, Na__Preview__Sample } from './Na__ArrayBuilder__UiPreview__.js';
 
 // REGION | Session State -----------------------------------------------------
@@ -40,7 +41,7 @@ function Na__Ui__ReadConfig(na_mark = true) {
         if (na_field.type === 'checkbox') na_config[na_key] = na_field.checked;
         else if (na_field.tagName === 'SELECT') na_config[na_key] = na_field.value;
         else {
-            const na_value = Na__UiInput__ParseLength(na_field.value, na_key);
+            const na_value = na_field.dataset.naExpressionPending ? null : Na__UiInput__ParseLength(na_field.value, na_key);
             const na_relevant = !(na_config.type === 'object' && na_key.startsWith('unit_')) &&
                 !(na_key === 'inset_mm' && na_config.distribution !== 'inset');
             if (na_value === null && na_relevant) na_valid = false;
@@ -56,7 +57,8 @@ function Na__Ui__Configure() {
     Na__Ui__CancelPending();
     const na_config = Na__Ui__ReadConfig();
     if (!na_config) {
-        Na__Ui__Status('warning', 'Finish entering a valid dimension. Your previous preview is kept.');
+        const na_error = na_fields.find(na_field => na_field.getAttribute('aria-invalid') === 'true' && na_field.validationMessage);
+        Na__Ui__Status('warning', na_error ? na_error.validationMessage + ' Your previous preview is kept.' : 'Enter or leave the field to calculate. Incomplete values keep the previous preview.');
         return;
     }
     na_state.config = na_config;
@@ -98,6 +100,7 @@ function Na__Ui__WriteConfig() {
         if (na_field.type === 'checkbox') na_field.checked = na_value === true;
         else na_field.value = typeof na_value === 'number' ? Number(na_value.toFixed(3)) : na_value;
         na_field.removeAttribute('aria-invalid');
+        Na__Parameters__Sync(na_field, true);
     });
     Na__Ui__RefreshControls();
 }
@@ -105,6 +108,7 @@ function Na__Ui__WriteConfig() {
 function Na__Ui__RefreshControls() {
     const na_object = na_state.config.type === 'object';
     Na__Ui__Element('na-block-fields').hidden = na_object;
+    Na__Ui__Element('na-merge-field').hidden = na_object;
     Na__Ui__Element('na-object-fields').hidden = !na_object;
     Na__Ui__Element('na-inset-field').hidden = na_state.config.distribution !== 'inset';
     document.querySelectorAll('[data-na-type]').forEach(na_button => {
@@ -115,7 +119,7 @@ function Na__Ui__RefreshControls() {
     const na_distribution_text = {
         fixed: 'A constant face-to-face gap along the entire path.',
         normalise: 'Fits units to each segment and adjusts the gap to the nearest clean fit.',
-        inset: 'Keeps the same margin at each segment end and adjusts the gap between units.'
+        inset: 'Equal margins at each segment end. Negative values extend the units outwards.'
     };
     Na__Ui__Element('na-distribution-help').textContent = na_distribution_text[na_state.config.distribution] || '';
     Na__Ui__Element('na-edit-empty').hidden = na_state.editing;
@@ -202,9 +206,10 @@ function Na__Ui__Gallery() {
 // REGION | User Actions ------------------------------------------------------
 function Na__Ui__Action(na_action) {
     Na__Ui__CancelPending();
+    na_fields.forEach(na_field => Na__Parameters__Commit(na_field));
     if (na_action === 'preset_new') { Na__Ui__NewPreset(); return; }
     const na_config = Na__Ui__ReadConfig();
-    if (['start','redraw','update','finish','preset_save','preset_copy'].includes(na_action) && !na_config) {
+    if (['start','redraw','update','finish','preset_save','preset_copy','reload'].includes(na_action) && !na_config) {
         Na__Ui__Status('warning', 'Complete the highlighted dimensions before continuing.');
         return;
     }
@@ -260,12 +265,12 @@ window.Na__ArrayUi__Receive = function Na__ArrayUi__Receive(na_event, na_payload
         Na__Ui__Element('na-count').textContent = Na__Ui__Number(na_payload.count);
         Na__Ui__Element('na-length').textContent = Na__Ui__Number(na_payload.length_mm);
         Na__Ui__Element('na-gap').textContent = Na__Ui__Number(na_payload.gap_mm);
-        if (na_state.placing) Na__Ui__Element('na-preview-caption').textContent = 'Live SketchUp path · blue wireframe';
+        if (na_state.placing) Na__Ui__Element('na-preview-caption').textContent = 'Live SketchUp path';
     } else if (na_event === 'preview') {
         const na_preview = Na__Ui__Element('na-preview');
         if (na_payload.missing_source || na_payload.error) na_preview.textContent = na_payload.error || 'Pick a source object to preview this array.';
         else na_preview.innerHTML = Na__Preview__Markup(na_payload);
-        Na__Ui__Element('na-preview-caption').textContent = (na_payload.sample ? '3,000 mm sample path' : na_payload.placing ? 'Live SketchUp path' : 'Saved array path') + (na_payload.truncated ? ' · first 400 envelopes' : '');
+        Na__Ui__Element('na-preview-caption').textContent = (na_payload.sample ? '3,000 mm sample path' : na_payload.placing ? 'Live SketchUp path' : 'Saved array path') + (na_payload.truncated ? ' · ' + na_payload.preview_count + ' units shown for performance' : ' · actual geometry');
     } else if (na_event === 'gallery') {
         na_presets = na_payload.records;
         const na_warning = Na__Ui__Element('na-gallery-warning');
@@ -295,14 +300,9 @@ document.querySelectorAll('[data-na-type]').forEach(na_button => na_button.addEv
     na_state.config.type = na_button.dataset.naType;
     Na__Ui__Configure();
 }));
-na_fields.forEach(na_field => {
+Na__Parameters__Install(na_fields, Na__Ui__Configure);
+na_fields.filter(na_field => !na_field.dataset.naParameter).forEach(na_field => {
     na_field.addEventListener('input', Na__Ui__Configure);
-    na_field.addEventListener('blur', () => {
-        if (na_field.tagName === 'INPUT' && na_field.type !== 'checkbox') {
-            const na_value = Na__UiInput__ParseLength(na_field.value, na_field.dataset.naField);
-            if (na_value !== null) na_field.value = Number(na_value.toFixed(3));
-        }
-    });
 });
 Na__Ui__Element('na-live').addEventListener('change', na_event => { Na__Ui__CancelPending(); Na__Ui__Send('live', { enabled: na_event.target.checked }); });
 Na__Ui__Element('na-scope').addEventListener('change', () => {

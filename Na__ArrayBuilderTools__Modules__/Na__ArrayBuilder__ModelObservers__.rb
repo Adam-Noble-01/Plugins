@@ -97,18 +97,22 @@ module Na__ArrayBuilderTools
 
     class Na__ArrayBuilder__TransactionObserver < Sketchup::ModelObserver
         def onTransactionCommit(_na_model)
+            Na__ArrayBuilder__PreviewGeometry.Na__Preview__Clear() if defined?(Na__ArrayBuilder__PreviewGeometry)
             Na__ArrayBuilder__ModelObservers.Na__Observers__Queue()
         end
 
         def onTransactionUndo(_na_model)
+            Na__ArrayBuilder__PreviewGeometry.Na__Preview__Clear() if defined?(Na__ArrayBuilder__PreviewGeometry)
             Na__ArrayBuilder__ModelObservers.Na__Observers__Queue()
         end
 
         def onTransactionRedo(_na_model)
+            Na__ArrayBuilder__PreviewGeometry.Na__Preview__Clear() if defined?(Na__ArrayBuilder__PreviewGeometry)
             Na__ArrayBuilder__ModelObservers.Na__Observers__Queue()
         end
 
         def onTransactionAbort(_na_model)
+            Na__ArrayBuilder__PreviewGeometry.Na__Preview__Clear() if defined?(Na__ArrayBuilder__PreviewGeometry)
             Na__ArrayBuilder__ModelObservers.Na__Observers__Queue()
         end
 

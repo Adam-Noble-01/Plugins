@@ -38,6 +38,48 @@ na_model.undo
 raise 'Undo did not restore data.' unless na_serializer.Na__Data__Load(na_array)['configuration']['unit_height_mm'] == 120
 na_model.redo
 raise 'Redo did not restore data.' unless na_serializer.Na__Data__Load(na_array)['configuration']['unit_height_mm'] == 300
+# REGION | Real native solid union and a reversible recipe
+na_merge_config = na_config.merge('distribution'=>'normalise','merge_corners'=>true)
+na_merged_array = na_builder.na_create_array(na_points.map { |na_point| na_point.offset(Y_AXIS,4500.mm) },na_merge_config)
+na_units = na_merged_array.definition.entities.select { |na_entity| na_entity.get_attribute(na_serializer::NA_INSTANCE_DICT,'role')=='unit' }
+na_merged_corners = na_units.grep(Sketchup::Group)
+raise 'The bend did not produce a native solid union.' unless na_merged_corners.length==1 && na_merged_corners.first.definition.manifold?
+na_builder.Na__Geometry__Update(na_model,na_merged_array,na_merge_config.merge('merge_corners'=>false),'single')
+raise 'Disabling merge did not regenerate individual blocks.' unless na_merged_array.definition.entities.grep(Sketchup::Group).empty?
+
+# REGION | World-coordinate contract at three actual open nesting levels
+na_model.start_operation('Nested Array Smoke Fixture',true)
+na_outer = na_model.entities.add_group
+na_outer.transformation = Geom::Transformation.translation([7000.mm,1000.mm,600.mm]) * Geom::Transformation.rotation(ORIGIN,Z_AXIS,32.degrees)
+na_middle = na_outer.entities.add_group
+na_middle.transformation = Geom::Transformation.translation([400.mm,700.mm,200.mm]) * Geom::Transformation.rotation(ORIGIN,X_AXIS,18.degrees)
+na_inner = na_middle.entities.add_group
+na_inner.transformation = Geom::Transformation.translation([100.mm,200.mm,300.mm]) * Geom::Transformation.scaling(1.2,0.8,1.1)
+na_inner.entities.add_cpoint(ORIGIN)
+na_model.commit_operation
+na_world_path = [Geom::Point3d.new(8000.mm,1000.mm,1000.mm),Geom::Point3d.new(10000.mm,1000.mm,1000.mm)]
+begin
+    na_model.active_path = [na_outer,na_middle,na_inner]
+    na_nested_array = na_builder.na_create_array(na_world_path,na_config.merge('path_source'=>'draw'))
+    na_saved_local = na_serializer.Na__Data__Points(na_serializer.Na__Data__Load(na_nested_array))
+    unless na_saved_local.zip(na_world_path).all? { |na_local,na_world| na_local.transform(na_nested_array.transformation).distance(na_world)<0.001 }
+        raise 'Nested draw/create applied an extra parent transform.'
+    end
+    na_model.start_operation('Selected Nested Path Fixture',true)
+    na_edges = na_model.active_entities.add_edges(*na_world_path)
+    na_model.commit_operation
+    na_selected = Na__ArrayBuilderTools::Na__ArrayBuilder__PathFromSelection.Na__PathFromSelection__BuildFromEntities(na_edges)
+    raise 'Nested selected path failed.' unless na_selected[:valid]
+    unless na_selected[:points].all? { |na_point| na_world_path.any? { |na_world| na_point.distance(na_world)<0.001 } }
+        raise 'Selected active vertices were not handled in world coordinates.'
+    end
+ensure
+    na_model.active_path = nil
+end
+na_world_transform = Sketchup::InstancePath.new([na_outer,na_middle,na_inner,na_nested_array]).transformation
+unless na_saved_local.zip(na_world_path).all? { |na_local,na_world| na_local.transform(na_world_transform).distance(na_world)<0.001 }
+    raise 'Nested array moved when leaving its editing context.'
+end
 na_model.active_view.zoom_extents
-puts 'Array Builder native geometry, linked scope, persistence and Undo/Redo smoke check passed.'
+puts 'Array Builder native geometry, union, three nested contexts, persistence and Undo/Redo smoke check passed.'
 puts 'Next: save/reopen this test model, select an array, and choose Edit Noble Array from its context menu.'

@@ -10,6 +10,7 @@ require 'sketchup.rb'
 require_relative 'Na__ArrayBuilder__ObjectRegistry__'
 require_relative 'Na__ArrayBuilder__LayoutEngine__'
 require_relative 'Na__ArrayBuilder__DataSerializer__'
+require_relative 'Na__ArrayBuilder__CornerMerger__'
 
 module Na__ArrayBuilderTools
     module Na__ArrayBuilder__GeometryBuilder
@@ -20,13 +21,10 @@ module Na__ArrayBuilderTools
         def self.na_create_array(na_waypoints, na_config, _na_positions = nil)
             na_model = Sketchup.active_model
             na_source = na_config['type'] == 'object' ? Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo : nil
-            # InputPoint coordinates are model-space; selected edges are context-local.
-            na_points = if na_config['path_source'] == 'draw'
-                na_inverse = na_model.edit_transform.inverse
-                na_waypoints.map { |na_point| na_point.transform(na_inverse) }
-            else
-                na_waypoints
-            end
+            # Both InputPoint and vertices in active_entities are already WORLD.
+            # Active-context instance insertion accepts world transforms as well.
+            # See 85__Docs/Na__ArrayBuilder__CoordinateSpaces__.md.
+            na_points = na_waypoints
             # Definition-local paths allow moved/rotated/scaled copies to regenerate.
             na_origin = na_points.first
             na_local = na_points.map { |na_point| Geom::Point3d.new((na_point - na_origin).to_a) }
@@ -101,11 +99,13 @@ module Na__ArrayBuilderTools
             na_dictionary = Na__ArrayBuilder__DataSerializer::NA_INSTANCE_DICT
             na_old = na_definition.entities.select { |na_entity| na_entity.get_attribute(na_dictionary, 'role') == 'unit' }
             na_unit = na_plan[:source] ? na_plan[:source][:definition] : Na__Geometry__BlockDefinition(na_model, na_plan[:config])
-            na_plan[:positions].each do |na_position|
+            na_units = na_plan[:positions].map do |na_position|
                 na_transform = Na__ArrayBuilder__LayoutEngine.Na__Layout__Transform(na_position, na_plan[:config], na_plan[:source])
                 na_instance = na_definition.entities.add_instance(na_unit, na_transform)
                 na_instance.set_attribute(na_dictionary, 'role', 'unit')
+                na_instance
             end
+            Na__ArrayBuilder__CornerMerger.Na__Corners__Merge(na_units, na_plan)
             na_definition.entities.erase_entities(na_old) unless na_old.empty?
             na_definition.invalidate_bounds
         end

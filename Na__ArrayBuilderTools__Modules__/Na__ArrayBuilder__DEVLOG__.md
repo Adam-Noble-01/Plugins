@@ -2,6 +2,53 @@
 # =======================================================================================
 ## Version History
 
+## Array Builder Version 0.3.0 - 16-Sep-2026
+
+### Actual geometry previews and parameter controls
+
+- Replaced viewport envelopes with cached, instanced source faces and visible
+  edges. The dialog receives the actual mesh and placement matrices as JSON and
+  renders shaded SVG. Preview preparation is debounced by 120 ms; UI changes by
+  180 ms. Large arrays show a labelled subset of complete objects.
+- Added sliders with editable override boxes. Typed values can extend the slider
+  range. Arrow Up/Down nudges 5 mm; Shift changes that to 50 mm.
+- Added a dedicated arithmetic module following Element Assembly Studio Pro's
+  input conventions: parentheses, +, -, *, /, ^, length units, and relative +50,
+  -50, *2 or /2. Expressions commit on Enter/blur; incomplete input retains the
+  previous preview. Signed margins and offsets interpret negative numbers literally.
+- Allowed negative end margins through UI validation, canonical configuration,
+  distribution and saved recipes.
+- Corrected world/local handling for drawn paths, selected vertices, creation and
+  existing-array redraws. Closed source subtrees accumulate parent-first matrices;
+  active-context world points never receive a second parent transform. Added the
+  detailed [coordinate-space guide](85__Docs/Na__ArrayBuilder__CoordinateSpaces__.md).
+- Added **Merge corner objects**, off by default, for parametric blocks. Oriented
+  overlap checks select neighbouring corner units; SketchUp's native `union`
+  combines them inside the existing create/update Undo operation. Failed unions
+  abort the operation. The recipe retains the original unit layout for later edits.
+- Added **Settings → Hot reload Array Builder**. Syntax is checked before closing
+  the dialog; modules and observers reload in dependency order, without reloading
+  the toolbar/menu loader. The draft, source and valid edit target are retained.
+
+Validation: isolated Ruby regression suite, JavaScript arithmetic/mesh tests,
+syntax and whitespace checks, plus browser interaction checks. Native solid union,
+nested-context API behaviour and hot reload are covered by the native smoke script
+and interactive checklist, and require verification inside SketchUp.
+
+## Array Builder Version 0.2.0 - 16-Sep-2026
+
+### Parametric editing and Noble family interface
+
+- Added Gallery, Create, Edit, Preset Editor and Settings tabs using the Noble
+  Profile Tracer / Element Studio visual language.
+- Added live parameter editing, UI/context-menu Edit actions, linked-copy scope,
+  redraw, operation guards, and selection/Undo/Redo synchronisation.
+- Added definition, instance and model dictionaries with JSON recipes, local paths
+  and source restoration. Portable custom-object presets include their SKP source.
+- Removed dogtooth and fixed built-in presets. User presets live in
+  `05__Data__PresetsLibrary`, with backups and recoverable archive storage.
+- Unified placement transforms across previews and built geometry.
+
 # =======================================================================================
 ## Array Builder Version 0.1.0 - 04-Aug-2026
 

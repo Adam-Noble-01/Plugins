@@ -275,7 +275,6 @@ module Na__ArrayBuilderTools
 
             uw  = unit_width.to_f
             ins = inset.to_f
-            ins = 0.0 if ins < 0.0
             target_step = uw + spacing.to_f
 
             positions = []
@@ -351,7 +350,6 @@ module Na__ArrayBuilderTools
             ins = nil
             unless inset.nil?
                 ins = inset.to_f
-                ins = 0.0 if ins < 0.0
             end
 
             total_spacing = 0.0

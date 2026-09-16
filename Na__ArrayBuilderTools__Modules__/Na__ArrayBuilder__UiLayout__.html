@@ -91,19 +91,25 @@
         </section>
 
         <section id="na-panel-settings" role="tabpanel" aria-labelledby="na-tab-settings" hidden>
-            <div class="na-page-heading"><div><h1>Settings</h1><p>Array Builder 0.2 · Noble Architecture</p></div></div>
+            <div class="na-page-heading"><div><h1>Settings</h1><p>Array Builder 0.3 · Noble Architecture</p></div></div>
             <section class="na-section">
                 <div class="na-section-header"><h2>Live editing</h2></div>
                 <p>Live Mode updates an open array after you pause typing. Turn it off to prepare changes, then press <strong>Update array</strong>. Each applied change can be undone in SketchUp.</p>
-                <p>During path placement the blue wireframe always follows your parameters. Empty or unfinished numbers keep the previous valid preview.</p>
+                <p>During path placement the actual source geometry updates after a short pause. Empty or unfinished numbers keep the previous valid preview.</p>
                 <p>Dimensions accept millimetres, centimetres, metres or inches: <strong>150</strong>, <strong>15 cm</strong>, <strong>0.15 m</strong> or <strong>6 in</strong>.</p>
+                <p>Use sliders or type any value. <strong>↑ / ↓</strong> nudges 5 mm; hold <strong>Shift</strong> for 50 mm. Type <strong>1200/3</strong>, <strong>(250+50)*2</strong>, <strong>+50</strong> or <strong>*2</strong>, then Enter or leave the box to calculate. Negative margins and offsets are literal values; a leading minus in a size or gap box subtracts from its previous value.</p>
             </section>
             <section class="na-section">
                 <div class="na-section-header"><h2>Saved arrays and presets</h2></div>
                 <p>Array settings and paths travel with the SketchUp model. Component copies remain linked until you edit using <strong>Only this array</strong>.</p>
                 <p>Your gallery lives in <code>05__Data__PresetsLibrary</code> inside the Array Builder project. Updates keep a backup; archived presets remain in <code>01__Archive</code>.</p>
-                <p class="na-help">Previews show object bounding envelopes. Fixed gap mode may overhang the final path point; Fit each segment places the final unit within the segment. Layouts are limited to 5,000 units to keep SketchUp responsive.</p>
+                <p class="na-help">Previews use the source mesh and material colours. Complex arrays show a limited number of complete objects. Fixed gap mode may overhang the final path point. Layouts are limited to 5,000 units.</p>
                 <button class="na-btn na-btn-secondary" data-na-action="reset">Reset creation settings</button>
+            </section>
+            <section class="na-section">
+                <div class="na-section-header"><h2>Developer tools</h2></div>
+                <p>Reload the Array Builder's Ruby modules and interface after editing its files. The current parameters are retained; any unfinished path preview is cancelled.</p>
+                <button class="na-btn na-btn-secondary" data-na-action="reload">Hot reload Array Builder</button>
             </section>
         </section>
 
@@ -111,7 +117,7 @@
         <div id="na-editor">
             <section class="na-section na-preview-section">
                 <div class="na-section-header"><h2>Array preview</h2><span id="na-preview-caption">3,000 mm sample path</span></div>
-                <div id="na-preview" class="na-preview" role="img" aria-label="Array envelope preview"><span>Connecting to SketchUp…</span></div>
+                <div id="na-preview" class="na-preview" role="img" aria-label="Array geometry preview"><span>Connecting to SketchUp…</span></div>
                 <div class="na-metrics">
                     <div><strong id="na-count">—</strong><span>units</span></div>
                     <div><strong id="na-length">—</strong><span>path · mm</span></div>
@@ -129,6 +135,7 @@
                     <label>Depth · mm<input data-na-field="unit_depth_mm" inputmode="decimal" value="30"></label>
                     <label>Height · mm<input data-na-field="unit_height_mm" inputmode="decimal" value="75"></label>
                 </div>
+                <label id="na-merge-field" class="na-checkbox-row"><input type="checkbox" data-na-field="merge_corners"> Merge corner objects <span class="na-help">Union overlapping blocks at path bends</span></label>
                 <div id="na-object-fields" hidden>
                     <div class="na-source-card"><div><strong id="na-source-name">No source selected</strong><span id="na-source-size">Pick a group or component from the model.</span></div><button class="na-btn na-btn-secondary" data-na-action="pick">Pick object</button></div>
                     <label class="na-form-row">Object alignment<select data-na-field="anchor_mode"><option value="local_axis">Use source axes</option><option value="centre">Centre on path</option></select></label>
