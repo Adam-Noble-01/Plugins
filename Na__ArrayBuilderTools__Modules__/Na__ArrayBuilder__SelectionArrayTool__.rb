@@ -99,6 +99,7 @@ module Na__ArrayBuilderTools
         # while this tool is active. Also used by the R key handler.
         def na_set_reverse(state)
             @na_reverse = state == true
+            @config['reverse_path'] = @na_reverse
             na_rebuild_selection_preview
             na_update_status_text
             Sketchup.active_model.active_view.invalidate
@@ -178,9 +179,11 @@ module Na__ArrayBuilderTools
 
             view.line_width = 3
             view.drawing_color = NA_PATH_COLOR
-            view.draw_polyline(@na_path_points)
+            na_transform = Sketchup.active_model.edit_transform
+            na_display_points = @na_path_points.map { |na_point| na_point.transform(na_transform) }
+            view.draw_polyline(na_display_points)
 
-            na_draw_direction_arrow(view, @na_path_points)
+            na_draw_direction_arrow(view, na_display_points)
             na_draw_preview_units(view, @na_positions)
             na_draw_array_info_text(view, @na_positions, @na_path_points, @na_path_points.first)
         end
@@ -190,7 +193,7 @@ module Na__ArrayBuilderTools
         # ------------------------------------------------------------
         def getExtents
             bb = Geom::BoundingBox.new
-            @na_path_points.each { |pt| bb.add(pt) }
+            @na_path_points.each { |pt| bb.add(pt.transform(Sketchup.active_model.edit_transform)) }
             bb
         end
         # ---------------------------------------------------------------
@@ -228,6 +231,20 @@ module Na__ArrayBuilderTools
 
 # endregion -------------------------------------------------------------------
 
+        # FUNCTION | Live Configuration and Dialog Finish Entry Points
+        # ------------------------------------------------------------
+        def Na__Tool__UpdateConfig(na_config)
+            na_init_unit_config_state(na_config.merge('path_source' => 'selection'))
+            @na_reverse = @config['reverse_path']
+            na_rebuild_selection_preview
+            na_update_status_text
+            Sketchup.active_model.active_view.invalidate
+        end
+
+        def Na__Tool__Finish
+            na_commit_array(Sketchup.active_model.active_view)
+        end
+
         private
 
 # -----------------------------------------------------------------------------
@@ -249,7 +266,7 @@ module Na__ArrayBuilderTools
         # ------------------------------------------------------------
         def na_rebuild_selection_preview
             @na_path_points = na_effective_points
-            @na_positions   = na_calculate_preview_positions(@na_path_points)
+            @na_positions   = na_calculate_preview_positions(@na_base_points)
             @na_total_mm    = na_path_length_mm(@na_path_points)
             @na_actual_mm   = na_calculate_actual_spacing_mm(@na_path_points)
 
@@ -286,13 +303,10 @@ module Na__ArrayBuilderTools
         def na_commit_array(_view)
             if @na_positions.empty?
                 @dialog_manager.na_send_status_to_dialog("warning", "Selected path too short for any units")
-                Sketchup.active_model.select_tool(nil)
                 return
             end
 
-            result = Na__ArrayBuilder__GeometryBuilder.na_create_array(
-                @na_path_points, @config, @na_positions
-            )
+            result = @dialog_manager.Na__Dialog__CommitPath(@na_base_points, @config)
 
             if result
                 count = @na_positions.length
@@ -303,6 +317,8 @@ module Na__ArrayBuilderTools
             end
 
             Sketchup.active_model.select_tool(nil)
+        rescue StandardError => na_error
+            @dialog_manager.na_send_status_to_dialog('error', na_error.message)
         end
         # ---------------------------------------------------------------
 

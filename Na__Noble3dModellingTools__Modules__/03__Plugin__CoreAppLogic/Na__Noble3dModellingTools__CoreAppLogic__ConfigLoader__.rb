@@ -139,12 +139,30 @@ module Na__Noble3dModellingTools
                     'expose_to_hotkeys' => true
                 },
                 {
+                    'command_id' => 'vegetation_sketcher',
+                    'command_name' => 'Na Noble3d - Vegetation Sketcher',
+                    'tooltip' => 'Sketch low-poly whitecard hedges, trees and shrubs',
+                    'status_bar_text' => 'Open Vegetation Sketcher',
+                    'menu_text' => 'Vegetation Sketcher',
+                    'handler_key' => 'vegetation_sketcher',
+                    'expose_to_hotkeys' => true
+                },
+                {
                     'command_id' => 'group_component_converter',
                     'command_name' => 'Na Noble3d - Group / Component Converter',
                     'tooltip' => 'Convert groups to components or components to groups, at the current level or through every nested level',
                     'status_bar_text' => 'Open Group / Component Converter',
                     'menu_text' => 'Group / Component Converter',
                     'handler_key' => 'group_component_converter',
+                    'expose_to_hotkeys' => true
+                },
+                {
+                    'command_id' => 'orient_faces_toward_camera',
+                    'command_name' => 'Na Noble3d - Orient Faces Toward Camera',
+                    'tooltip' => 'Reverse every selected face whose front currently points away from the camera',
+                    'status_bar_text' => 'Orient selected faces toward the camera',
+                    'menu_text' => 'Orient Faces Toward Camera',
+                    'handler_key' => 'orient_faces_toward_camera',
                     'expose_to_hotkeys' => true
                 },
                 {
@@ -256,6 +274,28 @@ module Na__Noble3dModellingTools
                     'description' => 'Creates a grouped wire bounding box around the full extents of the current selection.'
                 },
                 {
+                    'button_id' => 'btn_vegetation_sketcher',
+                    'tab_name' => 'Geometry Tools',
+                    'tool_group_name' => 'Landscape Tools',
+                    'tool_group_description' => 'Low-poly whitecard vegetation for concept models.',
+                    'tool_group_order' => 60,
+                    'button_order' => 10,
+                    'button_label' => 'Vegetation Sketcher',
+                    'command_id' => 'vegetation_sketcher',
+                    'description' => 'Sketch hedges, trees and shrubs with live previews and organic quad meshes.'
+                },
+                {
+                    'button_id' => 'btn_orient_faces_toward_camera',
+                    'tab_name' => 'Geometry Tools',
+                    'tool_group_name' => 'Face Orientation',
+                    'tool_group_description' => 'Correct reversed faces so their fronts point at the current camera.',
+                    'tool_group_order' => 47,
+                    'button_order' => 10,
+                    'button_label' => 'Orient Faces Toward Camera',
+                    'command_id' => 'orient_faces_toward_camera',
+                    'description' => 'Reverses every selected face whose front currently points away from the camera, including faces nested inside selected groups and components.'
+                },
+                {
                     'button_id' => 'btn_group_component_converter',
                     'tab_name' => 'Entity Utils',
                     'tool_group_name' => 'Component Containers',
@@ -304,6 +344,8 @@ module Na__Noble3dModellingTools
                 { 'command_id' => 'auto_group_face_islands', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'create_bounding_box', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'group_component_converter', 'expose_to_hotkeys' => true },
+                { 'command_id' => 'vegetation_sketcher', 'expose_to_hotkeys' => true },
+                { 'command_id' => 'orient_faces_toward_camera', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'insert_component_in_place', 'expose_to_hotkeys' => true },
                 { 'command_id' => 'reload_plugin_data', 'expose_to_hotkeys' => true }
             ]

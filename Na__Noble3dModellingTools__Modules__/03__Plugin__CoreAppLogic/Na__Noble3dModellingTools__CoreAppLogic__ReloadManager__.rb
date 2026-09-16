@@ -106,6 +106,10 @@ module Na__Noble3dModellingTools
         end
 
         def self.na_reset_feature_dialogs_after_reload
+            if defined?(Na__VegetationSketcher::Dialog)
+                Na__VegetationSketcher::Dialog.reset
+            end
+
             if defined?(Na__ImageCarousel__DialogManager) &&
                Na__ImageCarousel__DialogManager.respond_to?(:Na__ImageCarousel__DialogManager__ResetDialog)
                 Na__ImageCarousel__DialogManager.Na__ImageCarousel__DialogManager__ResetDialog

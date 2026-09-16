@@ -1,0 +1,5 @@
+# Explicit developer check; .rb.test is never auto-loaded by SketchUp.
+na_root = File.expand_path('..', __dir__)
+Dir[File.join(na_root, '*.rb')].each { |na_path| RubyVM::InstructionSequence.compile_file(na_path) }
+RubyVM::InstructionSequence.compile_file(File.join(na_root, '..', 'Na__ArrayBuilderTools__Loader.rb'))
+puts 'Array Builder: all Ruby files compile.'

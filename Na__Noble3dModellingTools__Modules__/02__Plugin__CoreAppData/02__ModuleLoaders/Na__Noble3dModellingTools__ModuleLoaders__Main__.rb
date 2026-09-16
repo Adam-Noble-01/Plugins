@@ -54,6 +54,9 @@ module Na__Noble3dModellingTools
             require_relative '../../10__PluginModules/30__SourceCode__MegaExplode/Na__Noble3dModellingTools__MegaExplode__Loader__'
             require_relative '../../10__PluginModules/31__SourceCode__GroupComponentConverter/Na__Noble3dModellingTools__GroupComponentConverter__Loader__'
 
+            require_relative '../../10__PluginModules/32__SourceCode__VegetationSketcher/Na__Noble3dModellingTools__VegetationSketcher__Loader__'
+            require_relative '../../10__PluginModules/33__SourceCode__OrientFacesTowardCamera/Na__Noble3dModellingTools__OrientFacesTowardCamera__Loader__'
+
             @na_feature_modules_loaded = true
             true
         rescue LoadError, SyntaxError => error

@@ -1,413 +1,133 @@
 # =============================================================================
 # NA ARRAY BUILDER TOOLS - GEOMETRY BUILDER
 # =============================================================================
-#
 # FILE       : Na__ArrayBuilder__GeometryBuilder__.rb
-# NAMESPACE  : Na__ArrayBuilderTools
-# MODULE     : Na__ArrayBuilder__GeometryBuilder
 # AUTHOR     : Noble Architecture
-# PURPOSE    : Creates array course geometry from path and configuration
-# CREATED    : 2026
-# VERSION    : 0.1.0
-#
-# DESCRIPTION:
-# - Creates a component containing all array units along a path
-# - Dentil  : grouped axis-aligned box
-# - Dogtooth: grouped 45-degree-rotated box
-# - Object  : repeated instance of a user-picked Group / Component
-#             (registered via Na__ArrayBuilder__ObjectRegistry).
-# - Orients units along the local path segment direction (local +X
-#   forward, local +Z up by convention).
-# - Object units are always pinned by their LEADING bounding-box face
-#   (scaled by the picked instance's scale) so spacing and insets are
-#   measured between real geometry faces. The two anchor modes control
-#   only the lateral / vertical set-out:
-#     local_axis -> lateral + vertical set-out from the definition origin
-#     centre     -> bounding-box centre on the path line (lateral + vertical)
-#
+# PURPOSE    : Transactional creation and regeneration of persistent arrays.
 # =============================================================================
 
 require 'sketchup.rb'
 require_relative 'Na__ArrayBuilder__ObjectRegistry__'
+require_relative 'Na__ArrayBuilder__LayoutEngine__'
+require_relative 'Na__ArrayBuilder__DataSerializer__'
 
 module Na__ArrayBuilderTools
     module Na__ArrayBuilder__GeometryBuilder
 
-        NA_INCH_TO_MM = 25.4
-
-# -----------------------------------------------------------------------------
-# REGION | Public API
-# -----------------------------------------------------------------------------
-
-        # FUNCTION | Create Array Course
+        # FUNCTION | Create an Array in the Current Editing Context
         # ------------------------------------------------------------
-        # Routes to the appropriate builder based on config['type'].
-        #
-        # @param waypoints [Array<Geom::Point3d>] Committed path points
-        # @param config [Hash] Configuration with type, dimensions, spacing
-        # @param positions [Array<Hash>] Pre-calculated positions from PathTool
-        # @return [Sketchup::ComponentInstance, nil]
-        def self.na_create_array(waypoints, config, positions)
-            return nil if positions.nil? || positions.empty?
-
-            type = config['type'] || 'dentil'
-
-            if type == 'object'
-                na_create_array_from_definition(positions, config)
+        # Legacy tool entry point retained for the draw and selection tools.
+        def self.na_create_array(na_waypoints, na_config, _na_positions = nil)
+            na_model = Sketchup.active_model
+            na_source = na_config['type'] == 'object' ? Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo : nil
+            # InputPoint coordinates are model-space; selected edges are context-local.
+            na_points = if na_config['path_source'] == 'draw'
+                na_inverse = na_model.edit_transform.inverse
+                na_waypoints.map { |na_point| na_point.transform(na_inverse) }
             else
-                na_create_array_from_box(positions, config, type)
+                na_waypoints
             end
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Create Box-Based Array Course (Dentil / Dogtooth)
-        # ------------------------------------------------------------
-        def self.na_create_array_from_box(positions, config, type)
-            model = Sketchup.active_model
-            unit_w = ((config['unit_width_mm']  || 110).to_f).mm
-            unit_d = ((config['unit_depth_mm']  || 30).to_f).mm
-            unit_h = ((config['unit_height_mm'] || 75).to_f).mm
-            keep_upright = config['keep_upright'] == true                          # <-- Locks unit +Z to world +Z when true
-
-            model.start_operation("Create #{type.capitalize} Course", true)
-
+            # Definition-local paths allow moved/rotated/scaled copies to regenerate.
+            na_origin = na_points.first
+            na_local = na_points.map { |na_point| Geom::Point3d.new((na_point - na_origin).to_a) }
+            na_plan = Na__ArrayBuilder__LayoutEngine.Na__Layout__Resolve(na_config, na_local, na_source)
+            raise ArgumentError, 'The path has no array positions.' if na_plan[:positions].empty?
+            na_model.start_operation('Create Noble Array', true)
             begin
-                material = na_get_or_create_brick_material(model)
-                comp_def = model.definitions.add("Na_ArrayCourse_#{type}_#{Time.now.to_i}")
-                comp_entities = comp_def.entities
-
-                positions.each_with_index do |pos, idx|
-                    na_create_unit_at_position(
-                        comp_entities, pos[:point], pos[:direction],
-                        unit_w, unit_d, unit_h,
-                        type, idx, material, keep_upright
-                    )
-                end
-
-                instance = model.active_entities.add_instance(
-                    comp_def, Geom::Transformation.new
-                )
-
-                model.commit_operation
-
-                model.selection.clear
-                model.selection.add(instance)
-
-                Na__ArrayBuilderTools.na_debug_log("Created #{positions.length} #{type} units")
-                instance
-
-            rescue => e
-                model.abort_operation
-                puts "✗ Na Array Builder geometry error: #{e.message}"
-                Na__ArrayBuilderTools.na_debug_log(e.backtrace.first(5).join("\n"))
-                nil
+                na_definition = na_model.definitions.add('Na__ArrayBuilder__Assembly')
+                na_entity = na_model.active_entities.add_instance(na_definition, Geom::Transformation.translation(na_origin))
+                na_entity.name = 'Noble Array'
+                Na__Geometry__Populate(na_model, na_definition, na_plan)
+                Na__ArrayBuilder__DataSerializer.Na__Data__Save(na_model, na_entity, na_plan[:config], na_local, na_source, na_plan[:positions].length)
+                na_model.commit_operation
+            rescue StandardError
+                na_model.abort_operation
+                raise
             end
+            na_model.selection.clear
+            na_model.selection.add(na_entity)
+            na_entity
         end
-        # ---------------------------------------------------------------
 
-# endregion -------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# REGION | Object-Based Array (Custom Group / Component)
-# -----------------------------------------------------------------------------
-
-        # FUNCTION | Create Object-Based Array Course
+        # FUNCTION | Rebuild One Instance or All Instances of its Definition
         # ------------------------------------------------------------
-        # Places repeated instances of the user-picked source definition
-        # along the pre-calculated positions. Wraps all instances in a
-        # single parent component so the result behaves identically to
-        # the dentil / dogtooth output (one selectable assembly).
-        def self.na_create_array_from_definition(positions, config)
-            placement_info = Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo
-            return nil unless placement_info
-
-            source_def = placement_info[:definition]
-            return nil unless source_def && source_def.valid?
-
-            model = Sketchup.active_model
-            anchor_mode  = config['anchor_mode'] || 'local_axis'
-            keep_upright = config['keep_upright'] == true                          # <-- Locks unit +Z to world +Z when true
-            anchor_offset = na_compute_anchor_offset(placement_info, anchor_mode)
-
-            model.start_operation("Create Object Array", true)
-
+        def self.Na__Geometry__Update(na_model, na_entity, na_config, na_scope, na_source = nil, na_path = nil)
+            raise ArgumentError, 'The array is locked.' if na_entity.locked?
+            na_data = Na__ArrayBuilder__DataSerializer.Na__Data__Load(na_entity)
+            na_source ||= Na__ArrayBuilder__DataSerializer.Na__Data__RestoreSource(na_entity, na_data) if na_config['type'] == 'object'
+            na_source = nil unless na_config['type'] == 'object'
+            na_points = na_path || Na__ArrayBuilder__DataSerializer.Na__Data__Points(na_data)
+            na_plan = Na__ArrayBuilder__LayoutEngine.Na__Layout__Resolve(na_config, na_points, na_source)
+            if na_scope == 'linked' && na_entity.definition.instances.any?(&:locked?)
+                raise ArgumentError, 'A linked array is locked. Unlock it or choose Only this array.'
+            end
+            Na__Geometry__CheckSource(na_source, na_entity.definition) if na_source
+            na_model.start_operation('Update Noble Array', true)
             begin
-                parent_def = model.definitions.add(
-                    "Na_ArrayCourse_object_#{Time.now.to_i}"
-                )
-
-                positions.each do |pos|
-                    tr = na_build_instance_transform(
-                        pos[:point], pos[:direction], anchor_offset, keep_upright
-                    )
-                    parent_def.entities.add_instance(source_def, tr)
+                if na_scope != 'linked' && na_entity.definition.instances.length > 1
+                    na_entity.make_unique
+                    na_data = na_data.merge('array_id' => SecureRandom.uuid)
                 end
-
-                instance = model.active_entities.add_instance(
-                    parent_def, Geom::Transformation.new
-                )
-
-                model.commit_operation
-
-                model.selection.clear
-                model.selection.add(instance)
-
-                Na__ArrayBuilderTools.na_debug_log("Created #{positions.length} object instances")
-                instance
-
-            rescue => e
-                model.abort_operation
-                puts "✗ Na Array Builder object-array error: #{e.message}"
-                Na__ArrayBuilderTools.na_debug_log(e.backtrace.first(5).join("\n"))
-                nil
+                Na__Geometry__Populate(na_model, na_entity.definition, na_plan)
+                Na__ArrayBuilder__DataSerializer.Na__Data__Save(na_model, na_entity, na_plan[:config], na_points, na_source, na_plan[:positions].length, na_data)
+                na_model.commit_operation
+            rescue StandardError
+                na_model.abort_operation
+                raise
             end
+            na_model.active_view.invalidate
+            na_plan
         end
-        # ---------------------------------------------------------------
 
-        # FUNCTION | Compute Anchor-Offset Transform for Source Definition
+        # FUNCTION | Reject Recursive Component Sources Before Clearing Geometry
         # ------------------------------------------------------------
-        # Maps definition space into unit-local space where the unit's
-        # LEADING bbox face sits on the local YZ plane (x = 0), so the
-        # distribution maths' leading-edge positions land on real
-        # geometry faces and spacing / insets are exact regardless of
-        # where the component's origin was authored:
-        #   local_axis -> lateral / vertical set-out from the definition
-        #                 origin is preserved (only forward is pinned)
-        #   centre     -> bbox centre sits on the path line laterally
-        #                 and vertically, leading face at x = 0
-        # The picked instance's scale is baked in so the array matches
-        # the size the user picked.
-        def self.na_compute_anchor_offset(placement_info, anchor_mode)
-            scale   = placement_info[:scale] || [1.0, 1.0, 1.0]
-            scaling = Geom::Transformation.scaling(scale[0], scale[1], scale[2])
-
-            if anchor_mode == 'centre'
-                centre = placement_info[:scaled_center]
-                offset = Geom::Vector3d.new(
-                    -placement_info[:scaled_min_x].to_f,
-                    -centre.y.to_f,
-                    -centre.z.to_f
-                )
-            else
-                offset = Geom::Vector3d.new(
-                    -placement_info[:scaled_min_x].to_f,
-                    0.0,
-                    0.0
-                )
-            end
-
-            Geom::Transformation.translation(offset) * scaling
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Build Per-Position Instance Transformation
-        # ------------------------------------------------------------
-        # Convention: local +X -> path forward, local +Z -> up.
-        # The lateral (local +Y) is computed as forward × up so the basis
-        # remains orthonormal even on non-horizontal segments.
-        #
-        # When keep_upright is true the forward vector is projected onto
-        # the horizontal plane and world +Z is forced as up, so the unit
-        # only yaws around world Z and never pitches with the path slope.
-        #
-        # Final transform = translate_to_path_point * basis * anchor_offset
-        def self.na_build_instance_transform(point, direction, anchor_offset, keep_upright = false)
-            if keep_upright
-                forward   = na_horizontal_forward_or_default(direction, X_AXIS)
-                up        = Z_AXIS.clone
-                lateral   = forward.cross(up)
-                lateral.length = 1.0 if lateral.length > 0
-                actual_up = Z_AXIS.clone                                           # <-- Horizontal forward keeps actual_up == world +Z
-            else
-                forward = na_unit_vector_or_default(direction, X_AXIS)
-                up      = Z_AXIS.clone
-
-                lateral = forward.cross(up)
-                if lateral.length < 0.001
-                    lateral = Y_AXIS.clone
-                else
-                    lateral.length = 1.0
+        def self.Na__Geometry__CheckSource(na_source, na_target)
+            na_pending = [na_source[:definition]]
+            na_seen = {}
+            until na_pending.empty?
+                na_definition = na_pending.pop
+                raise ArgumentError, 'An array cannot contain itself. Pick a separate source object.' if na_definition == na_target
+                next if na_seen[na_definition]
+                na_seen[na_definition] = true
+                na_definition.entities.each do |na_child|
+                    na_pending << na_child.definition if na_child.is_a?(Sketchup::ComponentInstance) || na_child.is_a?(Sketchup::Group)
                 end
-
-                actual_up = lateral.cross(forward)
-                actual_up.length = 1.0 if actual_up.length > 0
-            end
-
-            basis    = Geom::Transformation.axes(ORIGIN, forward, lateral, actual_up)
-            position = Geom::Transformation.translation(point)
-
-            position * basis * anchor_offset
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Return Unit-Length Vector or a Default
-        # ------------------------------------------------------------
-        def self.na_unit_vector_or_default(vector, default_vector)
-            return default_vector.clone if vector.nil? || vector.length < 0.001
-
-            v = vector.clone
-            v.length = 1.0
-            v
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Return Horizontally-Projected Unit Forward Or a Default
-        # ------------------------------------------------------------
-        # Used by the Keep Upright orientation mode: projects the path
-        # segment direction onto the XY plane so the resulting basis
-        # only yaws around world Z and never pitches. Falls back to the
-        # supplied default vector when the segment is (near-)vertical
-        # and projection would collapse to zero length.
-        def self.na_horizontal_forward_or_default(direction, default_vector)
-            return default_vector.clone if direction.nil?
-
-            horiz = Geom::Vector3d.new(direction.x, direction.y, 0.0)
-            return default_vector.clone if horiz.length < 0.001
-
-            horiz.length = 1.0
-            horiz
-        end
-        # ---------------------------------------------------------------
-
-# endregion -------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# REGION | Unit Creation
-# -----------------------------------------------------------------------------
-
-        # FUNCTION | Create Single Unit at Position
-        # ------------------------------------------------------------
-        def self.na_create_unit_at_position(entities, origin, direction, w, d, h, type, index, material, keep_upright = false)
-            if keep_upright
-                forward   = na_horizontal_forward_or_default(direction, X_AXIS)
-                up        = Z_AXIS.clone
-                lateral   = forward.cross(up)
-                lateral.length = 1.0 if lateral.length > 0
-                actual_up = Z_AXIS.clone                                           # <-- Horizontal forward keeps actual_up == world +Z
-            else
-                forward = direction.clone
-                forward.length = 1.0 if forward.length > 0
-
-                up = Z_AXIS.clone
-
-                lateral = forward.cross(up)
-                if lateral.length < 0.001
-                    lateral = Y_AXIS.clone
-                else
-                    lateral.length = 1.0
-                end
-
-                actual_up = lateral.cross(forward)
-                actual_up.length = 1.0 if actual_up.length > 0
-            end
-
-            if type == 'dogtooth'
-                rot = Geom::Transformation.rotation(ORIGIN, forward, 45.degrees)
-                lateral  = lateral.transform(rot)
-                actual_up = actual_up.transform(rot)
-            end
-
-            half_d = d * 0.5
-
-            group_name = "Na_#{type.capitalize}_#{index}"
-            group = entities.add_group
-            group.name = group_name
-            g_ents = group.entities
-
-            corners = na_compute_oriented_corners(origin, forward, lateral, actual_up, w, half_d, h)
-            faces = na_create_box_faces(g_ents, corners)
-            na_fix_face_normals(faces, corners)
-            na_apply_material(faces, material)
-
-            group
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Compute 8 Corners of Oriented Box
-        # ------------------------------------------------------------
-        def self.na_compute_oriented_corners(origin, fwd, lat, up, width, half_depth, height)
-            c0 = origin.offset(lat, -half_depth)
-            c1 = origin.offset(fwd, width).offset(lat, -half_depth)
-            c2 = origin.offset(fwd, width).offset(lat, half_depth)
-            c3 = origin.offset(lat, half_depth)
-            c4 = c0.offset(up, height)
-            c5 = c1.offset(up, height)
-            c6 = c2.offset(up, height)
-            c7 = c3.offset(up, height)
-
-            [c0, c1, c2, c3, c4, c5, c6, c7]
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Create Box Faces from 8 Corners
-        # ------------------------------------------------------------
-        def self.na_create_box_faces(entities, c)
-            faces = []
-            faces << entities.add_face(c[3], c[2], c[1], c[0])  # Bottom
-            faces << entities.add_face(c[4], c[5], c[6], c[7])  # Top
-            faces << entities.add_face(c[0], c[1], c[5], c[4])  # Front
-            faces << entities.add_face(c[2], c[3], c[7], c[6])  # Back
-            faces << entities.add_face(c[3], c[0], c[4], c[7])  # Left
-            faces << entities.add_face(c[1], c[2], c[6], c[5])  # Right
-            faces.compact
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Fix Face Normals to Point Outward
-        # ------------------------------------------------------------
-        def self.na_fix_face_normals(faces, corners)
-            center = Geom::Point3d.new(
-                corners.map(&:x).sum / 8.0,
-                corners.map(&:y).sum / 8.0,
-                corners.map(&:z).sum / 8.0
-            )
-
-            faces.each do |face|
-                next unless face.valid?
-                face_center = face.bounds.center
-                outward = face_center - center
-                face.reverse! if outward % face.normal < 0
             end
         end
-        # ---------------------------------------------------------------
 
-        # FUNCTION | Apply Material to Faces
+        # FUNCTION | Replace Only Generated Units, Preserving User Additions
         # ------------------------------------------------------------
-        def self.na_apply_material(faces, material)
-            return unless material
-
-            faces.each do |face|
-                next unless face.valid?
-                face.material = material
-                face.back_material = material
+        def self.Na__Geometry__Populate(na_model, na_definition, na_plan)
+            na_dictionary = Na__ArrayBuilder__DataSerializer::NA_INSTANCE_DICT
+            na_old = na_definition.entities.select { |na_entity| na_entity.get_attribute(na_dictionary, 'role') == 'unit' }
+            na_unit = na_plan[:source] ? na_plan[:source][:definition] : Na__Geometry__BlockDefinition(na_model, na_plan[:config])
+            na_plan[:positions].each do |na_position|
+                na_transform = Na__ArrayBuilder__LayoutEngine.Na__Layout__Transform(na_position, na_plan[:config], na_plan[:source])
+                na_instance = na_definition.entities.add_instance(na_unit, na_transform)
+                na_instance.set_attribute(na_dictionary, 'role', 'unit')
             end
+            na_definition.entities.erase_entities(na_old) unless na_old.empty?
+            na_definition.invalidate_bounds
         end
-        # ---------------------------------------------------------------
 
-# endregion -------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# REGION | Material
-# -----------------------------------------------------------------------------
-
-        # FUNCTION | Get or Create Brick Material
+        # FUNCTION | Reuse Dimension-Matched Blocks for Fast Live Regeneration
         # ------------------------------------------------------------
-        def self.na_get_or_create_brick_material(model)
-            mat_name = "Na_Brick_RedBrown"
-            existing = model.materials[mat_name]
-            return existing if existing
-
-            mat = model.materials.add(mat_name)
-            mat.color = Sketchup::Color.new(160, 82, 45)
-            mat
+        def self.Na__Geometry__BlockDefinition(na_model, na_config)
+            na_dimensions = %w[unit_width_mm unit_depth_mm unit_height_mm].map { |na_key| na_config[na_key] }
+            na_key = JSON.generate(na_dimensions)
+            na_existing = na_model.definitions.find { |na_definition|
+                na_definition.get_attribute(Na__ArrayBuilder__DataSerializer::NA_DEFINITION_DICT, 'block_dimensions') == na_key
+            }
+            return na_existing if na_existing
+            na_definition = na_model.definitions.add('Na__ArrayBuilder__Block')
+            na_w, na_d, na_h = na_dimensions.map(&:mm)
+            na_face = na_definition.entities.add_face([0,-na_d/2,0], [na_w,-na_d/2,0], [na_w,na_d/2,0], [0,na_d/2,0])
+            raise ArgumentError, 'The block dimensions are too small to build.' unless na_face
+            na_face.reverse! if na_face.normal.z < 0
+            na_face.pushpull(na_h)
+            na_definition.set_attribute(Na__ArrayBuilder__DataSerializer::NA_DEFINITION_DICT, 'block_dimensions', na_key)
+            na_definition
         end
-        # ---------------------------------------------------------------
-
-# endregion -------------------------------------------------------------------
 
     end # module Na__ArrayBuilder__GeometryBuilder
 end # module Na__ArrayBuilderTools
-
-# =============================================================================
-# END OF FILE
-# =============================================================================

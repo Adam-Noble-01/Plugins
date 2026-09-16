@@ -156,6 +156,15 @@
             "expose_to_hotkeys" : true
         },
         {
+            "command_id"        : "vegetation_sketcher",
+            "command_name"      : "Na Noble3d - Vegetation Sketcher",
+            "tooltip"           : "Sketch low-poly whitecard hedges, trees and shrubs with live previews",
+            "status_bar_text"   : "Open Vegetation Sketcher",
+            "menu_text"         : "Vegetation Sketcher",
+            "handler_key"       : "vegetation_sketcher",
+            "expose_to_hotkeys" : true
+        },
+        {
             "command_id"        : "mega_explode",
             "command_name"      : "Na Noble3d - Mega Explode",
             "tooltip"           : "Recursively explode every nested group and component in the current selection",
@@ -495,6 +504,15 @@
             "status_bar_text"   : "Remove edge softening throughout the selected hierarchy",
             "menu_text"         : "Unsoften Nested Edges",
             "handler_key"       : "unsoften_nested_edges",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "orient_faces_toward_camera",
+            "command_name"      : "Na Noble3d - Orient Faces Toward Camera",
+            "tooltip"           : "Reverse every selected face whose front currently points away from the camera",
+            "status_bar_text"   : "Orient selected faces toward the camera",
+            "menu_text"         : "Orient Faces Toward Camera",
+            "handler_key"       : "orient_faces_toward_camera",
             "expose_to_hotkeys" : true
         }
     ],
@@ -863,6 +881,17 @@
             "description"            : "Turns off SketchUp's Soft property for directly selected and nested edges without changing their Smooth or Hidden properties."
         },
         {
+            "button_id"              : "btn_orient_faces_toward_camera",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Face Orientation",
+            "tool_group_description" : "Correct reversed faces so their fronts point at the current camera.",
+            "tool_group_order"       : 47,
+            "button_order"           : 10,
+            "button_label"           : "Orient Faces Toward Camera",
+            "command_id"             : "orient_faces_toward_camera",
+            "description"            : "Reverses every selected face whose front currently points away from the camera, including faces nested inside selected groups and components. Faces already facing the camera are left alone. Shared copies outside the selection are not changed."
+        },
+        {
             "button_id"              : "btn_flatten_3d_to_group",
             "tab_name"               : "Entity Utils",
             "tool_group_name"        : "Group / Component to 2D",
@@ -995,6 +1024,17 @@
             "description"            : "Select a transparent-background PNG (trees, plants, people) and trace it into segmented edge linework. Live SVG preview with real-world size, minimum segment length and trace mode controls, then crosshair placement with 5mm snap."
         },
         {
+            "button_id"              : "btn_vegetation_sketcher",
+            "tab_name"               : "Geometry Tools",
+            "tool_group_name"        : "Landscape Tools",
+            "tool_group_description" : "Low-poly whitecard vegetation for concept and architectural models.",
+            "tool_group_order"       : 60,
+            "button_order"           : 10,
+            "button_label"           : "Vegetation Sketcher",
+            "command_id"             : "vegetation_sketcher",
+            "description"            : "Draw connected hedgerows with arrow-key inference and joined corners; click to plant trees and shrubs. Live previews and editing, adjustable quad resolution, rounding before XYZ randomisation, and smooth whitecard shading."
+        },
+        {
             "button_id"              : "btn_face_pattern_generator",
             "tab_name"               : "Geometry Tools",
             "tool_group_name"        : "Surface Pattern Tools",
@@ -1075,6 +1115,10 @@
         },
         {
             "command_id"        : "group_component_converter",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "vegetation_sketcher",
             "expose_to_hotkeys" : true
         },
         {
@@ -1219,6 +1263,10 @@
         },
         {
             "command_id"        : "paint_deep_nested_faces_repeat",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "orient_faces_toward_camera",
             "expose_to_hotkeys" : true
         }
     ]

@@ -7,16 +7,17 @@
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Main entry point, constants, default configurations
 # CREATED    : 2026
-# VERSION    : 0.0.3
+# VERSION    : 0.2.0
 #
 # DESCRIPTION:
 # - Defines the Na__ArrayBuilderTools module namespace
-# - Stores default configurations for dentil, dog-tooth and object courses
+# - Loads shared configuration, persistence, live editing and preset modules
 # - Provides na_init entry point to launch the dialog
 #
 # =============================================================================
 
 require 'sketchup.rb'
+require_relative 'Na__ArrayBuilder__Configuration__'
 require_relative 'Na__ArrayBuilder__AssetResolver__'
 require_relative 'Na__ArrayBuilder__ObjectRegistry__'
 require_relative 'Na__ArrayBuilder__ObjectPicker__'
@@ -30,7 +31,7 @@ module Na__ArrayBuilderTools
 # REGION | Constants
 # =============================================================================
 
-    NA_PLUGIN_VERSION = '0.1.0'.freeze
+    NA_PLUGIN_VERSION = '0.2.0'.freeze
 
     # Set to true to enable diagnostic puts output. Off by default so the
     # SketchUp Ruby Console stays quiet during normal use - even small
@@ -41,34 +42,7 @@ module Na__ArrayBuilderTools
     NA_PLUGIN_ROOT = File.dirname(__FILE__).freeze
     NA_HTML_FILE   = File.join(NA_PLUGIN_ROOT, 'Na__ArrayBuilder__UiLayout__.html').freeze
 
-    NA_DENTIL_DEFAULTS = {
-        'type'           => 'dentil',
-        'unit_width_mm'  => 110,
-        'unit_depth_mm'  => 30,
-        'unit_height_mm' => 75,
-        'spacing_mm'     => 115
-    }.freeze
-
-    NA_DOGTOOTH_DEFAULTS = {
-        'type'           => 'dogtooth',
-        'unit_width_mm'  => 65,
-        'unit_depth_mm'  => 102.5,
-        'unit_height_mm' => 65,
-        'spacing_mm'     => 0
-    }.freeze
-
-    # Object-mode defaults: dimensions are derived at pick time from the
-    # picked definition's bounding box, so unit_*_mm are placeholders only.
-    NA_OBJECT_DEFAULTS = {
-        'type'           => 'object',
-        'unit_width_mm'  => 0,
-        'unit_depth_mm'  => 0,
-        'unit_height_mm' => 0,
-        'spacing_mm'     => 0,
-        'anchor_mode'    => 'local_axis'
-    }.freeze
-
-    NA_DEFAULT_CONFIG = NA_DENTIL_DEFAULTS
+    NA_DEFAULT_CONFIG = Na__ArrayBuilder__Configuration::NA_DEFAULTS
 
 # endregion ===================================================================
 

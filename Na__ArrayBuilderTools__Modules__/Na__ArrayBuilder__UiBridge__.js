@@ -1,356 +1,321 @@
-// =============================================================================
-// NA ARRAY BUILDER - UI BRIDGE (JavaScript <-> Ruby)
-// =============================================================================
-//
-// FILE       : Na__ArrayBuilder__UiBridge__.js
-// AUTHOR     : Noble Architecture
-// VERSION    : 0.1.0
-// PURPOSE    : Handles UI interactions and Ruby communication
-//
-// =============================================================================
+/* =============================================================================
+   NA ARRAY BUILDER TOOLS - UI BRIDGE
+   FILE       : Na__ArrayBuilder__UiBridge__.js
+   AUTHOR     : Noble Architecture
+   PURPOSE    : Tab routing, debounced live controls and saved preset workflows.
+   ============================================================================= */
 
-// =============================================================================
-// REGION | Default Configurations
-// =============================================================================
+import { Na__UiInput__ParseLength } from './Na__ArrayBuilder__UiInput__.js';
+import { Na__Preview__Markup, Na__Preview__Sample } from './Na__ArrayBuilder__UiPreview__.js';
 
-var NA_DEFAULTS = {
-    dentil: {
-        type: 'dentil',
-        unit_width_mm: 110,
-        unit_depth_mm: 30,
-        unit_height_mm: 75,
-        spacing_mm: 115
-    },
-    dogtooth: {
-        type: 'dogtooth',
-        unit_width_mm: 65,
-        unit_depth_mm: 102.5,
-        unit_height_mm: 65,
-        spacing_mm: 0
-    },
-    object: {
-        type: 'object',
-        spacing_mm: 0,
-        anchor_mode: 'local_axis'
+// REGION | Session State -----------------------------------------------------
+let na_state = { context: null, config: {}, editing: false, placing: false, live: true, can_edit: false };
+let na_tab = 'create';
+let na_pending = null;
+let na_presets = [];
+let na_preset_id = null;
+const na_fields = [...document.querySelectorAll('[data-na-field]')];
+const Na__Ui__Element = na_id => document.getElementById(na_id);
+
+function Na__Ui__Send(na_action, na_extra = {}) {
+    if (!window.sketchup?.na_arrayAction) return;
+    window.sketchup.na_arrayAction(JSON.stringify({ action: na_action, context: na_state.context, ...na_extra }));
+}
+
+function Na__Ui__Status(na_type, na_message) {
+    Na__Ui__Element('na-status').textContent = na_message;
+    document.querySelector('.na-status-bar').dataset.naLevel = na_type;
+}
+
+function Na__Ui__CancelPending() {
+    clearTimeout(na_pending);
+    na_pending = null;
+}
+
+function Na__Ui__ReadConfig(na_mark = true) {
+    const na_config = { ...na_state.config };
+    let na_valid = true;
+    na_fields.forEach(na_field => {
+        const na_key = na_field.dataset.naField;
+        if (na_field.type === 'checkbox') na_config[na_key] = na_field.checked;
+        else if (na_field.tagName === 'SELECT') na_config[na_key] = na_field.value;
+        else {
+            const na_value = Na__UiInput__ParseLength(na_field.value, na_key);
+            const na_relevant = !(na_config.type === 'object' && na_key.startsWith('unit_')) &&
+                !(na_key === 'inset_mm' && na_config.distribution !== 'inset');
+            if (na_value === null && na_relevant) na_valid = false;
+            if (na_mark) na_field.setAttribute('aria-invalid', String(na_value === null && na_relevant));
+            if (na_value !== null) na_config[na_key] = na_value;
+        }
+    });
+    if (!na_valid) return null;
+    return na_config;
+}
+
+function Na__Ui__Configure() {
+    Na__Ui__CancelPending();
+    const na_config = Na__Ui__ReadConfig();
+    if (!na_config) {
+        Na__Ui__Status('warning', 'Finish entering a valid dimension. Your previous preview is kept.');
+        return;
     }
-};
-
-var na_currentType         = 'dentil';
-var na_currentAnchor       = 'local_axis';
-var na_currentDistribution = 'fixed';
-var na_currentKeepUpright  = false;                                              // <-- Off by default; locks unit +Z to world +Z when true
-var na_currentPathSource   = 'draw';                                             // <-- 'draw' (click waypoints) | 'selection' (use selected edges)
-var na_currentReversePath  = false;                                              // <-- Flips the selection path direction
-
-var NA_DIST_HINTS = {
-    'fixed':     'Fixed step: walks the path with constant unit + spacing.',
-    'normalise': 'Normalised: per-segment spacing is adjusted so units land at both ends of each wall.',
-    'inset':     'Fixed inset: first and last units sit at the inset distance from each segment endpoint; intermediates are evenly spaced.'
-};
-
-var NA_PATH_SOURCE_HINTS = {
-    'draw':      'Draw the array path by clicking waypoints in the viewport.',
-    'selection': 'Uses the currently selected edges / curve as the path. A preview appears first - toggle Reverse (or press R) if the run starts from the wrong end, then Enter / click to build.'
-};
-
-// endregion ===================================================================
-
-// =============================================================================
-// REGION | Type Selection
-// =============================================================================
-
-function na_selectType(type) {
-    na_currentType = type;
-
-    var btnDentil   = document.getElementById('na-btn-dentil');
-    var btnDogtooth = document.getElementById('na-btn-dogtooth');
-    var btnObject   = document.getElementById('na-btn-object');
-
-    btnDentil.classList.toggle('na-active', type === 'dentil');
-    btnDogtooth.classList.toggle('na-active', type === 'dogtooth');
-    if (btnObject) btnObject.classList.toggle('na-active', type === 'object');
-
-    na_toggleSourceSections(type);
-
-    if (type === 'dentil' || type === 'dogtooth') {
-        var defaults = NA_DEFAULTS[type];
-        document.getElementById('na-unit-width').value  = defaults.unit_width_mm;
-        document.getElementById('na-unit-depth').value  = defaults.unit_depth_mm;
-        document.getElementById('na-unit-height').value = defaults.unit_height_mm;
-        document.getElementById('na-spacing').value     = defaults.spacing_mm;
-    }
-
-    document.getElementById('na-preview-count').textContent  = '--';
-    document.getElementById('na-preview-length').textContent = '--';
+    na_state.config = na_config;
+    Na__Ui__RefreshControls();
+    Na__Ui__Status('info', na_state.editing && !na_state.live ? 'Changes ready. Press Update array to apply them.' : 'Settings updated.');
+    const na_context = na_state.context;
+    na_pending = setTimeout(() => {
+        na_pending = null;
+        if (na_context !== na_state.context) return;
+        Na__Ui__Send('configure', { config: na_config, scope: Na__Ui__Element('na-scope').value });
+        if (!window.sketchup) Na__Ui__Element('na-preview').innerHTML = Na__Preview__Markup(Na__Preview__Sample(na_config));
+    }, 180);
 }
 
-// FUNCTION | Toggle Dimensions vs Object-Source Sections
-// ----------------------------------------------------------------------------
-function na_toggleSourceSections(type) {
-    var dimsSection = document.getElementById('na-dimensions-section');
-    var objSection  = document.getElementById('na-object-source-section');
-
-    if (!dimsSection || !objSection) return;
-
-    if (type === 'object') {
-        dimsSection.style.display = 'none';
-        objSection.style.display  = 'block';
-    } else {
-        dimsSection.style.display = 'block';
-        objSection.style.display  = 'none';
-    }
+// REGION | Tabs and Shared Controls ------------------------------------------
+function Na__Ui__Tab(na_next) {
+    if (!['create', 'edit', 'gallery', 'preset', 'settings'].includes(na_next)) return;
+    Na__Ui__CancelPending();
+    if ((na_next === 'create' || na_next === 'preset') && na_state.editing) Na__Ui__Send('new', { config: Na__Ui__ReadConfig() || na_state.config });
+    na_tab = na_next;
+    document.querySelectorAll('[data-na-tab]').forEach(na_button => {
+        const na_active = na_button.dataset.naTab === na_tab;
+        na_button.classList.toggle('na-tab-active', na_active);
+        na_button.setAttribute('aria-selected', String(na_active));
+        na_button.tabIndex = na_active ? 0 : -1;
+        Na__Ui__Element('na-panel-' + na_button.dataset.naTab).hidden = !na_active;
+    });
+    const na_editor = Na__Ui__Element('na-editor');
+    const na_mount = na_tab === 'edit' ? 'na-edit-editor' : na_tab === 'preset' ? 'na-preset-editor' : 'na-create-editor';
+    Na__Ui__Element(na_mount).appendChild(na_editor);
+    na_editor.hidden = !['create', 'preset'].includes(na_tab) && !(na_tab === 'edit' && na_state.editing);
+    Na__Ui__RefreshControls();
 }
 
-// endregion ===================================================================
-
-// =============================================================================
-// REGION | Object Source (Pick / Clear / Anchor Mode)
-// =============================================================================
-
-function na_pickObject() {
-    if (typeof sketchup !== 'undefined') {
-        sketchup.na_pickObject();
-    } else {
-        console.log('[NA_ArrayBuilder] SketchUp not available (na_pickObject)');
-    }
+function Na__Ui__WriteConfig() {
+    na_fields.forEach(na_field => {
+        const na_value = na_state.config[na_field.dataset.naField];
+        if (na_value === undefined) return;
+        if (na_field.type === 'checkbox') na_field.checked = na_value === true;
+        else na_field.value = typeof na_value === 'number' ? Number(na_value.toFixed(3)) : na_value;
+        na_field.removeAttribute('aria-invalid');
+    });
+    Na__Ui__RefreshControls();
 }
 
-function na_clearObject() {
-    if (typeof sketchup !== 'undefined') {
-        sketchup.na_clearObject();
-    } else {
-        window.na_objectCleared();
-    }
-}
-
-function na_setAnchorMode(mode) {
-    na_currentAnchor = mode;
-
-    var btnLocal  = document.getElementById('na-btn-anchor-local');
-    var btnCentre = document.getElementById('na-btn-anchor-centre');
-
-    if (btnLocal)  btnLocal.classList.toggle('na-active',  mode === 'local_axis');
-    if (btnCentre) btnCentre.classList.toggle('na-active', mode === 'centre');
-}
-
-// FUNCTION | Toggle Orientation Mode (Follow Path vs Keep Upright)
-// ----------------------------------------------------------------------------
-// 'path'    : default - units pitch with the path slope
-// 'upright' : forward is projected onto the horizontal plane so unit +Z
-//             stays aligned with world +Z (spindles, posts, balusters)
-function na_setOrientation(mode) {
-    na_currentKeepUpright = (mode === 'upright');
-
-    var btnPath    = document.getElementById('na-btn-orient-path');
-    var btnUpright = document.getElementById('na-btn-orient-upright');
-
-    if (btnPath)    btnPath.classList.toggle('na-active',    mode === 'path');
-    if (btnUpright) btnUpright.classList.toggle('na-active', mode === 'upright');
-}
-
-// endregion ===================================================================
-
-// =============================================================================
-// REGION | Path Source Selection (Draw / Use Selection) + Reverse
-// =============================================================================
-
-function na_setPathSource(source) {
-    na_currentPathSource = source;
-
-    var btnDraw      = document.getElementById('na-btn-path-draw');
-    var btnSelection = document.getElementById('na-btn-path-selection');
-
-    if (btnDraw)      btnDraw.classList.toggle('na-active',      source === 'draw');
-    if (btnSelection) btnSelection.classList.toggle('na-active', source === 'selection');
-
-    var reverseRow = document.getElementById('na-reverse-row');
-    if (reverseRow) reverseRow.style.display = source === 'selection' ? 'flex' : 'none';
-
-    var hint = document.getElementById('na-path-source-hint');
-    if (hint) hint.textContent = NA_PATH_SOURCE_HINTS[source] || '';
-
-    var startBtn = document.getElementById('na-btn-start');
-    if (startBtn) startBtn.textContent = source === 'selection' ? 'Preview From Selection' : 'Start Placement';
-}
-
-function na_toggleReversePath() {
-    na_currentReversePath = !na_currentReversePath;
-    na_updateReverseButton();
-
-    // Live-update an active selection preview; harmless no-op otherwise.
-    if (typeof sketchup !== 'undefined') {
-        sketchup.na_reversePath(na_currentReversePath);
-    }
-}
-
-function na_updateReverseButton() {
-    var btn = document.getElementById('na-btn-reverse-path');
-    if (!btn) return;
-
-    btn.classList.toggle('na-active', na_currentReversePath);
-    btn.textContent = na_currentReversePath ? 'Reverse: On' : 'Reverse: Off';
-}
-
-// endregion ===================================================================
-
-// =============================================================================
-// REGION | Distribution Mode Selection (Fixed / Normalise / Inset)
-// =============================================================================
-
-function na_selectDistribution(mode) {
-    na_currentDistribution = mode;
-
-    var btnFixed = document.getElementById('na-btn-dist-fixed');
-    var btnNorm  = document.getElementById('na-btn-dist-norm');
-    var btnInset = document.getElementById('na-btn-dist-inset');
-
-    if (btnFixed) btnFixed.classList.toggle('na-active', mode === 'fixed');
-    if (btnNorm)  btnNorm.classList.toggle('na-active',  mode === 'normalise');
-    if (btnInset) btnInset.classList.toggle('na-active', mode === 'inset');
-
-    var insetRow = document.getElementById('na-inset-row');
-    if (insetRow) insetRow.style.display = mode === 'inset' ? 'flex' : 'none';
-
-    var hint = document.getElementById('na-dist-hint');
-    if (hint) hint.textContent = NA_DIST_HINTS[mode] || '';
-}
-
-// endregion ===================================================================
-
-// =============================================================================
-// REGION | Start Placement
-// =============================================================================
-
-function na_startPlacement() {
-    var config = na_currentType === 'object' ? na_buildObjectConfig() : na_buildBoxConfig();
-
-    var configJson = JSON.stringify(config);
-
-    if (typeof sketchup !== 'undefined') {
-        sketchup.na_startArray(configJson);
-    } else {
-        console.log('[NA_ArrayBuilder] SketchUp not available. Config:', configJson);
-        window.na_showStatus('warning', 'SketchUp connection not available');
-    }
-}
-
-// FUNCTION | Read the User's Inset Value (mm)
-// ----------------------------------------------------------------------------
-function na_readInsetMm() {
-    var el = document.getElementById('na-inset-mm');
-    if (!el) return 200;
-    var val = parseFloat(el.value);
-    return isFinite(val) && val >= 0 ? val : 200;
-}
-
-// FUNCTION | Build Box-Mode Config (Dentil / Dog-Tooth)
-// ----------------------------------------------------------------------------
-function na_buildBoxConfig() {
-    return {
-        type:           na_currentType,
-        unit_width_mm:  parseFloat(document.getElementById('na-unit-width').value)  || 110,
-        unit_depth_mm:  parseFloat(document.getElementById('na-unit-depth').value)  || 30,
-        unit_height_mm: parseFloat(document.getElementById('na-unit-height').value) || 75,
-        spacing_mm:     parseFloat(document.getElementById('na-spacing').value)     || 0,
-        distribution:   na_currentDistribution,
-        inset_mm:       na_readInsetMm(),
-        keep_upright:   na_currentKeepUpright,
-        path_source:    na_currentPathSource,
-        reverse_path:   na_currentReversePath
+function Na__Ui__RefreshControls() {
+    const na_object = na_state.config.type === 'object';
+    Na__Ui__Element('na-block-fields').hidden = na_object;
+    Na__Ui__Element('na-object-fields').hidden = !na_object;
+    Na__Ui__Element('na-inset-field').hidden = na_state.config.distribution !== 'inset';
+    document.querySelectorAll('[data-na-type]').forEach(na_button => {
+        const na_active = na_button.dataset.naType === na_state.config.type;
+        na_button.classList.toggle('na-choice-active', na_active);
+        na_button.setAttribute('aria-pressed', String(na_active));
+    });
+    const na_distribution_text = {
+        fixed: 'A constant face-to-face gap along the entire path.',
+        normalise: 'Fits units to each segment and adjusts the gap to the nearest clean fit.',
+        inset: 'Keeps the same margin at each segment end and adjusts the gap between units.'
     };
+    Na__Ui__Element('na-distribution-help').textContent = na_distribution_text[na_state.config.distribution] || '';
+    Na__Ui__Element('na-edit-empty').hidden = na_state.editing;
+    Na__Ui__Element('na-editor').hidden = !['create', 'preset'].includes(na_tab) && !(na_tab === 'edit' && na_state.editing);
+    Na__Ui__Element('na-path-section').hidden = na_tab === 'preset';
+    Na__Ui__Element('na-path-source-row').hidden = na_state.editing;
+    Na__Ui__Element('na-scope-row').hidden = !na_state.editing;
+    Na__Ui__Element('na-edit-help').hidden = !na_state.editing;
+    Na__Ui__Element('na-redraw').hidden = !na_state.editing || na_state.placing;
+    Na__Ui__Element('na-stop').hidden = !na_state.placing;
+    Na__Ui__Element('na-primary').textContent = na_state.placing ? 'Finish path / build array' : na_state.editing ? 'Update array' :
+        na_state.config.path_source === 'selection' ? 'Preview selected path' : 'Draw array path';
+    Na__Ui__Element('na-primary').dataset.naAction = na_state.placing ? 'finish' : na_state.editing ? 'update' : 'start';
+    document.querySelectorAll('[data-na-edit-button]').forEach(na_button => { na_button.disabled = !na_state.can_edit || na_state.placing; });
+    Na__Ui__Element('na-live').checked = na_state.live;
 }
 
-// FUNCTION | Build Object-Mode Config
-// ----------------------------------------------------------------------------
-// unit_*_mm are derived Ruby-side from the registered definition, so we only
-// forward the spacing, anchor mode and distribution settings here.
-function na_buildObjectConfig() {
-    return {
-        type:         'object',
-        anchor_mode:  na_currentAnchor,
-        spacing_mm:   parseFloat(document.getElementById('na-object-spacing').value) || 0,
-        distribution: na_currentDistribution,
-        inset_mm:     na_readInsetMm(),
-        keep_upright: na_currentKeepUpright,
-        path_source:  na_currentPathSource,
-        reverse_path: na_currentReversePath
-    };
+// REGION | Preset Gallery and Editor -----------------------------------------
+function Na__Ui__NewPreset() {
+    na_preset_id = null;
+    Na__Ui__Element('na-preset-name').value = '';
+    Na__Ui__Element('na-preset-category').value = '';
+    Na__Ui__Element('na-preset-description').value = '';
+    Na__Ui__Element('na-preset-state').textContent = 'New preset';
+    Na__Ui__Element('na-archive').disabled = true;
+    Na__Ui__Tab('preset');
 }
 
-// endregion ===================================================================
+function Na__Ui__PresetDetails(na_record) {
+    na_preset_id = na_record.id;
+    Na__Ui__Element('na-preset-name').value = na_record.name;
+    Na__Ui__Element('na-preset-category').value = na_record.category;
+    Na__Ui__Element('na-preset-description').value = na_record.description;
+    Na__Ui__Element('na-preset-state').textContent = 'Saved preset';
+    Na__Ui__Element('na-archive').disabled = false;
+}
 
-// =============================================================================
-// REGION | Ruby -> JavaScript Callbacks
-// =============================================================================
+function Na__Ui__Node(na_tag, na_class, na_text) {
+    const na_node = document.createElement(na_tag);
+    if (na_class) na_node.className = na_class;
+    if (na_text !== undefined) na_node.textContent = na_text;
+    return na_node;
+}
 
-window.na_showStatus = function(type, message) {
-    var bar = document.getElementById('na-status-bar');
-    if (!bar) return;
-
-    bar.textContent = message;
-    bar.className = 'na-status-bar na-status-' + type;
-
-    if (type === 'success' || type === 'info') {
-        clearTimeout(window._na_statusTimer);
-        window._na_statusTimer = setTimeout(function() {
-            bar.textContent = 'Ready';
-            bar.className = 'na-status-bar na-status-info';
-        }, 5000);
+function Na__Ui__Gallery() {
+    const na_gallery = Na__Ui__Element('na-gallery');
+    na_gallery.replaceChildren();
+    const na_search = Na__Ui__Element('na-search').value.toLowerCase();
+    const na_filter = Na__Ui__Element('na-gallery-filter').value;
+    const na_records = na_presets.filter(na_record => (na_filter === 'all' || na_record.configuration.type === na_filter) &&
+        [na_record.name, na_record.category, na_record.description].join(' ').toLowerCase().includes(na_search));
+    if (!na_records.length) {
+        const na_empty = Na__Ui__Node('div', 'na-empty-state');
+        na_empty.append(Na__Ui__Node('div', 'na-empty-symbol', '▥'), Na__Ui__Node('h2', '', na_presets.length ? 'No matching presets' : 'Your array library starts here'));
+        na_empty.append(Na__Ui__Node('p', '', na_presets.length ? 'Try another search or source filter.' : 'Set up an array, then save its settings to build your own collection.'));
+        if (!na_presets.length) {
+            const na_button = Na__Ui__Node('button', 'na-btn', 'Save your first preset');
+            na_button.addEventListener('click', Na__Ui__NewPreset);
+            na_empty.append(na_button);
+        }
+        na_gallery.append(na_empty);
+        return;
     }
-};
+    na_records.forEach(na_record => {
+        const na_card = Na__Ui__Node('article', 'na-preset-card');
+        const na_preview = Na__Ui__Node('div', 'na-preset-card__preview');
+        na_preview.innerHTML = Na__Preview__Markup(Na__Preview__Sample(na_record.configuration));
+        const na_body = Na__Ui__Node('div', 'na-preset-card__body');
+        na_body.append(Na__Ui__Node('div', 'na-preset-category', na_record.category || 'My arrays'), Na__Ui__Node('h2', '', na_record.name));
+        na_body.append(Na__Ui__Node('p', '', na_record.description || (na_record.configuration.type === 'object' ? 'Custom object array' : 'Parametric block array')));
+        na_body.append(Na__Ui__Node('p', '', na_record.configuration.spacing_mm + ' mm target gap · ' + na_record.configuration.distribution));
+        const na_buttons = Na__Ui__Node('div', 'na-button-row');
+        [['Use preset', 'preset_load'], ['Edit preset', 'preset_edit']].forEach(([na_label, na_action]) => {
+            const na_button = Na__Ui__Node('button', 'na-btn' + (na_action === 'preset_edit' ? ' na-btn-secondary' : ''), na_label);
+            na_button.addEventListener('click', () => { Na__Ui__CancelPending(); Na__Ui__Send(na_action, { id: na_record.id }); });
+            na_buttons.append(na_button);
+        });
+        na_body.append(na_buttons);
+        na_card.append(na_preview, na_body);
+        na_gallery.append(na_card);
+    });
+}
 
-window.na_arrayComplete = function(count) {
-    window.na_showStatus('success', 'Created ' + count + ' units successfully');
-
-    document.getElementById('na-preview-count').textContent  = count;
-};
-
-window.na_updatePreviewInfo = function(count, totalLengthMm, actualSpacingMm) {
-    document.getElementById('na-preview-count').textContent  = count;
-    document.getElementById('na-preview-length').textContent = totalLengthMm + ' mm';
-
-    var spacingRow = document.getElementById('na-actual-spacing-row');
-    var spacingVal = document.getElementById('na-actual-spacing');
-    if (typeof actualSpacingMm === 'number' && actualSpacingMm >= 0) {
-        spacingRow.style.display = 'flex';
-        spacingVal.textContent = actualSpacingMm + ' mm';
-    } else {
-        spacingRow.style.display = 'none';
-        spacingVal.textContent = '--';
+// REGION | User Actions ------------------------------------------------------
+function Na__Ui__Action(na_action) {
+    Na__Ui__CancelPending();
+    if (na_action === 'preset_new') { Na__Ui__NewPreset(); return; }
+    const na_config = Na__Ui__ReadConfig();
+    if (['start','redraw','update','finish','preset_save','preset_copy'].includes(na_action) && !na_config) {
+        Na__Ui__Status('warning', 'Complete the highlighted dimensions before continuing.');
+        return;
     }
+    if (na_action === 'preset_save' || na_action === 'preset_copy') {
+        const na_name = Na__Ui__Element('na-preset-name').value.trim();
+        if (!na_name) { Na__Ui__Element('na-preset-name').focus(); Na__Ui__Status('warning', 'Give this preset a name.'); return; }
+        Na__Ui__Send('preset_save', { config: na_config, id: na_action === 'preset_copy' ? null : na_preset_id,
+            name: na_name, category: Na__Ui__Element('na-preset-category').value, description: Na__Ui__Element('na-preset-description').value });
+        return;
+    }
+    if (na_action === 'preset_archive') {
+        if (na_preset_id) Na__Ui__Send('preset_archive', { id: na_preset_id });
+        Na__Ui__NewPreset();
+        Na__Ui__Tab('gallery');
+        return;
+    }
+    if (na_action === 'redraw' && na_config) na_config.path_source = 'draw';
+    // Finish must apply the latest keystroke before the SketchUp tool commits.
+    if (na_action === 'finish') Na__Ui__Send('configure', { config: na_config, scope: Na__Ui__Element('na-scope').value });
+    Na__Ui__Send(na_action, { config: na_config, scope: Na__Ui__Element('na-scope').value });
+}
+
+// REGION | Ruby to JavaScript ------------------------------------------------
+window.Na__ArrayUi__Receive = function Na__ArrayUi__Receive(na_event, na_payload) {
+    if (na_event === 'state') {
+        const na_changed = na_state.context !== na_payload.context;
+        if (na_changed) Na__Ui__CancelPending();
+        const na_config = na_changed ? na_payload.config : na_state.config;
+        na_state = { ...na_state, ...na_payload, config: na_config };
+        if (na_changed) {
+            Na__Ui__WriteConfig();
+            Na__Ui__Element('na-scope').value = na_state.scope || 'single';
+        }
+        Na__Ui__Element('na-source-name').textContent = na_state.source_name || 'No source selected';
+        Na__Ui__Element('na-source-size').textContent = na_state.source_dimensions ? na_state.source_dimensions.join(' × ') + ' mm · width / depth / height' : 'Pick a group or component from the model.';
+        Na__Ui__Element('na-edit-title').textContent = na_state.editing ? (na_state.target_name || 'Noble Array') + ' · ' + na_state.linked_count + ' linked instance(s)' : 'Select a Noble array to load its saved settings.';
+        Na__Ui__RefreshControls();
+    } else if (na_event === 'status') Na__Ui__Status(na_payload.type, na_payload.message);
+    else if (na_event === 'tab') Na__Ui__Tab(na_payload);
+    else if (na_event === 'placing') { na_state.placing = na_payload; Na__Ui__RefreshControls(); }
+    else if (na_event === 'reverse') {
+        na_state.config.reverse_path = na_payload;
+        document.querySelector('[data-na-field="reverse_path"]').checked = na_payload;
+    } else if (na_event === 'completed') {
+        na_state.placing = false;
+        Na__Ui__RefreshControls();
+        Na__Ui__Status('success', 'Array created. Select it and use Edit selected array to keep adjusting it.');
+    } else if (na_event === 'updated') {
+        na_state.linked_count = na_payload.linked_count;
+        Na__Ui__Element('na-edit-title').textContent = (na_state.target_name || 'Noble Array') + ' · ' + na_state.linked_count + ' linked instance(s)';
+    } else if (na_event === 'metrics') {
+        const Na__Ui__Number = na_value => Number.isFinite(na_value) ? Number(na_value.toFixed(1)).toLocaleString() : '—';
+        Na__Ui__Element('na-count').textContent = Na__Ui__Number(na_payload.count);
+        Na__Ui__Element('na-length').textContent = Na__Ui__Number(na_payload.length_mm);
+        Na__Ui__Element('na-gap').textContent = Na__Ui__Number(na_payload.gap_mm);
+        if (na_state.placing) Na__Ui__Element('na-preview-caption').textContent = 'Live SketchUp path · blue wireframe';
+    } else if (na_event === 'preview') {
+        const na_preview = Na__Ui__Element('na-preview');
+        if (na_payload.missing_source || na_payload.error) na_preview.textContent = na_payload.error || 'Pick a source object to preview this array.';
+        else na_preview.innerHTML = Na__Preview__Markup(na_payload);
+        Na__Ui__Element('na-preview-caption').textContent = (na_payload.sample ? '3,000 mm sample path' : na_payload.placing ? 'Live SketchUp path' : 'Saved array path') + (na_payload.truncated ? ' · first 400 envelopes' : '');
+    } else if (na_event === 'gallery') {
+        na_presets = na_payload.records;
+        const na_warning = Na__Ui__Element('na-gallery-warning');
+        na_warning.hidden = !na_payload.skipped.length;
+        na_warning.textContent = na_payload.skipped.length + ' unreadable preset file(s) skipped. Check the library folder.';
+        Na__Ui__Gallery();
+    } else if (na_event === 'preset_saved') Na__Ui__PresetDetails(na_payload);
+    else if (na_event === 'preset_edit') { Na__Ui__PresetDetails(na_payload); Na__Ui__Tab('preset'); }
+    else if (na_event === 'preset_loaded') { Na__Ui__Tab('create'); Na__Ui__Status('success', 'Loaded ' + na_payload.name + '. Choose or draw a path.'); }
 };
 
-window.na_objectPicked = function(name, wMm, dMm, hMm) {
-    var nameEl = document.getElementById('na-object-name');
-    var wEl    = document.getElementById('na-object-w');
-    var dEl    = document.getElementById('na-object-d');
-    var hEl    = document.getElementById('na-object-h');
-    var info   = document.getElementById('na-object-info');
-
-    if (nameEl) nameEl.textContent = name || '<Unnamed>';
-    if (wEl)    wEl.textContent    = wMm + ' mm';
-    if (dEl)    dEl.textContent    = dMm + ' mm';
-    if (hEl)    hEl.textContent    = hMm + ' mm';
-    if (info)   info.classList.add('na-object-info-active');
-};
-
-window.na_setReverseState = function(state) {
-    na_currentReversePath = state === true;
-    na_updateReverseButton();
-};
-
-window.na_objectCleared = function() {
-    var nameEl = document.getElementById('na-object-name');
-    var wEl    = document.getElementById('na-object-w');
-    var dEl    = document.getElementById('na-object-d');
-    var hEl    = document.getElementById('na-object-h');
-    var info   = document.getElementById('na-object-info');
-
-    if (nameEl) nameEl.textContent = 'No object selected';
-    if (wEl)    wEl.textContent    = '--';
-    if (dEl)    dEl.textContent    = '--';
-    if (hEl)    hEl.textContent    = '--';
-    if (info)   info.classList.remove('na-object-info-active');
-};
-
-// endregion ===================================================================
+// REGION | Bootstrap ---------------------------------------------------------
+document.querySelectorAll('[data-na-tab]').forEach(na_button => {
+    na_button.addEventListener('click', () => Na__Ui__Tab(na_button.dataset.naTab));
+    na_button.addEventListener('keydown', na_event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(na_event.key)) return;
+        const na_tabs = [...document.querySelectorAll('[data-na-tab]')];
+        const na_index = na_tabs.indexOf(na_button);
+        const na_next = na_event.key === 'Home' ? 0 : na_event.key === 'End' ? na_tabs.length - 1 : (na_index + (na_event.key === 'ArrowRight' ? 1 : -1) + na_tabs.length) % na_tabs.length;
+        na_event.preventDefault();
+        Na__Ui__Tab(na_tabs[na_next].dataset.naTab);
+        na_tabs[na_next].focus();
+    });
+});
+document.querySelectorAll('[data-na-action]').forEach(na_button => na_button.addEventListener('click', () => Na__Ui__Action(na_button.dataset.naAction)));
+document.querySelectorAll('[data-na-type]').forEach(na_button => na_button.addEventListener('click', () => {
+    na_state.config.type = na_button.dataset.naType;
+    Na__Ui__Configure();
+}));
+na_fields.forEach(na_field => {
+    na_field.addEventListener('input', Na__Ui__Configure);
+    na_field.addEventListener('blur', () => {
+        if (na_field.tagName === 'INPUT' && na_field.type !== 'checkbox') {
+            const na_value = Na__UiInput__ParseLength(na_field.value, na_field.dataset.naField);
+            if (na_value !== null) na_field.value = Number(na_value.toFixed(3));
+        }
+    });
+});
+Na__Ui__Element('na-live').addEventListener('change', na_event => { Na__Ui__CancelPending(); Na__Ui__Send('live', { enabled: na_event.target.checked }); });
+Na__Ui__Element('na-scope').addEventListener('change', () => {
+    Na__Ui__CancelPending();
+    Na__Ui__Status('info', 'Update scope changed. The next parameter change or Update array applies to this scope.');
+});
+Na__Ui__Element('na-search').addEventListener('input', Na__Ui__Gallery);
+Na__Ui__Element('na-gallery-filter').addEventListener('change', Na__Ui__Gallery);
+na_state.config = { type: 'block', ...Na__Ui__ReadConfig(false) };
+Na__Ui__Tab('create');
+Na__Ui__Gallery();
+Na__Ui__Send('ready');
+if (!window.sketchup) {
+    Na__Ui__Element('na-preview').innerHTML = Na__Preview__Markup(Na__Preview__Sample(na_state.config));
+    Na__Ui__Status('info', 'Interface preview · open Array Builder in SketchUp to create and edit geometry.');
+} else Na__Ui__Status('info', 'Ready. Draw a path, use selected edges, or open an existing array.');

@@ -1,0 +1,375 @@
+# =============================================================================
+# NA ARRAY BUILDER TOOLS - CORE REGRESSION SPECIFICATIONS
+# =============================================================================
+# Explicit test-only SketchUp doubles. Native geometry must also be smoke-tested
+# in SketchUp; these exercise the real layout, persistence and controller code.
+
+require 'json'
+require 'tmpdir'
+require 'fileutils'
+
+# Minimal affine test math, independent of SketchUp and optional Ruby gems.
+class Matrix
+    def self.[](*na_rows); new(na_rows); end
+    def self.identity(na_size); new(Array.new(na_size) { |na_i| Array.new(na_size) { |na_j| na_i == na_j ? 1.0 : 0.0 } }); end
+    def self.diagonal(*na_values); new(Array.new(na_values.length) { |na_i| Array.new(na_values.length) { |na_j| na_i == na_j ? na_values[na_i] : 0.0 } }); end
+    def initialize(na_rows); @na_rows=na_rows; end
+    def to_a; @na_rows.map(&:dup); end
+    def *(na_other)
+        na_b=na_other.to_a
+        return Vector.new(@na_rows.map { |na_row| na_row.each_with_index.sum { |na_v,na_i| na_v*na_b[na_i] } }) if na_other.is_a?(Vector)
+        Matrix.new(@na_rows.map { |na_row| na_b.transpose.map { |na_col| na_row.each_with_index.sum { |na_v,na_i| na_v*na_col[na_i] } } })
+    end
+    def determinant
+        na_a=@na_rows
+        na_a[0][0]*(na_a[1][1]*na_a[2][2]-na_a[1][2]*na_a[2][1])-na_a[0][1]*(na_a[1][0]*na_a[2][2]-na_a[1][2]*na_a[2][0])+na_a[0][2]*(na_a[1][0]*na_a[2][1]-na_a[1][1]*na_a[2][0])
+    end
+    def inverse
+        na_a=to_a.each_with_index.map { |na_row,na_i| na_row+Matrix.identity(4).to_a[na_i] }
+        4.times do |na_i|
+            na_pivot=(na_i...4).max_by { |na_j| na_a[na_j][na_i].abs }
+            na_a[na_i],na_a[na_pivot]=na_a[na_pivot],na_a[na_i]
+            na_divisor=na_a[na_i][na_i].to_f
+            raise 'Singular test transform' if na_divisor.abs<1e-12
+            na_a[na_i].map! { |na_v| na_v/na_divisor }
+            4.times do |na_j|
+                next if na_j==na_i
+                na_factor=na_a[na_j][na_i]
+                na_a[na_j]=na_a[na_j].each_with_index.map { |na_v,na_k| na_v-na_factor*na_a[na_i][na_k] }
+            end
+        end
+        Matrix.new(na_a.map { |na_row| na_row.last(4) })
+    end
+end
+class Vector
+    def self.[](*na_values); new(na_values); end
+    def initialize(na_values); @na_values=na_values; end
+    def to_a; @na_values; end
+end
+
+na_root = File.expand_path('..', __dir__)
+Dir[File.join(na_root, '*.rb')].each { |na_file| RubyVM::InstructionSequence.compile_file(na_file) }
+$LOADED_FEATURES << 'sketchup.rb'
+
+class Numeric
+    def mm; to_f / 25.4; end
+end
+module Geom
+    class Vector3d
+        attr_accessor :x, :y, :z
+        def initialize(*na_values); @x, @y, @z = na_values.flatten.map(&:to_f); end
+        def length; Math.sqrt(x*x + y*y + z*z); end
+        def length=(na_value); na_scale = na_value / length; @x *= na_scale; @y *= na_scale; @z *= na_scale; end
+        def normalize!; self.length = 1; self; end
+        def normalize; clone.normalize!; end
+        def cross(na_other); Vector3d.new(y*na_other.z-z*na_other.y, z*na_other.x-x*na_other.z, x*na_other.y-y*na_other.x); end
+        def to_a; [x,y,z]; end
+    end
+    class Point3d < Vector3d
+        def initialize(*na_values); super(*(na_values.first.respond_to?(:to_a) ? na_values.first.to_a : na_values)); end
+        def -(na_other); Vector3d.new(x-na_other.x, y-na_other.y, z-na_other.z); end
+        def distance(na_other); (self-na_other).length; end
+        def offset(na_direction, na_length); na_v = na_direction.normalize; Point3d.new(x+na_v.x*na_length,y+na_v.y*na_length,z+na_v.z*na_length); end
+        def transform(na_transform); na_v = na_transform.na_matrix * Vector[x,y,z,1]; Point3d.new(na_v.to_a.first(3)); end
+        def ==(na_other); distance(na_other) < 1e-9; end
+    end
+    class Transformation
+        attr_reader :na_matrix
+        def initialize(na_matrix = Matrix.identity(4)); @na_matrix = na_matrix; end
+        def self.axes(na_p, na_x, na_y, na_z); new(Matrix[[na_x.x,na_y.x,na_z.x,na_p.x],[na_x.y,na_y.y,na_z.y,na_p.y],[na_x.z,na_y.z,na_z.z,na_p.z],[0,0,0,1]]); end
+        def self.translation(na_p); na_p = Point3d.new(na_p); axes(na_p,X_AXIS,Y_AXIS,Z_AXIS); end
+        def self.scaling(na_x,na_y,na_z); new(Matrix.diagonal(na_x,na_y,na_z,1)); end
+        def *(na_other); Transformation.new(na_matrix * na_other.na_matrix); end
+        def inverse; Transformation.new(na_matrix.inverse); end
+        def to_a; na_matrix.to_a.transpose.flatten; end
+    end
+end
+ORIGIN = Geom::Point3d.new(0,0,0)
+X_AXIS = Geom::Vector3d.new(1,0,0)
+Y_AXIS = Geom::Vector3d.new(0,1,0)
+Z_AXIS = Geom::Vector3d.new(0,0,1)
+module Sketchup
+    class Color; def initialize(*); end; end
+    class ComponentInstance; end
+    class Group; end
+    class AppObserver; end
+    class ModelObserver; end
+    class SelectionObserver; end
+    class << self; attr_accessor :active_model; end
+end
+module UI
+    def self.start_timer(*); 1; end
+    def self.stop_timer(*); end
+end
+
+require File.join(na_root, 'Na__ArrayBuilder__Configuration__')
+require File.join(na_root, 'Na__ArrayBuilder__LayoutEngine__')
+require File.join(na_root, 'Na__ArrayBuilder__DataSerializer__')
+require File.join(na_root, 'Na__ArrayBuilder__ObjectRegistry__')
+require File.join(na_root, 'Na__ArrayBuilder__PresetsLibrary__')
+NA_CONFIG = Na__ArrayBuilderTools::Na__ArrayBuilder__Configuration
+NA_LAYOUT = Na__ArrayBuilderTools::Na__ArrayBuilder__LayoutEngine
+NA_DATA = Na__ArrayBuilderTools::Na__ArrayBuilder__DataSerializer
+NA_STORE = Na__ArrayBuilderTools::Na__ArrayBuilder__PresetsLibrary
+NA_REGISTRY = Na__ArrayBuilderTools::Na__ArrayBuilder__ObjectRegistry
+$na_checks = 0
+def Na__Spec__Check(na_message)
+    raise na_message unless yield
+    $na_checks += 1
+end
+def Na__Spec__Reject(na_message)
+    na_caught = false
+    begin; yield; rescue ArgumentError; na_caught = true; end
+    Na__Spec__Check(na_message) { na_caught }
+end
+def Na__Spec__Near(na_a, na_b); (na_a-na_b).abs < 0.00001; end
+
+# REGION | Input and layout contracts
+na_defaults = NA_CONFIG.Na__Config__Resolve
+Na__Spec__Check('configuration round trip') { NA_CONFIG.Na__Config__Resolve(JSON.generate(na_defaults)) == na_defaults }
+['', '12oops', Float::NAN, Float::INFINITY, -1, 0].each { |na_value| Na__Spec__Reject('invalid dimension accepted') { NA_CONFIG.Na__Config__Resolve('unit_width_mm' => na_value) } }
+%w[dogtooth dentil other].each { |na_type| Na__Spec__Reject('removed mode accepted') { NA_CONFIG.Na__Config__Resolve('type' => na_type) } }
+Na__Spec__Reject('string boolean accepted') { NA_CONFIG.Na__Config__Resolve('keep_upright' => 'false') }
+na_points = [ORIGIN, Geom::Point3d.new(1000.mm,0,0)]
+na_config = NA_CONFIG.Na__Config__Resolve('unit_width_mm' => 100, 'spacing_mm' => 100)
+na_plan = NA_LAYOUT.Na__Layout__Resolve(na_config, na_points)
+Na__Spec__Check('fixed count') { na_plan[:positions].length == 5 }
+Na__Spec__Check('fixed positions') { na_plan[:positions].map { |na_p| (na_p[:point].x*25.4).round } == [0,200,400,600,800] }
+na_fit = NA_LAYOUT.Na__Layout__Resolve(na_config.merge('distribution' => 'normalise'), na_points)
+Na__Spec__Check('fit last unit ends at endpoint') { Na__Spec__Near(na_fit[:positions].last[:point].x*25.4+100, 1000) }
+Na__Spec__Check('fit gap nonnegative') { na_fit[:gap_mm] >= 0 }
+na_inset = NA_LAYOUT.Na__Layout__Resolve(na_config.merge('distribution' => 'inset', 'inset_mm' => 50), na_points)
+Na__Spec__Check('inset margins respected') { Na__Spec__Near(na_inset[:positions].first[:point].x*25.4,50) && Na__Spec__Near(na_inset[:positions].last[:point].x*25.4+100,950) }
+na_reverse = NA_LAYOUT.Na__Layout__Resolve(na_config.merge('reverse_path' => true), na_points)
+Na__Spec__Check('reverse starts from saved end') { na_reverse[:positions].first[:point] == na_points.last && na_reverse[:positions].first[:direction].x < 0 }
+Na__Spec__Check('canonical path unchanged') { na_points.first == ORIGIN }
+na_short = NA_LAYOUT.Na__Layout__Resolve(na_config.merge('distribution' => 'inset'), [ORIGIN, Geom::Point3d.new(80.mm,0,0)])
+Na__Spec__Check('short segment remains usable') { na_short[:positions].length == 1 }
+na_corner = [ORIGIN, Geom::Point3d.new(1000.mm,0,0), Geom::Point3d.new(1000.mm,1000.mm,0)]
+na_corner_plan = NA_LAYOUT.Na__Layout__Resolve(na_config, na_corner)
+Na__Spec__Check('corner unit follows next segment') { na_corner_plan[:positions][5][:direction].y > 0.99 }
+%w[fixed normalise inset].each do |na_mode|
+    Na__Spec__Reject('unbounded layout') { NA_LAYOUT.Na__Layout__Resolve(na_config.merge('unit_width_mm' => 0.1, 'spacing_mm' => 0, 'inset_mm' => 0, 'distribution' => na_mode), na_points) }
+end
+na_frame = NA_LAYOUT.Na__Layout__Frame(na_plan[:positions].first, na_config)
+Na__Spec__Check('object frame is not mirrored') { na_frame.na_matrix.determinant > 0.99 }
+na_vertical = { point: ORIGIN, direction: Z_AXIS }
+Na__Spec__Check('vertical frame invertible') { NA_LAYOUT.Na__Layout__Frame(na_vertical, na_config).na_matrix.determinant.abs > 0.99 }
+na_shift = NA_LAYOUT.Na__Layout__Corners(na_plan[:positions].first, na_config.merge('offset_lateral_mm' => 40, 'offset_vertical_mm' => 60))
+Na__Spec__Check('lateral and vertical offsets') { Na__Spec__Near(na_shift.first.y*25.4,25) && Na__Spec__Near(na_shift.first.z*25.4,60) }
+
+# REGION | Serializer and portable object contracts
+module Na__Spec__Attributes
+    def get_attribute(na_dict,na_key,na_default=nil); (@na_attributes ||= {}).fetch([na_dict,na_key],na_default); end
+    def set_attribute(na_dict,na_key,na_value); (@na_attributes ||= {})[[na_dict,na_key]] = na_value; end
+end
+class Na__Spec__Definition
+    include Na__Spec__Attributes
+    attr_accessor :entities, :name, :instances
+    def initialize; @entities=[]; @name='Test source'; @instances=[]; end
+    def persistent_id; object_id; end
+    def valid?; true; end
+end
+class Na__Spec__Entity < Sketchup::ComponentInstance
+    include Na__Spec__Attributes
+    attr_accessor :definition, :transformation, :name, :na_locked
+    def initialize(na_def=Na__Spec__Definition.new); @definition=na_def; @transformation=Geom::Transformation.new; @name='Test array'; @na_locked=false; @definition.instances << self; end
+    def persistent_id; object_id; end
+    def valid?; true; end
+    def locked?; @na_locked; end
+end
+class Na__Spec__Model
+    include Na__Spec__Attributes
+    attr_accessor :selection, :active_entities, :active_path, :edit_transform
+    def initialize; @selection=[]; @active_entities=[]; @edit_transform=Geom::Transformation.new; end
+    def select_tool(*); end
+end
+na_model = Na__Spec__Model.new
+na_entity = Na__Spec__Entity.new
+na_saved = NA_DATA.Na__Data__Save(na_model,na_entity,na_config,na_corner,nil,10)
+Na__Spec__Check('entity recipe round trip') { NA_DATA.Na__Data__Load(na_entity) == na_saved }
+Na__Spec__Check('path units round trip') { NA_DATA.Na__Data__Points(na_saved) == na_corner }
+Na__Spec__Check('model dictionary stores recipe') { JSON.parse(na_model.get_attribute(NA_DATA::NA_MODEL_DICT,"array_#{na_saved['array_id']}")) == na_saved }
+Na__Spec__Check('model defaults round trip') { NA_DATA.Na__Data__ModelSettings(na_model) == na_config }
+na_edited = NA_DATA.Na__Data__Save(na_model,na_entity,na_config.merge('spacing_mm'=>50),na_corner,nil,15,na_saved)
+Na__Spec__Check('edit preserves identity and creation date') { na_edited['array_id'] == na_saved['array_id'] && na_edited['created_at'] == na_saved['created_at'] }
+na_entity.transformation = Geom::Transformation.translation([100,200,300])
+Na__Spec__Check('moving array leaves local path unchanged') { NA_DATA.Na__Data__Points(NA_DATA.Na__Data__Load(na_entity)) == na_corner }
+Na__Spec__Reject('unsupported schema accepted') { NA_DATA.Na__Data__Deserialize(JSON.generate(na_saved.merge('schema_version'=>99))) }
+Na__Spec__Reject('damaged path accepted') { NA_DATA.Na__Data__Deserialize(JSON.generate(na_saved.merge('path_mm'=>[[1,2], [3,4]]))) }
+Na__Spec__Reject('broken JSON accepted') { NA_DATA.Na__Data__Deserialize('{') }
+
+# REGION | Preset CRUD, backups, malformed records and traversal protection
+na_test_root = Dir.mktmpdir('na_array_specs_')
+NA_STORE.send(:remove_const, :NA_ROOT)
+NA_STORE.const_set(:NA_ROOT, na_test_root)
+begin
+    na_record = NA_STORE.Na__Presets__Save({'name'=>"A 'quoted' <name>",'description'=>"Line 1\nLine 2"},na_config,nil)
+    Na__Spec__Check('preset disk round trip') { NA_STORE.Na__Presets__Read(na_record['id']) == na_record }
+    na_updated = NA_STORE.Na__Presets__Save({'id'=>na_record['id'],'name'=>'Updated'},na_config.merge('spacing_mm'=>50),nil)
+    Na__Spec__Check('preset update keeps original backup') { JSON.parse(File.read(NA_STORE.Na__Presets__Path(na_record['id'])+'.bak')) == na_record }
+    Na__Spec__Reject('traversal accepted') { NA_STORE.Na__Presets__Read('../outside') }
+    File.write(File.join(na_test_root,'Na__ArrayPreset__00000000-0000-0000-0000-000000000000__.json'),'{')
+    na_gallery = NA_STORE.Na__Presets__Scan
+    Na__Spec__Check('bad preset isolated') { na_gallery['records'].length == 1 && na_gallery['skipped'].length == 1 }
+    NA_STORE.Na__Presets__Archive(na_record['id'])
+    Na__Spec__Check('archive removes from gallery but retains file') { NA_STORE.Na__Presets__Scan['records'].empty? && Dir[File.join(na_test_root,'01__Archive','*.json')].length == 1 }
+ensure
+    FileUtils.remove_entry(na_test_root)
+end
+
+# REGION | Controller guards reject stale selection, context and model events
+require File.join(na_root, 'Na__ArrayBuilder__DialogManager__')
+NA_DIALOG = Na__ArrayBuilderTools::Na__ArrayBuilder__DialogManager
+Sketchup.active_model = na_model
+na_model.active_entities = [na_entity]
+na_model.selection = [na_entity]
+NA_DIALOG.instance_variable_set(:@na_model,na_model)
+NA_DIALOG.instance_variable_set(:@na_target,na_entity)
+NA_DIALOG.instance_variable_set(:@na_ready,false)
+NA_DIALOG.Na__Dialog__NewContext
+na_context = NA_DIALOG.instance_variable_get(:@na_context)
+NA_DIALOG.Na__Dialog__CheckContext('context'=>na_context)
+Na__Spec__Reject('stale context allowed') { NA_DIALOG.Na__Dialog__CheckContext('context'=>'old') }
+na_model.selection=[]
+Na__Spec__Reject('selection changed allowed') { NA_DIALOG.Na__Dialog__CheckContext('context'=>na_context) }
+na_model.selection=[na_entity]
+na_entity.na_locked=true
+Na__Spec__Reject('locked target allowed') { NA_DIALOG.Na__Dialog__CheckContext('context'=>na_context) }
+na_entity.na_locked=false
+Sketchup.active_model=Na__Spec__Model.new
+Na__Spec__Reject('model switch allowed') { NA_DIALOG.Na__Dialog__CheckContext('context'=>na_context) }
+
+# REGION | Scaled source geometry and regeneration transaction contracts
+class Na__Spec__Bounds
+    def min; Geom::Point3d.new(10.mm,20.mm,30.mm); end
+    def max; Geom::Point3d.new(110.mm,60.mm,105.mm); end
+    def empty?; false; end
+    def corner(na_i); Geom::Point3d.new((na_i&1).zero? ? min.x : max.x, (na_i&2).zero? ? min.y : max.y, (na_i&4).zero? ? min.z : max.z); end
+end
+class Na__Spec__Entities < Array
+    attr_accessor :na_fail
+    def add_instance(na_definition,na_transform)
+        raise 'Simulated geometry failure' if @na_fail
+        na_entity=Na__Spec__Entity.new(na_definition)
+        na_entity.transformation=na_transform
+        self << na_entity
+        na_entity
+    end
+    def erase_entities(na_entities); na_entities.each { |na_entity| delete(na_entity) }; end
+end
+class Na__Spec__Definitions < Array
+    def add(na_name); na_definition=Na__Spec__Definition.new; na_definition.name=na_name; na_definition.entities=Na__Spec__Entities.new; self << na_definition; na_definition; end
+end
+class Na__Spec__Selection < Array
+    def add(na_entity); self << na_entity; end
+end
+class Na__Spec__Definition
+    def bounds; Na__Spec__Bounds.new; end
+    def invalidate_bounds; end
+end
+class Na__Spec__Entity
+    def make_unique
+        @definition.instances.delete(self)
+        na_new=Na__Spec__Definition.new
+        na_new.entities=Na__Spec__Entities.new(@definition.entities)
+        na_new.instances=[self]
+        @definition=na_new
+        self
+    end
+end
+class Na__Spec__View
+    def invalidate; end
+end
+class Na__Spec__Model
+    attr_accessor :definitions, :na_commits, :na_aborts, :na_starts
+    def start_operation(*); @na_starts=(@na_starts||0)+1; end
+    def commit_operation; @na_commits=(@na_commits||0)+1; end
+    def abort_operation; @na_aborts=(@na_aborts||0)+1; end
+    def active_view; Na__Spec__View.new; end
+end
+na_model=Na__Spec__Model.new
+na_model.definitions=Na__Spec__Definitions.new
+na_model.active_entities=Na__Spec__Entities.new
+na_model.selection=Na__Spec__Selection.new
+Sketchup.active_model=na_model
+na_source_definition=na_model.definitions.add('Offset source')
+NA_REGISTRY.Na__Registry__SetDefinition(na_source_definition,'Offset source',[2,3,4])
+na_source=NA_REGISTRY.Na__Registry__GetPlacementInfo
+na_object_config=na_config.merge('type'=>'object','anchor_mode'=>'centre')
+na_object_plan=NA_LAYOUT.Na__Layout__Resolve(na_object_config,na_points,na_source)
+na_object_corners=NA_LAYOUT.Na__Layout__Corners(na_object_plan[:positions].first,na_object_plan[:config],na_source)
+Na__Spec__Check('scaled source width drives count') { na_object_plan[:positions].length==4 && Na__Spec__Near(na_object_plan[:config]['unit_width_mm'],200) }
+Na__Spec__Check('source leading face pinned') { Na__Spec__Near(na_object_corners.first.x,0) }
+Na__Spec__Check('source centre anchor and scale') { Na__Spec__Near(na_object_corners.first.y*25.4,-60) && Na__Spec__Near(na_object_corners.first.z*25.4,-150) }
+NA_GEOMETRY=Na__ArrayBuilderTools::Na__ArrayBuilder__GeometryBuilder
+na_array=NA_GEOMETRY.na_create_array(na_corner,na_object_config.merge('path_source'=>'selection'))
+Na__Spec__Check('creation saves editable recipe') { NA_DATA.Na__Data__HasData?(na_array) && na_model.na_commits==1 }
+na_array_data=NA_DATA.Na__Data__Load(na_array)
+na_copy=Na__Spec__Entity.new(na_array.definition)
+na_original_definition=na_copy.definition
+na_before_transform=na_array.transformation.to_a
+na_user_addition=Na__Spec__Entity.new
+na_array.definition.entities << na_user_addition
+NA_GEOMETRY.Na__Geometry__Update(na_model,na_array,na_object_config.merge('spacing_mm'=>60),'single',na_source)
+Na__Spec__Check('single edit makes array unique') { na_array.definition!=na_copy.definition }
+Na__Spec__Check('unselected copy recipe preserved') { NA_DATA.Na__Data__Load(na_copy)==na_array_data }
+Na__Spec__Check('single edit identity remains stable') { na_array.transformation.to_a==na_before_transform && na_model.active_entities.include?(na_array) }
+Na__Spec__Check('user-added content preserved') { na_array.definition.entities.include?(na_user_addition) }
+Na__Spec__Check('independent edit gets separate recipe identity') { NA_DATA.Na__Data__Load(na_array)['array_id']!=na_array_data['array_id'] }
+na_linked=Na__Spec__Entity.new(na_array.definition)
+NA_GEOMETRY.Na__Geometry__Update(na_model,na_array,na_object_config.merge('spacing_mm'=>80),'linked',na_source)
+Na__Spec__Check('linked edit retains shared definition') { na_array.definition==na_linked.definition }
+Na__Spec__Check('linked edit shares new data') { NA_DATA.Na__Data__Load(na_linked)['configuration']['spacing_mm']==80 }
+na_linked.na_locked=true
+na_starts=na_model.na_starts
+Na__Spec__Reject('locked linked copy modified') { NA_GEOMETRY.Na__Geometry__Update(na_model,na_array,na_object_config,'linked',na_source) }
+Na__Spec__Check('locked validation precedes operation') { na_model.na_starts==na_starts }
+na_linked.na_locked=false
+Na__Spec__Reject('recursive array source accepted') { NA_GEOMETRY.Na__Geometry__CheckSource({definition:na_array.definition},na_array.definition) }
+na_before_data=NA_DATA.Na__Data__Load(na_array)
+na_array.definition.entities.na_fail=true
+begin
+    NA_GEOMETRY.Na__Geometry__Update(na_model,na_array,na_object_config,'linked',na_source)
+    raise 'Expected geometry failure'
+rescue RuntimeError => na_error
+    raise unless na_error.message=='Simulated geometry failure'
+end
+Na__Spec__Check('failed operation aborts') { na_model.na_aborts==1 }
+Na__Spec__Check('failed operation does not write new recipe') { NA_DATA.Na__Data__Load(na_array)==na_before_data }
+na_array.definition.entities.na_fail=false
+NA_REGISTRY.Na__Registry__Clear
+na_restored=NA_DATA.Na__Data__RestoreSource(na_array,na_before_data)
+Na__Spec__Check('saved array restores source without original picked entity') { na_restored[:definition]==na_source_definition && na_restored[:scale]==[2.0,3.0,4.0] }
+
+# REGION | Ready handshake, selection edits and Undo signature invalidation
+module Sketchup
+    def self.read_default(_na_section,_na_key,na_default); na_default; end
+    def self.write_default(*); end
+end
+module UI
+    class HtmlDialog
+        STYLE_DIALOG=0
+        attr_reader :na_scripts
+        def initialize(*); @na_scripts=[]; end
+        def set_file(*); end
+        def add_action_callback(*); end
+        def set_on_closed(&na_block); @na_close=na_block; end
+        def show; end
+        def visible?; true; end
+        def execute_script(na_script); @na_scripts << na_script; end
+    end
+end
+na_model.selection=[na_array]
+NA_DIALOG.na_show_dialog('test.html',na_root)
+NA_DIALOG.Na__Dialog__Receive(JSON.generate('action'=>'ready'))
+na_scripts=NA_DIALOG.na_get_dialog.na_scripts
+Na__Spec__Check('ready handshake pushes state') { na_scripts.any? { |na_script| na_script.include?('"state"') } }
+Na__Spec__Check('ready handshake pushes preview') { na_scripts.any? { |na_script| na_script.include?('"preview"') } }
+NA_DIALOG.Na__Dialog__EditSelected
+Na__Spec__Check('edit selected binds correct target') { NA_DIALOG.instance_variable_get(:@na_target)==na_array }
+na_edit_context=NA_DIALOG.instance_variable_get(:@na_context)
+na_array.transformation=Geom::Transformation.translation([15,25,35])
+Na__Spec__Reject('late edit after external move accepted') { NA_DIALOG.Na__Dialog__CheckContext('context'=>na_edit_context) }
+Na__Spec__Check('external edit rotates session token') { NA_DIALOG.instance_variable_get(:@na_context)!=na_edit_context }
+puts "Array Builder: #{$na_checks} core regression checks passed."

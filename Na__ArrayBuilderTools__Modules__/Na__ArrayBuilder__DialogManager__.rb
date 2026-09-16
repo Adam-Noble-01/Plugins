@@ -1,428 +1,464 @@
 # =============================================================================
 # NA ARRAY BUILDER TOOLS - DIALOG MANAGER
 # =============================================================================
-#
 # FILE       : Na__ArrayBuilder__DialogManager__.rb
-# NAMESPACE  : Na__ArrayBuilderTools
-# MODULE     : Na__ArrayBuilder__DialogManager
 # AUTHOR     : Noble Architecture
-# PURPOSE    : Manages UI::HtmlDialog and JS <-> Ruby communication
-# CREATED    : 2026
-# VERSION    : 0.1.0
-#
-# DESCRIPTION:
-# - Creates and manages the UI::HtmlDialog instance
-# - Sets up JavaScript -> Ruby action callbacks
-# - Handles start-array action (activates the PathTool)
-# - Activates the ObjectPicker tool when the user requests a custom
-#   object source for the 'object' array type
-# - Sends status, picked-object info and completion messages back to dialog
-#
+# PURPOSE    : Live create/edit sessions, guarded UI bridge and preset routing.
 # =============================================================================
 
 require 'sketchup.rb'
 require 'json'
-require_relative 'Na__ArrayBuilder__ObjectRegistry__'
-require_relative 'Na__ArrayBuilder__ObjectPicker__'
+require 'securerandom'
+require_relative 'Na__ArrayBuilder__Configuration__'
 require_relative 'Na__ArrayBuilder__PathTool__'
-require_relative 'Na__ArrayBuilder__PathFromSelection__'
 require_relative 'Na__ArrayBuilder__SelectionArrayTool__'
 require_relative 'Na__ArrayBuilder__GeometryBuilder__'
+require_relative 'Na__ArrayBuilder__PresetsLibrary__'
 
 module Na__ArrayBuilderTools
     module Na__ArrayBuilder__DialogManager
 
 # -----------------------------------------------------------------------------
-# REGION | Module Variables
+# REGION | Dialog Lifecycle and Bridge
 # -----------------------------------------------------------------------------
 
-        @dialog = nil
-
-        # Memoised last preview-info payload: avoids JS-bridge round-trips
-        # on every viewport refresh when nothing in the preview has changed.
-        @na_last_preview_count   = nil
-        @na_last_preview_length  = nil
-        @na_last_preview_spacing = nil
-
-        # The active selection-review tool (if any), so the dialog's
-        # Reverse button can flip the preview live.
-        @na_active_selection_tool = nil
-
-# endregion -------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# REGION | Dialog Lifecycle
-# -----------------------------------------------------------------------------
-
-        # FUNCTION | Show Configuration Dialog
-        # ------------------------------------------------------------
-        def self.na_show_dialog(html_file_path, plugin_root_path)
+        def self.na_show_dialog(na_html, _na_root)
             if @dialog && @dialog.visible?
                 @dialog.bring_to_front
                 return
             end
-
+            @na_ready = false
+            @na_live = Sketchup.read_default('Na__ArrayBuilderTools', 'live', true)
+            @na_scope = 'single'
+            @na_target = @na_tool = @na_picker = nil
+            @na_model = Sketchup.active_model
+            @na_config = Na__ArrayBuilder__DataSerializer.Na__Data__ModelSettings(@na_model)
+            Na__Dialog__NewContext()
             @dialog = UI::HtmlDialog.new(
-                dialog_title: "Na Array Builder",
-                preferences_key: "Na__ArrayBuilderTools",
-                scrollable: true,
-                resizable: true,
-                width: 400,
-                height: 650,
-                left: 100,
-                top: 100,
-                style: UI::HtmlDialog::STYLE_DIALOG
+                dialog_title: 'Noble Array Builder', preferences_key: 'Na__ArrayBuilderTools__Studio',
+                scrollable: false, resizable: true, width: 860, height: 800,
+                min_width: 650, min_height: 520, style: UI::HtmlDialog::STYLE_DIALOG
             )
-
-            if File.exist?(html_file_path)
-                @dialog.set_file(html_file_path)
-            else
-                puts "✗ Na Array Builder HTML not found: #{html_file_path}"
-                @dialog.set_html(na_create_fallback_html)
+            @dialog.set_file(na_html)
+            @dialog.add_action_callback('na_arrayAction') { |_na_context, na_json| Na__Dialog__Receive(na_json) }
+            @dialog.set_on_closed do
+                Na__Dialog__StopTool()
+                @na_ready = false
+                @dialog = nil
+                @na_target = nil
+                Na__Dialog__NewContext()
             end
-
-            na_setup_dialog_callbacks(plugin_root_path)
             @dialog.show
         end
-        # ---------------------------------------------------------------
 
-        # FUNCTION | Get Dialog Instance
-        # ------------------------------------------------------------
         def self.na_get_dialog
             @dialog
         end
-        # ---------------------------------------------------------------
 
-# endregion -------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# REGION | Callback Setup
-# -----------------------------------------------------------------------------
-
-        # FUNCTION | Setup Dialog Action Callbacks
+        # FUNCTION | JSON Encoding Protects Names, Quotes and Multiline Messages
         # ------------------------------------------------------------
-        def self.na_setup_dialog_callbacks(plugin_root_path)
+        def self.Na__Dialog__Send(na_event, na_payload)
+            return unless @dialog && @na_ready
+            @dialog.execute_script("window.Na__ArrayUi__Receive(#{JSON.generate(na_event)}, #{JSON.generate(na_payload)});")
+        end
 
-            # Callback: Start Array Placement
-            @dialog.add_action_callback("na_startArray") do |_ctx, config_json|
-                na_handle_start_array(config_json)
+        def self.Na__Dialog__NewContext
+            @na_context = SecureRandom.hex(12)
+            @na_edit_path = @na_model ? (@na_model.active_path || []).map(&:persistent_id) : []
+        end
+
+        # FUNCTION | Reject Late Edits After a Target, Model or Context Change
+        # ------------------------------------------------------------
+        def self.Na__Dialog__CheckContext(na_payload)
+            unless @na_model == Sketchup.active_model && na_payload['context'] == @na_context &&
+                   @na_edit_path == (@na_model.active_path || []).map(&:persistent_id)
+                Na__Dialog__Synchronise()
+                raise ArgumentError, 'The model or editing context changed. The panel has refreshed.'
             end
-
-            # Callback: Reverse Path Direction (selection-review tool)
-            @dialog.add_action_callback("na_reversePath") do |_ctx, state|
-                na_handle_reverse_path(state)
+            return unless @na_target
+            if @na_signature && @na_signature != Na__Dialog__Signature()
+                Na__Dialog__Synchronise()
+                raise ArgumentError, 'The array changed in SketchUp. Its saved settings have been reloaded.'
             end
-
-            # Callback: Pick Custom Source Object (Object array type)
-            @dialog.add_action_callback("na_pickObject") do |_ctx|
-                na_handle_pick_object
-            end
-
-            # Callback: Clear Picked Custom Source Object
-            @dialog.add_action_callback("na_clearObject") do |_ctx|
-                na_handle_clear_object
-            end
-
-            # Callback: Log from JavaScript (quiet unless NA_DEBUG_LOG=true)
-            @dialog.add_action_callback("na_jsLog") do |_ctx, message|
-                Na__ArrayBuilderTools.na_debug_log("[JS] #{message}")
-            end
-
-            # Callback: Reload Scripts (Developer Feature)
-            @dialog.add_action_callback("na_reloadScripts") do |_ctx|
-                na_reload_scripts(plugin_root_path)
+            unless @na_target.valid? && !@na_target.locked? && @na_model.active_entities.include?(@na_target) &&
+                   @na_model.selection.to_a == [@na_target]
+                Na__Dialog__Synchronise()
+                raise ArgumentError, 'Select the array again before editing it.'
             end
         end
-        # ---------------------------------------------------------------
 
-# endregion -------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# REGION | Callback Handlers
-# -----------------------------------------------------------------------------
-
-        # FUNCTION | Handle Start Array Callback
-        # ------------------------------------------------------------
-        # Routes to the draw-path tool (default) or the selection-review
-        # tool when the dialog's Path Source is set to 'selection'.
-        def self.na_handle_start_array(config_json)
-            begin
-                config = JSON.parse(config_json)
-
-                if config['type'] == 'object'
-                    return unless na_validate_object_source_or_warn
+        def self.Na__Dialog__Receive(na_json)
+            na_payload = JSON.parse(na_json)
+            raise ArgumentError, 'Invalid Array Builder request.' unless na_payload.is_a?(Hash)
+            na_action = na_payload['action']
+            if na_action == 'ready'
+                @na_ready = true
+                Na__Dialog__PushState()
+                Na__Dialog__PushGallery()
+                Na__Dialog__Preview()
+                if @na_open_edit
+                    @na_open_edit = false
+                    Na__Dialog__EditSelected()
                 end
-
-                if config['path_source'] == 'selection'
-                    na_start_array_from_selection(config)
-                    return
-                end
-
-                path_tool = Na__ArrayBuilder__PathTool.new(config, self)
-                Sketchup.active_model.select_tool(path_tool)
-
-                na_send_status_to_dialog("info", "Click to set start point...")
-            rescue => e
-                Na__ArrayBuilderTools.na_debug_log("start array error: #{e.message}")
-                na_send_status_to_dialog("error", "Error: #{e.message}")
-            end
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Start the Selection-Review Flow
-        # ------------------------------------------------------------
-        # Builds an ordered path from the current model selection and,
-        # when valid, activates the review tool for preview + confirm.
-        def self.na_start_array_from_selection(config)
-            model  = Sketchup.active_model
-            result = Na__ArrayBuilder__PathFromSelection
-                .Na__PathFromSelection__BuildFromEntities(model.selection.to_a)
-
-            unless result[:valid]
-                na_send_status_to_dialog("warning", result[:reason])
                 return
             end
-
-            tool = Na__ArrayBuilder__SelectionArrayTool.new(
-                config, self, result[:points], result[:closed]
-            )
-            model.select_tool(tool)
-
-            na_send_status_to_dialog(
-                "info",
-                "Previewing array on selected path - Enter / click to build, R to reverse"
-            )
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Handle Reverse-Path Callback From the Dialog
-        # ------------------------------------------------------------
-        # Live-updates the active selection-review tool. When no review
-        # tool is running the state simply rides along in the next
-        # Start Placement config, so nothing to do here.
-        def self.na_handle_reverse_path(state)
-            tool = @na_active_selection_tool
-            return unless tool
-
-            tool.na_set_reverse(state == true || state.to_s == 'true')
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Register / Clear the Active Selection-Review Tool
-        # ------------------------------------------------------------
-        def self.na_register_selection_tool(tool)
-            @na_active_selection_tool = tool
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Validate That a Source Object Has Been Picked
-        # ------------------------------------------------------------
-        # Used before launching the path tool in 'object' array mode.
-        # Returns true when registry holds a usable definition. Sends a
-        # warning to the dialog and returns false otherwise.
-        def self.na_validate_object_source_or_warn
-            if Na__ArrayBuilder__ObjectRegistry.Na__Registry__IsValid?
-                return true
-            end
-
-            na_send_status_to_dialog(
-                "warning",
-                "Pick a Group or Component first (Object Source > Pick Object)"
-            )
-            false
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Handle Pick Object Callback
-        # ------------------------------------------------------------
-        def self.na_handle_pick_object
-            picker = Na__ArrayBuilder__ObjectPicker.new(self)
-            Sketchup.active_model.select_tool(picker)
-            na_send_status_to_dialog("info", "Click a Group or Component in the model...")
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Handle Clear Object Callback
-        # ------------------------------------------------------------
-        def self.na_handle_clear_object
-            Na__ArrayBuilder__ObjectRegistry.Na__Registry__Clear
-            na_send_object_cleared
-            na_send_status_to_dialog("info", "Source object cleared")
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Reload Scripts (Developer Feature)
-        # ------------------------------------------------------------
-        def self.na_reload_scripts(plugin_root_path)
-            puts "\n" + "=" * 60
-            puts "NA ARRAY BUILDER - RELOADING SCRIPTS"
-            puts "=" * 60
-
-            rb_files = Dir.glob(File.join(plugin_root_path, "*.rb"))
-            rb_files.each do |file|
-                begin
-                    load file
-                    puts "  [OK] #{File.basename(file)}"
-                rescue => e
-                    puts "  [ERROR] #{File.basename(file)}: #{e.message}"
+            Na__Dialog__CheckContext(na_payload)
+            @na_busy = true
+            case na_action
+            when 'configure', 'update'
+                @na_config = Na__ArrayBuilder__Configuration.Na__Config__Resolve(na_payload.fetch('config'))
+                @na_scope = na_payload['scope'] == 'linked' ? 'linked' : 'single'
+                if @na_tool
+                    @na_tool.Na__Tool__UpdateConfig(@na_config)
+                elsif @na_target && (@na_live || na_action == 'update')
+                    Na__Dialog__UpdateTarget()
                 end
+                Na__Dialog__Preview() unless @na_tool
+            when 'start', 'redraw'
+                @na_config = Na__ArrayBuilder__Configuration.Na__Config__Resolve(na_payload.fetch('config'))
+                Na__Dialog__StartPath(na_action == 'redraw')
+            when 'finish'
+                @na_tool.Na__Tool__Finish if @na_tool
+            when 'cancel'
+                Na__Dialog__StopTool()
+                Na__Dialog__Preview()
+                na_send_status_to_dialog('info', 'Path preview cancelled.')
+            when 'edit'
+                Na__Dialog__EditSelected()
+            when 'new'
+                Na__Dialog__StopTool()
+                @na_target = nil
+                @na_config = Na__ArrayBuilder__Configuration.Na__Config__Resolve(na_payload['config']) if na_payload['config']
+                Na__Dialog__NewContext()
+                Na__Dialog__PushState()
+                Na__Dialog__Preview()
+            when 'pick'
+                Na__Dialog__StopTool()
+                @na_config = Na__ArrayBuilder__Configuration.Na__Config__Resolve(na_payload['config']) if na_payload['config']
+                @na_picker = Na__ArrayBuilder__ObjectPicker.new(self)
+                @na_model.select_tool(@na_picker)
+                na_send_status_to_dialog('info', 'Click a group or component to use as the source.')
+            when 'live'
+                @na_live = na_payload['enabled'] == true
+                Sketchup.write_default('Na__ArrayBuilderTools', 'live', @na_live)
+                Na__Dialog__PushState()
+            when 'preset_list'
+                Na__Dialog__PushGallery()
+            when 'preset_save'
+                na_config = Na__ArrayBuilder__Configuration.Na__Config__Resolve(na_payload.fetch('config'))
+                na_source = na_config['type'] == 'object' ? Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo : nil
+                na_record = Na__ArrayBuilder__PresetsLibrary.Na__Presets__Save(na_payload, na_config, na_source)
+                Na__Dialog__PushGallery()
+                Na__Dialog__Send('preset_saved', na_record)
+                na_send_status_to_dialog('success', 'Preset saved to your gallery.')
+            when 'preset_load', 'preset_edit'
+                Na__Dialog__LoadPreset(na_payload['id'], na_action == 'preset_edit')
+            when 'preset_archive'
+                Na__ArrayBuilder__PresetsLibrary.Na__Presets__Archive(na_payload['id'])
+                Na__Dialog__PushGallery()
+                na_send_status_to_dialog('success', 'Preset moved to the library archive.')
+            when 'reset'
+                Na__Dialog__StopTool()
+                @na_target = nil
+                @na_config = Na__ArrayBuilder__Configuration.Na__Config__Resolve
+                Na__Dialog__NewContext()
+                Na__Dialog__PushState()
+                Na__Dialog__Preview()
             end
-
-            puts "=" * 60 + "\n"
-
-            if @dialog && @dialog.visible?
-                @dialog.close
-            end
-
-            return { reload_dialog: true }
+        rescue StandardError => na_error
+            na_send_status_to_dialog('error', na_error.message)
+        ensure
+            @na_busy = false
         end
-        # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Dialog Communication
+# REGION | Creation and Editing
 # -----------------------------------------------------------------------------
 
-        # FUNCTION | Send Status Message to Dialog
-        # ------------------------------------------------------------
-        def self.na_send_status_to_dialog(status_type, message)
-            return unless @dialog && @dialog.visible?
-
-            escaped = message.gsub("'", "\\\\'")
-            @dialog.execute_script("window.na_showStatus('#{status_type}', '#{escaped}');")
+        def self.Na__Dialog__SelectedArray
+            return nil unless @na_model
+            na_selection = @na_model.selection.to_a
+            na_entity = na_selection.length == 1 ? na_selection.first : nil
+            Na__ArrayBuilder__DataSerializer.Na__Data__HasData?(na_entity) ? na_entity : nil
         end
-        # ---------------------------------------------------------------
 
-        # FUNCTION | Send Array Complete Notification to Dialog
-        # ------------------------------------------------------------
-        def self.na_send_array_complete(count)
-            return unless @dialog && @dialog.visible?
-
-            @dialog.execute_script("window.na_arrayComplete(#{count});")
+        def self.Na__Dialog__EditSelected
+            na_entity = Na__Dialog__SelectedArray()
+            raise ArgumentError, 'Select one Noble array created with this version, then click Edit selected.' unless na_entity
+            raise ArgumentError, 'Unlock the selected array before editing.' if na_entity.locked?
+            na_data = Na__ArrayBuilder__DataSerializer.Na__Data__Load(na_entity)
+            Na__Dialog__StopTool()
+            @na_target = na_entity
+            @na_config = na_data['configuration']
+            @na_scope = 'single'
+            Na__ArrayBuilder__ObjectRegistry.Na__Registry__Clear
+            begin
+                Na__ArrayBuilder__DataSerializer.Na__Data__RestoreSource(na_entity, na_data)
+            rescue ArgumentError => na_error
+                na_send_status_to_dialog('warning', na_error.message)
+            end
+            @na_signature = Na__Dialog__Signature()
+            Na__Dialog__NewContext()
+            Na__Dialog__PushState()
+            Na__Dialog__Send('tab', 'edit')
+            Na__Dialog__Preview()
         end
-        # ---------------------------------------------------------------
 
-        # FUNCTION | Send Preview Info Update to Dialog
-        # ------------------------------------------------------------
-        # Throttled: skips the JS-bridge round-trip when count, length
-        # and spacing are unchanged from the previous push. The path
-        # tool's draw method calls this on every viewport refresh, so
-        # the throttle removes a per-frame IPC hop and removes the
-        # main source of viewport jank during path placement.
-        def self.na_send_preview_info(count, total_length_mm, actual_spacing_mm = nil)
-            return unless @dialog && @dialog.visible?
+        def self.Na__Dialog__OpenEdit
+            @na_open_edit = true
+            Na__ArrayBuilderTools.na_init
+            if @na_ready
+                @na_open_edit = false
+                Na__Dialog__EditSelected()
+            end
+        rescue StandardError => na_error
+            na_send_status_to_dialog('error', na_error.message)
+        end
 
-            length_rounded = total_length_mm.round
-
-            return if @na_last_preview_count   == count        &&
-                      @na_last_preview_length  == length_rounded &&
-                      @na_last_preview_spacing == actual_spacing_mm
-
-            @na_last_preview_count   = count
-            @na_last_preview_length  = length_rounded
-            @na_last_preview_spacing = actual_spacing_mm
-
-            if actual_spacing_mm
-                @dialog.execute_script("window.na_updatePreviewInfo(#{count}, #{length_rounded}, #{actual_spacing_mm});")
+        def self.Na__Dialog__StartPath(na_replace)
+            raise ArgumentError, 'Open an array in Edit before redrawing its path.' if na_replace && !@na_target
+            if @na_config['type'] == 'object' && !Na__ArrayBuilder__ObjectRegistry.Na__Registry__IsValid?
+                raise ArgumentError, 'Pick a source group or component first.'
+            end
+            # Resolve selection before changing tools or edit state.
+            if @na_config['path_source'] == 'selection'
+                na_result = Na__ArrayBuilder__PathFromSelection.Na__PathFromSelection__BuildFromEntities(@na_model.selection.to_a)
+                raise ArgumentError, na_result[:reason] unless na_result[:valid]
+            end
+            Na__Dialog__StopTool()
+            @na_target = nil unless na_replace
+            @na_replacing = na_replace
+            Na__Dialog__NewContext()
+            na_tool = if na_result
+                Na__ArrayBuilder__SelectionArrayTool.new(@na_config, self, na_result[:points], na_result[:closed])
             else
-                @dialog.execute_script("window.na_updatePreviewInfo(#{count}, #{length_rounded}, null);")
+                Na__ArrayBuilder__PathTool.new(@na_config.merge('path_source' => 'draw'), self)
             end
+            @na_model.select_tool(na_tool)
+            Na__Dialog__PushState()
+            na_send_status_to_dialog('info', na_result ? 'Review the blue preview; change any parameter, then Build array.' : 'Click path points. Change parameters at any time. Enter or Finish path builds the array.')
         end
-        # ---------------------------------------------------------------
 
-        # FUNCTION | Reset Memoised Preview Info
+        # FUNCTION | A Completed Replacement Path Updates the Existing Instance
         # ------------------------------------------------------------
-        # Called when the path tool starts/ends so the next preview
-        # push always reaches the dialog.
-        def self.na_reset_preview_info_memo
-            @na_last_preview_count   = nil
-            @na_last_preview_length  = nil
-            @na_last_preview_spacing = nil
+        def self.Na__Dialog__CommitPath(na_points, na_config)
+            Na__Dialog__CheckContext('context' => @na_context)
+            if @na_replacing && @na_target
+                na_context_inverse = @na_model.edit_transform.inverse
+                na_entity_inverse = @na_target.transformation.inverse
+                na_local = na_points.map do |na_point|
+                    na_point = na_point.transform(na_context_inverse) if na_config['path_source'] == 'draw'
+                    na_point.transform(na_entity_inverse)
+                end
+                na_source = na_config['type'] == 'object' ? Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo : nil
+                Na__ArrayBuilder__GeometryBuilder.Na__Geometry__Update(@na_model, @na_target, na_config, @na_scope, na_source, na_local)
+                na_entity = @na_target
+            else
+                na_entity = Na__ArrayBuilder__GeometryBuilder.na_create_array(na_points, na_config)
+            end
+            @na_last_created = na_entity
+            @na_replacing = false
+            @na_signature = Na__Dialog__Signature()
+            na_entity
         end
-        # ---------------------------------------------------------------
 
-        # FUNCTION | Push Reverse-Direction State to the Dialog
-        # ------------------------------------------------------------
-        # Keeps the dialog's Reverse button in sync when the user
-        # toggles direction with the R key in the viewport.
-        def self.na_send_reverse_state(state)
-            return unless @dialog && @dialog.visible?
-
-            @dialog.execute_script("window.na_setReverseState(#{state ? 'true' : 'false'});")
+        def self.Na__Dialog__UpdateTarget
+            na_source = @na_config['type'] == 'object' ? Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo : nil
+            na_plan = Na__ArrayBuilder__GeometryBuilder.Na__Geometry__Update(@na_model, @na_target, @na_config, @na_scope, na_source)
+            @na_config = na_plan[:config]
+            @na_signature = Na__Dialog__Signature()
+            na_send_preview_info(na_plan[:positions].length, na_plan[:length_mm], na_plan[:gap_mm])
+            Na__Dialog__Send('updated', { 'linked_count' => @na_target.definition.instances.length })
+            na_send_status_to_dialog('success', @na_scope == 'linked' ? 'Linked arrays updated. Undo restores this change.' : 'Array updated. Undo restores this change.')
         end
-        # ---------------------------------------------------------------
 
-        # FUNCTION | Send Picked-Object Info to Dialog
-        # ------------------------------------------------------------
-        # Pushes the picked source-object's display name and bbox-derived
-        # dimensions (in millimetres) to the dialog so the Object Source
-        # panel can render them.
-        def self.na_send_object_picked(name, w_mm, d_mm, h_mm)
-            return unless @dialog && @dialog.visible?
-
-            escaped = name.to_s.gsub("'", "\\\\'")
-            @dialog.execute_script(
-                "window.na_objectPicked('#{escaped}', #{w_mm.round(1)}, #{d_mm.round(1)}, #{h_mm.round(1)});"
-            )
+        def self.Na__Dialog__StopTool
+            @na_replacing = false
+            if @na_model && (@na_tool || @na_picker)
+                @na_model.select_tool(nil)
+            end
+            @na_tool = @na_picker = nil
         end
-        # ---------------------------------------------------------------
 
-        # FUNCTION | Send Object-Cleared Notification to Dialog
+        # FUNCTION | Draw Replacement Previews in the Existing Array's Frame
         # ------------------------------------------------------------
+        def self.Na__Dialog__PreviewFrame
+            na_frame = @na_model.edit_transform
+            @na_replacing && @na_target ? na_frame * @na_target.transformation : na_frame
+        end
+
+        # Existing SketchUp tools use these compatibility bridge entry points.
+        def self.na_register_selection_tool(na_tool)
+            @na_tool = na_tool
+            if na_tool.nil? && @na_preview_timer
+                UI.stop_timer(@na_preview_timer)
+                @na_preview_timer = @na_pending_plan = nil
+            end
+            Na__Dialog__Send('placing', !na_tool.nil?)
+        end
+
+        def self.na_send_array_complete(_na_count)
+            Na__Dialog__PushState()
+            Na__Dialog__Send('completed', true)
+        end
+
+        def self.na_send_reverse_state(na_state)
+            @na_config['reverse_path'] = na_state
+            Na__Dialog__Send('reverse', na_state)
+        end
+
+        def self.na_send_object_picked(_na_name, _na_width, _na_depth, _na_height)
+            @na_config['type'] = 'object'
+            @na_picker = nil
+            Na__Dialog__NewContext()
+            Na__Dialog__PushState()
+            Na__Dialog__Preview()
+            # A source replacement is applied by the next change or Update button.
+        end
+
+        def self.Na__Dialog__PickerStopped
+            @na_picker = nil
+        end
+
         def self.na_send_object_cleared
-            return unless @dialog && @dialog.visible?
-
-            @dialog.execute_script("window.na_objectCleared();")
+            Na__Dialog__PushState()
         end
-        # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Fallback HTML
+# REGION | Preview, Gallery and Read-Only State Synchronisation
 # -----------------------------------------------------------------------------
 
-        # FUNCTION | Create Fallback HTML
-        # ------------------------------------------------------------
-        def self.na_create_fallback_html
-            <<~HTML
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>Na Array Builder</title>
-                <style>
-                    body { font-family: Arial, sans-serif; padding: 20px; background: #2d2d2d; color: #fff; }
-                    .error { color: #ff6b6b; background: #3d2d2d; padding: 15px; border-radius: 5px; }
-                    button { background: #4a90d9; color: white; border: none; padding: 10px 20px; cursor: pointer; }
-                    button:hover { background: #5a9fe9; }
-                </style>
-            </head>
-            <body>
-                <h2>Na Array Builder</h2>
-                <div class="error">
-                    <strong>Error:</strong> HTML layout file not found.<br>
-                    Ensure Na__ArrayBuilder__UiLayout__.html exists in the modules folder.
-                </div>
-                <br>
-                <button onclick="sketchup.na_reloadScripts()">Reload Scripts</button>
-                <script>
-                    window.na_showStatus = function(type, msg) { console.log(type + ': ' + msg); };
-                    window.na_arrayComplete = function(count) { console.log('Complete: ' + count); };
-                    window.na_updatePreviewInfo = function(c, l) { console.log('Preview: ' + c + ' units'); };
-                </script>
-            </body>
-            </html>
-            HTML
+        def self.na_send_status_to_dialog(na_type, na_message)
+            Na__Dialog__Send('status', { 'type' => na_type, 'message' => na_message.to_s })
         end
-        # ---------------------------------------------------------------
+
+        def self.na_send_preview_info(na_count, na_length, na_gap = nil)
+            na_payload = [na_count, na_length.round(1), na_gap]
+            return if @na_last_preview == na_payload
+            @na_last_preview = na_payload
+            Na__Dialog__Send('metrics', { 'count' => na_count, 'length_mm' => na_length, 'gap_mm' => na_gap })
+        end
+
+        def self.na_reset_preview_info_memo
+            @na_last_preview = nil
+        end
+
+        def self.Na__Dialog__Preview
+            return unless @na_ready
+            na_source = @na_config['type'] == 'object' ? Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo : nil
+            na_points = @na_target ? Na__ArrayBuilder__DataSerializer.Na__Data__Points(Na__ArrayBuilder__DataSerializer.Na__Data__Load(@na_target)) : [ORIGIN, Geom::Point3d.new(3000.mm, 0, 0)]
+            if @na_config['type'] == 'object' && !na_source
+                Na__Dialog__Send('preview', { 'missing_source' => true })
+                return
+            end
+            na_plan = Na__ArrayBuilder__LayoutEngine.Na__Layout__Resolve(@na_config, na_points, na_source)
+            Na__Dialog__SendPlanPreview(na_plan, @na_target.nil?)
+            na_send_preview_info(na_plan[:positions].length, na_plan[:length_mm], na_plan[:gap_mm])
+        rescue StandardError => na_error
+            Na__Dialog__Send('preview', { 'error' => na_error.message })
+            na_send_status_to_dialog('warning', na_error.message)
+        end
+
+        # FUNCTION | Throttle the Panel Preview While the Native View Stays Fluid
+        # ------------------------------------------------------------
+        def self.Na__Dialog__QueuePreview(na_plan)
+            @na_pending_plan = na_plan
+            return if @na_preview_timer || !@na_ready
+            na_context = @na_context
+            @na_preview_timer = UI.start_timer(0.1, false) do
+                @na_preview_timer = nil
+                if @na_ready && @na_tool && @na_context == na_context && @na_pending_plan
+                    Na__Dialog__SendPlanPreview(@na_pending_plan, false, true)
+                end
+            rescue StandardError => na_error
+                na_send_status_to_dialog('warning', na_error.message)
+            end
+        end
+
+        def self.Na__Dialog__SendPlanPreview(na_plan, na_sample, na_placing = false)
+            na_boxes = na_plan[:positions].first(400).map do |na_position|
+                Na__ArrayBuilder__LayoutEngine.Na__Layout__Corners(na_position, na_plan[:config], na_plan[:source]).map { |na_point| na_point.to_a.map { |na_value| na_value * 25.4 } }
+            end
+            Na__Dialog__Send('preview', { 'boxes' => na_boxes, 'path' => na_plan[:points].map { |na_point| na_point.to_a.map { |na_value| na_value * 25.4 } },
+                'sample' => na_sample, 'placing' => na_placing, 'truncated' => na_plan[:positions].length > 400 })
+        end
+
+        def self.Na__Dialog__PushState
+            return unless @na_ready && @na_model
+            na_source = Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo
+            na_selected = Na__Dialog__SelectedArray()
+            Na__Dialog__Send('state', {
+                'context' => @na_context, 'config' => @na_config, 'live' => @na_live,
+                'editing' => !!@na_target, 'placing' => !!@na_tool, 'scope' => @na_scope,
+                'can_edit' => !!na_selected && !na_selected.locked?,
+                'target_name' => @na_target && @na_target.name,
+                'linked_count' => @na_target ? @na_target.definition.instances.length : 0,
+                'source_name' => na_source ? Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetDisplayName : nil,
+                'source_dimensions' => na_source ? [na_source[:width], na_source[:depth], na_source[:height]].map { |na_value| (na_value * 25.4).round(1) } : nil
+            })
+        end
+
+        def self.Na__Dialog__PushGallery
+            Na__Dialog__Send('gallery', Na__ArrayBuilder__PresetsLibrary.Na__Presets__Scan)
+        end
+
+        def self.Na__Dialog__LoadPreset(na_id, na_editor)
+            na_record = Na__ArrayBuilder__PresetsLibrary.Na__Presets__Read(na_id)
+            # Load first; a damaged source cannot discard the current edit session.
+            Na__ArrayBuilder__PresetsLibrary.Na__Presets__LoadSource(@na_model, na_record)
+            Na__Dialog__StopTool()
+            @na_target = nil
+            @na_config = na_record['configuration']
+            Na__Dialog__NewContext()
+            Na__Dialog__PushState()
+            Na__Dialog__Preview()
+            Na__Dialog__Send(na_editor ? 'preset_edit' : 'preset_loaded', na_record)
+        end
+
+        def self.Na__Dialog__Signature
+            return nil unless @na_target && @na_target.valid?
+            [@na_target.transformation.to_a, @na_target.locked?,
+             @na_target.definition.get_attribute(Na__ArrayBuilder__DataSerializer::NA_DEFINITION_DICT, 'data')]
+        end
+
+        # FUNCTION | Observers Schedule This Read; They Never Write Model Data
+        # ------------------------------------------------------------
+        def self.Na__Dialog__Synchronise
+            return unless @na_ready && !@na_busy
+            if @na_model != Sketchup.active_model
+                Na__Dialog__StopTool()
+                @na_model = Sketchup.active_model
+                @na_target = nil
+                @na_config = Na__ArrayBuilder__DataSerializer.Na__Data__ModelSettings(@na_model)
+                Na__ArrayBuilder__ObjectRegistry.Na__Registry__Clear
+                Na__Dialog__NewContext()
+            elsif @na_edit_path != (@na_model.active_path || []).map(&:persistent_id) ||
+                  (@na_target && (!@na_target.valid? || @na_target.locked? || @na_model.selection.to_a != [@na_target]))
+                Na__Dialog__StopTool()
+                @na_target = nil
+                Na__Dialog__NewContext()
+                na_send_status_to_dialog('info', 'Selection changed. Use Edit selected to open an array.')
+            elsif @na_target && @na_signature != Na__Dialog__Signature()
+                # Undo / Redo / external edits reload the saved recipe and cancel stale UI events.
+                @na_config = Na__ArrayBuilder__DataSerializer.Na__Data__Load(@na_target)['configuration']
+                Na__ArrayBuilder__DataSerializer.Na__Data__RestoreSource(@na_target, Na__ArrayBuilder__DataSerializer.Na__Data__Load(@na_target))
+                Na__Dialog__NewContext()
+                @na_signature = Na__Dialog__Signature()
+                Na__Dialog__Preview()
+            end
+            Na__Dialog__PushState()
+        rescue StandardError => na_error
+            @na_target = nil
+            Na__Dialog__NewContext()
+            Na__Dialog__PushState()
+            na_send_status_to_dialog('warning', na_error.message)
+        end
 
 # endregion -------------------------------------------------------------------
 
     end # module Na__ArrayBuilder__DialogManager
 end # module Na__ArrayBuilderTools
-
-# =============================================================================
-# END OF FILE
-# =============================================================================

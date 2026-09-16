@@ -63,7 +63,7 @@ unless file_loaded?(__FILE__)
     }
 
     cmd.tooltip = "Na Array Builder"
-    cmd.status_bar_text = "Create parametric array courses (dentil, dog-tooth) along paths"
+    cmd.status_bar_text = "Create and edit parametric arrays with live previews and a preset gallery"
     cmd.menu_text = "Na Array Builder"
 
     begin
@@ -84,6 +84,15 @@ unless file_loaded?(__FILE__)
     # MENU INTEGRATION | Add to Plugins Menu
     # ------------------------------------------------------------
     UI.menu("Plugins").add_item(cmd)
+    UI.add_context_menu_handler do |na_menu|
+        na_selection = Sketchup.active_model.selection.to_a
+        if na_selection.length == 1 && Na__ArrayBuilderTools::Na__ArrayBuilder__DataSerializer.Na__Data__HasData?(na_selection.first)
+            na_menu.add_separator
+            na_menu.add_item('Edit Noble Array...') do
+                Na__ArrayBuilderTools::Na__ArrayBuilder__DialogManager.Na__Dialog__OpenEdit
+            end
+        end
+    end
     # ---------------------------------------------------------------
 
     # TOOLBAR SETUP | Create Dedicated Toolbar

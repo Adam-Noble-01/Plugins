@@ -51,6 +51,7 @@ module Na__ArrayBuilderTools
         # FUNCTION | Tool Deactivated
         # ------------------------------------------------------------
         def deactivate(view)
+            @na_dialog_manager.Na__Dialog__PickerStopped if @na_dialog_manager.respond_to?(:Na__Dialog__PickerStopped)
             view.invalidate
         end
         # ---------------------------------------------------------------

@@ -45,6 +45,7 @@ module Na__ArrayBuilderTools
 # -----------------------------------------------------------------------------
 
         NA_INCH_TO_MM = 25.4
+        NA_MAX_UNITS  = 5000
         NA_TOLERANCE  = 0.001  # inches; matches the rest of the array builder
 
 # endregion -------------------------------------------------------------------
@@ -62,7 +63,8 @@ module Na__ArrayBuilderTools
         # @param inset       [Length] Fixed margin at segment ends (inset mode)
         # @return [Array<Hash{Symbol => Geom::Point3d / Geom::Vector3d}>]
         def self.Na__Distribution__CalculatePositions(path_points, mode, unit_width, spacing, inset)
-            case mode
+            raise ArgumentError, 'Unit width must be positive.' unless unit_width.to_f > 0
+            na_positions = case mode
             when 'inset'
                 self.Na__Distribution__InsetPositions(path_points, unit_width, spacing, inset)
             when 'normalise'
@@ -70,6 +72,15 @@ module Na__ArrayBuilderTools
             else
                 self.Na__Distribution__FixedPositions(path_points, unit_width, spacing)
             end
+            Na__Distribution__CheckLimit(na_positions.length)
+            na_positions
+        end
+
+        # FUNCTION | Bound Work Before Allocating or Drawing Thousands of Units
+        # ------------------------------------------------------------
+        def self.Na__Distribution__CheckLimit(na_count)
+            return if na_count <= NA_MAX_UNITS
+            raise ArgumentError, "This layout exceeds #{NA_MAX_UNITS} units. Increase the width or gap, or shorten the path."
         end
         # ---------------------------------------------------------------
 
@@ -184,6 +195,7 @@ module Na__ArrayBuilderTools
                 # direction), and on the final segment it is dropped so
                 # the last unit never starts at the very end of the path.
                 while cursor < seg_len - NA_TOLERANCE
+                    Na__Distribution__CheckLimit(positions.length + 1)
                     positions << { point: seg_start.offset(direction, cursor), direction: direction }
                     cursor += step
                 end
@@ -235,6 +247,7 @@ module Na__ArrayBuilderTools
                 end
 
                 actual_step = span / n_gaps
+                Na__Distribution__CheckLimit(positions.length + n_gaps + 1)
                 (0..n_gaps).each do |i|
                     positions << { point: seg_start.offset(direction, i * actual_step), direction: direction }
                 end
@@ -306,6 +319,7 @@ module Na__ArrayBuilderTools
                 end
 
                 actual_step = span / n_gaps
+                Na__Distribution__CheckLimit(positions.length + n_gaps + 1)
                 (0..n_gaps).each do |i|
                     positions << { point: first_leading.offset(direction, i * actual_step), direction: direction }
                 end

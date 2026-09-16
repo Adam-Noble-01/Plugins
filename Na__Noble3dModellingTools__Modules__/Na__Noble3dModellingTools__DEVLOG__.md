@@ -3,6 +3,61 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.3 - 16-Sep-2026 - Vegetation Preview Performance
+
+- Added a 650 ms trailing debounce to form edits and a separate 650 ms quiet period for HTML mesh/progress updates. Only the latest request is built or serialised; drawing reuses the viewport mesh for the panel.
+- New input drops older queued slider edits. Draw, Finish and Update carry current settings immediately without a redundant options rebuild. Acknowledgements and selection state remain immediate.
+- SketchUp drawing previews use 50% linear resolution (twice the selected grid spacing) and a reduced 1,300-quad cap. Final creation and saved options retain the selected full resolution.
+- Hedge previews refresh at most ten times per second during pointer motion, with a trailing refresh for the final cursor position. Inference and native length feedback remain immediate. Repeated clicks no longer rebuild identical meshes; tree movement reuses its cached mesh.
+- Pending panel work is cancelled on context changes and close. Pending viewport refreshes are cancelled when leaving or suspending the tool.
+- Validation: 157 isolated Ruby checks and 52 Chromium checks. The standard hedge previews at 424 quads and creates at the original 1,696 quads. Native responsiveness awaits the user's SketchUp test.
+- Close Vegetation Sketcher, use **Reload Plugin Data**, then reopen.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.9.2 - 15-Sep-2026 - Vegetation Tree Species
+
+- Added a **Tree type** selector to Vegetation Sketcher: Generic canopy, Douglas fir (*Pseudotsuga menziesii*) and English oak (*Quercus robur*).
+- Douglas fir starts at 18 m high with a 7 m spread and a tiered conical crown. English oak starts at 20 m high with a 20 by 18 m lobed crown, stout trunk and spreading scaffold limbs. Dimensions are editable representative specimens, with botanical references in the module guide.
+- Species foliage is fitted to entered dimensions after XYZ displacement, so random seeds retain exact overall model scale. Species presets use 200 / 300 mm grids to keep full-size creation within the mesh budget; the existing presets retain 100 mm defaults.
+- Species settings round-trip through definitions and model defaults, copied components, selection changes and live edits. Changing type respects paused editing and selection identity; legacy trees remain generic. The UI shows the botanical identity and current dimensions in metres.
+- Validation: 134 isolated Ruby checks and 45 Chromium UI/bridge checks, plus visual inspection of both species previews. Native SketchUp validation of these new species remains with the user.
+- Close Vegetation Sketcher, use **Reload Plugin Data**, then reopen and choose **Tree > Tree type**.
+- Module guide: `10__PluginModules/32__SourceCode__VegetationSketcher/README.md`.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.9.1 - 15-Sep-2026 - Orient Faces Toward Camera
+
+- Added module 33 under Geometry Tools > Face Orientation: **Orient Faces Toward Camera**.
+- Reverses every selected face whose front currently points away from the active camera, including faces nested inside selected groups and components.
+- Parallel views (the usual 2D elevation/plan case) use the camera look direction. Perspective views use the vector from each face toward the camera eye.
+- Faces already facing the camera, and faces edge-on to the view, are left alone. Shared component copies outside the selection are uniquified before any reverse so they stay untouched.
+- Sub-devlog: `10__PluginModules/33__SourceCode__OrientFacesTowardCamera/Na__Noble3dModellingTools__OrientFacesTowardCamera__DEVLOG__.md`.
+
+### Validation Checklist
+- [ ] Reload Plugin Data, then Geometry Tools > Face Orientation shows the new button.
+- [ ] Select the reversed (red) elevation faces and run the command: they face the camera; one undo restores them.
+- [ ] Selecting a whole window group orients nested faces; an unselected copy of a shared component is unchanged.
+
+### Status
+**Written; not yet exercised in SketchUp.** Reload Plugin Data, then run the checklist.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.9.0 - 15-Sep-2026 - Vegetation Sketcher
+
+- Added module 32 under Geometry Tools > Landscape Tools: whitecard Hedge, Tree and Shrub presets, configurable quad spacing, rounded forms followed by seeded XYZ displacement, panel and viewport previews, and editable vegetation components.
+- Fixed the initial dialog's HTML step mismatch: 3000 mm and hidden preset-only inputs no longer block Draw. Added an acknowledged SketchUp bridge and explicit creation/editing states.
+- Added portable definition configuration, instance identity, model defaults, legacy group reads, and deferred selection/model/entity/app observers. Live edits validate their target and preserve independent copies; undo/redo and model changes refresh the panel.
+- Smooth model shading defaults on for new vegetation, with a 40.3 degree threshold including smooth normals and coplanar softening. The toggle restores faceted shading when off.
+- Hedges now follow connected, level paths with shared miter sections. Arrow-key inference re-anchors at each point. Drag/click adds runs, typed lengths set the next run, Backspace removes a point, and Enter/double-click/right-click/Finish creates the complete hedge in one undo step.
+- Saved paths survive live edits; total path length can be scaled without changing width. Excessive turns and intersecting or overlapping runs are checked before creation.
+- Validation: 92 isolated Ruby checks and 27 real Chromium UI/bridge checks. The user confirmed the repaired creation workflow works in SketchUp; the latest smoothing and connected-path changes have automated coverage and await native user validation.
+- Module guide: `10__PluginModules/32__SourceCode__VegetationSketcher/README.md`.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.8.9 - 11-Sep-2026 - Group / Component Converter: Common Groups Share One Component
 
 ### Update 01 - 22 Identical Groups Became 22 Components

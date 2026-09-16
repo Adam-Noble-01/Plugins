@@ -1,0 +1,171 @@
+# Deterministic Tool event tests. Real SketchUp geometry still needs a live run.
+module Geom
+  class Vector3d
+    attr_accessor :x, :y, :z
+    def initialize(*a); @x, @y, @z = a.flatten; end
+    def to_a; [x, y, z]; end
+    def length; Math.sqrt(x*x + y*y + z*z); end
+    def normalize; Vector3d.new(*to_a.map { |n| n / length }); end
+    def dot(v); x*v.x + y*v.y + z*v.z; end
+    def reverse!; @x, @y, @z = -x, -y, -z; self; end
+  end
+  class Point3d < Vector3d
+    def -(v); Vector3d.new(x-v.x, y-v.y, z-v.z); end
+    def distance(p); (self-p).length; end
+    def offset(v, distance); unit = v.normalize; Point3d.new(x+unit.x*distance, y+unit.y*distance, z+unit.z*distance); end
+    def transform(t); Point3d.new(x+t.offset[0], y+t.offset[1], z+t.offset[2]); end
+  end
+  class Transformation
+    attr_reader :offset
+    def initialize(offset); @offset = offset; end
+    def self.translation(offset); new(offset); end
+  end
+end
+class Numeric
+  def mm; self / 25.4; end
+end
+SB_VCB_LABEL = 1
+SB_VCB_VALUE = 2
+module Sketchup
+  class InputPoint
+    attr_reader :position
+    def initialize(position = nil); @position = position; end
+    def pick(view, x, y, *_ref); @position = view.point_at(x,y); end
+    def valid?; !@position.nil?; end
+    def tooltip; ''; end
+    def display?; false; end
+  end
+  class << self
+    attr_accessor :status_text
+    def set_status_text(*_args); end
+    def parse_length(text); Float(text.sub(/mm$/, '')) / 25.4; end
+    def format_length(length); (length*25.4).to_s; end
+  end
+  class Model
+    attr_accessor :view
+    def active_view; @view || self; end
+    def select_tool(tool)
+      previous = @tool
+      @tool = tool
+      previous.deactivate(active_view) if previous
+      tool.activate if tool
+    end
+  end
+  class Edge
+    attr_accessor :soft, :smooth, :hidden
+    attr_reader :faces
+    def initialize(angle, diagonal = false)
+      @soft = diagonal
+      normal = Object.new
+      normal.define_singleton_method(:angle_between) { |_other| angle * Math::PI / 180.0 }
+      face = Struct.new(:normal).new(normal)
+      @faces = [face, face]
+    end
+    def soft?; @soft; end
+  end
+end
+class TestView
+  attr_accessor :tooltip
+  attr_reader :locked
+  def point_at(x,y); Geom::Point3d.new(x.mm, y.mm, 0); end
+  def invalidate; end
+  def lock_inference(*points); @locked = points; end
+end
+class ToolOwner
+  attr_reader :created_items, :errors, :progress
+  def initialize; @created_items = []; @errors = []; end
+  def created(item); @created_items << item; end
+  def report(message, variant = 'info'); @errors << message if variant == 'error'; end
+  def tool_progress(*data); @progress = data; end
+  def tool_preview(_data); end
+  def tool_stopped(_tool); end
+end
+require File.join(ROOT, PREFIX + 'Builder__')
+require File.join(ROOT, PREFIX + 'HedgeTool__')
+edges = [Sketchup::Edge.new(0), Sketchup::Edge.new(30), Sketchup::Edge.new(40.3), Sketchup::Edge.new(45), Sketchup::Edge.new(20, true)]
+V::Builder.apply_shading(edges, true)
+check('smooth normals and coplanar edges at 40.3 degrees') { edges.map(&:smooth) == [true,true,true,false,true] }
+V::Builder.apply_shading(edges, false)
+check('shading off restores facets') { edges.all? { |e| e.smooth == false } }
+
+# Intercept only final native creation. All pointer/key/path/mesh logic is real.
+V::Builder.singleton_class.alias_method(:native_create, :create)
+V::Builder.define_singleton_method(:create) do |model, options, transform, _length = nil|
+  V::Mesh.build(options)
+  { options: options, transform: transform }
+end
+
+model = Sketchup::Model.new
+Sketchup.model = model
+view = TestView.new
+model.view = view
+owner = ToolOwner.new
+tool = V::HedgeTool.new(V::Options.resolve, owner)
+model.select_tool(tool)
+tool.onLButtonDown(0, 0, 0, view)
+tool.onLButtonUp(0, 0, 0, view)
+tool.onMouseMove(0, 3000, 100, view)
+tool.onKeyDown(39, 1, 0, view)
+tool.onKeyDown(39, 2, 0, view)
+tool.onKeyUp(39, 1, 0, view)
+tool.onLButtonDown(0, 3000, 100, view)
+tool.onLButtonUp(0, 3000, 100, view)
+check('red lock stays on under auto-repeat') { tool.instance_variable_get(:@waypoints).last.y == 0 }
+check('no model geometry before Finish') { owner.created_items.empty? }
+tool.onKeyDown(37, 1, 0, view)
+tool.onKeyUp(37, 1, 0, view)
+tool.onMouseMove(0, 3100, 3000, view)
+tool.onLButtonDown(0, 3100, 3000, view)
+tool.onLButtonUp(0, 3100, 3000, view)
+points = tool.instance_variable_get(:@waypoints)
+check('green lock reanchors at the last corner') { points.length == 3 && (points.last.x*25.4 - 3000).abs < 0.001 }
+tool.onKeyDown(8, 1, 0, view)
+tool.onKeyUp(8, 1, 0, view)
+check('Backspace removes one corner') { tool.instance_variable_get(:@waypoints).length == 2 }
+tool.onUserText('3000mm', view)
+check('typed run adds corner without finishing') { tool.instance_variable_get(:@waypoints).length == 3 && owner.created_items.empty? }
+tool.onReturn(view)
+check('Enter builds one joined hedge') { owner.created_items.length == 1 && owner.created_items.first[:options]['path'].length == 3 }
+check('axis inference cleared on finish') { view.locked.empty? }
+check('no Tool event errors') { owner.errors.empty? }
+
+owner = ToolOwner.new
+tool = V::HedgeTool.new(V::Options.resolve, owner)
+model.select_tool(tool)
+tool.onLButtonDown(0, 0, 0, view)
+tool.onLButtonUp(0, 3000, 0, view)
+check('drag defines first run without losing continuation') { tool.instance_variable_get(:@waypoints).length == 2 && owner.created_items.empty? }
+tool.onCancel(0, view)
+check('Escape cancels the pending path') { tool.instance_variable_get(:@waypoints).empty? && owner.created_items.empty? }
+
+# Exercise the actual acknowledged Ruby command dispatcher, not only Tool calls.
+V::Builder.define_singleton_method(:create) do |model, options, transform, _length = nil|
+  data = V::Mesh.build(options)
+  entity = Sketchup::ComponentInstance.new(99)
+  V::DataSerializer.save(model, entity, options, data[:quads].length)
+  model.active_entities << entity
+  entity
+end
+dialog = V::Dialog.show
+dialog.callbacks['na_ready'].call(nil)
+state = dialog.events.reverse.find { |e| e[0] == 'state' }[1]
+request = { id: 1, session: state['session'], revision: 1, action: 'start', payload: { settings: V::Options.resolve } }
+dialog.callbacks['na_event'].call(nil, JSON.generate(request))
+check('Draw bridge activates HedgeTool') { V::Dialog.placing? && model.instance_variable_get(:@tool).is_a?(V::HedgeTool) }
+check('Draw request is acknowledged') { dialog.events.any? { |event, payload| event == 'ack' && payload['id'] == 1 && payload['success'] } }
+active_tool = model.instance_variable_get(:@tool)
+active_tool.onLButtonDown(0, 0, 0, view)
+active_tool.onLButtonUp(0, 3000, 0, view)
+active_tool.onLButtonDown(0, 3000, 3000, view)
+active_tool.onLButtonUp(0, 3000, 3000, view)
+V::Dialog.preview
+UI.flush
+check('panel preview keeps live corners') { dialog.events.reverse.find { |e| e[0] == 'preview' }[1]['path'].length == 3 }
+request = { id: 2, session: state['session'], revision: 2, action: 'stop', payload: { settings: V::Options.resolve } }
+dialog.callbacks['na_event'].call(nil, JSON.generate(request))
+check('Finish bridge creates and selects editable vegetation') { !V::Dialog.placing? && V::Dialog.target_id == '99' }
+check('created path loaded back into UI') { dialog.events.reverse.find { |e| e[0] == 'state' }[1]['settings']['path'].length == 3 }
+V::Dialog.reset
+UI.flush
+V::Builder.singleton_class.alias_method(:create, :native_create)
+puts "PASS: #{$checks} total checks including smoothing and hedge Tool events."

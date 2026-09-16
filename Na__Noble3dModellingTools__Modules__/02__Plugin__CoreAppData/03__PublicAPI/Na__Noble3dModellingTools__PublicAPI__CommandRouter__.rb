@@ -81,6 +81,9 @@ module Na__Noble3dModellingTools
             when 'group_component_converter'
                 proc { Na__GroupComponentConverter.Na__GroupComponentConverter__Run }
 
+            when 'vegetation_sketcher'
+                proc { Na__VegetationSketcher.Na__VegetationSketcher__Run }
+
             when 'insert_component_in_place'
                 proc { Na__InsertComponentInPlace.Na__InsertComponentInPlace__Run }
 
@@ -194,6 +197,9 @@ module Na__Noble3dModellingTools
 
             when 'mega_explode'
                 proc { Na__MegaExplode.Na__MegaExplode__Run }
+
+            when 'orient_faces_toward_camera'
+                proc { Na__OrientFacesTowardCamera.Na__OrientFacesTowardCamera__Run }
 
             else
                 nil

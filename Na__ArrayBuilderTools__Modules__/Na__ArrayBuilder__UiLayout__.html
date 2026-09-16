@@ -1,201 +1,170 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- =============================================================================
+     NA ARRAY BUILDER TOOLS - UI LAYOUT
+     FILE       : Na__ArrayBuilder__UiLayout__.html
+     AUTHOR     : Noble Architecture
+     PURPOSE    : Noble family shell, live array editor and portable preset gallery.
+     ============================================================================= -->
 <head>
     <meta charset="UTF-8">
-    <title>Na Array Builder</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noble Array Builder</title>
     <link rel="stylesheet" href="Na__ArrayBuilder__UiStyle__.css">
 </head>
 <body>
-
-    <!-- HEADER -->
-    <div class="na-header">
-        <div class="na-header-brand">
-            <img class="na-header-icon" src="../Na__Common__PluginDependencies/IMG02__ICN__NaCompanyIcon.png" width="32" height="32" alt="">
-            <h1>Na Array Builder</h1>
+    <header class="na-brand-header">
+        <img class="na-brand-header__logo" src="../Na__Common__PluginDependencies/IMG01__PNG__NaCompanyLogo.png" alt="Noble Architecture">
+        <div class="na-brand-header__right">
+            <span class="na-brand-header__title">Array Builder</span>
+            <span class="na-brand-header__subtitle">by Noble Architecture</span>
         </div>
-        <button class="na-btn-icon" onclick="sketchup.na_reloadScripts()" title="Reload Scripts">&#x21bb;</button>
+    </header>
+    <div class="na-tab-strip">
+        <nav role="tablist" aria-label="Array Builder">
+            <button class="na-tab" id="na-tab-gallery" role="tab" aria-controls="na-panel-gallery" aria-selected="false" data-na-tab="gallery">Presets Gallery</button>
+            <button class="na-tab na-tab-active" id="na-tab-create" role="tab" aria-controls="na-panel-create" aria-selected="true" data-na-tab="create">Create Array</button>
+            <button class="na-tab" id="na-tab-edit" role="tab" aria-controls="na-panel-edit" aria-selected="false" data-na-tab="edit">Edit Array</button>
+            <button class="na-tab" id="na-tab-preset" role="tab" aria-controls="na-panel-preset" aria-selected="false" data-na-tab="preset">Preset Editor</button>
+            <button class="na-tab" id="na-tab-settings" role="tab" aria-controls="na-panel-settings" aria-selected="false" data-na-tab="settings">Settings</button>
+        </nav>
+        <label class="na-live-switch"><input type="checkbox" id="na-live" checked> Live Mode</label>
     </div>
 
-    <!-- ARRAY TYPE SELECTOR -->
-    <div class="na-section">
-        <label class="na-section-label">Array Type</label>
-        <div class="na-type-selector">
-            <button id="na-btn-dentil" class="na-type-btn na-active" onclick="na_selectType('dentil')">
-                Dentil Course
-            </button>
-            <button id="na-btn-dogtooth" class="na-type-btn" onclick="na_selectType('dogtooth')">
-                Dog-Tooth Course
-            </button>
-            <button id="na-btn-object" class="na-type-btn" onclick="na_selectType('object')">
-                Custom Object
-            </button>
-        </div>
-    </div>
-
-    <!-- DIMENSIONS (Dentil / Dog-Tooth) -->
-    <div class="na-section" id="na-dimensions-section">
-        <label class="na-section-label">Dimensions (mm)</label>
-
-        <div class="na-input-row">
-            <label for="na-unit-width">Unit Width</label>
-            <input type="number" id="na-unit-width" value="110" min="1" step="1">
-        </div>
-
-        <div class="na-input-row">
-            <label for="na-unit-depth">Unit Depth</label>
-            <input type="number" id="na-unit-depth" value="30" min="1" step="1">
-        </div>
-
-        <div class="na-input-row">
-            <label for="na-unit-height">Unit Height</label>
-            <input type="number" id="na-unit-height" value="75" min="1" step="1">
-        </div>
-
-        <div class="na-input-row">
-            <label for="na-spacing">Spacing</label>
-            <input type="number" id="na-spacing" value="115" min="0" step="1">
-        </div>
-    </div>
-
-    <!-- OBJECT SOURCE (Custom Object) -->
-    <div class="na-section" id="na-object-source-section" style="display:none;">
-        <label class="na-section-label">Object Source</label>
-
-        <div class="na-object-row">
-            <button id="na-btn-pick-object" class="na-btn-secondary" onclick="na_pickObject()">
-                Pick Object
-            </button>
-            <button id="na-btn-clear-object" class="na-btn-secondary na-btn-secondary-muted" onclick="na_clearObject()">
-                Clear
-            </button>
-        </div>
-
-        <div class="na-object-info" id="na-object-info">
-            <div class="na-object-name" id="na-object-name">No object selected</div>
-            <div class="na-info-row">
-                <span>Width (X):</span>
-                <span id="na-object-w" class="na-info-value">--</span>
+    <main class="na-main-content">
+        <section id="na-panel-gallery" role="tabpanel" aria-labelledby="na-tab-gallery" hidden>
+            <div class="na-page-heading">
+                <div><h1>Presets Gallery</h1><p>Your saved arrays, ready for a new path.</p></div>
+                <button class="na-btn" data-na-action="preset_new">Save current settings</button>
             </div>
-            <div class="na-info-row">
-                <span>Depth (Y):</span>
-                <span id="na-object-d" class="na-info-value">--</span>
+            <div class="na-gallery-toolbar">
+                <input id="na-search" type="search" placeholder="Search name, category or description" aria-label="Search presets">
+                <select id="na-gallery-filter" aria-label="Filter preset source"><option value="all">All sources</option><option value="block">Parametric blocks</option><option value="object">Custom objects</option></select>
+                <button class="na-btn na-btn-secondary" data-na-action="preset_list">Refresh</button>
             </div>
-            <div class="na-info-row">
-                <span>Height (Z):</span>
-                <span id="na-object-h" class="na-info-value">--</span>
+            <p id="na-gallery-warning" class="na-help" hidden></p>
+            <div id="na-gallery" class="na-gallery-grid"></div>
+        </section>
+
+        <section id="na-panel-create" role="tabpanel" aria-labelledby="na-tab-create">
+            <div class="na-page-heading">
+                <div><h1>Create Array</h1><p>Set out a repeated block or any group or component.</p></div>
+                <button class="na-btn na-btn-secondary" data-na-action="edit" data-na-edit-button disabled>Edit selected array</button>
             </div>
-        </div>
+            <div id="na-create-editor"></div>
+        </section>
 
-        <div class="na-input-row">
-            <label for="na-object-spacing">Spacing (mm)</label>
-            <input type="number" id="na-object-spacing" value="0" min="0" step="1">
-        </div>
+        <section id="na-panel-edit" role="tabpanel" aria-labelledby="na-tab-edit" hidden>
+            <div class="na-page-heading">
+                <div><h1>Edit Array</h1><p id="na-edit-title">Select a Noble array to load its saved settings.</p></div>
+                <button class="na-btn" data-na-action="edit" data-na-edit-button disabled>Edit selected array</button>
+            </div>
+            <div id="na-edit-empty" class="na-empty-state">
+                <div class="na-empty-symbol" aria-hidden="true">▥</div>
+                <h2>Pick up where you left off</h2>
+                <p>Select a created array, then click <strong>Edit selected array</strong>.<br>You can also right-click it in SketchUp and choose <strong>Edit Noble Array…</strong>.</p>
+                <p class="na-help">Arrays made before version 0.2 have no saved path or settings. Recreate those once to enable parametric editing.</p>
+            </div>
+            <div id="na-edit-editor"></div>
+        </section>
 
-        <label class="na-section-label" style="margin-top:14px;">Set Out From</label>
-        <div class="na-type-selector">
-            <button id="na-btn-anchor-local" class="na-type-btn na-active" onclick="na_setAnchorMode('local_axis')">
-                Local Axis
-            </button>
-            <button id="na-btn-anchor-centre" class="na-type-btn" onclick="na_setAnchorMode('centre')">
-                Centre
-            </button>
-        </div>
-        <div class="na-toggle-hint">
-            Local Axis uses the object's own origin as the insertion point (set this in the component for an asymmetric start). Centre uses the bounding-box centre.
-        </div>
-    </div>
+        <section id="na-panel-preset" role="tabpanel" aria-labelledby="na-tab-preset" hidden>
+            <div class="na-page-heading">
+                <div><h1>Preset Editor</h1><p>Save a reusable recipe for your gallery.</p></div>
+                <button class="na-btn na-btn-secondary" data-na-action="preset_new">New preset</button>
+            </div>
+            <section class="na-section">
+                <div class="na-section-header"><h2>Preset details</h2><span id="na-preset-state">New preset</span></div>
+                <div class="na-form-grid">
+                    <label>Preset name<input id="na-preset-name" maxlength="100" placeholder="e.g. Facade fins · 150 mm"></label>
+                    <label>Category<input id="na-preset-category" maxlength="60" placeholder="e.g. Facade"></label>
+                    <label class="na-span-two">Description<textarea id="na-preset-description" maxlength="2000" rows="2" placeholder="Add a note about this arrangement"></textarea></label>
+                </div>
+                <p class="na-help">The preset stores these parameters and, for custom objects, a portable copy of the source geometry. Draw a fresh path when you use it.</p>
+                <div class="na-button-row">
+                    <button class="na-btn" data-na-action="preset_save">Save preset</button>
+                    <button class="na-btn na-btn-secondary" data-na-action="preset_copy">Save as a copy</button>
+                    <button class="na-btn na-btn-secondary" id="na-archive" data-na-action="preset_archive" disabled>Archive preset</button>
+                </div>
+            </section>
+            <div id="na-preset-editor"></div>
+        </section>
 
-    <!-- PATH SOURCE -->
-    <div class="na-section">
-        <label class="na-section-label">Path Source</label>
-        <div class="na-type-selector">
-            <button id="na-btn-path-draw" class="na-type-btn na-active" onclick="na_setPathSource('draw')">
-                Draw Path
-            </button>
-            <button id="na-btn-path-selection" class="na-type-btn" onclick="na_setPathSource('selection')">
-                Use Selection
-            </button>
-        </div>
-        <div class="na-type-selector" id="na-reverse-row" style="display:none; margin-top:8px;">
-            <button id="na-btn-reverse-path" class="na-type-btn" onclick="na_toggleReversePath()">
-                Reverse: Off
-            </button>
-        </div>
-        <div class="na-toggle-hint" id="na-path-source-hint">
-            Draw the array path by clicking waypoints in the viewport.
-        </div>
-    </div>
+        <section id="na-panel-settings" role="tabpanel" aria-labelledby="na-tab-settings" hidden>
+            <div class="na-page-heading"><div><h1>Settings</h1><p>Array Builder 0.2 · Noble Architecture</p></div></div>
+            <section class="na-section">
+                <div class="na-section-header"><h2>Live editing</h2></div>
+                <p>Live Mode updates an open array after you pause typing. Turn it off to prepare changes, then press <strong>Update array</strong>. Each applied change can be undone in SketchUp.</p>
+                <p>During path placement the blue wireframe always follows your parameters. Empty or unfinished numbers keep the previous valid preview.</p>
+                <p>Dimensions accept millimetres, centimetres, metres or inches: <strong>150</strong>, <strong>15 cm</strong>, <strong>0.15 m</strong> or <strong>6 in</strong>.</p>
+            </section>
+            <section class="na-section">
+                <div class="na-section-header"><h2>Saved arrays and presets</h2></div>
+                <p>Array settings and paths travel with the SketchUp model. Component copies remain linked until you edit using <strong>Only this array</strong>.</p>
+                <p>Your gallery lives in <code>05__Data__PresetsLibrary</code> inside the Array Builder project. Updates keep a backup; archived presets remain in <code>01__Archive</code>.</p>
+                <p class="na-help">Previews show object bounding envelopes. Fixed gap mode may overhang the final path point; Fit each segment places the final unit within the segment. Layouts are limited to 5,000 units to keep SketchUp responsive.</p>
+                <button class="na-btn na-btn-secondary" data-na-action="reset">Reset creation settings</button>
+            </section>
+        </section>
 
-    <!-- ORIENTATION -->
-    <div class="na-section">
-        <label class="na-section-label">Orientation</label>
-        <div class="na-type-selector">
-            <button id="na-btn-orient-path" class="na-type-btn na-active" onclick="na_setOrientation('path')">
-                Follow Path
-            </button>
-            <button id="na-btn-orient-upright" class="na-type-btn" onclick="na_setOrientation('upright')">
-                Keep Upright
-            </button>
+        <!-- REGION | Shared Editor: moved between the Create / Edit / Preset tabs -->
+        <div id="na-editor">
+            <section class="na-section na-preview-section">
+                <div class="na-section-header"><h2>Array preview</h2><span id="na-preview-caption">3,000 mm sample path</span></div>
+                <div id="na-preview" class="na-preview" role="img" aria-label="Array envelope preview"><span>Connecting to SketchUp…</span></div>
+                <div class="na-metrics">
+                    <div><strong id="na-count">—</strong><span>units</span></div>
+                    <div><strong id="na-length">—</strong><span>path · mm</span></div>
+                    <div><strong id="na-gap">—</strong><span>actual gap · mm</span></div>
+                </div>
+            </section>
+            <section class="na-section">
+                <div class="na-section-header"><h2>Array source</h2><span>01</span></div>
+                <div class="na-segmented" role="group" aria-label="Array source">
+                    <button class="na-choice na-choice-active" data-na-type="block" aria-pressed="true">Parametric block</button>
+                    <button class="na-choice" data-na-type="object" aria-pressed="false">Custom object</button>
+                </div>
+                <div id="na-block-fields" class="na-form-grid na-three-cols">
+                    <label>Width along path · mm<input data-na-field="unit_width_mm" inputmode="decimal" value="110"></label>
+                    <label>Depth · mm<input data-na-field="unit_depth_mm" inputmode="decimal" value="30"></label>
+                    <label>Height · mm<input data-na-field="unit_height_mm" inputmode="decimal" value="75"></label>
+                </div>
+                <div id="na-object-fields" hidden>
+                    <div class="na-source-card"><div><strong id="na-source-name">No source selected</strong><span id="na-source-size">Pick a group or component from the model.</span></div><button class="na-btn na-btn-secondary" data-na-action="pick">Pick object</button></div>
+                    <label class="na-form-row">Object alignment<select data-na-field="anchor_mode"><option value="local_axis">Use source axes</option><option value="centre">Centre on path</option></select></label>
+                </div>
+            </section>
+            <section class="na-section">
+                <div class="na-section-header"><h2>Spacing &amp; orientation</h2><span>02</span></div>
+                <div class="na-form-grid">
+                    <label>Distribution<select data-na-field="distribution"><option value="fixed">Fixed gap</option><option value="normalise">Fit each segment</option><option value="inset">Fixed end margins</option></select></label>
+                    <label>Target gap · mm<input data-na-field="spacing_mm" inputmode="decimal" value="115"></label>
+                    <label id="na-inset-field" hidden>End margin · mm<input data-na-field="inset_mm" inputmode="decimal" value="200"></label>
+                    <label>Side offset · mm<input data-na-field="offset_lateral_mm" inputmode="decimal" value="0"></label>
+                    <label>Height offset · mm<input data-na-field="offset_vertical_mm" inputmode="decimal" value="0"></label>
+                </div>
+                <div class="na-checkbox-row">
+                    <label><input type="checkbox" data-na-field="keep_upright"> Keep units upright</label>
+                    <label><input type="checkbox" data-na-field="reverse_path"> Reverse path direction</label>
+                </div>
+                <p class="na-help" id="na-distribution-help">A constant face-to-face gap along the entire path.</p>
+            </section>
+            <section class="na-section" id="na-path-section">
+                <div class="na-section-header"><h2 id="na-path-heading">Path &amp; placement</h2><span>03</span></div>
+                <label class="na-form-row" id="na-path-source-row">Path source<select data-na-field="path_source"><option value="draw">Draw a path in SketchUp</option><option value="selection">Use selected edges / curve / face outline</option></select></label>
+                <label class="na-form-row" id="na-scope-row" hidden>Apply changes to<select id="na-scope"><option value="single">Only this array</option><option value="linked">All linked copies</option></select></label>
+                <p class="na-help" id="na-edit-help" hidden>Changes preserve the array's position, rotation, scale, tag and material.</p>
+                <div class="na-button-row">
+                    <button class="na-btn" id="na-primary" data-na-action="start">Draw array path</button>
+                    <button class="na-btn na-btn-secondary" id="na-redraw" data-na-action="redraw" hidden>Redraw path</button>
+                    <button class="na-btn na-btn-secondary" id="na-stop" data-na-action="cancel" hidden>Cancel preview</button>
+                    <button class="na-btn na-btn-secondary" data-na-action="preset_new">Save to gallery</button>
+                </div>
+                <p class="na-help">Click to add points · Enter to finish · Backspace to remove a point · Esc to cancel</p>
+            </section>
         </div>
-        <div class="na-toggle-hint">
-            Follow Path tilts units with the path slope. Keep Upright locks units to vertical (world Z) &mdash; useful for spindles, posts and balusters on stairs.
-        </div>
-    </div>
-
-    <!-- DISTRIBUTION OPTIONS -->
-    <div class="na-section">
-        <label class="na-section-label">Distribution</label>
-        <div class="na-type-selector">
-            <button id="na-btn-dist-fixed" class="na-type-btn na-active" onclick="na_selectDistribution('fixed')">
-                Fixed Step
-            </button>
-            <button id="na-btn-dist-norm" class="na-type-btn" onclick="na_selectDistribution('normalise')">
-                Normalise
-            </button>
-            <button id="na-btn-dist-inset" class="na-type-btn" onclick="na_selectDistribution('inset')">
-                Fixed Inset
-            </button>
-        </div>
-        <div class="na-input-row" id="na-inset-row" style="display:none;">
-            <label for="na-inset-mm">Inset (mm)</label>
-            <input type="number" id="na-inset-mm" value="200" min="0" step="1">
-        </div>
-        <div class="na-toggle-hint" id="na-dist-hint">
-            Fixed step: walks the path with constant unit + spacing.
-        </div>
-    </div>
-
-    <!-- PREVIEW INFO -->
-    <div class="na-section">
-        <label class="na-section-label">Preview Info</label>
-        <div class="na-info-row">
-            <span>Estimated Count:</span>
-            <span id="na-preview-count" class="na-info-value">--</span>
-        </div>
-        <div class="na-info-row">
-            <span>Total Length:</span>
-            <span id="na-preview-length" class="na-info-value">--</span>
-        </div>
-        <div id="na-actual-spacing-row" class="na-info-row" style="display:none;">
-            <span>Actual Spacing:</span>
-            <span id="na-actual-spacing" class="na-info-value">--</span>
-        </div>
-    </div>
-
-    <!-- ACTION -->
-    <div class="na-section na-action-section">
-        <button id="na-btn-start" class="na-btn-primary" onclick="na_startPlacement()">
-            Start Placement
-        </button>
-    </div>
-
-    <!-- STATUS BAR -->
-    <div id="na-status-bar" class="na-status-bar na-status-info">
-        Ready
-    </div>
-
-    <!-- SCRIPTS -->
-    <script src="Na__ArrayBuilder__UiBridge__.js"></script>
-
+    </main>
+    <footer class="na-status-bar" role="status" aria-live="polite"><span class="na-status-dot"></span><span id="na-status">Connecting to SketchUp…</span></footer>
+    <script type="module" src="Na__ArrayBuilder__UiBridge__.js"></script>
 </body>
 </html>

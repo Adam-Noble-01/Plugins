@@ -1,0 +1,229 @@
+# Explicitly loaded by run_ruby_checks.py; never loaded by SketchUp on startup.
+require 'json'
+
+ROOT = File.expand_path('..', __dir__)
+PREFIX = 'Na__Noble3dModellingTools__VegetationSketcher__'
+Dir[File.join(ROOT, '*.rb')].each { |path| RubyVM::InstructionSequence.compile_file(path) }
+require File.join(ROOT, PREFIX + 'Options__')
+require File.join(ROOT, PREFIX + 'Mesh__')
+V = Na__Noble3dModellingTools::Na__VegetationSketcher
+$checks = 0
+def check(message)
+  raise message unless yield
+  $checks += 1
+end
+def rejected(message)
+  caught = false
+  begin
+    yield
+  rescue ArgumentError
+    caught = true
+  end
+  check(message) { caught }
+end
+
+fixtures = {}
+V::Options::PRESETS.each_key do |kind|
+  options = V::Options.resolve(V::Options.preset(kind))
+  check("#{kind}: options round trip") { V::Options.resolve(JSON.generate(options)) == options }
+  mesh = V::Mesh.build(options)
+  check("#{kind}: quad estimate") { mesh[:quads].length == mesh[:requested_quads] }
+  edges = Hash.new(0)
+  mesh[:quads].each do |face|
+    face.each_with_index { |a, i| edges[[a, face[(i + 1) % 4]].sort] += 1 }
+  end
+  check("#{kind}: closed welded surface") { edges.values.all? { |uses| uses == 2 } }
+  check("#{kind}: finite grounded points") { mesh[:points].all? { |p| p.all?(&:finite?) && p[2] >= 0 } }
+  check("#{kind}: repeatable seed") { V::Mesh.build(options)[:points] == mesh[:points] }
+  check("#{kind}: seed variation") { V::Mesh.build(options.merge('seed' => options['seed'] + 1))[:points] != mesh[:points] }
+  preview = V::Mesh.build(options, preview: true)
+  check("#{kind}: bounded preview") { preview[:quads].length <= V::Mesh::PREVIEW_QUADS }
+  fixtures[kind] = { settings: options, mesh: preview }
+end
+rejected('reject NaN') { V::Options.resolve('height' => Float::NAN) }
+rejected('reject malformed JSON') { V::Options.resolve('height' => 'bad') }
+rejected('dense final mesh rejected') { V::Mesh.build(V::Options.resolve('resolution' => 10)) }
+check('fine short hedge allowed') { V::Mesh.build(V::Options.resolve('resolution' => 10, 'width' => 50, 'height' => 50, 'length' => 50))[:quads].length == 150 }
+check('all preset-only defaults present') { fixtures.values.all? { |f| %w[depth trunk_height trunk_diameter].all? { |key| f[:settings].key?(key) } } }
+corner_options = V::Options.resolve('path' => [[0,0,0], [3000,0,0], [3000,3000,0]], 'random' => 0, 'soften' => 0)
+corner_path = V::HedgePath.prepare(corner_options['path'], 800)
+check('miter inside corner') { V::HedgePath.warp([3000,400,0], corner_path) == [2600,400,0] }
+check('miter outside corner') { V::HedgePath.warp([3000,-400,0], corner_path) == [3400,-400,0] }
+check('path length is derived') { corner_options['length'] == 6000 }
+check('smooth shading defaults on') { V::Options.resolve['smooth'] }
+check('explicit shading off retained') { !V::Options.resolve('smooth' => false)['smooth'] }
+[
+  [[0,0,0], [3000,0,0], [3000,3000,0]],
+  [[0,0,0], [3000,0,0], [3000,-3000,0]],
+  [[0,0,0], [3000,0,0], [4500,2000,0], [6500,1500,0]],
+  [[0,0,0], [3000,0,0], [3000,3000,0], [0,3000,0]]
+].each_with_index do |points, index|
+  options = V::Options.resolve('path' => points)
+  mesh = V::Mesh.build(options)
+  edge_uses = Hash.new(0)
+  mesh[:quads].each { |q| q.each_with_index { |a, i| edge_uses[[a, q[(i + 1) % 4]].sort] += 1 } }
+  check("path #{index}: welded closed manifold") { edge_uses.values.all? { |n| n == 2 } }
+  check("path #{index}: no extra corner caps") { mesh[:points].length - edge_uses.length + mesh[:quads].length == 2 }
+  check("path #{index}: exact budget") { mesh[:quads].length == mesh[:requested_quads] }
+  check("path #{index}: finite vertices") { mesh[:points].all? { |p| p.all?(&:finite?) } }
+  check("path #{index}: bounded preview") { V::Mesh.build(options, preview: true)[:quads].length <= V::Mesh::PREVIEW_QUADS }
+end
+rejected('reject 180 degree reversal') { V::Mesh.build(V::Options.resolve('path' => [[0,0,0],[3000,0,0],[1000,0,0]])) }
+rejected('reject corner overlap on short run') { V::Mesh.build(V::Options.resolve('path' => [[0,0,0],[3000,0,0],[3000,100,0]])) }
+rejected('reject intersecting path') { V::Mesh.build(V::Options.resolve('path' => [[0,0,0],[3000,3000,0],[0,3000,0],[3000,0,0]])) }
+rejected('reject tightly overlapping parallel rows') { V::Mesh.build(V::Options.resolve('path' => [[0,0,0],[3000,0,0],[3000,600,0],[0,600,0]])) }
+rejected('reject non-planar stored path') { V::Options.resolve('path' => [[0,0,0],[3000,0,500]]) }
+fixtures['corner'] = { settings: V::Options.resolve(corner_options.merge('random' => 55, 'soften' => 45)), mesh: V::Mesh.build(V::Options.resolve(corner_options.merge('random' => 55, 'soften' => 45)), preview: true) }
+File.write(File.join(__dir__, 'fixtures.json'), JSON.generate(fixtures))
+
+# Contract doubles exercise controller/observer lifecycle and stale edit safety.
+# They do not stand in for SketchUp's native geometry creation.
+module Sketchup
+  class SelectionObserver; end
+  class ModelObserver; end
+  class EntityObserver; end
+  class AppObserver; end
+  class Attributes
+    attr_reader :observers
+    def initialize; @attributes = {}; @observers = []; end
+    def get_attribute(dict, key, default = nil); @attributes.fetch([dict, key], default); end
+    def set_attribute(dict, key, value); @attributes[[dict, key]] = value; end
+    def add_observer(observer); @observers << observer; end
+    def remove_observer(observer); @observers.delete(observer); end
+  end
+  class Definition < Attributes
+    attr_accessor :instances, :entities
+    def initialize; super; @instances = []; @entities = []; end
+  end
+  class ComponentInstance < Attributes
+    attr_accessor :name, :definition, :locked, :valid
+    attr_reader :persistent_id
+    def initialize(id, definition = Definition.new)
+      super(); @persistent_id = id; @definition = definition; definition.instances << self
+      @name = "Vegetation #{id}"; @locked = false; @valid = true
+    end
+    def valid?; @valid; end
+    def locked?; @locked; end
+    def transformation; [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]; end
+    def entityID; persistent_id; end
+  end
+  class Group < ComponentInstance
+    def entities; definition.entities; end
+  end
+  class Selection < Array
+    attr_reader :observers
+    def initialize; super; @observers = []; end
+    def add_observer(observer); @observers << observer; end
+    def remove_observer(observer); @observers.delete(observer); end
+    def add(entity); self << entity; end
+  end
+  class Model < Attributes
+    attr_reader :selection, :active_entities
+    attr_accessor :active_path
+    def initialize; super; @selection = Selection.new; @active_entities = []; end
+    def active_view; self; end
+    def invalidate; end
+    def select_tool(tool); @tool = tool; tool.activate if tool; end
+  end
+  @model = Model.new
+  @observers = []
+  class << self
+    attr_accessor :model
+    attr_reader :observers
+    def active_model; @model; end
+    def add_observer(observer); @observers << observer; end
+    def remove_observer(observer); @observers.delete(observer); end
+    def read_default(_dict, _key, default); default; end
+    def write_default(*_args); end
+    def focus; end
+  end
+end
+module UI
+  @timers = {}
+  @sequence = 0
+  def self.start_timer(_delay, _repeat, &block); @sequence += 1; @timers[@sequence] = block; @sequence; end
+  def self.stop_timer(id); @timers.delete(id); end
+  def self.flush; work = @timers.values; @timers.clear; work.each(&:call); end
+  def self.timer_count; @timers.size; end
+  class HtmlDialog
+    STYLE_DIALOG = 0
+    attr_reader :callbacks, :events
+    def initialize(**_options); @callbacks = {}; @events = []; end
+    def set_html(_html); end
+    def add_action_callback(name, &block); @callbacks[name] = block; end
+    def set_on_closed(&block); @closed = block; end
+    def show; @visible = true; end
+    def visible?; @visible; end
+    def bring_to_front; end
+    def close; @visible = false; @closed.call; end
+    def execute_script(script)
+      args = script.split('window.NaVegetation.receive(', 2)[1].sub(/\);\}\z/, '')
+      @events << JSON.parse('[' + args + ']')
+    end
+  end
+end
+require File.join(ROOT, PREFIX + 'DataSerializer__')
+require File.join(ROOT, PREFIX + 'Observers__')
+require File.join(ROOT, PREFIX + 'DialogManager__')
+model = Sketchup.active_model
+legacy = Sketchup::Group.new(10)
+legacy.set_attribute(V::DataSerializer::INSTANCE_DICT, 'settings', JSON.generate(fixtures['hedge'][:settings]))
+check('legacy groups load') { V::DataSerializer.load(legacy) == fixtures['hedge'][:settings] }
+instance = Sketchup::ComponentInstance.new(11)
+V::DataSerializer.save(model, instance, fixtures['tree'][:settings], 123)
+check('definition round trip') { V::DataSerializer.load(instance) == fixtures['tree'][:settings] }
+path_instance = Sketchup::ComponentInstance.new(13)
+V::DataSerializer.save(model, path_instance, corner_options, 123)
+check('path survives definition serialization') { V::DataSerializer.load(path_instance)['path'] == corner_options['path'] }
+V::DataSerializer.save(model, instance, fixtures['tree'][:settings], 123)
+check('model defaults saved') { V::DataSerializer.model_options(model, '{}') == fixtures['tree'][:settings] }
+copy = Sketchup::ComponentInstance.new(12, instance.definition)
+check('copied component is recognised') { V::DataSerializer.load(copy) == fixtures['tree'][:settings] }
+model.active_entities.concat([legacy, instance, copy])
+dialog = V::Dialog.show
+dialog.callbacks['na_ready'].call(nil)
+check('ready handshake attaches observers once') { model.selection.observers.length == 1 && model.observers.length == 1 && Sketchup.observers.length == 1 }
+dialog.callbacks['na_ready'].call(nil)
+check('repeated handshake is idempotent') { model.selection.observers.length == 1 }
+check('empty selection is create mode') { dialog.events.reverse.find { |e| e[0] == 'state' }[1]['target_id'].nil? }
+model.selection.add(instance)
+model.selection.observers.first.onSelectionBulkChange(model.selection)
+check('observer is deferred') { V::Dialog.target_id.nil? }
+UI.flush
+check('selection auto loads component') { V::Dialog.target_id == '11' }
+state = dialog.events.reverse.find { |e| e[0] == 'state' }[1]
+old_payload = { 'context' => state['context'], 'target_id' => state['target_id'] }
+model.selection.clear
+model.selection.add(copy)
+model.selection.observers.first.onSelectionBulkChange(model.selection)
+UI.flush
+rejected('stale target cannot update another component') { V::Dialog.validate_context(old_payload) }
+check('new target loaded') { V::Dialog.target_id == '12' }
+copy.locked = true
+model.observers.first.onTransactionCommit(model)
+UI.flush
+check('locking disables edit') { V::Dialog.target_id.nil? }
+copy.locked = false
+model.observers.first.onTransactionUndo(model)
+UI.flush
+check('undo restores target') { V::Dialog.target_id == '12' }
+V::Dialog.dispatch('new', {})
+UI.flush
+check('new mode stays new for unchanged selection') { V::Dialog.target_id.nil? }
+model.observers.first.onTransactionCommit(model)
+UI.flush
+check('unrelated transaction does not rebind target') { V::Dialog.target_id.nil? }
+model2 = Sketchup::Model.new
+Sketchup.model = model2
+Sketchup.observers.first.onNewModel(model2)
+UI.flush
+check('model switch detaches old observers') { model.observers.empty? && model.selection.observers.empty? }
+check('model switch attaches new observers') { model2.observers.length == 1 && model2.selection.observers.length == 1 }
+V::Dialog.queue_sync
+V::Dialog.reset
+UI.flush
+check('close detaches observers and timers') { model2.observers.empty? && model2.selection.observers.empty? && Sketchup.observers.empty? && UI.timer_count.zero? }
+puts "PASS: #{$checks} Ruby geometry, persistence, selection and lifecycle checks."
+load File.join(__dir__, 'hedge_tool.rb.test')
+load File.join(__dir__, 'tree_species.rb.test')
+load File.join(__dir__, 'preview_performance.rb.test')

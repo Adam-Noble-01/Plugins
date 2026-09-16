@@ -89,6 +89,7 @@ module Na__ArrayBuilderTools
         # FUNCTION | Tool Activated
         # ------------------------------------------------------------
         def activate
+            @dialog_manager.na_register_selection_tool(self)
             @state = :picking_start
             @waypoints = []
             @cursor_pos = nil
@@ -103,6 +104,7 @@ module Na__ArrayBuilderTools
         # FUNCTION | Tool Deactivated
         # ------------------------------------------------------------
         def deactivate(view)
+            @dialog_manager.na_register_selection_tool(nil)
             Na__AxisLock__ClearOnDeactivate(view)
             view.invalidate
         end
@@ -213,6 +215,7 @@ module Na__ArrayBuilderTools
             Na__AxisLock__ClearOnDeactivate(view)
             @dialog_manager.na_send_status_to_dialog("info", "Array placement cancelled")
             view.invalidate
+            Sketchup.active_model.select_tool(nil)
         end
         # ---------------------------------------------------------------
 
@@ -265,6 +268,19 @@ module Na__ArrayBuilderTools
             bb
         end
         # ---------------------------------------------------------------
+
+        # FUNCTION | Live Configuration and Dialog Finish Entry Points
+        # ------------------------------------------------------------
+        def Na__Tool__UpdateConfig(na_config)
+            na_init_unit_config_state(na_config.merge('path_source' => 'draw'))
+            na_rebuild_preview_cache
+            na_update_status_text
+            Sketchup.active_model.active_view.invalidate
+        end
+
+        def Na__Tool__Finish
+            na_finish_path_if_ready(Sketchup.active_model.active_view)
+        end
 
         private
 
@@ -396,13 +412,10 @@ module Na__ArrayBuilderTools
 
             if positions.empty?
                 @dialog_manager.na_send_status_to_dialog("warning", "Path too short for any units")
-                Sketchup.active_model.select_tool(nil)
                 return
             end
 
-            result = Na__ArrayBuilder__GeometryBuilder.na_create_array(
-                @waypoints, @config, positions
-            )
+            result = @dialog_manager.Na__Dialog__CommitPath(@waypoints, @config)
 
             if result
                 count = positions.length
@@ -413,6 +426,8 @@ module Na__ArrayBuilderTools
             end
 
             Sketchup.active_model.select_tool(nil)
+        rescue StandardError => na_error
+            @dialog_manager.na_send_status_to_dialog('error', na_error.message)
         end
         # ---------------------------------------------------------------
 
@@ -425,12 +440,7 @@ module Na__ArrayBuilderTools
         # FUNCTION | Update Status Bar Text
         # ------------------------------------------------------------
         def na_update_status_text
-            type_label =
-                case @array_type
-                when 'dogtooth' then 'Dog-Tooth'
-                when 'object'   then 'Object'
-                else                 'Dentil'
-                end
+            type_label = @array_type == 'object' ? 'Object' : 'Block'
 
             lock_suffix = Na__AxisLock__BuildStatusFragment()
 

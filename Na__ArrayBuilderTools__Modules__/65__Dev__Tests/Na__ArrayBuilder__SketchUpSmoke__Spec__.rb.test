@@ -1,0 +1,43 @@
+# =============================================================================
+# NA ARRAY BUILDER TOOLS - NATIVE SKETCHUP SMOKE CHECK
+# =============================================================================
+# Run explicitly in SketchUp's Ruby Console with a NEW, EMPTY test model.
+# This leaves the test arrays visible for inspection. It never saves the model.
+
+raise 'Load Array Builder first.' unless defined?(Na__ArrayBuilderTools::Na__ArrayBuilder__GeometryBuilder)
+na_model = Sketchup.active_model
+unless na_model.active_path.nil? && na_model.entities.empty?
+    raise 'Open a new, empty model before running the Array Builder native smoke check.'
+end
+
+na_builder = Na__ArrayBuilderTools::Na__ArrayBuilder__GeometryBuilder
+na_serializer = Na__ArrayBuilderTools::Na__ArrayBuilder__DataSerializer
+na_config = Na__ArrayBuilderTools::Na__ArrayBuilder__Configuration.Na__Config__Resolve(
+    'unit_width_mm' => 100, 'unit_depth_mm' => 50, 'unit_height_mm' => 120,
+    'spacing_mm' => 100, 'path_source' => 'selection'
+)
+na_points = [Geom::Point3d.new(0,0,0), Geom::Point3d.new(2000.mm,0,0), Geom::Point3d.new(2000.mm,1000.mm,0)]
+na_array = na_builder.na_create_array(na_points, na_config)
+raise 'Array recipe missing.' unless na_serializer.Na__Data__HasData?(na_array)
+na_original = na_serializer.Na__Data__Load(na_array)
+raise 'Path round trip failed.' unless na_serializer.Na__Data__Points(na_original) == na_points
+
+na_model.start_operation('Copy Smoke Array', true)
+na_copy = na_model.entities.add_instance(na_array.definition, Geom::Transformation.translation([0,1500.mm,0]))
+na_model.commit_operation
+na_builder.Na__Geometry__Update(na_model, na_array, na_config.merge('spacing_mm' => 60), 'single')
+raise 'Single scope changed its copy.' unless na_serializer.Na__Data__Load(na_copy) == na_original
+raise 'Single scope did not isolate the definition.' if na_array.definition == na_copy.definition
+
+na_model.start_operation('Create Linked Smoke Copy', true)
+na_linked = na_model.entities.add_instance(na_array.definition, Geom::Transformation.translation([0,3000.mm,0]))
+na_model.commit_operation
+na_builder.Na__Geometry__Update(na_model, na_array, na_config.merge('unit_height_mm' => 300), 'linked')
+raise 'Linked update failed.' unless na_serializer.Na__Data__Load(na_linked)['configuration']['unit_height_mm'] == 300
+na_model.undo
+raise 'Undo did not restore data.' unless na_serializer.Na__Data__Load(na_array)['configuration']['unit_height_mm'] == 120
+na_model.redo
+raise 'Redo did not restore data.' unless na_serializer.Na__Data__Load(na_array)['configuration']['unit_height_mm'] == 300
+na_model.active_view.zoom_extents
+puts 'Array Builder native geometry, linked scope, persistence and Undo/Redo smoke check passed.'
+puts 'Next: save/reopen this test model, select an array, and choose Edit Noble Array from its context menu.'

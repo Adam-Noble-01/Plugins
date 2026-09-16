@@ -1,0 +1,100 @@
+# Exercise the real debounce callbacks with controlled timer delivery, not sleeps.
+V::Mesh.singleton_class.alias_method(:performance_build, :build)
+mesh_calls = []
+V::Mesh.define_singleton_method(:build) do |options, **keywords|
+  mesh_calls << [options.dup, keywords]
+  performance_build(options, **keywords)
+end
+def panel_events(dialog)
+  dialog.events.select { |event, _| %w[preview viewport].include?(event) }
+end
+def UI.pending_callbacks; @timers.values.dup; end
+
+model = Sketchup::Model.new
+Sketchup.model = model
+model.view = TestView.new
+dialog = V::Dialog.show
+dialog.callbacks['na_ready'].call(nil)
+10.times { V::Dialog.preview }
+check('panel requests do no synchronous mesh work') { mesh_calls.empty? && panel_events(dialog).empty? }
+check('repeated panel requests share one pending debounce') { UI.timer_count == 1 }
+UI.flush
+check('settled panel builds and transmits only once') { mesh_calls.length == 1 && panel_events(dialog).length == 1 }
+mesh_calls.clear
+dialog.events.clear
+[900, 1000, 1100].each do |width|
+  V::Dialog.apply_options(V::Options.resolve('width' => width))
+  V::Dialog.preview
+  V::Dialog.tool_progress(width, 'Current length')
+end
+check('panel options and progress wait for quiet period') { mesh_calls.empty? && panel_events(dialog).empty? && UI.timer_count == 1 }
+UI.flush
+check('panel uses only latest settings') { mesh_calls.length == 1 && mesh_calls.first[0]['width'] == 1100 }
+check('progress messages coalesce with mesh refresh') { panel_events(dialog).map(&:first) == %w[preview viewport] && panel_events(dialog).last[1]['length'] == 1100 }
+mesh_calls.clear
+dialog.events.clear
+data = V::Mesh.build(V::Options.resolve, preview: :viewport)
+mesh_calls.clear
+5.times { V::Dialog.tool_preview(data) }
+UI.flush
+check('viewport mesh is reused without panel remeshing') { mesh_calls.empty? && panel_events(dialog).length == 1 }
+V::Dialog.preview
+stale_callback = UI.pending_callbacks.last
+V::Dialog.dispatch('new', {})
+before = panel_events(dialog).length
+stale_callback.call
+check('cancelled panel callback cannot cross creation contexts') { mesh_calls.empty? && panel_events(dialog).length == before }
+UI.flush
+V::Dialog.preview
+stale_callback = UI.pending_callbacks.last
+V::Dialog.reset
+before = mesh_calls.length
+stale_callback.call
+check('closing cancels pending preview work') { UI.timer_count.zero? && mesh_calls.length == before }
+
+options = V::Options.resolve
+before = JSON.generate(options)
+drawing = V::Mesh.build(options, preview: :viewport)
+final = V::Mesh.build(options)
+check('100 mm drawing preview uses 200 mm spacing') { drawing[:resolution] == 200 && drawing[:quads].length == 424 }
+check('final geometry retains full 100 mm grid') { final[:resolution] == 100 && final[:quads].length == 1696 && final[:requested_quads] == drawing[:requested_quads] }
+check('viewport quality never changes saved options') { JSON.generate(options) == before && drawing[:viewport_preview] && !final[:viewport_preview] }
+['tree', 'shrub', 'douglas_fir', 'english_oak'].each do |kind|
+  options = V::Options::PRESETS.key?(kind) ? V::Options.preset(kind) : V::Options.tree_preset(kind)
+  drawing = V::Mesh.build(options, preview: :viewport)
+  check("#{kind}: viewport uses reduced spacing and budget") { drawing[:resolution] >= options['resolution'] * 2 && drawing[:quads].length <= V::Mesh::VIEWPORT_QUADS }
+end
+
+model = Sketchup::Model.new
+Sketchup.model = model
+view = TestView.new
+model.view = view
+owner = ToolOwner.new
+tool = V::HedgeTool.new(V::Options.resolve, owner)
+model.select_tool(tool)
+mesh_calls.clear
+tool.onLButtonDown(0, 0, 0, view)
+tool.onLButtonUp(0, 3000, 0, view)
+check('click and waypoint confirmation do not duplicate a mesh build') { mesh_calls.length == 1 }
+check('HedgeTool requests viewport quality') { mesh_calls.last[1][:preview] == :viewport }
+mesh_calls.clear
+# A future stamp keeps all synthetic pointer events inside the throttle window.
+tool.instance_variable_set(:@preview_stamp, Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1)
+[2000, 2500, 3500].each { |y| tool.onMouseMove(0, 3000, y, view) }
+check('rapid pointer moves share one deferred viewport refresh') { mesh_calls.empty? && UI.timer_count == 1 }
+UI.flush
+check('trailing refresh reaches the last cursor position') { mesh_calls.length == 1 && (tool.preview_data[:path].last[1] - 3500).abs < 0.001 }
+check('viewport refresh preserves hedge corners') { tool.preview_data[:path].length == 3 && tool.preview_data[:requested_quads] > tool.preview_data[:quads].length }
+tool.instance_variable_set(:@preview_stamp, Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1)
+tool.onMouseMove(0, 3000, 3700, view)
+model.select_tool(nil)
+check('tool exit cancels trailing viewport timer') { UI.timer_count.zero? }
+
+tool = V::PlacementTool.new(V::Options.tree_preset('douglas_fir'), owner)
+model.select_tool(tool)
+mesh_calls.clear
+10.times { |i| tool.onMouseMove(0, 1000 + i * 50, 2000, view) }
+check('moving a tree reuses one reduced mesh') { mesh_calls.length == 1 && mesh_calls.first[1][:preview] == :viewport }
+model.select_tool(nil)
+V::Mesh.singleton_class.alias_method(:build, :performance_build)
+puts "PASS: #{$checks} total Ruby checks including debounced previews and viewport mesh reuse."
