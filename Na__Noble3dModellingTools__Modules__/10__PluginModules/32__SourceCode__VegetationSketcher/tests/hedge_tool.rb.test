@@ -74,24 +74,27 @@ end
 class ToolOwner
   attr_reader :created_items, :errors, :progress
   def initialize; @created_items = []; @errors = []; end
-  def created(item); @created_items << item; end
-  def report(message, variant = 'info'); @errors << message if variant == 'error'; end
-  def tool_progress(*data); @progress = data; end
-  def tool_preview(_data); end
-  def tool_stopped(_tool); end
+  def na_created(item); @created_items << item; end
+  def na_report(message, variant = 'info'); @errors << message if variant == 'error'; end
+  def na_tool_progress(*data); @progress = data; end
+  def na_tool_preview(_data); end
+  def na_tool_stopped(_tool); end
 end
 require File.join(ROOT, PREFIX + 'Builder__')
 require File.join(ROOT, PREFIX + 'HedgeTool__')
+Builder = Na__Noble3dModellingTools::Na__VegetationSketcher__Builder
+HedgeTool = Na__Noble3dModellingTools::Na__VegetationSketcher__HedgeTool
+PlacementTool = Na__Noble3dModellingTools::Na__VegetationSketcher__PlacementTool
 edges = [Sketchup::Edge.new(0), Sketchup::Edge.new(30), Sketchup::Edge.new(40.3), Sketchup::Edge.new(45), Sketchup::Edge.new(20, true)]
-V::Builder.apply_shading(edges, true)
+Builder.Na__VegetationSketcher__Builder__ApplyShading(edges, true)
 check('smooth normals and coplanar edges at 40.3 degrees') { edges.map(&:smooth) == [true,true,true,false,true] }
-V::Builder.apply_shading(edges, false)
+Builder.Na__VegetationSketcher__Builder__ApplyShading(edges, false)
 check('shading off restores facets') { edges.all? { |e| e.smooth == false } }
 
 # Intercept only final native creation. All pointer/key/path/mesh logic is real.
-V::Builder.singleton_class.alias_method(:native_create, :create)
-V::Builder.define_singleton_method(:create) do |model, options, transform, _length = nil|
-  V::Mesh.build(options)
+Builder.singleton_class.alias_method(:native_create, :Na__VegetationSketcher__Builder__Create)
+Builder.define_singleton_method(:Na__VegetationSketcher__Builder__Create) do |model, options, transform, _length = nil|
+  Mesh.Na__VegetationSketcher__Mesh__Build(options)
   { options: options, transform: transform }
 end
 
@@ -100,7 +103,7 @@ Sketchup.model = model
 view = TestView.new
 model.view = view
 owner = ToolOwner.new
-tool = V::HedgeTool.new(V::Options.resolve, owner)
+tool = HedgeTool.new(Options.Na__VegetationSketcher__Options__Resolve, owner)
 model.select_tool(tool)
 tool.onLButtonDown(0, 0, 0, view)
 tool.onLButtonUp(0, 0, 0, view)
@@ -110,62 +113,62 @@ tool.onKeyDown(39, 2, 0, view)
 tool.onKeyUp(39, 1, 0, view)
 tool.onLButtonDown(0, 3000, 100, view)
 tool.onLButtonUp(0, 3000, 100, view)
-check('red lock stays on under auto-repeat') { tool.instance_variable_get(:@waypoints).last.y == 0 }
+check('red lock stays on under auto-repeat') { tool.instance_variable_get(:@na_waypoints).last.y == 0 }
 check('no model geometry before Finish') { owner.created_items.empty? }
 tool.onKeyDown(37, 1, 0, view)
 tool.onKeyUp(37, 1, 0, view)
 tool.onMouseMove(0, 3100, 3000, view)
 tool.onLButtonDown(0, 3100, 3000, view)
 tool.onLButtonUp(0, 3100, 3000, view)
-points = tool.instance_variable_get(:@waypoints)
+points = tool.instance_variable_get(:@na_waypoints)
 check('green lock reanchors at the last corner') { points.length == 3 && (points.last.x*25.4 - 3000).abs < 0.001 }
 tool.onKeyDown(8, 1, 0, view)
 tool.onKeyUp(8, 1, 0, view)
-check('Backspace removes one corner') { tool.instance_variable_get(:@waypoints).length == 2 }
+check('Backspace removes one corner') { tool.instance_variable_get(:@na_waypoints).length == 2 }
 tool.onUserText('3000mm', view)
-check('typed run adds corner without finishing') { tool.instance_variable_get(:@waypoints).length == 3 && owner.created_items.empty? }
+check('typed run adds corner without finishing') { tool.instance_variable_get(:@na_waypoints).length == 3 && owner.created_items.empty? }
 tool.onReturn(view)
 check('Enter builds one joined hedge') { owner.created_items.length == 1 && owner.created_items.first[:options]['path'].length == 3 }
 check('axis inference cleared on finish') { view.locked.empty? }
 check('no Tool event errors') { owner.errors.empty? }
 
 owner = ToolOwner.new
-tool = V::HedgeTool.new(V::Options.resolve, owner)
+tool = HedgeTool.new(Options.Na__VegetationSketcher__Options__Resolve, owner)
 model.select_tool(tool)
 tool.onLButtonDown(0, 0, 0, view)
 tool.onLButtonUp(0, 3000, 0, view)
-check('drag defines first run without losing continuation') { tool.instance_variable_get(:@waypoints).length == 2 && owner.created_items.empty? }
+check('drag defines first run without losing continuation') { tool.instance_variable_get(:@na_waypoints).length == 2 && owner.created_items.empty? }
 tool.onCancel(0, view)
-check('Escape cancels the pending path') { tool.instance_variable_get(:@waypoints).empty? && owner.created_items.empty? }
+check('Escape cancels the pending path') { tool.instance_variable_get(:@na_waypoints).empty? && owner.created_items.empty? }
 
 # Exercise the actual acknowledged Ruby command dispatcher, not only Tool calls.
-V::Builder.define_singleton_method(:create) do |model, options, transform, _length = nil|
-  data = V::Mesh.build(options)
+Builder.define_singleton_method(:Na__VegetationSketcher__Builder__Create) do |model, options, transform, _length = nil|
+  data = Mesh.Na__VegetationSketcher__Mesh__Build(options)
   entity = Sketchup::ComponentInstance.new(99)
-  V::DataSerializer.save(model, entity, options, data[:quads].length)
+  DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model, entity, options, data[:quads].length)
   model.active_entities << entity
   entity
 end
-dialog = V::Dialog.show
-dialog.callbacks['na_ready'].call(nil)
+dialog = Dialog.Na__VegetationSketcher__ShowDialog
+dialog.callbacks['na_dialog_ready'].call(nil)
 state = dialog.events.reverse.find { |e| e[0] == 'state' }[1]
-request = { id: 1, session: state['session'], revision: 1, action: 'start', payload: { settings: V::Options.resolve } }
+request = { id: 1, session: state['session'], revision: 1, action: 'start', payload: { settings: Options.Na__VegetationSketcher__Options__Resolve } }
 dialog.callbacks['na_event'].call(nil, JSON.generate(request))
-check('Draw bridge activates HedgeTool') { V::Dialog.placing? && model.instance_variable_get(:@tool).is_a?(V::HedgeTool) }
+check('Draw bridge activates HedgeTool') { Dialog.na_placing? && model.instance_variable_get(:@tool).is_a?(HedgeTool) }
 check('Draw request is acknowledged') { dialog.events.any? { |event, payload| event == 'ack' && payload['id'] == 1 && payload['success'] } }
 active_tool = model.instance_variable_get(:@tool)
 active_tool.onLButtonDown(0, 0, 0, view)
 active_tool.onLButtonUp(0, 3000, 0, view)
 active_tool.onLButtonDown(0, 3000, 3000, view)
 active_tool.onLButtonUp(0, 3000, 3000, view)
-V::Dialog.preview
+Dialog.na_preview
 UI.flush
 check('panel preview keeps live corners') { dialog.events.reverse.find { |e| e[0] == 'preview' }[1]['path'].length == 3 }
-request = { id: 2, session: state['session'], revision: 2, action: 'stop', payload: { settings: V::Options.resolve } }
+request = { id: 2, session: state['session'], revision: 2, action: 'stop', payload: { settings: Options.Na__VegetationSketcher__Options__Resolve } }
 dialog.callbacks['na_event'].call(nil, JSON.generate(request))
-check('Finish bridge creates and selects editable vegetation') { !V::Dialog.placing? && V::Dialog.target_id == '99' }
+check('Finish bridge creates and selects editable vegetation') { !Dialog.na_placing? && Dialog.na_target_id == '99' }
 check('created path loaded back into UI') { dialog.events.reverse.find { |e| e[0] == 'state' }[1]['settings']['path'].length == 3 }
-V::Dialog.reset
+Dialog.Na__VegetationSketcher__ResetDialog
 UI.flush
-V::Builder.singleton_class.alias_method(:create, :native_create)
+Builder.singleton_class.alias_method(:Na__VegetationSketcher__Builder__Create, :native_create)
 puts "PASS: #{$checks} total checks including smoothing and hedge Tool events."

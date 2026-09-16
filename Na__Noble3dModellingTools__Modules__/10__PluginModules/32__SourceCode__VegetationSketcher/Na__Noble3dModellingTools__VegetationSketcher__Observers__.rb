@@ -1,38 +1,123 @@
-# frozen_string_literal: true
+# =============================================================================
+# NA NOBLE3D MODELLING TOOLS - VEGETATION SKETCHER - OBSERVERS
+# =============================================================================
+#
+# FILE       : Na__Noble3dModellingTools__VegetationSketcher__Observers__.rb
+# NAMESPACE  : Na__Noble3dModellingTools
+# AUTHOR     : Adam Noble - Noble Architecture
+# PURPOSE    : Forward SketchUp selection, model, entity and app changes to
+#              the vegetation dialog without doing work inside callbacks
+# CREATED    : 2026
+#
+# Observers only schedule a refresh. The dialog manager reads selection and
+# dictionaries on the next UI loop, outside SketchUp's transaction callbacks.
+#
+# =============================================================================
 
 module Na__Noble3dModellingTools
-  module Na__VegetationSketcher
-    # Observers only schedule a refresh. The controller reads selection and
-    # dictionaries on the next UI loop, outside SketchUp's transaction callbacks.
-    class SelectionObserver < Sketchup::SelectionObserver
-      def initialize(owner); @owner = owner; end
-      def onSelectionBulkChange(_selection); @owner.queue_sync; end
-      def onSelectionAdded(_selection, _entity); @owner.queue_sync; end
-      def onSelectionRemoved(_selection, _entity); @owner.queue_sync; end
-      def onSelectionCleared(_selection); @owner.queue_sync; end
-    end
 
-    class ModelObserver < Sketchup::ModelObserver
-      def initialize(owner); @owner = owner; end
-      def onTransactionCommit(_model); @owner.queue_sync; end
-      def onTransactionUndo(_model); @owner.queue_sync; end
-      def onTransactionRedo(_model); @owner.queue_sync; end
-      def onTransactionAbort(_model); @owner.queue_sync; end
-      def onActivePathChanged(_model); @owner.queue_sync; end
-      def onDeleteModel(_model); @owner.queue_sync; end
-    end
+# -----------------------------------------------------------------------------
+# REGION | Selection Observer
+# -----------------------------------------------------------------------------
 
-    class EntityObserver < Sketchup::EntityObserver
-      def initialize(owner); @owner = owner; end
-      def onChangeEntity(_entity); @owner.queue_sync; end
-      def onEraseEntity(_entity); @owner.queue_sync; end
-    end
+    class Na__VegetationSketcher__SelectionObserver < Sketchup::SelectionObserver
 
-    class AppObserver < Sketchup::AppObserver
-      def initialize(owner); @owner = owner; end
-      def onNewModel(_model); @owner.queue_sync; end
-      def onOpenModel(_model); @owner.queue_sync; end
-      def onActivateModel(_model); @owner.queue_sync; end
-    end
-  end
-end
+        def onSelectionBulkChange(_selection)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onSelectionAdded(_selection, _entity)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onSelectionRemoved(_selection, _entity)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onSelectionCleared(_selection)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+    end # class Na__VegetationSketcher__SelectionObserver
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Model Observer
+# -----------------------------------------------------------------------------
+
+    class Na__VegetationSketcher__ModelObserver < Sketchup::ModelObserver
+
+        def onTransactionCommit(_model)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onTransactionUndo(_model)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onTransactionRedo(_model)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onTransactionAbort(_model)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onActivePathChanged(_model)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onDeleteModel(_model)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+    end # class Na__VegetationSketcher__ModelObserver
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Entity Observer
+# -----------------------------------------------------------------------------
+
+    class Na__VegetationSketcher__EntityObserver < Sketchup::EntityObserver
+
+        def onChangeEntity(_entity)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onEraseEntity(_entity)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+    end # class Na__VegetationSketcher__EntityObserver
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | App Observer
+# -----------------------------------------------------------------------------
+
+    class Na__VegetationSketcher__AppObserver < Sketchup::AppObserver
+
+        def onNewModel(_model)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onOpenModel(_model)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+        def onActivateModel(_model)
+            Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__DialogManager__HandleObserverEvent
+        end
+
+    end # class Na__VegetationSketcher__AppObserver
+
+# endregion -------------------------------------------------------------------
+
+end # module Na__Noble3dModellingTools
+
+# =============================================================================
+# END OF FILE
+# =============================================================================

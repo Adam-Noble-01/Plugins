@@ -1,79 +1,201 @@
 <!doctype html>
+<!--
+=============================================================================
+NA NOBLE3D MODELLING TOOLS - VEGETATION SKETCHER - UI LAYOUT
+=============================================================================
+
+FILE       : Na__Noble3dModellingTools__VegetationSketcher__UiLayout__.html
+PURPOSE    : HtmlDialog shell for Vegetation Sketcher. Presets, species,
+             form preview, millimetre dimensions and acknowledged Draw /
+             Finish commands. Assets are inlined by the DialogManager.
+
+INJECTION  : {{STYLESHEET_CONTENT}}  - Na__Noble3dModellingTools__VegetationSketcher__Styles__.css
+             {{UI_BRIDGE_SCRIPT}}    - Na__Noble3dModellingTools__VegetationSketcher__UiBridge__.js
+
+RUBY -> JS : Na__VegetationSketcher__Receive(event, payload)
+JS -> RUBY : sketchup.na_dialog_ready / na_event
+
+=============================================================================
+-->
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Noble Vegetation Sketcher</title>
-  <style>{{STYLESHEET_CONTENT}}</style>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Na Noble3d Tools : Vegetation Sketcher</title>
+  <style>
+    {{STYLESHEET_CONTENT}}
+  </style>
 </head>
 <body>
-  <div class="app">
-    <header><strong>Vegetation Sketcher</strong><span class="badge">WHITECARD</span></header>
-    <main>
-      <section class="model-state">
-        <div class="section-top"><h2 id="mode-label">Connecting to SketchUp</h2><button id="new" type="button">New vegetation</button></div>
-        <p id="selection-info" class="hint">Waiting for the model bridge...</p>
-        <div id="edit-controls" hidden>
-          <label class="check"><input id="live" type="checkbox" checked><span>Live update selected vegetation</span></label>
-          <div class="button-row"><button id="load" type="button">Reload saved settings</button><button id="update" type="button">Update selected</button></div>
+
+  <div class="naVegetation__App">
+
+    <header class="naVegetation__Header">
+      <strong class="naVegetation__HeaderTitle">Vegetation Sketcher</strong>
+      <span class="naVegetation__Badge">WHITECARD</span>
+    </header>
+
+    <main class="naVegetation__Body">
+
+      <section class="naVegetation__Group naVegetation__Group--state">
+        <div class="naVegetation__GroupHeader">
+          <h2 class="naVegetation__GroupTitle" id="naVegetation_modeLabel">Connecting to SketchUp</h2>
+          <button id="naVegetation_btnNew" class="naVegetation__Btn naVegetation__Btn--compact" type="button">New vegetation</button>
+        </div>
+        <p id="naVegetation_selectionInfo" class="naVegetation__Hint">Waiting for the model bridge...</p>
+        <div id="naVegetation_editControls" hidden>
+          <label class="naVegetation__Check">
+            <input id="naVegetation_chkLive" type="checkbox" checked />
+            <span>Live update selected vegetation</span>
+          </label>
+          <div class="naVegetation__ButtonRow">
+            <button id="naVegetation_btnLoad" class="naVegetation__Btn" type="button">Reload saved settings</button>
+            <button id="naVegetation_btnUpdate" class="naVegetation__Btn" type="button">Update selected</button>
+          </div>
         </div>
       </section>
-      <section>
-        <h2>Vegetation preset</h2>
-        <div class="presets" role="group" aria-label="Vegetation presets">
-          <button type="button" data-preset="hedge" aria-pressed="true"><svg viewBox="0 0 60 42" aria-hidden="true"><path d="M5 17 42 6 55 14 18 26Z M5 17v16l13 7V26 M18 40l37-12V14"/></svg><b>Hedge</b><span>Sketch a row</span></button>
-          <button type="button" data-preset="tree" aria-pressed="false"><svg viewBox="0 0 60 42" aria-hidden="true"><path d="m29 3 15 5 8 12-7 11-14 3-17-7-5-11L18 6Z M27 33v8h6v-7 M29 3l-8 16 10 15 12-15Z M9 16l12 3 22 0 9 1"/></svg><b>Tree</b><span>Plant a canopy</span></button>
-          <button type="button" data-preset="shrub" aria-pressed="false"><svg viewBox="0 0 60 42" aria-hidden="true"><path d="m5 28 6-13 16-7 17 4 11 13-4 11-24 4-18-4Z M27 8l-7 18 7 14 15-16 2-12 M5 28l15-2 22-2 13 1"/></svg><b>Shrub</b><span>Place a low form</span></button>
+
+      <section class="naVegetation__Group">
+        <h2 class="naVegetation__GroupTitle">Vegetation preset</h2>
+        <div class="naVegetation__Presets" role="group" aria-label="Vegetation presets">
+          <button type="button" class="naVegetation__Preset" data-preset="hedge" aria-pressed="true">
+            <svg viewBox="0 0 60 42" aria-hidden="true"><path d="M5 17 42 6 55 14 18 26Z M5 17v16l13 7V26 M18 40l37-12V14"/></svg>
+            <b>Hedge</b><span>Sketch a row</span>
+          </button>
+          <button type="button" class="naVegetation__Preset" data-preset="tree" aria-pressed="false">
+            <svg viewBox="0 0 60 42" aria-hidden="true"><path d="m29 3 15 5 8 12-7 11-14 3-17-7-5-11L18 6Z M27 33v8h6v-7 M29 3l-8 16 10 15 12-15Z M9 16l12 3 22 0 9 1"/></svg>
+            <b>Tree</b><span>Plant a canopy</span>
+          </button>
+          <button type="button" class="naVegetation__Preset" data-preset="shrub" aria-pressed="false">
+            <svg viewBox="0 0 60 42" aria-hidden="true"><path d="m5 28 6-13 16-7 17 4 11 13-4 11-24 4-18-4Z M27 8l-7 18 7 14 15-16 2-12 M5 28l15-2 22-2 13 1"/></svg>
+            <b>Shrub</b><span>Place a low form</span>
+          </button>
         </div>
       </section>
-      <section data-for="tree" id="tree-type-section" hidden>
-        <label class="row" for="tree_type"><span>Tree type</span><select id="tree_type" disabled>
-          <option value="generic">Generic canopy</option>
-          <option value="douglas_fir">Douglas fir</option>
-          <option value="english_oak">English oak</option>
-        </select></label>
-        <p id="tree-info" class="hint"></p>
-        <p class="hint">Changing type loads its starting dimensions and mesh spacing.</p>
+
+      <section class="naVegetation__Group" data-for="tree" id="naVegetation_treeTypeSection" hidden>
+        <label class="naVegetation__Row" for="naVegetation_selTreeType">
+          <span>Tree type</span>
+          <select id="naVegetation_selTreeType" disabled>
+            <option value="generic">Generic canopy</option>
+            <option value="douglas_fir">Douglas fir</option>
+            <option value="english_oak">English oak</option>
+          </select>
+        </label>
+        <p id="naVegetation_treeInfo" class="naVegetation__Hint"></p>
+        <p class="naVegetation__Hint">Changing type loads its starting dimensions and mesh spacing.</p>
       </section>
-      <section class="preview-section">
-        <div class="section-top"><h2>Form preview</h2><label class="inline"><input id="wire" type="checkbox">Quad grid</label></div>
-        <canvas id="preview" aria-label="Vegetation preview. Drag to orbit the model."></canvas>
-        <div class="preview-footer"><span>Drag to orbit · Updates after a pause</span><button id="reset-view" type="button" class="text-button">Reset view</button></div>
-        <div id="mesh-info" class="hint">Preparing preview...</div>
-        <div id="tree-scale" class="hint" data-for="tree" hidden></div>
-      </section>
-      <section>
-        <div class="section-top"><h2>Dimensions</h2><span class="hint">millimetres</span></div>
-        <div class="fields">
-          <label><span id="width-label">Width</span><input id="width" data-option type="number" min="50" max="50000" step="any" value="800"></label>
-          <label>Height<input id="height" data-option type="number" min="50" max="100000" step="any" value="1600"></label>
-          <label data-for="plant">Depth<input id="depth" data-option type="number" min="50" max="50000" step="any" value="800"></label>
-          <label data-for="hedge"><span id="length-label">Preview length</span><input id="length" data-option type="number" min="50" max="100000" step="any" value="3000"></label>
-          <label data-for="tree">Crown base height<input id="trunk_height" data-option type="number" min="25" max="75000" step="any" value="1800"></label>
-          <label data-for="tree">Trunk diameter<input id="trunk_diameter" data-option type="number" min="20" max="5000" step="any" value="240"></label>
+
+      <section class="naVegetation__Group naVegetation__Group--preview">
+        <div class="naVegetation__GroupHeader">
+          <h2 class="naVegetation__GroupTitle">Form preview</h2>
+          <label class="naVegetation__Inline">
+            <input id="naVegetation_chkWire" type="checkbox" />Quad grid
+          </label>
         </div>
-        <p class="hint" id="dimension-hint">Drawn length follows the cursor. Type an exact length in SketchUp.</p>
+        <canvas id="naVegetation_canvasPreview" class="naVegetation__Canvas" aria-label="Vegetation preview. Drag to orbit the model."></canvas>
+        <div class="naVegetation__PreviewFooter">
+          <span>Drag to orbit · Updates after a pause</span>
+          <button id="naVegetation_btnResetView" type="button" class="naVegetation__TextButton">Reset view</button>
+        </div>
+        <div id="naVegetation_meshInfo" class="naVegetation__Hint">Preparing preview...</div>
+        <div id="naVegetation_treeScale" class="naVegetation__Hint naVegetation__Hint--scale" data-for="tree" hidden></div>
       </section>
-      <section>
-        <h2>Mesh &amp; form</h2>
-        <label class="row"><span>Quad resolution</span><select id="resolution" data-option><option>10</option><option>25</option><option>50</option><option selected>100</option><option>200</option><option>300</option><option>500</option></select><span class="hint">mm</span></label>
-        <div class="modifier"><label for="soften"><b>1</b> <span id="soften-label">Soften corners</span></label><output id="soften-value">45%</output></div>
-        <input id="soften" data-option type="range" min="0" max="100" step="any" value="45">
-        <div class="modifier"><label for="random"><b>2</b> Randomise XYZ</label><output id="random-value">55 mm</output></div>
-        <input id="random" data-option type="range" min="0" max="500" step="any" value="55">
-        <p class="hint">Round the form first, then add organic variation. The base stays grounded.</p>
-        <label class="check"><input id="smooth" data-option type="checkbox" checked><span>Smooth model shading <small>40.3&deg; softening with smooth normals and coplanar edges. Off restores facets.</small></span></label>
-        <div class="seed-row"><label for="seed">Seed</label><input id="seed" data-option type="number" min="1" max="2147483646" step="1" value="12345"><button id="variation" type="button">New variation</button></div>
-        <label class="check"><input id="vary" data-option type="checkbox" checked><span>Vary each new planting</span></label>
+
+      <section class="naVegetation__Group">
+        <div class="naVegetation__GroupHeader">
+          <h2 class="naVegetation__GroupTitle">Dimensions</h2>
+          <span class="naVegetation__Hint">millimetres</span>
+        </div>
+        <div class="naVegetation__Fields">
+          <label>
+            <span id="naVegetation_widthLabel">Width</span>
+            <input id="naVegetation_inpWidth" data-option="width" type="number" min="50" max="50000" step="any" value="800" />
+          </label>
+          <label>
+            Height
+            <input id="naVegetation_inpHeight" data-option="height" type="number" min="50" max="100000" step="any" value="1600" />
+          </label>
+          <label data-for="plant">
+            Depth
+            <input id="naVegetation_inpDepth" data-option="depth" type="number" min="50" max="50000" step="any" value="800" />
+          </label>
+          <label data-for="hedge">
+            <span id="naVegetation_lengthLabel">Preview length</span>
+            <input id="naVegetation_inpLength" data-option="length" type="number" min="50" max="100000" step="any" value="3000" />
+          </label>
+          <label data-for="tree">
+            Crown base height
+            <input id="naVegetation_inpTrunkHeight" data-option="trunk_height" type="number" min="25" max="75000" step="any" value="1800" />
+          </label>
+          <label data-for="tree">
+            Trunk diameter
+            <input id="naVegetation_inpTrunkDiameter" data-option="trunk_diameter" type="number" min="20" max="5000" step="any" value="240" />
+          </label>
+        </div>
+        <p class="naVegetation__Hint" id="naVegetation_dimensionHint">Drawn length follows the cursor. Type an exact length in SketchUp.</p>
       </section>
+
+      <section class="naVegetation__Group">
+        <h2 class="naVegetation__GroupTitle">Mesh &amp; form</h2>
+        <label class="naVegetation__Row">
+          <span>Quad resolution</span>
+          <select id="naVegetation_selResolution" data-option="resolution">
+            <option>10</option>
+            <option>25</option>
+            <option>50</option>
+            <option selected>100</option>
+            <option>200</option>
+            <option>300</option>
+            <option>500</option>
+          </select>
+          <span class="naVegetation__Hint">mm</span>
+        </label>
+        <div class="naVegetation__Modifier">
+          <label for="naVegetation_rngSoften"><b>1</b> <span id="naVegetation_softenLabel">Soften corners</span></label>
+          <output id="naVegetation_softenValue">45%</output>
+        </div>
+        <input id="naVegetation_rngSoften" data-option="soften" type="range" min="0" max="100" step="any" value="45" />
+        <div class="naVegetation__Modifier">
+          <label for="naVegetation_rngRandom"><b>2</b> Randomise XYZ</label>
+          <output id="naVegetation_randomValue">55 mm</output>
+        </div>
+        <input id="naVegetation_rngRandom" data-option="random" type="range" min="0" max="500" step="any" value="55" />
+        <p class="naVegetation__Hint">Round the form first, then add organic variation. The base stays grounded.</p>
+        <label class="naVegetation__Check">
+          <input id="naVegetation_chkSmooth" data-option="smooth" type="checkbox" checked />
+          <span>Smooth model shading <small>40.3&deg; softening with smooth normals and coplanar edges. Off restores facets.</small></span>
+        </label>
+        <div class="naVegetation__SeedRow">
+          <label for="naVegetation_inpSeed">Seed</label>
+          <input id="naVegetation_inpSeed" data-option="seed" type="number" min="1" max="2147483646" step="1" value="12345" />
+          <button id="naVegetation_btnVariation" class="naVegetation__Btn" type="button">New variation</button>
+        </div>
+        <label class="naVegetation__Check">
+          <input id="naVegetation_chkVary" data-option="vary" type="checkbox" checked />
+          <span>Vary each new planting</span>
+        </label>
+      </section>
+
     </main>
-    <footer>
-      <div id="viewport-state" class="viewport-state" hidden></div>
-      <div class="button-row"><button id="start" class="primary" type="button" disabled>Draw hedge in SketchUp</button><button id="stop" type="button" hidden>Finish</button></div>
-      <p class="hint" id="help">Click and drag in the model, or click a start and an end.</p>
+
+    <footer class="naVegetation__Footer">
+      <div id="naVegetation_viewportState" class="naVegetation__ViewportState" hidden></div>
+      <div class="naVegetation__ButtonRow">
+        <button id="naVegetation_btnStart" class="naVegetation__Btn naVegetation__Btn--primary" type="button" disabled>Draw hedge in SketchUp</button>
+        <button id="naVegetation_btnStop" class="naVegetation__Btn" type="button" hidden>Finish</button>
+      </div>
+      <p class="naVegetation__Hint" id="naVegetation_help">Click and drag in the model, or click a start and an end.</p>
     </footer>
-    <div id="status" role="status" aria-live="polite">Ready.</div>
+
+    <div id="naVegetation_status" class="naVegetation__Status" role="status" aria-live="polite">Ready.</div>
+
   </div>
-  <script>{{UI_BRIDGE_SCRIPT}}</script>
+
+  <script>
+    {{UI_BRIDGE_SCRIPT}}
+  </script>
+
 </body>
 </html>

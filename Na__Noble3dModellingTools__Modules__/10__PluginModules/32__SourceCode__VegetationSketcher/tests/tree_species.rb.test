@@ -1,22 +1,22 @@
 # Loaded after the shared regression and Tool contract doubles.
 fixtures = JSON.parse(File.read(File.join(__dir__, 'fixtures.json')))
-fixtures['tree_types'] = V::Options.tree_type_info
+fixtures['tree_types'] = Options.Na__VegetationSketcher__Options__TreeTypeInfo
 
 def bounds_of(points)
   3.times.map { |axis| points.map { |p| p[axis] }.minmax }
 end
 
-check('legacy tree options remain generic') { V::Options.resolve('preset' => 'tree')['tree_type'] == 'generic' }
-check('unknown saved species falls back to generic') { V::Options.resolve('preset' => 'tree', 'tree_type' => 'missing')['tree_type'] == 'generic' }
-rejected('unknown species choice rejected') { V::Options.tree_preset('missing') }
+check('legacy tree options remain generic') { Options.Na__VegetationSketcher__Options__Resolve('preset' => 'tree')['tree_type'] == 'generic' }
+check('unknown saved species falls back to generic') { Options.Na__VegetationSketcher__Options__Resolve('preset' => 'tree', 'tree_type' => 'missing')['tree_type'] == 'generic' }
+rejected('unknown species choice rejected') { Options.Na__VegetationSketcher__Options__TreePreset('missing') }
 
 %w[douglas_fir english_oak].each do |type|
-  options = V::Options.resolve('preset' => 'tree', 'tree_type' => type)
-  check("#{type}: preset loads usable full-size defaults") { options == V::Options.tree_preset(type) && options['height'] >= 18000 }
-  mesh = V::Mesh.build(options)
-  check("#{type}: final density under limit") { mesh[:requested_quads] == mesh[:quads].length && mesh[:quads].length < V::Mesh::MAX_QUADS }
-  preview = V::Mesh.build(options, preview: true)
-  check("#{type}: bounded preview") { preview[:quads].length <= V::Mesh::PREVIEW_QUADS }
+  options = Options.Na__VegetationSketcher__Options__Resolve('preset' => 'tree', 'tree_type' => type)
+  check("#{type}: preset loads usable full-size defaults") { options == Options.Na__VegetationSketcher__Options__TreePreset(type) && options['height'] >= 18000 }
+  mesh = Mesh.Na__VegetationSketcher__Mesh__Build(options)
+  check("#{type}: final density under limit") { mesh[:requested_quads] == mesh[:quads].length && mesh[:quads].length < Mesh::NA_MAX_QUADS }
+  preview = Mesh.Na__VegetationSketcher__Mesh__Build(options, preview: true)
+  check("#{type}: bounded preview") { preview[:quads].length <= Mesh::NA_PREVIEW_QUADS }
   edges = Hash.new(0)
   mesh[:quads].each { |q| q.each_with_index { |a, i| edges[[a, q[(i + 1) % 4]].sort] += 1 } }
   check("#{type}: single welded closed crown") { edges.values.all? { |n| n == 2 } && mesh[:points].length - edges.length + mesh[:quads].length == 2 }
@@ -28,7 +28,7 @@ rejected('unknown species choice rejected') { V::Options.tree_preset('missing') 
       [[a,b,c], [a,c,d]].all? do |i,j,k|
         u = 3.times.map { |axis| mesh[:points][j][axis] - mesh[:points][i][axis] }
         v = 3.times.map { |axis| mesh[:points][k][axis] - mesh[:points][i][axis] }
-        V::TreeForms.cross(u, v).sum { |n| n*n } > 0.0001
+        TreeForms.Na__VegetationSketcher__TreeForms__Cross(u, v).sum { |n| n*n } > 0.0001
       end
     end
   end
@@ -39,17 +39,17 @@ rejected('unknown species choice rejected') { V::Options.tree_preset('missing') 
     end
     check("#{type}: foliage starts at entered crown base") { (data[:points].map(&:last).min - options['trunk_height']).abs < 1.0e-6 }
   end
-  check("#{type}: seed reproduces geometry") { mesh[:points] == V::Mesh.build(options)[:points] }
-  varied = V::Mesh.build(options.merge('seed' => 9231))
+  check("#{type}: seed reproduces geometry") { mesh[:points] == Mesh.Na__VegetationSketcher__Mesh__Build(options)[:points] }
+  varied = Mesh.Na__VegetationSketcher__Mesh__Build(options.merge('seed' => 9231))
   check("#{type}: variation changes shape at fixed dimensions") { mesh[:points] != varied[:points] && bounds_of(mesh[:points]) == bounds_of(varied[:points]) }
   smaller = options.merge('width' => 6000, 'depth' => 5000, 'height' => 9000, 'trunk_height' => 1800)
-  check("#{type}: custom tree dimensions remain editable") { (bounds_of(V::Mesh.build(smaller)[:points])[2][1] - 9000).abs < 1.0e-6 }
+  check("#{type}: custom tree dimensions remain editable") { (bounds_of(Mesh.Na__VegetationSketcher__Mesh__Build(smaller)[:points])[2][1] - 9000).abs < 1.0e-6 }
   entity = Sketchup::ComponentInstance.new(180)
   model = Sketchup::Model.new
-  V::DataSerializer.save(model, entity, options, mesh[:quads].length)
-  check("#{type}: definition and model defaults retain species and scale") { V::DataSerializer.load(entity) == options && V::DataSerializer.model_options(model, '{}') == options }
+  DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model, entity, options, mesh[:quads].length)
+  check("#{type}: definition and model defaults retain species and scale") { DataSerializer.Na__VegetationSketcher__DataSerializer__Load(entity) == options && DataSerializer.Na__VegetationSketcher__DataSerializer__ModelOptions(model, '{}') == options }
   copy = Sketchup::ComponentInstance.new(181, entity.definition)
-  check("#{type}: copied definition retains species") { V::DataSerializer.load(copy)['tree_type'] == type }
+  check("#{type}: copied definition retains species") { DataSerializer.Na__VegetationSketcher__DataSerializer__Load(copy)['tree_type'] == type }
   fixtures[type] = { settings: options, mesh: preview }
 end
 check('fir has a narrower upper crown than lower crown') do
@@ -65,27 +65,27 @@ end
 File.write(File.join(__dir__, 'fixtures.json'), JSON.generate(fixtures))
 
 # Real acknowledged controller and Tool events; only native population is doubled.
-V::Builder.singleton_class.alias_method(:species_native_create, :create)
-V::Builder.singleton_class.alias_method(:species_native_update, :update)
-V::Builder.define_singleton_method(:create) do |model, options, _transform, _length = nil|
-  data = V::Mesh.build(options)
+Builder.singleton_class.alias_method(:species_native_create, :Na__VegetationSketcher__Builder__Create)
+Builder.singleton_class.alias_method(:species_native_update, :Na__VegetationSketcher__Builder__Update)
+Builder.define_singleton_method(:Na__VegetationSketcher__Builder__Create) do |model, options, _transform, _length = nil|
+  data = Mesh.Na__VegetationSketcher__Mesh__Build(options)
   entity = Sketchup::ComponentInstance.new(200 + model.active_entities.length)
-  entity.name = 'Noble Whitecard ' + V::Options.label(options)
-  V::DataSerializer.save(model, entity, options, data[:quads].length)
+  entity.name = 'Noble Whitecard ' + Options.Na__VegetationSketcher__Options__Label(options)
+  DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model, entity, options, data[:quads].length)
   model.active_entities << entity
   entity
 end
-V::Builder.define_singleton_method(:update) do |model, entity, options|
-  data = V::Mesh.build(options)
-  V::DataSerializer.save(model, entity, options, data[:quads].length)
+Builder.define_singleton_method(:Na__VegetationSketcher__Builder__Update) do |model, entity, options|
+  data = Mesh.Na__VegetationSketcher__Mesh__Build(options)
+  DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model, entity, options, data[:quads].length)
 end
 model = Sketchup::Model.new
 Sketchup.model = model
 view = TestView.new
 model.view = view
-dialog = V::Dialog.show
-dialog.callbacks['na_ready'].call(nil)
-V::Dialog.dispatch('preset', { 'preset' => 'tree' })
+dialog = Dialog.Na__VegetationSketcher__ShowDialog
+dialog.callbacks['na_dialog_ready'].call(nil)
+Dialog.na_dispatch('preset', { 'preset' => 'tree' })
 state = dialog.events.reverse.find { |event, _| event == 'state' }[1]
 payload = { 'context' => state['context'], 'target_id' => state['target_id'], 'tree_type' => 'douglas_fir' }
 dialog.callbacks['na_event'].call(nil, JSON.generate(id: 44, session: state['session'], revision: 1, action: 'tree_type', payload: payload))
@@ -94,28 +94,28 @@ check('species command acknowledged with correct dimensions') do
   settings['tree_type'] == 'douglas_fir' && settings['height'] == 18000 && dialog.events.last == ['ack', { 'id' => 44, 'success' => true }]
 end
 settings = dialog.events.reverse.find { |event, _| event == 'state' }[1]['settings']
-V::Dialog.dispatch('start', { 'settings' => settings })
+Dialog.na_dispatch('start', { 'settings' => settings })
 tool = model.instance_variable_get(:@tool)
 tool.onLButtonDown(0, 1200, 2400, view)
 tool.onLButtonUp(0, 1200, 2400, view)
 created = model.selection.first
-check('plant tool creates chosen species') { created && V::DataSerializer.load(created)['tree_type'] == 'douglas_fir' }
-V::Dialog.dispatch('stop', {})
+check('plant tool creates chosen species') { created && DataSerializer.Na__VegetationSketcher__DataSerializer__Load(created)['tree_type'] == 'douglas_fir' }
+Dialog.na_dispatch('stop', {})
 state = dialog.events.reverse.find { |event, _| event == 'state' }[1]
 check('Finish reloads planted species into editor') { state['target_id'] == created.persistent_id.to_s && state['settings']['tree_type'] == 'douglas_fir' }
 edit = { 'context' => state['context'], 'target_id' => state['target_id'], 'tree_type' => 'english_oak' }
-V::Dialog.dispatch('tree_type', edit)
-check('live species edit updates same selected tree') { model.active_entities.length == 1 && V::DataSerializer.load(created)['tree_type'] == 'english_oak' }
-V::Dialog.dispatch('live', edit.merge('enabled' => false))
-V::Dialog.dispatch('tree_type', edit.merge('tree_type' => 'douglas_fir'))
-check('paused live editing preserves saved species') { V::DataSerializer.load(created)['tree_type'] == 'english_oak' }
+Dialog.na_dispatch('tree_type', edit)
+check('live species edit updates same selected tree') { model.active_entities.length == 1 && DataSerializer.Na__VegetationSketcher__DataSerializer__Load(created)['tree_type'] == 'english_oak' }
+Dialog.na_dispatch('live', edit.merge('enabled' => false))
+Dialog.na_dispatch('tree_type', edit.merge('tree_type' => 'douglas_fir'))
+check('paused live editing preserves saved species') { DataSerializer.Na__VegetationSketcher__DataSerializer__Load(created)['tree_type'] == 'english_oak' }
 state = dialog.events.reverse.find { |event, _| event == 'state' }[1]
-V::Dialog.dispatch('update', edit.merge('settings' => state['settings']))
-check('manual Update saves staged species') { V::DataSerializer.load(created)['tree_type'] == 'douglas_fir' }
-V::Dialog.dispatch('new', {})
-rejected('stale species edit cannot affect previous selection') { V::Dialog.dispatch('tree_type', edit) }
-V::Dialog.reset
+Dialog.na_dispatch('update', edit.merge('settings' => state['settings']))
+check('manual Update saves staged species') { DataSerializer.Na__VegetationSketcher__DataSerializer__Load(created)['tree_type'] == 'douglas_fir' }
+Dialog.na_dispatch('new', {})
+rejected('stale species edit cannot affect previous selection') { Dialog.na_dispatch('tree_type', edit) }
+Dialog.Na__VegetationSketcher__ResetDialog
 UI.flush
-V::Builder.singleton_class.alias_method(:create, :species_native_create)
-V::Builder.singleton_class.alias_method(:update, :species_native_update)
+Builder.singleton_class.alias_method(:Na__VegetationSketcher__Builder__Create, :species_native_create)
+Builder.singleton_class.alias_method(:Na__VegetationSketcher__Builder__Update, :species_native_update)
 puts "PASS: #{$checks} total Ruby checks including species scale, topology, persistence and planting."

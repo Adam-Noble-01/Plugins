@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "54cf81ff-4ef2-4c1f-af5d-b6a9e8b0e340",
+  "name": "Standard Metal Railing Balustrade - h900mm",
+  "description": "1. Balustrade is 900mm\n2. S Standard Typical slender metal balustrade",
+  "category": "Balustrades & Railings",
+  "created_at": "2026-09-16T09:09:16Z",
+  "updated_at": "2026-09-16T09:09:16Z",
+  "configuration": {
+    "type": "object",
+    "unit_width_mm": 100.00000000000036,
+    "unit_depth_mm": 59.99999999999502,
+    "unit_height_mm": 850.0000000000001,
+    "spacing_mm": 0.0,
+    "distribution": "fixed",
+    "inset_mm": 0.0,
+    "anchor_mode": "local_axis",
+    "keep_upright": true,
+    "reverse_path": false,
+    "path_source": "draw",
+    "offset_lateral_mm": 0.0,
+    "offset_vertical_mm": 0.0
+  },
+  "source": {
+    "asset_id": "b7ac0b15-6707-4ac3-8a32-23b94dfa7117",
+    "name": "96__ArrayAssembly__Standard__Balustrade__SlenderMentalRailings__",
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  }
+}
