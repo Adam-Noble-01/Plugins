@@ -324,7 +324,7 @@ module Na__AssemblyComposer
 
         cill_height_mm = (config_hash["cill_height_mm"] || 50).to_f
         cill_depth_mm  = (config_hash["cill_depth_mm"]  || 50).to_f
-        return if cill_height_mm <= 0.0 || cill_depth_mm < 0.0                                       # <-- Zero protrusion is a flush cill, not an absent one
+        return if cill_height_mm <= 0.0                                                              # <-- Protrusion is signed: 0 is a flush cill, negative sets it back into the reveal
 
         return unless defined?(Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders)
 

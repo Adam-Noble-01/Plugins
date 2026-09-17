@@ -8,11 +8,84 @@
 # PURPOSE    : Html, CSS and script for the primitive right-click popup
 # CREATED    : 2026
 #
+# CONTEXT-AWARE SUBMENUS:
+# - Every tool in the plugin is listed in this one menu, so an option belonging
+#   to one of them cannot simply be added to the bottom: nine tools with three
+#   options each is a menu nobody can read. Options are therefore declared
+#   against a tool's mode key (Na__InsertPrimatives__AppData__ToolOptions__.rb)
+#   and rendered as an indented block under the button of the tool that is
+#   ACTUALLY RUNNING. Switch tools and the block moves with you; run a tool with
+#   no options and the menu is exactly the length it always was.
+# - The mode buttons are built through one helper, so a tool gains a submenu by
+#   declaring options and nothing here needs to change.
+# - Three colours, three meanings: blue is the tool you are in, green is an
+#   option switched on, plain white is everything else.
+#
 # =============================================================================
 
 require 'sketchup.rb'
 
 module Na__InsertPrimatives
+
+    # -----------------------------------------------------------------------------
+    # REGION | Markup Helpers
+    # -----------------------------------------------------------------------------
+
+    # FUNCTION | Make a String Safe to Drop Into the Popup Markup
+    # ------------------------------------------------------------
+    def self.Na__RightClickPopup__Escape(text)
+        text.to_s
+            .gsub('&', '&amp;')
+            .gsub('<', '&lt;')
+            .gsub('>', '&gt;')
+            .gsub('"', '&quot;')
+            .gsub("'", '&#39;')
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Options the Running Tool Declares, or None
+    # ------------------------------------------------------------
+    def self.Na__RightClickPopup__ToolOptions(tool_instance)
+        return [] unless tool_instance.respond_to?(:Na__DrawnMode__ToolOptions)
+
+        tool_instance.Na__DrawnMode__ToolOptions || []
+    rescue StandardError
+        []
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Indented Block of Toggles Under the Running Tool
+    # ------------------------------------------------------------
+    def self.Na__RightClickPopup__SubMenuHtml(options)
+        return '' if options.nil? || options.empty?
+
+        rows = options.map do |option|
+            id      = Na__InsertPrimatives.Na__RightClickPopup__Escape(option[:id])
+            caption = Na__InsertPrimatives.Na__RightClickPopup__Escape(option[:caption])
+            summary = Na__InsertPrimatives.Na__RightClickPopup__Escape(option[:summary])
+            state   = option[:enabled] ? 'opt on' : 'opt'
+
+            "<button id=\"opt_#{id}\" class=\"#{state}\" title=\"#{summary}\" " \
+            "onclick=\"sketchup.toggleToolOption('#{id}')\">#{caption}</button>"
+        end
+
+        "<div class=\"submenu\">#{rows.join}</div>"
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | One Mode Button, Carrying the Submenu When It Is the Live Tool
+    # ------------------------------------------------------------
+    def self.Na__RightClickPopup__ModeButton(label, callback, mode_key, active_key, submenu)
+        running = (active_key == mode_key)
+        classes = running ? 'mode active' : 'mode'
+        button  = "<button class=\"#{classes}\" onclick=\"sketchup.#{callback}()\">#{label}</button>"
+
+        running ? button + submenu : button
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
 
     # -----------------------------------------------------------------------------
     # REGION | Html Css and Script
@@ -29,15 +102,21 @@ module Na__InsertPrimatives
         side_label   = Na__InsertPrimatives.Na__RightClickPopup__SegmentsLabel(tool_instance)
         anchor_label = Na__InsertPrimatives.Na__RightClickPopup__AnchorLabel
 
-        cube_class   = active_key == :cube            ? 'mode active' : 'mode'
-        plane_class  = active_key == :plane           ? 'mode active' : 'mode'
-        drawn_p_cls  = active_key == :drawn_plane     ? 'mode active' : 'mode'
-        drawn_v_cls  = active_key == :drawn_volume    ? 'mode active' : 'mode'
-        drawn_c_cls  = active_key == :drawn_cylinder  ? 'mode active' : 'mode'
-        roof_p_cls   = active_key == :drawn_pitched_roof ? 'mode active' : 'mode'
-        roof_h_cls   = active_key == :drawn_hipped_roof  ? 'mode active' : 'mode'
-        push_cls     = active_key == :drawn_push_pull    ? 'mode active' : 'mode'
-        chamfer_cls  = active_key == :drawn_chamfer      ? 'mode active' : 'mode'
+        # Built once and handed to every button — only the one whose mode key is
+        # the running tool's ever renders it.
+        submenu = Na__InsertPrimatives.Na__RightClickPopup__SubMenuHtml(
+            Na__InsertPrimatives.Na__RightClickPopup__ToolOptions(tool_instance)
+        )
+
+        cube_btn    = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Cube',             'setCubeMode',          :cube,               active_key, submenu)
+        plane_btn   = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Plane',            'setPlaneMode',         :plane,              active_key, submenu)
+        drawn_p_btn = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Drawn Plane',      'setDrawnPlaneMode',    :drawn_plane,        active_key, submenu)
+        drawn_v_btn = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Drawn Volume',     'setDrawnVolumeMode',   :drawn_volume,       active_key, submenu)
+        drawn_c_btn = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Drawn Cylinder',   'setDrawnCylinderMode', :drawn_cylinder,     active_key, submenu)
+        roof_p_btn  = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Pitched Roof',     'setPitchedRoofMode',   :drawn_pitched_roof, active_key, submenu)
+        roof_h_btn  = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Hipped Roof',      'setHippedRoofMode',    :drawn_hipped_roof,  active_key, submenu)
+        push_btn    = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Deep Push / Pull', 'setPushPullMode',      :drawn_push_pull,    active_key, submenu)
+        chamfer_btn = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Deep Chamfer',     'setChamferMode',       :drawn_chamfer,      active_key, submenu)
 
         <<~HTML
         <!DOCTYPE html>
@@ -94,6 +173,34 @@ module Na__InsertPrimatives
                     font-weight: 600;
                 }
 
+                /* The options of the tool that is running, hung off its button
+                   by a rule down the left so they read as belonging to it. */
+                .submenu {
+                    margin: 0 0 6px 9px;
+                    padding-left: 8px;
+                    border-left: 2px solid #4b83c8;
+                }
+
+                .submenu button {
+                    margin-bottom: 3px;
+                    padding: 5px 8px;
+                    font-size: 11px;
+                    background: #fbfbfb;
+                    color: #444;
+                }
+
+                .submenu button.on {
+                    background: #e3f2e5;
+                    border-color: #6aa86f;
+                    color: #1d5e26;
+                    font-weight: 600;
+                }
+
+                .submenu button:hover {
+                    background: #e7f0ff;
+                    border-color: #7aa7e0;
+                }
+
                 button:last-child {
                     margin-bottom: 0;
                 }
@@ -101,21 +208,21 @@ module Na__InsertPrimatives
         </head>
         <body>
             <div class="heading">Place</div>
-            <button class="#{cube_class}"  onclick="sketchup.setCubeMode()">Cube</button>
-            <button class="#{plane_class}" onclick="sketchup.setPlaneMode()">Plane</button>
+            #{cube_btn}
+            #{plane_btn}
 
             <div class="heading">Draw</div>
-            <button class="#{drawn_p_cls}" onclick="sketchup.setDrawnPlaneMode()">Drawn Plane</button>
-            <button class="#{drawn_v_cls}" onclick="sketchup.setDrawnVolumeMode()">Drawn Volume</button>
-            <button class="#{drawn_c_cls}" onclick="sketchup.setDrawnCylinderMode()">Drawn Cylinder</button>
+            #{drawn_p_btn}
+            #{drawn_v_btn}
+            #{drawn_c_btn}
 
             <div class="heading">Roof</div>
-            <button class="#{roof_p_cls}" onclick="sketchup.setPitchedRoofMode()">Pitched Roof</button>
-            <button class="#{roof_h_cls}" onclick="sketchup.setHippedRoofMode()">Hipped Roof</button>
+            #{roof_p_btn}
+            #{roof_h_btn}
 
             <div class="heading">Modify</div>
-            <button class="#{push_cls}" onclick="sketchup.setPushPullMode()">Deep Push / Pull</button>
-            <button class="#{chamfer_cls}" onclick="sketchup.setChamferMode()">Deep Chamfer</button>
+            #{push_btn}
+            #{chamfer_btn}
 
             <div class="rule"></div>
             <button id="gridBtn" onclick="sketchup.cycleGridStep()">Snap Grid: #{grid_label}</button>
@@ -130,7 +237,7 @@ module Na__InsertPrimatives
                 // Report the real content height so Ruby can shrink the window to
                 // fit. Without this the height is a hand-maintained number that
                 // silently clips the last button every time an entry is added.
-                window.addEventListener('load', function () {
+                function naReportHeight() {
                     var measured = Math.max(
                         document.body.scrollHeight,
                         document.documentElement.scrollHeight
@@ -138,7 +245,19 @@ module Na__InsertPrimatives
                     if (window.sketchup && sketchup.reportContentHeight) {
                         sketchup.reportContentHeight(measured);
                     }
-                });
+                }
+
+                window.addEventListener('load', naReportHeight);
+
+                // Toggling an option rewrites its own button in place and leaves
+                // the menu open, the way the grid step and the segment count
+                // already do — an option is rarely changed on its own.
+                function naApplyOption(optionId, caption, enabled) {
+                    var button = document.getElementById('opt_' + optionId);
+                    if (!button) { return; }
+                    button.textContent = caption;
+                    button.className = enabled ? 'opt on' : 'opt';
+                }
             </script>
         </body>
         </html>

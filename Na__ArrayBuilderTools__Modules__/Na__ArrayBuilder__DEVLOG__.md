@@ -2,6 +2,19 @@
 # =======================================================================================
 ## Version History
 
+## Array Builder Version 0.4.1 - 17-Sep-2026
+
+- Picking a replacement object while editing now immediately regenerates the
+  array when Live Mode is on. Repeated picks use the normal update operation,
+  source archive and current single/linked scope, including a newly changed scope
+  dropdown. Live Mode off keeps the replacement pending for Update array.
+- The picker validates the editing context before applying a replacement and
+  reports failed updates without masking them with a selection-success message.
+  The controls remain current so another source can be picked after a failure.
+- Validation: 143 isolated Ruby checks, including repeated live replacements,
+  single/linked scope, manual updates, creation and recovery after invalid picks.
+  Native SketchUp interaction remains an interactive check.
+
 ## Array Builder Version 0.4.0 - 17-Sep-2026
 
 ### Custom source persistence, shared editing and closing-path inference

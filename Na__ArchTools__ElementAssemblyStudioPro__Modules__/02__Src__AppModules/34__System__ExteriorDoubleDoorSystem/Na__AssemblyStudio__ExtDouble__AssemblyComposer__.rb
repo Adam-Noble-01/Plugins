@@ -333,7 +333,7 @@ module Na__AssemblyComposer
         return unless dimensions[:frame_bottom_mm] > 0
         height = GeometryHelpers.na_number(config, 'cill_height_mm', 50)
         depth = GeometryHelpers.na_number(config, 'cill_depth_mm', 50)
-        return if height <= 0 || depth < 0                                                          # <-- Zero protrusion is a flush cill, not an absent one
+        return if height <= 0                                                                       # <-- Protrusion is signed: 0 is a flush cill, negative sets it back into the reveal
         material = if GeometryHelpers.na_boolean(config, 'paint_cill', false)
                        frame_material
                    else

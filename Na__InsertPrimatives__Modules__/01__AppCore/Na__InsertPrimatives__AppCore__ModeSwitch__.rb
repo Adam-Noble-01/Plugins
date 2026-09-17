@@ -190,6 +190,51 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # -----------------------------------------------------------------------------
+        # REGION | Tool Options Submenu Interface
+        # -----------------------------------------------------------------------------
+        #
+        # The popup asks every running tool for its options and renders whatever
+        # comes back as an indented block under that tool's own button. A tool
+        # with nothing declared in NA_TOOL_OPTIONS answers with an empty list and
+        # the menu is exactly as short as it was before — which is the point:
+        # options live under the tool in use, not in one growing list everybody
+        # has to scroll past.
+        #
+        # Both methods are here rather than in each tool because the answer is
+        # the same for all of them: look up this tool's mode key in the table.
+
+        # FUNCTION | This Tool's Options, Described for the Popup
+        # ------------------------------------------------------------
+        def Na__DrawnMode__ToolOptions
+            Na__InsertPrimatives.Na__ToolOptions__Describe(self.Na__DrawnMode__ActiveModeKey)
+        rescue StandardError
+            []
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Flip One Option and Hand Back Its New Caption
+        # ------------------------------------------------------------
+        # Returns the caption so the popup can rewrite its own button without
+        # closing, the way the grid step and the segment count already do. An
+        # option is a modelling decision, and reopening the menu to make the
+        # next one would make a pair of them feel like a chore.
+        # ------------------------------------------------------------
+        def Na__DrawnMode__ToggleToolOption(option_id)
+            state   = Na__InsertPrimatives.Na__ToolOptions__Toggle(option_id)
+            caption = Na__InsertPrimatives.Na__ToolOptions__CaptionFor(option_id)
+
+            view = Sketchup.active_model ? Sketchup.active_model.active_view : nil
+            view.invalidate if view
+
+            Sketchup::set_status_text(caption, SB_PROMPT)
+            { :caption => caption, :enabled => state }
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
         # FUNCTION | Advance the Circle Segment Count to the Next Value
         # ------------------------------------------------------------
         def Na__DrawnMode__CycleCircleSegments

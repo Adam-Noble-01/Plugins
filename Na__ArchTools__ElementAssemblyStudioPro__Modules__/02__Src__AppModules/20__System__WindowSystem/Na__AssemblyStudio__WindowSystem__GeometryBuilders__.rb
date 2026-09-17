@@ -751,15 +751,21 @@ module Na__WindowSystem
         # The cill extends from the wall face (not from the inset frame).
         # When frame_wall_inset > 0, the cill still starts at the front of the wall.
         #
-        # A zero projection is legal and gives a flush cill sitting in the
+        # cill_projection is SIGNED. Zero gives a flush cill sitting in the
         # wall face - the slab still has (wall_inset + frame_depth) of depth
-        # behind it. Only a total depth of zero or less is refused, which
-        # needs a zero projection AND a negative inset cancelling the frame
-        # depth; that would be a degenerate solid, not a cill.
+        # behind it. Negative pulls the cill back INTO the reveal, which is
+        # the stub cill used where a masonry cill already carries the
+        # opening: the cill face lands at Y = -projection, so a negative
+        # value sets it behind the wall face while the slab still runs back
+        # to the frame. A -80 projection against a 100mm wall inset leaves
+        # 20mm of timber proud of the frame.
+        #
+        # Only a total depth of zero or less is refused - that is a
+        # degenerate solid, not a cill.
         #
         # @param entities [Sketchup::Entities] Target entities collection
         # @param width [Float] Cill width (matches window width)
-        # @param cill_projection [Float] Cill projection from frame
+        # @param cill_projection [Float] Signed cill projection from the wall face (negative sets it back into the reveal)
         # @param cill_height [Float] Cill height
         # @param frame_depth [Float] Frame depth
         # @param material [Sketchup::Material] Material to apply

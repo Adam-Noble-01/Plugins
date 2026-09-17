@@ -1,4 +1,4 @@
-# Array Builder 0.4 validation
+# Array Builder 0.4.1 validation
 
 Run offline regression checks from the Plugins directory:
 
@@ -87,7 +87,14 @@ Interactive checks:
     controls despite the old selection. Deselect/reselect or select another array
     to resume editing. Save to gallery must open Preset Editor with those settings.
 
-The isolated suite currently passes 135 Ruby checks plus the JavaScript arithmetic,
+18. Edit an array with Live Mode on. Pick several different source objects in turn;
+    each must update the actual array immediately and save the new source. Change
+    the copy-scope dropdown immediately before picking and verify that scope is
+    used. Turn Live Mode off: picking should only prepare the replacement until
+    Update array. Try picking the edited array itself, then a valid replacement;
+    the invalid source must report an error and leave the array intact.
+
+The isolated suite currently passes 143 Ruby checks plus the JavaScript arithmetic,
 unit parsing and mesh projection tests. New checks cover group source recovery,
 archive transport/corruption, selection lifecycle, rotated-plane inference, lock
 compatibility, pixel hysteresis and preview/click consistency. Browser interaction

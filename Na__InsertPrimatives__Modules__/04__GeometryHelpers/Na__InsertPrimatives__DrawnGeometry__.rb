@@ -26,6 +26,7 @@
 require 'sketchup.rb'
 require_relative 'Na__InsertPrimatives__DrawnGridSnap__'
 require_relative '../10__System__PlaceCube/Na__InsertPrimatives__PlaneMode__'
+require_relative '../03__AppUtils/Na__InsertPrimatives__AppUtils__StandardMaterials__'
 
 module Na__InsertPrimatives
 
@@ -179,7 +180,14 @@ module Na__InsertPrimatives
 
     # FUNCTION | Create a Drawn Volume Group
     # ------------------------------------------------------------
-    def self.Na__DrawnGeom__CreateVolume(origin, plane_key, u_len, v_len, d_len)
+    # `container_material` is the NAME of an indexed Noble Architecture material
+    # to paint the new group with — Drawn Volume's Transparent option passes
+    # MAT011__ModelingUtility__Transparent, and nil means leave it untouched.
+    # It is applied inside this operation on purpose: a paint committed
+    # separately would take a second Ctrl+Z to undo, and the first one would
+    # leave a box behind with the tint stripped off it.
+    # ------------------------------------------------------------
+    def self.Na__DrawnGeom__CreateVolume(origin, plane_key, u_len, v_len, d_len, container_material = nil)
         return nil unless origin
         return nil unless Na__InsertPrimatives.Na__DrawnGeom__ValidRectangle?(u_len, v_len)
         return nil unless Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(d_len)
@@ -199,6 +207,10 @@ module Na__InsertPrimatives
         unless face
             model.abort_operation
             return nil
+        end
+
+        if container_material
+            Na__InsertPrimatives.Na__StdMaterial__ApplyToContainer(group, container_material)
         end
 
         model.commit_operation

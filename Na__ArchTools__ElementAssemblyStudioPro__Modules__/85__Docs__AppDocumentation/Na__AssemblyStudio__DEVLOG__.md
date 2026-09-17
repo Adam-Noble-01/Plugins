@@ -3,6 +3,39 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.7.1 - 17-Sep-2026 - Negative Cill Protrusion (stub cills into the reveal)
+
+### Context
+Cill Protrusion could only ever push the timber cill *forward* of the wall face - 0 to 100mm. That assumes the window carries its own cill, which is true of a rendered or timber-framed opening and false of most of the traditional masonry work this tool gets used on.
+
+Where there is already a stone or brick cill under the opening, the timber is a **stub cill**: it exists to break the frame line and throw water clear of the frame, not to span the reveal. It wants to sit 15-25mm proud of the frame, not 100mm proud of the wall. With the frame set back on a 100mm Frame Wall Inset, the old floor of 0mm still left a 100mm slab of timber sitting over a masonry cill that was already doing the job.
+
+### Feature Summary
+- **Cill Protrusion now runs -100mm to +100mm**, step 5mm, default unchanged at 50mm.
+- **Positive is unchanged** - it projects the cill forward of the wall face exactly as before.
+- **Negative sets the cill BACK into the reveal.** The cill face lands at `-protrusion` behind the wall face while the slab still runs back to the frame, so the visible stub is `wall_inset + protrusion`.
+- The numeric field takes `-80` as an absolute value rather than a relative subtraction, automatically: the events layer already switches off relative-minus entry on any slider whose min is negative, the same way Frame Wall Inset (-50 to 150) behaves.
+
+The sliding sash that prompted this sits in a 100mm Frame Wall Inset over a masonry cill. `-80` gives it the 20mm stub it should have had.
+
+### The Geometry Already Handled It
+`Na__GeometryBuilders.na_create_cill_geometry` places the cill at `cill_y = -projection` with a depth of `projection + wall_inset + frame_depth`. Both expressions are already signed and already correct for a negative projection - the origin moves back into the reveal and the slab shortens by the same amount, so the cill's back face stays pinned to the back of the frame where it belongs. Nothing in the maths changed.
+
+What changed was the refusals in front of it:
+
+- `NA_CILL_FRAME_CONFIG.cill_depth_mm` had `min: 0`, so the slider and its numeric field clamped the value away before it ever reached Ruby.
+- All four exterior door composers (single, double, sliding, multifold) carried a `depth < 0` early return, so a negative arriving from a preset or a saved component silently dropped the cill instead of building it.
+
+Both are gone. The one guard that remains is `cill_depth <= 0` on the **total** slab depth, which is a degenerate solid and not a cill - reaching it needs a minimum frame depth, a negative wall inset and the full -100 protrusion together.
+
+### Where the Floor Comes From
+-100mm is not symmetry with the +100 max for its own sake. The frame face sits at Frame Wall Inset and the cill face at `-protrusion`, so `protrusion = -wall_inset` is the point where the cill goes flush with the frame and stops being visible at all. At the 100mm inset this detail is drawn with, -100 is exactly that point: one step past useful, and no further.
+
+### Nothing Built Before This Moves
+The default is still 50mm and every saved component, preset and attribute dictionary holds a value in the old 0-100 range, which means the same number produces the same slab it always did. Widening a minimum cannot change a value that was already legal.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.7.0 - 07-Sep-2026 - Three-Panel Sliding Doors (triple track)
 
 ### Context

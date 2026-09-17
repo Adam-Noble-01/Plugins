@@ -151,6 +151,7 @@ module Na__ArrayBuilderTools
             when 'pick'
                 Na__Dialog__StopTool()
                 @na_config = Na__ArrayBuilder__Configuration.Na__Config__Resolve(na_payload['config']) if na_payload['config']
+                @na_scope = na_payload['scope'] == 'linked' ? 'linked' : 'single'
                 @na_picker = Na__ArrayBuilder__ObjectPicker.new(self)
                 @na_model.select_tool(@na_picker)
                 na_send_status_to_dialog('info', 'Click a group or component to use as the source.')
@@ -362,12 +363,18 @@ module Na__ArrayBuilderTools
         end
 
         def self.na_send_object_picked(_na_name, _na_width, _na_depth, _na_height)
+            Na__Dialog__CheckContext('context' => @na_context)
             @na_config['type'] = 'object'
             @na_picker = nil
             Na__Dialog__NewContext()
-            Na__Dialog__PushState()
-            Na__Dialog__Preview()
-            # A source replacement is applied by the next change or Update button.
+            begin
+                Na__Dialog__UpdateTarget() if @na_target && @na_live
+            ensure
+                # Keep the replacement visible and the bridge token current even
+                # if regeneration fails, so another object can be picked safely.
+                Na__Dialog__PushState()
+                Na__Dialog__Preview()
+            end
         end
 
         def self.Na__Dialog__PickerStopped

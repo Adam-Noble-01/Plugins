@@ -7,7 +7,7 @@
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Main entry point, constants, default configurations
 # CREATED    : 2026
-# VERSION    : 0.4.0
+# VERSION    : 0.4.1
 #
 # DESCRIPTION:
 # - Defines the Na__ArrayBuilderTools module namespace
@@ -31,7 +31,7 @@ module Na__ArrayBuilderTools
 # REGION | Constants
 # =============================================================================
 
-    NA_PLUGIN_VERSION = '0.4.0'.freeze
+    NA_PLUGIN_VERSION = '0.4.1'.freeze
 
     # Set to true to enable diagnostic puts output. Off by default so the
     # SketchUp Ruby Console stays quiet during normal use - even small

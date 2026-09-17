@@ -133,6 +133,26 @@ module Na__InsertPrimatives
     # ---------------------------------------------------------------
 
 
+    # FUNCTION | Make a String Safe Inside a Single-Quoted JavaScript Literal
+    # execute_script builds JS by string concatenation, so a caption carrying an
+    # apostrophe would otherwise end the literal early and take the call with it.
+    # ------------------------------------------------------------
+    # The block form of gsub is used deliberately: in the string form a
+    # replacement of "\\'" is read as the back-reference for "everything after
+    # the match", so the obvious spelling silently does something else.
+    def self.Na__RightClickPopup__JsString(text)
+        text.to_s.gsub(/[\\'\r\n]/) do |character|
+            case character
+            when '\\'  then '\\\\'
+            when "'"   then "\\'"
+            when "\r"  then ''
+            else            ' '
+            end
+        end
+    end
+    # ---------------------------------------------------------------
+
+
     # FUNCTION | Read the Current Circle Segment Count
     # ------------------------------------------------------------
     def self.Na__RightClickPopup__SegmentsLabel(tool_instance)
@@ -407,6 +427,30 @@ module Na__InsertPrimatives
         dialog.add_action_callback("togglePlaneFaces") do |_action_context|
             Na__InsertPrimatives.Na__RightClickPopup__RunAction(tool_instance) do
                 tool_instance.Na__PrimitiveMode__TogglePlaneFaces()
+            end
+        end
+
+        # A tool option toggles in place: the submenu is the reason the option is
+        # reachable at all, and closing the menu to reopen it for the second of
+        # a pair would undo the point of putting them together.
+        dialog.add_action_callback("toggleToolOption") do |_action_context, option_id|
+            begin
+                unless tool_instance.respond_to?(:Na__DrawnMode__ToggleToolOption)
+                    Na__InsertPrimatives.Na__Debug__Puts 'PRIMITIVE POPUP: this tool has no options to toggle'
+                    next
+                end
+
+                result  = tool_instance.Na__DrawnMode__ToggleToolOption(option_id)
+                caption = result.is_a?(Hash) ? result[:caption] : result.to_s
+                enabled = result.is_a?(Hash) ? result[:enabled] : false
+
+                dialog.execute_script(
+                    "naApplyOption('#{Na__InsertPrimatives.Na__RightClickPopup__JsString(option_id)}', " \
+                    "'#{Na__InsertPrimatives.Na__RightClickPopup__JsString(caption)}', " \
+                    "#{enabled ? 'true' : 'false'});"
+                )
+            rescue StandardError => error
+                Na__InsertPrimatives.Na__Debug__Puts "PRIMITIVE POPUP OPTION TOGGLE FAILED: #{error.message}"
             end
         end
 

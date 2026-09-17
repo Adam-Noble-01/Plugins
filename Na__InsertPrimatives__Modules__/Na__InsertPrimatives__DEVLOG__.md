@@ -3,6 +3,376 @@
 
 # =============================================================================
 
+## Version 5.1.6 - 17-Sep-2026 - The Cutter Preview Draws Through the Wall
+
+### Asked For
+*"The red box that is displayed to show the depth cutting, it gets lost behind the face of
+the SketchUp object. If I press K it shows the model in X-ray mode and it's much easier to
+use, because you can see the volume you're actually cutting. Is it possible to render that
+red box forward of the other layers?"*
+
+### Why It Was Hidden
+`View#draw` is depth-tested against the model. That is correct for a box being **placed**
+— it is about to become geometry and should sit in the scene like geometry. It is exactly
+wrong for a box being **cut**, because a cutter lives INSIDE the thing it cuts, so the
+wall's own front face wins the depth test and the preview vanishes at the one moment it is
+being adjusted. Reaching for X-ray to work around that is the bug, not the workaround.
+
+### The Fix
+`View#draw2d` has no depth test — it draws in screen space, after everything else. So when
+a target is locked the cutter's eight corners are projected through `View#screen_coords`
+and the box is drawn there instead. This is the same route the dimension labels have always
+used, which is why they never disappeared into the wall.
+
+Two details that matter:
+
+- **The fill had to get thinner.** Drawn on top, all six faces blend over each other
+  instead of being depth-rejected, so the original alpha of 70 stacked to very nearly
+  opaque and hid the wall behind it. At 34 the densest overlap lands near 57% coverage:
+  the box reads as a volume and the model still reads through it.
+- **It falls back.** `screen_coords` still answers for a point behind a perspective
+  camera, but with a mirrored point that would smear the box across the viewport. Any
+  corner failing that test abandons the screen-space draw and the ordinary depth-tested
+  one runs instead — one frame without the effect rather than one frame of garbage. A
+  parallel camera is exempt from the test: it has no vanishing point to turn inside out.
+
+A box being placed is untouched and still draws depth-tested.
+
+### Files
+- `05__PreviewGraphics/Na__InsertPrimatives__DrawnPreviewGraphics__.rb` —
+  `DrawFilledBoxOnTop`, `ScreenPoints`, `InFrontOfCamera?`, and `NA_DRAWN_CUTTER_XRAY_FILL`.
+- `20__System__DrawnPrimitives/Na__InsertPrimatives__DrawnVolumeTool__.rb` —
+  `na_volume__draw_cutter_or_volume` picks the route; the depth label and summary card
+  moved into `na_drawn__draw_box_labels`.
+
+### Testing Notes
+- [ ] Cut into a wall from outside: the red box stays visible through the face, with X-ray
+      OFF.
+- [ ] Orbit until the cutter is behind the camera plane: the preview degrades to the
+      depth-tested draw rather than smearing.
+- [ ] A plain Drawn Volume with Subtraction off still draws depth-tested amber.
+- [ ] Parallel projection (a scene tab set to a 2D view) still draws the cutter.
+
+# =============================================================================
+
+## Version 5.1.5 - 17-Sep-2026 - Cut Every Solid at Every Depth, and Say What the Walk Saw
+
+### Reported
+*"It's not working on deep nested groups (recursive groups within the parent) so children
+and grandchildren, it should cut all."* With this console report:
+
+```
+Target: Difference (1 deep)
+Result: Cut 1 solid
+Scope : 1 editing context opened
+```
+
+### The Walk Stopped at the First Solid on Each Branch
+5.1.3 descended into a child only when that child was NOT a solid:
+
+```ruby
+if Solid?(child)
+    ConsiderVictim(child, ...)
+    next                      # <-- a solid is the thing to cut, not a container to open
+end
+WalkChildren(child, ...)
+```
+
+The reasoning was that SketchUp calls nothing a solid if it holds nested instances, so a
+solid is always a leaf and there is nothing below it to miss. That may hold for the test
+SketchUp's own UI applies, but `#manifold?` is a *different* test and there is no way to
+confirm the two agree from outside the application. The brief is not ambiguous — children
+**and** grandchildren — so the assumption is gone: **every solid at every depth is now
+collected, and a solid is descended into like anything else.** It costs one extra level of
+iteration per solid branch.
+
+### Deepest First
+Once a solid ancestor and a solid descendant can both be victims, order starts to matter:
+`subtract` REPLACES the container it cuts, so a parent cut before its children would
+strand the references to them. Victims are sorted by context depth, descending, and
+because Ruby hashes keep insertion order the batches inherit that order — a container is
+never replaced before the solids inside it have been cut.
+
+The picked parent stays a **fallback**, cut only when nothing inside it was a solid. That
+is deliberate even now: cutting a container *and* its contents in one pass means replacing
+a container whose contents were just rebuilt, and the API gives no promise about what
+survives inside it.
+
+### The Report Could Not Explain Itself
+"Cut 1 solid" out of a nested assembly might mean the walk found one solid, or found six
+and rejected five — and there was no way to tell, because a rejected solid was dropped
+silently. Every branch of the scan is now counted and printed:
+
+```
+Scan  : 14 nested objects walked, 3 levels down | 6 solids | 1 outside the box | 0 locked
+        cut target: Wall Inner Leaf (1 deep)
+        cut target: Lintel (2 deep)
+```
+
+The refusals split three ways too, where they used to be one flat sentence: nothing
+watertight anywhere, *N* solids none of which the box reaches, or *N* solids all locked.
+
+### The Bounds Gate Now Fails Open
+The bounding-box test in front of each boolean was added as an optimisation and could
+silently drop a cuttable solid — the worst possible failure mode for this tool. Since
+5.1.4 a boolean that declines is handled safely (counted as a miss, cutter cleared, no
+data loss), so the gate has nothing critical to protect. When bounds cannot be worked out
+at all the solid is now **kept** and the boolean is allowed the last word; when the gate
+does reject, it is counted and reported rather than vanishing.
+
+A stale victim — a solid erased by an earlier cut in the same operation, which two
+instances of one definition can produce — is counted as a miss instead of being ignored,
+so "cut 3 of 5" never goes unexplained.
+
+### Files
+- `04__GeometryHelpers/Na__InsertPrimatives__DrawnSubtract__.rb` — the walk descends
+  through solids; `CollectVictims` returns the whole scan state; deepest-first sort;
+  fail-open bounds gate; `NothingToCutMessage`.
+- `20__System__DrawnPrimitives/Na__InsertPrimatives__DrawnVolume__Subtract__.rb` —
+  `na_volume__log_scan`.
+
+### Testing Notes
+- [ ] Parent → child → grandchild, solids at both levels: **all** are cut, and the Scan
+      line reports the depth it reached.
+- [ ] A solid child that itself contains solid grandchildren: all cut, deepest first.
+- [ ] If a cut still does less than expected, the Scan line now names the cause —
+      `outside the box` points at the bounds gate or the world transform, a low `solids`
+      count points at `#manifold?`, and a low `nested objects walked` points at the walk.
+
+# =============================================================================
+
+## Version 5.1.4 - 17-Sep-2026 - The Subtract Operands Were the Wrong Way Round
+
+### Reported
+*"It's currently just deleting the selected object. I tested on a simple solid group with
+geom inside and it fails. I also tested on a nested set of groups, still fails."* Three
+sequential screenshots: draw the opening, pick the group (highlight correct, cutter preview
+correct, `W 1270 x H 1550 x D 220`), commit the depth — and the solid is **gone**.
+
+### The Cause
+`Sketchup::Group#subtract` is documented in two places that contradict each other, and
+5.1.3 believed the wrong one.
+
+| Source | Says |
+|---|---|
+| `#subtract` summary | "the boolean difference of the two groups ... **(this - arg)**" |
+| `#subtract` `@param` | "group — The group to subtract **this group from**" → `arg - this` |
+| `#trim` (the non-destructive sibling) | "the original **group2** is erased and a newly trimmed version is created" |
+| SketchUp's own Solid Tools UI | "The **first** solid you select is your **cutting tool**" |
+
+Three of the four agree: **the receiver is the cutter and the argument is the thing being
+cut.** Only the summary line says otherwise, and it is the line 5.1.3 coded against.
+
+So `victim.subtract(cutter)` computed `cutter - victim`. A window-sized cutter sitting
+wholly inside a wall leaves **nothing**, and an empty solid result takes BOTH operands with
+it. The wall was not failing to be cut; it was being consumed as the offcut of a boolean
+run backwards. It is one root cause for both reported tests — in the nested case the deep
+walk found the lower box as a solid child and consumed that instead.
+
+### The Fix
+`cutter.subtract(victim)`, in one place, with the research written into the module header
+so the next person does not have to repeat it.
+
+### And a Guard, Because the Documentation Cannot Be Trusted
+A one-character operand swap should not be able to destroy a wall, so the result is now
+checked while the operation is **still open**:
+
+- A valid result → the identity transplant runs and the cut is counted.
+- No result, solid still standing → the boolean declined. Clear the cutter, count a miss.
+- No result and **the solid is gone** → abort the whole operation, so nothing is committed
+  and the model is untouched. The status bar says
+  *"the boolean removed <name> instead of cutting it — nothing was committed"*.
+- The one exception: a solid that genuinely sits **inside** the cutter is supposed to
+  vanish, so that case is detected up front (bounding-box containment) and reported as
+  *"N removed entirely"* rather than treated as a fault.
+
+Being wrong about the operand order, or having the API move under us in a future release,
+now costs a status-bar message and an undo-safe abort instead of geometry. The console
+report also states the order used on every cut — if solids ever start disappearing again,
+that line is where to look.
+
+### Files
+- `04__GeometryHelpers/Na__InsertPrimatives__DrawnSubtract__.rb` — operand order, the
+  header research note, `Na__Subtract__CutOne` with the result check, `Swallows?` /
+  `BoxContains?`, and a `:removed` tally.
+- `20__System__DrawnPrimitives/Na__InsertPrimatives__DrawnVolume__Subtract__.rb` — the
+  order is named in the console report.
+
+### Testing Notes
+- [ ] Simple solid group, geometry only: the opening appears and the group survives with
+      its name, tag and material intact.
+- [ ] Nested groups: every solid child is cut, none disappears.
+- [ ] A cutter drawn deliberately larger than a small solid: that solid is removed and the
+      status bar says "removed entirely" — the abort must NOT fire here.
+- [ ] Ctrl+Z after a cut returns the solid uncut, in one step.
+
+# =============================================================================
+
+## Version 5.1.3 - 17-Sep-2026 - Context-Aware Submenus, and Drawn Volume Learns to Cut
+
+### Asked For
+Three things, and the third is the one that shapes the other two:
+
+1. Drawn Volume gets a **Subtraction** option — draw the opening, click the group to cut
+   (with a highlight so it is obvious which one), give a depth, and the box is subtracted
+   rather than placed. 100mm typed on the reference screenshot is a window reveal.
+2. Drawn Volume gets a **Transparent** option — paint the new box with the indexed
+   material `MAT011__ModelingUtility__Transparent`, on the group CONTAINER, not the faces.
+3. And the reason both of those need somewhere to live: *"make a context aware submenu
+   appear under the tool in use with further toggleable configs... keeping the menu
+   smaller when all options aren't required."*
+
+### The Submenu Framework
+Nine tools share one right-click menu. Adding two buttons for Drawn Volume to the bottom
+of it would be two buttons every other tool has to scroll past, and the next tool with
+options makes it four. So options are **declared against a tool's mode key** and rendered
+only under the button of the tool that is actually running.
+
+- `02__AppData/Na__InsertPrimatives__AppData__ToolOptions__.rb` is the whole framework:
+  a table of `{ :id, :key, :label, :default, :summary }` keyed by mode key, persisted
+  through `Sketchup.write_default` in the same registry section as the snap grid, and
+  cached in memory because a commit asks for these and `read_default` is a native call.
+- `PrimitiveModeSwitching` gained two methods, so EVERY tool answers the same way:
+  `Na__DrawnMode__ToolOptions` describes them and `Na__DrawnMode__ToggleToolOption`
+  flips one and hands back its new caption.
+- The popup builds its mode buttons through one helper now, and a tool with nothing
+  declared returns an empty list and renders nothing. **Adding an option to any tool is
+  one entry in `NA_TOOL_OPTIONS` and nothing else.**
+- Toggling rewrites the button in place and leaves the menu open, the way the grid step
+  and the segment count already do — options are rarely changed one at a time. Three
+  colours, three meanings: blue is the tool you are in, green is an option switched on,
+  white is everything else.
+- An option left on days ago would otherwise be invisible until it surprised somebody,
+  so the status line carries `| SUBTRACTION+TRANSPARENT` whenever one is live.
+
+### The Optional Fourth Stage
+`DrawnToolShared`'s state machine grew one optional stage, `:picking_target`, between
+`:picking_b` and `:picking_depth`. Five no-op hooks (`advance_from_target`,
+`track_target`, `on_pick_state_reset`, `stage_before_depth`, `constrain_depth_sign`) mean
+a tool can insert a stage that hunts something in the MODEL rather than a dimension
+without reimplementing the mouse, keyboard and draw contract. Every tool that does not
+ask for it goes `:picking_b` → `:picking_depth` and never sees it.
+
+### Subtraction, and the Two Pipelines
+`04__GeometryHelpers/Na__InsertPrimatives__DrawnSubtract__.rb`, driven by
+`20__System__DrawnPrimitives/Na__InsertPrimatives__DrawnVolume__Subtract__.rb`.
+
+- **SIMPLE** — the picked group holds no child instances. One candidate, one question:
+  `manifold?`. Not solid, and the overlay turns red and says **"Selection Not Solid"**.
+- **DEEP** — the picked group holds children. Every descendant is walked and each solid
+  one is cut. A solid is NOT descended into: cutting the shell is cutting everything it
+  stands for. Nothing solid anywhere below and the same red overlay reads
+  **"No Solid Children"**.
+- **The parent is the fallback in both.** A group that holds children and is itself a
+  watertight shell is cut when none of its children are solids — the "loose geometry in
+  one shell" case from the brief.
+- The hover survey runs on every mouse move, so the deep probe **stops at the first solid
+  it meets** rather than counting them, is capped at 400 nodes, and is cached against the
+  instance's definition and entity count so it is thrown away by an undo or an explode.
+
+### Why Each Solid Is Cut Inside Its Own Editing Context
+`Sketchup::Group#subtract` needs both operands in the SAME entities collection, so the
+cutter has to be built beside the solid it cuts, at whatever depth that is. Editing a
+definition's entities from outside its editing context is the stale-display-cache saga
+the push tool was cured of in 5.0. So victims are grouped by the collection they live in,
+each collection is opened once through `Na__DeepPick__ExecuteInContext`, and every solid
+in it is cut in that one operation.
+
+Inside an open context every coordinate is global (the 5.1.2 rule), which is exactly the
+space the box arrives in — **the cutter needs no conversion at all**. And because that is
+load-bearing, the context is **asserted** inside the block rather than assumed: if
+SketchUp refuses to open it the batch is abandoned and counted as skipped. Building world
+geometry into a closed definition would silently cut a hole somewhere nobody asked for,
+which is far worse than not cutting.
+
+Two more things that are easy to get wrong and are handled:
+
+- **`subtract` consumes both operands and returns a NEW container.** Name, tag, material,
+  shadow flags and every attribute dictionary are read off the solid first and written
+  onto the result — without that, cutting a window out of a wall renames the wall to
+  `Group#417` and drops its tag.
+- **A bounding-box gate runs in front of every boolean.** A cut against a solid the box
+  cannot reach is wasted work on a large assembly, and it comes back `nil`, which is then
+  indistinguishable from a real failure.
+
+### The Depth Direction Is Decided For You
+Having just named the object to cut, a cutter pointing away from it is never what was
+meant. The sign is taken from where the target actually sits relative to the rectangle and
+the drag sets the depth's SIZE only, so dragging either way grows the opening into the
+wall. Typing `2400,1200,100` in one go skips the depth stage entirely: the cut fires the
+moment a valid target is clicked.
+
+### The Transparent Option
+`03__AppUtils/Na__InsertPrimatives__AppUtils__StandardMaterials__.rb` resolves
+`MAT011__ModelingUtility__Transparent` from the shared data library
+(`Na__DataLib__CoreIndex__Materials__.json`), hunting it by `SketchUpName` rather than by
+a hard-coded path through the file, with MAT011's own values as the built-in fallback when
+the library cannot be read. The file is read straight off disk rather than through
+`Na__DataLib__CacheData` — a tool option must never be able to stall a click on a network
+fetch. A material already in the model under that exact name is used as it stands, because
+the name is the lookup key across the whole toolchain.
+
+The material name goes IN to `Na__DrawnGeom__CreateVolume` rather than being painted on
+afterwards, so the paint and the geometry are one operation and one Ctrl+Z. It goes on the
+**container**: every face inside inherits it, one assignment tints the whole box, and one
+assignment clears it again.
+
+### Files
+| New | |
+|---|---|
+| `02__AppData/...AppData__ToolOptions__.rb` | The submenu framework |
+| `03__AppUtils/...AppUtils__StandardMaterials__.rb` | MAT011 resolution and container painting |
+| `04__GeometryHelpers/...DrawnDeepPick__Instance__.rb` | Pick the group under the cursor, and its own oriented box |
+| `04__GeometryHelpers/...DrawnSubtract__.rb` | Survey, collect, and cut |
+| `20__System__DrawnPrimitives/...DrawnVolume__Subtract__.rb` | The stage, the preview and the commit |
+
+| Changed | |
+|---|---|
+| `DrawnToolShared__.rb` | The optional `:picking_target` stage and its five hooks; option summary in the status line |
+| `AppCore__ModeSwitch__.rb` | `Na__DrawnMode__ToolOptions` / `ToggleToolOption` on the shared mixin |
+| `RightClickPopup__Html__.rb` | Mode buttons built through one helper; the submenu block and its CSS |
+| `RightClickPopup__.rb` | `toggleToolOption` callback and a JS string escape |
+| `DrawnPreviewGraphics__.rb` | Target highlight, its blue/red palette, and the cutter red |
+| `DrawnGeometry__.rb` | `CreateVolume` takes an optional container material |
+| `DrawnVolumeTool__.rb` | Wiring: the stages, the preview colours, the hints |
+
+### Instance Transforms, and Why `instance.transformation` Is Read Straight
+`PickHelper#path_at` starts at the ACTIVE entities, so `instances.first` lives directly in
+the context the user has open — and by the 5.1.2 rule the active context and all its
+parents report global coordinates, so that instance's own transformation IS the world one.
+Below it the rule flips and a descendant's world transform is `parent_world * its own`,
+which is the accumulation the subtract walk does and nothing else needs.
+
+The selection bias tests **only** `instances.first`, and that is not a shortcut: a
+SketchUp selection can only hold entities from the open context, so a selected instance is
+by definition the outermost one on the path — and only the outermost one can have its
+transformation read as world.
+
+### Testing Notes
+Per the coordinate rule, a wrong conversion is invisible at the origin, so:
+
+- [ ] A box in the model root, Subtraction off — nothing has changed.
+- [ ] Window opening cut from a wall group at the root (the reference screenshot).
+- [ ] The same wall inside a group that is MOVED **and** ROTATED, nested three deep.
+- [ ] A wall group whose children are the solids (deep pipeline), and one where the
+      children are not solids but the parent is (parent fallback).
+- [ ] Hover something that is not a solid: red overlay, "Selection Not Solid", and the
+      click is refused with a beep rather than doing nothing.
+- [ ] A **scaled** group. The cutter is pinned to a global identity so its definition
+      units are world units and `pushpull` needs no scale correction — this is the one
+      claim in the release that is reasoned rather than measured.
+- [ ] A component with more than one instance: the cut lands on every copy and the status
+      line says so. Deliberate — making it unique silently would be its own surprise.
+- [ ] `2400,1200,100` typed at the base stage with Subtraction on: it should go straight
+      to the target pick and cut on the click.
+- [ ] BKSP from the depth stage returns to the target pick and releases it.
+- [ ] Transparent on: the GROUP carries the material, the faces do not, and one Ctrl+Z
+      removes box and paint together.
+- [ ] The submenu appears under Drawn Volume only, moves when the tool changes, and both
+      toggles survive a SketchUp restart.
+
+# =============================================================================
+
 ## Version 5.1.2 - 08-Sep-2026 - Stacked Local Axes: One Coordinate Rule for Every Nesting Depth
 
 ### Reported

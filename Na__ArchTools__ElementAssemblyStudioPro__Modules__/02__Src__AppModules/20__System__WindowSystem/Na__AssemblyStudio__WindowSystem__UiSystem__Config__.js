@@ -700,15 +700,23 @@ const NA_CILL_FRAME_CONFIG = [
         default :  50
     },
     {
-        // Zero protrusion is legal and gives a flush cill sitting in the
-        // wall face. The cill slab still has depth (wall inset + frame
-        // depth) so nothing degenerates - see Na__GeometryBuilders
-        // .na_create_cill_geometry.
+        // Signed. Zero gives a flush cill sitting in the wall face and
+        // positive projects it forward of the wall, as it always has.
+        //
+        // NEGATIVE pulls the cill BACK into the reveal. That is the stub
+        // cill drawn when a masonry cill already carries the opening and
+        // the timber only needs to break the frame line. The cill face
+        // sits at -protrusion and the frame face at Frame Wall Inset, so
+        // a 100mm inset with -80 leaves 20mm of timber proud of the frame.
+        //
+        // -100 is the floor. The slab keeps (protrusion + wall inset +
+        // frame depth) of depth and is skipped entirely once that reaches
+        // zero - see Na__GeometryBuilders.na_create_cill_geometry.
         id      :  'cill_depth_mm',
         label   :  'Cill Protrusion',
         unit    :  'mm',
         type    :  'slider',
-        min     :  0,
+        min     :  -100,
         max     :  100,
         step    :  5,
         default :  50

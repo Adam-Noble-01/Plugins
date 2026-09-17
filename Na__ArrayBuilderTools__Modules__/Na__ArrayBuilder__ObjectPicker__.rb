@@ -251,6 +251,8 @@ module Na__ArrayBuilderTools
                 "success",
                 "Selected: #{display_name}"
             )
+        rescue StandardError => na_error
+            @na_dialog_manager.na_send_status_to_dialog("error", na_error.message)
         end
         # ---------------------------------------------------------------
 

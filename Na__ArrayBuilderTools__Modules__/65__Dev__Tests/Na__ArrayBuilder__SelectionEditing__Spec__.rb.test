@@ -52,6 +52,43 @@ begin
     NA_DIALOG.instance_variable_set(:@na_last_created,na_other)
     NA_DIALOG.na_send_array_complete(10)
     Na__Spec__Check('completed array remains immediately editable') { NA_DIALOG.instance_variable_get(:@na_target)==na_other && NA_DIALOG.instance_variable_get(:@na_config)==NA_DATA.Na__Data__Load(na_other)['configuration'] }
+
+    # REGION | Native picker completion follows the live edit setting and scope
+    na_picker = Na__ArrayBuilderTools::Na__ArrayBuilder__ObjectPicker.new(NA_DIALOG)
+    na_first_pick = Na__Spec__Entity.new(na_model.definitions.add('Replacement A'))
+    na_first_pick.name = 'Replacement A'
+    na_second_pick = Na__Spec__Entity.new(na_model.definitions.add('Replacement B'))
+    na_second_pick.name = 'Replacement B'
+    na_unedited_data = NA_DATA.Na__Data__Load(na_array)
+    NA_DIALOG.instance_variable_set(:@na_live,true)
+    NA_DIALOG.instance_variable_set(:@na_scope,'single')
+    na_before = na_model.na_commits
+    na_picker.send(:Na__ObjectPicker__StoreAndReport,na_first_pick)
+    na_pick_data = NA_DATA.Na__Data__Load(na_other)
+    Na__Spec__Check('live object pick immediately rebuilds and archives the replacement') { na_model.na_commits==na_before+1 && na_pick_data['source']['definition_pid']==na_first_pick.definition.persistent_id && na_other.definition.entities.all? { |na_unit| na_unit.definition==na_first_pick.definition } }
+    Na__Spec__Check('live object pick respects single-copy scope') { na_other.definition!=na_array.definition && NA_DATA.Na__Data__Load(na_array)==na_unedited_data }
+    na_linked = Na__Spec__Entity.new(na_other.definition)
+    NA_DIALOG.Na__Dialog__Receive(JSON.generate('action'=>'pick','context'=>NA_DIALOG.instance_variable_get(:@na_context),'config'=>NA_DIALOG.instance_variable_get(:@na_config),'scope'=>'linked'))
+    na_picker.send(:Na__ObjectPicker__StoreAndReport,na_second_pick)
+    Na__Spec__Check('repeated live picks honour the latest scope dropdown and update linked sources') { NA_DATA.Na__Data__Load(na_linked)['source']['definition_pid']==na_second_pick.definition.persistent_id && NA_DATA.Na__Data__Load(na_other)['source']['archive_id']!=na_pick_data['source']['archive_id'] }
+    NA_DIALOG.instance_variable_set(:@na_live,false)
+    na_before = na_model.na_commits
+    na_saved_data = NA_DATA.Na__Data__Load(na_other)
+    na_picker.send(:Na__ObjectPicker__StoreAndReport,na_first_pick)
+    Na__Spec__Check('live off keeps the picked source pending without rebuilding') { na_model.na_commits==na_before && NA_DATA.Na__Data__Load(na_other)==na_saved_data && NA_REGISTRY.Na__Registry__GetDefinition()==na_first_pick.definition }
+    NA_DIALOG.Na__Dialog__Receive(JSON.generate('action'=>'update','context'=>NA_DIALOG.instance_variable_get(:@na_context),'config'=>NA_DIALOG.instance_variable_get(:@na_config),'scope'=>'linked'))
+    Na__Spec__Check('manual Update still applies a source picked with live off') { NA_DATA.Na__Data__Load(na_other)['source']['definition_pid']==na_first_pick.definition.persistent_id }
+    NA_DIALOG.instance_variable_set(:@na_live,true)
+    na_saved_data = NA_DATA.Na__Data__Load(na_other)
+    na_picker.send(:Na__ObjectPicker__StoreAndReport,na_other)
+    Na__Spec__Check('invalid live source preserves the array and reports an error') { NA_DATA.Na__Data__Load(na_other)==na_saved_data && NA_DIALOG.na_get_dialog.na_scripts.last.include?('"error"') }
+    na_picker.send(:Na__ObjectPicker__StoreAndReport,na_second_pick)
+    Na__Spec__Check('another source can be picked immediately after failed live regeneration') { NA_DATA.Na__Data__Load(na_other)['source']['definition_pid']==na_second_pick.definition.persistent_id }
+    NA_DIALOG.instance_variable_set(:@na_target,nil)
+    NA_DIALOG.Na__Dialog__NewContext()
+    na_before = na_model.na_commits
+    na_picker.send(:Na__ObjectPicker__StoreAndReport,na_first_pick)
+    Na__Spec__Check('creation object pick only prepares the source and preview') { na_model.na_commits==na_before && NA_REGISTRY.Na__Registry__GetDefinition()==na_first_pick.definition }
 ensure
     Sketchup.active_model = na_previous_model
 end

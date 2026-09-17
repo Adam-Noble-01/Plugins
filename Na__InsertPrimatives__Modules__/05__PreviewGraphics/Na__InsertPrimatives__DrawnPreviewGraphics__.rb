@@ -40,6 +40,29 @@ module Na__InsertPrimatives
     NA_DRAWN_ANCHOR_COLOR        = Sketchup::Color.new(  0, 190,  70)
     NA_DRAWN_GUIDE_COLOR         = Sketchup::Color.new(120, 120, 120, 160)
 
+    # The subtract stage's two answers, and they are deliberately the two
+    # colours every modelling tool already uses for them: blue is the object
+    # you are about to act on, red is the object that cannot be acted on. The
+    # reason is written across the box as well, because colour alone is a poor
+    # thing to make the difference between cutting a wall and cutting nothing.
+    NA_DRAWN_TARGET_FILL_COLOR   = Sketchup::Color.new(  0, 120, 255,  46)
+    NA_DRAWN_TARGET_BORDER_COLOR = Sketchup::Color.new(  0, 110, 235, 225)
+    NA_DRAWN_REFUSED_FILL_COLOR  = Sketchup::Color.new(225,  45,  45,  58)
+    NA_DRAWN_REFUSED_BORDER_CLR  = Sketchup::Color.new(205,  25,  25, 235)
+    NA_DRAWN_REFUSED_TEXT_COLOR  = Sketchup::Color.new(170,  15,  15)
+
+    # The cutter is drawn in the refusal red too: a box that is about to be
+    # removed from the model should never read as a box about to be added.
+    NA_DRAWN_CUTTER_FILL_COLOR   = Sketchup::Color.new(225,  60,  60,  70)
+    NA_DRAWN_CUTTER_BORDER_COLOR = Sketchup::Color.new(200,  30,  30, 240)
+
+    # The screen-space cutter is thinner, and it has to be. Drawn on top, all
+    # six faces blend over each other instead of being depth-rejected, so the
+    # same 70 would stack to very nearly opaque and hide the wall the opening
+    # is being cut into. At 34 the densest overlap lands near 57% coverage —
+    # the box reads as a volume and the model still reads through it.
+    NA_DRAWN_CUTTER_XRAY_FILL    = Sketchup::Color.new(225,  60,  60,  34)
+
     NA_DRAWN_TEXT_COLOR          = Sketchup::Color.new( 20,  20,  20)
     NA_DRAWN_TEXT_HALO_COLOR     = Sketchup::Color.new(255, 255, 255)
     NA_DRAWN_TEXT_ACCENT_COLOR   = Sketchup::Color.new(  0,  90, 190)
@@ -471,6 +494,146 @@ module Na__InsertPrimatives
         view.draw(GL_LINE_LOOP, near_points)
         view.draw(GL_LINE_LOOP, far_points)
         4.times { |index| view.draw_line(near_points[index], far_points[index]) }
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Draw a Filled, Bordered Box THROUGH Whatever Stands in Front
+    # ------------------------------------------------------------
+    # View#draw is depth-tested against the model, which is right for a shape
+    # being added and wrong for one being removed: a cutter lives INSIDE the
+    # thing it cuts, so the wall's own front face wins the depth test and the
+    # preview disappears exactly when it matters. Pressing K to turn on X-ray
+    # fixes it, and needing to do that is the bug.
+    #
+    # View#draw2d has no depth test — it draws in screen space, after
+    # everything — so the eight corners are projected with View#screen_coords
+    # and the box is drawn there instead. The dimension labels have always
+    # worked this way, which is why they never vanished into the wall.
+    #
+    # Returns false without drawing when the box cannot be projected, so the
+    # caller can fall back to the ordinary depth-tested draw. That happens when
+    # a corner sits behind a perspective camera: screen_coords still answers,
+    # but with a mirrored point that would smear the box across the viewport.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawFilledBoxOnTop(view, near_points, far_points, fill_color, border_color)
+        near_2d = Na__InsertPrimatives.Na__DrawnPreview__ScreenPoints(view, near_points)
+        far_2d  = Na__InsertPrimatives.Na__DrawnPreview__ScreenPoints(view, far_points)
+
+        return false unless near_2d && far_2d
+        return false unless near_2d.length == 4 && far_2d.length == 4
+
+        side_faces = [
+            [near_2d[0], near_2d[1], far_2d[1], far_2d[0]],
+            [near_2d[1], near_2d[2], far_2d[2], far_2d[1]],
+            [near_2d[2], near_2d[3], far_2d[3], far_2d[2]],
+            [near_2d[3], near_2d[0], far_2d[0], far_2d[3]]
+        ]
+
+        view.drawing_color = fill_color
+        view.draw2d(GL_QUADS, near_2d)
+        view.draw2d(GL_QUADS, far_2d)
+        side_faces.each { |face_points| view.draw2d(GL_QUADS, face_points) }
+
+        view.line_stipple  = ''
+        view.line_width    = 2
+        view.drawing_color = border_color
+        view.draw2d(GL_LINE_LOOP, near_2d)
+        view.draw2d(GL_LINE_LOOP, far_2d)
+        4.times { |index| view.draw2d(GL_LINES, [near_2d[index], far_2d[index]]) }
+
+        true
+    rescue StandardError
+        false
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Project World Points into Screen Space for draw2d
+    # nil when ANY point cannot be projected honestly — a partly projected box
+    # is worse than no box, because the half that did project looks correct.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__ScreenPoints(view, points)
+        return nil unless points && !points.empty?
+
+        projected = []
+
+        points.each do |point|
+            return nil unless Na__InsertPrimatives.Na__DrawnPreview__InFrontOfCamera?(view, point)
+
+            screen = view.screen_coords(Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(point))
+            projected << Geom::Point3d.new(screen.x, screen.y, 0)
+        end
+
+        projected
+    rescue StandardError
+        nil
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Is a World Point on the Camera's Side of the Eye?
+    # Only asked of a perspective camera. A parallel projection has no vanishing
+    # point to turn inside out, so a point "behind" the eye still projects to
+    # where it belongs and the test would refuse a perfectly good box.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__InFrontOfCamera?(view, point)
+        camera = view.camera
+        return true unless camera && camera.perspective?
+
+        (point - camera.eye).dot(camera.direction) > 0.0
+    rescue StandardError
+        false
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Draw the Shaded Box Around an Object Being Targeted
+    # ------------------------------------------------------------
+    # The near and far quads come from Na__DeepPick__InstanceBoxQuads, so this
+    # is the object's OWN box transformed into world space rather than a
+    # world-axis box around it — on an angled wall the difference is the whole
+    # point of the highlight.
+    #
+    # `valid` picks the palette: blue for an object that can be acted on, red
+    # for one that cannot. The lines are written across the middle of the box
+    # in the same colour, so the answer and the reason arrive together.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawTargetHighlight(view, near_points, far_points, valid, lines = nil)
+        return unless near_points && far_points
+
+        fill   = valid ? NA_DRAWN_TARGET_FILL_COLOR   : NA_DRAWN_REFUSED_FILL_COLOR
+        border = valid ? NA_DRAWN_TARGET_BORDER_COLOR : NA_DRAWN_REFUSED_BORDER_CLR
+
+        Na__InsertPrimatives.Na__DrawnPreview__DrawFilledBox(view, near_points, far_points, fill, border)
+
+        return if lines.nil? || lines.empty?
+
+        centre = Na__InsertPrimatives.Na__DrawnPreview__PointsCentre(near_points + far_points)
+        return unless centre
+
+        screen = view.screen_coords(Na__InsertPrimatives.Na__DrawnPreview__ToDrawPoint(centre))
+
+        Na__InsertPrimatives.Na__DrawnPreview__DrawCentredScreenText(
+            view, screen.x, screen.y, lines,
+            valid ? NA_DRAWN_TEXT_ACCENT_COLOR : NA_DRAWN_REFUSED_TEXT_COLOR
+        )
+    rescue StandardError
+        nil
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Average of a List of Points
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__PointsCentre(points)
+        return nil unless points && !points.empty?
+
+        count = points.length.to_f
+        sums  = points.each_with_object([0.0, 0.0, 0.0]) do |point, totals|
+            totals[0] += point.x.to_f
+            totals[1] += point.y.to_f
+            totals[2] += point.z.to_f
+        end
+
+        Geom::Point3d.new(sums[0] / count, sums[1] / count, sums[2] / count)
+    rescue StandardError
+        nil
     end
     # ---------------------------------------------------------------
 

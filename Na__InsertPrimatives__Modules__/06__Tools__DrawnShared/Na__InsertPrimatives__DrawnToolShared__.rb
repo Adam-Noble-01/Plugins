@@ -15,9 +15,15 @@
 # - Tool-to-tool activation lives in AppCore ModeSwitch (`PrimitiveModeSwitching`).
 #
 # DRAG STATE MACHINE:
-#   :idle          waiting for the anchor click
-#   :picking_b     anchor placed, rectangle following the cursor
-#   :picking_depth rectangle fixed, extrusion following the cursor (volume only)
+#   :idle           waiting for the anchor click
+#   :picking_b      anchor placed, rectangle following the cursor
+#   :picking_target OPTIONAL — rectangle fixed, the cursor is hunting something
+#                   in the MODEL rather than a dimension. Only entered by a tool
+#                   that asks for it from na_drawn__advance_from_b; every other
+#                   tool goes straight from :picking_b to :picking_depth and
+#                   never sees it. Drawn Volume's Subtraction option uses it to
+#                   pick the group being cut.
+#   :picking_depth  rectangle fixed, extrusion following the cursor (volume only)
 #
 # Both press-drag-release and click-move-click are supported, matching the
 # native Rectangle tool: a press that travels more than NA_DRAWN_DRAG_MIN_PX
@@ -153,6 +159,56 @@ module Na__InsertPrimatives
             @na_point_a           = nil
             @na_drag_press_active = false
             na_drawn__clear_locks
+            na_drawn__on_pick_state_reset
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Optional Extra Stage Hooks
+        # -----------------------------------------------------------------------------
+        #
+        # Five no-ops that cost nothing and let a tool insert a stage of its own
+        # between the rectangle and the depth without reimplementing the whole
+        # mouse, keyboard and draw contract. Drawn Volume's Subtraction option is
+        # the first user; the hooks are here rather than in that tool so the next
+        # one — a plane that asks which face to sit on, say — is a mixin and not
+        # a fork of this file.
+
+        # FUNCTION | The Extra Stage Was Settled by a Click, Enter or Double Click
+        # ------------------------------------------------------------
+        def na_drawn__advance_from_target(view)
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Cursor Moved While the Extra Stage Is Live
+        # ------------------------------------------------------------
+        def na_drawn__track_target(view, x, y)
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Drag Was Abandoned — Drop Anything the Extra Stage Held
+        # ------------------------------------------------------------
+        def na_drawn__on_pick_state_reset
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Where BKSP Goes From the Depth Stage
+        # ------------------------------------------------------------
+        def na_drawn__stage_before_depth
+            :picking_b
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Last Word on the Depth Sign After the Drag Has Set It
+        # ------------------------------------------------------------
+        def na_drawn__constrain_depth_sign
+            nil
         end
         # ---------------------------------------------------------------
 
@@ -313,6 +369,7 @@ module Na__InsertPrimatives
         def onMouseMove(flags, x, y, view)
             na_drawn__sync_modifier(flags)
             na_drawn__update_cursor(view, x, y)
+            na_drawn__track_target(view, x, y) if @na_state == :picking_target
             na_drawn__update_status_text
             na_drawn__refresh_vcb
             view.invalidate
@@ -350,6 +407,12 @@ module Na__InsertPrimatives
                 @na_drag_press_active = false
                 na_drawn__update_cursor(view, x, y)
                 na_drawn__advance_from_b(view)
+
+            when :picking_target
+                @na_drag_press_active = false
+                na_drawn__update_cursor(view, x, y)
+                na_drawn__track_target(view, x, y)
+                na_drawn__advance_from_target(view)
 
             when :picking_depth
                 @na_drag_press_active = false
@@ -592,9 +655,10 @@ module Na__InsertPrimatives
         def onReturn(view)
             handled =
                 case @na_state
-                when :picking_b     then na_drawn__advance_from_b(view)
-                when :picking_depth then na_drawn__advance_from_depth(view)
-                else                     false
+                when :picking_b      then na_drawn__advance_from_b(view)
+                when :picking_target then na_drawn__advance_from_target(view)
+                when :picking_depth  then na_drawn__advance_from_depth(view)
+                else                      false
                 end
 
             na_drawn__update_status_text
@@ -617,8 +681,9 @@ module Na__InsertPrimatives
             na_drawn__update_cursor(view, x, y)
 
             case @na_state
-            when :picking_b     then na_drawn__advance_from_b(view)
-            when :picking_depth then na_drawn__advance_from_depth(view)
+            when :picking_b      then na_drawn__advance_from_b(view)
+            when :picking_target then na_drawn__advance_from_target(view)
+            when :picking_depth  then na_drawn__advance_from_depth(view)
             end
 
             na_drawn__update_status_text
@@ -818,6 +883,7 @@ module Na__InsertPrimatives
                 _u, _v, n_travel = Na__InsertPrimatives.Na__DrawnGrid__DecomposeToPlane(@na_point_a, @na_cursor_snapped, @na_plane_key)
                 @na_sign_d = n_travel < 0.0 ? -1.0 : 1.0
                 @na_size_d = n_travel.abs
+                na_drawn__constrain_depth_sign                                # <-- A tool that already knows which way is right says so
             end
         end
         # ---------------------------------------------------------------
@@ -941,8 +1007,10 @@ module Na__InsertPrimatives
 
             case @na_state
             when :picking_depth
-                @na_state  = :picking_b
+                @na_state  = na_drawn__stage_before_depth
                 @na_size_d = 0.0
+            when :picking_target
+                @na_state = :picking_b
             when :picking_b
                 na_drawn__reset_pick_state
             end
@@ -1082,7 +1150,7 @@ module Na__InsertPrimatives
             composed =
                 "#{na_drawn__tool_title} | #{na_drawn__status_detail} | " \
                 "#{na_drawn__grid_description} | " \
-                "#{na_drawn__plane_description}#{na_drawn__axis_description}#{na_drawn__lock_summary} | " \
+                "#{na_drawn__plane_description}#{na_drawn__axis_description}#{na_drawn__lock_summary}#{na_drawn__option_summary} | " \
                 "#{na_drawn__tab_hint}  ARROWS axis  CTRL vertex  BKSP back  ESC cancel"
 
             return if composed == @na_last_status_text
@@ -1107,6 +1175,19 @@ module Na__InsertPrimatives
 
             label = Na__InsertPrimatives.Na__DeepPick__FocusLabel
             label ? " — favouring #{label}" : ''
+        rescue StandardError
+            ''
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Status Fragment Naming This Tool's Switched-On Options
+        # ------------------------------------------------------------
+        # The popup submenu is only visible while the popup is open, so an
+        # option left on days ago would otherwise be invisible until it
+        # surprised somebody. Named in the status line, it never is.
+        # ------------------------------------------------------------
+        def na_drawn__option_summary
+            Na__InsertPrimatives.Na__ToolOptions__ActiveSummary(na_drawn__mode_key)
         rescue StandardError
             ''
         end
