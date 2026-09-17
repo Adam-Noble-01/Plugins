@@ -102,6 +102,22 @@ native and HTML mesh budgets. Build count and saved geometry remain complete.
 Gallery thumbnails remain parameter-based illustrations. Corner unions run when
 geometry is created or live-updated; pre-build previews show the constituent units.
 
+## Virtual inference from the start point
+
+PathInference works on the same WORLD points as InputPoint and the drawn preview.
+It intersects a line through the last committed point with candidate lines through
+the first point. Candidates include world axes and directions from the drawn
+path's rotated plane. Parallel/skew 3D lines are rejected; an explicit arrow-key
+lock restricts the travelling line. No active-context parent transform is added.
+
+Acquisition uses `View#screen_coords` with a 12 logical-pixel radius and an 18-pixel
+release radius for an existing snap. Mouse-move and click call the same resolver.
+The exact inferred position seeds the next InputPoint, without 1 mm grid rounding.
+The dashed guide, endpoint marker, preview and final vertex therefore share one
+position. Clicking the highlighted start after at least three committed points
+appends that exact first point and finishes the closed path. These virtual guides
+do not add construction points or edges to the model.
+
 ## Regression cases
 
 - Three translated, rotated and scaled closed source levels: accumulate each once.

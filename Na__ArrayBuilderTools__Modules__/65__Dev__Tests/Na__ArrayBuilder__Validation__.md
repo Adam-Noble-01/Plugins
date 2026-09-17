@@ -1,4 +1,4 @@
-# Array Builder 0.3 validation
+# Array Builder 0.4 validation
 
 Run offline regression checks from the Plugins directory:
 
@@ -15,7 +15,7 @@ operation contracts. They do not verify SketchUp's native face builder or observ
 The `.rb.test` suffix prevents tests being picked up by Ruby reloaders. Production
 code has no dependency on the tests, other Noble plugins or test fixtures.
 
-For native verification, restart SketchUp once to load 0.3, open a new EMPTY model and
+For native verification, hot reload Array Builder (or restart SketchUp) to load 0.4, open a new EMPTY model and
 run in the Ruby Console:
 
 ```ruby
@@ -24,8 +24,11 @@ load File.join(Sketchup.find_support_file('Plugins'), 'Na__ArrayBuilderTools__Mo
 
 This leaves test arrays in the empty model and checks native construction, single
 and linked update scope, dictionary round-trip, Undo/Redo, native corner union, and
-creation inside three transformed open contexts. Save and reopen that
-test model; verify Edit selected and Edit Noble Array both restore controls.
+creation inside three transformed open contexts. It also archives a real nested
+group source, removes its original references, restores native SKP bytes and
+checks nested attributes/materials before rebuilding. Save and reopen that test
+model; reselect the custom array and verify its source and parameters restore in
+Create / Edit Array. Edit selected and Edit Noble Array use the same controls.
 
 Interactive checks:
 
@@ -65,10 +68,34 @@ Interactive checks:
     entries and model observers have not duplicated. Change a JS/CSS file and
     confirm the reopened panel uses it. Reload never changes model geometry.
 
-The isolated suite currently passes 95 Ruby checks plus the JavaScript arithmetic,
-unit parsing and mesh projection tests. Browser interaction checks cover formulas,
-relative operations, nudges, range overrides and negative margins. Native smoke
-tests are supplied but have not been run by this automation session.
+14. Draw three sides of a rectangle in empty space. Follow the dashed guide from
+    Start to align the final corner; click the highlighted Start to close. Repeat
+    with a red/green axis lock and a rotated rectangle. The committed point must
+    match the preview exactly; moving deliberately beyond the guide must release
+    the snap. Repeat while nested groups are open, at different zoom levels and
+    after Backspace. Exact existing vertices must not round onto the 1 mm grid.
+15. Build from a scaled custom Group, deselect and reselect it, then adjust its gap.
+    Close/reopen the dialog and model. Repeat with a ComponentInstance. Delete the
+    original picked object; editing must still restore the source. Existing arrays
+    should acquire the native snapshot on their next successful update.
+16. Change Custom object to Parametric block, save/reopen, then switch back. The
+    original custom source must return. In the dedicated test model, remove all
+    generated units and the original source, then Edit selected to recover from
+    the archived geometry. Undo the rebuild and verify model/data consistency.
+17. With an array selected, visit Settings and return to Create / Edit Array.
+    Editing must persist. New array must keep parameters/source and show creation
+    controls despite the old selection. Deselect/reselect or select another array
+    to resume editing. Save to gallery must open Preset Editor with those settings.
+
+The isolated suite currently passes 135 Ruby checks plus the JavaScript arithmetic,
+unit parsing and mesh projection tests. New checks cover group source recovery,
+archive transport/corruption, selection lifecycle, rotated-plane inference, lock
+compatibility, pixel hysteresis and preview/click consistency. Browser interaction
+checks cover combined editing, Settings round-trip, New array and preset navigation.
+The developer-only `Na__ArrayBuilder__UiSession__Fixture__.html` hosts the real UI
+with a simulated SketchUp bridge for repeating these browser checks; it never
+connects to a model. Earlier browser checks cover formulas, nudges and signed
+margins. Native smoke tests are supplied but have not been run in this session.
 
 Pre-0.2 arrays contain no stored recipe or path and cannot be edited parametrically.
 Existing geometry remains intact; recreate those arrays once to enable editing.

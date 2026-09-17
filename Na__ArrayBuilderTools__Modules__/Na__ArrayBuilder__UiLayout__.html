@@ -23,8 +23,7 @@
     <div class="na-tab-strip">
         <nav role="tablist" aria-label="Array Builder">
             <button class="na-tab" id="na-tab-gallery" role="tab" aria-controls="na-panel-gallery" aria-selected="false" data-na-tab="gallery">Presets Gallery</button>
-            <button class="na-tab na-tab-active" id="na-tab-create" role="tab" aria-controls="na-panel-create" aria-selected="true" data-na-tab="create">Create Array</button>
-            <button class="na-tab" id="na-tab-edit" role="tab" aria-controls="na-panel-edit" aria-selected="false" data-na-tab="edit">Edit Array</button>
+            <button class="na-tab na-tab-active" id="na-tab-create" role="tab" aria-controls="na-panel-create" aria-selected="true" data-na-tab="create">Create / Edit Array</button>
             <button class="na-tab" id="na-tab-preset" role="tab" aria-controls="na-panel-preset" aria-selected="false" data-na-tab="preset">Preset Editor</button>
             <button class="na-tab" id="na-tab-settings" role="tab" aria-controls="na-panel-settings" aria-selected="false" data-na-tab="settings">Settings</button>
         </nav>
@@ -48,24 +47,13 @@
 
         <section id="na-panel-create" role="tabpanel" aria-labelledby="na-tab-create">
             <div class="na-page-heading">
-                <div><h1>Create Array</h1><p>Set out a repeated block or any group or component.</p></div>
-                <button class="na-btn na-btn-secondary" data-na-action="edit" data-na-edit-button disabled>Edit selected array</button>
+                <div><h1>Create / Edit Array</h1><p id="na-edit-title">Create a new array, or select an existing array to load its settings.</p></div>
+                <div class="na-button-row">
+                    <button class="na-btn na-btn-secondary" data-na-action="edit" data-na-edit-button disabled>Edit selected array</button>
+                    <button class="na-btn na-btn-secondary" id="na-new-array" data-na-action="new" hidden>New array</button>
+                </div>
             </div>
             <div id="na-create-editor"></div>
-        </section>
-
-        <section id="na-panel-edit" role="tabpanel" aria-labelledby="na-tab-edit" hidden>
-            <div class="na-page-heading">
-                <div><h1>Edit Array</h1><p id="na-edit-title">Select a Noble array to load its saved settings.</p></div>
-                <button class="na-btn" data-na-action="edit" data-na-edit-button disabled>Edit selected array</button>
-            </div>
-            <div id="na-edit-empty" class="na-empty-state">
-                <div class="na-empty-symbol" aria-hidden="true">▥</div>
-                <h2>Pick up where you left off</h2>
-                <p>Select a created array, then click <strong>Edit selected array</strong>.<br>You can also right-click it in SketchUp and choose <strong>Edit Noble Array…</strong>.</p>
-                <p class="na-help">Arrays made before version 0.2 have no saved path or settings. Recreate those once to enable parametric editing.</p>
-            </div>
-            <div id="na-edit-editor"></div>
         </section>
 
         <section id="na-panel-preset" role="tabpanel" aria-labelledby="na-tab-preset" hidden>
@@ -91,7 +79,7 @@
         </section>
 
         <section id="na-panel-settings" role="tabpanel" aria-labelledby="na-tab-settings" hidden>
-            <div class="na-page-heading"><div><h1>Settings</h1><p>Array Builder 0.3 · Noble Architecture</p></div></div>
+            <div class="na-page-heading"><div><h1>Settings</h1><p>Array Builder 0.4 · Noble Architecture</p></div></div>
             <section class="na-section">
                 <div class="na-section-header"><h2>Live editing</h2></div>
                 <p>Live Mode updates an open array after you pause typing. Turn it off to prepare changes, then press <strong>Update array</strong>. Each applied change can be undone in SketchUp.</p>
@@ -102,6 +90,7 @@
             <section class="na-section">
                 <div class="na-section-header"><h2>Saved arrays and presets</h2></div>
                 <p>Array settings and paths travel with the SketchUp model. Component copies remain linked until you edit using <strong>Only this array</strong>.</p>
+                <p>Custom arrays also store their original source geometry inside the model. Select an array to load it into <strong>Create / Edit Array</strong>; use <strong>New array</strong> to start another with the current settings.</p>
                 <p>Your gallery lives in <code>05__Data__PresetsLibrary</code> inside the Array Builder project. Updates keep a backup; archived presets remain in <code>01__Archive</code>.</p>
                 <p class="na-help">Previews use the source mesh and material colours. Complex arrays show a limited number of complete objects. Fixed gap mode may overhang the final path point. Layouts are limited to 5,000 units.</p>
                 <button class="na-btn na-btn-secondary" data-na-action="reset">Reset creation settings</button>
@@ -113,7 +102,7 @@
             </section>
         </section>
 
-        <!-- REGION | Shared Editor: moved between the Create / Edit / Preset tabs -->
+        <!-- REGION | Shared Editor: moved between the combined Array and Preset tabs -->
         <div id="na-editor">
             <section class="na-section na-preview-section">
                 <div class="na-section-header"><h2>Array preview</h2><span id="na-preview-caption">3,000 mm sample path</span></div>
@@ -167,7 +156,7 @@
                     <button class="na-btn na-btn-secondary" id="na-stop" data-na-action="cancel" hidden>Cancel preview</button>
                     <button class="na-btn na-btn-secondary" data-na-action="preset_new">Save to gallery</button>
                 </div>
-                <p class="na-help">Click to add points · Enter to finish · Backspace to remove a point · Esc to cancel</p>
+                <p class="na-help">Click to add points · Follow the dashed guide from Start to align the last corner · Click Start to close the loop · Enter to finish an open path · Backspace to undo · Esc to cancel</p>
             </section>
         </div>
     </main>

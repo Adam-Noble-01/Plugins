@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- =============================================================================
+     FILE       : Na__ArrayBuilder__UiSession__Fixture__.html
+     AUTHOR     : Noble Architecture
+     PURPOSE    : Browser fixture for the real editor; no SketchUp model access.
+     ============================================================================= -->
+<head>
+    <meta charset="UTF-8">
+    <title>Array Builder · UI session fixture</title>
+    <style>
+        body { margin: 0; background: #edf0f4; font: 14px Arial, sans-serif; }
+        header { padding: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        button { padding: 8px; }
+        iframe { width: min(100%, 860px); height: calc(100vh - 88px); border: 1px solid #ccd1d8; display: block; }
+        output { display: block; padding: 0 12px 10px; }
+    </style>
+</head>
+<body>
+    <header><strong>UI fixture · simulated selection</strong><button id="na-select">Select saved custom array</button><button id="na-select-second">Select another array</button></header>
+    <output id="na-actions">Loading production interface…</output>
+    <iframe id="na-frame" title="Production Array Builder" src="../Na__ArrayBuilder__UiLayout__.html"></iframe>
+    <script>
+        const na_frame = document.getElementById('na-frame');
+        const na_output = document.getElementById('na-actions');
+        let na_state;
+        let na_revision = 0;
+        function Na__Fixture__SendState() {
+            na_frame.contentWindow.Na__ArrayUi__Receive('state', na_state);
+        }
+        function Na__Fixture__Select(na_name) {
+            na_state = { ...na_state, context: 'fixture-' + ++na_revision, editing: true, can_edit: true, target_name: na_name, linked_count: 2,
+                config: { ...na_state.config, type: 'object', spacing_mm: 150 }, source_name: 'Saved nested group', source_dimensions: [200,150,600] };
+            Na__Fixture__SendState();
+            na_frame.contentWindow.Na__ArrayUi__Receive('tab', 'create');
+            na_output.textContent = 'Simulated selection: ' + na_name;
+        }
+        na_frame.addEventListener('load', () => {
+            const na_window = na_frame.contentWindow;
+            const na_config = { type: 'block' };
+            na_window.document.querySelectorAll('[data-na-field]').forEach(na_field => {
+                na_config[na_field.dataset.naField] = na_field.type === 'checkbox' ? na_field.checked : na_field.tagName === 'SELECT' ? na_field.value : Number(na_field.value);
+            });
+            na_state = { context: 'fixture-0', config: na_config, editing: false, placing: false, live: true, scope: 'single', can_edit: false };
+            na_window.sketchup = { na_arrayAction: na_json => {
+                const na_request = JSON.parse(na_json);
+                na_output.textContent = 'Bridge action: ' + na_request.action + ' · spacing ' + (na_request.config?.spacing_mm ?? na_state.config.spacing_mm) + ' mm';
+                if (na_request.config) na_state.config = na_request.config;
+                if (na_request.action === 'new') { na_state.editing = false; na_state.target_name = null; na_state.context = 'fixture-' + ++na_revision; }
+                if (na_request.action === 'live') na_state.live = na_request.enabled;
+                Na__Fixture__SendState();
+            } };
+            Na__Fixture__SendState();
+            na_output.textContent = 'Ready · no SketchUp model is connected.';
+        });
+        document.getElementById('na-select').addEventListener('click', () => Na__Fixture__Select('Custom array A'));
+        document.getElementById('na-select-second').addEventListener('click', () => Na__Fixture__Select('Custom array B'));
+    </script>
+</body>
+</html>

@@ -10,6 +10,7 @@ require 'json'
 require 'securerandom'
 require_relative 'Na__ArrayBuilder__Configuration__'
 require_relative 'Na__ArrayBuilder__ObjectRegistry__'
+require_relative 'Na__ArrayBuilder__SourceArchive__'
 
 module Na__ArrayBuilderTools
     module Na__ArrayBuilder__DataSerializer
@@ -77,6 +78,13 @@ module Na__ArrayBuilderTools
                 'path_mm' => na_points.map { |na_point| na_point.to_a.map { |na_value| na_value.to_f * 25.4 } },
                 'source' => Na__Data__SourceRecord(na_source), 'unit_count' => na_count
             }
+            if na_source
+                na_data['source']['archive_id'] = Na__ArrayBuilder__SourceArchive.Na__Source__Save(na_model, na_entity.definition, na_source)
+            elsif na_previous && na_previous['source']
+                # Switching temporarily to blocks must not discard the custom
+                # source recipe or its archived geometry.
+                na_data['source'] = na_previous['source']
+            end
             na_json = JSON.generate(na_data)
             na_entity.definition.set_attribute(NA_DEFINITION_DICT, 'data', na_json)
             na_entity.set_attribute(NA_INSTANCE_DICT, 'instance_id', "NAR-#{na_entity.persistent_id}")
@@ -90,24 +98,30 @@ module Na__ArrayBuilderTools
             return nil unless na_source
             {
                 'definition_pid' => na_source[:definition].persistent_id,
-                'name' => na_source[:definition].name,
+                'name' => na_source[:name] || na_source[:definition].name,
                 'scale' => na_source[:scale]
             }
         end
 
         # FUNCTION | Resolve Embedded Geometry Before Model-Scoped Identifiers
         # ------------------------------------------------------------
-        def self.Na__Data__RestoreSource(na_entity, na_data)
-            return nil unless na_data['configuration']['type'] == 'object'
+        def self.Na__Data__RestoreSource(na_entity, na_data, na_recover = false)
             na_record = na_data['source']
+            return nil unless na_data['configuration']['type'] == 'object' || na_record
             raise ArgumentError, 'The saved source reference is missing.' unless na_record.is_a?(Hash)
             na_child = na_entity.definition.entities.find { |na_item|
-                na_item.is_a?(Sketchup::ComponentInstance) &&
+                na_data['configuration']['type'] == 'object' &&
+                (na_item.is_a?(Sketchup::ComponentInstance) || na_item.is_a?(Sketchup::Group)) && na_item.valid? &&
                     na_item.get_attribute(NA_INSTANCE_DICT, 'role') == 'unit'
             }
-            raise ArgumentError, 'The source geometry is missing. Pick a replacement object.' unless na_child
+            na_definition = na_child && na_child.definition
+            if !na_definition && na_recover
+                na_definition = Na__ArrayBuilder__SourceArchive.Na__Source__Restore(Sketchup.active_model, na_entity.definition, na_record)
+            end
+            return nil if !na_definition && na_data['configuration']['type'] != 'object'
+            raise ArgumentError, 'The source geometry is missing. Use Edit selected to restore it, or pick a replacement.' unless na_definition
             Na__ArrayBuilder__ObjectRegistry.Na__Registry__SetDefinition(
-                na_child.definition, na_record['name'], na_record['scale']
+                na_definition, na_record['name'], na_record['scale']
             )
             Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo
         end

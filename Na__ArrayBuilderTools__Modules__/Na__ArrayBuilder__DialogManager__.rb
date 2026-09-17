@@ -35,6 +35,7 @@ module Na__ArrayBuilderTools
             @na_live = Sketchup.read_default('Na__ArrayBuilderTools', 'live', true)
             @na_scope = 'single'
             @na_target = @na_tool = @na_picker = nil
+            @na_ignored_selection = nil
             @na_model = Sketchup.active_model
             @na_config = Na__ArrayBuilder__DataSerializer.Na__Data__ModelSettings(@na_model)
             Na__Dialog__NewContext()
@@ -101,7 +102,7 @@ module Na__ArrayBuilderTools
                 Na__Dialog__PushState()
                 Na__Dialog__PushGallery()
                 Na__Dialog__Preview()
-                if @na_open_edit
+                if @na_open_edit || (!@na_reloaded && !@na_target && Na__Dialog__SelectedArray() && !Na__Dialog__SelectedArray().locked?)
                     @na_open_edit = false
                     Na__Dialog__EditSelected()
                 end
@@ -118,6 +119,10 @@ module Na__ArrayBuilderTools
             when 'configure', 'update'
                 @na_config = Na__ArrayBuilder__Configuration.Na__Config__Resolve(na_payload.fetch('config'))
                 @na_scope = na_payload['scope'] == 'linked' ? 'linked' : 'single'
+                if @na_target && @na_config['type'] == 'object' && !Na__ArrayBuilder__ObjectRegistry.Na__Registry__IsValid?
+                    Na__ArrayBuilder__DataSerializer.Na__Data__RestoreSource(@na_target, Na__ArrayBuilder__DataSerializer.Na__Data__Load(@na_target), true)
+                    Na__Dialog__PushState()
+                end
                 if @na_tool
                     @na_tool.Na__Tool__UpdateConfig(@na_config)
                 elsif @na_target && (@na_live || na_action == 'update')
@@ -137,6 +142,7 @@ module Na__ArrayBuilderTools
                 Na__Dialog__EditSelected()
             when 'new'
                 Na__Dialog__StopTool()
+                @na_ignored_selection = Na__Dialog__SelectedArray()&.persistent_id
                 @na_target = nil
                 @na_config = Na__ArrayBuilder__Configuration.Na__Config__Resolve(na_payload['config']) if na_payload['config']
                 Na__Dialog__NewContext()
@@ -169,6 +175,7 @@ module Na__ArrayBuilderTools
                 na_send_status_to_dialog('success', 'Preset moved to the library archive.')
             when 'reset'
                 Na__Dialog__StopTool()
+                @na_ignored_selection = Na__Dialog__SelectedArray()&.persistent_id
                 @na_target = nil
                 @na_config = Na__ArrayBuilder__Configuration.Na__Config__Resolve
                 Na__Dialog__NewContext()
@@ -177,7 +184,7 @@ module Na__ArrayBuilderTools
             when 'reload'
                 Na__ArrayBuilder__PluginReloader.Na__Reload__Schedule({
                     config: Na__ArrayBuilder__Configuration.Na__Config__Resolve(na_payload.fetch('config')),
-                    target: @na_target, scope: @na_scope, model: @na_model,
+                    target: @na_target, scope: @na_scope, model: @na_model, ignored_selection: @na_ignored_selection,
                     source: Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetPlacementInfo(),
                     source_name: Na__ArrayBuilder__ObjectRegistry.Na__Registry__GetDisplayName()
                 })
@@ -195,6 +202,7 @@ module Na__ArrayBuilderTools
             return unless @na_model == na_snapshot[:model]
             @na_config = na_snapshot[:config]
             @na_scope = na_snapshot[:scope]
+            @na_ignored_selection = na_snapshot[:ignored_selection]
             na_target = na_snapshot[:target]
             if na_target && na_target.valid? && !na_target.locked? &&
                @na_model.active_entities.include?(na_target) && @na_model.selection.to_a == [na_target]
@@ -222,25 +230,26 @@ module Na__ArrayBuilderTools
             Na__ArrayBuilder__DataSerializer.Na__Data__HasData?(na_entity) ? na_entity : nil
         end
 
-        def self.Na__Dialog__EditSelected
+        def self.Na__Dialog__EditSelected(na_recover = true)
             na_entity = Na__Dialog__SelectedArray()
             raise ArgumentError, 'Select one Noble array created with this version, then click Edit selected.' unless na_entity
             raise ArgumentError, 'Unlock the selected array before editing.' if na_entity.locked?
             na_data = Na__ArrayBuilder__DataSerializer.Na__Data__Load(na_entity)
             Na__Dialog__StopTool()
             @na_target = na_entity
+            @na_ignored_selection = nil
             @na_config = na_data['configuration']
             @na_scope = 'single'
             Na__ArrayBuilder__ObjectRegistry.Na__Registry__Clear
             begin
-                Na__ArrayBuilder__DataSerializer.Na__Data__RestoreSource(na_entity, na_data)
+                Na__ArrayBuilder__DataSerializer.Na__Data__RestoreSource(na_entity, na_data, na_recover && na_data['configuration']['type'] == 'object')
             rescue ArgumentError => na_error
                 na_send_status_to_dialog('warning', na_error.message)
             end
             @na_signature = Na__Dialog__Signature()
             Na__Dialog__NewContext()
             Na__Dialog__PushState()
-            Na__Dialog__Send('tab', 'edit')
+            Na__Dialog__Send('tab', 'create')
             Na__Dialog__Preview()
         end
 
@@ -335,7 +344,15 @@ module Na__ArrayBuilderTools
         end
 
         def self.na_send_array_complete(_na_count)
+            if @na_last_created && @na_last_created.valid? && @na_model.selection.to_a == [@na_last_created]
+                @na_target = @na_last_created
+                @na_config = Na__ArrayBuilder__DataSerializer.Na__Data__Load(@na_target)['configuration']
+                @na_signature = Na__Dialog__Signature()
+                @na_ignored_selection = nil
+                Na__Dialog__NewContext()
+            end
             Na__Dialog__PushState()
+            Na__Dialog__Send('tab', 'create')
             Na__Dialog__Send('completed', true)
         end
 
@@ -453,6 +470,7 @@ module Na__ArrayBuilderTools
             # Load first; a damaged source cannot discard the current edit session.
             Na__ArrayBuilder__PresetsLibrary.Na__Presets__LoadSource(@na_model, na_record)
             Na__Dialog__StopTool()
+            @na_ignored_selection = Na__Dialog__SelectedArray()&.persistent_id
             @na_target = nil
             @na_config = na_record['configuration']
             Na__Dialog__NewContext()
@@ -465,6 +483,19 @@ module Na__ArrayBuilderTools
             return nil unless @na_target && @na_target.valid?
             [@na_target.transformation.to_a, @na_target.locked?,
              @na_target.definition.get_attribute(Na__ArrayBuilder__DataSerializer::NA_DEFINITION_DICT, 'data')]
+        end
+
+        # FUNCTION | Load Reselected Arrays Into the Shared Create / Edit Controls
+        # ------------------------------------------------------------
+        def self.Na__Dialog__FollowSelection
+            return if @na_tool || @na_picker
+            na_selected = Na__Dialog__SelectedArray()
+            na_pid = na_selected && na_selected.persistent_id
+            @na_ignored_selection = nil if @na_ignored_selection != na_pid
+            return if !na_selected || na_selected.locked? || na_selected == @na_target || na_pid == @na_ignored_selection
+            # Observer callbacks may restore a native embedded source reference,
+            # but importing an archived SKP requires an explicit Edit/Update action.
+            Na__Dialog__EditSelected(false)
         end
 
         # FUNCTION | Observers Schedule This Read; They Never Write Model Data
@@ -483,7 +514,7 @@ module Na__ArrayBuilderTools
                 Na__Dialog__StopTool()
                 @na_target = nil
                 Na__Dialog__NewContext()
-                na_send_status_to_dialog('info', 'Selection changed. Use Edit selected to open an array.')
+                na_send_status_to_dialog('info', 'Select an array to load its settings, or draw a new path.')
             elsif @na_target && @na_signature != Na__Dialog__Signature()
                 # Undo / Redo / external edits reload the saved recipe and cancel stale UI events.
                 @na_config = Na__ArrayBuilder__DataSerializer.Na__Data__Load(@na_target)['configuration']
@@ -492,6 +523,7 @@ module Na__ArrayBuilderTools
                 @na_signature = Na__Dialog__Signature()
                 Na__Dialog__Preview()
             end
+            Na__Dialog__FollowSelection()
             Na__Dialog__PushState()
         rescue StandardError => na_error
             @na_target = nil

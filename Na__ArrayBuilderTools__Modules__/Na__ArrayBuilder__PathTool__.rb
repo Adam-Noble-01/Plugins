@@ -142,6 +142,12 @@ module Na__ArrayBuilderTools
             end
 
             @na_cache_path      = @waypoints + [@cursor_pos]
+            if @waypoints.length == 1 && @waypoints.first.distance(@cursor_pos) < 0.001
+                na_reset_preview_cache
+                @dialog_manager.Na__Dialog__CancelPreview()
+                @dialog_manager.na_send_preview_info(0, 0, nil)
+                return
+            end
             @na_cache_positions = na_calculate_preview_positions(@na_cache_path)
             @na_cache_total_mm  = na_path_length_mm(@na_cache_path)
             @na_cache_actual_mm = na_calculate_actual_spacing_mm(@na_cache_path)
@@ -233,6 +239,7 @@ module Na__ArrayBuilderTools
             end
             super
             Na__Path__RefreshCursor(view)
+            false
         end
         # ---------------------------------------------------------------
 

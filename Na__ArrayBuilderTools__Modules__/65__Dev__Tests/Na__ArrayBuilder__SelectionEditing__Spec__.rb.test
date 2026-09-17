@@ -1,0 +1,57 @@
+# =============================================================================
+# NA ARRAY BUILDER TOOLS - SELECTION EDITING REGRESSIONS
+# FILE       : Na__ArrayBuilder__SelectionEditing__Spec__.rb.test
+# AUTHOR     : Noble Architecture
+# PURPOSE    : Reselect group arrays, preserve drafts and bind newly built arrays.
+# =============================================================================
+
+na_previous_model = Sketchup.active_model
+begin
+    na_model = Na__Spec__Model.new
+    na_model.definitions = Na__Spec__Definitions.new
+    na_model.active_entities = Na__Spec__Entities.new
+    na_model.selection = Na__Spec__Selection.new
+    Sketchup.active_model = na_model
+    na_source = na_model.definitions.add('Selection group source')
+    NA_REGISTRY.Na__Registry__SetDefinition(na_source, 'Selection group', [2,3,4])
+    na_config = NA_CONFIG.Na__Config__Resolve('type'=>'object', 'spacing_mm'=>88)
+    na_array = NA_GEOMETRY.na_create_array([ORIGIN,Geom::Point3d.new(100,0,0)],na_config)
+    na_group = Na__Spec__GroupUnit.new(na_source)
+    na_group.set_attribute(NA_DATA::NA_INSTANCE_DICT,'role','unit')
+    na_array.definition.entities.replace([na_group])
+    na_other = Na__Spec__Entity.new(na_array.definition)
+    na_model.active_entities << na_other
+    NA_DIALOG.instance_variable_set(:@na_target,nil)
+    NA_DIALOG.instance_variable_set(:@na_tool,nil)
+    NA_DIALOG.instance_variable_set(:@na_picker,nil)
+    na_before = na_model.na_starts
+    NA_DIALOG.Na__Dialog__Synchronise()
+    Na__Spec__Check('selecting group array automatically enters shared edit controls') { NA_DIALOG.instance_variable_get(:@na_target)==na_array && NA_REGISTRY.Na__Registry__GetPlacementInfo()[:definition]==na_source }
+    Na__Spec__Check('selection restoration stays read-only') { na_model.na_starts==na_before }
+    Na__Spec__Check('selection restoration opens combined create tab') { NA_DIALOG.na_get_dialog.na_scripts.any? { |na_script| na_script.include?('"tab", "create"') } }
+    na_old_context = NA_DIALOG.instance_variable_get(:@na_context)
+    NA_DIALOG.Na__Dialog__Receive(JSON.generate('action'=>'new','context'=>na_old_context,'config'=>na_config))
+    NA_DIALOG.Na__Dialog__Synchronise()
+    Na__Spec__Check('new array stays in creation despite old array still selected') { NA_DIALOG.instance_variable_get(:@na_target).nil? }
+    Na__Spec__Check('new array retains source and parameters') { NA_DIALOG.instance_variable_get(:@na_config)['spacing_mm']==88 && NA_REGISTRY.Na__Registry__GetPlacementInfo()[:definition]==na_source }
+    Na__Spec__Check('new array cancels stale edit events') { NA_DIALOG.instance_variable_get(:@na_context)!=na_old_context }
+    na_model.selection.clear
+    NA_DIALOG.Na__Dialog__Synchronise()
+    na_model.selection.add(na_array)
+    NA_REGISTRY.Na__Registry__Clear()
+    NA_DIALOG.Na__Dialog__Synchronise()
+    Na__Spec__Check('deselect and reselect reloads group without picking source again') { NA_DIALOG.instance_variable_get(:@na_target)==na_array && NA_REGISTRY.Na__Registry__GetPlacementInfo()[:scale]==[2.0,3.0,4.0] }
+    na_old_context = NA_DIALOG.instance_variable_get(:@na_context)
+    na_model.selection.replace([na_other])
+    NA_DIALOG.Na__Dialog__Synchronise()
+    Na__Spec__Check('selecting another array switches target and context') { NA_DIALOG.instance_variable_get(:@na_target)==na_other && NA_DIALOG.instance_variable_get(:@na_context)!=na_old_context }
+    na_other.na_locked = true
+    NA_DIALOG.Na__Dialog__Synchronise()
+    Na__Spec__Check('locked selected array cannot become edit target') { NA_DIALOG.instance_variable_get(:@na_target).nil? }
+    na_other.na_locked = false
+    NA_DIALOG.instance_variable_set(:@na_last_created,na_other)
+    NA_DIALOG.na_send_array_complete(10)
+    Na__Spec__Check('completed array remains immediately editable') { NA_DIALOG.instance_variable_get(:@na_target)==na_other && NA_DIALOG.instance_variable_get(:@na_config)==NA_DATA.Na__Data__Load(na_other)['configuration'] }
+ensure
+    Sketchup.active_model = na_previous_model
+end

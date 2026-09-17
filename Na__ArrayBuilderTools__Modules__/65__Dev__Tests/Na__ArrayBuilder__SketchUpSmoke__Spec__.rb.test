@@ -80,6 +80,45 @@ na_world_transform = Sketchup::InstancePath.new([na_outer,na_middle,na_inner,na_
 unless na_saved_local.zip(na_world_path).all? { |na_local,na_world| na_local.transform(na_world_transform).distance(na_world)<0.001 }
     raise 'Nested array moved when leaving its editing context.'
 end
+# REGION | Real Group source, embedded native SKP and missing-definition recovery
+na_registry = Na__ArrayBuilderTools::Na__ArrayBuilder__ObjectRegistry
+na_archive = Na__ArrayBuilderTools::Na__ArrayBuilder__SourceArchive
+na_model.start_operation('Custom Group Source Fixture',true)
+na_source_group = na_model.entities.add_group
+na_source_group.name = 'Nested custom smoke source'
+na_child = na_source_group.entities.add_group
+na_face = na_child.entities.add_face([0,0,0],[100.mm,0,0],[100.mm,50.mm,0],[0,50.mm,0])
+na_face.reverse! if na_face.normal.z < 0
+na_face.pushpull(300.mm)
+na_child.transformation = Geom::Transformation.translation([25.mm,40.mm,10.mm])
+na_child.set_attribute('Na__ArraySmoke','nested_marker','preserved')
+na_child.entities.grep(Sketchup::Face).each { |na_item| na_item.material = 'red' }
+na_source_definition = na_source_group.definition
+na_original_path = na_source_definition.path
+na_model.commit_operation
+na_registry.Na__Registry__SetDefinition(na_source_definition,na_source_group.name,[2,3,4])
+na_object_config = na_config.merge('type'=>'object')
+na_object_path = [Geom::Point3d.new(0,6000.mm,0),Geom::Point3d.new(3000.mm,6000.mm,0)]
+na_object_array = na_builder.na_create_array(na_object_path,na_object_config)
+na_object_data = na_serializer.Na__Data__Load(na_object_array)
+raise 'Archiving changed the original source file path.' unless na_source_definition.path==na_original_path
+raise 'Native source archive missing.' unless na_object_data['source']['archive_id']
+na_registry.Na__Registry__Clear()
+na_restored = na_serializer.Na__Data__RestoreSource(na_object_array,na_object_data)
+raise 'Group array did not restore its original source.' unless na_restored[:definition]==na_source_definition && na_restored[:scale]==[2.0,3.0,4.0]
+na_model.start_operation('Remove Smoke Source References',true)
+na_units = na_object_array.definition.entities.select { |na_item| na_item.get_attribute(na_serializer::NA_INSTANCE_DICT,'role')=='unit' }
+na_object_array.definition.entities.erase_entities(na_units)
+na_source_group.erase!
+na_model.definitions.remove(na_source_definition) if na_source_definition.valid? && na_source_definition.instances.empty?
+na_model.commit_operation
+na_registry.Na__Registry__Clear()
+na_restored = na_serializer.Na__Data__RestoreSource(na_object_array,na_object_data,true)
+na_restored_child = na_restored[:definition].entities.find { |na_item| na_item.respond_to?(:definition) }
+raise 'Native archive lost nested attributes.' unless na_restored_child && na_restored_child.get_attribute('Na__ArraySmoke','nested_marker')=='preserved'
+raise 'Native archive lost face materials.' unless na_restored_child.definition.entities.grep(Sketchup::Face).all? { |na_item| na_item.material && na_item.material.color.red==255 }
+na_builder.Na__Geometry__Update(na_model,na_object_array,na_object_config.merge('spacing_mm'=>75),'single',na_restored)
+raise 'Recovered group array could not rebuild.' unless na_serializer.Na__Data__Load(na_object_array)['unit_count']>0
 na_model.active_view.zoom_extents
-puts 'Array Builder native geometry, union, three nested contexts, persistence and Undo/Redo smoke check passed.'
-puts 'Next: save/reopen this test model, select an array, and choose Edit Noble Array from its context menu.'
+puts 'Array Builder native geometry, union, nesting, source archive and Undo/Redo smoke check passed.'
+puts 'Next: save/reopen this test model, reselect the custom array and edit it in Create / Edit Array.'

@@ -52,7 +52,7 @@ module Na__ArrayBuilderTools
         def self.Na__Geometry__Update(na_model, na_entity, na_config, na_scope, na_source = nil, na_path = nil)
             raise ArgumentError, 'The array is locked.' if na_entity.locked?
             na_data = Na__ArrayBuilder__DataSerializer.Na__Data__Load(na_entity)
-            na_source ||= Na__ArrayBuilder__DataSerializer.Na__Data__RestoreSource(na_entity, na_data) if na_config['type'] == 'object'
+            na_source ||= Na__ArrayBuilder__DataSerializer.Na__Data__RestoreSource(na_entity, na_data, true) if na_config['type'] == 'object'
             na_source = nil unless na_config['type'] == 'object'
             na_points = na_path || Na__ArrayBuilder__DataSerializer.Na__Data__Points(na_data)
             na_plan = Na__ArrayBuilder__LayoutEngine.Na__Layout__Resolve(na_config, na_points, na_source)

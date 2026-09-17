@@ -10,7 +10,7 @@ module Na__ArrayBuilderTools
 
         NA_MODULE_ORDER = %w[
             Configuration AssetResolver ObjectRegistry ObjectPicker Distribution
-            PathFromSelection LayoutEngine DataSerializer CornerMerger GeometryBuilder
+            PathFromSelection LayoutEngine SourceArchive DataSerializer CornerMerger GeometryBuilder
             PreviewGeometry PreviewRenderMixin AxisLockMixin PathInference PathTool SelectionArrayTool
             PresetsLibrary DialogManager ModelObservers Main PluginReloader
         ].freeze

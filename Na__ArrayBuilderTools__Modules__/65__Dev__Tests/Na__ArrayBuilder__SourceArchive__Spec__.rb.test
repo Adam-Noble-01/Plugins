@@ -1,0 +1,86 @@
+# =============================================================================
+# NA ARRAY BUILDER TOOLS - SOURCE PERSISTENCE REGRESSIONS
+# FILE       : Na__ArrayBuilder__SourceArchive__Spec__.rb.test
+# AUTHOR     : Noble Architecture
+# PURPOSE    : Group sources, archive recovery, model portability and selection.
+# =============================================================================
+
+NA_ARCHIVE = Na__ArrayBuilderTools::Na__ArrayBuilder__SourceArchive
+class Na__Spec__GroupUnit < Sketchup::Group
+    include Na__Spec__Attributes
+    attr_reader :definition
+    def initialize(na_definition); @definition=na_definition; end
+    def valid?; true; end
+end
+na_previous_model = Sketchup.active_model
+begin
+    na_model = Na__Spec__Model.new
+    na_model.definitions=Na__Spec__Definitions.new
+    na_model.active_entities=Na__Spec__Entities.new
+    na_model.selection=Na__Spec__Selection.new
+    Sketchup.active_model=na_model
+    na_source_definition=na_model.definitions.add('Original nested source')
+    NA_REGISTRY.Na__Registry__SetDefinition(na_source_definition,'Picked group',[2,3,4])
+    na_source=NA_REGISTRY.Na__Registry__GetPlacementInfo()
+    na_config=NA_CONFIG.Na__Config__Resolve('type'=>'object')
+    na_path=[ORIGIN,Geom::Point3d.new(100,0,0)]
+    na_array=NA_GEOMETRY.na_create_array(na_path,na_config)
+    na_data=NA_DATA.Na__Data__Load(na_array)
+    na_archive=na_array.definition.get_attribute(NA_ARCHIVE::NA_DICTIONARY,'archive')
+    Na__Spec__Check('complete native source bytes are saved inside the array') { Base64.strict_decode64(JSON.parse(na_archive)['data_base64'])==na_source_definition.na_saved_bytes }
+    Na__Spec__Check('model dictionary carries a matching source archive') { na_model.get_attribute(NA_ARCHIVE::NA_MODEL_DICTIONARY,na_data['source']['archive_id'])==na_archive }
+    NA_GEOMETRY.Na__Geometry__Update(na_model,na_array,na_config.merge('spacing_mm'=>50),'linked',na_source)
+    Na__Spec__Check('parameter-only edits reuse the archived source') { na_source_definition.na_saves==1 }
+    na_original_archive_id=na_data['source']['archive_id']
+    na_source_definition.na_revision='changed geometry'
+    NA_GEOMETRY.Na__Geometry__Update(na_model,na_array,na_config,'linked',na_source)
+    na_data=NA_DATA.Na__Data__Load(na_array)
+    na_archive=na_array.definition.get_attribute(NA_ARCHIVE::NA_DICTIONARY,'archive')
+    Na__Spec__Check('source revision refreshes the native archive') { na_source_definition.na_saves==2 && na_data['source']['archive_id']!=na_original_archive_id }
+    na_source_definition.na_revision='failed export'
+    na_source_definition.na_fail_save=true
+    na_before=na_model.na_aborts||0
+    begin
+        NA_GEOMETRY.Na__Geometry__Update(na_model,na_array,na_config.merge('spacing_mm'=>99),'linked',na_source)
+        raise 'Expected source archive export failure'
+    rescue IOError
+        Na__Spec__Check('failed archive export aborts without replacing the saved recipe') { na_model.na_aborts==na_before+1 && NA_DATA.Na__Data__Load(na_array)==na_data && na_array.definition.get_attribute(NA_ARCHIVE::NA_DICTIONARY,'archive')==na_archive }
+    ensure
+        na_source_definition.na_fail_save=false
+        na_source_definition.na_revision='changed geometry'
+    end
+    na_group_unit=Na__Spec__GroupUnit.new(na_source_definition)
+    na_group_unit.set_attribute(NA_DATA::NA_INSTANCE_DICT,'role','unit')
+    na_array.definition.entities.replace([na_group_unit])
+    NA_REGISTRY.Na__Registry__Clear()
+    na_restored=NA_DATA.Na__Data__RestoreSource(na_array,na_data)
+    Na__Spec__Check('group-based source restores after registry is cleared') { na_restored[:definition]==na_source_definition && na_restored[:scale]==[2.0,3.0,4.0] }
+    Na__Spec__Check('picked source display name survives reselect') { na_restored[:name]=='Picked group' }
+    na_legacy=Marshal.load(Marshal.dump(na_data))
+    na_legacy['source'].delete('archive_id')
+    Na__Spec__Check('pre-archive group arrays remain editable') { NA_DATA.Na__Data__RestoreSource(na_array,na_legacy)[:definition]==na_source_definition }
+    na_array.definition.entities.clear
+    NA_REGISTRY.Na__Registry__Clear()
+    na_before=na_model.na_starts
+    Na__Spec__Reject('observer reads must not import missing sources') { NA_DATA.Na__Data__RestoreSource(na_array,na_data) }
+    Na__Spec__Check('read-only recovery does not create an operation') { na_model.na_starts==na_before }
+    na_restored=NA_DATA.Na__Data__RestoreSource(na_array,na_data,true)
+    Na__Spec__Check('source restores from archive after all generated units are removed') { na_restored[:definition].na_saved_bytes==na_source_definition.na_saved_bytes && na_restored[:definition]!=na_source_definition }
+    na_block_data=NA_DATA.Na__Data__Save(na_model,na_array,na_config.merge('type'=>'block'),na_path,nil,10,na_data)
+    Na__Spec__Check('temporary block mode retains the custom source recipe') { na_block_data['source']==na_data['source'] }
+    Na__Spec__Check('custom source can be recovered after switching to block mode') { NA_DATA.Na__Data__RestoreSource(na_array,na_block_data,true)[:definition].na_saved_bytes==na_source_definition.na_saved_bytes }
+    na_corrupt=JSON.parse(na_archive).merge('data_base64'=>Base64.strict_encode64('corrupt'))
+    na_array.definition.set_attribute(NA_ARCHIVE::NA_DICTIONARY,'archive',JSON.generate(na_corrupt))
+    Na__Spec__Check('model archive recovers a damaged local archive') { NA_ARCHIVE.Na__Source__VerifiedBytes(na_model,na_array.definition,na_data['source'])==na_source_definition.na_saved_bytes }
+    na_model.set_attribute(NA_ARCHIVE::NA_MODEL_DICTIONARY,na_data['source']['archive_id'],JSON.generate(na_corrupt))
+    na_before=na_model.na_starts
+    Na__Spec__Reject('damaged source bytes are rejected') { NA_DATA.Na__Data__RestoreSource(na_array,na_data,true) }
+    Na__Spec__Check('archive validation happens before model mutation') { na_model.na_starts==na_before }
+    na_array.definition.set_attribute(NA_ARCHIVE::NA_DICTIONARY,'archive',na_archive)
+    na_new_model=Na__Spec__Model.new
+    na_new_model.definitions=Na__Spec__Definitions.new
+    Sketchup.active_model=na_new_model
+    Na__Spec__Check('copied array recovers in another model without original PIDs or model dictionary') { NA_DATA.Na__Data__RestoreSource(na_array,na_data,true)[:definition].na_saved_bytes==na_source_definition.na_saved_bytes }
+ensure
+    Sketchup.active_model=na_previous_model
+end

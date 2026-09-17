@@ -145,6 +145,7 @@ module Na__ArrayBuilderTools
 
             {
                 definition:    @na_definition,
+                name:          @na_display_name,
                 scale:         @na_scale.dup,
                 width:         (max.x - min.x) * sx,
                 depth:         (max.y - min.y) * sy,

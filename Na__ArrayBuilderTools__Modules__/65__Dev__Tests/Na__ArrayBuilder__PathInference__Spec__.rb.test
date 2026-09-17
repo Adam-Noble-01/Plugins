@@ -1,0 +1,83 @@
+# =============================================================================
+# NA ARRAY BUILDER TOOLS - PATH INFERENCE REGRESSIONS
+# FILE       : Na__ArrayBuilder__PathInference__Spec__.rb.test
+# AUTHOR     : Noble Architecture
+# PURPOSE    : First-point alignment, exact click commits and closed-loop snaps.
+# =============================================================================
+
+NA_INFERENCE = Na__ArrayBuilderTools::Na__ArrayBuilder__PathInference
+
+class Na__Spec__InferenceView
+    attr_accessor :na_point, :na_scale, :tooltip, :na_dof
+    def initialize; @na_scale=1; @na_dof=3; end
+    def screen_coords(na_point); Geom::Point3d.new(na_point.x*@na_scale,na_point.y*@na_scale,0); end
+    def invalidate; end
+    def lock_inference(*); end
+end
+
+na_view = Na__Spec__InferenceView.new
+na_path = [Geom::Point3d.new(0,0,0),Geom::Point3d.new(100,0,0),Geom::Point3d.new(100,100,0)]
+na_snap = NA_INFERENCE.Na__Inference__Resolve(na_path,Geom::Point3d.new(5,100,0),na_view,X_AXIS)
+Na__Spec__Check('locked red travel infers final corner from first point') { na_snap && na_snap[:point]==Geom::Point3d.new(0,100,0) && na_snap[:kind]==:alignment }
+Na__Spec__Check('first point does not break an incompatible axis lock') { NA_INFERENCE.Na__Inference__Resolve(na_path,ORIGIN,na_view,X_AXIS).nil? }
+na_near = NA_INFERENCE.Na__Inference__Resolve(na_path,Geom::Point3d.new(16,100,0),na_view,X_AXIS,na_snap)
+Na__Spec__Check('acquired corner remains stable inside release radius') { na_near && na_near[:point]==na_snap[:point] }
+Na__Spec__Check('corner outside release radius lets user overshoot intentionally') { NA_INFERENCE.Na__Inference__Resolve(na_path,Geom::Point3d.new(25,100,0),na_view,X_AXIS,na_snap).nil? }
+na_path << Geom::Point3d.new(0,100,0)
+na_close = NA_INFERENCE.Na__Inference__Resolve(na_path,Geom::Point3d.new(0,6,0),na_view,Y_AXIS)
+Na__Spec__Check('return to start snaps to exact original point') { na_close && na_close[:kind]==:start && na_close[:point].equal?(na_path.first) }
+Na__Spec__Check('two-point path cannot close prematurely') { NA_INFERENCE.Na__Inference__Resolve(na_path.first(2),ORIGIN,na_view).nil? }
+Na__Spec__Check('skew 3D guides do not produce false corners') { NA_INFERENCE.Na__Inference__Intersection(ORIGIN,X_AXIS,Geom::Point3d.new(0,0,10),Y_AXIS).nil? }
+na_rotated = [Geom::Point3d.new(400,500,75),Geom::Point3d.new(500,600,75),Geom::Point3d.new(400,700,75)]
+na_direction = na_rotated[1]-na_rotated[0]
+na_rotated_snap = NA_INFERENCE.Na__Inference__Resolve(na_rotated,Geom::Point3d.new(304,604,75),na_view,na_direction)
+Na__Spec__Check('translated rotated path aligns in its own plane') { na_rotated_snap && na_rotated_snap[:point]==Geom::Point3d.new(300,600,75) }
+na_view.na_scale=4
+Na__Spec__Check('snap threshold uses screen pixels rather than model units') { NA_INFERENCE.Na__Inference__Resolve(na_path.first(3),Geom::Point3d.new(5,100,0),na_view,X_AXIS).nil? }
+na_view.na_scale=1
+
+# Native input is stubbed; the real PathTool pick/click and finish methods run.
+module Sketchup
+    class InputPoint
+        attr_reader :position
+        def initialize(na_point=nil); @position=na_point; @na_dof=3; end
+        def pick(na_view,*); @position=na_view.na_point; @na_dof=na_view.na_dof; true; end
+        def valid?; !@position.nil?; end
+        def degrees_of_freedom; @na_dof; end
+        def tooltip; ''; end
+    end
+    class << self; attr_accessor :status_text; end
+end
+class Na__Spec__PathDialog
+    attr_reader :na_committed
+    def Na__Dialog__PreviewFrame; Geom::Transformation.new; end
+    def Na__Dialog__QueuePreview(*); end
+    def Na__Dialog__CancelPreview; end
+    def Na__Dialog__CommitPath(na_points,*); @na_committed=na_points.dup; true; end
+    def na_send_preview_info(*); end
+    def na_send_status_to_dialog(*); end
+    def na_send_array_complete(*); end
+end
+na_dialog = Na__Spec__PathDialog.new
+na_tool = Na__ArrayBuilderTools::Na__ArrayBuilder__PathTool.new(NA_CONFIG.Na__Config__Resolve(),na_dialog)
+na_tool.instance_variable_set(:@state,:picking_path)
+na_tool.instance_variable_set(:@waypoints,na_path.first(3))
+na_tool.instance_variable_set(:@na_active_lock,:x)
+na_view.na_point=Geom::Point3d.new(5,100,0)
+na_tool.onMouseMove(0,5,100,na_view)
+na_preview_point = na_tool.instance_variable_get(:@cursor_pos)
+na_tool.onLButtonDown(0,5,100,na_view)
+Na__Spec__Check('click commits the same exact corner as the preview') { na_tool.instance_variable_get(:@waypoints).last==na_preview_point && na_preview_point==Geom::Point3d.new(0,100,0) }
+Na__Spec__Check('next native inference anchors on the snapped point') { na_tool.instance_variable_get(:@ip_prev).position==na_preview_point }
+na_tool.instance_variable_set(:@na_active_lock,:y)
+na_view.na_point=Geom::Point3d.new(0,6,0)
+na_tool.onMouseMove(0,0,6,na_view)
+na_tool.onLButtonDown(0,0,6,na_view)
+Na__Spec__Check('clicking highlighted start finishes one exact closed path') { na_dialog.na_committed.length==5 && na_dialog.na_committed.first==na_dialog.na_committed.last }
+na_tool.instance_variable_set(:@state,:picking_start)
+na_tool.instance_variable_set(:@waypoints,[])
+na_tool.instance_variable_set(:@na_active_lock,nil)
+na_view.na_point=Geom::Point3d.new(1.12345,2.98765,3.45678)
+na_view.na_dof=0
+na_tool.onMouseMove(0,0,0,na_view)
+Na__Spec__Check('native vertex inference is not rounded off the real vertex') { na_tool.instance_variable_get(:@cursor_pos)==na_view.na_point }

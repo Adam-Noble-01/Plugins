@@ -2,6 +2,40 @@
 # =======================================================================================
 ## Version History
 
+## Array Builder Version 0.4.0 - 17-Sep-2026
+
+### Custom source persistence, shared editing and closing-path inference
+
+- Fixed custom group restoration. Generated units can be `Sketchup::Group` as
+  well as `Sketchup::ComponentInstance`; both now restore their source definition,
+  saved display name and picked scale after clearing the registry or reselecting.
+- Added `SourceArchive`: a native SKP snapshot on the array definition, backed by
+  a model dictionary. The original geometry can be restored even after all units
+  and the picked object are removed. `save_copy` preserves the source's original
+  file association; temporary files are cleaned automatically. Revision checks
+  reuse the archive during parameter edits, and SHA-256 validates recovery.
+- Replaced separate Create and Edit tabs with **Create / Edit Array**. Selecting
+  an unlocked array loads its settings; completing a new array leaves it editable.
+  **New array** retains current settings and source without rebinding the previous
+  selection. Visiting Settings/Gallery preserves editing; Preset Editor opens a
+  separate draft. Right-click **Edit Noble Array** uses the same controls.
+- Added virtual inference from the first path point: dashed alignment guides,
+  highlighted closing endpoint, exact snapped commits and click-to-close. World
+  axes, rotated path directions and explicit arrow-key locks are respected. A
+  12-pixel acquisition / 18-pixel release radius prevents flickering at the guide.
+  No temporary inference geometry enters the model. The first click no longer
+  produces a misleading two-point validation warning.
+- Existing recipe-bearing group arrays remain editable and acquire a native
+  source archive on their next successful update. Switching temporarily to blocks
+  retains the archived custom source for switching back.
+
+See the [source persistence guide](85__Docs/Na__ArrayBuilder__SourcePersistence__.md)
+and [validation checklist](65__Dev__Tests/Na__ArrayBuilder__Validation__.md).
+Validation: 135 isolated Ruby checks, JavaScript arithmetic/input/mesh tests,
+browser checks of combined editing and preset navigation, and syntax/whitespace
+checks. Native SKP import, native inference feel and save/reopen remain covered by
+the supplied SketchUp smoke script and interactive checks, not this automation.
+
 ## Array Builder Version 0.3.0 - 16-Sep-2026
 
 ### Actual geometry previews and parameter controls

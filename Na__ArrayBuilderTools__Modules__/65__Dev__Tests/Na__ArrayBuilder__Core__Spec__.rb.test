@@ -165,10 +165,19 @@ module Na__Spec__Attributes
 end
 class Na__Spec__Definition
     include Na__Spec__Attributes
-    attr_accessor :entities, :name, :instances
+    attr_accessor :entities, :name, :instances, :na_saves, :na_saved_bytes, :na_fail_save
     def initialize; @entities=[]; @name='Test source'; @instances=[]; end
     def persistent_id; object_id; end
     def valid?; true; end
+    def guid; 'initial'; end
+    def save_as(na_file)
+        return false if @na_fail_save
+        @na_saves=(@na_saves||0)+1
+        @na_saved_bytes=JSON.generate('fixture'=>'native SKP stand-in','name'=>name,'revision'=>guid)
+        File.binwrite(na_file,@na_saved_bytes)
+        true
+    end
+    alias save_copy save_as
 end
 class Na__Spec__Entity < Sketchup::ComponentInstance
     include Na__Spec__Attributes
@@ -260,6 +269,11 @@ class Na__Spec__Entities < Array
 end
 class Na__Spec__Definitions < Array
     def add(na_name); na_definition=Na__Spec__Definition.new; na_definition.name=na_name; na_definition.entities=Na__Spec__Entities.new; self << na_definition; na_definition; end
+    def load(na_file)
+        na_definition=add('Restored source')
+        na_definition.na_saved_bytes=File.binread(na_file)
+        na_definition
+    end
 end
 class Na__Spec__Selection < Array
     def add(na_entity); self << na_entity; end
@@ -272,6 +286,7 @@ class Na__Spec__Entity
     def make_unique
         @definition.instances.delete(self)
         na_new=Na__Spec__Definition.new
+        na_new.instance_variable_set(:@na_attributes,(@definition.instance_variable_get(:@na_attributes)||{}).dup)
         na_new.entities=Na__Spec__Entities.new(@definition.entities)
         na_new.instances=[self]
         @definition=na_new
@@ -517,4 +532,7 @@ Na__Spec__Check('repeat reload does not duplicate model observers') { na_model.n
 Na__Spec__Check('reload handshake restores metrics in new dialog') { NA_DIALOG.na_get_dialog.na_scripts.any? { |na_script| na_script.include?('"metrics"') } }
 Na__Spec__Check('reload returns to Settings with success feedback') { NA_DIALOG.na_get_dialog.na_scripts.any? { |na_script| na_script.include?('"settings"') } }
 Dir[File.join(__dir__,'*.rb.test')].each { |na_file| RubyVM::InstructionSequence.compile_file(na_file) }
+load File.join(__dir__,'Na__ArrayBuilder__PathInference__Spec__.rb.test')
+load File.join(__dir__,'Na__ArrayBuilder__SourceArchive__Spec__.rb.test')
+load File.join(__dir__,'Na__ArrayBuilder__SelectionEditing__Spec__.rb.test')
 puts "Array Builder: #{$na_checks} core regression checks passed."

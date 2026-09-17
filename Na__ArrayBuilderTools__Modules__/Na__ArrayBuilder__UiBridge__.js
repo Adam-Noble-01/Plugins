@@ -75,9 +75,10 @@ function Na__Ui__Configure() {
 
 // REGION | Tabs and Shared Controls ------------------------------------------
 function Na__Ui__Tab(na_next) {
-    if (!['create', 'edit', 'gallery', 'preset', 'settings'].includes(na_next)) return;
+    if (na_next === 'edit') na_next = 'create';
+    if (!['create', 'gallery', 'preset', 'settings'].includes(na_next)) return;
     Na__Ui__CancelPending();
-    if ((na_next === 'create' || na_next === 'preset') && na_state.editing) Na__Ui__Send('new', { config: Na__Ui__ReadConfig() || na_state.config });
+    if (na_next === 'preset' && na_state.editing) Na__Ui__Send('new', { config: Na__Ui__ReadConfig() || na_state.config });
     na_tab = na_next;
     document.querySelectorAll('[data-na-tab]').forEach(na_button => {
         const na_active = na_button.dataset.naTab === na_tab;
@@ -87,9 +88,9 @@ function Na__Ui__Tab(na_next) {
         Na__Ui__Element('na-panel-' + na_button.dataset.naTab).hidden = !na_active;
     });
     const na_editor = Na__Ui__Element('na-editor');
-    const na_mount = na_tab === 'edit' ? 'na-edit-editor' : na_tab === 'preset' ? 'na-preset-editor' : 'na-create-editor';
+    const na_mount = na_tab === 'preset' ? 'na-preset-editor' : 'na-create-editor';
     Na__Ui__Element(na_mount).appendChild(na_editor);
-    na_editor.hidden = !['create', 'preset'].includes(na_tab) && !(na_tab === 'edit' && na_state.editing);
+    na_editor.hidden = !['create', 'preset'].includes(na_tab);
     Na__Ui__RefreshControls();
 }
 
@@ -122,8 +123,9 @@ function Na__Ui__RefreshControls() {
         inset: 'Equal margins at each segment end. Negative values extend the units outwards.'
     };
     Na__Ui__Element('na-distribution-help').textContent = na_distribution_text[na_state.config.distribution] || '';
-    Na__Ui__Element('na-edit-empty').hidden = na_state.editing;
-    Na__Ui__Element('na-editor').hidden = !['create', 'preset'].includes(na_tab) && !(na_tab === 'edit' && na_state.editing);
+    Na__Ui__Element('na-editor').hidden = !['create', 'preset'].includes(na_tab);
+    Na__Ui__Element('na-new-array').hidden = !na_state.editing;
+    Na__Ui__Element('na-new-array').disabled = na_state.placing;
     Na__Ui__Element('na-path-section').hidden = na_tab === 'preset';
     Na__Ui__Element('na-path-source-row').hidden = na_state.editing;
     Na__Ui__Element('na-scope-row').hidden = !na_state.editing;
@@ -245,7 +247,7 @@ window.Na__ArrayUi__Receive = function Na__ArrayUi__Receive(na_event, na_payload
         }
         Na__Ui__Element('na-source-name').textContent = na_state.source_name || 'No source selected';
         Na__Ui__Element('na-source-size').textContent = na_state.source_dimensions ? na_state.source_dimensions.join(' × ') + ' mm · width / depth / height' : 'Pick a group or component from the model.';
-        Na__Ui__Element('na-edit-title').textContent = na_state.editing ? (na_state.target_name || 'Noble Array') + ' · ' + na_state.linked_count + ' linked instance(s)' : 'Select a Noble array to load its saved settings.';
+        Na__Ui__Element('na-edit-title').textContent = na_state.editing ? 'Editing ' + (na_state.target_name || 'Noble Array') + ' · ' + na_state.linked_count + ' linked instance(s)' : 'Create a new array, or select an existing array to load its settings.';
         Na__Ui__RefreshControls();
     } else if (na_event === 'status') Na__Ui__Status(na_payload.type, na_payload.message);
     else if (na_event === 'tab') Na__Ui__Tab(na_payload);
@@ -256,10 +258,10 @@ window.Na__ArrayUi__Receive = function Na__ArrayUi__Receive(na_event, na_payload
     } else if (na_event === 'completed') {
         na_state.placing = false;
         Na__Ui__RefreshControls();
-        Na__Ui__Status('success', 'Array created. Select it and use Edit selected array to keep adjusting it.');
+        Na__Ui__Status('success', 'Array created. Keep adjusting it here, or choose New array.');
     } else if (na_event === 'updated') {
         na_state.linked_count = na_payload.linked_count;
-        Na__Ui__Element('na-edit-title').textContent = (na_state.target_name || 'Noble Array') + ' · ' + na_state.linked_count + ' linked instance(s)';
+        Na__Ui__Element('na-edit-title').textContent = 'Editing ' + (na_state.target_name || 'Noble Array') + ' · ' + na_state.linked_count + ' linked instance(s)';
     } else if (na_event === 'metrics') {
         const Na__Ui__Number = na_value => Number.isFinite(na_value) ? Number(na_value.toFixed(1)).toLocaleString() : '—';
         Na__Ui__Element('na-count').textContent = Na__Ui__Number(na_payload.count);
