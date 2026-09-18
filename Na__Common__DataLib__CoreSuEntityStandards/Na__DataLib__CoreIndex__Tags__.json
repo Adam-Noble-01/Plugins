@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout), SitePlan__ (site plan drawing export).",
-        "version"           : "2.3.0",
-        "lastUpdated"       : "14-Sep-2026",
+        "version"           : "2.3.1",
+        "lastUpdated"       : "18-Sep-2026",
         "namingConvention"  : "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
         "fieldPrefixes"     : {
             "Tag__"    : "Core SketchUp tag identity (name, description)",
@@ -79,6 +79,30 @@
                 "Glb__ExportRangeNumbers"      : null,
                 "Glb__FullyExcluded"           : true,
                 "EdgePainting__AdvancedSwapOff": true
+            },
+            "02__Linetype__DashedLines": {
+                "Tag__SketchUpName"            : "02__Linetype__DashedLines",
+                "Tag__Description"             : "2D dashed linework. Always excluded from GLB export at any nesting depth.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__LineStyleName"        : "Dash"
+            },
+            "02__Linetype__CentreLines": {
+                "Tag__SketchUpName"            : "02__Linetype__CentreLines",
+                "Tag__Description"             : "2D centre linework. Always excluded from GLB export at any nesting depth.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__LineStyleName"        : "Dash dot"
+            },
+            "02__Linetype__DottedLines": {
+                "Tag__SketchUpName"            : "02__Linetype__DottedLines",
+                "Tag__Description"             : "2D dotted linework. Always excluded from GLB export at any nesting depth.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__LineStyleName"        : "Dot"
             },
             "02__ClearanceLines__IndicatorLines": {
                 "Tag__SketchUpName"            : "02__ClearanceLines__IndicatorLines",
@@ -916,6 +940,9 @@
         "FullyExcludedTagNames"    : [
             "02__Reference__CadLines__NotUsed",
             "02__Linetype__DoorSwings",
+            "02__Linetype__DashedLines",
+            "02__Linetype__CentreLines",
+            "02__Linetype__DottedLines",
             "00__Util__Linework__ColumnBackers",
             "01__LineType__AnchorPoints",
             "02__ProfilePathTracer_Helpers",
@@ -969,6 +996,9 @@
             "02__ClearanceLines",
             "02__DoorHelpers__RotationPivots",
             "02__Linetype__DoorSwings",
+            "02__Linetype__DashedLines",
+            "02__Linetype__CentreLines",
+            "02__Linetype__DottedLines",
             "Na__Door__Open",
             "Na__Door__Closed",
             "Na__DoorPanel",
