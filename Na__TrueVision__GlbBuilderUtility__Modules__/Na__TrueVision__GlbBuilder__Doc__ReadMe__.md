@@ -22,7 +22,14 @@
 **What If Items Are Nested? Then What?**
 - The below Tag Range Definitions apply ONLY to the top nesting level of each group / component / entity in the SketchUp model.
   - Children of the group / component / entity even if on a different layer series are still exported as part of the parent group / component / entity.
-- Exception: entities on tags `02__Linetype__DoorSwings` and `02__ClearanceLines` are always excluded at any nesting depth.
+- Exception: entities on the LINETYPE tags are pulled OUT at any nesting depth and written to a file of their own - see Linetype Linework Export below.
+
+#### Linetype Linework Export
+- A linetype tag is a Tags SSOT entry carrying `Glb__LineworkOnly`: the three `02__Linetype__*` tags, `02__Linetype__DoorSwings`, `02__ClearanceLines__IndicatorLines`, and the `01__ModelFlag__` building joins, overhead objects and elements for removal.
+- Geometry on those tags never reaches a mesh GLB or a category linework GLB. Instead every edge on them - at any nesting depth - is collected into one file per tag, `{prefix}{Glb__ExportFileNameStem}__LineworkModel__.glb`, written beside the model GLBs by PHASE 3 of the export.
+- Each tag therefore arrives downstream as its own model category (`TrueVision__Linetype__DashedLines` and so on), which the drawing editors map to a line style. `Glb__LineworkLineType` in the SSOT records which one is intended.
+- Tag visibility is ignored: a tag switched off in SketchUp still exports. Hidden entities and hidden, soft or smooth edges are skipped and counted in the export log.
+- Add a new linetype by adding the four `Glb__Linework*` fields to a tag in the SSOT and a matching row in the drawing editor's ModelLayers config. No code change.
 
 #### Tag Range Definitions for Segmentation
 `NameSpace: NaModel__`                       *Prefix / Number Range:*   Description:

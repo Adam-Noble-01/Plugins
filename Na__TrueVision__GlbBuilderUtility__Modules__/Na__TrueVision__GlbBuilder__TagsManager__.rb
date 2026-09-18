@@ -16,6 +16,9 @@
 # - Checks for tag existence before attempting creation to avoid duplicates
 # - Wraps creation in a single SketchUp operation for clean undo support
 # - Files new site plan tags (71-75, SitePlan__ entries) in the "Site Plan" tag folder
+# - Creates the linetype tags (Glb__LineworkOnly entries) and files the 02 ones in
+#   the "Linetypes" tag folder, applying each tag's Layout__LineStyleName so the
+#   line reads as dashed, dotted or centre in SketchUp as well as in the drawings
 #
 # =============================================================================
 
@@ -40,9 +43,13 @@ module TrueVision3D
         # Tags 71-75 are the site plan tags (entries carrying SitePlan__ExportFileNameStem):
         # fully excluded from the model export, but created here so a model can be tagged
         # up for the Site Plan Export. New ones are filed in the "Site Plan" tag folder.
+        # Range 02 is open only to LINETYPE tags (entries carrying Glb__LineworkOnly) - the
+        # dashed, dotted, centre and clearance line tags a person draws with. Every other
+        # 02 tag is a helper and stays out, held back by the fully-excluded test below.
         # ------------------------------------------------------------
         NA__TAGS_MANAGER__CREATE_PREFIX_RANGES = [
             (1..1),
+            (2..2),
             (7..9),
             (10..29),
             (60..61),
@@ -81,6 +88,8 @@ module TrueVision3D
             tag_entries     = []
             site_plan_cfg   = tags_data['SitePlanExportConfig']
             site_plan_folder = (site_plan_cfg.is_a?(Hash) && site_plan_cfg['SketchUpTagFolderName'].is_a?(String)) ? site_plan_cfg['SketchUpTagFolderName'] : 'Site Plan'
+            linetype_cfg    = tags_data['LinetypeExportConfig']
+            linetype_folder = (linetype_cfg.is_a?(Hash) && linetype_cfg['SketchUpTagFolderName'].is_a?(String)) ? linetype_cfg['SketchUpTagFolderName'] : 'Linetypes'
 
             return nil unless library.is_a?(Hash)
 
@@ -101,15 +110,20 @@ module TrueVision3D
                     is_storey       = entry['Storey__IsContainer'] == true
                     is_site_plan    = entry['SitePlan__ExportFileNameStem'].is_a?(String)
 
-                    # Skip fully-excluded tags unless they are model-flag, storey container or site plan tags
-                    next if entry['Glb__FullyExcluded'] == true && !is_model_flag && !is_storey && !is_site_plan
+                    # Linetype tags are fully excluded from the model GLBs and still needed in
+                    # the model: they are how a person says "this line is dashed", and the
+                    # Linetype Linework Export reads them back out into a GLB of their own.
+                    is_linetype     = entry['Glb__LineworkOnly'] == true
+
+                    # Skip fully-excluded tags unless they are model-flag, linetype, storey container or site plan tags
+                    next if entry['Glb__FullyExcluded'] == true && !is_model_flag && !is_linetype && !is_storey && !is_site_plan
 
                     tag_entries << {
                         'name'              => tag_name,
                         'description'       => entry['Tag__Description'],
                         'line_style_name'   => entry['Layout__LineStyleName'],
                         'edge_colour_rgb'   => entry['Layout__EdgeColourRGB'],
-                        'folder_name'       => (is_site_plan ? site_plan_folder : nil)
+                        'folder_name'       => (is_site_plan ? site_plan_folder : ((is_linetype && !is_model_flag) ? linetype_folder : nil))
                     }
                 end
             end

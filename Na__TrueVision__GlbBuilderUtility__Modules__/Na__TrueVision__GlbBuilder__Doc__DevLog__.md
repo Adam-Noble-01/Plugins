@@ -8,6 +8,81 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.7.3 - 18-Sep-2026
+#### Linetype Linework - The Dashed Line You Tagged Is the Dashed Line You Get
+
+**Why**
+- Adam draws a line in SketchUp, tags it `02__Linetype__DashedLines`, and means something by it: this is
+  dashed. The same for centre lines, dotted lines, door swings, clearances, overhead extents, building
+  joins and work coming out.
+- Every one of those tags was excluded from the export. The meaning stopped at the SketchUp file, and the
+  drawing editors downstream had no way to know a line was ever meant to be anything but solid.
+- The Site Plan Export had already answered this question for site plans: one GLB per tag, a line type
+  carried with it. This does the same for the model.
+
+**New module** `Na__TrueVision__GlbBuilder__LinetypeLineworkExport__.rb` (1.0.0)
+- A LINETYPE TAG is a Tags SSOT entry carrying `Glb__LineworkOnly`. There is no numeric range and there
+  cannot be one: these tags sit in 01 and 02, which the model export skips, and several share a number.
+  The flag picks the file, never the number - the same rule the site plan tags follow.
+- The whole model is walked once. Every edge belongs to the nearest linetype tag on itself or on a group
+  or component above it, **at any nesting depth**, so a door swing drawn inside a door component and a
+  dashed line drawn three groups down both reach the drawing.
+- Tag visibility is ignored (`LinetypeExportConfig.ExportIgnoresTagVisibility`): a model tidied for a
+  render still carries its linework. Hidden entities, and hidden, soft and smooth edges, are skipped and
+  counted, and the count is written to the export log against the tag it would have drawn on.
+- One file per tag that holds geometry - `{prefix}{Stem}__LineworkModel__.glb` - a single non-indexed
+  LINES primitive (POSITION + COLOR_0) in world metres, Y up: the model GLBs' own frame, so the lines
+  land on the model. The tag, the stem, the label and the line type ride along in `asset.extras`.
+- **Older tag names still work.** `Glb__LineworkLegacyTagNames` lists the names a tag used to have -
+  `01__ModelFlag__BuildingJoinLines`, `02__ClearanceLines` - and geometry on one lands in the same
+  file as the canonical name. The buckets are keyed by export stem, never by tag name, so two names
+  for one linetype can never write the same file twice.
+- Written into the MODEL export folder, beside the mesh and category linework GLBs. No manifest: the
+  multi-model loader already reads `TrueVision__{Category}__LineworkModel__.glb`, so the filename is the
+  whole contract and each tag arrives downstream as its own category.
+- **An open group is closed first.** Inside an open drawing context SketchUp reports vertex positions in
+  world space, so a walk from the model root through an open group would apply that group's transform to
+  points that already carry it. The walk closes back to the root, and says so in the log.
+
+**Changed:** `Na__TrueVision__GlbBuilder__CoreExport__.rb`
+- PHASE 3 of `Na__ExportCore__PerformExport`, after the flat and storey exports. The plan lists the
+  linetype files and their line types before anything is written; the completion message counts them.
+- Both calls into the new module go through guarded wrappers, so a fault there can never stop a model
+  export - the same guard the Site Plan Export has.
+- A model whose ONLY exportable geometry is linetype linework no longer reports "no entities found".
+
+**Changed:** `Na__TrueVision__GlbBuilder__UserInterface__.rb`
+- The export dialog lists the linetype files in their own block, each with its edge count and line type,
+  and names the tags in a note. Export GLB Files stays live for a linetype-only model.
+
+**Changed:** `Na__TrueVision__GlbBuilder__TagsManager__.rb`
+- The linetype tags are now CREATED. They were fully excluded and unreachable: the Tag Manager skipped
+  the whole 02 range, so `02__Linetype__DashedLines` could not be made from the standard set at all.
+  Range 02 is open now, but only to `Glb__LineworkOnly` entries - every other 02 tag is a helper and is
+  still held back by the fully-excluded test.
+- New 02 linetype tags are filed in the "Linetypes" tag folder and take their `Layout__LineStyleName`,
+  so the line reads as dashed, dotted or centre in SketchUp as well as in the drawings.
+
+**Changed:** `Na__DataLib__CoreIndex__Tags__.json` (2.3.2)
+- Eight entries gain `Glb__LineworkOnly`, `Glb__ExportFileNameStem`, `Glb__LineworkLabel` and
+  `Glb__LineworkLineType`: the three `02__Linetype__*` tags, `02__ClearanceLines__IndicatorLines`,
+  `02__Linetype__DoorSwings`, and the `01__ModelFlag__` building joins, overhead objects and elements
+  for removal.
+- `LinetypeExportConfig` is new, beside `SitePlanExportConfig`. `Glb__LineworkLineType` takes the same
+  TrueVision EdgeStyles aliases `SitePlan__LineType` does: solid, dashed, dashed-fine, centre,
+  centre-fine, phantom, dotted.
+- **What each tag does in the model GLBs is unchanged.** The fully-excluded tags are still fully
+  excluded; the linework-hidden ModelFlag tags still export their mesh and still suppress their edges in
+  the category linework GLB. Nothing is drawn twice.
+
+**Downstream:** TrueVision3D v2.63.1 maps these categories to labels, colours, weights and line types,
+and draws them uncut and unclipped. ValeVision3D follows once Adam has tested this pair.
+
+**Not run in SketchUp.** There is no Ruby outside SketchUp on the studio PC. A block-balance check passes
+on the new module and on the files changed, against two known-good modules. Reload Scripts, run the Tag
+Manager to create the linetype tags, tag some lines, then export.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.7.2 - 14-Sep-2026
 #### Site Plan Export - The Checks Are Listed Where You Read Them
 

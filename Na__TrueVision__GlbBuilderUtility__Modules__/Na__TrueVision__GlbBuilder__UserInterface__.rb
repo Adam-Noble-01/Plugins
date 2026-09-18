@@ -74,6 +74,7 @@ module TrueVision3D
             site_plan_tag_count = model.layers.count { |layer| layer.name =~ SITE_PLAN_TAG_PATTERN }  # Site plan tags (71-75) in this model
             project_prefix = self.Na__Helpers__ExtractProjectPrefix(model)              # Extract project prefix
             tag_groups = self.Na__ExportCore__OrganizeEntitiesByTags(model)             # Get tag groups
+            linetype_plan = self.Na__ExportCore__PlanLinetypeLinework(model, project_prefix)  # One row per linetype tag holding geometry
 
             # Detect storey containers for grouped preview
             storey_containers = self.Na__ExportCore__DetectStoreyContainers(model)      # Scan for storey tags (90-93)
@@ -146,6 +147,20 @@ module TrueVision3D
                 end
             end
 
+            # Linetype linework - one GLB per Glb__LineworkOnly tag that holds geometry
+            if linetype_plan.any?
+                linetype_rows = ""
+                linetype_plan.each do |row|
+                    linetype_rows += "<div class='file-row'><span class='file-name'>#{row[:filename]}</span>" \
+                                     "<span class='entity-count'>#{row[:edge_count]} edges &middot; #{row[:line_type]}</span></div>\n"
+                end
+                total_file_count += linetype_plan.length
+                export_list_html += "<details class='storey-block' open>" \
+                                    "<summary class='storey-heading'>&#9633; Linetype Linework" \
+                                    "<span class='entity-count'>#{linetype_plan.length} files</span></summary>" \
+                                    "#{linetype_rows}</details>\n"
+            end
+
             # -----------------------------------------------------------
             # Status notes rendered above the manifest in the output pane
             # -----------------------------------------------------------
@@ -163,12 +178,18 @@ module TrueVision3D
                               "They never go into model GLBs: use <strong>Export Site Plan Data</strong>.</div>"
             end
 
+            if linetype_plan.any?
+                linetype_tags = linetype_plan.map { |row| row[:tag_name] }.join(", ")
+                notes_html += "<div class='note note-siteplan'><strong>#{linetype_plan.length} linetype tag(s)</strong> hold linework: #{linetype_tags}. " \
+                              "Each exports as its own LineworkModel GLB for the drawing editors; none of it reaches a mesh GLB.</div>"
+            end
+
             if excluded_count > 0
                 notes_html += "<div class='note note-excluded'><strong>#{excluded_count} tag(s)</strong> left out of model GLBs " \
                               "(reference, helper and site plan tags, and '#{EXCLUDED_LAYER_DESCRIPTION}')</div>"
             end
 
-            file_count_label = total_export_count == 0 ? "Nothing to export" : "#{total_file_count} GLB files"
+            file_count_label = total_file_count == 0 ? "Nothing to export" : "#{total_file_count} GLB files"
 
             html = <<-HTML
             <!DOCTYPE html>
@@ -492,7 +513,7 @@ module TrueVision3D
                 <!-- Action Buttons (Top, Always Visible) -->
                 <div class="action-bar">
                     <div class="action-row">
-                        <button class="btn-primary" onclick="Na__TrueVision__GlbBuilder__PerformExport()" #{total_export_count == 0 ? 'disabled' : ''}>Export GLB Files</button>
+                        <button class="btn-primary" onclick="Na__TrueVision__GlbBuilder__PerformExport()" #{(total_export_count == 0 && linetype_plan.empty?) ? 'disabled' : ''}>Export GLB Files</button>
                         <button class="btn-cancel" onclick="Na__TrueVision__GlbBuilder__CancelExport()">Cancel</button>
                     </div>
                     <div class="action-row siteplan">

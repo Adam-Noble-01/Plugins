@@ -712,6 +712,7 @@ module TrueVision3D
                 tag_groups        = self.Na__ExportCore__OrganizeEntitiesByTags(model)
                 storey_containers = self.Na__ExportCore__DetectStoreyContainers(model)
                 has_storeys       = storey_containers.any?
+                linetype_plan     = self.Na__ExportCore__PlanLinetypeLinework(model, project_prefix)
 
                 if has_storeys
                     Na__Log__Puts "\n=== Storey Mode Active ==="
@@ -725,7 +726,7 @@ module TrueVision3D
                     tag_groups.delete_if { |_, entities| entities.length == 0 }
                 end
                 
-                if tag_groups.length == 0 && !has_storeys
+                if tag_groups.length == 0 && !has_storeys && linetype_plan.empty?
                     Na__Log__Warn "\n=== NO ENTITIES FOUND WITH PROPER TAG RANGES ==="
                     Na__Log__Warn "Please ensure your top-level objects are on tags using the '##__' prefix format:"
                     
@@ -764,6 +765,12 @@ module TrueVision3D
                             Na__Log__Puts "  #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb - #{entities.length} entities"
                             Na__Log__Puts "  #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb - #{entities.length} entities"
                         end
+                    end
+                end
+                if linetype_plan.any?
+                    Na__Log__Puts "  --- Linetype linework ---"
+                    linetype_plan.each do |row|
+                        Na__Log__Puts "  #{row[:filename]} - #{row[:edge_count]} edges, line type '#{row[:line_type]}' (#{row[:tag_name]})"
                     end
                 end
                 Na__Log__Puts "=== End Export Plan ==="
@@ -825,7 +832,11 @@ module TrueVision3D
                     Na__Log__Puts "\n=== End Storey Export ==="
                 end
 
-                success_count = mesh_success + linework_success
+                # PHASE 3: Export linetype linework (one GLB per Glb__LineworkOnly tag)
+                linetype_result  = self.Na__ExportCore__ExportLinetypeLinework(model, export_dir, project_prefix)
+                linetype_success = linetype_result[:written]
+
+                success_count = mesh_success + linework_success + linetype_success
 
                 self.Na__Helpers__CleanupTextureCache
 
@@ -834,8 +845,9 @@ module TrueVision3D
                     log_path   = self.Na__Log__CloseSession
                     unless quiet                                                       # <-- Programmatic callers skip GUI side-effects
                         self.Na__Helpers__OpenFolder(export_dir)                       # <-- Reveal folder (interactive use only)
+                        linetype_msg = linetype_success > 0 ? " + #{linetype_success} linetype" : ""
                         log_notice = log_path ? "\n\nExport log: #{File.basename(log_path)}" : ""
-                        UI.messagebox("GLB export completed!#{storey_msg}\n\n#{success_count} files (#{mesh_success} mesh + #{linework_success} linework) exported to:\n#{export_dir}#{log_notice}")
+                        UI.messagebox("GLB export completed!#{storey_msg}\n\n#{success_count} files (#{mesh_success} mesh + #{linework_success} linework#{linetype_msg}) exported to:\n#{export_dir}#{log_notice}")
                     end
                 else
                     log_path = self.Na__Log__CloseSession
@@ -850,6 +862,41 @@ module TrueVision3D
             ensure
                 log_path ||= self.Na__Log__CloseSession
             end
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Plan the Linetype Linework Export
+        # ---------------------------------------------------------------
+        # The Linetype Linework Export module is required under a guard, so a
+        # fault there must never stop a model export. Both wrappers answer with
+        # an empty result when it is not loaded.
+        # ---------------------------------------------------------------
+        def self.Na__ExportCore__PlanLinetypeLinework(model, project_prefix)
+            return [] unless self.respond_to?(:Na__Linetype__PlanExport)
+            self.Na__Linetype__PlanExport(model, project_prefix)
+        rescue => e
+            Na__Log__Warn "  [Linetype] Export plan unavailable: #{e.message}"
+            []
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Run the Linetype Linework Export
+        # ---------------------------------------------------------------
+        def self.Na__ExportCore__ExportLinetypeLinework(model, export_dir, project_prefix)
+            empty = { written: 0, files: [], empty_tags: [], edge_count: 0 }
+            return empty unless self.respond_to?(:Na__Linetype__ExportAll)
+
+            Na__Log__Puts "\n=== Exporting Linetype Linework ==="
+            result = self.Na__Linetype__ExportAll(model, export_dir, project_prefix)
+            if result[:written] > 0
+                Na__Log__Puts "=== #{result[:written]} linetype file(s), #{result[:edge_count]} edges ==="
+            else
+                Na__Log__Puts "=== No linetype linework found in this model ==="
+            end
+            result
+        rescue => e
+            Na__Log__Warn "  [Linetype] Export failed: #{e.message}"
+            empty
         end
         # ---------------------------------------------------------------
     

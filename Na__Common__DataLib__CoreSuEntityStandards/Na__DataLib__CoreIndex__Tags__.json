@@ -2,13 +2,14 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout), SitePlan__ (site plan drawing export).",
-        "version"           : "2.3.1",
+        "version"           : "2.3.2",
         "lastUpdated"       : "18-Sep-2026",
         "namingConvention"  : "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
         "fieldPrefixes"     : {
             "Tag__"    : "Core SketchUp tag identity (name, description)",
             "Glb__"    : "GLB exporter behaviour (export ranges, exclusion, filename stem)",
             "Storey__" : "Storey-based export system (container flag, element name)",
+            "Glb__Linework" : "Linetype linework export (TrueVision model GLBs): an entry carrying Glb__LineworkOnly is a LINETYPE tag - geometry on it is never written to a mesh GLB or to a category linework GLB, and its edges are collected at any nesting depth into a GLB of their own, {prefix}{Glb__ExportFileNameStem}__LineworkModel__.glb. Glb__LineworkLineType is the TrueVision EdgeStyles alias the drawing editors are expected to draw it with; the app-side mapping lives in Na__LayoutEditor__ModelLayers__Config__.json.",
             "Layout__" : "SketchUp Layout + SketchUp model edge presentation (edge colour mapping, line style, usage notes). Layout__LineStyleName drives Sketchup::Layer#line_style= via Sketchup.active_model.line_styles[name]; valid names are listed in the LineStyleReference block at the bottom of this file.",
             "SitePlan__" : "Site plan drawing export (TrueVision site plan layers): export stem, layer label and group, draw order, whether closed faces export as fills, default line colour (EdgeMaterials MTE id), line type (TrueVision EdgeStyles alias), line weight in paper mm, fill colour and opacity, and the scale denominators the layer shows at by default. An entry carrying SitePlan__ExportFileNameStem is a site plan layer; such entries carry no Glb__ExportFileNameStem."
         },
@@ -34,30 +35,43 @@
             },
             "01__ModelFlag__BuildingJoins__IndicatorLines": {
                 "Tag__SketchUpName"            : "01__ModelFlag__BuildingJoins__IndicatorLines",
-                "Tag__Description"             : "Building join / party wall reference lines used to mark interfaces between existing and proposed elements. Mesh geometry is exported normally; edges are suppressed in the linework GLB at any nesting depth.",
+                "Tag__Description"             : "Building join / party wall reference lines used to mark interfaces between existing and proposed elements. Mesh geometry is exported normally; edges are suppressed in the category linework GLB at any nesting depth and exported instead as TrueVision__Linetype__BuildingJoins__LineworkModel__.glb, drawn as a centre line in the drawing editors.",
                 "Glb__ExportRangeNumbers"      : null,
                 "Glb__FullyExcluded"           : false,
                 "Glb__LineworkHidden"          : true,
+                "Glb__LineworkOnly"            : true,
+                "Glb__ExportFileNameStem"      : "TrueVision__Linetype__BuildingJoins",
+                "Glb__LineworkLegacyTagNames"  : ["01__ModelFlag__BuildingJoinLines"],
+                "Glb__LineworkLabel"           : "Building Joins",
+                "Glb__LineworkLineType"        : "centre",
                 "EdgePainting__AdvancedSwapOff": true,
                 "Layout__LineStyleName"        : "Dash dot",
                 "Layout__EdgeColourRGB"        : [200, 50, 50]
             },
             "01__ModelFlag__ElementsForRemoval": {
                 "Tag__SketchUpName"            : "01__ModelFlag__ElementsForRemoval",
-                "Tag__Description"             : "Geometry earmarked for demolition or removal in the proposed scheme. Completely excluded from GLB export — neither mesh nor linework is written to any GLB file.",
+                "Tag__Description"             : "Geometry earmarked for demolition or removal in the proposed scheme. No mesh is written to any GLB; its edges are exported as TrueVision__Linetype__ElementsForRemoval__LineworkModel__.glb and drawn dashed in the drawing editors.",
                 "Glb__ExportRangeNumbers"      : null,
                 "Glb__FullyExcluded"           : true,
                 "Glb__LineworkHidden"          : false,
+                "Glb__LineworkOnly"            : true,
+                "Glb__ExportFileNameStem"      : "TrueVision__Linetype__ElementsForRemoval",
+                "Glb__LineworkLabel"           : "Elements For Removal",
+                "Glb__LineworkLineType"        : "dashed",
                 "EdgePainting__AdvancedSwapOff": true,
                 "Layout__LineStyleName"        : "Long-dash dash",
                 "Layout__EdgeColourRGB"        : [180, 0, 180]
             },
             "01__ModelFlag__OverheadObjects__IndicatorLines": {
                 "Tag__SketchUpName"            : "01__ModelFlag__OverheadObjects__IndicatorLines",
-                "Tag__Description"             : "Overhead objects visible in plan view as dashed linework (e.g. roof overhangs, high-level shelving, overhead beams). Mesh geometry is exported normally; edges are suppressed in the linework GLB at any nesting depth so they do not appear as visible lines in TrueVision3D.",
+                "Tag__Description"             : "Overhead objects shown in plan as dashed linework (e.g. roof overhangs, high-level shelving, overhead beams). Mesh geometry is exported normally; edges are suppressed in the category linework GLB at any nesting depth and exported instead as TrueVision__Linetype__OverheadObjects__LineworkModel__.glb, drawn as a phantom line in the drawing editors.",
                 "Glb__ExportRangeNumbers"      : null,
                 "Glb__FullyExcluded"           : false,
                 "Glb__LineworkHidden"          : true,
+                "Glb__LineworkOnly"            : true,
+                "Glb__ExportFileNameStem"      : "TrueVision__Linetype__OverheadObjects",
+                "Glb__LineworkLabel"           : "Overhead Objects",
+                "Glb__LineworkLineType"        : "phantom",
                 "EdgePainting__AdvancedSwapOff": true,
                 "Layout__LineStyleName"        : "Dash dot dot",
                 "Layout__EdgeColourRGB"        : [100, 100, 200]
@@ -75,32 +89,50 @@
             },
             "02__Linetype__DoorSwings": {
                 "Tag__SketchUpName"            : "02__Linetype__DoorSwings",
-                "Tag__Description"             : "2D door swing arc linework. Always excluded from GLB export at any nesting depth.",
+                "Tag__Description"             : "2D door swing arc linework. Never written to a mesh or category linework GLB; exported on its own as TrueVision__Linetype__DoorSwings__LineworkModel__.glb for the drawing editors.",
                 "Glb__ExportRangeNumbers"      : null,
                 "Glb__FullyExcluded"           : true,
-                "EdgePainting__AdvancedSwapOff": true
+                "Glb__LineworkOnly"            : true,
+                "Glb__ExportFileNameStem"      : "TrueVision__Linetype__DoorSwings",
+                "Glb__LineworkLabel"           : "Door Swings",
+                "Glb__LineworkLineType"        : "solid",
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__LineStyleName"        : "Solid Basic",
+                "Layout__EdgeColourRGB"        : [102, 102, 102]
             },
             "02__Linetype__DashedLines": {
                 "Tag__SketchUpName"            : "02__Linetype__DashedLines",
-                "Tag__Description"             : "2D dashed linework. Always excluded from GLB export at any nesting depth.",
+                "Tag__Description"             : "General-purpose 2D dashed linework. Never written to a mesh or category linework GLB; exported on its own as TrueVision__Linetype__DashedLines__LineworkModel__.glb and drawn dashed in the drawing editors.",
                 "Glb__ExportRangeNumbers"      : null,
                 "Glb__FullyExcluded"           : true,
+                "Glb__LineworkOnly"            : true,
+                "Glb__ExportFileNameStem"      : "TrueVision__Linetype__DashedLines",
+                "Glb__LineworkLabel"           : "Dashed Lines",
+                "Glb__LineworkLineType"        : "dashed",
                 "EdgePainting__AdvancedSwapOff": true,
                 "Layout__LineStyleName"        : "Dash"
             },
             "02__Linetype__CentreLines": {
                 "Tag__SketchUpName"            : "02__Linetype__CentreLines",
-                "Tag__Description"             : "2D centre linework. Always excluded from GLB export at any nesting depth.",
+                "Tag__Description"             : "2D centre linework. Never written to a mesh or category linework GLB; exported on its own as TrueVision__Linetype__CentreLines__LineworkModel__.glb and drawn as a centre line in the drawing editors.",
                 "Glb__ExportRangeNumbers"      : null,
                 "Glb__FullyExcluded"           : true,
+                "Glb__LineworkOnly"            : true,
+                "Glb__ExportFileNameStem"      : "TrueVision__Linetype__CentreLines",
+                "Glb__LineworkLabel"           : "Centre Lines",
+                "Glb__LineworkLineType"        : "centre",
                 "EdgePainting__AdvancedSwapOff": true,
                 "Layout__LineStyleName"        : "Dash dot"
             },
             "02__Linetype__DottedLines": {
                 "Tag__SketchUpName"            : "02__Linetype__DottedLines",
-                "Tag__Description"             : "2D dotted linework. Always excluded from GLB export at any nesting depth.",
+                "Tag__Description"             : "2D dotted linework. Never written to a mesh or category linework GLB; exported on its own as TrueVision__Linetype__DottedLines__LineworkModel__.glb and drawn dotted in the drawing editors.",
                 "Glb__ExportRangeNumbers"      : null,
                 "Glb__FullyExcluded"           : true,
+                "Glb__LineworkOnly"            : true,
+                "Glb__ExportFileNameStem"      : "TrueVision__Linetype__DottedLines",
+                "Glb__LineworkLabel"           : "Dotted Lines",
+                "Glb__LineworkLineType"        : "dotted",
                 "EdgePainting__AdvancedSwapOff": true,
                 "Layout__LineStyleName"        : "Dot"
             },
@@ -108,10 +140,17 @@
                 "Tag__SketchUpName"            : "02__ClearanceLines__IndicatorLines",
                 "Tag__LineStyle__Config"       : "Short dash",
                 "Tag__EdgeMaterial__Config"    : "MTE104__LineColour__MidGrey__L60",
-                "Tag__Description"             : "Clearance zone linework (e.g. furniture clearances, accessibility zones). Always excluded from GLB export.",
+                "Tag__Description"             : "Clearance zone linework (e.g. furniture clearances, accessibility zones). Never written to a mesh or category linework GLB; exported on its own as TrueVision__Linetype__ClearanceLines__LineworkModel__.glb and drawn as a fine dash in the drawing editors.",
                 "Glb__ExportRangeNumbers"      : null,
                 "Glb__FullyExcluded"           : true,
-                "EdgePainting__AdvancedSwapOff": true
+                "Glb__LineworkOnly"            : true,
+                "Glb__ExportFileNameStem"      : "TrueVision__Linetype__ClearanceLines",
+                "Glb__LineworkLegacyTagNames"  : ["02__ClearanceLines"],
+                "Glb__LineworkLabel"           : "Clearance Lines",
+                "Glb__LineworkLineType"        : "dashed-fine",
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__LineStyleName"        : "Short dash",
+                "Layout__EdgeColourRGB"        : [153, 153, 153]
             },
             "02__ProfilePathTracer_Helpers": {
                 "Tag__SketchUpName"            : "02__ProfilePathTracer_Helpers",
@@ -1065,6 +1104,22 @@
         "SupportedScaleDenominators" : [500, 1250],
         "SketchUpTagFolderName"      : "Site Plan",
         "StyleUnitsNote"             : "SitePlan__LineWeightMm is paper millimetres. SitePlan__LineType takes the TrueVision EdgeStyles aliases: solid, dashed, dashed-fine, centre, centre-fine, phantom, dotted. Colour ids are Na__DataLib__CoreIndex__EdgeMaterials keys. SitePlan__VisibleAtScales lists the scale denominators a layer is switched on at when a site plan viewport is created."
+    },
+
+    "LinetypeExportConfig": {
+        "Description"                : "Runtime config for the GlbBuilder Linetype Linework Export and for the readers of its output (TrueVision3D and ValeVision3D drawing editors). Linetype tags are the Na__DataLib__CoreIndex__Tags entries that carry Glb__LineworkOnly. They are authored in SketchUp as ordinary edges on a tag; the export gives each tag a linework GLB of its own so a downstream drawing can draw it with its own line style.",
+        "TagNamePatternNote"         : "There is no numeric range. Linetype tags live in the 01 and 02 ranges, which the model export skips, and several share a number: the entry's Glb__LineworkOnly flag picks the GLB, never the number.",
+        "LineworkFileSuffix"         : "__LineworkModel__",
+        "ExportIgnoresTagVisibility" : true,
+        "ExportIgnoresTagVisibilityNote" : "Linetype tags are drawing data, not 3D-view data. A tag switched off in SketchUp still exports, so a model tidied for a render still carries its linework. Hidden entities, and hidden, soft or smooth edges, are still skipped.",
+        "ExportRunsWithModelExport"  : true,
+        "ExportRunsWithModelExportNote" : "The files are written into the model export folder alongside the mesh and linework GLBs, so the standard multi-model loader discovers them by filename with no manifest.",
+        "CategoryKeyNote"            : "The loader turns {prefix}TrueVision__Linetype__Name__LineworkModel__.glb into the runtime category TrueVision__Linetype__Name. That key is what a drawing editor's ModelLayers config maps to a label, a colour, a weight and a line type.",
+        "SketchUpTagFolderName"      : "Linetypes",
+        "SketchUpTagFolderNote"      : "New linetype tags created by the Tag Manager are filed in this tag folder. ModelFlag linetype tags (01 range) are left where they are - they are modelling flags first.",
+        "LegacyTagNamesNote"         : "Glb__LineworkLegacyTagNames lists older SketchUp names for the same tag. Geometry on a legacy name lands in the same GLB as the canonical one, so a model tagged up before the tag was renamed still draws.",
+        "LineTypeAliases"            : ["solid", "dashed", "dashed-fine", "centre", "centre-fine", "phantom", "dotted"],
+        "LineTypeAliasesNote"        : "Glb__LineworkLineType takes one of these TrueVision EdgeStyles aliases - the same vocabulary SitePlan__LineType uses."
     },
 
     "GlbBuilderConfig": {
