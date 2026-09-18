@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Noble Vegetation Scatter</title><style>{{STYLESHEET_CONTENT}}
+.naScatter__Mix{width:100%;border-collapse:collapse;font-size:12px}.naScatter__Mix th{text-align:left;font-size:10px;color:var(--na-text-secondary);font-weight:600}.naScatter__Mix td,.naScatter__Mix th{padding:7px 4px;border-bottom:1px solid var(--na-border)}.naScatter__Mix td:first-child{overflow-wrap:anywhere}.naScatter__Mix input{width:75px;padding:5px;border:1px solid var(--na-border-strong);border-radius:3px}.naScatter__Share{text-align:right;white-space:nowrap;color:var(--na-accent-blue)}.naScatter__Empty{padding:14px;background:var(--na-bg-accent-soft);border-radius:3px;font-size:12px;line-height:1.6}.naScatter__Info{font-size:12px;line-height:1.5}.naScatter__Fields{margin-top:12px}.naScatter__Fields input{width:100%}#naScatter_status.error{color:var(--na-accent-red)}#naScatter_status{padding:8px 12px;background:var(--na-bg-tertiary);font-size:11px;flex:none;border-top:1px solid var(--na-border)}
+</style></head><body><div class="naVegetation__App">
+<header class="naVegetation__Header"><strong class="naVegetation__HeaderTitle">Vegetation Scatter</strong><span class="naVegetation__Badge">SURFACE BRUSH</span></header>
+<main class="naVegetation__Body">
+<section class="naVegetation__Group naVegetation__Group--state"><h2 class="naVegetation__GroupTitle" id="naScatter_mode">Connecting to SketchUp</h2><p class="naScatter__Info" id="naScatter_info">Select your tree or shrub groups/components in the model.</p>
+<button class="naVegetation__Btn" id="naScatter_capture" type="button" disabled>Use selected trees / shrubs</button></section>
+<section class="naVegetation__Group"><div class="naVegetation__GroupHeader"><h2 class="naVegetation__GroupTitle">Source mix</h2><span class="naVegetation__Hint">Relative probability</span></div>
+<div class="naScatter__Empty" id="naScatter_empty">Select several vegetation items, then use the button above. Each captured item becomes a source for the brush.</div>
+<table class="naScatter__Mix" id="naScatter_mix" hidden><thead><tr><th>Tree / shrub</th><th>Weight</th><th>Share</th></tr></thead><tbody id="naScatter_sources"></tbody></table>
+<p class="naVegetation__Hint">Weights are normalised automatically: 75 and 25 gives a 75% / 25% mix. Set a weight to zero to exclude that item. Actual small samples can vary.</p></section>
+<section class="naVegetation__Group"><h2 class="naVegetation__GroupTitle">Brush &amp; distribution</h2><div class="naVegetation__Fields naScatter__Fields">
+<label>Brush radius · mm<input data-scatter="radius" type="number" min="250" max="100000" step="any" value="10000"></label>
+<label>Minimum spacing · mm<input data-scatter="spacing" type="number" min="100" max="50000" step="any" value="3000"></label>
+<label>Placement chance · %<input data-scatter="chance" type="number" min="0" max="100" step="any" value="100"></label>
+<label>Maximum plants<input data-scatter="limit" type="number" min="1" max="10000" step="1" value="2000"></label>
+<label>Minimum scale · %<input data-scatter="scale_min" type="number" min="5" max="500" step="any" value="85"></label>
+<label>Maximum scale · %<input data-scatter="scale_max" type="number" min="5" max="500" step="any" value="115"></label>
+<label>Random rotation · degrees<input data-scatter="rotation" type="number" min="0" max="360" step="any" value="360"></label>
+<label>Maximum slope · degrees<input data-scatter="slope" type="number" min="0" max="90" step="any" value="60"></label>
+<label>Random seed<input data-scatter="seed" type="number" min="1" max="2147483646" step="1" value="12345"></label>
+</div><label class="naVegetation__Check"><input data-scatter="align" type="checkbox"><span>Align plants to the surface normal<small>Off keeps trees upright on slopes.</small></span></label>
+<p class="naVegetation__Hint">100% scale uses each selected item's current size. Spacing separates planting points; wide canopies may overlap. Changes apply when you paint or regenerate.</p></section>
+<section class="naVegetation__Group"><h2 class="naVegetation__GroupTitle">Edit a forest</h2><p class="naVegetation__Hint">Select one Noble forest to load its mix and painted area. Change settings, then regenerate. The same seed repeats the layout on unchanged terrain.</p><div class="naVegetation__ButtonRow" style="margin-top:10px"><button class="naVegetation__Btn" id="naScatter_regenerate" disabled>Regenerate selected</button><button class="naVegetation__Btn" id="naScatter_variation" disabled>New variation</button></div></section>
+</main><footer class="naVegetation__Footer"><div class="naVegetation__ButtonRow"><button class="naVegetation__Btn naVegetation__Btn--primary" id="naScatter_paint" disabled>Paint new forest</button><button class="naVegetation__Btn" id="naScatter_finish" hidden>Finish</button></div><p class="naVegetation__Hint">Drag over a face or terrain. Release to plant; each stroke is undoable. Esc cancels a stroke. Enter / Finish ends the brush.</p></footer>
+<div id="naScatter_status" role="status" aria-live="polite">Ready.</div></div><script>{{UI_BRIDGE_SCRIPT}}</script></body></html>

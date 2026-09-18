@@ -28,7 +28,7 @@
     var NA_ACK_TIMEOUT_MS = 45000;
     var NA_CONNECT_RETRY_MS = 400;
     var NA_CONNECT_ATTEMPTS = 20;
-    var NA_IMMEDIATE_ACTIONS = ['start', 'stop', 'update', 'variation', 'preset', 'tree_type', 'new', 'load'];
+    var NA_IMMEDIATE_ACTIONS = ['start', 'stop', 'update', 'variation', 'preset', 'tree_type', 'new', 'load', 'scatter'];
     var NA_CONTEXT_SENSITIVE_ACTIONS = ['options', 'variation', 'update', 'live', 'tree_type'];
 
     var naState = {
@@ -242,6 +242,7 @@
         na_el('naVegetation_viewportState').hidden = !naState.placing;
         na_el('naVegetation_btnStart').disabled = !naState.ready || naState.placing || (over && settings.preset !== 'hedge');
         na_el('naVegetation_btnNew').disabled = !naState.ready;
+        na_el('naVegetation_btnScatter').disabled = !naState.ready;
         na_el('naVegetation_btnVariation').disabled = !naState.ready;
         na_el('naVegetation_editControls').hidden = !naState.targetId || naState.placing;
         na_el('naVegetation_btnUpdate').disabled = !naState.ready || !naState.targetId || naState.placing || over;
@@ -585,6 +586,10 @@
     // -------------------------------------------------------------------------
 
     function na_bindControls() {
+        na_el('naVegetation_btnScatter').addEventListener('click', function () {
+            clearTimeout(naState.timer);
+            na_command('scatter');
+        });
         na_optionInputs().forEach(function (el) {
             el.addEventListener('input', function () {
                 naState.pending = naState.pending.filter(function (item) { return item.action !== 'options'; });

@@ -77,6 +77,7 @@ module Na__Noble3dModellingTools
         # FUNCTION | Close and Forget the Dialog (Called by the Reload Manager)
         # ------------------------------------------------------------
         def self.Na__VegetationSketcher__ResetDialog
+            Na__VegetationSketcher__ScatterDialog.Na__VegetationSketcher__Scatter__ResetDialog if defined?(Na__VegetationSketcher__ScatterDialog)
             dialog = @na_dialog
             na_teardown_dialog_state
             dialog.close if dialog && dialog.visible?
@@ -201,6 +202,9 @@ module Na__Noble3dModellingTools
             when 'load'                 then na_sync_selection(force: true)
             when 'update'               then na_handle_update_action(payload)
             when 'live'                 then na_handle_live_action(payload)
+            when 'scatter'
+                na_stop
+                Na__VegetationSketcher__ScatterDialog.Na__VegetationSketcher__Scatter__ShowDialog
             else
                 raise ArgumentError, "Unknown vegetation action: #{action}"
             end

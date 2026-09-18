@@ -16,8 +16,8 @@ function check(value, message) { assert.ok(value, message); checks++; }
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     const html = fs.readFileSync(path.join(root, prefix + 'UiLayout__.html'), 'utf8')
-      .replace('{{STYLESHEET_CONTENT}}', fs.readFileSync(path.join(root, prefix + 'Styles__.css'), 'utf8'))
-      .replace('{{UI_BRIDGE_SCRIPT}}', '');
+      .replaceAll('{{STYLESHEET_CONTENT}}', () => fs.readFileSync(path.join(root, prefix + 'Styles__.css'), 'utf8'))
+      .replaceAll('{{UI_BRIDGE_SCRIPT}}', '');
     await page.setContent(html);
     await page.evaluate(fixtures => {
       window.__fixtures = fixtures;

@@ -68,6 +68,24 @@ The hedge path is saved with its configuration. Changing width, height, variatio
 - Hedge mesh refreshes are limited to ten per second while moving; a trailing refresh catches the last cursor position. The inference line and native measurement display follow the cursor immediately. Tree movement reuses its cached mesh.
 - Closing the dialog, switching editing contexts or leaving the tool cancels the relevant pending work. No preview-quality settings are saved into vegetation definitions.
 
+## Scatter forests and shrub beds
+
+Open **Scatter trees & shrubs** inside Vegetation Sketcher.
+
+1. Select tree/shrub groups or components in SketchUp, then choose **Use selected trees / shrubs**. Noble vegetation and custom components are supported; hedges and existing forest groups are excluded.
+2. Set each source's probability weight. Weights are relative: **75 / 25** gives a 75% / 25% mix; **0** excludes a source. Small samples can differ from these expected percentages.
+3. Set brush radius, minimum spacing, placement chance, scale range, random rotation and maximum slope. All distances are in millimetres. **100% scale** preserves the selected source's current world size. Spacing separates planting points, so large canopies can overlap.
+4. Choose **Paint new forest**, then drag over a face or connected terrain surface. A ring and stroke points keep dragging light; plants appear on release. Each stroke is one undo step. **Esc** cancels the current stroke; **Enter**, the right-click menu or **Finish** ends the brush and selects the forest.
+5. Select a forest to reload its saved mix and settings. Change settings, then choose **Regenerate selected**; **New variation** changes the seed and regenerates. These controls apply explicitly, with no slider-to-Ruby traffic.
+
+Trees stay upright by default. **Align plants to the surface normal** tilts them with the ground. Projection respects face boundaries, holes, terrain triangles and transformed groups/components. Once the brush has acquired a surface, existing scattered foliage does not obstruct continued painting on it.
+
+The forest saves the seed, source mix, settings and brush positions relative to the target surface instances. Regeneration uses the current terrain geometry; regenerate explicitly after editing the terrain. Changing radius changes the footprint around the saved brush positions. An unchanged seed, settings and terrain reproduce the same result. Deleted target surfaces produce an error before modifying the forest.
+
+Plants share source component definitions. A hidden **Scatter sources (hidden)** child retains references so deleting the original sample items does not break regeneration. Avoid removing this child. Regeneration preserves the forest's group transform and makes copied forests unique before replacing generated children. Untagged items manually added to the forest's root remain intact.
+
+Limits keep generation bounded: up to **20 sources**, **2,000 brush positions**, **10,000 plants** and **250,000 sampling attempts** per forest; connected target surfaces are limited to **30,000 faces**. The default plant limit is 2,000. If a dense brush exceeds its sampling budget, increase spacing, reduce radius or create another forest.
+
 ## Integration
 
 - `na_ready` handshake and acknowledged `na_event` requests connect HtmlDialog to the Ruby controller. Requests are serialised, slider events are debounced/coalesced, and editing requests carry a session, selection context and persistent entity ID.
@@ -83,3 +101,5 @@ The hedge path is saved with its configuration. Changing width, height, variatio
 `tests/ui.test.js` runs the actual HTML and JS in Chromium against a bridge double. Pass the Playwright package path and, optionally, the browser executable path as arguments. Run the Ruby tests first to generate the preset fixtures.
 
 Verified: **157 Ruby checks** and **52 Chromium checks**, including preview coalescing and cancellation, viewport mesh reuse and final density, species dimensions and topology, seed variation at fixed bounds, species persistence and live switching, default inputs, acknowledged Draw/Finish commands, selection lifecycle, saved path round trips, stale edits, manifold corner topology, keyboard events and smoothing flags. Species previews are also visually checked in Chromium. These tests do not measure native SketchUp responsiveness; the latest performance changes await the user's SketchUp check.
+
+Scatter adds **55 Ruby checks** and **17 Chromium checks**. Run `tests/run_ruby_checks.py tests/scatter.rb.test` with paths relative to this module, and `tests/scatter.ui.test.js` with the same Playwright/browser arguments as the existing browser suite. Coverage includes weighted sampling, repeatable seeds, spacing, slope limits, holes, transformed terrain, source scale, saved forests, retained source definitions, brush commit/cancel, acknowledged commands, stale targets, damaged data and model switching. The actual scatter menu is visually checked in Chromium. Ruby tests use native API contract doubles; an end-to-end native SketchUp brush test remains for the user.

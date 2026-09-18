@@ -3,6 +3,19 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.4 - 18-Sep-2026 - Vegetation Scatter Brush
+
+- Added **Scatter trees & shrubs** within Vegetation Sketcher, opening a matching Noble HtmlDialog. Capture multiple selected trees/shrubs, assign relative probability weights and paint a parametric forest onto faces or connected terrain.
+- Brush controls include radius, minimum spacing, placement chance, plant limit, scale range, random rotation, slope limit, seed and optional alignment to surface normals. Zero source weight excludes that item.
+- Dragging draws only a ring and stroke points. Mouse release generates shared component instances in one undo step. Settings stay in HTML until Paint or Regenerate is pressed, keeping form edits out of the Ruby event loop.
+- Forest dictionaries retain settings, source mix and painted positions relative to surface instance paths. Explicit regeneration follows current terrain; deleted terrain is rejected before mutation. A hidden source library keeps definitions available after original samples are deleted.
+- Added deferred model/selection observers, acknowledged commands, stale-target guards, model-switch palette reset, Escape cancellation and Finish selection. Copied forests are made unique before regeneration.
+- Validation: 157 existing Ruby checks and 52 existing Chromium checks; 55 scatter Ruby checks and 17 scatter Chromium checks. Coverage includes weighting, spacing, deterministic layouts, holes, slope limits, transformed terrain, source scale, persistence and brush/controller lifecycle. The actual menu was visually checked in Chromium; native SketchUp brush validation remains for the user.
+- Close Vegetation Sketcher and Scatter, use **Reload Plugin Data**, then reopen Vegetation Sketcher and choose **Scatter trees & shrubs**.
+- Module guide: `10__PluginModules/32__SourceCode__VegetationSketcher/README.md`.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.3 - 16-Sep-2026 - Vegetation Preview Performance
 
 - Added a 650 ms trailing debounce to form edits and a separate 650 ms quiet period for HTML mesh/progress updates. Only the latest request is built or serialised; drawing reuses the viewport mesh for the panel.

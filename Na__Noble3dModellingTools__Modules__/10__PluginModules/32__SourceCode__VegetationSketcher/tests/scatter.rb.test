@@ -1,0 +1,325 @@
+# Isolated SketchUp contract checks plus real sampler, BVH and persistence code.
+require 'json'
+ROOT = File.expand_path('..',__dir__)
+PREFIX = 'Na__Noble3dModellingTools__VegetationSketcher__'
+Dir[File.join(ROOT,'*.rb')].each { |file| RubyVM::InstructionSequence.compile_file(file) }
+require File.join(ROOT,PREFIX+'ScatterCore__')
+C = Na__Noble3dModellingTools::Na__VegetationSketcher__ScatterCore
+$checks = 0
+def check(message); raise message unless yield; $checks += 1; end
+def rejected(message); failed = false; begin; yield; rescue ArgumentError; failed = true; end; check(message) { failed }; end
+
+rejected('invalid zero spacing rejected') { C.na_options('spacing' => 0) }
+rejected('reversed scale interval rejected') { C.na_options('scale_min' => 120, 'scale_max' => 80) }
+rejected('nonfinite settings rejected') { C.na_options('radius' => Float::NAN) }
+rejected('empty palette rejected') { C.na_weights([]) }
+rejected('zero probability palette rejected') { C.na_weights([{ 'weight' => 0 }]) }
+rejected('negative weight rejected') { C.na_weights([{ 'weight' => -1 }]) }
+triangles = [[[-1000,-1000,0],[1000,-1000,0],[1000,1000,0]], [[-1000,-1000,0],[1000,1000,0],[-1000,1000,0]]]
+surface = C::SurfaceIndex.new(triangles)
+check('surface ray lands on terrain') { surface.na_hit([20,30,100],[0,0,-1]).first == [20.0,30.0,0.0] }
+check('surface ray rejects outside face') { surface.na_hit([1500,0,100],[0,0,-1]).nil? }
+check('surface ray rejects behind direction') { surface.na_hit([0,0,100],[0,0,1]).nil? }
+check('surface ray respects distance limit') { surface.na_hit([0,0,100],[0,0,-1],50).nil? }
+layered = C::SurfaceIndex.new(triangles + triangles.map { |t| t.map { |p| [p[0],p[1],50] } })
+check('nearest terrain triangle selected') { layered.na_hit([0,0,100],[0,0,-1])[0][2] == 50 }
+# Four rectangles surround a square hole; no polygon bounding-box shortcut.
+hole_triangles = []
+[[-100,-100,100,-10],[-100,10,100,100],[-100,-10,-10,10],[10,-10,100,10]].each do |x0,y0,x1,y1|
+  a,b,c,d = [[x0,y0,0],[x1,y0,0],[x1,y1,0],[x0,y1,0]]
+  hole_triangles << [a,b,c] << [a,c,d]
+end
+hole = C::SurfaceIndex.new(hole_triangles)
+check('face holes remain empty') { hole.na_hit([0,0,100],[0,0,-1]).nil? && hole.na_hit([20,0,100],[0,0,-1]) }
+sources = [{ 'key'=>'a', 'weight'=>75 },{ 'key'=>'b', 'weight'=>25 }]
+options = C.na_options('radius'=>20000,'spacing'=>1000,'limit'=>3000)
+dabs = [{ point:[0,0,0], normal:[0,0,1] }]
+project = ->(_dab,p) { hit = surface.na_hit([p[0],p[1],100],[0,0,-1]); hit && hit.take(2) }
+first = C.na_generate(options,sources,dabs,&project)
+check('scatter actually populates the area') { first[:plants].length > 500 }
+check('same seed reproduces positions, mix, scale and rotation') { first == C.na_generate(options,sources,dabs,&project) }
+check('new seed changes layout') { first != C.na_generate(options.merge('seed'=>99),sources,dabs,&project) }
+ratio = first[:plants].count { |p| p[:source] == 0 }.to_f / first[:plants].length
+check('probability weighting follows 75/25 mix') { ratio.between?(0.69,0.81) }
+check('scale and yaw remain in requested range') { first[:plants].all? { |p| p[:scale].between?(0.85,1.15) && p[:yaw].between?(0,Math::PI*2) } }
+points = first[:plants].map { |p| p[:point] }
+check('minimum spacing enforced') { points.each_with_index.all? { |p,i| points.drop(i+1).all? { |q| C.na_length(C.na_sub(p,q)) >= 1000/25.4 - 1.0e-7 } } }
+zero = C.na_generate(options,[sources[0].merge('weight'=>0),sources[1]],dabs,&project)
+check('zero weight excludes a source') { zero[:plants].all? { |p| p[:source] == 1 } }
+check('zero placement chance leaves no plants') { C.na_generate(options.merge('chance'=>0),sources,dabs,&project)[:plants].empty? }
+cap = C.na_generate(options.merge('limit'=>10),sources,dabs,&project)
+check('instance cap enforced') { cap[:plants].length == 10 && cap[:capped] }
+rejected('unbounded candidate work rejected') { C.na_generate(options.merge('radius'=>100000,'spacing'=>100),sources,dabs,&project) }
+slope_project = ->(_dab,p) { [p,[0,Math.sqrt(0.75),0.5]] }
+check('steep terrain rejected') { C.na_generate(options.merge('slope'=>30),sources,dabs,&slope_project)[:plants].empty? }
+tilted = C.na_generate(options.merge('align'=>true),sources,dabs,&slope_project)
+check('surface alignment uses actual normals') { (tilted[:plants].first[:normal][2] - 0.5).abs < 1.0e-10 }
+check('upright mode preserves vertical trees') { C.na_generate(options,sources,dabs,&slope_project)[:plants].all? { |p| p[:normal] == [0,0,1] } }
+
+# Minimal host contracts. Native geometry display still requires SketchUp testing.
+module Geom
+  class Vector3d
+    def initialize(*values); @a = values.flatten.map(&:to_f); end
+    def to_a; @a.dup; end
+    def transform(t); self.class.new(t.apply(@a,0)); end
+  end
+  class Point3d < Vector3d
+    def transform(t); self.class.new(t.apply(@a,1)); end
+    def distance(p); C.na_length(C.na_sub(to_a,p.to_a)); end
+  end
+  class Transformation
+    def initialize(a=nil); @a = a || [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]; end
+    def to_a; @a.dup; end
+    def apply(p,w); 3.times.map { |i| 3.times.sum { |j| @a[i+j*4]*p[j] }+@a[12+i]*w }; end
+    def *(other); b=other.to_a; self.class.new(4.times.flat_map { |col| 4.times.map { |row| 4.times.sum { |k| @a[row+k*4]*b[k+col*4] } } }); end
+    def self.translation(p); a=new.to_a; a[12,3]=p; new(a); end
+    def self.axes(p,x,y,z); new([*x.to_a,0,*y.to_a,0,*z.to_a,0,*p.to_a,1]); end
+    def inverse
+      rows = 4.times.map { |i| 4.times.map { |j| @a[i+j*4].to_f } + 4.times.map { |j| i==j ? 1.0 : 0.0 } }
+      4.times do |i|
+        pivot = (i...4).max_by { |k| rows[k][i].abs }; rows[i],rows[pivot]=rows[pivot],rows[i]
+        factor=rows[i][i]; raise ArgumentError,'singular' if factor.abs<1.0e-12
+        rows[i].map! { |v| v/factor }
+        4.times { |k| next if k==i; factor=rows[k][i]; rows[k]=8.times.map { |j| rows[k][j]-factor*rows[i][j] } }
+      end
+      self.class.new(4.times.flat_map { |col| 4.times.map { |row| rows[row][col+4] } })
+    end
+  end
+end
+module Sketchup
+  class SelectionObserver; end
+  class ModelObserver; end
+  class AppObserver; end
+  class Attributes
+    attr_reader :persistent_id
+    def initialize; @a={}; @observers=[]; @persistent_id=object_id; end
+    def get_attribute(d,k,v=nil); @a.fetch([d,k],v); end
+    def set_attribute(d,k,v); @a[[d,k]]=v; end
+    def add_observer(o); @observers << o; end
+    def remove_observer(o); @observers.delete(o); end
+    def valid?; true; end
+  end
+  class TestBounds
+    def corner(i); Geom::Point3d.new(i[0]==0 ? -10 : 10,i[1]==0 ? -20 : 20,i[2]==0 ? 0 : 100); end
+  end
+  class ComponentDefinition < Attributes
+    attr_accessor :entities,:name
+    def initialize; super; @entities=Entities.new; @name='Tree'; end
+    def bounds; TestBounds.new; end
+  end
+  class ComponentInstance < Attributes
+    attr_accessor :definition,:name,:material,:transformation,:hidden,:locked
+    def initialize(definition=ComponentDefinition.new,tr=Geom::Transformation.new)
+      super(); @definition=definition; @transformation=tr; @name='Tree'; @locked=false
+    end
+    def locked?; @locked; end
+  end
+  class Group < ComponentInstance
+    def entities; @definition.entities; end
+    def make_unique; @unique=true; end
+    def unique_called?; @unique; end
+  end
+  class Entities < Array
+    def add_group; group=Group.new; self << group; group; end
+    def add_instance(d,t); instance=ComponentInstance.new(d,t); self << instance; instance; end
+    def erase_entities(items); items.each { |item| delete(item) }; end
+  end
+  class Selection < Array
+    def add(e); self << e; end
+    def add_observer(_); end
+    def remove_observer(_); end
+  end
+  class Face < Attributes
+    def initialize(triangles); super(); @triangles=triangles; end
+    def all_connected; [self]; end
+    def mesh(_)
+      triangles=@triangles
+      Object.new.tap do |mesh|
+        mesh.define_singleton_method(:points) { triangles.flatten(1).map { |p| Geom::Point3d.new(p) } }
+        mesh.define_singleton_method(:polygons) { triangles.each_index.map { |i| [i*3+1,i*3+2,i*3+3] } }
+        mesh.define_singleton_method(:point_at) { |i| points[i-1] }
+      end
+    end
+  end
+  class InstancePath
+    def initialize(a); @a=a; end
+    def to_a; @a; end
+    def leaf; @a.last; end
+    def valid?; true; end
+    def transformation; @a[0...-1].reduce(Geom::Transformation.new) { |t,e| t*e.transformation }; end
+  end
+  class Model < Attributes
+    attr_accessor :active_path,:edit_transform,:paths,:view
+    attr_reader :selection,:active_entities,:definitions,:materials,:operations,:commits,:aborts
+    def initialize
+      super; @selection=Selection.new; @active_entities=Entities.new; @definitions={}; @materials={}; @paths={}
+      @edit_transform=Geom::Transformation.new; @operations=0; @commits=0; @aborts=0
+    end
+    def find_entity_by_persistent_id(id); @definitions[id]; end
+    def instance_path_from_pid_path(path); @paths[path]; end
+    def drawing_element_visible?(_); true; end
+    def active_view; @view; end
+    def raytest(ray)
+      point=[ray[0].to_a[0],ray[0].to_a[1],0]
+      [Geom::Point3d.new(point),@paths.values.first.to_a]
+    end
+    def select_tool(tool); old=@tool; @tool=tool; old.deactivate(@view) if old; tool.activate if tool; end
+    def start_operation(*); @operations+=1; end
+    def commit_operation; @commits+=1; end
+    def abort_operation; @aborts+=1; end
+  end
+  class << self
+    attr_accessor :model,:status_text
+    def active_model; @model; end
+    def add_observer(_); end
+    def remove_observer(_); end
+    def focus; end
+  end
+end
+module UI
+  @timers={}; @seq=0
+  def self.start_timer(*,&block); @seq+=1; @timers[@seq]=block; @seq; end
+  def self.stop_timer(id); @timers.delete(id); end
+  def self.flush; tasks=@timers.values; @timers.clear; tasks.each(&:call); end
+  class HtmlDialog
+    STYLE_DIALOG=0
+    attr_reader :events,:callbacks
+    def initialize(**); @events=[]; @callbacks={}; end
+    def set_html(_); end
+    def add_action_callback(name,&block); @callbacks[name]=block; end
+    def set_on_closed(&block); @closed=block; end
+    def show; @visible=true; end
+    def visible?; @visible; end
+    def close; @visible=false; @closed.call; end
+    def execute_script(script); @events << JSON.parse('['+script.split('Receive(',2)[1].sub(/\);\}\z/,'')+']'); end
+  end
+end
+require File.join(ROOT,PREFIX+'DataSerializer__')
+require File.join(ROOT,PREFIX+'ScatterDialog__')
+S = Na__Noble3dModellingTools::Na__VegetationSketcher__ScatterModel
+D = Na__Noble3dModellingTools::Na__VegetationSketcher__ScatterDialog
+model = Sketchup::Model.new
+Sketchup.model=model
+view=Object.new
+view.define_singleton_method(:invalidate) { }
+view.define_singleton_method(:tooltip=) { |_| }
+view.define_singleton_method(:pickray) { |x,y| [Geom::Point3d.new(x,y,1000),Geom::Vector3d.new(0,0,-1)] }
+model.view=view
+definition=Sketchup::ComponentDefinition.new
+model.definitions[definition.persistent_id]=definition
+item=Sketchup::ComponentInstance.new(definition,Geom::Transformation.translation([500,100,40]))
+item.name='<Oak & shrub>'
+model.selection << item
+captured=S.na_capture(model)
+check('source keeps identity and weight') { captured.first['definition_pid']==definition.persistent_id && captured.first['weight']==100 }
+base=Geom::Transformation.new(captured.first['transform'])
+check('source translation removed and base grounded') { Geom::Point3d.new(0,0,0).transform(base).to_a==[0,0,0] }
+model.edit_transform=Geom::Transformation.axes(Geom::Point3d.new(100,200,300),Geom::Vector3d.new(2,0,0),Geom::Vector3d.new(0,2,0),Geom::Vector3d.new(0,0,2))
+scaled=S.na_capture(model)
+check('captured sources retain world scale inside edited groups') { Geom::Point3d.new(0,0,100).transform(Geom::Transformation.new(scaled.first['transform'])).to_a[2]==200 }
+model.edit_transform=Geom::Transformation.new
+face=Sketchup::Face.new(triangles)
+path=face.persistent_id.to_s
+model.paths[path]=Sketchup::InstancePath.new([face])
+surfaces=S::Surfaces.new(model)
+raw=[surfaces.na_encode([0,0,0],surfaces.na_resolve(path))]
+opts=C.na_options('radius'=>5000,'spacing'=>1000,'limit'=>100)
+result=S.na_generate(model,opts,captured,raw)
+check('native face mesh projection creates grounded plants') { result[:plants].any? && result[:plants].all? { |p| p[:point][2].abs<1.0e-8 } }
+# Rotated, translated, non-uniformly scaled terrain preserves its plane/normal.
+parent=Sketchup::Group.new
+q=Math.sqrt(0.5)
+parent.transformation=Geom::Transformation.axes(Geom::Point3d.new(40,50,60),Geom::Vector3d.new(2,0,0),Geom::Vector3d.new(0,3*q,3*q),Geom::Vector3d.new(0,-0.5*q,0.5*q))
+nested_path="#{parent.persistent_id}.#{face.persistent_id}"
+model.paths[nested_path]=Sketchup::InstancePath.new([parent,face])
+nested=S::Surfaces.new(model)
+nested_surface=nested.na_resolve(nested_path)
+nested_raw=[nested.na_encode([40,50,60],nested_surface)]
+nested_result=S.na_generate(model,opts.merge('align'=>true),captured,nested_raw)
+check('brush projects onto transformed terrain plane') { nested_result[:plants].any? && nested_result[:plants].all? { |p| (p[:point][2]-p[:point][1]-10).abs<1.0e-6 } }
+check('non-uniform terrain normals survive saved dabs') { nested_result[:plants].all? { |p| (p[:normal][2]-q).abs<1.0e-7 && (p[:normal][1]+q).abs<1.0e-7 } }
+model.paths.delete(nested_path)
+model.edit_transform=Geom::Transformation.translation([1000,2000,3000])
+forest=S.na_rebuild(model,nil,opts,captured,raw,result)
+check('forest creation is one committed operation') { model.operations==1 && model.commits==1 && model.aborts==0 }
+check('forest dictionary round trip') { S.na_load(forest)['options']==opts && S.na_load(forest)['dabs']==raw }
+plants=forest.entities.select { |e| e.get_attribute(S::NA_DICT,'role')=='plant' }
+check('plants share source geometry') { plants.length==result[:plants].length && plants.all? { |e| e.definition==definition } }
+world=model.edit_transform * forest.transformation * plants.first.transformation
+check('painting in an editing context retains world planting position') { Geom::Point3d.new(0,0,0).transform(world).distance(Geom::Point3d.new(result[:plants].first[:point]))<1.0e-6 }
+model.edit_transform=Geom::Transformation.new
+library=forest.entities.find { |e| e.get_attribute(S::NA_DICT,'role')=='library' }
+check('hidden library preserves source definitions') { library.hidden && library.entities.first.definition==definition }
+model.definitions.clear
+check('saved library survives missing original source lookup') { S.na_definitions(model,captured,forest)==[definition] }
+S.na_rebuild(model,forest,opts.merge('chance'=>0),captured,raw)
+check('regeneration can clear plants while retaining sources') { S.na_load(forest)['count']==0 && S.na_definitions(model,captured,forest)==[definition] }
+check('regeneration uniquifies copied forest before mutation') { forest.unique_called? }
+forest.locked=true
+before=model.operations
+rejected('locked forest cannot regenerate') { S.na_rebuild(model,forest,opts,captured,raw) }
+check('locked rejection starts no operation') { model.operations==before }
+forest.locked=false
+model.paths.clear
+rejected('deleted surface cannot regenerate') { S.na_rebuild(model,forest,opts,captured,raw) }
+check('deleted surface preserves existing forest data') { model.operations==before && S.na_load(forest)['count']==0 }
+model.paths[path]=Sketchup::InstancePath.new([face])
+model.definitions[definition.persistent_id]=definition
+# Full brush event path: no model write until mouse-up; Escape discards a stroke.
+owner=Object.new
+owner.define_singleton_method(:na_status) { |message,error=false| raise message if error }
+owner.define_singleton_method(:na_tool_finished) { |_| }
+owner.define_singleton_method(:na_painted) { |_,_| }
+tool=Na__Noble3dModellingTools::Na__VegetationSketcher__ScatterTool.new(model,opts,captured,owner)
+model.select_tool(tool)
+before=model.operations
+tool.onLButtonDown(0,0,0,view)
+tool.onMouseMove(0,100,0,view)
+check('brush dragging performs no model mutation') { model.operations==before }
+tool.onLButtonUp(0,100,0,view)
+check('brush release creates one parametric forest') { model.operations==before+1 && S.na_forest?(tool.na_group) }
+tool.onLButtonDown(0,200,0,view)
+tool.onCancel(0,view)
+check('Escape discards uncommitted stroke') { model.operations==before+1 }
+model.select_tool(nil)
+
+# Actual callback bus, selection observer and stale-target guards.
+model.selection.clear
+model.selection << item
+D.Na__VegetationSketcher__Scatter__ShowDialog
+dialog=D.instance_variable_get(:@na_dialog)
+dialog.callbacks['na_scatter_ready'].call(nil)
+state=dialog.events.reverse.find { |event,_| event=='state' }[1]
+request={ id:1,session:state['session'],action:'capture',payload:{ context:state['context'],target_id:nil } }
+dialog.callbacks['na_scatter_event'].call(nil,JSON.generate(request))
+check('source capture command acknowledged') { dialog.events.last==['ack',{'id'=>1,'success'=>true}] }
+check('source capture visible in dialog state') { dialog.events.reverse.find { |event,_| event=='state' }[1]['sources'].length==1 }
+model.selection.clear
+model.selection << forest
+D.na_sync
+state=dialog.events.reverse.find { |event,_| event=='state' }[1]
+check('selecting saved forest loads its parameters') { state['target_id']==forest.persistent_id.to_s && state['options']['chance']==0 }
+rejected('stale dialog context rejected') { D.na_validate(request[:payload].transform_keys(&:to_s)) }
+regen={ id:2,session:state['session'],action:'regenerate',payload:{context:state['context'],target_id:state['target_id'],options:opts,weights:{captured[0]['key']=>100}} }
+dialog.callbacks['na_scatter_event'].call(nil,JSON.generate(regen))
+check('regenerate command applies to selected forest') { dialog.events.last==['ack',{'id'=>2,'success'=>true}] && S.na_load(forest)['count']>0 }
+model.selection.clear
+before=model.operations
+dialog.callbacks['na_scatter_event'].call(nil,JSON.generate(regen.merge(id:3)))
+check('selection race cannot mutate former target') { model.operations==before && dialog.events.last==['ack',{'id'=>3,'success'=>false}] }
+model.selection << forest
+forest.set_attribute(S::NA_DICT,'data','broken JSON')
+dialog.callbacks['na_scatter_event'].call(nil,JSON.generate(regen.merge(id:4)))
+check('damaged target still receives failure acknowledgement') { dialog.events.last==['ack',{'id'=>4,'success'=>false}] && model.operations==before }
+class Sketchup::Model
+  def add_observer(_); end
+  def remove_observer(_); end
+end
+Sketchup.model=Sketchup::Model.new
+D.na_sync
+state=dialog.events.reverse.find { |event,_| event=='state' }[1]
+check('model switch clears both native sources and HTML source palette') { state['load'] && state['sources'].empty? && state['target_id'].nil? }
+D.Na__VegetationSketcher__Scatter__ResetDialog
+UI.flush
+check('scatter dialog closes cleanly') { D.instance_variable_get(:@na_dialog).nil? }
+puts "PASS: #{$checks} scatter geometry, weighting, persistence, brush and bridge checks."
