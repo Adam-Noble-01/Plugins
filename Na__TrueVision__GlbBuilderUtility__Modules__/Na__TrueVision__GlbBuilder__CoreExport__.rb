@@ -701,6 +701,7 @@ module TrueVision3D
             model = Sketchup.active_model
 
             self.Na__ExportCore__ResetState
+            self.Na__ExportCore__ResetLastExportSummary(export_dir)                 # <-- Structured result for the dialog report panel
             self.Na__ExportCore__IdentifyExcludedLayers(model)
 
             # Open the log session now that we have the export directory
@@ -741,7 +742,13 @@ module TrueVision3D
                         Na__Log__Warn "  #{range_label} = #{group_name}.glb"
                     end
                     
-                    UI.messagebox("No entities found with valid '##__' tag prefixes for export.\n\nPlease check the Ruby Console for required tag naming.")
+                    log_path = self.Na__Log__CloseSession                           # <-- Close here so the `ensure` does not re-close
+                    self.Na__ExportCore__RecordLastExportSummary(
+                        success: false,
+                        message: "No entities found with valid '##__' tag prefixes for export.",
+                        log_path: log_path
+                    )
+                    UI.messagebox("No entities found with valid '##__' tag prefixes for export.\n\nPlease check the Ruby Console for required tag naming.") unless quiet  # <-- Suppress modal when programmatic
                     return false
                 end
                 
@@ -843,6 +850,15 @@ module TrueVision3D
                 if success_count > 0
                     storey_msg = has_storeys ? " (includes storey-based exports)" : ""
                     log_path   = self.Na__Log__CloseSession
+                    self.Na__ExportCore__RecordLastExportSummary(
+                        success:          true,
+                        message:          "#{success_count} GLB file(s) written#{storey_msg}.",
+                        log_path:         log_path,
+                        mesh_count:       mesh_success,
+                        linework_count:   linework_success,
+                        linetype_count:   linetype_success,
+                        has_storeys:      has_storeys
+                    )
                     unless quiet                                                       # <-- Programmatic callers skip GUI side-effects
                         self.Na__Helpers__OpenFolder(export_dir)                       # <-- Reveal folder (interactive use only)
                         linetype_msg = linetype_success > 0 ? " + #{linetype_success} linetype" : ""
@@ -851,17 +867,80 @@ module TrueVision3D
                     end
                 else
                     log_path = self.Na__Log__CloseSession
+                    self.Na__ExportCore__RecordLastExportSummary(
+                        success:  false,
+                        message:  'Export failed - no GLB files were written. Check the Ruby Console for errors.',
+                        log_path: log_path
+                    )
                     UI.messagebox("Export failed. Please check the Ruby Console for errors.") unless quiet  # <-- Suppress modal when programmatic
                 end
 
             rescue => e
                 Na__Log__Warn "GLB Export Error: #{e.message}\n#{e.backtrace.join("\n")}"
                 log_path = self.Na__Log__CloseSession
+                self.Na__ExportCore__RecordLastExportSummary(
+                    success:  false,
+                    message:  "#{e.class}: #{e.message}",
+                    log_path: log_path
+                )
                 UI.messagebox("Export error: #{e.message}\n\nCheck the Ruby Console for details.") unless quiet  # <-- Suppress modal when programmatic
                 false
             ensure
                 log_path ||= self.Na__Log__CloseSession
             end
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Reset The Structured Export Summary
+        # ---------------------------------------------------------------
+        # Called at the top of every export so a stale result from a previous
+        # run can never be reported against the current one.
+        # ---------------------------------------------------------------
+        def self.Na__ExportCore__ResetLastExportSummary(export_dir)
+            @na_last_export_summary = {
+                success:        false,
+                message:        'Export did not complete.',
+                export_dir:     export_dir.to_s,
+                log_path:       nil,
+                mesh_count:     0,
+                linework_count: 0,
+                linetype_count: 0,
+                total_count:    0,
+                has_storeys:    false,
+                completed_at:   nil
+            }
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Record The Structured Export Summary
+        # ---------------------------------------------------------------
+        # Merges the outcome of an export into the summary the UI report panel
+        # renders. Keyword arguments left out keep their reset defaults.
+        # ---------------------------------------------------------------
+        def self.Na__ExportCore__RecordLastExportSummary(success:, message:, log_path: nil,
+                                                          mesh_count: 0, linework_count: 0,
+                                                          linetype_count: 0, has_storeys: false)
+            @na_last_export_summary ||= {}
+            @na_last_export_summary.merge!(
+                success:        success,
+                message:        message.to_s,
+                log_path:       log_path,
+                mesh_count:     mesh_count.to_i,
+                linework_count: linework_count.to_i,
+                linetype_count: linetype_count.to_i,
+                total_count:    mesh_count.to_i + linework_count.to_i + linetype_count.to_i,
+                has_storeys:    has_storeys,
+                completed_at:   Time.now
+            )
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Read The Structured Summary Of The Last Export
+        # ---------------------------------------------------------------
+        # Returns nil when no export has run in this session.
+        # ---------------------------------------------------------------
+        def self.Na__ExportCore__LastExportSummary
+            @na_last_export_summary
         end
         # ---------------------------------------------------------------
 

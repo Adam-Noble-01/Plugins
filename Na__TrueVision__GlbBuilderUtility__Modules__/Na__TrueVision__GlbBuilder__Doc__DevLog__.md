@@ -8,6 +8,143 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.9.0 - 19-Sep-2026
+#### The Model Remembers Which Project It Belongs To
+
+**Why**
+- The exporter wrote GLBs to a folder you picked, every time. Then you opened the portal folder, found the
+  right scheme, pasted them in, ran the build script, typed the project code, typed 3, and waited. Six
+  steps of remembering, four of which the model could have remembered for you.
+- Nothing in the .skp knew it was West Farm. The project code lived in Adam's head between the model and
+  the folder, and that is exactly the kind of knowledge that goes wrong at 7pm on a Friday.
+
+**New:** `Na__TrueVision__GlbBuilder__ProjectLink__.rb` (1.0.0) - the model remembers
+- A model attribute dictionary, `Na__TrueVision__GlbBuilder__ProjectLink`, holding the project code, the
+  resolved portal folder, and the design phase folder this model exports into. It is saved in the .skp,
+  so it survives closing SketchUp and travels with the file.
+- **The link is entirely optional.** `prompt_dismissed` records that you cleared the prompt, so a model
+  that is not a project export asks once and then never again. Every project feature stays greyed out
+  with the reason on hover, and the folder-picker export is untouched.
+
+**New:** `Na__TrueVision__GlbBuilder__ProjectPortalMapper__.rb` (1.0.0) - code to folder
+- Finds `na-project-portal`, reads the ProjectVision master index, and turns `RB05` into a full path plus
+  the project's name and brief from `ProjectAdmin__ProjectConfig__.json`. A project created since the last
+  index build is still found, by scanning the year folders for `{CODE}__{Name}`.
+- Lists every folder under `30__TrueVision__AppContent` with its GLB count and last-written date, applying
+  the same skip rules as `ProjectVision__BuildScript__.py` - so what the dialog lists is what the build
+  will publish.
+- **Owns the canonical folder naming, and the aliases.** `DesignPhase00__ExistingConditions` is the name
+  going forward; `DesignPhase01__ConceptDesign__ExistingBuilding` is listed as an alias and is still
+  recognised as Existing Conditions, flagged in the UI as a legacy name. **Nothing on disk is renamed** -
+  seven live projects use the old name and TrueVision reads it.
+- Creating a scheme refuses to hand back a folder that already exists, and refuses a second Existing
+  Conditions when an alias folder already covers it.
+
+**New:** `Na__TrueVision__GlbBuilder__CloudSyncOrchestrator__.rb` (1.0.0) - the push
+- Runs the **same two Python scripts** `ProjectVision__BuildPipeline__.ps1` runs for its menu option 3:
+  `ProjectVision__BuildScript__.py`, then `CloudflareR2__ModelSync__Main__.py --project {FOLDER} --tv-only`.
+  Those are the exact arguments the .ps1 assembles. No sync logic is reimplemented here.
+- They are called directly rather than through the .bat, because the .bat launches a detached PowerShell
+  with `-NoExit` and the .ps1 ends on a `Read-Host` - neither is safe to drive from a host that needs to
+  know whether the work succeeded. The .bat is still one click away on the Project tab when the
+  interactive menu is what you want.
+- `--dry-run-only` is exposed as its own Dry Run card, so you can read what would change before it does.
+- Python discovery follows ValeVision Cloud Sync's, for its reason: SketchUp's child-process PATH can
+  resolve a bare `python` to the Windows Store stub, which runs and produces nothing at all.
+
+**New:** `Na__TrueVision__GlbBuilder__ProjectPortalConfig__.json`
+- Portal search paths, the master index location, the design phase catalogue with its aliases, the build
+  pipeline scripts and the Python override. Hand-editable, reloaded on Reload Scripts.
+
+**Changed:** the dialog gains a Project tab
+- The linked project with its brief, the folder list with GLB counts and dates, a phase picker that names
+  the next folder it would create, Duplicate Selected for a Scheme-02 that starts from Scheme-01, and the
+  three R2 cards.
+- Two new Export cards: **Export To Project Folder** (straight into the scheme folder, no picker) and
+  **Export And Sync To Cloud** (that, then the build, then R2).
+- **Overwriting a scheme is confirmed before anything is written**, naming the folder and its file count,
+  and the previous GLBs are moved into that folder's `00__Archive/{timestamp}` rather than replaced. A
+  confirmed overwrite stays recoverable.
+- The link prompt opens once per model, over the Export tab, with Export Without A Project as the way out.
+
+**Three bugs caught by rendering the dialog in a browser rather than reasoning about it**
+- `.naTvgb__Modal { display:flex }` outranks the browser's own `[hidden]` rule, so both modals rendered on
+  load. An explicit `[hidden]` rule restores it.
+- `applyButtonLockState` returned early while running, which skipped the plain buttons - Unlink and
+  Duplicate stayed clickable underneath a running export.
+- Worse: several project actions report only through the status line, never a report. The dialog cleared
+  its running lock only on a report, so creating a folder would have locked the whole UI until reopened.
+  The project status push now clears it, and the router always ends on one.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.8.0 - 19-Sep-2026
+#### The Exporter Puts On The House Uniform
+
+**Why**
+- ValeVision Cloud Sync already settled what a Noble Architecture sync dialog looks like: brand header,
+  tabs, action cards that say what they do before you press them, and a report with OK / ERR / SKIP
+  badges telling you exactly what happened. The GLB Builder predated all of it and looked like it.
+- The two plugins sit next to each other in the same menu and do adjacent jobs. Looking like two
+  different products was the wrong signal, and the old dialog's one real weakness was the ending: a
+  modal message box that vanished, taking the result with it.
+- The exporter also had no toolbar button. It lived three levels down the Extensions menu.
+
+**New:** `05__Plugin__UserInterface/` - the dialog is no longer a heredoc
+- `Na__TrueVision__GlbBuilder__UiLayout__.html`, `__Styles__.css` and `__UiBridge__.js`, inlined into the
+  HtmlDialog at render time through `{{PLACEHOLDER}}` substitution - the ValeVision pattern exactly.
+- 39KB of HTML, CSS and JavaScript came out of `Na__TrueVision__GlbBuilder__UserInterface__.rb`. The Ruby
+  now builds data and pushes it; the assets decide how it looks.
+- **Nothing model-specific is interpolated into the template.** The model status and the whole export
+  manifest travel as JSON to `Na__Tvgb__ReceiveModelStatus`, so a rescan repaints the manifest without a
+  `set_html` round trip - and the new Rescan Model card costs nothing to add.
+
+**New:** `Na__TrueVision__GlbBuilder__ToolbarIconLoader__.rb` (1.0.0)
+- A toolbar button carrying the Noble Architecture square logo, opening the export dialog.
+- The `@na_toolbar` guard survives a `load`-based hot reload, so Reload Scripts cannot stack duplicate
+  toolbars onto the session.
+
+**New:** `Na__TrueVision__GlbBuilder__PathResolver__.rb` (1.0.0)
+- Every plugin-internal path in one place, mirroring the ValeVision resolver, plus
+  `Na__PathResolver__FileUriFor` which normalises a Windows path into a `file:///` URI the Chromium
+  dialog host will actually resolve.
+
+**New:** `06__Assets/` - brand assets
+- The Noble Architecture horizontal logo, the square toolbar icon at 192px and 32px, and the three
+  Open Sans faces (Light 300, Regular 400, SemiBold 600).
+- **The header logo is pulled from `noble-architecture.com`**, with the bundled copy as an `onerror`
+  fallback and a hidden image if both fail. The canonical asset wins when there is a network; the
+  dialog never shows a broken-image glyph when there is not.
+- **Open Sans loads local-first, web-second**, matching `Na__CoreUi__Styles__Fonts__.css` in the
+  TrueVision web app - instant offline, still correct if the bundled folder ever goes missing. The
+  plugin and the app it feeds now render in the same face.
+
+**Changed:** `Na__TrueVision__GlbBuilder__UserInterface__.rb` (2.8.0)
+- Rebuilt around the dialog lifecycle, a single `na_tvgb_run_action` callback, and three push helpers
+  (status, report, model status). Re-opening brings the existing dialog to front instead of stacking.
+- **The export no longer ends in a message box.** It runs `quiet: true` and reports into the panel:
+  mesh, linework and linetype counts, the output folder and the log filename, each with a badge. A zero
+  count is SKIP, not ERR - a model with no linetype tags is a normal model, not a failed export.
+- The dialog stays open afterwards, so the result is still on screen while you check the folder. The
+  Explorer reveal still fires on success, as it always did.
+- Export GLB Files and Export Site Plan Data grey out when the model cannot supply them, with the reason
+  on hover. Rescan Model stays live always.
+
+**Changed:** `Na__TrueVision__GlbBuilder__CoreExport__.rb`
+- `Na__ExportCore__PerformExport` now records a structured summary - counts, log path, output folder -
+  read back through `Na__ExportCore__LastExportSummary`. Return values are unchanged, so the ValeVision
+  Cloud Sync bridge and every other caller are untouched.
+- The "no valid tag prefixes" message box now respects `quiet:`, like every other message box in that
+  method. Programmatic callers were being interrupted by a modal they had explicitly asked to suppress.
+
+**Changed:** `Na__TrueVision__GlbBuilder__DynamicReloaderPluginUtil__.rb`
+- The reloader was looking for `...__Loader.rb`; the file on disk is `...__Loader__.rb`. Corrected, so
+  Reload Scripts stops reporting a loader it could not find.
+
+**Unchanged**
+- The export engine, the geometry and material handling, the tag ranges and the site plan export. This
+  release is the dialog and the toolbar; not one triangle moves differently.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.7.3 - 18-Sep-2026
 #### Linetype Linework - The Dashed Line You Tagged Is the Dashed Line You Get
 

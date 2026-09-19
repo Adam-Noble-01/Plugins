@@ -45,6 +45,14 @@ unless file_loaded?(__FILE__)
                 else
                     puts "⚠ TrueVision3D::GlbBuilderUtility.Na__PublicApi__RegisterMenu not available"
                 end
+
+                # Toolbar button - Noble Architecture square brand icon
+                if defined?(TrueVision3D::GlbBuilderUtility) &&
+                   TrueVision3D::GlbBuilderUtility.respond_to?(:Na__PublicApi__RegisterToolbar)
+                    TrueVision3D::GlbBuilderUtility.Na__PublicApi__RegisterToolbar
+                else
+                    puts "⚠ TrueVision3D::GlbBuilderUtility.Na__PublicApi__RegisterToolbar not available"
+                end
             rescue => e
                 puts "✗ Error loading TrueVision3D GLB Builder Utility: #{e.message}"
                 puts e.backtrace.first(5).join("\n")

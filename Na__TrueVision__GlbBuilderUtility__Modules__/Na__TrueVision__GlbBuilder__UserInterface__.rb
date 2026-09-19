@@ -4,83 +4,455 @@
 #
 # FILE       : Na__TrueVision__GlbBuilder__UserInterface__.rb
 # NAMESPACE  : TrueVision3D::GlbBuilderUtility
-# MODULE     : User Interface (HTML Dialog and Menu Integration)
+# MODULE     : User Interface (HtmlDialog Lifecycle and Ruby <-> JS Bridge)
 # AUTHOR     : Adam Noble - Noble Architecture
-# PURPOSE    : User interface management - HTML dialogs, callbacks, and menu integration
+# PURPOSE    : User interface management - HtmlDialog, callbacks, and push API
 # CREATED    : 2025
 #
 # DESCRIPTION:
-# - HTML dialog generation and management
-# - Callback and event handling API
-# - Menu integration for SketchUp Extensions menu
-# - Provides robust communication between UI and core export functionality
+# - Creates the UI::HtmlDialog with inlined CSS + JS from the 05__Plugin__UserInterface
+#   asset files, following the ValeVision Cloud Sync dialog pattern.
+# - Registers named action callbacks for export, site plan, rescan, tags and reload.
+# - Builds the model status and export manifest as JSON and pushes it to the UI,
+#   so a rescan never needs a full set_html round trip.
+# - Renders the outcome of an export into the badge-driven report panel rather
+#   than a modal message box.
 #
 # DEPENDENCIES:
-# - Requires module constants from main file (@excluded_layers, etc.)
-# - Requires functions from main file (organize_entities_by_tags, perform_export, start_export)
-# - Accesses module instance variables (@export_dialog, @export_selection_only, @downscale_textures)
+# - Requires module constants from the main file (MESH_MODEL_SUFFIX, SITE_PLAN_TAG_PATTERN, etc.)
+# - Requires Na__PathResolver__* helpers for asset paths
+# - Requires Na__ExportCore__* helpers for the tag / storey / linetype scan
+#
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG:
+# 2025 - Version 1.0.0
+# - Original single-file HtmlDialog with inline HTML, CSS and JS.
+#
+# 19-Sep-2026 - Version 2.8.0
+# - Rebuilt on the ValeVision Cloud Sync UI pattern: external HTML / CSS / JS
+#   assets, Noble Architecture brand header, Open Sans face, tabbed layout,
+#   action cards, and a badge-driven report panel.
+# - Export now runs quiet and reports in-dialog; the dialog stays open.
 #
 # =============================================================================
 
+require 'json'
+
 module TrueVision3D
     module GlbBuilderUtility
-    
+
     # =============================================================================
-    # REGION | Dialog Management - Main Dialog Control
+    # REGION | Dialog Lifecycle
     # =============================================================================
-    
+
         # FUNCTION | Show Export Options Dialog
-        # ------------------------------------------------------------
+        # ---------------------------------------------------------------
+        # Re-uses the open dialog when there is one, so the toolbar button and
+        # the menu entry both behave like a toggle-to-front rather than stacking
+        # duplicate windows.
+        # ---------------------------------------------------------------
         def self.Na__UserInterface__ShowExportDialog
-            begin
-                @export_dialog.close if @export_dialog && @export_dialog.visible?      # Close if already open
-                
-                @export_dialog = UI::HtmlDialog.new(
-                    :dialog_title => "TrueVision3D GLB Export Options",                # <-- Dialog title
-                    :preferences_key => "TrueVision3D_GLBExport",                      # <-- Preferences key
-                    :scrollable => true,                                               # <-- Allow content scrolling
-                    :resizable => true,                                                # <-- User resizable
-                    :width => 560,                                                     # <-- Dialog width
-                    :height => 660,                                                    # <-- Dialog height (fits 1080p at 100% scale)
-                    :min_width => 420,                                                 # <-- Minimum usable width
-                    :min_height => 380,                                                # <-- Minimum usable height
-                    :left => 200,                                                      # <-- X position
-                    :top => 120                                                        # <-- Y position
-                )
-                
-                html_content = self.Na__UserInterface__GenerateDialogHtml
-                @export_dialog.set_html(html_content)
-                self.Na__UserInterface__AddDialogCallbacks(@export_dialog)
-                @export_dialog.show
-            rescue => e
-                Na__Log__Warn "ERROR in Na__UserInterface__ShowExportDialog: #{e.message}"
-                Na__Log__Warn "Backtrace: #{e.backtrace.first(10).join("\n")}"
-                UI.messagebox("Dialog error: #{e.message}\n\nCheck Ruby Console for details.")
+            if @export_dialog && @export_dialog.visible?
+                @export_dialog.bring_to_front
+                self.Na__UserInterface__PushModelStatus(@export_dialog)
+                self.Na__UserInterface__PushProjectStatus(@export_dialog)
+                return @export_dialog
+            end
+
+            @export_dialog = UI::HtmlDialog.new(
+                :dialog_title    => 'TrueVision GLB Builder',                      # <-- Dialog title
+                :preferences_key => 'Na__TrueVision__GlbBuilder__Dialog',          # <-- Remembers size and position
+                :scrollable      => true,                                          # <-- Allow content scrolling
+                :resizable       => true,                                          # <-- User resizable
+                :width           => 620,                                           # <-- Dialog width
+                :height          => 760,                                           # <-- Dialog height (fits 1080p at 100% scale)
+                :min_width       => 460,                                           # <-- Minimum usable width
+                :min_height      => 420,                                           # <-- Minimum usable height
+                :left            => 200,                                           # <-- X position
+                :top             => 100,                                           # <-- Y position
+                :style           => UI::HtmlDialog::STYLE_DIALOG
+            )
+
+            @export_dialog.set_html(self.Na__UserInterface__GenerateDialogHtml)
+            self.Na__UserInterface__AddDialogCallbacks(@export_dialog)
+            @export_dialog.set_on_closed { @export_dialog = nil }
+            @export_dialog.show
+            @export_dialog
+        rescue => e
+            Na__Log__Warn "ERROR in Na__UserInterface__ShowExportDialog: #{e.message}"
+            Na__Log__Warn "Backtrace: #{e.backtrace.first(10).join("\n")}"
+            UI.messagebox("Dialog error: #{e.message}\n\nCheck Ruby Console for details.")
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Report Whether The Dialog Is Currently Visible
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__DialogVisible
+            !!(@export_dialog && @export_dialog.visible?)
+        end
+        # ---------------------------------------------------------------
+
+    # endregion ===================================================================
+
+
+    # =============================================================================
+    # REGION | HTML Rendering
+    # =============================================================================
+
+        # FUNCTION | Render The Dialog HTML From The Asset Templates
+        # ---------------------------------------------------------------
+        # The stylesheet and bridge script are inlined rather than linked so the
+        # dialog needs no local web server and no file:// script permissions.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__GenerateDialogHtml
+            html_template      = File.read(self.Na__PathResolver__UiLayoutFilePath)
+            stylesheet_content = File.read(self.Na__PathResolver__UiStylesheetFilePath)
+            ui_bridge_script   = File.read(self.Na__PathResolver__UiBridgeFilePath)
+
+            stylesheet_content = stylesheet_content.gsub('{{FONT_DIR_URI}}', self.Na__UserInterface__FontDirectoryUri)
+
+            html_template
+                .gsub('{{DIALOG_TITLE}}',      self.Na__UserInterface__EscapeHtml('TrueVision GLB Builder'))
+                .gsub('{{LOGO_REMOTE_URL}}',   self.Na__PathResolver__BrandLogoRemoteUrl)
+                .gsub('{{LOGO_FILE_URI}}',     self.Na__PathResolver__FileUriFor(self.Na__PathResolver__BrandLogoFilePath))
+                .gsub('{{STYLESHEET_CONTENT}}', stylesheet_content)
+                .gsub('{{UI_BRIDGE_SCRIPT}}',   ui_bridge_script)
+        rescue => e
+            Na__Log__Warn "ERROR rendering GLB Builder dialog HTML: #{e.message}"
+            self.Na__UserInterface__FallbackHtml(e)
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Resolve The Bundled Font Directory As A file:/// URI
+        # ---------------------------------------------------------------
+        # The stylesheet lists this local copy first and the canonical
+        # noble-architecture.com copy second, so Open Sans renders instantly
+        # offline and still resolves if the bundled folder is ever missing.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__FontDirectoryUri
+            font_dir = self.Na__PathResolver__FontDirectory
+            uri      = self.Na__PathResolver__FileUriFor(font_dir, require_exists: true)
+            return uri unless uri.empty?
+
+            Na__Log__Warn "[GlbBuilder] Bundled Open Sans folder not found at: #{font_dir} - falling back to the web font."
+            'https://www.noble-architecture.com/na-apps/01__Assets__NaApps__CommonAssets/NaApps__CommonFonts'
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Minimal Fallback Markup When An Asset Is Missing
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__FallbackHtml(error)
+            "<html><body style=\"font-family:Segoe UI,Arial,sans-serif;padding:20px;\">" \
+            "<h2>TrueVision GLB Builder</h2>" \
+            "<p>The dialog assets could not be loaded.</p>" \
+            "<p><strong>#{self.Na__UserInterface__EscapeHtml(error.class.to_s)}:</strong> " \
+            "#{self.Na__UserInterface__EscapeHtml(error.message)}</p>" \
+            "<p>Expected assets in: <code>#{self.Na__UserInterface__EscapeHtml(self.Na__PathResolver__UiDirectory)}</code></p>" \
+            "</body></html>"
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Escape Text For Safe HTML Interpolation
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__EscapeHtml(raw_text)
+            raw_text.to_s
+                .gsub('&', '&amp;')
+                .gsub('<', '&lt;')
+                .gsub('>', '&gt;')
+                .gsub('"', '&quot;')
+                .gsub("'", '&#39;')
+        end
+        # ---------------------------------------------------------------
+
+    # endregion ===================================================================
+
+
+    # =============================================================================
+    # REGION | JS Bridge - Callback Registration
+    # =============================================================================
+
+        # FUNCTION | Register The Dialog Action Callbacks
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__AddDialogCallbacks(dialog)
+            # Callback: the DOM is ready, push the initial model status
+            dialog.add_action_callback('na_tvgb_dialog_ready') do |_ctx|
+                self.Na__UserInterface__PushModelStatus(dialog)
+                self.Na__UserInterface__PushProjectStatus(dialog)                  # <-- Carries should_prompt, which opens the link modal
+            end
+
+            # Callback: run one of the dialog actions
+            dialog.add_action_callback('na_tvgb_run_action') do |_ctx, action_id, params_json|
+                self.Na__UserInterface__HandleAction(dialog, action_id.to_s, params_json.to_s)
             end
         end
         # ---------------------------------------------------------------
-    
+
     # endregion ===================================================================
-    
+
+
     # =============================================================================
-    # REGION | HTML Generation - Dialog Content and Styling
+    # REGION | Action Handlers
     # =============================================================================
-    
-        # FUNCTION | Generate HTML for Export Dialog
+
+        # FUNCTION | Route A Dialog Action To Its Handler
         # ---------------------------------------------------------------
-        def self.Na__UserInterface__GenerateDialogHtml
-            excluded_count = @excluded_layers.length                                 # Count excluded layers
+        # Every handler is wrapped so a fault reports into the dialog rather than
+        # leaving the UI stuck behind a disabled button set.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__HandleAction(dialog, action_id, params_json)
+            case action_id
+            when 'export_model'     then self.Na__UserInterface__ActionExportModel(dialog, params_json)
+            when 'export_site_plan' then self.Na__UserInterface__ActionExportSitePlan(dialog)
+            when 'rescan_model'     then self.Na__UserInterface__ActionRescanModel(dialog)
+            when 'create_tags'      then self.Na__UserInterface__ActionCreateTags(dialog)
+            when 'reload_plugin'    then self.Na__UserInterface__ActionReloadPlugin(dialog)
+            else
+                # Project tab actions live in the ProjectActions module; it answers
+                # false when the action is not one of its own.
+                handled = self.respond_to?(:Na__UserInterface__HandleProjectAction) &&
+                          self.Na__UserInterface__HandleProjectAction(
+                              dialog, action_id, self.Na__UserInterface__ParseParams(params_json)
+                          )
+
+                unless handled
+                    self.Na__UserInterface__PushStatus(dialog, "Unknown action: #{action_id}", 'error')
+                    self.Na__UserInterface__PushReport(dialog, self.Na__UserInterface__BuildIdleReport)
+                end
+            end
+        rescue => e
+            Na__Log__Warn "    x Error in dialog action '#{action_id}': #{e.message}"
+            Na__Log__Warn e.backtrace.first(10).join("\n")
+            self.Na__UserInterface__PushStatus(dialog, "#{e.class}: #{e.message}", 'error')
+            self.Na__UserInterface__PushReport(dialog, {
+                success: false,
+                running: false,
+                message: "#{e.class}: #{e.message}",
+                steps:   [{ label: 'Action', success: false, message: action_id }]
+            })
+        end
+        # ---------------------------------------------------------------
+
+        # ACTION HANDLER | Export The Model GLB Files
+        # ---------------------------------------------------------------
+        # Runs the export quiet so the outcome lands in the report panel instead
+        # of a modal box, then reveals the output folder the way the old dialog
+        # did once the report is on screen.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__ActionExportModel(dialog, params_json)
+            self.Na__UserInterface__ApplyExportParams(params_json)
+
+            export_dir = UI.select_directory(title: 'Select Export Directory')
+            unless export_dir
+                self.Na__UserInterface__PushStatus(dialog, 'Export cancelled - no folder chosen.', 'info')
+                self.Na__UserInterface__PushReport(dialog, self.Na__UserInterface__BuildIdleReport)
+                return
+            end
+
+            self.Na__UserInterface__PushStatus(dialog, 'Exporting GLB files, please wait...', 'info')
+            self.Na__UserInterface__PushReport(dialog, { running: true, steps: [] })
+
+            self.Na__PublicApi__PerformExport(export_dir, quiet: true)             # <-- quiet: report panel replaces the modal
+
+            summary = self.Na__ExportCore__LastExportSummary || {}
+            report  = self.Na__UserInterface__BuildExportReport(summary, export_dir)
+
+            self.Na__UserInterface__PushReport(dialog, report)
+            self.Na__UserInterface__PushStatus(
+                dialog,
+                report[:message],
+                report[:success] ? 'success' : 'error'
+            )
+            self.Na__UserInterface__PushModelStatus(dialog)
+
+            self.Na__Helpers__OpenFolder(export_dir) if report[:success]           # <-- Reveal output, as the old dialog did
+        end
+        # ---------------------------------------------------------------
+
+        # ACTION HANDLER | Export The Site Plan Drawing Data
+        # ---------------------------------------------------------------
+        # Na__SitePlan__Run owns its own confirm / folder-choice dialogs, so this
+        # handler only records the outcome.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__ActionExportSitePlan(dialog)
+            self.Na__UserInterface__PushStatus(dialog, 'Exporting site plan data...', 'info')
+            self.Na__UserInterface__PushReport(dialog, { running: true, steps: [] })
+
+            succeeded = self.Na__PublicApi__ExportSitePlanData
+
+            message = succeeded ? 'Site plan data exported.' : 'Site plan export did not complete.'
+            self.Na__UserInterface__PushReport(dialog, {
+                success: succeeded,
+                running: false,
+                message: message,
+                steps:   [{
+                    label:   'Site Plan Data',
+                    success: succeeded,
+                    message: succeeded ? 'Linework GLBs, fills and manifest written.' \
+                                       : 'Cancelled, or nothing sits on a site plan tag (71-75).'
+                }]
+            })
+            self.Na__UserInterface__PushStatus(dialog, message, succeeded ? 'success' : 'warning')
+        end
+        # ---------------------------------------------------------------
+
+        # ACTION HANDLER | Rescan The Model And Rebuild The Manifest
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__ActionRescanModel(dialog)
+            self.Na__UserInterface__PushModelStatus(dialog)
+            self.Na__UserInterface__PushProjectStatus(dialog)                      # <-- Folder list and GLB counts may have moved on disk
+            self.Na__UserInterface__PushReport(dialog, self.Na__UserInterface__BuildIdleReport)
+            self.Na__UserInterface__PushStatus(dialog, 'Model and project folders rescanned.', 'success')
+        end
+        # ---------------------------------------------------------------
+
+        # ACTION HANDLER | Create The Standardised Tags From The Shared Index
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__ActionCreateTags(dialog)
+            self.Na__UserInterface__PushStatus(dialog, 'Creating standardised tags...', 'info')
+
+            self.Na__PublicApi__CreateStandardisedTags
+
+            self.Na__UserInterface__PushModelStatus(dialog)                        # <-- Manifest reflects the new tags
+            self.Na__UserInterface__PushStatus(dialog, 'Standardised tags created. Manifest rescanned.', 'success')
+        end
+        # ---------------------------------------------------------------
+
+        # ACTION HANDLER | Hot Reload The Plugin Ruby Files
+        # ---------------------------------------------------------------
+        # The reloader re-opens this dialog itself, so nothing is pushed after it.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__ActionReloadPlugin(dialog)
+            self.Na__UserInterface__PushStatus(dialog, 'Reloading plugin scripts...', 'info')
+            self.Na__DevTools__ReloadScripts
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Parse A JSON Params String Into A Hash
+        # ---------------------------------------------------------------
+        # Always answers a Hash, so action handlers never nil-check the payload.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__ParseParams(params_json)
+            return {} if params_json.nil? || params_json.to_s.empty?
+
+            parsed = JSON.parse(params_json.to_s)
+            parsed.is_a?(Hash) ? parsed : {}
+        rescue JSON::ParserError
+            {}
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Apply The Export Options Sent From The Dialog
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__ApplyExportParams(params_json)
+            params = (params_json && !params_json.empty?) ? JSON.parse(params_json) : {}
+
+            @export_selection_only = params['selectionOnly'] == true
+            @downscale_textures    = params['downscaleTextures'] == true
+
+            mode_string = params['materialExportMode'] || 'no_materials'
+            self.Na__MaterialEngine__SetExportMode(mode_string.to_sym)
+        rescue => e
+            Na__Log__Warn "Parameter parsing error: #{e.message} - falling back to safe defaults"
+            @export_selection_only = false
+            @downscale_textures    = false
+            self.Na__MaterialEngine__SetExportMode(:no_materials)
+        end
+        # ---------------------------------------------------------------
+
+    # endregion ===================================================================
+
+
+    # =============================================================================
+    # REGION | Report Building
+    # =============================================================================
+
+        # FUNCTION | Build The Report Panel Payload From An Export Summary
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__BuildExportReport(summary, export_dir)
+            mesh_count     = summary[:mesh_count].to_i
+            linework_count = summary[:linework_count].to_i
+            linetype_count = summary[:linetype_count].to_i
+            total_count    = summary[:total_count].to_i
+            succeeded      = summary[:success] == true
+
+            steps = []
+            steps << self.Na__UserInterface__BuildReportStep('Mesh Models',      mesh_count,     'mesh GLB')
+            steps << self.Na__UserInterface__BuildReportStep('Linework Models',  linework_count, 'linework GLB')
+            steps << self.Na__UserInterface__BuildReportStep('Linetype Linework', linetype_count, 'linetype GLB')
+
+            steps << {
+                label:   'Output Folder',
+                success: succeeded,
+                message: export_dir.to_s
+            }
+
+            log_path = summary[:log_path]
+            if log_path && !log_path.to_s.empty?
+                steps << { label: 'Export Log', success: true, message: File.basename(log_path.to_s) }
+            else
+                steps << { label: 'Export Log', status: 'skip', message: 'Log file writing is disabled.' }
+            end
+
+            message = if succeeded
+                "#{total_count} GLB file(s) exported" \
+                " - #{mesh_count} mesh, #{linework_count} linework, #{linetype_count} linetype."
+            else
+                summary[:message].to_s.empty? ? 'Export failed.' : summary[:message].to_s
+            end
+
+            { success: succeeded, running: false, message: message, steps: steps }
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build A Single Count-Based Report Step
+        # ---------------------------------------------------------------
+        # A zero count is a SKIP rather than an error: a model with no linetype
+        # tags is a normal model, not a failed export.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__BuildReportStep(label, count, noun)
+            if count > 0
+                { label: label, success: true, message: "#{count} #{noun} file(s) written." }
+            else
+                { label: label, status: 'skip', message: 'None in this model.' }
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build An Empty Report That Hides The Panel
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__BuildIdleReport
+            { success: nil, running: false, message: '', steps: [] }
+        end
+        # ---------------------------------------------------------------
+
+    # endregion ===================================================================
+
+
+    # =============================================================================
+    # REGION | Model Status and Export Manifest
+    # =============================================================================
+
+        # FUNCTION | Build The Model Status And Export Manifest Payload
+        # ---------------------------------------------------------------
+        # Mirrors the export planning that Na__ExportCore__PerformExport does, so
+        # the manifest the user reads is the file set the exporter will write.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__BuildModelStatus
             model = Sketchup.active_model
-            site_plan_tag_count = model.layers.count { |layer| layer.name =~ SITE_PLAN_TAG_PATTERN }  # Site plan tags (71-75) in this model
-            project_prefix = self.Na__Helpers__ExtractProjectPrefix(model)              # Extract project prefix
-            tag_groups = self.Na__ExportCore__OrganizeEntitiesByTags(model)             # Get tag groups
-            linetype_plan = self.Na__ExportCore__PlanLinetypeLinework(model, project_prefix)  # One row per linetype tag holding geometry
+            return self.Na__UserInterface__EmptyModelStatus unless model
 
-            # Detect storey containers for grouped preview
-            storey_containers = self.Na__ExportCore__DetectStoreyContainers(model)      # Scan for storey tags (90-93)
-            has_storeys = storey_containers.any?                                       # Flag for storey mode
+            self.Na__ExportCore__IdentifyExcludedLayers(model)                     # <-- Keep @excluded_layers current for a rescan
 
-            # Remove storey entities from flat tag_groups for display
+            project_prefix      = self.Na__Helpers__ExtractProjectPrefix(model)
+            site_plan_tag_count = model.layers.count { |layer| layer.name =~ SITE_PLAN_TAG_PATTERN }
+            tag_groups          = self.Na__ExportCore__OrganizeEntitiesByTags(model)
+            linetype_plan       = self.Na__ExportCore__PlanLinetypeLinework(model, project_prefix)
+            storey_containers   = self.Na__ExportCore__DetectStoreyContainers(model)
+            has_storeys         = storey_containers.any?
+
+            # Storey entities are exported per-element, so lift them out of the flat groups
             if has_storeys
                 storey_containers.each do |_storey_name, storey_entities|
                     Array(storey_entities).each do |storey_entity|
@@ -90,616 +462,302 @@ module TrueVision3D
                 tag_groups.delete_if { |_, entities| entities.length == 0 }
             end
 
-            # Count total exportable items
-            total_export_count = tag_groups.length
-            storey_export_plan = {}
+            groups      = []
+            total_files = 0
+
+            flat_rows, flat_files = self.Na__UserInterface__BuildFlatGroupRows(tag_groups, project_prefix)
+            if flat_rows.any?
+                groups      << { rows: flat_rows }                                 # <-- No label: renders as bare rows
+                total_files += flat_files
+            end
+
             if has_storeys
                 storey_containers.each do |storey_name, storey_entities|
                     element_groups = self.Na__ExportCore__OrganizeStoreyChildrenByTags(storey_entities, storey_name)
-                    storey_export_plan[storey_name] = element_groups
-                    total_export_count += element_groups.length
+                    storey_rows, storey_files = self.Na__UserInterface__BuildStoreyGroupRows(
+                        element_groups, storey_name, project_prefix
+                    )
+                    next if storey_rows.empty?
+
+                    groups << {
+                        icon:        "\u{1F3E2}",                                   # <-- Office building glyph
+                        label:       self.Na__UserInterface__FormatStoreyLabel(storey_name),
+                        count_label: "#{storey_files} files",
+                        rows:        storey_rows
+                    }
+                    total_files += storey_files
                 end
             end
 
-            # -----------------------------------------------------------
-            # Build export manifest markup (rendered in lower scroll pane)
-            # -----------------------------------------------------------
-            export_list_html = ""                                                      # Accumulated file row markup
-            total_file_count = 0                                                       # Running count of output GLB files
-
-            if total_export_count == 0
-                export_list_html = if site_plan_tag_count > 0
-                    "<div class='empty-note'>No model layers to export. This model holds site plan tags: use Export Site Plan Data.</div>"
-                else
-                    "<div class='empty-note'>No entities found with valid tag ranges</div>"
-                end
-            else
-                # Flat (non-storey) items first
-                tag_groups.each do |filename, entities|
-                    export_list_html += self.Na__UserInterface__BuildFileRow("#{project_prefix}#{filename}#{MESH_MODEL_SUFFIX}.glb", entities.length)
-                    total_file_count += 1
-                    if filename != "01__OrbitHelperCube"
-                        export_list_html += self.Na__UserInterface__BuildFileRow("#{project_prefix}#{filename}#{LINEWORK_MODEL_SUFFIX}.glb", entities.length)
-                        total_file_count += 1
-                    end
-                end
-
-                # Storey-grouped items in collapsible sections
-                if has_storeys
-                    storey_export_plan.each do |storey_name, element_groups|
-                        display_name  = storey_name.gsub("Storey__", "").gsub(/([a-z])([A-Z])/, '\1 \2')
-                        storey_rows   = ""
-                        storey_files  = 0
-
-                        element_groups.each do |element_name, entities|
-                            base_filename = "#{storey_name}__#{element_name}"
-                            storey_rows  += self.Na__UserInterface__BuildFileRow("#{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb", entities.length)
-                            storey_rows  += self.Na__UserInterface__BuildFileRow("#{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb", entities.length)
-                            storey_files += 2
-                        end
-
-                        total_file_count += storey_files
-                        export_list_html += "<details class='storey-block' open>" \
-                                            "<summary class='storey-heading'>&#127970; #{display_name}" \
-                                            "<span class='entity-count'>#{storey_files} files</span></summary>" \
-                                            "#{storey_rows}</details>\n"
-                    end
-                end
-            end
-
-            # Linetype linework - one GLB per Glb__LineworkOnly tag that holds geometry
             if linetype_plan.any?
-                linetype_rows = ""
-                linetype_plan.each do |row|
-                    linetype_rows += "<div class='file-row'><span class='file-name'>#{row[:filename]}</span>" \
-                                     "<span class='entity-count'>#{row[:edge_count]} edges &middot; #{row[:line_type]}</span></div>\n"
+                linetype_rows = linetype_plan.map do |row|
+                    { name: row[:filename].to_s, meta: "#{row[:edge_count]} edges · #{row[:line_type]}" }
                 end
-                total_file_count += linetype_plan.length
-                export_list_html += "<details class='storey-block' open>" \
-                                    "<summary class='storey-heading'>&#9633; Linetype Linework" \
-                                    "<span class='entity-count'>#{linetype_plan.length} files</span></summary>" \
-                                    "#{linetype_rows}</details>\n"
+                groups << {
+                    icon:        "□",                                          # <-- Hollow square glyph
+                    label:       'Linetype Linework',
+                    count_label: "#{linetype_plan.length} files",
+                    rows:        linetype_rows
+                }
+                total_files += linetype_plan.length
             end
 
-            # -----------------------------------------------------------
-            # Status notes rendered above the manifest in the output pane
-            # -----------------------------------------------------------
-            notes_html = ""
+            can_export_model = total_files > 0
+
+            {
+                model_name:             self.Na__UserInterface__ModelDisplayName(model),
+                project_prefix:         project_prefix.to_s.empty? ? '(none)' : project_prefix.to_s,
+                storey_count:           storey_containers.length,
+                storey_container_count: storey_containers.values.map { |entities| Array(entities).length }.sum,
+                site_plan_tag_count:    site_plan_tag_count,
+                excluded_tag_count:     Array(@excluded_layers).length,
+                linetype_tag_count:     linetype_plan.length,
+                verbose_logging:        self.Na__ExportConfig__LoggingConsoleVerbose,
+                log_file_enabled:       self.Na__ExportConfig__LoggingTextFileEnabled,
+                total_file_count:       total_files,
+                can_export_model:       can_export_model,
+                can_export_site_plan:   site_plan_tag_count > 0,
+                notes:                  self.Na__UserInterface__BuildManifestNotes(
+                                            has_storeys:         has_storeys,
+                                            storey_containers:   storey_containers,
+                                            site_plan_tag_count: site_plan_tag_count,
+                                            linetype_plan:       linetype_plan,
+                                            can_export_model:    can_export_model
+                                        ),
+                groups:                 groups
+            }
+        rescue => e
+            Na__Log__Warn "ERROR building GLB Builder model status: #{e.message}"
+            Na__Log__Warn e.backtrace.first(5).join("\n")
+            self.Na__UserInterface__EmptyModelStatus("#{e.class}: #{e.message}")
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build The Flat (Non-Storey) Manifest Rows
+        # ---------------------------------------------------------------
+        # Returns [rows, file_count]. The orbit helper cube is mesh-only, so it
+        # contributes one file where every other group contributes two.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__BuildFlatGroupRows(tag_groups, project_prefix)
+            rows       = []
+            file_count = 0
+
+            tag_groups.each do |base_filename, entities|
+                entity_count = entities.length
+                rows << self.Na__UserInterface__BuildFileRow(
+                    "#{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb", entity_count
+                )
+                file_count += 1
+
+                next if base_filename == '01__OrbitHelperCube'
+
+                rows << self.Na__UserInterface__BuildFileRow(
+                    "#{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb", entity_count
+                )
+                file_count += 1
+            end
+
+            [rows, file_count]
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build The Manifest Rows For One Storey
+        # ---------------------------------------------------------------
+        # Returns [rows, file_count]. Every storey element writes a mesh and a
+        # linework GLB.
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__BuildStoreyGroupRows(element_groups, storey_name, project_prefix)
+            rows       = []
+            file_count = 0
+
+            element_groups.each do |element_name, entities|
+                base_filename = "#{storey_name}__#{element_name}"
+                entity_count  = entities.length
+
+                rows << self.Na__UserInterface__BuildFileRow(
+                    "#{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb", entity_count
+                )
+                rows << self.Na__UserInterface__BuildFileRow(
+                    "#{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb", entity_count
+                )
+                file_count += 2
+            end
+
+            [rows, file_count]
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build A Single File Manifest Row
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__BuildFileRow(file_name, entity_count)
+            { name: file_name.to_s, meta: "#{entity_count} entities" }
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build The Advisory Notes Shown Above The Manifest
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__BuildManifestNotes(has_storeys:, storey_containers:,
+                                                        site_plan_tag_count:, linetype_plan:,
+                                                        can_export_model:)
+            notes = []
 
             if has_storeys
-                total_storey_containers = storey_containers.values.map(&:length).sum
-                notes_html += "<div class='note note-storey'><strong>Storey Mode Active:</strong> " \
-                              "#{storey_containers.length} storey key(s), #{total_storey_containers} container(s) detected. " \
-                              "Duplicate storey containers are merged per-storey.</div>"
+                container_total = storey_containers.values.map { |entities| Array(entities).length }.sum
+                notes << {
+                    variant: 'storey',
+                    title:   'Storey Mode Active:',
+                    text:    "#{storey_containers.length} storey key(s), #{container_total} container(s) detected. " \
+                             'Duplicate storey containers are merged per-storey.'
+                }
             end
 
             if site_plan_tag_count > 0
-                notes_html += "<div class='note note-siteplan'><strong>#{site_plan_tag_count} site plan tag(s)</strong> (71-75) in this model. " \
-                              "They never go into model GLBs: use <strong>Export Site Plan Data</strong>.</div>"
+                notes << {
+                    variant: 'siteplan',
+                    title:   "#{site_plan_tag_count} site plan tag(s)",
+                    text:    '(71-75) in this model. They never go into model GLBs: use Export Site Plan Data.'
+                }
             end
 
             if linetype_plan.any?
-                linetype_tags = linetype_plan.map { |row| row[:tag_name] }.join(", ")
-                notes_html += "<div class='note note-siteplan'><strong>#{linetype_plan.length} linetype tag(s)</strong> hold linework: #{linetype_tags}. " \
-                              "Each exports as its own LineworkModel GLB for the drawing editors; none of it reaches a mesh GLB.</div>"
+                linetype_tags = linetype_plan.map { |row| row[:tag_name] }.join(', ')
+                notes << {
+                    variant: 'siteplan',
+                    title:   "#{linetype_plan.length} linetype tag(s)",
+                    text:    "hold linework: #{linetype_tags}. Each exports as its own LineworkModel GLB for the " \
+                             'drawing editors; none of it reaches a mesh GLB.'
+                }
             end
 
+            excluded_count = Array(@excluded_layers).length
             if excluded_count > 0
-                notes_html += "<div class='note note-excluded'><strong>#{excluded_count} tag(s)</strong> left out of model GLBs " \
-                              "(reference, helper and site plan tags, and '#{EXCLUDED_LAYER_DESCRIPTION}')</div>"
+                notes << {
+                    variant: 'excluded',
+                    title:   "#{excluded_count} tag(s)",
+                    text:    "left out of model GLBs (reference, helper and site plan tags, and '#{EXCLUDED_LAYER_DESCRIPTION}')."
+                }
             end
 
-            file_count_label = total_file_count == 0 ? "Nothing to export" : "#{total_file_count} GLB files"
-
-            html = <<-HTML
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    /* CSS Variables - TrueVision3D Standards */
-                    :root {
-                        --FontCol_TrueVisionStandardTextColour   : #1e1e1e;
-                        --FontCol_TrueVisionLinkTextColour       : #336699;
-                        --TrueVisionBackgroundColor              : #f5f5f5;
-                        --TrueVisionBorderColor                  : #172b3a;
-                        --TrueVisionButtonBackground             : #172b3a;
-                        --TrueVisionButtonHover                  : #2a4558;
-                        font-size                                : 13px;
+            unless can_export_model
+                notes << if site_plan_tag_count > 0
+                    {
+                        variant: 'empty',
+                        title:   '',
+                        text:    'No model layers to export. This model holds site plan tags: use Export Site Plan Data.'
                     }
-
-                    *, *::before, *::after { box-sizing: border-box; }
-
-                    /* Base Layout - Fixed Shell With Internal Scroll Panes */
-                    html, body {
-                        height                                   : 100%;
-                        margin                                   : 0;
-                        padding                                  : 0;
+                else
+                    {
+                        variant: 'empty',
+                        title:   '',
+                        text:    'No entities found with valid tag ranges.'
                     }
+                end
+            end
 
-                    body {
-                        display                                  : flex;
-                        flex-direction                           : column;
-                        overflow                                 : hidden;
-                        font-family                              : Arial, sans-serif;
-                        font-size                                : 13px;
-                        color                                    : var(--FontCol_TrueVisionStandardTextColour);
-                        background-color                         : var(--TrueVisionBackgroundColor);
-                    }
-
-                    /* Scroll Pane Styling */
-                    .scroll-pane {
-                        overflow-y                               : auto;
-                        overflow-x                               : hidden;
-                    }
-
-                    .scroll-pane::-webkit-scrollbar               { width: 11px; }
-                    .scroll-pane::-webkit-scrollbar-track         { background: #e6e8ea; }
-                    .scroll-pane::-webkit-scrollbar-thumb         { background: #9aa5ad; border-radius: 6px; border: 2px solid #e6e8ea; }
-                    .scroll-pane::-webkit-scrollbar-thumb:hover   { background: var(--TrueVisionButtonHover); }
-
-                    /* Header Bar */
-                    .app-header {
-                        flex                                     : 0 0 auto;
-                        padding                                  : 9px 14px;
-                        background                               : var(--TrueVisionBorderColor);
-                        color                                    : #ffffff;
-                    }
-
-                    .app-header h1 {
-                        margin                                   : 0;
-                        font-size                                : 14px;
-                        letter-spacing                           : 0.4px;
-                    }
-
-                    /* Configuration Pane - Top Section */
-                    .config-pane {
-                        flex                                     : 0 1 auto;
-                        min-height                               : 0;
-                        padding                                  : 10px 14px 3px 14px;
-                    }
-
-                    .option-group {
-                        background                               : #ffffff;
-                        border                                   : 1px solid #e2e5e8;
-                        border-radius                            : 4px;
-                        padding                                  : 7px 10px;
-                        margin-bottom                            : 7px;
-                    }
-
-                    label {
-                        display                                  : block;
-                        margin                                   : 0;
-                        font-weight                              : bold;
-                        font-size                                : 12.5px;
-                        cursor                                   : pointer;
-                    }
-
-                    input[type="checkbox"] {
-                        margin-right                             : 7px;
-                        vertical-align                           : middle;
-                    }
-
-                    .info-text {
-                        font-size                                : 11px;
-                        line-height                              : 1.35;
-                        color                                    : #666666;
-                        margin-top                               : 4px;
-                        padding-left                             : 21px;
-                    }
-
-                    /* Action Bar - Buttons Pinned Below Configuration */
-                    .action-bar {
-                        flex                                     : 0 0 auto;
-                        padding                                  : 5px 14px 10px 14px;
-                        background                               : var(--TrueVisionBackgroundColor);
-                    }
-
-                    .action-row {
-                        display                                  : flex;
-                        gap                                      : 7px;
-                    }
-
-                    .action-row.secondary {
-                        margin-top                               : 7px;
-                        padding-top                              : 8px;
-                        border-top                               : 1px solid #dcdfe2;
-                    }
-
-                    button {
-                        flex                                     : 1 1 auto;
-                        padding                                  : 8px 12px;
-                        background                               : var(--TrueVisionButtonBackground);
-                        color                                    : white;
-                        border                                   : none;
-                        border-radius                            : 4px;
-                        cursor                                   : pointer;
-                        font-family                              : Arial, sans-serif;
-                        font-size                                : 13px;
-                    }
-
-                    button:hover:not(:disabled) {
-                        background                               : var(--TrueVisionButtonHover);
-                    }
-
-                    button:disabled {
-                        background                               : #999999;
-                        cursor                                   : not-allowed;
-                    }
-
-                    .btn-primary                                  { font-weight: bold; }
-                    .btn-cancel                                   { flex: 0 0 110px; background: #6b7780; }
-                    .btn-cancel:hover:not(:disabled)              { background: #566169; }
-                    .btn-setup                                    { background: #2c6e49; font-size: 11.5px; padding: 7px 10px; }
-                    .btn-setup:hover:not(:disabled)               { background: #37855a; }
-                    .btn-reload                                   { flex: 0 0 130px; background: #95a5a6; font-size: 11.5px; padding: 7px 10px; }
-                    .btn-reload:hover:not(:disabled)              { background: #7f8c8d; }
-                    .btn-siteplan                                 { background: #9b2f2f; font-weight: bold; }
-                    .btn-siteplan:hover:not(:disabled)            { background: #b53a3a; }
-                    .action-row.siteplan                          { margin-top: 7px; }
-
-                    /* Output Pane - Bottom Section, Scrolls Independently */
-                    .output-pane {
-                        flex                                     : 1 1 auto;
-                        display                                  : flex;
-                        flex-direction                           : column;
-                        min-height                               : 92px;
-                        border-top                               : 1px solid #c9ccd0;
-                        background                               : #f0f5f0;
-                    }
-
-                    .output-header {
-                        flex                                     : 0 0 auto;
-                        display                                  : flex;
-                        justify-content                          : space-between;
-                        align-items                              : center;
-                        padding                                  : 6px 14px;
-                        background                               : #e1ece3;
-                        border-bottom                            : 1px solid #c3e6cb;
-                        font-size                                : 12px;
-                        font-weight                              : bold;
-                        color                                    : var(--TrueVisionBorderColor);
-                    }
-
-                    .output-count {
-                        font-weight                              : normal;
-                        font-size                                : 11px;
-                        color                                    : #4b5a52;
-                    }
-
-                    .output-body {
-                        flex                                     : 1 1 auto;
-                        min-height                               : 0;
-                        padding                                  : 8px 14px 12px 14px;
-                    }
-
-                    /* File Manifest Rows */
-                    .file-row {
-                        display                                  : flex;
-                        gap                                      : 10px;
-                        align-items                              : baseline;
-                        font-size                                : 11px;
-                        color                                    : #3a4550;
-                        padding                                  : 1px 0;
-                    }
-
-                    .file-name {
-                        flex                                     : 1 1 auto;
-                        min-width                                : 0;
-                        overflow-wrap                            : anywhere;
-                    }
-
-                    .entity-count {
-                        flex                                     : 0 0 auto;
-                        font-size                                : 10px;
-                        font-weight                              : normal;
-                        color                                    : #7b868f;
-                    }
-
-                    .empty-note {
-                        font-style                               : italic;
-                        font-size                                : 12px;
-                        color                                    : #7b868f;
-                    }
-
-                    /* Collapsible Storey Sections */
-                    .storey-block {
-                        margin-top                               : 9px;
-                    }
-
-                    .storey-heading {
-                        display                                  : flex;
-                        justify-content                          : space-between;
-                        align-items                              : baseline;
-                        gap                                      : 10px;
-                        font-weight                              : bold;
-                        font-size                                : 11.5px;
-                        color                                    : var(--TrueVisionBorderColor);
-                        padding                                  : 3px 0;
-                        margin-bottom                            : 3px;
-                        border-bottom                            : 1px solid #c3e6cb;
-                        cursor                                   : pointer;
-                        list-style                               : none;
-                        user-select                              : none;
-                    }
-
-                    .storey-heading::-webkit-details-marker       { display: none; }
-                    .storey-block > summary::before               { content: "▸ "; }
-                    .storey-block[open] > summary::before         { content: "▾ "; }
-
-                    /* Status Notes */
-                    .note {
-                        border-radius                            : 4px;
-                        padding                                  : 6px 9px;
-                        margin-bottom                            : 8px;
-                        font-size                                : 11px;
-                        line-height                              : 1.35;
-                    }
-
-                    .note-storey {
-                        background                               : #e8f4f8;
-                        border                                   : 1px solid #b8daff;
-                        color                                    : var(--TrueVisionBorderColor);
-                    }
-
-                    .note-siteplan {
-                        background                               : #fbeaea;
-                        border                                   : 1px solid #e8b4b4;
-                        color                                    : #6b1f1f;
-                    }
-
-                    .note-excluded {
-                        background                               : #fff3cd;
-                        border                                   : 1px solid #ffeaa7;
-                    }
-
-                    /* Footer Strip */
-                    .app-footer {
-                        flex                                     : 0 0 auto;
-                        padding                                  : 6px 14px 7px 14px;
-                        border-top                               : 1px solid #c9ccd0;
-                        background                               : var(--TrueVisionBackgroundColor);
-                        font-size                                : 10.5px;
-                        line-height                              : 1.35;
-                        color                                    : #7b868f;
-                    }
-                </style>
-            </head>
-            <body>
-
-                <!-- Header -->
-                <div class="app-header">
-                    <h1>TrueVision3D GLB Builder Utility</h1>
-                </div>
-
-                <!-- Configuration Options (Top) -->
-                <div class="config-pane scroll-pane">
-                    <div class="option-group">
-                        <label>
-                            <input type="checkbox" id="export-materials" checked onchange="Na__TrueVision__GlbBuilder__ToggleMaterials()">
-                            Export Materials
-                        </label>
-                        <div class="info-text">
-                            When unchecked, meshes export with a default whitecard material for clean massing models,
-                            except MAT000E__ exempt materials which still write colour + texture into the GLB.
-                            Materials are resolved per-face only (group/component materials are not inherited).
-                        </div>
-                    </div>
-
-                    <div class="option-group" id="indexed-materials-group">
-                        <label>
-                            <input type="checkbox" id="export-indexed-only" checked>
-                            Export Standard Indexed Materials Only
-                        </label>
-                        <div class="info-text">
-                            Only export materials matching the standard naming convention (MAT001__, MAT101__, etc.)
-                            from the materials library, plus exempt materials (MAT000E__). Custom materials are replaced
-                            with the default whitecard. Uncheck to export all SketchUp materials.
-                        </div>
-                    </div>
-
-                    <div class="option-group">
-                        <label>
-                            <input type="checkbox" id="downscale-textures">
-                            Optimize Large Textures
-                        </label>
-                        <div class="info-text">
-                            Downscale textures larger than 1024px for smaller GLB file sizes.
-                            Uncheck for full-resolution texture export.
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Action Buttons (Top, Always Visible) -->
-                <div class="action-bar">
-                    <div class="action-row">
-                        <button class="btn-primary" onclick="Na__TrueVision__GlbBuilder__PerformExport()" #{(total_export_count == 0 && linetype_plan.empty?) ? 'disabled' : ''}>Export GLB Files</button>
-                        <button class="btn-cancel" onclick="Na__TrueVision__GlbBuilder__CancelExport()">Cancel</button>
-                    </div>
-                    <div class="action-row siteplan">
-                        <button class="btn-siteplan" onclick="Na__TrueVision__GlbBuilder__ExportSitePlan()" #{site_plan_tag_count == 0 ? 'disabled' : ''} title="One linework GLB per site plan tag (71-75), fills and a manifest, into SitePlan__DrawingData">Export Site Plan Data</button>
-                    </div>
-                    <div class="action-row secondary">
-                        <button class="btn-setup" onclick="Na__TrueVision__GlbBuilder__CreateStandardisedTags()">Create Standardised Tags From Index</button>
-                        <button class="btn-reload" onclick="Na__TrueVision__GlbBuilder__ReloadScripts()">&#128260; Reload Scripts</button>
-                    </div>
-                </div>
-
-                <!-- Export Manifest Output (Bottom, Scrollable) -->
-                <div class="output-pane">
-                    <div class="output-header">
-                        <span>Files to be exported</span>
-                        <span class="output-count">#{file_count_label}</span>
-                    </div>
-                    <div class="output-body scroll-pane">
-                        #{notes_html}
-                        #{export_list_html}
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div class="app-footer">
-                    <strong>Export Method:</strong> Non-destructive virtual flattening with recursive traversal.
-                    All transformations are accumulated and applied without modifying your model.
-                </div>
-
-                <script>
-                    function Na__TrueVision__GlbBuilder__ToggleMaterials() {
-                        var exportMaterials     = document.getElementById('export-materials').checked;
-                        var indexedGroup        = document.getElementById('indexed-materials-group');
-                        if (exportMaterials) {
-                            indexedGroup.style.opacity       = '1.0';
-                            indexedGroup.style.pointerEvents = 'auto';
-                        } else {
-                            indexedGroup.style.opacity       = '0.4';
-                            indexedGroup.style.pointerEvents = 'none';
-                        }
-                    }
-
-                    function Na__TrueVision__GlbBuilder__PerformExport() {
-                        var selectionOnly       = false;
-                        var downscaleTextures   = document.getElementById('downscale-textures').checked;
-                        var exportMaterials     = document.getElementById('export-materials').checked;
-                        var indexedOnly         = document.getElementById('export-indexed-only').checked;
-
-                        var materialExportMode  = 'no_materials';
-                        if (exportMaterials && indexedOnly) {
-                            materialExportMode  = 'indexed_only';
-                        } else if (exportMaterials && !indexedOnly) {
-                            materialExportMode  = 'all_materials';
-                        }
-
-                        var params = {
-                            selectionOnly        : selectionOnly,
-                            downscaleTextures    : downscaleTextures,
-                            materialExportMode   : materialExportMode
-                        };
-
-                        window.location = 'skp:Na__TrueVision__GlbBuilder__Export@' + JSON.stringify(params);
-                    }
-
-                    function Na__TrueVision__GlbBuilder__CancelExport() {
-                        window.location = 'skp:Na__TrueVision__GlbBuilder__Cancel';
-                    }
-
-                    function Na__TrueVision__GlbBuilder__ExportSitePlan() {
-                        window.location = 'skp:Na__TrueVision__GlbBuilder__ExportSitePlan';
-                    }
-
-                    function Na__TrueVision__GlbBuilder__CreateStandardisedTags() {
-                        window.location = 'skp:Na__TrueVision__GlbBuilder__CreateTags';
-                    }
-
-                    function Na__TrueVision__GlbBuilder__ReloadScripts() {
-                        window.location = 'skp:Na__TrueVision__GlbBuilder__Reload';
-                    }
-                </script>
-            </body>
-            </html>
-            HTML
-
-            html
+            notes
         end
         # ---------------------------------------------------------------
 
-        # HELPER FUNCTION | Build a Single File Manifest Row
+        # HELPER FUNCTION | Humanise A Storey Container Tag Name
         # ---------------------------------------------------------------
-        def self.Na__UserInterface__BuildFileRow(file_name, entity_count)
-            "<div class='file-row'><span class='file-name'>#{file_name}</span>" \
-            "<span class='entity-count'>#{entity_count} entities</span></div>\n"
+        def self.Na__UserInterface__FormatStoreyLabel(storey_name)
+            storey_name.to_s.gsub('Storey__', '').gsub(/([a-z])([A-Z])/, '\1 \2')
         end
         # ---------------------------------------------------------------
-    
+
+        # HELPER FUNCTION | Resolve A Display Name For The Active Model
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__ModelDisplayName(model)
+            path = model.path.to_s
+            return '(Unsaved model)' if path.empty?
+
+            File.basename(path, '.skp')
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Status Payload For A Session With No Usable Model
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__EmptyModelStatus(error_text = nil)
+            notes = []
+            notes << { variant: 'empty', title: 'Scan failed:', text: error_text } if error_text
+
+            {
+                model_name:             '(No active model)',
+                project_prefix:         '(none)',
+                storey_count:           0,
+                storey_container_count: 0,
+                site_plan_tag_count:    0,
+                excluded_tag_count:     0,
+                linetype_tag_count:     0,
+                verbose_logging:        false,
+                log_file_enabled:       false,
+                total_file_count:       0,
+                can_export_model:       false,
+                can_export_site_plan:   false,
+                notes:                  notes,
+                groups:                 []
+            }
+        end
+        # ---------------------------------------------------------------
+
     # endregion ===================================================================
-    
+
+
     # =============================================================================
-    # REGION | Event Handling - Callback Registration and Processing
+    # REGION | JS Push - Status, Report, and Model Status
     # =============================================================================
-    
-        # FUNCTION | Add Dialog Callbacks with Robust Event Handling
+
+        # FUNCTION | Push The Footer Status Line To The Dialog
         # ---------------------------------------------------------------
-        def self.Na__UserInterface__AddDialogCallbacks(dialog)
-            # Callback: Create Standardised Tags From Index
-            dialog.add_action_callback("Na__TrueVision__GlbBuilder__CreateTags") do |action_context|
-                begin
-                    TrueVision3D::GlbBuilderUtility.Na__PublicApi__CreateStandardisedTags
-                rescue => e
-                    Na__Log__Warn "    ✗ Error in create tags callback: #{e.message}"
-                    Na__Log__Warn e.backtrace.join("\n")
-                    UI.messagebox("Error creating tags: #{e.message}")
-                end
-            end
+        def self.Na__UserInterface__PushStatus(dialog, status_text, status_variant = 'info')
+            return unless dialog
 
-            # Callback: Reload Scripts (Developer Feature)
-            dialog.add_action_callback("Na__TrueVision__GlbBuilder__Reload") do |action_context|
-                begin
-                    TrueVision3D::GlbBuilderUtility.Na__DevTools__ReloadScripts
-                rescue => e
-                    Na__Log__Warn "    ✗ Error in reload callback: #{e.message}"
-                    Na__Log__Warn e.backtrace.join("\n")
-                end
-            end
-            
-            # Export callback - robust event handling
-            dialog.add_action_callback("Na__TrueVision__GlbBuilder__Export") do |action_context, params_string|
-                begin
-                    if params_string && !params_string.empty?
-                        params = JSON.parse(params_string)
-                        @export_selection_only = params['selectionOnly']
-                        @downscale_textures = params['downscaleTextures'] == true
-
-                        mode_string = params['materialExportMode'] || 'no_materials'
-                        mode_sym = mode_string.to_sym
-                        self.Na__MaterialEngine__SetExportMode(mode_sym)
-                    else
-                        @export_selection_only = false
-                        @downscale_textures = false
-                        self.Na__MaterialEngine__SetExportMode(:no_materials)
-                    end
-                    
-                rescue => e
-                    Na__Log__Warn "Parameter parsing error: #{e.message}"
-                    @export_selection_only = false
-                    @downscale_textures = false
-                    self.Na__MaterialEngine__SetExportMode(:no_materials)
-                end
-                
-                dialog.close                                                           # Close dialog
-                
-                # Get save directory from user
-                begin
-                    export_dir = UI.select_directory(title: "Select Export Directory")
-                    
-                    if export_dir
-                        self.Na__PublicApi__PerformExport(export_dir)
-                    end
-                rescue => e
-                    Na__Log__Warn "ERROR in export directory selection: #{e.message}"
-                    UI.messagebox("Error selecting export directory: #{e.message}")
-                end
-            end
-            
-            # Callback: Export Site Plan Data (site plan tags 71-75 -> SitePlan__DrawingData)
-            dialog.add_action_callback("Na__TrueVision__GlbBuilder__ExportSitePlan") do |action_context|
-                dialog.close
-                begin
-                    TrueVision3D::GlbBuilderUtility.Na__PublicApi__ExportSitePlanData
-                rescue => e
-                    Na__Log__Warn "    ✗ Error in site plan export callback: #{e.message}"
-                    Na__Log__Warn e.backtrace.join("\n")
-                    UI.messagebox("Site plan export error: #{e.message}")
-                end
-            end
-
-            dialog.add_action_callback("Na__TrueVision__GlbBuilder__Cancel") do |action_context|
-                dialog.close
-            end
-            
-            dialog.set_on_closed {}
+            script = <<~SCRIPT
+            (function() {
+                var el = document.getElementById('naTvgbStatus');
+                if (!el) { return; }
+                el.textContent = #{status_text.to_s.to_json};
+                el.className   = 'naTvgb__Status naTvgb__Status--' + #{status_variant.to_s.to_json};
+            })();
+            SCRIPT
+            dialog.execute_script(script)
+        rescue => e
+            Na__Log__Warn "[GlbBuilder] Could not push status to dialog: #{e.message}"
         end
         # ---------------------------------------------------------------
-    
+
+        # FUNCTION | Push The Report Panel Payload To The Dialog
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__PushReport(dialog, report_hash)
+            return unless dialog
+
+            dialog.execute_script(
+                "window.Na__Tvgb__ReceiveReport && window.Na__Tvgb__ReceiveReport(#{report_hash.to_json});"
+            )
+        rescue => e
+            Na__Log__Warn "[GlbBuilder] Could not push report to dialog: #{e.message}"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Push The Model Status And Manifest To The Dialog
+        # ---------------------------------------------------------------
+        def self.Na__UserInterface__PushModelStatus(dialog)
+            return unless dialog
+
+            status_json = self.Na__UserInterface__BuildModelStatus.to_json
+            dialog.execute_script(
+                "window.Na__Tvgb__ReceiveModelStatus && window.Na__Tvgb__ReceiveModelStatus(#{status_json});"
+            )
+        rescue => e
+            Na__Log__Warn "[GlbBuilder] Could not push model status to dialog: #{e.message}"
+        end
+        # ---------------------------------------------------------------
+
     # endregion ===================================================================
 
     end  # module GlbBuilderUtility
 end  # module TrueVision3D
+
+# =============================================================================
+# END OF FILE
+# =============================================================================

@@ -72,7 +72,13 @@ require_relative 'Na__TrueVision__GlbBuilder__EngineCore__'
 require_relative 'Na__TrueVision__GlbBuilder__EngineCore__LineworkModelHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__SpecialObject__CameraFollowObjectHandling__'
+require_relative 'Na__TrueVision__GlbBuilder__PathResolver__'
+require_relative 'Na__TrueVision__GlbBuilder__ProjectLink__'
+require_relative 'Na__TrueVision__GlbBuilder__ProjectPortalMapper__'
+require_relative 'Na__TrueVision__GlbBuilder__CloudSyncOrchestrator__'
 require_relative 'Na__TrueVision__GlbBuilder__UserInterface__'
+require_relative 'Na__TrueVision__GlbBuilder__UserInterface__ProjectActions__'
+require_relative 'Na__TrueVision__GlbBuilder__ToolbarIconLoader__'
 require_relative 'Na__TrueVision__GlbBuilder__DynamicReloaderPluginUtil__'
 require_relative 'Na__TrueVision__GlbBuilder__TagsManager__'
 require_relative 'Na__TrueVision__GlbBuilder__Logging__'
@@ -601,6 +607,23 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__PublicApi__CreateStandardisedTags
             self.Na__TagsManager__CreateStandardisedTags
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Register The Toolbar Button (called from the loader)
+        # ---------------------------------------------------------------
+        # Guarded so a missing icon or a toolbar API fault can never stop the
+        # rest of the plugin from loading.
+        # ---------------------------------------------------------------
+        def self.Na__PublicApi__RegisterToolbar
+            unless self.respond_to?(:Na__ToolbarIconLoader__CreateToolbar)
+                puts '[!] TrueVision GLB Builder toolbar loader not available; skipping toolbar.'
+                return nil
+            end
+            self.Na__ToolbarIconLoader__CreateToolbar
+        rescue => e
+            puts "[x] Error registering TrueVision GLB Builder toolbar: #{e.message}"
+            nil
         end
         # ---------------------------------------------------------------
 

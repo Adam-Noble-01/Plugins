@@ -1,0 +1,87 @@
+{
+    "_documentation" : {
+        "purpose"     : "Single source of truth for how the GLB Builder finds the Noble Architecture project portal, resolves a project code to its folder, names design phase folders, and drives the ProjectVision build + Cloudflare R2 push.",
+        "projectCode" : "Two uppercase letters followed by two digits - AA00, RB05, EB03, NP03.",
+        "folderNames" : "DesignPhases below is the CANONICAL naming set. 'aliases' lists older folder names that mean the same phase; the plugin recognises them and never renames a folder that already exists on disk.",
+        "editing"     : "Safe to hand-edit. Reloaded on every plugin load and on Reload Scripts."
+    },
+
+    "PortalRoots" : {
+        "_note"          : "Searched in order. The first path that exists and contains a {NN}-Projects folder wins. Override in the dialog's Project tab if the portal lives elsewhere.",
+        "SearchPaths"    : [
+            "D:/WE10_--_Public-Repo_--_Live-Website/na-project-portal",
+            "C:/WE10_--_Public-Repo_--_Live-Website/na-project-portal",
+            "E:/WE10_--_Public-Repo_--_Live-Website/na-project-portal"
+        ],
+        "YearFolderPattern" : "^(\\d{2})-Projects$"
+    },
+
+    "MasterIndex" : {
+        "_note"            : "Relative to the repo root (the parent of the portal root). Written by ProjectVision__BuildScript__.py on every build.",
+        "RelativePath"     : "na-apps/05__ProjectVision__CoreAppCode/05__AppData/ProjectVision__MasterProjectIndex__Core__.json",
+        "ProjectConfigRel" : "10__ProjectAdmin__AppContent/ProjectAdmin__ProjectConfig__.json"
+    },
+
+    "TrueVisionContent" : {
+        "ContentFolderName"  : "30__TrueVision__AppContent",
+        "ProjectDataFileName": "TrueVision__ProjectData__.json",
+        "SitePlanFolderName" : "SitePlan__DrawingData",
+        "ArchiveFolderName"  : "00__Archive",
+        "SkipFolderPrefixes" : [".", "00__"]
+    },
+
+    "DesignPhases" : [
+        {
+            "PhaseId"         : "existing",
+            "Label"           : "Existing Conditions",
+            "FolderTemplate"  : "DesignPhase00__ExistingConditions",
+            "SupportsSchemes" : false,
+            "Aliases"         : [
+                "DesignPhase01__ConceptDesign__ExistingBuilding",
+                "DesignPhase01__ConceptDesign__ExistingConditions",
+                "DesignPhase00__ExistingConditions__ExistingBuilding"
+            ],
+            "Description"     : "The as-existing building. One model per project, never schemed."
+        },
+        {
+            "PhaseId"         : "concept",
+            "Label"           : "Concept Design",
+            "FolderTemplate"  : "DesignPhase01__ConceptDesign__Scheme-{NN}",
+            "SupportsSchemes" : true,
+            "Aliases"         : [],
+            "Description"     : "Concept design options. One folder per scheme."
+        },
+        {
+            "PhaseId"         : "planning",
+            "Label"           : "Planning Approval",
+            "FolderTemplate"  : "DesignPhase02__PlanningApproval__Scheme-{NN}",
+            "SupportsSchemes" : true,
+            "Aliases"         : [],
+            "Description"     : "The scheme submitted for planning approval."
+        },
+        {
+            "PhaseId"         : "buildingregs",
+            "Label"           : "Building Regulations",
+            "FolderTemplate"  : "DesignPhase03__BuildingRegs__Scheme-{NN}",
+            "SupportsSchemes" : true,
+            "Aliases"         : [],
+            "Description"     : "The scheme developed for building regulations approval."
+        }
+    ],
+
+    "BuildPipeline" : {
+        "_note"              : "Relative to the repo root. The plugin runs these two scripts directly, in this order - exactly what ProjectVision__BuildPipeline__.ps1 does for '--Project--{CODE}--TV' (its menu option 3). Running them directly skips the PowerShell layer and its trailing Read-Host prompt.",
+        "ScriptDirRel"       : "na-apps/05__ProjectVision__CoreAppCode",
+        "BuildScriptName"    : "ProjectVision__BuildScript__.py",
+        "R2SyncScriptName"   : "CloudflareR2__ModelSync__Main__.py",
+        "R2SyncTrueVisionArg": "--tv-only",
+        "LauncherBatName"    : "ProjectVision__BuildScript__.bat",
+        "TimeoutSeconds"     : 900
+    },
+
+    "Python" : {
+        "_note"             : "Leave PythonExecutable empty to auto-discover. Set it to a full python.exe path if discovery picks the wrong interpreter. SketchUp's child-process PATH can resolve a bare 'python' to the Windows Store stub, which produces no output at all.",
+        "PythonExecutable"  : "",
+        "RequiredPackages"  : ["boto3", "dotenv"]
+    }
+}

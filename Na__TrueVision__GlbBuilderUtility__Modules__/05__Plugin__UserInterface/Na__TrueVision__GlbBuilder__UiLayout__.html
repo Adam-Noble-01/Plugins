@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<!--
+=============================================================================
+NOBLE ARCHITECTURE - TRUEVISION3D GLB BUILDER UTILITY - HTMLDIALOG UI LAYOUT
+
+FILE       : Na__TrueVision__GlbBuilder__UiLayout__.html
+PURPOSE    : Shell markup; placeholders for inlined CSS/JS and brand assets.
+             Export + Settings tabs are declared in markup (purpose-built
+             exporter, not a generic tool launcher, so tabs are static).
+CREATED    : 19-Sep-2026
+
+NOTE       : All dynamic content (model status, export manifest, report panel)
+             is rendered by the UI bridge from JSON pushed by Ruby. Nothing
+             model-specific is interpolated into this template.
+=============================================================================
+-->
+<html lang="en">
+<head>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Document Head -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <meta charset="utf-8">
+    <title>{{DIALOG_TITLE}}</title>
+    <style>
+    {{STYLESHEET_CONTENT}}
+    </style>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+</head>
+<body>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Application Shell                                           -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <div class="naTvgb__Shell">
+
+        <!-- UI HEADER | Brand header - Noble Architecture logo left, plugin title right -->
+
+        <header class="naTvgb__BrandHeader">
+            <div class="naTvgb__BrandHeader__Left">
+                <img src="{{LOGO_REMOTE_URL}}"
+                     data-na-logo-fallback="{{LOGO_FILE_URI}}"
+                     class="naTvgb__BrandHeader__Logo"
+                     alt="Noble Architecture"
+                     onerror="Na__Tvgb__HandleLogoError(this)">
+            </div>
+            <div class="naTvgb__BrandHeader__Right">
+                <span class="naTvgb__BrandHeader__Title">TrueVision GLB Builder</span>
+                <span class="naTvgb__BrandHeader__Subtitle">Noble Architecture</span>
+            </div>
+        </header>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+
+        <!-- UI NAVIGATION | Horizontal tab bar -->
+
+        <nav class="naTvgb__TabBar">
+            <button class="naTvgb__TabButton naTvgb__TabButton--active"
+                    onclick="Na__Tvgb__ShowTab('export', this)">Export</button>
+            <button class="naTvgb__TabButton"
+                    onclick="Na__Tvgb__ShowTab('project', this)">Project</button>
+            <button class="naTvgb__TabButton"
+                    onclick="Na__Tvgb__ShowTab('settings', this)">Settings</button>
+        </nav>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+
+        <!-- UI MAIN CONTENT | Scrollable tab panels -->
+
+        <main class="naTvgb__MainContent">
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Export Tab -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-export" class="naTvgb__TabPanel naTvgb__TabPanel--active">
+
+                <!-- Model status summary -->
+                <div class="naTvgb__ProjectStatus" id="naTvgbModelStatus">
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Model</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbModelName">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">File Prefix</span>
+                        <span class="naTvgb__ProjectStatus__Value naTvgb__ProjectStatus__Value--path"
+                              id="naTvgbProjectPrefix">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Storeys</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbStoreyCount">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Site Plan Tags</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbSitePlanCount">&mdash;</span>
+                    </div>
+                </div>
+
+                <!-- Export options -->
+                <div class="naTvgb__ActionGroup">
+                    <h3 class="naTvgb__ActionGroup__Title">Export Options</h3>
+
+                    <div class="naTvgb__OptionRow">
+                        <input type="checkbox"
+                               id="naTvgbExportMaterials"
+                               class="naTvgb__OptionRow__Checkbox"
+                               checked
+                               onchange="Na__Tvgb__ToggleMaterialDependency()">
+                        <span class="naTvgb__OptionRow__Body">
+                            <label class="naTvgb__OptionRow__Label" for="naTvgbExportMaterials">Export Materials</label>
+                            <span class="naTvgb__OptionRow__Desc">
+                                When unchecked, meshes export with a default whitecard material for clean massing
+                                models, except MAT000E__ exempt materials which still write colour and texture into
+                                the GLB. Materials are resolved per-face only (group and component materials are not
+                                inherited).
+                            </span>
+                        </span>
+                    </div>
+
+                    <div class="naTvgb__OptionRow naTvgb__OptionRow--dependent" id="naTvgbIndexedGroup">
+                        <input type="checkbox"
+                               id="naTvgbExportIndexedOnly"
+                               class="naTvgb__OptionRow__Checkbox"
+                               checked>
+                        <span class="naTvgb__OptionRow__Body">
+                            <label class="naTvgb__OptionRow__Label" for="naTvgbExportIndexedOnly">Standard Indexed Materials Only</label>
+                            <span class="naTvgb__OptionRow__Desc">
+                                Only export materials matching the standard naming convention (MAT001__, MAT101__ and
+                                so on) from the materials library, plus exempt materials (MAT000E__). Custom materials
+                                are replaced with the default whitecard. Uncheck to export all SketchUp materials.
+                            </span>
+                        </span>
+                    </div>
+
+                    <div class="naTvgb__OptionRow">
+                        <input type="checkbox"
+                               id="naTvgbDownscaleTextures"
+                               class="naTvgb__OptionRow__Checkbox">
+                        <span class="naTvgb__OptionRow__Body">
+                            <label class="naTvgb__OptionRow__Label" for="naTvgbDownscaleTextures">Optimise Large Textures</label>
+                            <span class="naTvgb__OptionRow__Desc">
+                                Downscale textures larger than 1024px for smaller GLB file sizes. Uncheck for
+                                full-resolution texture export.
+                            </span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Export action buttons -->
+                <div class="naTvgb__ActionGroup">
+                    <h3 class="naTvgb__ActionGroup__Title">Export Actions</h3>
+
+                    <button type="button" class="naTvgb__ActionCard naTvgb__ActionCard--primary"
+                            id="naTvgbExportModelCard"
+                            onclick="Na__Tvgb__RunExportAction('export_model')">
+                        <span class="naTvgb__ActionCard__Icon">&#9654;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Export GLB Files</span>
+                            <span class="naTvgb__ActionCard__Desc">Write every mesh, linework and linetype GLB listed in the manifest below to a folder you choose.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naTvgb__ActionCard"
+                            id="naTvgbExportProjectCard"
+                            onclick="Na__Tvgb__RunExportAction('export_to_project')">
+                        <span class="naTvgb__ActionCard__Icon">&#128193;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Export To Project Folder</span>
+                            <span class="naTvgb__ActionCard__Desc" id="naTvgbExportProjectDesc">Write straight into this model's design phase folder in the project portal, no folder picker.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naTvgb__ActionCard"
+                            id="naTvgbExportSyncCard"
+                            onclick="Na__Tvgb__RunExportAction('export_and_sync')">
+                        <span class="naTvgb__ActionCard__Icon">&#9729;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Export And Sync To Cloud</span>
+                            <span class="naTvgb__ActionCard__Desc">Export into the project folder, rebuild the TrueVision project data, then push it all to Cloudflare R2.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naTvgb__ActionCard"
+                            id="naTvgbExportSitePlanCard"
+                            onclick="Na__Tvgb__RunExportAction('export_site_plan')">
+                        <span class="naTvgb__ActionCard__Icon">&#128506;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Export Site Plan Data</span>
+                            <span class="naTvgb__ActionCard__Desc">One linework GLB per site plan tag (71-75), plus fills and a manifest, into SitePlan__DrawingData.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naTvgb__ActionCard"
+                            id="naTvgbRescanCard"
+                            onclick="Na__Tvgb__RunExportAction('rescan_model')">
+                        <span class="naTvgb__ActionCard__Icon">&#8635;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Rescan Model</span>
+                            <span class="naTvgb__ActionCard__Desc">Re-read tags, storeys and linetypes from the model and rebuild the export manifest.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Export manifest -->
+                <div class="naTvgb__Manifest" id="naTvgbManifest">
+                    <div class="naTvgb__Manifest__Header">
+                        <h3 class="naTvgb__Manifest__Title">Files To Be Exported</h3>
+                        <span class="naTvgb__Manifest__Count" id="naTvgbManifestCount">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__Manifest__Body" id="naTvgbManifestBody"></div>
+                </div>
+
+                <!-- Last export report (hidden until an export runs) -->
+                <div class="naTvgb__Report" id="naTvgbReport" style="display:none;">
+                    <h3 class="naTvgb__Report__Title">Last Export Report</h3>
+                    <div class="naTvgb__Report__Steps" id="naTvgbReportSteps"></div>
+                    <div class="naTvgb__Report__Summary" id="naTvgbReportSummary"></div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Project Tab -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-project" class="naTvgb__TabPanel">
+
+                <!-- Linked project summary -->
+                <div class="naTvgb__ProjectCard naTvgb__ProjectCard--unlinked" id="naTvgbProjectCard">
+                    <div class="naTvgb__ProjectCard__Header">
+                        <span class="naTvgb__ProjectCard__Code" id="naTvgbProjectCode">&mdash;</span>
+                        <span class="naTvgb__ProjectCard__Name" id="naTvgbProjectName">Not linked to a project</span>
+                    </div>
+                    <p class="naTvgb__ProjectCard__Brief" id="naTvgbProjectBrief">
+                        Link this model to a Noble Architecture project to export straight into the project
+                        portal and push to Cloudflare R2.
+                    </p>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Portal Folder</span>
+                        <span class="naTvgb__ProjectStatus__Value naTvgb__ProjectStatus__Value--path"
+                              id="naTvgbProjectRoot">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Target Folder</span>
+                        <span class="naTvgb__ProjectStatus__Value naTvgb__ProjectStatus__Value--path"
+                              id="naTvgbTargetFolder">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__ButtonRow">
+                        <button type="button" class="naTvgb__Btn naTvgb__Btn--primary"
+                                onclick="Na__Tvgb__OpenProjectLinkModal()">Link To Project</button>
+                        <button type="button" class="naTvgb__Btn" id="naTvgbUnlinkBtn"
+                                onclick="Na__Tvgb__ConfirmUnlinkProject()">Unlink</button>
+                    </div>
+                </div>
+
+                <!-- Design phase / scheme management -->
+                <div class="naTvgb__SettingsGroup" id="naTvgbSchemeGroup">
+                    <h3 class="naTvgb__SettingsGroup__Title">Design Phases And Schemes</h3>
+                    <p class="naTvgb__SettingsGroup__Desc">
+                        Every folder under <code>30__TrueVision__AppContent</code>. Pick the one this model
+                        exports into. A folder carrying an older name is still recognised as its phase and is
+                        never renamed &mdash; live TrueVision projects read those names.
+                    </p>
+
+                    <div class="naTvgb__SchemeList" id="naTvgbSchemeList"></div>
+
+                    <div class="naTvgb__FieldRow">
+                        <label class="naTvgb__FieldRow__Label" for="naTvgbNewPhaseSelect">New Folder</label>
+                        <select id="naTvgbNewPhaseSelect" class="naTvgb__Select"></select>
+                    </div>
+
+                    <div class="naTvgb__ButtonRow">
+                        <button type="button" class="naTvgb__Btn naTvgb__Btn--primary"
+                                onclick="Na__Tvgb__RunProjectAction('create_scheme')">Create Folder</button>
+                        <button type="button" class="naTvgb__Btn" id="naTvgbDuplicateBtn"
+                                onclick="Na__Tvgb__RunProjectAction('duplicate_scheme')">Duplicate Selected</button>
+                    </div>
+                </div>
+
+                <!-- Cloud sync -->
+                <div class="naTvgb__ActionGroup" id="naTvgbCloudGroup">
+                    <h3 class="naTvgb__ActionGroup__Title">Cloudflare R2</h3>
+
+                    <button type="button" class="naTvgb__ActionCard naTvgb__ActionCard--primary"
+                            id="naTvgbPushCard"
+                            onclick="Na__Tvgb__RunProjectAction('push_to_cloud')">
+                        <span class="naTvgb__ActionCard__Icon">&#9729;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Push Project To Cloudflare R2</span>
+                            <span class="naTvgb__ActionCard__Desc">Rebuilds TrueVision__ProjectData__.json from the folders on disk, then mirrors this project's GLBs to R2.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naTvgb__ActionCard" id="naTvgbDryRunCard"
+                            onclick="Na__Tvgb__RunProjectAction('push_dry_run')">
+                        <span class="naTvgb__ActionCard__Icon">&#128065;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Dry Run</span>
+                            <span class="naTvgb__ActionCard__Desc">Runs the same push with --dry-run-only, so you can read what would change before anything uploads.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naTvgb__ActionCard" id="naTvgbPipelineCard"
+                            onclick="Na__Tvgb__RunProjectAction('open_pipeline')">
+                        <span class="naTvgb__ActionCard__Icon">&#128187;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Open Build Pipeline Window</span>
+                            <span class="naTvgb__ActionCard__Desc">Launches ProjectVision__BuildScript__.bat in its own console for the full interactive menu.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Portal root override -->
+                <div class="naTvgb__SettingsGroup">
+                    <h3 class="naTvgb__SettingsGroup__Title">Portal Root</h3>
+                    <p class="naTvgb__SettingsGroup__Desc">
+                        Where <code>na-project-portal</code> lives on this machine. Found automatically from the
+                        search paths in <code>Na__TrueVision__GlbBuilder__ProjectPortalConfig__.json</code>;
+                        override below if it sits elsewhere.
+                    </p>
+
+                    <div class="naTvgb__FieldRow">
+                        <label class="naTvgb__FieldRow__Label" for="naTvgbPortalInput">Portal Root</label>
+                        <input type="text"
+                               id="naTvgbPortalInput"
+                               class="naTvgb__TextInput"
+                               placeholder="D:\WE10_--_Public-Repo_--_Live-Website\na-project-portal"
+                               autocomplete="off" spellcheck="false">
+                    </div>
+
+                    <div class="naTvgb__ButtonRow">
+                        <button type="button" class="naTvgb__Btn"
+                                onclick="Na__Tvgb__RunProjectAction('save_portal_root')">Save Portal Root</button>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Settings Tab -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-settings" class="naTvgb__TabPanel">
+
+                <!-- Model tag setup -->
+                <div class="naTvgb__SettingsGroup">
+                    <h3 class="naTvgb__SettingsGroup__Title">Model Tag Setup</h3>
+                    <p class="naTvgb__SettingsGroup__Desc">
+                        Creates the standardised TrueVision tag set in this model from the shared DataLib index
+                        (<code>Na__DataLib__CoreIndex__Tags__.json</code>). Existing tags are left untouched.
+                    </p>
+                    <button type="button" class="naTvgb__ActionCard"
+                            onclick="Na__Tvgb__RunExportAction('create_tags')">
+                        <span class="naTvgb__ActionCard__Icon">&#127991;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Create Standardised Tags From Index</span>
+                            <span class="naTvgb__ActionCard__Desc">Adds any missing tags from the shared index so the exporter can group geometry correctly.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Export configuration readout -->
+                <div class="naTvgb__SettingsGroup">
+                    <h3 class="naTvgb__SettingsGroup__Title">Export Configuration</h3>
+                    <p class="naTvgb__SettingsGroup__Desc">
+                        Read-only summary of the configuration this session resolved from the shared DataLib index,
+                        overlaid with the local <code>Na__TrueVision__GlbBuilder__AppConfig__.json</code>.
+                    </p>
+
+                    <div class="naTvgb__FieldRow">
+                        <span class="naTvgb__FieldRow__Label">Excluded Tags</span>
+                        <span class="naTvgb__FieldRow__ReadOnly" id="naTvgbExcludedCount">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__FieldRow">
+                        <span class="naTvgb__FieldRow__Label">Linetype Tags</span>
+                        <span class="naTvgb__FieldRow__ReadOnly" id="naTvgbLinetypeCount">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__FieldRow">
+                        <span class="naTvgb__FieldRow__Label">Verbose Log</span>
+                        <span class="naTvgb__FieldRow__ReadOnly" id="naTvgbVerboseLogging">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__FieldRow">
+                        <span class="naTvgb__FieldRow__Label">Log File</span>
+                        <span class="naTvgb__FieldRow__ReadOnly" id="naTvgbLogFileEnabled">&mdash;</span>
+                    </div>
+                </div>
+
+                <!-- Plugin maintenance -->
+                <div class="naTvgb__SettingsGroup">
+                    <h3 class="naTvgb__SettingsGroup__Title">Plugin Maintenance</h3>
+                    <p class="naTvgb__SettingsGroup__Desc">
+                        Hot reload all Ruby files and refresh the dialog during development without restarting
+                        SketchUp.
+                    </p>
+                    <button type="button" class="naTvgb__ActionCard"
+                            onclick="Na__Tvgb__RunExportAction('reload_plugin')">
+                        <span class="naTvgb__ActionCard__Icon">&#8635;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Reload Scripts</span>
+                            <span class="naTvgb__ActionCard__Desc">Reloads Ruby files and refreshes the UI without restarting SketchUp.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Export method note -->
+                <div class="naTvgb__SettingsGroup">
+                    <h3 class="naTvgb__SettingsGroup__Title">Export Method</h3>
+                    <p class="naTvgb__SettingsGroup__Desc">
+                        Non-destructive virtual flattening with recursive traversal. All transformations are
+                        accumulated and applied in memory without modifying your model.
+                    </p>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+        </main>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+
+        <!-- UI FOOTER | Status line -->
+
+        <footer class="naTvgb__Footer">
+            <p id="naTvgbStatus" class="naTvgb__Status naTvgb__Status--info">Ready.</p>
+        </footer>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+    </div>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Project Link Modal                                           -->
+    <!--                                                                       -->
+    <!-- Shown once per model when no project code is stored. Clearing it with  -->
+    <!-- "Export Without A Project" records the choice, so it never nags again. -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <div class="naTvgb__Modal" id="naTvgbProjectModal" hidden>
+        <div class="naTvgb__Modal__Panel">
+            <div class="naTvgb__Modal__Header">
+                <h2 class="naTvgb__Modal__Title">Link This Model To A Project</h2>
+            </div>
+            <div class="naTvgb__Modal__Body">
+                <p class="naTvgb__Modal__Text">
+                    Enter the Noble Architecture project code and this model will remember it &mdash; exports go
+                    straight into the project portal and can be pushed to Cloudflare R2 in one step.
+                </p>
+
+                <input type="text"
+                       id="naTvgbProjectCodeInput"
+                       class="naTvgb__Modal__CodeInput"
+                       placeholder="RB05"
+                       maxlength="4"
+                       autocomplete="off"
+                       spellcheck="false"
+                       oninput="Na__Tvgb__HandleCodeInput()"
+                       onkeydown="Na__Tvgb__HandleCodeKeydown(event)">
+
+                <p class="naTvgb__Modal__Feedback naTvgb__Modal__Feedback--info" id="naTvgbProjectModalFeedback">
+                    Two letters and two digits, such as RB05 or EB03.
+                </p>
+
+                <p class="naTvgb__Modal__Text">
+                    No project code? Clear this and export the old way with a folder picker. You can link the
+                    model later from the Project tab.
+                </p>
+            </div>
+            <div class="naTvgb__Modal__Footer">
+                <button type="button" class="naTvgb__Btn"
+                        onclick="Na__Tvgb__DismissProjectModal()">Export Without A Project</button>
+                <button type="button" class="naTvgb__Btn naTvgb__Btn--primary"
+                        id="naTvgbProjectModalConfirm"
+                        onclick="Na__Tvgb__SubmitProjectCode()">Link Project</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Generic Confirmation Modal                                   -->
+    <!--                                                                       -->
+    <!-- Used for anything destructive: overwriting a scheme folder that already -->
+    <!-- holds GLBs, and unlinking a model from its project.                    -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <div class="naTvgb__Modal" id="naTvgbConfirmModal" hidden>
+        <div class="naTvgb__Modal__Panel">
+            <div class="naTvgb__Modal__Header">
+                <h2 class="naTvgb__Modal__Title" id="naTvgbConfirmTitle">Are you sure?</h2>
+            </div>
+            <div class="naTvgb__Modal__Body">
+                <p class="naTvgb__Modal__Text" id="naTvgbConfirmText"></p>
+                <div class="naTvgb__Modal__Detail" id="naTvgbConfirmDetail" hidden></div>
+            </div>
+            <div class="naTvgb__Modal__Footer">
+                <button type="button" class="naTvgb__Btn"
+                        onclick="Na__Tvgb__CloseConfirmModal()">Cancel</button>
+                <button type="button" class="naTvgb__Btn naTvgb__Btn--danger"
+                        id="naTvgbConfirmAccept"
+                        onclick="Na__Tvgb__AcceptConfirmModal()">Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Inlined Behaviour Script -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <script>
+    {{UI_BRIDGE_SCRIPT}}
+    </script>
+
+    <!-- endregion ----------------------------------------------------------- -->
+
+</body>
+</html>

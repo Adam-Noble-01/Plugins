@@ -1,0 +1,1198 @@
+/* ============================================================================= */
+/* NOBLE ARCHITECTURE - TRUEVISION3D GLB BUILDER UTILITY - PLUGIN UI STYLES      */
+/*                                                                                */
+/* FILE       : Na__TrueVision__GlbBuilder__Styles__.css                         */
+/* PURPOSE    : Stylesheet content inlined into the HtmlDialog layout template    */
+/* CREATED    : 19-Sep-2026                                                       */
+/*                                                                                */
+/* DESCRIPTION:                                                                   */
+/* - Mirrors the ValeVision Cloud Sync visual language (brand header, tab bar,    */
+/*   status card, action cards, badge-driven report panel, footer status line).   */
+/* - Re-skinned to the Noble Architecture palette and the Open Sans brand face.   */
+/* - {{FONT_DIR_URI}} is substituted by the DialogManager with a file:/// URI     */
+/*   pointing at 06__Assets/Fonts so the faces resolve locally first.             */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Brand Font Loading - Open Sans
+ * -----------------------------------------------------------------------------
+ * Local bundled TTF first (instant, works with no network), the canonical
+ * noble-architecture.com copy second so the face still resolves if the local
+ * asset folder is ever missing. Mirrors Na__CoreUi__Styles__Fonts__.css in the
+ * TrueVision web app so the plugin and the app render identically.
+ * ----------------------------------------------------------------------------- */
+
+@font-face {
+    font-family                        : 'Open Sans';
+    font-style                         : normal;
+    font-weight                        : 300;
+    font-display                       : swap;
+    src                                : url('{{FONT_DIR_URI}}/CommonFont-01__OpenSans__Light__.ttf') format('truetype'),
+                                         url('https://www.noble-architecture.com/na-apps/01__Assets__NaApps__CommonAssets/NaApps__CommonFonts/CommonFont-01__OpenSans__Light__.ttf') format('truetype');
+}
+
+@font-face {
+    font-family                        : 'Open Sans';
+    font-style                         : normal;
+    font-weight                        : 400;
+    font-display                       : swap;
+    src                                : url('{{FONT_DIR_URI}}/CommonFont-01__OpenSans__Regular__.ttf') format('truetype'),
+                                         url('https://www.noble-architecture.com/na-apps/01__Assets__NaApps__CommonAssets/NaApps__CommonFonts/CommonFont-01__OpenSans__Regular__.ttf') format('truetype');
+}
+
+@font-face {
+    font-family                        : 'Open Sans';
+    font-style                         : normal;
+    font-weight                        : 600;
+    font-display                       : swap;
+    src                                : url('{{FONT_DIR_URI}}/CommonFont-01__OpenSans__SemiBold__.ttf') format('truetype'),
+                                         url('https://www.noble-architecture.com/na-apps/01__Assets__NaApps__CommonAssets/NaApps__CommonFonts/CommonFont-01__OpenSans__SemiBold__.ttf') format('truetype');
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens (:root Variables)
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    --naTvgb_Navy         : #172b3a;    /* <-- TrueVision3D primary navy */
+    --naTvgb_NavyMid      : #2a4558;    /* <-- Hover / mid tone */
+    --naTvgb_NavyHover    : #3a5f78;    /* <-- Lighter accent */
+    --naTvgb_Bg           : #f5f7f9;
+    --naTvgb_PanelBg      : #ffffff;
+    --naTvgb_Text         : #1b1f24;
+    --naTvgb_MutedText    : #5b636d;
+    --naTvgb_Border       : #d6dbe1;
+    --naTvgb_Success      : #1f7a42;
+    --naTvgb_Error        : #b32d2d;
+    --naTvgb_Warning      : #7a5400;
+    --naTvgb_InfoText     : #2a4558;
+
+    --naTvgb_FontFamily   : 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --naTvgb_FontMono     : 'Consolas', 'Courier New', monospace;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing              : border-box;
+}
+
+html,
+body {
+    margin                  : 0;
+    padding                 : 0;
+    width                   : 100%;
+    height                  : 100%;
+    font-family             : var(--naTvgb_FontFamily);
+    font-size               : 13px;
+    background              : var(--naTvgb_Bg);
+    color                   : var(--naTvgb_Text);
+}
+
+.naTvgb__Shell {
+    display                 : flex;
+    flex-direction          : column;
+    width                   : 100%;
+    height                  : 100%;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Brand Header
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__BrandHeader {
+    display                 : flex;
+    align-items             : center;
+    justify-content         : space-between;
+    padding                 : 12px 16px;
+    border-bottom           : 1px solid var(--naTvgb_Border);
+    background              : var(--naTvgb_PanelBg);
+    flex-shrink             : 0;
+}
+
+.naTvgb__BrandHeader__Left {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 12px;
+}
+
+.naTvgb__BrandHeader__Logo {
+    height                  : 36px;
+    width                   : auto;
+    display                 : block;
+}
+
+.naTvgb__BrandHeader__Right {
+    display                 : flex;
+    flex-direction          : column;
+    align-items             : flex-end;
+    gap                     : 2px;
+}
+
+.naTvgb__BrandHeader__Title {
+    font-size               : 18px;
+    font-weight             : 600;
+    color                   : #1a1a1a;
+    line-height             : 1;
+    letter-spacing          : 0.2px;
+}
+
+.naTvgb__BrandHeader__Subtitle {
+    font-size               : 10px;
+    font-weight             : 400;
+    text-transform          : uppercase;
+    letter-spacing          : 0.6px;
+    color                   : var(--naTvgb_MutedText);
+    line-height             : 1;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Tab Bar
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__TabBar {
+    display                 : flex;
+    gap                     : 4px;
+    padding                 : 8px 12px;
+    border-bottom           : 1px solid var(--naTvgb_Border);
+    background              : var(--naTvgb_PanelBg);
+    flex-shrink             : 0;
+}
+
+.naTvgb__TabButton {
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 4px;
+    background              : #fdfdfd;
+    padding                 : 6px 14px;
+    font-size               : 12px;
+    font-family             : inherit;
+    cursor                  : pointer;
+    color                   : var(--naTvgb_Text);
+    transition              : background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.naTvgb__TabButton:hover {
+    border-color            : var(--naTvgb_NavyMid);
+    color                   : var(--naTvgb_NavyMid);
+}
+
+.naTvgb__TabButton--active {
+    color                   : #ffffff;
+    background              : var(--naTvgb_Navy);
+    border-color            : var(--naTvgb_Navy);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Main Content - Scroll Area and Tab Panels
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__MainContent {
+    flex                    : 1;
+    overflow                : auto;
+    padding                 : 12px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 10px;
+    min-height              : 0;
+}
+
+.naTvgb__TabPanel {
+    display                 : none;
+}
+
+.naTvgb__TabPanel--active {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 10px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Model Status Card
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__ProjectStatus {
+    background              : var(--naTvgb_PanelBg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 6px;
+    padding                 : 10px 12px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 5px;
+    flex-shrink             : 0;
+}
+
+.naTvgb__ProjectStatus__Row {
+    display                 : flex;
+    align-items             : baseline;
+    gap                     : 8px;
+}
+
+.naTvgb__ProjectStatus__Label {
+    font-size               : 10px;
+    font-weight             : 600;
+    text-transform          : uppercase;
+    letter-spacing          : 0.4px;
+    color                   : var(--naTvgb_MutedText);
+    min-width               : 92px;
+    flex-shrink             : 0;
+}
+
+.naTvgb__ProjectStatus__Value {
+    font-size               : 12px;
+    color                   : var(--naTvgb_Text);
+    word-break              : break-all;
+}
+
+.naTvgb__ProjectStatus__Value--path {
+    font-family             : var(--naTvgb_FontMono);
+    font-size               : 11px;
+    color                   : var(--naTvgb_InfoText);
+}
+
+.naTvgb__ProjectStatus__Value--muted {
+    color                   : var(--naTvgb_MutedText);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Action Cards
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__ActionGroup {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 8px;
+    flex-shrink             : 0;
+}
+
+.naTvgb__ActionGroup__Title {
+    margin                  : 0 0 2px;
+    font-size               : 11px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.5px;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__ActionCard {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 12px;
+    width                   : 100%;
+    padding                 : 12px;
+    background              : var(--naTvgb_PanelBg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 6px;
+    cursor                  : pointer;
+    font-family             : inherit;
+    font-size               : inherit;
+    color                   : inherit;
+    text-align              : left;
+    appearance              : none;
+    transition              : transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease, background 130ms ease;
+}
+
+.naTvgb__ActionCard:hover {
+    border-color            : var(--naTvgb_NavyMid);
+    background              : #f8fbfd;
+    box-shadow              : 0 3px 10px rgba(23, 43, 58, 0.12);
+    transform               : translateY(-1px);
+}
+
+.naTvgb__ActionCard:active {
+    transform               : translateY(0) scale(0.988);
+    box-shadow              : none;
+}
+
+.naTvgb__ActionCard--primary {
+    border-color            : var(--naTvgb_Navy);
+    background              : #f0f6fa;
+}
+
+.naTvgb__ActionCard--primary:hover {
+    background              : #e6f0f7;
+    border-color            : var(--naTvgb_NavyMid);
+}
+
+.naTvgb__ActionCard:disabled {
+    opacity                 : 0.5;
+    cursor                  : not-allowed;
+    transform               : none;
+}
+
+/* Locked / disabled cards must not react to hover or click */
+.naTvgb__ActionCard:disabled:hover,
+.naTvgb__ActionCard:disabled:active {
+    border-color            : var(--naTvgb_Border);
+    background              : #ffffff;
+    box-shadow              : none;
+    transform               : none;
+}
+
+.naTvgb__ActionCard__Icon {
+    font-size               : 20px;
+    line-height             : 1;
+    flex-shrink             : 0;
+    width                   : 28px;
+    text-align              : center;
+}
+
+.naTvgb__ActionCard__Body {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 3px;
+    flex                    : 1;
+    min-width               : 0;
+}
+
+.naTvgb__ActionCard__Label {
+    font-size               : 13px;
+    font-weight             : 600;
+    color                   : var(--naTvgb_Text);
+    line-height             : 1.2;
+}
+
+.naTvgb__ActionCard__Desc {
+    font-size               : 11px;
+    color                   : var(--naTvgb_MutedText);
+    line-height             : 1.35;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Option Rows (Export Settings)
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__OptionRow {
+    display                 : flex;
+    align-items             : flex-start;
+    gap                     : 10px;
+    padding                 : 10px 12px;
+    background              : var(--naTvgb_PanelBg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 6px;
+    transition              : border-color 130ms ease, opacity 130ms ease;
+}
+
+.naTvgb__OptionRow:hover {
+    border-color            : var(--naTvgb_NavyMid);
+}
+
+.naTvgb__OptionRow--dependent {
+    margin-left             : 16px;
+}
+
+.naTvgb__OptionRow--locked {
+    opacity                 : 0.45;
+    pointer-events          : none;
+}
+
+.naTvgb__OptionRow__Checkbox {
+    margin                  : 2px 0 0;
+    flex-shrink             : 0;
+    width                   : 14px;
+    height                  : 14px;
+    accent-color            : var(--naTvgb_Navy);
+    cursor                  : pointer;
+}
+
+.naTvgb__OptionRow__Body {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 3px;
+    flex                    : 1;
+    min-width               : 0;
+}
+
+.naTvgb__OptionRow__Label {
+    font-size               : 13px;
+    font-weight             : 600;
+    color                   : var(--naTvgb_Text);
+    line-height             : 1.2;
+    cursor                  : pointer;
+}
+
+.naTvgb__OptionRow__Desc {
+    font-size               : 11px;
+    color                   : var(--naTvgb_MutedText);
+    line-height             : 1.35;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Notes - Inline Advisory Messages
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__Note {
+    font-size               : 11px;
+    line-height             : 1.45;
+    padding                 : 7px 10px;
+    border-radius           : 4px;
+    border-left             : 3px solid var(--naTvgb_Border);
+    background              : #f2f5f8;
+    color                   : var(--naTvgb_Text);
+}
+
+.naTvgb__Note--storey {
+    border-left-color       : var(--naTvgb_Navy);
+    background              : #eef4f9;
+}
+
+.naTvgb__Note--siteplan {
+    border-left-color       : var(--naTvgb_InfoText);
+    background              : #eef4f9;
+}
+
+.naTvgb__Note--excluded {
+    border-left-color       : var(--naTvgb_Warning);
+    background              : #fbf5e8;
+}
+
+.naTvgb__Note--empty {
+    border-left-color       : var(--naTvgb_MutedText);
+    background              : #f2f4f6;
+    color                   : var(--naTvgb_MutedText);
+    font-style              : italic;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Export Manifest - File Rows and Storey Blocks
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__Manifest {
+    background              : var(--naTvgb_PanelBg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 6px;
+    padding                 : 12px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 8px;
+}
+
+.naTvgb__Manifest__Header {
+    display                 : flex;
+    align-items             : baseline;
+    justify-content         : space-between;
+    gap                     : 8px;
+    padding-bottom          : 6px;
+    border-bottom           : 1px solid var(--naTvgb_Border);
+}
+
+.naTvgb__Manifest__Title {
+    margin                  : 0;
+    font-size               : 11px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.5px;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__Manifest__Count {
+    font-size               : 11px;
+    font-weight             : 600;
+    color                   : var(--naTvgb_InfoText);
+    white-space             : nowrap;
+}
+
+.naTvgb__Manifest__Body {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 6px;
+}
+
+.naTvgb__FileRow {
+    display                 : flex;
+    align-items             : baseline;
+    justify-content         : space-between;
+    gap                     : 10px;
+    font-size               : 11px;
+    padding                 : 3px 0;
+    border-bottom           : 1px solid #f0f0f0;
+}
+
+.naTvgb__FileRow__Name {
+    font-family             : var(--naTvgb_FontMono);
+    color                   : var(--naTvgb_Text);
+    overflow-wrap           : anywhere;
+    word-break              : break-word;
+    min-width               : 0;
+}
+
+.naTvgb__FileRow__Count {
+    color                   : var(--naTvgb_MutedText);
+    white-space             : nowrap;
+    flex-shrink             : 0;
+}
+
+.naTvgb__StoreyBlock {
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 4px;
+    padding                 : 6px 10px;
+    background              : #fbfcfd;
+}
+
+.naTvgb__StoreyBlock__Heading {
+    display                 : flex;
+    align-items             : baseline;
+    justify-content         : space-between;
+    gap                     : 10px;
+    font-size               : 12px;
+    font-weight             : 600;
+    color                   : var(--naTvgb_Navy);
+    cursor                  : pointer;
+    list-style              : none;
+    padding                 : 2px 0;
+}
+
+.naTvgb__StoreyBlock__Heading::-webkit-details-marker {
+    display                 : none;
+}
+
+.naTvgb__StoreyBlock__Heading::before {
+    content                 : '\25B8';               /* <-- Collapsed caret */
+    display                 : inline-block;
+    margin-right            : 6px;
+    transition              : transform 120ms ease;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__StoreyBlock[open] > .naTvgb__StoreyBlock__Heading::before {
+    transform               : rotate(90deg);         /* <-- Expanded caret */
+}
+
+.naTvgb__StoreyBlock__HeadingText {
+    flex                    : 1;
+    min-width               : 0;
+}
+
+.naTvgb__StoreyBlock__Count {
+    font-size               : 11px;
+    font-weight             : 400;
+    color                   : var(--naTvgb_MutedText);
+    white-space             : nowrap;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Export Report Panel
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__Report {
+    background              : var(--naTvgb_PanelBg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 6px;
+    padding                 : 12px;
+    flex-shrink             : 0;
+}
+
+.naTvgb__Report__Title {
+    margin                  : 0 0 8px;
+    font-size               : 11px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.5px;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__Report__Steps {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 4px;
+    margin-bottom           : 8px;
+}
+
+.naTvgb__ReportStep {
+    display                 : flex;
+    align-items             : baseline;
+    gap                     : 8px;
+    font-size               : 12px;
+    padding                 : 3px 0;
+    border-bottom           : 1px solid #f0f0f0;
+}
+
+.naTvgb__ReportStep__Badge {
+    font-size               : 10px;
+    font-weight             : 700;
+    border-radius           : 3px;
+    padding                 : 1px 5px;
+    flex-shrink             : 0;
+    min-width               : 40px;
+    text-align              : center;
+}
+
+.naTvgb__ReportStep__Badge--ok {
+    background              : #d4edda;
+    color                   : var(--naTvgb_Success);
+}
+
+.naTvgb__ReportStep__Badge--error {
+    background              : #f8d7da;
+    color                   : var(--naTvgb_Error);
+}
+
+.naTvgb__ReportStep__Badge--skip {
+    background              : #e2e8ed;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__ReportStep__Badge--running {
+    background              : #cde8f7;
+    color                   : var(--naTvgb_NavyMid);
+}
+
+.naTvgb__ReportStep__Name {
+    font-weight             : 600;
+    flex-shrink             : 0;
+    min-width               : 130px;
+}
+
+.naTvgb__ReportStep__Detail {
+    color                   : var(--naTvgb_MutedText);
+    flex                    : 1;
+    min-width               : 0;
+    overflow-wrap           : anywhere;     /* <-- Long paths wrap instead of overflowing */
+    word-break              : break-word;
+}
+
+.naTvgb__Report__Summary {
+    font-size               : 12px;
+    font-weight             : 600;
+    padding-top             : 6px;
+    border-top              : 1px solid var(--naTvgb_Border);
+    color                   : var(--naTvgb_Text);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Settings Tab Groups
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__SettingsGroup {
+    background              : var(--naTvgb_PanelBg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 6px;
+    padding                 : 12px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 8px;
+}
+
+.naTvgb__SettingsGroup__Title {
+    margin                  : 0;
+    font-size               : 13px;
+    font-weight             : 700;
+    color                   : var(--naTvgb_Text);
+    border-bottom           : 1px solid var(--naTvgb_Border);
+    padding-bottom          : 6px;
+}
+
+.naTvgb__SettingsGroup__Desc {
+    margin                  : 0;
+    font-size               : 11px;
+    color                   : var(--naTvgb_MutedText);
+    line-height             : 1.5;
+}
+
+.naTvgb__SettingsGroup__Desc code {
+    font-family             : var(--naTvgb_FontMono);
+    font-size               : 10px;
+    background              : var(--naTvgb_Bg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 3px;
+    padding                 : 1px 4px;
+}
+
+.naTvgb__FieldRow {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 10px;
+}
+
+.naTvgb__FieldRow__Label {
+    font-size               : 11px;
+    font-weight             : 600;
+    color                   : var(--naTvgb_MutedText);
+    min-width               : 90px;
+    flex-shrink             : 0;
+}
+
+.naTvgb__FieldRow__ReadOnly {
+    font-family             : var(--naTvgb_FontMono);
+    font-size               : 11px;
+    color                   : var(--naTvgb_InfoText);
+    word-break              : break-all;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Buttons
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__ButtonRow {
+    display                 : flex;
+    gap                     : 8px;
+    flex-wrap               : wrap;
+}
+
+.naTvgb__Btn {
+    padding                 : 7px 14px;
+    font-size               : 12px;
+    font-family             : inherit;
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 4px;
+    background              : #fdfdfd;
+    color                   : var(--naTvgb_Text);
+    cursor                  : pointer;
+    transition              : background 120ms ease, border-color 120ms ease;
+}
+
+.naTvgb__Btn:hover {
+    border-color            : var(--naTvgb_NavyMid);
+    background              : #f0f6fa;
+}
+
+.naTvgb__Btn--primary {
+    background              : var(--naTvgb_Navy);
+    color                   : #ffffff;
+    border-color            : var(--naTvgb_Navy);
+}
+
+.naTvgb__Btn--primary:hover {
+    background              : var(--naTvgb_NavyMid);
+    border-color            : var(--naTvgb_NavyMid);
+}
+
+.naTvgb__Btn:disabled {
+    opacity                 : 0.5;
+    cursor                  : not-allowed;
+}
+
+.naTvgb__Btn:disabled:hover {
+    background              : #fdfdfd;
+    border-color            : var(--naTvgb_Border);
+}
+
+.naTvgb__Btn--primary:disabled:hover {
+    background              : var(--naTvgb_Navy);
+    border-color            : var(--naTvgb_Navy);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Project Link Card
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__ProjectCard {
+    background              : var(--naTvgb_PanelBg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 6px;
+    padding                 : 12px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 8px;
+}
+
+.naTvgb__ProjectCard--linked {
+    border-left             : 3px solid var(--naTvgb_Success);
+}
+
+.naTvgb__ProjectCard--unlinked {
+    border-left             : 3px solid var(--naTvgb_Warning);
+}
+
+.naTvgb__ProjectCard__Header {
+    display                 : flex;
+    align-items             : baseline;
+    justify-content         : space-between;
+    gap                     : 10px;
+    padding-bottom          : 6px;
+    border-bottom           : 1px solid var(--naTvgb_Border);
+}
+
+.naTvgb__ProjectCard__Code {
+    font-size               : 18px;
+    font-weight             : 600;
+    color                   : var(--naTvgb_Navy);
+    letter-spacing          : 0.5px;
+}
+
+.naTvgb__ProjectCard__Name {
+    font-size               : 13px;
+    color                   : var(--naTvgb_Text);
+    text-align              : right;
+    flex                    : 1;
+    min-width               : 0;
+    overflow-wrap           : anywhere;
+}
+
+.naTvgb__ProjectCard__Brief {
+    font-size               : 11px;
+    color                   : var(--naTvgb_MutedText);
+    line-height             : 1.45;
+    margin                  : 0;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Scheme / Design Phase List
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__SchemeList {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 6px;
+}
+
+.naTvgb__SchemeRow {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 10px;
+    width                   : 100%;
+    padding                 : 9px 11px;
+    background              : var(--naTvgb_PanelBg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 5px;
+    cursor                  : pointer;
+    font-family             : inherit;
+    text-align              : left;
+    appearance              : none;
+    color                   : inherit;
+    transition              : border-color 130ms ease, background 130ms ease;
+}
+
+.naTvgb__SchemeRow:hover {
+    border-color            : var(--naTvgb_NavyMid);
+    background              : #f8fbfd;
+}
+
+.naTvgb__SchemeRow--selected {
+    border-color            : var(--naTvgb_Navy);
+    background              : #eef4f9;
+    box-shadow              : inset 0 0 0 1px var(--naTvgb_Navy);
+}
+
+.naTvgb__SchemeRow__Radio {
+    width                   : 12px;
+    height                  : 12px;
+    border-radius           : 50%;
+    border                  : 2px solid var(--naTvgb_Border);
+    flex-shrink             : 0;
+}
+
+.naTvgb__SchemeRow--selected .naTvgb__SchemeRow__Radio {
+    border-color            : var(--naTvgb_Navy);
+    background              : var(--naTvgb_Navy);
+    box-shadow              : inset 0 0 0 2px #ffffff;
+}
+
+.naTvgb__SchemeRow__Body {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 2px;
+    flex                    : 1;
+    min-width               : 0;
+}
+
+.naTvgb__SchemeRow__Name {
+    font-family             : var(--naTvgb_FontMono);
+    font-size               : 11px;
+    color                   : var(--naTvgb_Text);
+    overflow-wrap           : anywhere;
+}
+
+.naTvgb__SchemeRow__Meta {
+    font-size               : 10px;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__SchemeRow__Tag {
+    font-size               : 9px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.4px;
+    border-radius           : 3px;
+    padding                 : 2px 5px;
+    flex-shrink             : 0;
+    white-space             : nowrap;
+}
+
+.naTvgb__SchemeRow__Tag--alias {
+    background              : #fbf5e8;
+    color                   : var(--naTvgb_Warning);
+}
+
+.naTvgb__SchemeRow__Tag--empty {
+    background              : #e2e8ed;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__SchemeRow__Tag--unrecognised {
+    background              : #f8d7da;
+    color                   : var(--naTvgb_Error);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Select Control
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__Select {
+    flex                    : 1;
+    padding                 : 6px 8px;
+    font-size               : 12px;
+    font-family             : inherit;
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 4px;
+    background              : var(--naTvgb_PanelBg);
+    color                   : var(--naTvgb_Text);
+    outline                 : none;
+    cursor                  : pointer;
+    transition              : border-color 120ms ease;
+}
+
+.naTvgb__Select:focus {
+    border-color            : var(--naTvgb_NavyMid);
+}
+
+.naTvgb__TextInput {
+    flex                    : 1;
+    padding                 : 6px 8px;
+    font-size               : 12px;
+    font-family             : var(--naTvgb_FontMono);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 4px;
+    background              : var(--naTvgb_Bg);
+    color                   : var(--naTvgb_Text);
+    outline                 : none;
+    transition              : border-color 120ms ease;
+}
+
+.naTvgb__TextInput:focus {
+    border-color            : var(--naTvgb_NavyMid);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Modal Overlay
+ * ----------------------------------------------------------------------------- */
+
+/* A class selector outranks the browser's own [hidden] rule, so `display:flex`
+   below would keep a hidden modal on screen. This restores the attribute. */
+[hidden] {
+    display                 : none !important;
+}
+
+.naTvgb__Modal {
+    position                : fixed;
+    inset                   : 0;
+    background              : rgba(16, 26, 34, 0.55);
+    display                 : flex;
+    align-items             : center;
+    justify-content         : center;
+    padding                 : 20px;
+    z-index                 : 100;
+}
+
+.naTvgb__Modal__Panel {
+    background              : var(--naTvgb_PanelBg);
+    border-radius           : 8px;
+    box-shadow              : 0 12px 40px rgba(0, 0, 0, 0.3);
+    width                   : 100%;
+    max-width              : 420px;
+    max-height              : 100%;
+    overflow                : auto;
+    display                 : flex;
+    flex-direction          : column;
+}
+
+.naTvgb__Modal__Header {
+    padding                 : 14px 16px 10px;
+    border-bottom           : 1px solid var(--naTvgb_Border);
+}
+
+.naTvgb__Modal__Title {
+    margin                  : 0;
+    font-size               : 15px;
+    font-weight             : 600;
+    color                   : var(--naTvgb_Text);
+}
+
+.naTvgb__Modal__Body {
+    padding                 : 14px 16px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 10px;
+}
+
+.naTvgb__Modal__Text {
+    margin                  : 0;
+    font-size               : 12px;
+    line-height             : 1.5;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__Modal__Text strong {
+    color                   : var(--naTvgb_Text);
+}
+
+.naTvgb__Modal__Detail {
+    font-family             : var(--naTvgb_FontMono);
+    font-size               : 11px;
+    color                   : var(--naTvgb_InfoText);
+    background              : var(--naTvgb_Bg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 4px;
+    padding                 : 8px 10px;
+    overflow-wrap           : anywhere;
+    white-space             : pre-wrap;
+}
+
+.naTvgb__Modal__CodeInput {
+    padding                 : 10px 12px;
+    font-size               : 20px;
+    font-family             : var(--naTvgb_FontMono);
+    font-weight             : 600;
+    letter-spacing          : 3px;
+    text-align              : center;
+    text-transform          : uppercase;
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 4px;
+    background              : var(--naTvgb_Bg);
+    color                   : var(--naTvgb_Navy);
+    outline                 : none;
+    width                   : 100%;
+    transition              : border-color 120ms ease;
+}
+
+.naTvgb__Modal__CodeInput:focus {
+    border-color            : var(--naTvgb_Navy);
+}
+
+.naTvgb__Modal__Feedback {
+    margin                  : 0;
+    font-size               : 11px;
+    line-height             : 1.4;
+    min-height              : 15px;
+}
+
+.naTvgb__Modal__Feedback--error {
+    color                   : var(--naTvgb_Error);
+}
+
+.naTvgb__Modal__Feedback--success {
+    color                   : var(--naTvgb_Success);
+}
+
+.naTvgb__Modal__Feedback--info {
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__Modal__Footer {
+    padding                 : 10px 16px 14px;
+    display                 : flex;
+    gap                     : 8px;
+    justify-content         : flex-end;
+    border-top              : 1px solid var(--naTvgb_Border);
+}
+
+.naTvgb__Modal__Footer .naTvgb__Btn {
+    min-width               : 92px;
+}
+
+.naTvgb__Btn--danger {
+    background              : var(--naTvgb_Error);
+    color                   : #ffffff;
+    border-color            : var(--naTvgb_Error);
+}
+
+.naTvgb__Btn--danger:hover {
+    background              : #8f2424;
+    border-color            : #8f2424;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Footer - Status Line
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__Footer {
+    border-top              : 1px solid var(--naTvgb_Border);
+    background              : var(--naTvgb_PanelBg);
+    padding                 : 8px 12px;
+    flex-shrink             : 0;
+}
+
+.naTvgb__Status {
+    margin                  : 0;
+    font-size               : 12px;
+    line-height             : 1.3;
+}
+
+.naTvgb__Status--info {
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__Status--success {
+    color                   : var(--naTvgb_Success);
+}
+
+.naTvgb__Status--error {
+    color                   : var(--naTvgb_Error);
+}
+
+.naTvgb__Status--warning {
+    color                   : var(--naTvgb_Warning);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* ============================================================================= */
+/* END OF FILE                                                                   */
+/* ============================================================================= */

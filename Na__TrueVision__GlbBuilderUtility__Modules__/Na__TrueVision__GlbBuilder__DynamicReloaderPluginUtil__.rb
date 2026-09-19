@@ -84,7 +84,7 @@ module TrueVision3D
 
             # Also attempt to reload the top-level loader script (one level up in Plugins folder)
             begin
-                loader_path = File.join(File.dirname(NA_PLUGIN_ROOT), 'Na__TrueVision__GlbBuilderUtility__Loader.rb')
+                loader_path = File.join(File.dirname(NA_PLUGIN_ROOT), 'Na__TrueVision__GlbBuilderUtility__Loader__.rb')
                 if File.exist?(loader_path)
                     load loader_path
                     puts "  [OK] Loaded loader: #{File.basename(loader_path)}"
@@ -100,6 +100,14 @@ module TrueVision3D
                 self.Na__DynamicReloader__RegisterMenu
             rescue => e
                 puts "  [ERROR] Failed to (re)register TrueVision3D GLB Builder menu: #{e.message}"
+            end
+
+            # Drop the cached portal config and master index so edits to
+            # Na__TrueVision__GlbBuilder__ProjectPortalConfig__.json take effect
+            begin
+                self.Na__PortalMapper__ForceReload if self.respond_to?(:Na__PortalMapper__ForceReload)
+            rescue => e
+                puts "  [WARN] Could not reload the project portal config: #{e.message}"
             end
             
             # Refresh UI
