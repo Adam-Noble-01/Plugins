@@ -366,7 +366,14 @@ module TrueVision3D
         # @return               [Hash]            { written:, files:, empty_tags:, edge_count: }
         # ---------------------------------------------------------------
         def self.Na__Linetype__ExportAll(model, export_dir, project_prefix = "")
-            result = { written: 0, files: [], empty_tags: [], edge_count: 0 }
+            result = { written: 0, files: [], empty_tags: [], edge_count: 0, skipped_by_toggle: 0 }
+
+            # Per-file toggles from the model dictionary; an unknown name is ON
+            deselected = if self.respond_to?(:Na__ExportSelection__DeselectedSet)
+                self.Na__ExportSelection__DeselectedSet(model)
+            else
+                {}
+            end
 
             scan    = self.Na__Linetype__Scan(model, true)                          # <-- An export closes any open group first
             stems   = scan[:stems]
@@ -393,6 +400,13 @@ module TrueVision3D
                 filename = "#{project_prefix}#{defn[:stem]}#{suffix}#{GLB_FILE_EXTENSION}"
                 path     = File.join(export_dir, filename)
                 edges    = bucket[:positions].length / 6
+
+                # Per-file export toggle, held in the model's dictionary
+                if deselected[filename]
+                    Na__Log__Puts "    Skipped (toggled off): #{filename}"
+                    result[:skipped_by_toggle] += 1
+                    next
+                end
 
                 begin
                     self.Na__Linetype__WriteBucket(bucket, path)

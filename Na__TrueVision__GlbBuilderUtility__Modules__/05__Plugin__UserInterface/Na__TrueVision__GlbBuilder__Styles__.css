@@ -532,12 +532,111 @@ body {
 
 .naTvgb__FileRow {
     display                 : flex;
-    align-items             : baseline;
-    justify-content         : space-between;
-    gap                     : 10px;
+    align-items             : center;
+    gap                     : 8px;
     font-size               : 11px;
     padding                 : 3px 0;
     border-bottom           : 1px solid #f0f0f0;
+}
+
+.naTvgb__FileRow__Toggle {
+    width                   : 13px;
+    height                  : 13px;
+    margin                  : 0;
+    flex-shrink             : 0;
+    accent-color            : var(--naTvgb_Navy);
+    cursor                  : pointer;
+}
+
+/* A row toggled off is still readable, but plainly not going anywhere */
+.naTvgb__FileRow--off .naTvgb__FileRow__Name {
+    color                   : #a3abb4;
+    text-decoration         : line-through;
+}
+
+.naTvgb__FileRow--off .naTvgb__FileRow__Count {
+    color                   : #bcc3ca;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Manifest Selection Toolbar
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__SelectBar {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 8px;
+    flex-wrap               : wrap;
+    padding                 : 7px 9px;
+    background              : var(--naTvgb_Bg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 5px;
+}
+
+.naTvgb__SelectBar__Label {
+    font-size               : 10px;
+    font-weight             : 600;
+    text-transform          : uppercase;
+    letter-spacing          : 0.4px;
+    color                   : var(--naTvgb_MutedText);
+    margin-right            : 2px;
+}
+
+.naTvgb__SelectBar__Spacer {
+    flex                    : 1;
+}
+
+.naTvgb__SelectBar__Count {
+    font-size               : 11px;
+    font-weight             : 600;
+    color                   : var(--naTvgb_InfoText);
+    white-space             : nowrap;
+}
+
+.naTvgb__SelectBar__Count--partial {
+    color                   : var(--naTvgb_Warning);
+}
+
+.naTvgb__MiniBtn {
+    padding                 : 4px 10px;
+    font-size               : 11px;
+    font-family             : inherit;
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 4px;
+    background              : var(--naTvgb_PanelBg);
+    color                   : var(--naTvgb_Text);
+    cursor                  : pointer;
+    white-space             : nowrap;
+    transition              : background 120ms ease, border-color 120ms ease;
+}
+
+.naTvgb__MiniBtn:hover {
+    border-color            : var(--naTvgb_NavyMid);
+    background              : #f0f6fa;
+}
+
+.naTvgb__MiniBtn:disabled {
+    opacity                 : 0.5;
+    cursor                  : not-allowed;
+}
+
+.naTvgb__MiniBtn:disabled:hover {
+    border-color            : var(--naTvgb_Border);
+    background              : var(--naTvgb_PanelBg);
+}
+
+/* Group header toggle sits inline with the storey name */
+.naTvgb__StoreyBlock__Toggle {
+    width                   : 13px;
+    height                  : 13px;
+    margin                  : 0 6px 0 0;
+    flex-shrink             : 0;
+    accent-color            : var(--naTvgb_Navy);
+    cursor                  : pointer;
+    vertical-align          : middle;
 }
 
 .naTvgb__FileRow__Name {
@@ -1017,6 +1116,196 @@ body {
 
 
 /* -----------------------------------------------------------------------------
+ * REGION | Project Structure Tree
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__Tree {
+    font-family             : var(--naTvgb_FontMono);
+    font-size               : 11px;
+    line-height             : 1.6;
+    background              : var(--naTvgb_Bg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-radius           : 4px;
+    padding                 : 8px 10px;
+    overflow-x              : auto;
+}
+
+.naTvgb__Tree__Row {
+    display                 : flex;
+    align-items             : baseline;
+    gap                     : 8px;
+    white-space             : nowrap;
+    padding                 : 1px 0;
+}
+
+.naTvgb__Tree__Label {
+    color                   : var(--naTvgb_Text);
+}
+
+.naTvgb__Tree__Meta {
+    color                   : var(--naTvgb_MutedText);
+    font-size               : 10px;
+}
+
+.naTvgb__Tree__Row--project .naTvgb__Tree__Label,
+.naTvgb__Tree__Row--content .naTvgb__Tree__Label {
+    font-weight             : 600;
+    color                   : var(--naTvgb_Navy);
+}
+
+.naTvgb__Tree__Row--aside .naTvgb__Tree__Label,
+.naTvgb__Tree__Row--aside .naTvgb__Tree__Meta {
+    color                   : #98a1ab;
+}
+
+.naTvgb__Tree__Row--target {
+    background              : #eef4f9;
+    border-radius           : 3px;
+}
+
+.naTvgb__Tree__Row--target .naTvgb__Tree__Label {
+    font-weight             : 600;
+    color                   : var(--naTvgb_Navy);
+}
+
+.naTvgb__Tree__Row--affected {
+    background              : #fdecec;
+    border-radius           : 3px;
+}
+
+.naTvgb__Tree__Row--affected .naTvgb__Tree__Label {
+    font-weight             : 600;
+    color                   : var(--naTvgb_Error);
+}
+
+.naTvgb__Tree__Tag {
+    font-size               : 9px;
+    font-weight             : 700;
+    text-transform          : uppercase;
+    letter-spacing          : 0.4px;
+    border-radius           : 3px;
+    padding                 : 1px 5px;
+    flex-shrink             : 0;
+}
+
+.naTvgb__Tree__Tag--target {
+    background              : #d7e6f2;
+    color                   : var(--naTvgb_Navy);
+}
+
+.naTvgb__Tree__Tag--affected {
+    background              : #f8d7da;
+    color                   : var(--naTvgb_Error);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Danger Zone
+ * ----------------------------------------------------------------------------- */
+
+.naTvgb__DangerZone {
+    border                  : 1px solid #e3b7b7;
+    border-radius           : 6px;
+    background              : #fffafa;
+    overflow                : hidden;
+}
+
+.naTvgb__DangerZone__Heading {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 8px;
+    padding                 : 10px 12px;
+    font-size               : 12px;
+    font-weight             : 700;
+    color                   : var(--naTvgb_Error);
+    cursor                  : pointer;
+    list-style              : none;
+    user-select             : none;
+}
+
+.naTvgb__DangerZone__Heading::-webkit-details-marker {
+    display                 : none;
+}
+
+.naTvgb__DangerZone__Heading::before {
+    content                 : '\25B8';
+    display                 : inline-block;
+    transition              : transform 120ms ease;
+}
+
+.naTvgb__DangerZone[open] > .naTvgb__DangerZone__Heading::before {
+    transform               : rotate(90deg);
+}
+
+.naTvgb__DangerZone__Body {
+    padding                 : 0 12px 12px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 8px;
+    border-top              : 1px solid #f0dcdc;
+    padding-top             : 10px;
+}
+
+.naTvgb__DangerZone__Desc {
+    margin                  : 0;
+    font-size               : 11px;
+    line-height             : 1.5;
+    color                   : #7a4a4a;
+}
+
+.naTvgb__DangerZone__Title {
+    margin                  : 0;
+    font-size               : 12px;
+    font-weight             : 700;
+    color                   : var(--naTvgb_Error);
+}
+
+.naTvgb__DangerZone__Rule {
+    border                  : 0;
+    border-top              : 1px solid #f0dcdc;
+    margin                  : 4px 0 2px;
+    width                   : 100%;
+}
+
+.naTvgb__DangerZone__Desc code {
+    font-family             : var(--naTvgb_FontMono);
+    font-size               : 10px;
+    background              : #fff3f3;
+    border                  : 1px solid #f0dcdc;
+    border-radius           : 3px;
+    padding                 : 1px 4px;
+}
+
+/* The R2 inventory can be long; keep it from taking over the tab */
+#naTvgbR2Report {
+    max-height              : 200px;
+    overflow                : auto;
+    white-space             : pre-wrap;
+    word-break              : break-word;
+}
+
+.naTvgb__CheckRow {
+    display                 : flex;
+    align-items             : flex-start;
+    gap                     : 8px;
+    font-size               : 11px;
+    color                   : #7a4a4a;
+    line-height             : 1.4;
+}
+
+.naTvgb__CheckRow input {
+    margin                  : 1px 0 0;
+    accent-color            : var(--naTvgb_Error);
+    flex-shrink             : 0;
+    cursor                  : pointer;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
  * REGION | Modal Overlay
  * ----------------------------------------------------------------------------- */
 
@@ -1042,7 +1331,7 @@ body {
     border-radius           : 8px;
     box-shadow              : 0 12px 40px rgba(0, 0, 0, 0.3);
     width                   : 100%;
-    max-width              : 420px;
+    max-width               : 520px;    /* <-- Fits Cancel + two choices on one row */
     max-height              : 100%;
     overflow                : auto;
     display                 : flex;
@@ -1140,7 +1429,8 @@ body {
 }
 
 .naTvgb__Modal__Footer .naTvgb__Btn {
-    min-width               : 92px;
+    min-width               : 0;
+    white-space             : nowrap;
 }
 
 .naTvgb__Btn--danger {
@@ -1152,6 +1442,33 @@ body {
 .naTvgb__Btn--danger:hover {
     background              : #8f2424;
     border-color            : #8f2424;
+}
+
+/* The safe, recoverable choice: archiving before an overwrite */
+.naTvgb__Btn--success {
+    background              : var(--naTvgb_Success);
+    color                   : #ffffff;
+    border-color            : var(--naTvgb_Success);
+}
+
+.naTvgb__Btn--success:hover {
+    background              : #175e32;
+    border-color            : #175e32;
+}
+
+.naTvgb__Btn--success:disabled:hover {
+    background              : var(--naTvgb_Success);
+    border-color            : var(--naTvgb_Success);
+}
+
+.naTvgb__Btn--danger:disabled:hover {
+    background              : var(--naTvgb_Error);
+    border-color            : var(--naTvgb_Error);
+}
+
+/* Three-button footers wrap rather than squash on a narrow dialog */
+.naTvgb__Modal__Footer {
+    flex-wrap               : wrap;
 }
 
 /* endregion ------------------------------------------------------------------- */

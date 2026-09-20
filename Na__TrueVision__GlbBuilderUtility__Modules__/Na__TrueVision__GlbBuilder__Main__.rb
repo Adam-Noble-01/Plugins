@@ -73,11 +73,18 @@ require_relative 'Na__TrueVision__GlbBuilder__EngineCore__LineworkModelHandling_
 require_relative 'Na__TrueVision__GlbBuilder__SpecialObject__DoorObjectHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__SpecialObject__CameraFollowObjectHandling__'
 require_relative 'Na__TrueVision__GlbBuilder__PathResolver__'
+require_relative 'Na__TrueVision__GlbBuilder__ExportSelection__'
 require_relative 'Na__TrueVision__GlbBuilder__ProjectLink__'
 require_relative 'Na__TrueVision__GlbBuilder__ProjectPortalMapper__'
 require_relative 'Na__TrueVision__GlbBuilder__CloudSyncOrchestrator__'
 require_relative 'Na__TrueVision__GlbBuilder__UserInterface__'
 require_relative 'Na__TrueVision__GlbBuilder__UserInterface__ProjectActions__'
+# Cloud manager LAST: it deliberately overrides Na__CloudSync__Execute and
+# Na__CloudSync__RunR2Sync to run R2 work through PowerShell on a Fiber, so
+# SketchUp is not frozen for the length of a sync. Without this require it was
+# only picked up by the hot reloader's Dir.glob, which meant a fresh SketchUp
+# start and a reloaded session behaved differently.
+require_relative 'truevision_cloud_manager'
 require_relative 'Na__TrueVision__GlbBuilder__ToolbarIconLoader__'
 require_relative 'Na__TrueVision__GlbBuilder__DynamicReloaderPluginUtil__'
 require_relative 'Na__TrueVision__GlbBuilder__TagsManager__'

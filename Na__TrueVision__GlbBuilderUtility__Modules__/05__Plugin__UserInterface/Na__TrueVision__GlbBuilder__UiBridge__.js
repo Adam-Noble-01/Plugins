@@ -184,34 +184,96 @@
             return;
         }
 
-        // A target folder that already holds GLBs is confirmed before anything is written
+        // A target folder that already holds GLBs is confirmed before anything is
+        // written, and the user picks what happens to the files already there.
         if (needsProject && naTvgbProject.targetGlbCount > 0) {
             na__tvgb__showConfirm({
-                title:       'Overwrite this scheme?',
-                text:        naTvgbProject.targetFolder + ' already holds ' + naTvgbProject.targetGlbCount
-                             + ' GLB file(s). They will be moved into that folder\'s 00__Archive before the new export is written.',
-                detail:      naTvgbProject.targetFolder,
-                acceptLabel: 'Archive And Export'
+                title:           'This scheme already has models',
+                text:            naTvgbProject.targetFolder + ' holds ' + naTvgbProject.targetGlbCount
+                                 + ' GLB file(s). Archiving zips them into that folder’s 00__Archive first, '
+                                 + 'which stays on this machine and is never uploaded. Overwriting replaces them '
+                                 + 'with no copy kept.',
+                detail:          naTvgbProject.targetFolder,
+                structure:       true,
+                affectedFolder:  naTvgbProject.targetFolder,
+                acceptLabel:     'Archive, Then Export',
+                acceptVariant:   'success',
+                secondaryLabel:  'Overwrite Without Archiving',
+                secondaryVariant:'danger',
+                onSecondary:     function() { na__tvgb__sendExportAction(actionId, true); }
             }, function() {
-                na__tvgb__sendExportAction(actionId);
+                na__tvgb__sendExportAction(actionId, false);
             });
             return;
         }
 
-        na__tvgb__sendExportAction(actionId);
+        na__tvgb__sendExportAction(actionId, false);
     }
 
     // HELPER FUNCTION | Send An Export Action With The Current Option Set
     // ------------------------------------------------------------
-    function na__tvgb__sendExportAction(actionId) {
+    // `skipArchive` carries the user's choice from the overwrite modal through
+    // to Ruby, which is the only place the old files are actually touched.
+    // ------------------------------------------------------------
+    function na__tvgb__sendExportAction(actionId, skipArchive) {
         var params = na__tvgb__collectExportParams();
         params.confirmedOverwrite = true;      // <-- The UI has already asked, where asking was needed
+        params.skipArchive        = !!skipArchive;
 
         naTvgbState.isRunning = true;
         na__tvgb__applyButtonLockState();       // <-- Disables all cards while running
         na__tvgb__setStatus('Running: ' + actionId.split('_').join(' ') + '...', 'info');
 
         window.sketchup.na_tvgb_run_action(String(actionId), JSON.stringify(params));
+    }
+
+    // endregion -------------------------------------------------------------------
+
+
+    // -----------------------------------------------------------------------------
+    // REGION | Export File Selection
+    // -----------------------------------------------------------------------------
+    //
+    // Which GLBs this model writes. Every toggle is persisted into the model's
+    // attribute dictionary by Ruby, so the choice survives the session and
+    // travels with the .skp. Ruby re-pushes the model status, which repaints
+    // the manifest, so the JS never has to track the state itself.
+    //
+    // -----------------------------------------------------------------------------
+
+    // FUNCTION | Toggle One File
+    // ------------------------------------------------------------
+    function Na__Tvgb__ToggleFile(fileName, selected) {
+        na__tvgb__sendSelection({ scope: 'files', fileNames: [String(fileName)], selected: !!selected });
+    }
+
+    // FUNCTION | Toggle Every File In One Group
+    // ------------------------------------------------------------
+    function Na__Tvgb__ToggleGroup(groupIndex, selected) {
+        var group = naTvgbManifestGroups[groupIndex];
+        if (!group) { return; }
+
+        var names = (group.rows || []).map(function(row) { return String(row.name || ''); });
+        na__tvgb__sendSelection({ scope: 'files', fileNames: names, selected: !!selected });
+    }
+
+    // FUNCTION | Enable Or Disable Everything At Once
+    // ------------------------------------------------------------
+    function Na__Tvgb__SetAllFilesSelected(selected) {
+        na__tvgb__sendSelection({ scope: 'all', selected: !!selected });
+    }
+
+    function na__tvgb__sendSelection(payload) {
+        if (naTvgbState.isRunning) {
+            na__tvgb__setStatus('Wait for the current action to finish.', 'warning');
+            return;
+        }
+        if (!window.sketchup || !window.sketchup.na_tvgb_run_action) {
+            na__tvgb__setStatus('SketchUp bridge unavailable.', 'error');
+            return;
+        }
+
+        window.sketchup.na_tvgb_run_action('set_file_selection', JSON.stringify(payload));
     }
 
     // endregion -------------------------------------------------------------------
@@ -250,6 +312,7 @@
         na__tvgb__setText('naTvgbVerboseLogging', status.verbose_logging  ? 'Enabled' : 'Disabled');
         na__tvgb__setText('naTvgbLogFileEnabled', status.log_file_enabled ? 'Enabled' : 'Disabled');
 
+        naTvgbManifestGroups = Array.isArray(status.groups) ? status.groups : [];
         na__tvgb__renderManifest(status);
     }
 
@@ -281,10 +344,15 @@
         var countEl = document.getElementById('naTvgbManifestCount');
         if (!bodyEl) { return; }
 
-        var totalFiles = Number(status.total_file_count || 0);
+        var totalFiles    = Number(status.total_file_count || 0);
+        var selectedFiles = (status.selected_file_count === undefined)
+            ? totalFiles
+            : Number(status.selected_file_count);
+
         if (countEl) {
             countEl.textContent = totalFiles === 0 ? 'Nothing to export' : totalFiles + ' GLB files';
         }
+        na__tvgb__renderSelectionCount(totalFiles, selectedFiles);
 
         var html = '';
 
@@ -297,10 +365,43 @@
         // Then the file groups
         var groups = Array.isArray(status.groups) ? status.groups : [];
         for (var gi = 0; gi < groups.length; gi += 1) {
-            html += na__tvgb__groupHtml(groups[gi]);
+            html += na__tvgb__groupHtml(groups[gi], gi);
         }
 
         bodyEl.innerHTML = html;
+        na__tvgb__applyIndeterminateToggles(bodyEl);
+    }
+
+    // HELPER FUNCTION | Show How Much Of The Manifest Is Switched On
+    // ------------------------------------------------------------
+    function na__tvgb__renderSelectionCount(totalFiles, selectedFiles) {
+        var el = document.getElementById('naTvgbSelectionCount');
+        if (!el) { return; }
+
+        if (totalFiles === 0) {
+            el.textContent = '—';
+            el.className   = 'naTvgb__SelectBar__Count';
+            return;
+        }
+
+        var partial = selectedFiles < totalFiles;
+        el.textContent = selectedFiles + ' of ' + totalFiles + ' selected';
+        el.className   = 'naTvgb__SelectBar__Count' + (partial ? ' naTvgb__SelectBar__Count--partial' : '');
+
+        na__tvgb__lockButton('naTvgbEnableAllBtn',  selectedFiles === totalFiles);
+        na__tvgb__lockButton('naTvgbDisableAllBtn', selectedFiles === 0);
+    }
+
+    // HELPER FUNCTION | Apply The Tri-State To Mixed Group Toggles
+    // ------------------------------------------------------------
+    // `indeterminate` is a property, not an attribute, so it has to be set
+    // after the markup is in the DOM.
+    // ------------------------------------------------------------
+    function na__tvgb__applyIndeterminateToggles(root) {
+        var toggles = root.querySelectorAll('[data-na-indeterminate="1"]');
+        for (var i = 0; i < toggles.length; i += 1) {
+            toggles[i].indeterminate = true;
+        }
     }
 
     function na__tvgb__noteHtml(note) {
@@ -313,7 +414,7 @@
         return '<div class="naTvgb__Note naTvgb__Note--' + variant + '">' + title + text + '</div>';
     }
 
-    function na__tvgb__groupHtml(group) {
+    function na__tvgb__groupHtml(group, groupIndex) {
         if (!group) { return ''; }
 
         var rows = Array.isArray(group.rows) ? group.rows : [];
@@ -327,11 +428,24 @@
             return rowsHtml;
         }
 
+        // The group's own toggle: on when every file in it is on, and
+        // indeterminate when only some are, so a mixed storey reads as mixed.
+        var onCount = rows.filter(function(r) { return r.selected !== false; }).length;
+        var allOn   = onCount === rows.length && rows.length > 0;
+        var someOn  = onCount > 0 && onCount < rows.length;
+
         var icon  = group.icon ? na__tvgb__escHtml(group.icon) + ' ' : '';
-        var count = group.count_label ? '<span class="naTvgb__StoreyBlock__Count">' + na__tvgb__escHtml(group.count_label) + '</span>' : '';
+        var count = group.count_label
+            ? '<span class="naTvgb__StoreyBlock__Count">' + na__tvgb__escHtml(group.count_label) + '</span>'
+            : '';
 
         return '<details class="naTvgb__StoreyBlock" open>'
             + '<summary class="naTvgb__StoreyBlock__Heading">'
+            + '<input type="checkbox" class="naTvgb__StoreyBlock__Toggle"'
+            + ' data-na-group-index="' + groupIndex + '"'
+            + (allOn ? ' checked' : '')
+            + (someOn ? ' data-na-indeterminate="1"' : '')
+            + ' onclick="event.stopPropagation(); Na__Tvgb__ToggleGroup(' + groupIndex + ', this.checked);">'
             + '<span class="naTvgb__StoreyBlock__HeadingText">' + icon + na__tvgb__escHtml(group.label) + '</span>'
             + count
             + '</summary>'
@@ -342,8 +456,15 @@
     function na__tvgb__fileRowHtml(row) {
         if (!row) { return ''; }
 
-        return '<div class="naTvgb__FileRow">'
-            + '<span class="naTvgb__FileRow__Name">'  + na__tvgb__escHtml(row.name || '') + '</span>'
+        var name = String(row.name || '');
+        var on   = row.selected !== false;          // <-- Absent means selected
+
+        return '<div class="naTvgb__FileRow' + (on ? '' : ' naTvgb__FileRow--off') + '">'
+            + '<input type="checkbox" class="naTvgb__FileRow__Toggle"' + (on ? ' checked' : '')
+            + ' title="Export this file"'
+            + ' onchange="Na__Tvgb__ToggleFile(\'' + na__tvgb__escAttr(name) + '\', this.checked);">'
+            + '<span class="naTvgb__FileRow__Name">'  + na__tvgb__escHtml(name) + '</span>'
+            + '<span class="naTvgb__SelectBar__Spacer"></span>'
             + '<span class="naTvgb__FileRow__Count">' + na__tvgb__escHtml(row.meta || '') + '</span>'
             + '</div>';
     }
@@ -440,7 +561,11 @@
     // site plan tags keeps that card greyed out, with the reason on hover.
     // ------------------------------------------------------------
     function na__tvgb__applyButtonLockState() {
-        var running = naTvgbState.isRunning;        // <-- A run locks everything, on top of the capability rules
+        var running = naTvgbState.isRunning;
+        var r2Fetch = document.getElementById('naTvgbR2Fetch');
+        if (r2Fetch) { r2Fetch.disabled = running || !naTvgbProject.linked; }
+        if (window.Na__Tvgb__LockR2) { window.Na__Tvgb__LockR2(running || !naTvgbProject.linked); }
+                // <-- A run locks everything, on top of the capability rules
 
         na__tvgb__setActionButtonsDisabled(running);                        // <-- Baseline for every action card
 
@@ -474,6 +599,10 @@
         // leave Unlink or Duplicate clickable underneath it.
         na__tvgb__lockButton('naTvgbUnlinkBtn',    running || noProject);
         na__tvgb__lockButton('naTvgbDuplicateBtn', running || noProject || !naTvgbProject.selectedFolder);
+
+        // Danger Zone: driven by its own folder picker, not the scheme list
+        var dangerFolder = na__tvgb__readValue('naTvgbDangerFolderSelect');
+        na__tvgb__lockButton('naTvgbDeleteBtn', running || noProject || !dangerFolder);
 
         na__tvgb__updateProjectCardDescription();
     }
@@ -520,10 +649,18 @@
         selectedFolder : '',      // <-- scheme row the user has highlighted
         phases         : [],      // <-- canonical phase catalogue from Ruby
         folders        : [],      // <-- folders that exist on disk
+        structure      : [],      // <-- folder tree rows for the structure panel
         portalFound    : false
     };
 
     var NA_TVGB_PROJECT_CODE_PATTERN = /^[A-Z]{2}[0-9]{2}$/;
+
+    // Last manifest Ruby pushed, so a group toggle knows which files it owns
+    var naTvgbManifestGroups = [];
+
+    // Actions that create, copy or remove folders. Each has its own confirmation
+    // function; the generic RunProjectAction path refuses them outright.
+    var NA_TVGB_CONFIRMED_ACTIONS = ['create_scheme', 'duplicate_scheme', 'delete_scheme', 'purge_r2'];
 
     // endregion -------------------------------------------------------------------
 
@@ -640,9 +777,19 @@
     // REGION | Generic Confirmation Modal
     // -----------------------------------------------------------------------------
 
-    var naTvgbPendingConfirm = null;   // <-- function run when the user accepts
+    var naTvgbPendingConfirm   = null;   // <-- function run when the user accepts
+    var naTvgbPendingSecondary = null;   // <-- function run for the modal's second choice
+
+    var naTvgbConfirmTypeTarget = '';   // <-- when set, the user must type this exactly
 
     // FUNCTION | Ask The User To Confirm, Then Run The Supplied Action
+    // ------------------------------------------------------------
+    // options:
+    //   title, text, detail        - the wording
+    //   acceptLabel, danger        - the accept button
+    //   structure                  - true to show the live project tree
+    //   affectedFolder             - folder highlighted red in that tree
+    //   typeToConfirm              - string the user must type out before accepting
     // ------------------------------------------------------------
     function na__tvgb__showConfirm(options, onAccept) {
         var modal = document.getElementById('naTvgbConfirmModal');
@@ -657,25 +804,132 @@
             detailEl.hidden      = !options.detail;
         }
 
+        // Project structure, with the affected folder flagged
+        var structWrap = document.getElementById('naTvgbConfirmStructureWrap');
+        if (structWrap) {
+            if (options.structure) {
+                na__tvgb__renderTree('naTvgbConfirmStructure', naTvgbProject.structure, options.affectedFolder);
+                structWrap.hidden = false;
+            } else {
+                structWrap.hidden = true;
+            }
+        }
+
+        // Type-to-confirm
+        naTvgbConfirmTypeTarget = options.typeToConfirm || '';
+        var typeWrap  = document.getElementById('naTvgbConfirmTypeWrap');
+        var typeInput = document.getElementById('naTvgbConfirmTypeInput');
+        if (typeWrap) {
+            typeWrap.hidden = !naTvgbConfirmTypeTarget;
+            if (naTvgbConfirmTypeTarget) {
+                na__tvgb__setText2('naTvgbConfirmTypePrompt', 'Type ' + naTvgbConfirmTypeTarget + ' to confirm:');
+                if (typeInput) { typeInput.value = ''; }
+            }
+        }
+
         var acceptBtn = document.getElementById('naTvgbConfirmAccept');
         if (acceptBtn) {
             acceptBtn.textContent = options.acceptLabel || 'Continue';
-            acceptBtn.className   = 'naTvgb__Btn ' + (options.danger === false ? 'naTvgb__Btn--primary' : 'naTvgb__Btn--danger');
+            acceptBtn.className   = 'naTvgb__Btn ' + na__tvgb__btnVariant(options.acceptVariant, options.danger);
+            acceptBtn.disabled    = !!naTvgbConfirmTypeTarget;   // <-- Unlocked once the name matches
+        }
+
+        // Optional second action, for a modal offering two real choices
+        var secondaryBtn = document.getElementById('naTvgbConfirmSecondary');
+        naTvgbPendingSecondary = options.onSecondary || null;
+        if (secondaryBtn) {
+            if (options.secondaryLabel && naTvgbPendingSecondary) {
+                secondaryBtn.textContent = options.secondaryLabel;
+                secondaryBtn.className   = 'naTvgb__Btn ' + na__tvgb__btnVariant(options.secondaryVariant, true);
+                secondaryBtn.disabled    = !!naTvgbConfirmTypeTarget;
+                secondaryBtn.hidden      = false;
+            } else {
+                secondaryBtn.hidden = true;
+            }
         }
 
         naTvgbPendingConfirm = onAccept;
         modal.hidden = false;
+
+        if (naTvgbConfirmTypeTarget && typeInput) { typeInput.focus(); }
+    }
+
+    function na__tvgb__btnVariant(variant, danger) {
+        if (variant === 'success') { return 'naTvgb__Btn--success'; }
+        if (variant === 'primary') { return 'naTvgb__Btn--primary'; }
+        if (variant === 'danger')  { return 'naTvgb__Btn--danger';  }
+        return danger === false ? 'naTvgb__Btn--primary' : 'naTvgb__Btn--danger';
+    }
+
+    // FUNCTION | Run The Modal's Second Action
+    // ------------------------------------------------------------
+    function Na__Tvgb__AcceptConfirmSecondary() {
+        if (naTvgbConfirmTypeTarget) {
+            var input = document.getElementById('naTvgbConfirmTypeInput');
+            if (!input || !na__tvgb__confirmTypingMatches(input.value)) { return; }
+        }
+
+        var action = naTvgbPendingSecondary;
+        na__tvgb__hideElement('naTvgbConfirmModal');
+        naTvgbPendingConfirm    = null;
+        naTvgbPendingSecondary  = null;
+        naTvgbConfirmTypeTarget = '';
+
+        if (typeof action === 'function') { action(); }
+    }
+
+    // FUNCTION | Unlock The Accept Button Only On An Exact Match
+    // ------------------------------------------------------------
+    function Na__Tvgb__HandleConfirmTyping() {
+        var input     = document.getElementById('naTvgbConfirmTypeInput');
+        var accept    = document.getElementById('naTvgbConfirmAccept');
+        var secondary = document.getElementById('naTvgbConfirmSecondary');
+        if (!input || !accept || !naTvgbConfirmTypeTarget) { return; }
+
+        var matched = na__tvgb__confirmTypingMatches(input.value);
+        accept.disabled = !matched;
+        if (secondary && !secondary.hidden) { secondary.disabled = !matched; }
+    }
+
+    // HELPER FUNCTION | Compare The Typed Confirmation
+    // ------------------------------------------------------------
+    // Case-insensitive: the target is usually a project code, and being made to
+    // match the capitals of RB05 adds nothing to the deliberation.
+    // ------------------------------------------------------------
+    function na__tvgb__confirmTypingMatches(value) {
+        if (!naTvgbConfirmTypeTarget) { return true; }
+
+        return String(value || '').trim().toUpperCase() === naTvgbConfirmTypeTarget.toUpperCase();
+    }
+
+    function Na__Tvgb__HandleConfirmTypingKeydown(event) {
+        if (!event) { return; }
+        if (event.key === 'Escape') { Na__Tvgb__CloseConfirmModal(); return; }
+
+        var accept = document.getElementById('naTvgbConfirmAccept');
+        if (event.key === 'Enter' && accept && !accept.disabled) { Na__Tvgb__AcceptConfirmModal(); }
     }
 
     function Na__Tvgb__CloseConfirmModal() {
         na__tvgb__hideElement('naTvgbConfirmModal');
-        naTvgbPendingConfirm = null;
+        naTvgbPendingConfirm    = null;
+        naTvgbPendingSecondary  = null;
+        naTvgbConfirmTypeTarget = '';
     }
 
     function Na__Tvgb__AcceptConfirmModal() {
+        // Belt and braces: never act on a type-to-confirm that does not match,
+        // whatever state the button happens to be in.
+        if (naTvgbConfirmTypeTarget) {
+            var input = document.getElementById('naTvgbConfirmTypeInput');
+            if (!input || !na__tvgb__confirmTypingMatches(input.value)) { return; }
+        }
+
         var action = naTvgbPendingConfirm;
         na__tvgb__hideElement('naTvgbConfirmModal');
-        naTvgbPendingConfirm = null;
+        naTvgbPendingConfirm    = null;
+        naTvgbPendingSecondary  = null;
+        naTvgbConfirmTypeTarget = '';
 
         if (typeof action === 'function') { action(); }
     }
@@ -712,18 +966,19 @@
             return;
         }
 
-        var params = {
-            phaseId:        na__tvgb__selectedPhaseId(),
-            selectedFolder: naTvgbProject.selectedFolder,
-            portalRoot:     na__tvgb__readValue('naTvgbPortalInput')
-        };
-
-        if (actionId === 'duplicate_scheme' && !naTvgbProject.selectedFolder) {
-            na__tvgb__setStatus('Select the scheme you want to duplicate first.', 'warning');
+        // Anything that writes or removes folders must go through its own
+        // confirmation function. This generic path must never reach them, so a
+        // future wiring mistake cannot resurrect the unguarded Duplicate.
+        if (NA_TVGB_CONFIRMED_ACTIONS.indexOf(actionId) !== -1) {
+            na__tvgb__setStatus('That action needs confirming - use its own button.', 'warning');
             return;
         }
 
-        na__tvgb__dispatch(actionId, params);
+        na__tvgb__dispatch(actionId, {
+            phaseId:        na__tvgb__selectedPhaseId(),
+            selectedFolder: naTvgbProject.selectedFolder,
+            portalRoot:     na__tvgb__readValue('naTvgbPortalInput')
+        });
     }
 
     // FUNCTION | Highlight A Scheme Folder And Make It The Export Target
@@ -733,6 +988,143 @@
         na__tvgb__renderSchemeList();
 
         na__tvgb__dispatch('set_target_folder', { targetFolder: naTvgbProject.selectedFolder });
+    }
+
+    // FUNCTION | Confirm Before Creating A New Design Phase Folder
+    // ------------------------------------------------------------
+    // Creating a folder is not destructive, but it does add a model group that
+    // the next push publishes to R2, so it is worth a look before it happens.
+    // ------------------------------------------------------------
+    function Na__Tvgb__ConfirmCreateScheme() {
+        if (!naTvgbProject.linked) {
+            na__tvgb__setStatus('Link this model to a project first.', 'warning');
+            return;
+        }
+
+        var phase = na__tvgb__selectedPhase();
+        if (!phase) {
+            na__tvgb__setStatus('Choose which design phase to create.', 'warning');
+            return;
+        }
+
+        na__tvgb__showConfirm({
+            title:         'Create ' + phase.next_folder_name + '?',
+            text:          'A new, empty ' + phase.label + ' folder will be created in the project portal and '
+                           + 'become this model’s export target. It is published to TrueVision and Cloudflare R2 '
+                           + 'on the next push.',
+            detail:        phase.next_folder_name,
+            structure:     true,
+            acceptLabel:   'Create Folder',
+            danger:        false
+        }, function() {
+            na__tvgb__dispatch('create_scheme', { phaseId: phase.phase_id });
+        });
+    }
+
+    // FUNCTION | Confirm Before Duplicating A Scheme
+    // ------------------------------------------------------------
+    // This one copies every GLB in the source folder. Done by accident it
+    // silently doubles the project, so it names the file count and the
+    // destination, and shows the whole structure.
+    // ------------------------------------------------------------
+    function Na__Tvgb__ConfirmDuplicateScheme() {
+        if (!naTvgbProject.linked) {
+            na__tvgb__setStatus('Link this model to a project first.', 'warning');
+            return;
+        }
+
+        var source = na__tvgb__folderByName(naTvgbProject.selectedFolder);
+        if (!source) {
+            na__tvgb__setStatus('Select the scheme you want to duplicate first.', 'warning');
+            return;
+        }
+
+        var phase = na__tvgb__phaseById(source.phase_id);
+        var into  = phase ? phase.next_folder_name : '(the next scheme)';
+
+        na__tvgb__showConfirm({
+            title:          'Duplicate this scheme?',
+            text:           'This copies all ' + source.glb_count + ' GLB file(s) from '
+                            + source.folder_name + ' into a new folder, ' + into + '. '
+                            + 'That becomes a second model group in TrueVision, and the next push uploads every '
+                            + 'copied file to Cloudflare R2.',
+            detail:         source.folder_name + '  →  ' + into,
+            structure:      true,
+            affectedFolder: source.folder_name,
+            acceptLabel:    'Duplicate ' + source.glb_count + ' Files'
+        }, function() {
+            na__tvgb__dispatch('duplicate_scheme', { selectedFolder: source.folder_name });
+        });
+    }
+
+    // FUNCTION | Confirm Before Deleting A Design Phase Folder
+    // ------------------------------------------------------------
+    // The folder name must be typed out in full. Ruby re-checks the typed value
+    // before it removes anything.
+    // ------------------------------------------------------------
+    function Na__Tvgb__ConfirmDeleteScheme() {
+        if (!naTvgbProject.linked) {
+            na__tvgb__setStatus('Link this model to a project first.', 'warning');
+            return;
+        }
+
+        var folderName = na__tvgb__readValue('naTvgbDangerFolderSelect');
+        var folder     = na__tvgb__folderByName(folderName);
+        if (!folder) {
+            na__tvgb__setStatus('Choose the folder you want to delete.', 'warning');
+            return;
+        }
+
+        var permanentEl = document.getElementById('naTvgbDangerPermanent');
+        var permanent   = !!(permanentEl && permanentEl.checked);
+
+        var text = permanent
+            ? 'This permanently deletes ' + folder.folder_name + ' and all ' + folder.glb_count
+              + ' GLB file(s) in it. There is no undo.'
+            : 'This moves ' + folder.folder_name + ' and its ' + folder.glb_count
+              + ' GLB file(s) into 00__Archive. The scheme disappears from TrueVision, and the files stay '
+              + 'recoverable on disk.';
+
+        na__tvgb__showConfirm({
+            title:          permanent ? 'Permanently delete this folder?' : 'Delete this folder?',
+            text:           text + ' Files already pushed to Cloudflare R2 are NOT removed by this.',
+            detail:         folder.folder_name,
+            structure:      true,
+            affectedFolder: folder.folder_name,
+            typeToConfirm:  naTvgbProject.code,
+            acceptLabel:    permanent ? 'Delete Permanently' : 'Delete Folder'
+        }, function() {
+            na__tvgb__dispatch('delete_scheme', {
+                targetFolder:      folder.folder_name,
+                typedConfirmation: naTvgbProject.code,
+                permanent:         permanent
+            });
+        });
+    }
+
+
+    // FUNCTION | Keep The Scheme List In Step With The Danger Zone Picker
+    // ------------------------------------------------------------
+    function Na__Tvgb__HandleDangerFolderChange() {
+        na__tvgb__applyButtonLockState();
+    }
+
+    function na__tvgb__folderByName(name) {
+        for (var i = 0; i < naTvgbProject.folders.length; i += 1) {
+            if (naTvgbProject.folders[i].folder_name === name) { return naTvgbProject.folders[i]; }
+        }
+        return null;
+    }
+
+    function na__tvgb__phaseById(phaseId) {
+        for (var i = 0; i < naTvgbProject.phases.length; i += 1) {
+            if (naTvgbProject.phases[i].phase_id === phaseId) { return naTvgbProject.phases[i]; }
+        }
+        return null;
+    }
+
+    function na__tvgb__selectedPhase() {
+        return na__tvgb__phaseById(na__tvgb__selectedPhaseId());
     }
 
     function Na__Tvgb__ConfirmUnlinkProject() {
@@ -751,6 +1143,9 @@
     }
 
     function na__tvgb__dispatch(actionId, params) {
+        if (actionId === 'fetch_r2' || actionId === 'push_to_cloud' || actionId === 'export_and_sync' || actionId === 'link_project' || actionId === 'unlink_project') {
+            if (window.Na__Tvgb__ReceiveR2) { window.Na__Tvgb__ReceiveR2({success: false, message: 'Refresh R2 after this operation.'}); }
+        }
         naTvgbState.isRunning = true;
         na__tvgb__applyButtonLockState();
         na__tvgb__setStatus('Running: ' + String(actionId).split('_').join(' ') + '...', 'info');
@@ -787,17 +1182,21 @@
         naTvgbProject.code           = status.project_code || '';
         naTvgbProject.targetFolder   = status.target_folder || '';
         naTvgbProject.targetGlbCount = Number(status.target_glb_count || 0);
-        naTvgbProject.phases         = Array.isArray(status.phases)  ? status.phases  : [];
-        naTvgbProject.folders        = Array.isArray(status.folders) ? status.folders : [];
+        naTvgbProject.phases         = Array.isArray(status.phases)    ? status.phases    : [];
+        naTvgbProject.folders        = Array.isArray(status.folders)   ? status.folders   : [];
+        naTvgbProject.structure      = Array.isArray(status.structure) ? status.structure : [];
         naTvgbProject.portalFound    = !!status.portal_found;
 
         if (!naTvgbProject.selectedFolder || !na__tvgb__folderExists(naTvgbProject.selectedFolder)) {
             naTvgbProject.selectedFolder = naTvgbProject.targetFolder;
         }
 
+
         na__tvgb__renderProjectCard(status);
         na__tvgb__renderPhaseSelect();
         na__tvgb__renderSchemeList();
+        na__tvgb__renderTree('naTvgbStructureTree', naTvgbProject.structure, null);
+        na__tvgb__renderDangerFolderSelect();
         na__tvgb__applyButtonLockState();
 
         if (status.should_prompt) {
@@ -900,6 +1299,95 @@
         return String(raw).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     }
 
+    // FUNCTION | Fill The Danger Zone's Own Folder Picker
+    // ------------------------------------------------------------
+    // The Danger Zone stands on its own: it picks its own folder rather than
+    // borrowing whatever happens to be highlighted in the scheme list above,
+    // so nothing destructive depends on a selection made elsewhere.
+    // ------------------------------------------------------------
+    function na__tvgb__renderDangerFolderSelect() {
+        var select = document.getElementById('naTvgbDangerFolderSelect');
+        if (!select) { return; }
+
+        var previous = select.value;
+
+        if (naTvgbProject.folders.length === 0) {
+            select.innerHTML = '<option value="">No design phase folders</option>';
+            return;
+        }
+
+        select.innerHTML = naTvgbProject.folders.map(function(folder) {
+            var label = folder.folder_name + '  (' + folder.glb_count + ' GLB'
+                      + (folder.glb_count === 1 ? '' : 's') + ')';
+            return '<option value="' + na__tvgb__escHtml(folder.folder_name) + '">'
+                 + na__tvgb__escHtml(label) + '</option>';
+        }).join('');
+
+        // Keep the previous choice when it still exists, otherwise fall back to
+        // the model's export target rather than silently aiming at folder one.
+        if (previous && na__tvgb__folderByName(previous)) {
+            select.value = previous;
+        } else if (naTvgbProject.targetFolder && na__tvgb__folderByName(naTvgbProject.targetFolder)) {
+            select.value = naTvgbProject.targetFolder;
+        }
+    }
+
+
+    // FUNCTION | Render The Project Folder Tree
+    // ------------------------------------------------------------
+    // `affectedFolder` paints one row red: the folder the pending action is
+    // about to change. The model's export target is painted blue.
+    // ------------------------------------------------------------
+    function na__tvgb__renderTree(elementId, rows, affectedFolder) {
+        var el = document.getElementById(elementId);
+        if (!el) { return; }
+
+        if (!Array.isArray(rows) || rows.length === 0) {
+            el.innerHTML = '<div class="naTvgb__Tree__Row"><span class="naTvgb__Tree__Meta">'
+                + (naTvgbProject.linked ? 'No folders found on disk.' : 'Link a project to read its structure.')
+                + '</span></div>';
+            return;
+        }
+
+        el.innerHTML = rows.map(function(row, index) {
+            // An explicit affected folder overrides whatever marker Ruby sent
+            var marker = row.marker || '';
+            if (affectedFolder && row.label === affectedFolder) { marker = 'affected'; }
+            else if (affectedFolder && marker === 'affected')   { marker = ''; }
+
+            var isLast  = na__tvgb__isLastAtDepth(rows, index);
+            var indent  = na__tvgb__treeIndent(row.depth, isLast);
+            var tag     = '';
+            if (marker === 'target')   { tag = '<span class="naTvgb__Tree__Tag naTvgb__Tree__Tag--target">Target</span>'; }
+            if (marker === 'affected') { tag = '<span class="naTvgb__Tree__Tag naTvgb__Tree__Tag--affected">Affected</span>'; }
+
+            var cls = 'naTvgb__Tree__Row naTvgb__Tree__Row--' + na__tvgb__escHtml(row.kind || 'phase');
+            if (marker) { cls += ' naTvgb__Tree__Row--' + marker; }
+
+            return '<div class="' + cls + '">'
+                + '<span class="naTvgb__Tree__Label">' + indent + na__tvgb__escHtml(row.label || '') + '</span>'
+                + (row.meta ? '<span class="naTvgb__Tree__Meta">' + na__tvgb__escHtml(row.meta) + '</span>' : '')
+                + tag
+                + '</div>';
+        }).join('');
+    }
+
+    function na__tvgb__isLastAtDepth(rows, index) {
+        var depth = rows[index].depth;
+        for (var i = index + 1; i < rows.length; i += 1) {
+            if (rows[i].depth < depth)  { return true; }
+            if (rows[i].depth === depth) { return false; }
+        }
+        return true;
+    }
+
+    function na__tvgb__treeIndent(depth, isLast) {
+        var d = Number(depth || 0);
+        if (d === 0) { return ''; }
+
+        return new Array(d).join('  ') + (isLast ? '└─ ' : '├─ ');
+    }
+
     // endregion -------------------------------------------------------------------
 
 
@@ -923,6 +1411,15 @@
     window.Na__Tvgb__HandleLogoError          = Na__Tvgb__HandleLogoError;
     window.Na__Tvgb__ReceiveReport            = Na__Tvgb__ReceiveReport;
     window.Na__Tvgb__ReceiveModelStatus       = Na__Tvgb__ReceiveModelStatus;
+    // Small public surface for the cloud-inventory module, which is its own
+    // IIFE at the end of this file and cannot see these private helpers.
+    window.Na__Tvgb__Confirm     = na__tvgb__showConfirm;
+    window.Na__Tvgb__SetStatus   = na__tvgb__setStatus;
+    window.Na__Tvgb__ProjectCode = function () { return naTvgbProject.code; };
+
+    window.Na__Tvgb__ToggleFile               = Na__Tvgb__ToggleFile;
+    window.Na__Tvgb__ToggleGroup              = Na__Tvgb__ToggleGroup;
+    window.Na__Tvgb__SetAllFilesSelected      = Na__Tvgb__SetAllFilesSelected;
 
     window.Na__Tvgb__OpenProjectLinkModal     = Na__Tvgb__OpenProjectLinkModal;
     window.Na__Tvgb__DismissProjectModal      = Na__Tvgb__DismissProjectModal;
@@ -934,6 +1431,13 @@
     window.Na__Tvgb__ConfirmUnlinkProject     = Na__Tvgb__ConfirmUnlinkProject;
     window.Na__Tvgb__CloseConfirmModal        = Na__Tvgb__CloseConfirmModal;
     window.Na__Tvgb__AcceptConfirmModal       = Na__Tvgb__AcceptConfirmModal;
+    window.Na__Tvgb__AcceptConfirmSecondary   = Na__Tvgb__AcceptConfirmSecondary;
+    window.Na__Tvgb__ConfirmCreateScheme      = Na__Tvgb__ConfirmCreateScheme;
+    window.Na__Tvgb__ConfirmDuplicateScheme   = Na__Tvgb__ConfirmDuplicateScheme;
+    window.Na__Tvgb__ConfirmDeleteScheme      = Na__Tvgb__ConfirmDeleteScheme;
+    window.Na__Tvgb__HandleDangerFolderChange = Na__Tvgb__HandleDangerFolderChange;
+    window.Na__Tvgb__HandleConfirmTyping      = Na__Tvgb__HandleConfirmTyping;
+    window.Na__Tvgb__HandleConfirmTypingKeydown = Na__Tvgb__HandleConfirmTypingKeydown;
     window.Na__Tvgb__ReceiveProjectStatus     = Na__Tvgb__ReceiveProjectStatus;
     window.Na__Tvgb__ReceiveProjectLinkResult = Na__Tvgb__ReceiveProjectLinkResult;
 
@@ -944,3 +1448,82 @@
     // END OF FILE
     // =============================================================================
 })();
+
+// Cloud inventory uses textContent so remote object names cannot inject markup.
+(function () {
+    var inventory = null;
+    window.Na__Tvgb__LockR2 = function (locked) {
+        var folder = document.getElementById('naTvgbR2Folders').value;
+        document.getElementById('naTvgbR2Folders').disabled = locked;
+        document.getElementById('naTvgbR2Purge').disabled = locked || !inventory || !inventory.folders[folder] || !inventory.folders[folder].length;
+    };
+    window.Na__Tvgb__ReceiveR2 = function (report) {
+        inventory = report.success && report.folders ? report : null;
+        var select = document.getElementById('naTvgbR2Folders');
+        select.textContent = '';
+        if (inventory) {
+            Object.keys(inventory.folders).sort().forEach(function (folder) {
+                var option = document.createElement('option');
+                option.value = folder;
+                option.textContent = folder + ' (' + inventory.folders[folder].length + ' GLBs)';
+                select.appendChild(option);
+            });
+            window.Na__Tvgb__ReviewR2();
+        } else {
+            document.getElementById('naTvgbR2Report').textContent = report.message +
+                (report.errors ? '\n' + report.errors.join('\n') : '') + (report.log_path ? '\nReport: ' + report.log_path : '') + '\nFetch R2 again before another purge.';
+            document.getElementById('naTvgbR2Purge').disabled = true;
+        }
+    };
+    window.Na__Tvgb__ReviewR2 = function () {
+        var folder = document.getElementById('naTvgbR2Folders').value;
+        var objects = inventory && inventory.folders[folder];
+        document.getElementById('naTvgbR2Purge').disabled = !objects || !objects.length;
+        document.getElementById('naTvgbR2Report').textContent = objects ?
+            'Bucket: ' + inventory.bucket + '\nPrefix: ' + inventory.prefix + folder + '/\n' +
+            objects.length + ' GLBs · ' + objects.reduce(function (sum, obj) { return sum + obj.size; }, 0) + ' bytes\n\n' +
+            objects.map(function (obj) { return obj.key + ' (' + obj.size + ' bytes)'; }).join('\n') : 'No design phase GLBs found in R2.';
+    };
+    // FUNCTION | Confirm Before Purging One Folder From R2
+    // ------------------------------------------------------------
+    // Uses the dialog's own confirmation modal, and asks for the project code
+    // rather than the folder name: the folder is chosen from a list and named
+    // in the modal, so re-typing forty characters added nothing but keystrokes.
+    // ------------------------------------------------------------
+    window.Na__Tvgb__ConfirmPurgeR2Folder = function () {
+        var folder  = document.getElementById('naTvgbR2Folders').value;
+        var objects = inventory && inventory.folders[folder];
+
+        if (!inventory || !objects || !objects.length) {
+            window.Na__Tvgb__SetStatus('Fetch R2 and pick a folder that actually holds GLBs.', 'warning');
+            return;
+        }
+
+        var projectCode = window.Na__Tvgb__ProjectCode();
+        var bytes       = objects.reduce(function (sum, obj) { return sum + obj.size; }, 0);
+
+        window.Na__Tvgb__Confirm({
+            title:         'Purge this folder from Cloudflare R2?',
+            text:          'This permanently deletes the ' + objects.length + ' GLB file(s) R2 holds for '
+                           + folder + ' (' + na__tvgb__formatBytes(bytes) + '). There is no undo. Local files '
+                           + 'and every other scheme are untouched, so a push afterwards re-uploads whatever '
+                           + 'is still on disk.',
+            detail:        inventory.bucket + '/' + inventory.prefix + folder + '/',
+            typeToConfirm: projectCode,
+            acceptLabel:   'Purge ' + objects.length + ' Files'
+        }, function () {
+            document.getElementById('naTvgbR2Purge').disabled = true;
+            window.sketchup.na_tvgb_run_action('purge_r2_folder', JSON.stringify({
+                cloudFolder:       folder,
+                typedConfirmation: projectCode
+            }));
+        });
+    };
+
+    function na__tvgb__formatBytes(bytes) {
+        var mb = Number(bytes || 0) / 1048576;
+        if (mb >= 1) { return mb.toFixed(1) + ' MB'; }
+
+        return Math.max(1, Math.round(Number(bytes || 0) / 1024)) + ' KB';
+    }
+}());

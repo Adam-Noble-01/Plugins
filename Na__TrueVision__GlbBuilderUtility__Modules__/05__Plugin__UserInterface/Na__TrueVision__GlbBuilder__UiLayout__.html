@@ -214,6 +214,19 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                         <h3 class="naTvgb__Manifest__Title">Files To Be Exported</h3>
                         <span class="naTvgb__Manifest__Count" id="naTvgbManifestCount">&mdash;</span>
                     </div>
+
+                    <!-- Per-file toggles: which models this export writes. Saved
+                         into the model, so a model keeps its choices. -->
+                    <div class="naTvgb__SelectBar">
+                        <span class="naTvgb__SelectBar__Label">Selection</span>
+                        <button type="button" class="naTvgb__MiniBtn" id="naTvgbEnableAllBtn"
+                                onclick="Na__Tvgb__SetAllFilesSelected(true)">Enable All</button>
+                        <button type="button" class="naTvgb__MiniBtn" id="naTvgbDisableAllBtn"
+                                onclick="Na__Tvgb__SetAllFilesSelected(false)">Disable All</button>
+                        <span class="naTvgb__SelectBar__Spacer"></span>
+                        <span class="naTvgb__SelectBar__Count" id="naTvgbSelectionCount">&mdash;</span>
+                    </div>
+
                     <div class="naTvgb__Manifest__Body" id="naTvgbManifestBody"></div>
                 </div>
 
@@ -281,10 +294,20 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
 
                     <div class="naTvgb__ButtonRow">
                         <button type="button" class="naTvgb__Btn naTvgb__Btn--primary"
-                                onclick="Na__Tvgb__RunProjectAction('create_scheme')">Create Folder</button>
+                                onclick="Na__Tvgb__ConfirmCreateScheme()">Create Folder</button>
                         <button type="button" class="naTvgb__Btn" id="naTvgbDuplicateBtn"
-                                onclick="Na__Tvgb__RunProjectAction('duplicate_scheme')">Duplicate Selected</button>
+                                onclick="Na__Tvgb__ConfirmDuplicateScheme()">Duplicate Selected</button>
                     </div>
+                </div>
+
+                <!-- Live project structure -->
+                <div class="naTvgb__SettingsGroup">
+                    <h3 class="naTvgb__SettingsGroup__Title">Project Structure</h3>
+                    <p class="naTvgb__SettingsGroup__Desc">
+                        What is on disk right now, under the project's TrueVision content folder. This is
+                        what the build reads. Fetch R2 below to see the actual cloud contents.
+                    </p>
+                    <div class="naTvgb__Tree" id="naTvgbStructureTree"></div>
                 </div>
 
                 <!-- Cloud sync -->
@@ -343,6 +366,73 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                                 onclick="Na__Tvgb__RunProjectAction('save_portal_root')">Save Portal Root</button>
                     </div>
                 </div>
+
+                <!-- Danger zone -->
+                <details class="naTvgb__DangerZone">
+                    <summary class="naTvgb__DangerZone__Heading">Danger Zone</summary>
+                    <div class="naTvgb__DangerZone__Body">
+
+                        <!-- ---------------------------------------------- -->
+                        <!-- Delete a design phase folder (local)           -->
+                        <!-- ---------------------------------------------- -->
+                        <h4 class="naTvgb__DangerZone__Title">Delete A Design Phase Folder</h4>
+                        <p class="naTvgb__DangerZone__Desc">
+                            By default the folder is moved into <code>00__Archive</code>, which the build
+                            skips &mdash; the scheme disappears from TrueVision but the files stay
+                            recoverable on disk. <strong>This never removes anything from Cloudflare R2.</strong>
+                        </p>
+
+                        <div class="naTvgb__FieldRow">
+                            <label class="naTvgb__FieldRow__Label" for="naTvgbDangerFolderSelect">Folder</label>
+                            <select id="naTvgbDangerFolderSelect" class="naTvgb__Select"
+                                    onchange="Na__Tvgb__HandleDangerFolderChange()"></select>
+                        </div>
+
+                        <label class="naTvgb__CheckRow">
+                            <input type="checkbox" id="naTvgbDangerPermanent">
+                            <span>Permanently delete instead of archiving. This cannot be undone.</span>
+                        </label>
+
+                        <div class="naTvgb__ButtonRow">
+                            <button type="button" class="naTvgb__Btn naTvgb__Btn--danger"
+                                    id="naTvgbDeleteBtn"
+                                    onclick="Na__Tvgb__ConfirmDeleteScheme()">Delete Folder</button>
+                        </div>
+
+                        <hr class="naTvgb__DangerZone__Rule">
+
+                        <!-- ---------------------------------------------- -->
+                        <!-- Purge this project's GLBs from Cloudflare R2   -->
+                        <!-- ---------------------------------------------- -->
+                        <h4 class="naTvgb__DangerZone__Title">Purge A Folder From Cloudflare R2</h4>
+                        <p class="naTvgb__DangerZone__Desc">
+                            Fetch the cloud inventory, then pick a design phase to review what R2 actually
+                            holds for it. Purging removes <strong>only that folder's</strong> cloud GLBs
+                            &mdash; local files and every other scheme stay intact, and a later push uploads
+                            whatever is still on disk.
+                        </p>
+
+                        <div class="naTvgb__ButtonRow">
+                            <button type="button" class="naTvgb__Btn" id="naTvgbR2Fetch"
+                                    onclick="Na__Tvgb__RunProjectAction('fetch_r2')">Fetch R2 Folders</button>
+                        </div>
+
+                        <div class="naTvgb__FieldRow">
+                            <label class="naTvgb__FieldRow__Label" for="naTvgbR2Folders">Cloud Folder</label>
+                            <select class="naTvgb__Select" id="naTvgbR2Folders"
+                                    onchange="Na__Tvgb__ReviewR2()" aria-label="Cloud folder"></select>
+                        </div>
+
+                        <div class="naTvgb__Tree" id="naTvgbR2Report">Fetch R2 to see the actual cloud contents.</div>
+
+                        <div class="naTvgb__ButtonRow">
+                            <button type="button" class="naTvgb__Btn naTvgb__Btn--danger"
+                                    id="naTvgbR2Purge" disabled
+                                    onclick="Na__Tvgb__ConfirmPurgeR2Folder()">Purge This Folder's R2 GLBs</button>
+                        </div>
+
+                    </div>
+                </details>
 
             </section>
 
@@ -511,10 +601,33 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
             <div class="naTvgb__Modal__Body">
                 <p class="naTvgb__Modal__Text" id="naTvgbConfirmText"></p>
                 <div class="naTvgb__Modal__Detail" id="naTvgbConfirmDetail" hidden></div>
+
+                <!-- Project structure, so the action is read in context -->
+                <div id="naTvgbConfirmStructureWrap" hidden>
+                    <p class="naTvgb__Modal__Text"><strong>Project structure</strong></p>
+                    <div class="naTvgb__Tree" id="naTvgbConfirmStructure"></div>
+                </div>
+
+                <!-- Type-to-confirm, for deletions -->
+                <div id="naTvgbConfirmTypeWrap" hidden>
+                    <p class="naTvgb__Modal__Text" id="naTvgbConfirmTypePrompt"></p>
+                    <input type="text"
+                           id="naTvgbConfirmTypeInput"
+                           class="naTvgb__TextInput"
+                           style="width:100%;"
+                           autocomplete="off"
+                           spellcheck="false"
+                           oninput="Na__Tvgb__HandleConfirmTyping()"
+                           onkeydown="Na__Tvgb__HandleConfirmTypingKeydown(event)">
+                </div>
             </div>
             <div class="naTvgb__Modal__Footer">
                 <button type="button" class="naTvgb__Btn"
                         onclick="Na__Tvgb__CloseConfirmModal()">Cancel</button>
+                <button type="button" class="naTvgb__Btn naTvgb__Btn--danger"
+                        id="naTvgbConfirmSecondary"
+                        onclick="Na__Tvgb__AcceptConfirmSecondary()"
+                        hidden>Secondary</button>
                 <button type="button" class="naTvgb__Btn naTvgb__Btn--danger"
                         id="naTvgbConfirmAccept"
                         onclick="Na__Tvgb__AcceptConfirmModal()">Continue</button>

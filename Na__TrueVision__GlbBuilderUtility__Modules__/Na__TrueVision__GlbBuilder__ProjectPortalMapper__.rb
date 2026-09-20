@@ -33,6 +33,7 @@
 
 require 'json'
 require 'fileutils'
+require 'zlib'                                                            # <-- Pure-Ruby zip archive writing
 
 module TrueVision3D
     module GlbBuilderUtility
@@ -482,6 +483,102 @@ module TrueVision3D
 
 
     # -----------------------------------------------------------------------------
+    # REGION | Project Structure Tree
+    # -----------------------------------------------------------------------------
+
+        # FUNCTION | Describe The Project's TrueVision Folder Tree
+        # ---------------------------------------------------------------
+        # Rows are { depth, label, meta, kind, marker }. The UI renders them as a
+        # tree, and the confirmation modals show the same rows so a destructive
+        # action is read in the context of the whole project, not on its own.
+        #
+        # `marker` tags a row for emphasis:
+        #   'target'  - the folder the model exports into
+        #   'affected'- the folder this action is about to change
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__BuildStructureTree(project_root, target_folder: nil, affected_folder: nil)
+            rows = []
+            return rows if project_root.to_s.empty? || !Dir.exist?(project_root.to_s)
+
+            rows << { depth: 0, label: File.basename(project_root.to_s), meta: '', kind: 'project', marker: '' }
+
+            content_name = self.Na__PortalMapper__ContentFolderName
+            content_path = File.join(project_root.to_s, content_name)
+            unless Dir.exist?(content_path)
+                rows << { depth: 1, label: content_name, meta: '(missing)', kind: 'missing', marker: '' }
+                return rows
+            end
+
+            rows << { depth: 1, label: content_name, meta: '', kind: 'content', marker: '' }
+
+            self.Na__PortalMapper__ListPhaseFolders(project_root).each do |folder|
+                marker = if folder[:folder_name] == affected_folder.to_s then 'affected'
+                         elsif folder[:folder_name] == target_folder.to_s then 'target'
+                         else ''
+                         end
+
+                meta = "#{folder[:glb_count]} GLB#{folder[:glb_count] == 1 ? '' : 's'}"
+                meta += " · #{folder[:last_written]}" unless folder[:last_written].to_s.empty?
+                meta += ' · legacy name' if folder[:is_alias]
+
+                rows << {
+                    depth:  2,
+                    label:  folder[:folder_name],
+                    meta:   meta,
+                    kind:   'phase',
+                    marker: marker
+                }
+            end
+
+            # The site plan store and the archive are shown for context, greyed out
+            siteplan_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'SitePlanFolderName').to_s
+            siteplan_path = File.join(content_path, siteplan_name)
+            if !siteplan_name.empty? && Dir.exist?(siteplan_path)
+                count = Dir.glob(File.join(siteplan_path, '*.glb')).length
+                rows << { depth: 2, label: siteplan_name, meta: "#{count} GLB#{count == 1 ? '' : 's'} · not a design phase", kind: 'aside', marker: '' }
+            end
+
+            archive_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'ArchiveFolderName').to_s
+            archive_path = File.join(content_path, archive_name)
+            if !archive_name.empty? && Dir.exist?(archive_path)
+                entries = Dir.entries(archive_path).reject { |e| e == '.' || e == '..' }.length
+                rows << { depth: 2, label: archive_name, meta: "#{entries} item(s) · skipped by the build", kind: 'aside', marker: '' }
+            end
+
+            rows
+        rescue => e
+            Na__Log__Warn "[PortalMapper] Could not build the structure tree: #{e.message}"
+            []
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Pick The Scheme A Newly Linked Model Should Target
+        # ---------------------------------------------------------------
+        # The most common action is re-exporting over the latest concept scheme,
+        # so the default target is the most recently written folder. Ties and
+        # never-written folders fall back to the highest scheme number.
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__SuggestTargetFolder(project_root)
+            folders = self.Na__PortalMapper__ListPhaseFolders(project_root)
+            return nil if folders.empty?
+
+            written = folders.reject { |folder| folder[:last_written].to_s.empty? }
+            pool    = written.any? ? written : folders
+
+            pool.max_by do |folder|
+                path  = folder[:folder_path]
+                mtime = Dir.glob(File.join(path, '*.glb')).map { |f| File.mtime(f) rescue nil }.compact.max
+                [mtime ? mtime.to_i : 0, folder[:scheme_number].to_i]
+            end
+        rescue
+            nil
+        end
+        # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
     # REGION | Scheme Creation
     # -----------------------------------------------------------------------------
 
@@ -564,31 +661,288 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Move A Folder's Existing GLBs Into Its 00__Archive
+        # FUNCTION | Delete A Design Phase Folder
+        # ---------------------------------------------------------------
+        # Archiving is the default and the safe path: the folder moves into the
+        # content folder's 00__Archive, which the build script skips, so the
+        # scheme disappears from TrueVision__ProjectData__.json while the files
+        # stay recoverable on disk. `permanent` really does remove it.
+        #
+        # NOTE | Neither mode touches Cloudflare R2. The sync only uploads; the
+        # sole remote deletion path is CloudflareR2__ModelSync__Main__.py --purge,
+        # which is interactive and purges every GLB for a project code. Files
+        # already pushed stay in the bucket, orphaned but invisible to the app.
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__DeletePhaseFolder(project_root, folder_name, permanent: false)
+            name = folder_name.to_s
+            return { success: false, message: 'No folder name given.' } if name.empty?
+
+            folder_path = self.Na__PortalMapper__PhaseFolderPath(project_root, name)
+            unless Dir.exist?(folder_path)
+                return { success: false, message: "#{name} does not exist." }
+            end
+
+            glb_count = Dir.glob(File.join(folder_path, '*.glb')).length
+
+            if permanent
+                FileUtils.rm_rf(folder_path)
+                return {
+                    success:   true,
+                    permanent: true,
+                    message:   "#{name} permanently deleted (#{glb_count} GLB file(s)). Any copies already in R2 remain there until purged."
+                }
+            end
+
+            archive_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'ArchiveFolderName') || '00__Archive'
+            stamp        = Time.now.strftime('%Y-%m-%d_%H%M%S')
+            archive_root = File.join(project_root.to_s, self.Na__PortalMapper__ContentFolderName, archive_name, "Deleted__#{stamp}")
+
+            FileUtils.mkdir_p(archive_root)
+            FileUtils.mv(folder_path, File.join(archive_root, name))
+
+            {
+                success:   true,
+                permanent: false,
+                message:   "#{name} moved into #{archive_name}/Deleted__#{stamp} (#{glb_count} GLB file(s)). Any copies already in R2 remain there until purged.",
+                path:      archive_root.tr('\\', '/')
+            }
+        rescue => e
+            Na__Log__Warn "[PortalMapper] Could not delete the phase folder: #{e.message}"
+            { success: false, message: "#{e.class}: #{e.message}" }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Zip A Folder's Existing GLBs Into Its 00__Archive
         # ---------------------------------------------------------------
         # Called before an overwrite the user confirmed, so the previous export
-        # is recoverable rather than simply gone.
+        # is recoverable rather than simply gone. The GLBs are compressed into a
+        # single dated zip and the loose originals removed, which keeps the live
+        # folder clean and the archive small.
+        #
+        # NOTE | The archive is LOCAL ONLY. It lands in 00__Archive, which the
+        # build script skips, so it never becomes a model group and is never
+        # uploaded to Cloudflare R2.
         # ---------------------------------------------------------------
-        def self.Na__PortalMapper__ArchiveFolderContents(folder_path)
+        # `only_files`, when given, limits which originals are REMOVED after the
+        # zip is written. The zip itself always captures the whole folder, so the
+        # archive stays a complete snapshot of what was there. This is what keeps
+        # a partial export - "just the furniture" - from deleting everything else.
+        def self.Na__PortalMapper__ArchiveFolderContents(folder_path, project_code: '', stage_name: '', only_files: nil)
             glb_files = Dir.glob(File.join(folder_path.to_s, '*.glb'))
             return { success: true, archived: 0, message: 'Nothing to archive.' } if glb_files.empty?
 
             archive_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'ArchiveFolderName') || '00__Archive'
-            stamp        = Time.now.strftime('%Y-%m-%d_%H%M%S')
-            archive_path = File.join(folder_path.to_s, archive_name, stamp)
+            archive_dir  = File.join(folder_path.to_s, archive_name)
+            FileUtils.mkdir_p(archive_dir)
 
-            FileUtils.mkdir_p(archive_path)
-            glb_files.each { |file| FileUtils.mv(file, archive_path) }
+            zip_name = self.Na__PortalMapper__BuildArchiveFileName(
+                project_code: project_code,
+                stage_name:   stage_name.to_s.empty? ? File.basename(folder_path.to_s) : stage_name
+            )
+            zip_path = File.join(archive_dir, zip_name)
+            zip_path = self.Na__PortalMapper__UniquePath(zip_path)
+
+            self.Na__PortalMapper__WriteZipArchive(zip_path, glb_files)
+
+            # Only clear the originals once the archive is safely on disk
+            unless File.exist?(zip_path) && File.size(zip_path) > 0
+                return { success: false, archived: 0, message: 'The archive could not be written, so nothing was removed.' }
+            end
+
+            # Remove only what is about to be rewritten; anything toggled off stays
+            removable = if only_files.nil?
+                glb_files
+            else
+                wanted = Array(only_files).each_with_object({}) { |name, hash| hash[name.to_s] = true }
+                glb_files.select { |file| wanted[File.basename(file)] }
+            end
+            removable.each { |file| File.delete(file) }
+
+            kept = glb_files.length - removable.length
+            note = kept.zero? ? '' : " #{kept} toggled-off file(s) left in place."
 
             {
                 success:  true,
                 archived: glb_files.length,
-                message:  "#{glb_files.length} previous GLB(s) moved into #{archive_name}/#{stamp}.",
-                path:     archive_path.tr('\\', '/')
+                message:  "#{glb_files.length} previous GLB(s) zipped into #{archive_name}/#{File.basename(zip_path)} " \
+                          "(local only, never uploaded).#{note}",
+                path:     zip_path.tr('\\', '/')
             }
         rescue => e
             Na__Log__Warn "[PortalMapper] Could not archive the folder contents: #{e.message}"
             { success: false, archived: 0, message: "#{e.class}: #{e.message}" }
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build The Dated Archive File Name
+        # ---------------------------------------------------------------
+        #   {ProjectCode}__TrueVision__ArchivedModels__{Stage}__Archived__19-Sep-2026.zip
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__BuildArchiveFileName(project_code: '', stage_name: '')
+            code  = project_code.to_s.strip
+            code  = 'Project' if code.empty?
+            stage = stage_name.to_s.strip
+            stage = 'Models' if stage.empty?
+            date  = Time.now.strftime('%d-%b-%Y')
+
+            "#{code}__TrueVision__ArchivedModels__#{stage}__Archived__#{date}.zip"
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Avoid Clobbering An Archive Made Earlier Today
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__UniquePath(path)
+            return path unless File.exist?(path)
+
+            dir  = File.dirname(path)
+            ext  = File.extname(path)
+            base = File.basename(path, ext)
+
+            (2..99).each do |index|
+                candidate = File.join(dir, "#{base}__#{index}#{ext}")
+                return candidate unless File.exist?(candidate)
+            end
+
+            File.join(dir, "#{base}__#{Time.now.strftime('%H%M%S')}#{ext}")
+        end
+        # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
+    # REGION | ZIP Archive Writing
+    # -----------------------------------------------------------------------------
+    #
+    # A minimal PKZIP writer built on Ruby's bundled zlib, so archiving needs no
+    # external gem and no shelling out. Ported from the ValeVision Cloud Sync
+    # GLB archiver, which has been writing these archives in production.
+    #
+    # -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | Write A ZIP Archive From A List Of File Paths
+        # ---------------------------------------------------------------
+        # Each entry is deflated individually, then the central directory and the
+        # end-of-central-directory record are appended.
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__WriteZipArchive(archive_path, file_paths)
+            central_directory = []
+
+            File.open(archive_path, 'wb') do |zip_io|
+                file_paths.each do |file_path|
+                    next unless File.exist?(file_path)
+
+                    local_file_name = File.basename(file_path)
+                    file_data       = File.binread(file_path)
+                    crc32           = Zlib.crc32(file_data)
+                    compressed_data = Zlib::Deflate.deflate(file_data, Zlib::DEFAULT_COMPRESSION)
+
+                    local_header_offset = zip_io.tell
+
+                    zip_io.write(
+                        self.Na__PortalMapper__ZipLocalHeader(
+                            local_file_name, file_data.bytesize, compressed_data.bytesize, crc32
+                        )
+                    )
+                    zip_io.write(compressed_data)
+
+                    central_directory << {
+                        name:              local_file_name,
+                        offset:            local_header_offset,
+                        crc32:             crc32,
+                        compressed_size:   compressed_data.bytesize,
+                        uncompressed_size: file_data.bytesize
+                    }
+                end
+
+                central_dir_offset = zip_io.tell
+                central_directory.each do |entry|
+                    zip_io.write(self.Na__PortalMapper__ZipCentralEntry(entry))
+                end
+                central_dir_size = zip_io.tell - central_dir_offset
+
+                zip_io.write(
+                    self.Na__PortalMapper__ZipEndOfCentralDirectory(
+                        central_directory.size, central_dir_size, central_dir_offset
+                    )
+                )
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build A Local File Header (PK\x03\x04)
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__ZipLocalHeader(name, uncompressed_size, compressed_size, crc32)
+            name_bytes    = name.encode('UTF-8').b
+            mtime_dostime = self.Na__PortalMapper__ZipDosMtime
+
+            [
+                0x04034b50,          # Local file header signature
+                20,                  # Version needed: 2.0
+                0,                   # General purpose bit flag
+                8,                   # Compression method: deflate
+                mtime_dostime[0],    # Last mod file time
+                mtime_dostime[1],    # Last mod file date
+                crc32,               # CRC-32
+                compressed_size,     # Compressed size
+                uncompressed_size,   # Uncompressed size
+                name_bytes.bytesize, # File name length
+                0                    # Extra field length
+            ].pack('VvvvvVVVvv') + name_bytes
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build A Central Directory Entry (PK\x01\x02)
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__ZipCentralEntry(entry)
+            name_bytes    = entry[:name].encode('UTF-8').b
+            mtime_dostime = self.Na__PortalMapper__ZipDosMtime
+
+            [
+                0x02014b50,                # Central directory signature
+                20,                        # Version made by (MS-DOS 2.0)
+                20,                        # Version needed to extract
+                0,                         # General purpose bit flag
+                8,                         # Compression method: deflate
+                mtime_dostime[0],          # Last mod file time
+                mtime_dostime[1],          # Last mod file date
+                entry[:crc32],             # CRC-32
+                entry[:compressed_size],   # Compressed size
+                entry[:uncompressed_size], # Uncompressed size
+                name_bytes.bytesize,       # File name length
+                0,                         # Extra field length
+                0,                         # File comment length
+                0,                         # Disk number start
+                0,                         # Internal file attributes
+                0,                         # External file attributes
+                entry[:offset]             # Relative offset of local header
+            ].pack('VvvvvvvVVVvvvvvVV') + name_bytes
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Build The End Of Central Directory Record (PK\x05\x06)
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__ZipEndOfCentralDirectory(count, central_dir_size, central_dir_offset)
+            [
+                0x06054b50,      # End of central directory signature
+                0,               # Disk number
+                0,               # Disk where central directory starts
+                count,           # Number of entries on this disk
+                count,           # Total entries
+                central_dir_size,
+                central_dir_offset,
+                0                # Comment length
+            ].pack('VvvvvVVv')
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Current Time As An MS-DOS Time / Date Pair
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__ZipDosMtime
+            now      = Time.now
+            dos_time = ((now.hour << 11) | (now.min << 5) | (now.sec / 2))
+            dos_date = (((now.year - 1980) << 9) | (now.month << 5) | now.mday)
+            [dos_time, dos_date]
         end
         # ---------------------------------------------------------------
 

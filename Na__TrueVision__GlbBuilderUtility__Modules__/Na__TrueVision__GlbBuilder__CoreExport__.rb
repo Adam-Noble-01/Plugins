@@ -784,26 +784,47 @@ module TrueVision3D
                 
                 mesh_success     = 0
                 linework_success = 0
+                skipped_count    = 0
+
+                # Per-file toggles, read once from the model dictionary. Any file
+                # name the model has not seen before is selected by default.
+                deselected = self.Na__ExportSelection__DeselectedSet(model)
+                unless deselected.empty?
+                    Na__Log__Puts "\n=== Export Selection ==="
+                    Na__Log__Puts "#{deselected.length} file(s) are toggled off in this model and will not be written."
+                end
 
                 # PHASE 1: Export flat (non-storey) tag groups
                 tag_groups.each do |base_filename, entities|
                     Na__Log__Puts "\nExporting series: #{project_prefix}#{base_filename}..."
 
-                    mesh_filepath = File.join(export_dir, "#{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb")
-                    if self.Na__GlbEngine__ExportEntitiesToGlb(entities, mesh_filepath)
-                        mesh_success += 1
+                    mesh_name = "#{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb"
+                    if deselected[mesh_name]
+                        Na__Log__Puts "  Skipped (toggled off): #{mesh_name}"
+                        skipped_count += 1
                     else
-                        Na__Log__Warn "  ERROR: Failed to export mesh #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb"
+                        mesh_filepath = File.join(export_dir, mesh_name)
+                        if self.Na__GlbEngine__ExportEntitiesToGlb(entities, mesh_filepath)
+                            mesh_success += 1
+                        else
+                            Na__Log__Warn "  ERROR: Failed to export mesh #{mesh_name}"
+                        end
                     end
 
                     if base_filename == "01__OrbitHelperCube"
                         Na__Log__Puts "  Skipping linework export for OrbitHelperCube (mesh only)"
                     else
-                        linework_filepath = File.join(export_dir, "#{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb")
-                        if self.Na__LineworkEngine__ExportLineworkToGlb(entities, linework_filepath)
-                            linework_success += 1
+                        linework_name = "#{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb"
+                        if deselected[linework_name]
+                            Na__Log__Puts "  Skipped (toggled off): #{linework_name}"
+                            skipped_count += 1
                         else
-                            Na__Log__Warn "  ERROR: Failed to export linework #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb"
+                            linework_filepath = File.join(export_dir, linework_name)
+                            if self.Na__LineworkEngine__ExportLineworkToGlb(entities, linework_filepath)
+                                linework_success += 1
+                            else
+                                Na__Log__Warn "  ERROR: Failed to export linework #{linework_name}"
+                            end
                         end
                     end
                 end
@@ -821,18 +842,30 @@ module TrueVision3D
                             base_filename = "#{storey_name}__#{element_name}"
                             Na__Log__Puts "\nExporting storey series: #{project_prefix}#{base_filename}..."
 
-                            mesh_filepath = File.join(export_dir, "#{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb")
-                            if self.Na__GlbEngine__ExportEntitiesToGlb(entities, mesh_filepath, storey_transform)
-                                mesh_success += 1
+                            mesh_name = "#{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb"
+                            if deselected[mesh_name]
+                                Na__Log__Puts "  Skipped (toggled off): #{mesh_name}"
+                                skipped_count += 1
                             else
-                                Na__Log__Warn "  ERROR: Failed to export mesh #{project_prefix}#{base_filename}#{MESH_MODEL_SUFFIX}.glb"
+                                mesh_filepath = File.join(export_dir, mesh_name)
+                                if self.Na__GlbEngine__ExportEntitiesToGlb(entities, mesh_filepath, storey_transform)
+                                    mesh_success += 1
+                                else
+                                    Na__Log__Warn "  ERROR: Failed to export mesh #{mesh_name}"
+                                end
                             end
 
-                            linework_filepath = File.join(export_dir, "#{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb")
-                            if self.Na__LineworkEngine__ExportLineworkToGlb(entities, linework_filepath, storey_transform)
-                                linework_success += 1
+                            linework_name = "#{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb"
+                            if deselected[linework_name]
+                                Na__Log__Puts "  Skipped (toggled off): #{linework_name}"
+                                skipped_count += 1
                             else
-                                Na__Log__Warn "  ERROR: Failed to export linework #{project_prefix}#{base_filename}#{LINEWORK_MODEL_SUFFIX}.glb"
+                                linework_filepath = File.join(export_dir, linework_name)
+                                if self.Na__LineworkEngine__ExportLineworkToGlb(entities, linework_filepath, storey_transform)
+                                    linework_success += 1
+                                else
+                                    Na__Log__Warn "  ERROR: Failed to export linework #{linework_name}"
+                                end
                             end
                         end
                     end
@@ -842,6 +875,7 @@ module TrueVision3D
                 # PHASE 3: Export linetype linework (one GLB per Glb__LineworkOnly tag)
                 linetype_result  = self.Na__ExportCore__ExportLinetypeLinework(model, export_dir, project_prefix)
                 linetype_success = linetype_result[:written]
+                skipped_count   += linetype_result[:skipped_by_toggle].to_i
 
                 success_count = mesh_success + linework_success + linetype_success
 
@@ -857,7 +891,8 @@ module TrueVision3D
                         mesh_count:       mesh_success,
                         linework_count:   linework_success,
                         linetype_count:   linetype_success,
-                        has_storeys:      has_storeys
+                        has_storeys:      has_storeys,
+                        skipped_count:    skipped_count
                     )
                     unless quiet                                                       # <-- Programmatic callers skip GUI side-effects
                         self.Na__Helpers__OpenFolder(export_dir)                       # <-- Reveal folder (interactive use only)
@@ -907,6 +942,7 @@ module TrueVision3D
                 linetype_count: 0,
                 total_count:    0,
                 has_storeys:    false,
+                skipped_count:  0,
                 completed_at:   nil
             }
         end
@@ -919,7 +955,8 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__ExportCore__RecordLastExportSummary(success:, message:, log_path: nil,
                                                           mesh_count: 0, linework_count: 0,
-                                                          linetype_count: 0, has_storeys: false)
+                                                          linetype_count: 0, has_storeys: false,
+                                                          skipped_count: 0)
             @na_last_export_summary ||= {}
             @na_last_export_summary.merge!(
                 success:        success,
@@ -930,6 +967,7 @@ module TrueVision3D
                 linetype_count: linetype_count.to_i,
                 total_count:    mesh_count.to_i + linework_count.to_i + linetype_count.to_i,
                 has_storeys:    has_storeys,
+                skipped_count:  skipped_count.to_i,
                 completed_at:   Time.now
             )
         end
@@ -962,7 +1000,7 @@ module TrueVision3D
         # HELPER FUNCTION | Run the Linetype Linework Export
         # ---------------------------------------------------------------
         def self.Na__ExportCore__ExportLinetypeLinework(model, export_dir, project_prefix)
-            empty = { written: 0, files: [], empty_tags: [], edge_count: 0 }
+            empty = { written: 0, files: [], empty_tags: [], edge_count: 0, skipped_by_toggle: 0 }
             return empty unless self.respond_to?(:Na__Linetype__ExportAll)
 
             Na__Log__Puts "\n=== Exporting Linetype Linework ==="

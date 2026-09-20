@@ -8,6 +8,207 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.10.1 - 20-Sep-2026
+#### One Danger Zone, One Modal, One Way Of Asking
+
+**Why**
+- The R2 folder purge sat mid-page in its own "Manage Cloudflare R2 Folders" panel, with a bare `<pre>`
+  readout and a native `UI.inputbox` demanding the full forty-character folder name. Nothing about it
+  matched the rest of the dialog. That was the incoherence.
+
+**Everything destructive now lives in the Danger Zone**
+- The R2 purge moved down beside Delete A Design Phase Folder, in the same red-bordered section, using
+  the same field rows, the same tree styling for the inventory, and the same confirmation modal.
+- `UI.inputbox` is gone. Both deletions now confirm through the dialog's own modal.
+- Delete grew its **own folder picker**, so nothing destructive depends any more on whichever row happens
+  to be highlighted in the scheme list further up the tab.
+
+**Typing the project code, not the folder name**
+- Both confirmations ask for the four-character project code. The folder is chosen from a list, named in
+  the modal, and picked out in the structure tree - re-typing `DesignPhase01__ConceptDesign__Scheme-01`
+  was keystrokes, not deliberation.
+- The match is case-insensitive, and re-checked in Ruby before anything is deleted.
+
+**A duplicate of my own making, removed**
+- This release also deletes a second R2 query/purge implementation added earlier in the same session,
+  built against `CloudflareR2__ModelSync__Main__.py --purge`. It duplicated the existing cloud manager and
+  was worse: whole-project only, and blocking. The cloud manager's per-folder purge is what survives.
+
+**Two real faults found while consolidating**
+- `truevision_cloud_manager.rb` was **never required by Main.rb**. It only loaded through the hot
+  reloader's `Dir.glob`, so a fresh SketchUp session ran the old blocking `Open3` path while a reloaded
+  one ran the PowerShell/Fiber path. Now required last, where its deliberate overrides belong.
+- The cloud inventory code is a second IIFE at the end of the bridge script and cannot see the first
+  one's private helpers. The purge confirmation threw `na__tvgb__setStatus is not defined` on its first
+  run. A small deliberate surface - `Na__Tvgb__Confirm`, `Na__Tvgb__SetStatus`, `Na__Tvgb__ProjectCode` -
+  is now published for it rather than reaching across the boundary.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.10.0 - 19-Sep-2026
+#### Export Just The Furniture
+
+**Why**
+- The manifest was a list of what would happen, not a set of choices. Re-exporting to fix one storey's
+  furniture meant writing all 57 files and pushing all 57 to R2.
+- Some models should never export certain groups at all, permanently, and that belonged in the model
+  rather than in Adam's memory.
+
+**New:** `Na__TrueVision__GlbBuilder__ExportSelection__.rb` (1.0.0)
+- A checkbox on every file in the manifest, a checkbox on every group header, and Enable All / Disable
+  All above the list. The count reads "49 of 51 selected" and turns amber when it is not all of them.
+- **The store holds the DESELECTED names, never the selected ones.** That is what makes everything default
+  to ON: a file the model has never seen - a new tag, a new storey, a renamed element - is absent from the
+  store and therefore exports. Adding a tag can never silently produce a file that does not export.
+- Saved to the model's own attribute dictionary, so the choice survives the session and travels with the
+  .skp. Two models can disagree about furniture.
+- Stale names are pruned on every rescan, so a renamed tag cannot leave an invisible "off" behind.
+
+**The engine honours it, not just the list**
+- `Na__ExportCore__PerformExport` reads the set once and skips the writes: flat groups, storey elements,
+  and linetype linework all check the file name before the engine is called. The counts in the report are
+  the real counts, and a "Toggled Off" SKIP step says how many were held back.
+- A group header toggle is **tri-state**: on when the whole group is on, off when none of it is, and an
+  indeterminate dash when a storey is partly selected.
+
+**The dangerous part, and what stops it**
+- Exporting into a project folder clears the old files first. With a partial selection, clearing the whole
+  folder would have deleted precisely the models being left alone - the "just the furniture" case would
+  have destroyed everything else in the scheme.
+- Both paths now take the list of files this export will actually write. **Only those are removed.**
+  Archiving still zips the entire folder, so the archive stays a complete snapshot, but it deletes only
+  what is about to be replaced and says how many it left in place.
+- Disabling everything is now its own note - "Every file is toggled off" - rather than being confused
+  with a model that has no exportable tags.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.9.3 - 19-Sep-2026
+#### The Sync That Said Yes And Meant Nothing
+
+**The symptom**
+- The report read clean end to end: project built, "RB05__WestFarm mirrored to R2", 57 files exported.
+- TrueVision then 404'd on the three new linetype GLBs. The project data on the CDN listed them; the
+  bucket did not have them. Nothing had been uploaded at all.
+
+**The cause: a silent yes/no prompt, answered by EOF**
+- `CloudflareR2__ModelSync__Main__.py` previews the upload and then asks on stdin:
+  *"Proceed with uploading files to Cloudflare R2? (yes/no)"*.
+- It has an `auto_confirm_upload` parameter for exactly this case, but **it is never wired to a CLI flag**
+  and `main()` never passes it, so the prompt always runs.
+- Under `Open3` stdin is closed. `input()` raises `EOFError`, the script catches it, prints
+  `[CANCEL] Upload cancelled` and **`return 0`**. A success exit code for an upload that never happened.
+- The orchestrator trusted that exit code. Both halves were wrong, and they agreed with each other.
+
+**The fix, in two parts**
+- **Answer the prompt.** `Open3.capture3` is now given `stdin_data: "yes\n"` for a real push. That is
+  precisely what the interactive menu does, and the dialog has already confirmed with the user before
+  reaching this point. The dry run is left unanswered, because it never asks.
+- **Stop trusting the exit code.** `Na__CloudSync__DescribeR2Outcome` reads the script's own output:
+  `Upload complete! N file(s) uploaded, M failed` reports the real count; `All files are up to date` is a
+  legitimate no-op; **`[CANCEL]` is now reported as a FAILURE** however the process exited. If the output
+  cannot be read at all - a GUI host can hand back empty pipes - the step says the upload is unconfirmed
+  and points at the log, rather than inventing a success.
+
+**Archiving is now a choice, and it is a zip**
+- The overwrite modal offers two real actions: a green **Archive, Then Export** and a red
+  **Overwrite Without Archiving**, with Cancel. Green is rightmost, so the safe path is the default.
+- Archiving now compresses the previous GLBs into one dated file rather than moving loose copies:
+  `{ProjectCode}__TrueVision__ArchivedModels__{Stage}__Archived__19-Sep-2026.zip`, inside the folder's
+  `00__Archive`. A second archive on the same day gets a numeric suffix rather than overwriting the first.
+- The zip writer is pure Ruby on the bundled zlib, ported from the ValeVision Cloud Sync GLB archiver -
+  no gem, no shelling out.
+- **The archive is local only.** `00__Archive` is skipped by the build, so it never becomes a model group
+  and is never uploaded. The modal says so.
+- If the archive cannot be written the export **stops**. A failed archive must never quietly become an
+  overwrite.
+- Overwriting deletes the existing GLBs before exporting, so a stale file whose tag no longer exists
+  cannot survive into the new set.
+
+**Note on the user's naming**
+- The spec read `ArchivedModeld`; written as `ArchivedModels`, taking it as a slip.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.9.2 - 19-Sep-2026
+#### Nothing Big Happens Without Being Asked First
+
+**Why**
+- Duplicate Selected fired the instant it was clicked and copied 54 GLB files. Adam duplicated an entire
+  job by accident, and there was no way to undo it from the dialog - no delete, nothing.
+- The overwrite path had a confirmation from the start. Create and Duplicate did not, which was simply
+  inconsistent: they are the two actions that add model groups the next push publishes to R2.
+
+**Every folder action now confirms, and shows the project while it asks**
+- Create Folder, Duplicate Selected and the new Delete all raise a modal naming the folder, the file
+  count and the destination, with the **live project structure** rendered underneath - the real tree read
+  off disk, with the affected folder picked out in red and the export target in blue.
+- Duplicate leads with the number it is about to copy: "Duplicate 54 Files". The accidental click that
+  started this would have been a legible question instead.
+- Cancel dispatches nothing. Verified, not assumed.
+
+**New: a Danger Zone, and a way back from a mistake**
+- A collapsed section on the Project tab that deletes the selected design phase folder.
+- **The folder name must be typed out in full.** The accept button stays disabled until it matches
+  exactly, `AcceptConfirmModal` re-checks it before acting, and `Na__ProjectActions__DeleteScheme`
+  re-checks it again in Ruby - a UI bug must not be able to delete the wrong folder.
+- Archiving is the default: the folder moves into `00__Archive/Deleted__{timestamp}`, which the build
+  skips, so the scheme leaves TrueVision while the files stay on disk. An explicit checkbox opts into a
+  permanent delete.
+- Deleting the model's own target re-aims it at the latest remaining scheme rather than leaving it
+  pointing at nothing.
+
+**Said plainly, because it is not obvious**
+- **Neither delete mode removes anything from Cloudflare R2.** `CloudflareR2__ModelSync__Main__.py` only
+  uploads; its single deletion path is `--purge`, which is interactive and purges every GLB for a project
+  code. Files already pushed stay in the bucket - orphaned, and invisible to the app once the project
+  data is rebuilt. Both modals say so.
+
+**The default target is now the latest scheme, not the busiest**
+- `Na__PortalMapper__SuggestTargetFolder` picks the most recently written folder, falling back to the
+  highest scheme number. Re-exporting over the latest concept is the common case, so that is what a
+  freshly linked model aims at - and the overwrite confirmation stands in front of it.
+
+**One unguarded path closed**
+- The generic `RunProjectAction` refuses `create_scheme`, `duplicate_scheme` and `delete_scheme` outright.
+  Each has its own confirmation function, and a future wiring mistake cannot resurrect the unguarded
+  Duplicate that caused this.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.9.1 - 19-Sep-2026
+#### The Dialog That Rendered But Could Not Think
+
+**The symptom**
+- The dialog opened, looked right, and did nothing. Every value read as an em dash, the manifest was
+  empty, and the console said `Uncaught SyntaxError: Invalid or unexpected token`, then
+  `Na__Tvgb__ShowTab is not defined` once per click.
+
+**The cause: `gsub`'s two-argument form interprets the REPLACEMENT string**
+- `html.gsub('{{UI_BRIDGE_SCRIPT}}', script)` does not insert `script` verbatim. Ruby reads backslash
+  sequences in the replacement: `\\` collapses to one backslash, `\0`-`\9` and `\&` become captures,
+  `` \` `` becomes the pre-match, and **`\'` becomes the entire post-match**.
+- The bridge script contains `'...folder\'s 00__Archive...'`. That `\'` was replaced by everything after
+  the placeholder - including the template's own `</script></html>` - dropping a literal `</script>` into
+  the middle of a JavaScript string. The browser closed the script tag there, and the file died mid-token.
+- 56 characters of corruption across 4 `\'` and 4 `\\` in the JS, plus the `\25B8` caret glyph in the CSS,
+  where `\2` silently became capture group 2 (empty).
+
+**The fix**
+- Every asset substitution in `Na__UserInterface__GenerateDialogHtml` now uses the BLOCK form,
+  `gsub('{{X}}') { value }`, whose return value is inserted verbatim with no backslash interpretation.
+- The reason is written at the call site, because the two-argument form is the one that looks correct.
+
+**Why the browser preview missed it**
+- The preview harness composed the page with JavaScript `split().join()`, which is literal. It was
+  faithfully testing the fixed behaviour before the fix existed. The verification now simulates Ruby's
+  actual replacement semantics, extracts the inlined script from the composed page, and parses it - so
+  a regression here fails on the bench rather than in SketchUp.
+
+**Checked, not assumed**
+- Every other two-argument `gsub` in the plugin was audited: all have replacement strings with no
+  backslashes (`%20`, `&amp;`, `%02d` output), so none were affected.
+- ValeVision Cloud Sync uses the identical two-argument pattern in its own DialogManager. Its current
+  CSS and JS happen to contain no hostile sequences, so it works today - but it is one escaped
+  apostrophe away from the same failure. Flagged, not changed.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.9.0 - 19-Sep-2026
 #### The Model Remembers Which Project It Belongs To
 

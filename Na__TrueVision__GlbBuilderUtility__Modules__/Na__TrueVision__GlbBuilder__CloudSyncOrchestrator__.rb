@@ -101,6 +101,16 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Strip ANSI Colour Codes Before Parsing
+        # ---------------------------------------------------------------
+        # The sync script colours its output; the escape sequences sit between
+        # the markers and the values we match on.
+        # ---------------------------------------------------------------
+        def self.Na__CloudSync__StripAnsi(text)
+            text.to_s.gsub(/\e\[[0-9;]*m/, '')
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Open The Build Pipeline In Its Own Window
         # ---------------------------------------------------------------
         # The manual escape hatch: launches the .bat exactly as double-clicking
@@ -171,13 +181,82 @@ module TrueVision3D
             args  = ['--project', project_folder, config['R2SyncTrueVisionArg'].to_s]
             args << '--dry-run-only' if dry_run
 
-            result = self.Na__CloudSync__Execute(interpreter, script_path, args, script_dir)
+            # ANSWER THE PROMPT | The sync script previews the upload and then asks
+            # "Proceed with uploading files to Cloudflare R2? (yes/no)" on stdin.
+            # auto_confirm_upload exists inside the script but is never wired to a
+            # CLI flag, so the prompt always runs. With stdin closed its input()
+            # raises EOFError, the script prints "[CANCEL] Upload cancelled" and
+            # RETURNS 0 - a success exit code having uploaded nothing at all.
+            # Feeding it "yes" is exactly what the interactive menu does; the
+            # dialog has already confirmed with the user before reaching here.
+            stdin_data = dry_run ? nil : "yes\n"
 
+            result = self.Na__CloudSync__Execute(interpreter, script_path, args, script_dir, stdin_data)
+
+            self.Na__CloudSync__DescribeR2Outcome(result, project_folder, dry_run)
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Decide What The R2 Sync Actually Did
+        # ---------------------------------------------------------------
+        # The exit code alone is not evidence of an upload: a cancelled upload
+        # also exits 0. The outcome is read from the script's own output.
+        # ---------------------------------------------------------------
+        def self.Na__CloudSync__DescribeR2Outcome(result, project_folder, dry_run)
+            label  = dry_run ? 'R2 Dry Run' : 'Cloudflare R2'
+            output = "#{result[:stdout]}\n#{result[:stderr]}"
+
+            unless result[:success]
+                return { label: label, success: false, message: self.Na__CloudSync__DescribeFailure(result) }
+            end
+
+            # The script cancelled instead of uploading - treat as a failure even
+            # though it exited 0, because nothing reached the bucket.
+            if output =~ /\[CANCEL\]/i
+                return {
+                    label:   label,
+                    success: false,
+                    message: "The sync script cancelled its own upload and nothing was sent to R2.\n" \
+                             "#{self.Na__CloudSync__MeaningfulTail(output, 3)}\n" \
+                             "Log: #{result[:log_path]}"
+                }
+            end
+
+            if dry_run
+                return {
+                    label:   label,
+                    success: true,
+                    message: "Dry run for #{project_folder} - nothing uploaded.\n#{self.Na__CloudSync__MeaningfulTail(result[:stdout], 4)}"
+                }
+            end
+
+            # "Upload complete! N file(s) uploaded, M failed."
+            if (match = output.match(/Upload complete!\s*(\d+) file\(s\) uploaded,\s*(\d+) failed/i))
+                uploaded = match[1].to_i
+                failed   = match[2].to_i
+                return {
+                    label:   label,
+                    success: failed.zero?,
+                    message: "#{uploaded} file(s) uploaded to R2#{failed.zero? ? '' : ", #{failed} failed"}."
+                }
+            end
+
+            if output =~ /All files are up to date/i
+                return {
+                    label:   label,
+                    success: true,
+                    message: "R2 already holds this project's current files - nothing needed uploading."
+                }
+            end
+
+            # No recognisable outcome. A GUI host can hand back empty pipes even
+            # when the child printed normally, so say so rather than claim success.
             {
-                label:   dry_run ? 'R2 Dry Run' : 'Cloudflare R2',
-                success: result[:success],
-                message: result[:success] ? self.Na__CloudSync__DescribeSuccess(result, project_folder, dry_run)
-                                          : self.Na__CloudSync__DescribeFailure(result)
+                label:   label,
+                success: false,
+                message: "The sync script exited cleanly, but its output could not be read, so the upload is " \
+                         "unconfirmed. Check the log, or use Open Build Pipeline Window to watch it run.\n" \
+                         "Log: #{result[:log_path]}"
             }
         end
         # ---------------------------------------------------------------
@@ -187,12 +266,15 @@ module TrueVision3D
         # Every run is written to a debug log on disk, because a GUI host can
         # return empty pipes even when the child printed normally.
         # ---------------------------------------------------------------
-        def self.Na__CloudSync__Execute(interpreter, script_path, script_args, working_dir)
+        def self.Na__CloudSync__Execute(interpreter, script_path, script_args, working_dir, stdin_data = nil)
             command     = Array(interpreter) + [script_path] + Array(script_args)
             display     = command.join(' ')
             child_env   = self.Na__CloudSync__SanitizedPythonEnv
 
-            stdout_str, stderr_str, status = Open3.capture3(child_env, *command, chdir: working_dir)
+            options = { chdir: working_dir }
+            options[:stdin_data] = stdin_data if stdin_data                 # <-- Answers the script's yes/no prompt
+
+            stdout_str, stderr_str, status = Open3.capture3(child_env, *command, **options)
             exit_code = status.respond_to?(:exitstatus) ? status.exitstatus : nil
 
             log_path = self.Na__CloudSync__WriteDebugLog(display, exit_code, stdout_str, stderr_str)
@@ -214,16 +296,6 @@ module TrueVision3D
                 command:   Array(interpreter).join(' '),
                 log_path:  nil
             }
-        end
-        # ---------------------------------------------------------------
-
-        # HELPER FUNCTION | Summarise A Successful Run For The Report Panel
-        # ---------------------------------------------------------------
-        def self.Na__CloudSync__DescribeSuccess(result, project_folder, dry_run)
-            tail = self.Na__CloudSync__MeaningfulTail(result[:stdout])
-            head = dry_run ? "Dry run for #{project_folder} - nothing uploaded." : "#{project_folder} mirrored to R2."
-
-            tail.empty? ? head : "#{head}\n#{tail}"
         end
         # ---------------------------------------------------------------
 
@@ -447,3 +519,5 @@ end  # module TrueVision3D
 # =============================================================================
 # END OF FILE
 # =============================================================================
+
+load File.join(__dir__, 'truevision_cloud_manager.rb')

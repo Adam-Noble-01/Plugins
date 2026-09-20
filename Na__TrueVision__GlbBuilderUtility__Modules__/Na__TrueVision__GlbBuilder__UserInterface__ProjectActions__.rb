@@ -40,6 +40,25 @@ module TrueVision3D
         # can carry on and report an unknown action.
         # ---------------------------------------------------------------
         def self.Na__UserInterface__HandleProjectAction(dialog, action_id, params)
+            if @na_cloud_job
+                self.Na__UserInterface__PushStatus(dialog, 'An R2 operation is already running. Please wait.', 'info')
+                return true
+            end
+            if ['fetch_r2', 'purge_r2_folder'].include?(action_id)
+                self.Na__ProjectActions__ManageR2(dialog, action_id, params)
+                return true
+            end
+            if ['push_to_cloud', 'push_dry_run'].include?(action_id)
+                link = self.Na__ProjectLink__Read(Sketchup.active_model).dup
+                @na_r2_inventory = nil
+                self.Na__ProjectActions__CloudJob(dialog,
+                    proc { self.Na__CloudSync__PushProject(link, dry_run: action_id == 'push_dry_run') },
+                    proc do |report|
+                        self.Na__UserInterface__PushReport(dialog, report)
+                        self.Na__UserInterface__PushStatus(dialog, report[:message], report[:success] ? 'success' : 'error')
+                    end)
+                return true
+            end
             case action_id
             when 'link_project'           then self.Na__ProjectActions__Link(dialog, params)
             when 'dismiss_project_prompt' then self.Na__ProjectActions__DismissPrompt(dialog)
@@ -47,6 +66,7 @@ module TrueVision3D
             when 'set_target_folder'      then self.Na__ProjectActions__SetTargetFolder(dialog, params)
             when 'create_scheme'          then self.Na__ProjectActions__CreateScheme(dialog, params)
             when 'duplicate_scheme'       then self.Na__ProjectActions__DuplicateScheme(dialog, params)
+            when 'delete_scheme'          then self.Na__ProjectActions__DeleteScheme(dialog, params)
             when 'save_portal_root'       then self.Na__ProjectActions__SavePortalRoot(dialog, params)
             when 'push_to_cloud'          then self.Na__ProjectActions__PushToCloud(dialog, dry_run: false)
             when 'push_dry_run'           then self.Na__ProjectActions__PushToCloud(dialog, dry_run: true)
@@ -61,7 +81,7 @@ module TrueVision3D
             # report only through the status line, and the dialog clears its
             # "running" lock when the project status arrives - without this, an
             # action such as Open Build Pipeline would leave the UI locked.
-            self.Na__UserInterface__PushProjectStatus(dialog)
+            self.Na__UserInterface__PushProjectStatus(dialog) unless @na_cloud_job
             true
         end
         # ---------------------------------------------------------------
@@ -86,11 +106,11 @@ module TrueVision3D
                 return
             end
 
-            # Default the target folder to the phase folder that already holds the most GLBs
-            existing = self.Na__PortalMapper__ListPhaseFolders(resolution[:project_root])
-            busiest  = existing.max_by { |folder| folder[:glb_count] }
-            resolution[:target_phase_folder] = busiest ? busiest[:folder_name] : ''
-            resolution[:target_phase_id]     = busiest ? busiest[:phase_id]    : ''
+            # Default to the most recently written scheme: re-exporting over the
+            # latest concept is far and away the most common next action.
+            latest = self.Na__PortalMapper__SuggestTargetFolder(resolution[:project_root])
+            resolution[:target_phase_folder] = latest ? latest[:folder_name] : ''
+            resolution[:target_phase_id]     = latest ? latest[:phase_id]    : ''
 
             write = self.Na__ProjectLink__Write(model, resolution)
             self.Na__UserInterface__PushProjectLinkResult(dialog, write)
@@ -206,6 +226,53 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # ACTION HANDLER | Delete A Design Phase / Scheme Folder
+        # ---------------------------------------------------------------
+        # The dialog makes the user type the folder name, and this re-checks it
+        # server side: a UI bug must not be able to delete the wrong folder.
+        # ---------------------------------------------------------------
+        def self.Na__ProjectActions__DeleteScheme(dialog, params)
+            model       = Sketchup.active_model
+            link        = self.Na__ProjectLink__Read(model)
+            folder_name = params['targetFolder'].to_s
+            typed       = params['typedConfirmation'].to_s.strip
+            permanent   = params['permanent'] == true
+
+            if folder_name.empty?
+                self.Na__UserInterface__PushStatus(dialog, 'Select the folder you want to delete.', 'warning')
+                return
+            end
+
+            # The project code is the deliberation gate. The folder itself is
+            # chosen from a list and named in the modal, so re-typing a 40
+            # character folder name added nothing but keystrokes.
+            code = link[:project_code].to_s.upcase
+            unless typed.upcase == code && !code.empty?
+                self.Na__UserInterface__PushStatus(
+                    dialog,
+                    "Deletion cancelled: the code typed did not match #{code}.",
+                    'error'
+                )
+                return
+            end
+
+            result = self.Na__PortalMapper__DeletePhaseFolder(link[:project_root], folder_name, permanent: permanent)
+
+            # A deleted target leaves the model pointing nowhere; re-aim it at the latest scheme
+            if result[:success] && link[:target_phase_folder].to_s == folder_name
+                latest = self.Na__PortalMapper__SuggestTargetFolder(link[:project_root])
+                self.Na__ProjectLink__WriteTargetPhase(
+                    model,
+                    latest ? latest[:folder_name] : '',
+                    latest ? latest[:phase_id]    : ''
+                )
+            end
+
+            self.Na__UserInterface__PushProjectStatus(dialog)
+            self.Na__UserInterface__PushStatus(dialog, result[:message], result[:success] ? 'success' : 'error')
+        end
+        # ---------------------------------------------------------------
+
     # endregion ===================================================================
 
 
@@ -241,16 +308,48 @@ module TrueVision3D
             self.Na__UserInterface__PushStatus(dialog, "Exporting into #{target_folder}...", 'info')
             self.Na__UserInterface__PushReport(dialog, { running: true, steps: [] })
 
-            # Archive whatever is already there, so a confirmed overwrite is recoverable
+            # Deal with whatever is already there, the way the user chose in the
+            # overwrite modal: zip it into 00__Archive, or replace it outright.
             archive_step = nil
+            skip_archive = params['skipArchive'] == true
             inspection   = self.Na__PortalMapper__InspectTargetFolder(link[:project_root], target_folder)
+
+            # Only the files this export will actually write may be cleared, so a
+            # partial selection never deletes the models it is leaving alone.
+            writable_names = self.Na__ProjectActions__SelectedFileNames
+
             if inspection[:glb_count].to_i > 0
-                archived     = self.Na__PortalMapper__ArchiveFolderContents(target_path)
-                archive_step = {
-                    label:   'Previous Export',
-                    success: archived[:success],
-                    message: archived[:message]
-                }
+                if skip_archive
+                    removed = self.Na__ProjectActions__RemoveExistingGlbs(target_path, writable_names)
+                    archive_step = {
+                        label:   'Previous Export',
+                        status:  'skip',
+                        message: "Not archived by choice - #{removed} previous GLB(s) replaced."
+                    }
+                else
+                    archived     = self.Na__PortalMapper__ArchiveFolderContents(
+                        target_path,
+                        project_code: link[:project_code],
+                        stage_name:   target_folder,
+                        only_files:   writable_names
+                    )
+                    archive_step = {
+                        label:   'Previous Export',
+                        success: archived[:success],
+                        message: archived[:message]
+                    }
+
+                    # A failed archive must not silently become an overwrite
+                    unless archived[:success]
+                        self.Na__UserInterface__PushReport(dialog, {
+                            success: false, running: false,
+                            message: 'Export stopped: the previous files could not be archived.',
+                            steps:   [archive_step]
+                        })
+                        self.Na__UserInterface__PushStatus(dialog, archived[:message], 'error')
+                        return
+                    end
+                end
             end
 
             self.Na__UserInterface__ApplyExportParams(params.to_json)
@@ -270,10 +369,18 @@ module TrueVision3D
                 self.Na__UserInterface__PushReport(dialog, report.merge(running: true))
                 self.Na__UserInterface__PushStatus(dialog, 'Exported. Building project data and pushing to Cloudflare R2...', 'info')
 
-                push = self.Na__CloudSync__PushProject(link, dry_run: false)
-                report[:steps].concat(Array(push[:steps]))
-                report[:success] = push[:success]
-                report[:message] = push[:success] ? "#{report[:message]} Synced to Cloudflare R2." : push[:message]
+                @na_r2_inventory = nil
+                self.Na__ProjectActions__CloudJob(dialog,
+                    proc { self.Na__CloudSync__PushProject(link.dup, dry_run: false) },
+                    proc do |push|
+                        report[:steps].concat(Array(push[:steps]))
+                        report[:success] = push[:success]
+                        report[:message] = push[:success] ? "#{report[:message]} Synced to Cloudflare R2." : push[:message]
+                        self.Na__UserInterface__PushReport(dialog, report)
+                        self.Na__UserInterface__PushStatus(dialog, report[:message], report[:success] ? 'success' : 'error')
+                        self.Na__UserInterface__PushModelStatus(dialog)
+                    end)
+                return
             elsif sync
                 report[:steps] << { label: 'Cloudflare R2', status: 'skip', message: 'Skipped: the export did not succeed.' }
             end
@@ -282,6 +389,47 @@ module TrueVision3D
             self.Na__UserInterface__PushStatus(dialog, report[:message], report[:success] ? 'success' : 'error')
             self.Na__UserInterface__PushProjectStatus(dialog)
             self.Na__UserInterface__PushModelStatus(dialog)
+        end
+        # ---------------------------------------------------------------
+
+    # endregion ===================================================================
+
+
+        # HELPER FUNCTION | Remove The Existing GLBs Without Archiving Them
+        # ---------------------------------------------------------------
+        # Only reached when the user explicitly picked "Overwrite Without
+        # Archiving". Clearing them first keeps a stale file from a previous
+        # export, whose tag no longer exists, from surviving into the new one.
+        # ---------------------------------------------------------------
+        def self.Na__ProjectActions__RemoveExistingGlbs(folder_path, only_files = nil)
+            files = Dir.glob(File.join(folder_path.to_s, '*.glb'))
+
+            unless only_files.nil?
+                wanted = Array(only_files).each_with_object({}) { |name, hash| hash[name.to_s] = true }
+                files  = files.select { |file| wanted[File.basename(file)] }
+            end
+
+            files.each { |file| File.delete(file) rescue nil }
+            files.length
+        rescue
+            0
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | The Output File Names This Export Will Write
+        # ---------------------------------------------------------------
+        # Read from the same manifest the dialog shows, so the files cleared
+        # beforehand are exactly the files about to be replaced.
+        # ---------------------------------------------------------------
+        def self.Na__ProjectActions__SelectedFileNames
+            status = self.Na__UserInterface__BuildModelStatus
+            Array(status[:groups])
+                .flat_map { |group| Array(group[:rows]) }
+                .select   { |row| row[:selected] }
+                .map      { |row| row[:name].to_s }
+        rescue => e
+            Na__Log__Warn "[ProjectActions] Could not resolve the selected file names: #{e.message}"
+            nil                                                          # <-- nil means "no filter", the previous behaviour
         end
         # ---------------------------------------------------------------
 
@@ -362,7 +510,10 @@ module TrueVision3D
                 target_folder:    target,
                 target_glb_count: target_info[:glb_count].to_i,
                 folders:          folders,
-                phases:           self.Na__ProjectActions__PhaseCatalogue(link)
+                phases:           self.Na__ProjectActions__PhaseCatalogue(link),
+                structure:        link[:linked] ? self.Na__PortalMapper__BuildStructureTree(
+                                      link[:project_root], target_folder: target
+                                  ) : []
             }
         rescue => e
             Na__Log__Warn "ERROR building the project status: #{e.message}"
@@ -371,7 +522,7 @@ module TrueVision3D
                 linked: false, should_prompt: false, portal_found: false,
                 portal_root: '', project_code: '', project_name: '', project_folder: '',
                 project_root: '', project_brief: "Project status failed: #{e.message}",
-                target_folder: '', target_glb_count: 0, folders: [], phases: []
+                target_folder: '', target_glb_count: 0, folders: [], phases: [], structure: []
             }
         end
         # ---------------------------------------------------------------
