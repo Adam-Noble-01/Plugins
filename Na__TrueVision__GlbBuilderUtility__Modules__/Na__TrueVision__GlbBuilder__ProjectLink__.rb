@@ -189,6 +189,42 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Read The Site Plan Folder This Model Exports Into
+        # ---------------------------------------------------------------
+        # Deliberately NOT a NA_PROJECT_LINK_KEYS entry. That constant lives
+        # inside an `unless defined?` guard, so a hot reload keeps the old list
+        # and a new key would silently never be read. Going at the dictionary
+        # directly works on a reload as well as a restart.
+        #
+        # An empty answer means "not chosen yet", which the Project tab shows as
+        # a prompt rather than guessing a variant.
+        # ---------------------------------------------------------------
+        def self.Na__ProjectLink__ReadSitePlanFolder(model = Sketchup.active_model)
+            return '' unless model
+            dict = model.attribute_dictionary(NA_PROJECT_LINK_DICT, false)
+            return '' unless dict
+            dict['siteplan_folder'].to_s
+        rescue => e
+            Na__Log__Warn "[ProjectLink] Could not read the site plan folder: #{e.message}"
+            ''
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Record The Site Plan Folder This Model Exports Into
+        # ---------------------------------------------------------------
+        def self.Na__ProjectLink__WriteSitePlanFolder(model, folder_name)
+            return { success: false, message: 'No active model.' } unless model
+
+            dict = model.attribute_dictionary(NA_PROJECT_LINK_DICT, true)
+            dict['siteplan_folder'] = folder_name.to_s
+
+            { success: true, message: "Site plan target set to #{folder_name}." }
+        rescue => e
+            Na__Log__Warn "[ProjectLink] Could not write the site plan folder: #{e.message}"
+            { success: false, message: "#{e.class}: #{e.message}" }
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Record That The User Cleared The Link Prompt
         # ---------------------------------------------------------------
         # The escape hatch for a one-off export that belongs to no project. The

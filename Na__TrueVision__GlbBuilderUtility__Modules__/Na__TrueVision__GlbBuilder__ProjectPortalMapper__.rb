@@ -455,6 +455,100 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | The Site Plan Variants A Project Can Hold
+        # ---------------------------------------------------------------
+        # A project may carry an EXISTING site plan and a PROPOSED one, because a
+        # scheme that re-cuts the ground - a new lake, new woodland, new contours
+        # - cannot be told with layers alone. Most jobs use only Proposed.
+        #
+        # The folder names keep the SitePlan__DrawingData stem on purpose:
+        #   * one prefix finds every variant AND the legacy single folder, so
+        #     discovery is a prefix test rather than a rewritten list;
+        #   * a project exported before this existed keeps working untouched.
+        # A bare SitePlan__DrawingData is read as Proposed - it is what every
+        # single-store project already holds.
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__SitePlanVariants
+            [
+                { variant_id: 'existing', label: 'Existing Site Plan',
+                  folder_name: 'SitePlan__DrawingData__Existing',
+                  note: 'The site as found - the survey, the base map, what is there now.' },
+                { variant_id: 'proposed', label: 'Proposed Site Plan',
+                  folder_name: 'SitePlan__DrawingData__Proposed',
+                  note: 'The scheme - new buildings, new landscape, new levels.' }
+            ]
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Identify A Site Plan Folder, Legacy Names Included
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__IdentifySitePlanFolder(folder_name)
+            name = folder_name.to_s
+            return nil unless name.start_with?('SitePlan__DrawingData')
+
+            variant = self.Na__PortalMapper__SitePlanVariants.find { |v| v[:folder_name] == name }
+            return variant.merge(is_legacy: false) if variant
+
+            # The original single-store folder. Read as Proposed, never renamed:
+            # live TrueVision projects and published R2 keys point at this name.
+            if name == 'SitePlan__DrawingData'
+                return self.Na__PortalMapper__SitePlanVariants
+                           .find { |v| v[:variant_id] == 'proposed' }
+                           .merge(folder_name: name, label: 'Proposed Site Plan (original folder)', is_legacy: true)
+            end
+
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | List The Site Plan Folders A Project Holds
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__ListSitePlanFolders(project_root)
+            content_root = File.join(project_root.to_s, self.Na__PortalMapper__ContentFolderName)
+            return [] unless Dir.exist?(content_root)
+
+            Dir.entries(content_root).sort.each_with_object([]) do |entry, list|
+                next if entry.start_with?('.')
+                path = File.join(content_root, entry)
+                next unless File.directory?(path)
+
+                variant = self.Na__PortalMapper__IdentifySitePlanFolder(entry)
+                next unless variant
+
+                list << self.Na__PortalMapper__DescribeFolder(path, entry).merge(
+                    variant_id:   variant[:variant_id],
+                    variant_label: variant[:label],
+                    is_legacy:    variant[:is_legacy] == true
+                )
+            end
+        rescue => e
+            Na__Log__Warn "[PortalMapper] Could not list the site plan folders: #{e.message}"
+            []
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Create A Site Plan Folder For One Variant
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__CreateSitePlanFolder(project_root, variant_id)
+            variant = self.Na__PortalMapper__SitePlanVariants.find { |v| v[:variant_id] == variant_id.to_s }
+            return { success: false, message: "Unknown site plan variant: #{variant_id}." } unless variant
+
+            path = self.Na__PortalMapper__PhaseFolderPath(project_root, variant[:folder_name])
+
+            if Dir.exist?(path)
+                return { success: true, created: false, folder_name: variant[:folder_name], folder_path: path,
+                         message: "#{variant[:label]} already exists." }
+            end
+
+            FileUtils.mkdir_p(path)
+            { success: true, created: true, folder_name: variant[:folder_name], folder_path: path,
+              message: "Created #{variant[:folder_name]}." }
+        rescue => e
+            Na__Log__Warn "[PortalMapper] Could not create the site plan folder: #{e.message}"
+            { success: false, message: "#{e.class}: #{e.message}" }
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Resolve The Full Path A Phase Folder Would Occupy
         # ---------------------------------------------------------------
         def self.Na__PortalMapper__PhaseFolderPath(project_root, folder_name)

@@ -46,6 +46,11 @@ module TrueVision3D
         # Range 02 is open only to LINETYPE tags (entries carrying Glb__LineworkOnly) - the
         # dashed, dotted, centre and clearance line tags a person draws with. Every other
         # 02 tag is a helper and stays out, held back by the fully-excluded test below.
+        # Tags 76-79 are the LineworkModifier tags (entries carrying LineworkModifier__StyleKey):
+        # nested detail-weight tags applied inside an already-tagged parent of ANY numbered
+        # category (Walls, Roofs, Floors, Windows, Doors, ...) - never at a model's top level
+        # and never as a direct child of a Storey container. New ones are filed in the
+        # "Linework Modifiers" tag folder.
         # ------------------------------------------------------------
         NA__TAGS_MANAGER__CREATE_PREFIX_RANGES = [
             (1..1),
@@ -54,6 +59,7 @@ module TrueVision3D
             (10..29),
             (60..61),
             (71..75),
+            (76..79),
             (90..93)
         ].freeze
         # ------------------------------------------------------------
@@ -90,6 +96,8 @@ module TrueVision3D
             site_plan_folder = (site_plan_cfg.is_a?(Hash) && site_plan_cfg['SketchUpTagFolderName'].is_a?(String)) ? site_plan_cfg['SketchUpTagFolderName'] : 'Site Plan'
             linetype_cfg    = tags_data['LinetypeExportConfig']
             linetype_folder = (linetype_cfg.is_a?(Hash) && linetype_cfg['SketchUpTagFolderName'].is_a?(String)) ? linetype_cfg['SketchUpTagFolderName'] : 'Linetypes'
+            modifier_cfg    = tags_data['LineworkModifierConfig']
+            modifier_folder = (modifier_cfg.is_a?(Hash) && modifier_cfg['SketchUpTagFolderName'].is_a?(String)) ? modifier_cfg['SketchUpTagFolderName'] : 'Linework Modifiers'
 
             return nil unless library.is_a?(Hash)
 
@@ -115,6 +123,10 @@ module TrueVision3D
                     # Linetype Linework Export reads them back out into a GLB of their own.
                     is_linetype     = entry['Glb__LineworkOnly'] == true
 
+                    # LineworkModifier tags are nested detail-weight tags: applied inside an
+                    # already-tagged Walls/Windows/Doors group, never at a model's top level.
+                    is_modifier     = entry['LineworkModifier__StyleKey'].is_a?(String)
+
                     # Skip fully-excluded tags unless they are model-flag, linetype, storey container or site plan tags
                     next if entry['Glb__FullyExcluded'] == true && !is_model_flag && !is_linetype && !is_storey && !is_site_plan
 
@@ -123,7 +135,7 @@ module TrueVision3D
                         'description'       => entry['Tag__Description'],
                         'line_style_name'   => entry['Layout__LineStyleName'],
                         'edge_colour_rgb'   => entry['Layout__EdgeColourRGB'],
-                        'folder_name'       => (is_site_plan ? site_plan_folder : ((is_linetype && !is_model_flag) ? linetype_folder : nil))
+                        'folder_name'       => (is_site_plan ? site_plan_folder : ((is_linetype && !is_model_flag) ? linetype_folder : (is_modifier ? modifier_folder : nil)))
                     }
                 end
             end

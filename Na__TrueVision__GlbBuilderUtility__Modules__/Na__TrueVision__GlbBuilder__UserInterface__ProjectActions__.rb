@@ -20,6 +20,23 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 20-Sep-2026 - Version 2.10.0
+# - SITE PLAN DATA ON THE PROJECT TAB, WITH AN EXISTING / PROPOSED CHOICE.
+#   A project can now hold two site plan stores, chosen the same way a design
+#   phase is: a radio list of the folders that exist, a dropdown of the ones that
+#   do not, and Create Folder. The chosen folder is stored on the model, so a
+#   site plan model always exports into the same store.
+#   Folder names keep the SitePlan__DrawingData stem -
+#   SitePlan__DrawingData__Existing / __Proposed - so one prefix finds every
+#   variant AND the original single folder, which is read as Proposed and never
+#   renamed (live TrueVision projects and published R2 keys point at that name).
+#   THE GUARD: the variant is never inferred from the model. With two folders
+#   and no choice stored, the export refuses rather than guessing, so an existing
+#   site plan cannot be written over a proposed one. A project holding exactly
+#   one folder answers for itself, which is every project that pre-dates this.
+#   Until now the only route was the Export tab's blind folder picker, which
+#   knows nothing about the linked project.
+#
 # 19-Sep-2026 - Version 2.9.0
 # - Initial project actions.
 #
@@ -73,6 +90,9 @@ module TrueVision3D
             when 'open_pipeline'          then self.Na__ProjectActions__OpenPipeline(dialog)
             when 'export_to_project'      then self.Na__ProjectActions__ExportToProject(dialog, params, sync: false)
             when 'export_and_sync'        then self.Na__ProjectActions__ExportToProject(dialog, params, sync: true)
+            when 'export_siteplan_to_project' then self.Na__ProjectActions__ExportSitePlanToProject(dialog)
+            when 'set_siteplan_folder'    then self.Na__ProjectActions__SetSitePlanFolder(dialog, params)
+            when 'create_siteplan_folder' then self.Na__ProjectActions__CreateSitePlanFolder(dialog, params)
             else
                 return false
             end
@@ -464,6 +484,122 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # ACTION HANDLER | Export The Site Plan Straight Into The Linked Project
+        # ---------------------------------------------------------------
+        # The Export tab's Export Site Plan Data opens a blind folder picker,
+        # which is how a site plan can land in the wrong project. This route
+        # resolves the folder from the project link instead, so there is nothing
+        # to pick and nothing to get wrong. The export still shows its own
+        # summary and names the folder before it writes anything.
+        # ---------------------------------------------------------------
+        def self.Na__ProjectActions__ExportSitePlanToProject(dialog)
+            model = Sketchup.active_model
+            link  = self.Na__ProjectLink__Read(model)
+
+            unless link[:linked]
+                self.Na__UserInterface__PushStatus(dialog, 'Link this model to a project first.', 'warning')
+                return
+            end
+
+            folder_name = self.Na__ProjectActions__SelectedSitePlanFolder(model, link)
+
+            # THE GUARD. An existing site plan must never be written over a
+            # proposed one, so the variant is chosen before anything is written
+            # and is never guessed. No choice means no export.
+            if folder_name.empty?
+                self.Na__UserInterface__PushStatus(
+                    dialog,
+                    'Choose Existing or Proposed first - a site plan must not be written into the wrong folder.',
+                    'warning'
+                )
+                return
+            end
+
+            variant     = self.Na__PortalMapper__IdentifySitePlanFolder(folder_name)
+            folder_path = self.Na__PortalMapper__PhaseFolderPath(link[:project_root], folder_name)
+            label       = variant ? variant[:label] : folder_name
+
+            self.Na__UserInterface__PushStatus(dialog, "Exporting the #{label} into the project...", 'info')
+
+            written = self.Na__SitePlan__Run(model, export_dir: folder_path)
+
+            if written
+                self.Na__UserInterface__PushStatus(
+                    dialog,
+                    "#{label} written to #{folder_name}. Push to R2 to publish it.",
+                    'success'
+                )
+            else
+                self.Na__UserInterface__PushStatus(dialog, 'Site plan export did not complete.', 'warning')
+            end
+        rescue => e
+            Na__Log__Warn "ERROR exporting site plan data to the project: #{e.message}"
+            self.Na__UserInterface__PushStatus(dialog, "Site plan export failed: #{e.message}", 'error')
+        end
+        # ---------------------------------------------------------------
+
+        # ACTION HANDLER | Choose Which Site Plan This Model Exports Into
+        # ---------------------------------------------------------------
+        def self.Na__ProjectActions__SetSitePlanFolder(dialog, params)
+            folder_name = params['folderName'].to_s
+            variant     = self.Na__PortalMapper__IdentifySitePlanFolder(folder_name)
+
+            unless variant
+                self.Na__UserInterface__PushStatus(dialog, "Not a site plan folder: #{folder_name}", 'warning')
+                return
+            end
+
+            result = self.Na__ProjectLink__WriteSitePlanFolder(Sketchup.active_model, folder_name)
+            self.Na__UserInterface__PushStatus(
+                dialog,
+                result[:success] ? "This model now exports its site plan into the #{variant[:label]}." : result[:message],
+                result[:success] ? 'success' : 'error'
+            )
+        end
+        # ---------------------------------------------------------------
+
+        # ACTION HANDLER | Create A Site Plan Folder And Select It
+        # ---------------------------------------------------------------
+        def self.Na__ProjectActions__CreateSitePlanFolder(dialog, params)
+            link = self.Na__ProjectLink__Read(Sketchup.active_model)
+
+            unless link[:linked]
+                self.Na__UserInterface__PushStatus(dialog, 'Link this model to a project first.', 'warning')
+                return
+            end
+
+            result = self.Na__PortalMapper__CreateSitePlanFolder(link[:project_root], params['variantId'].to_s)
+
+            unless result[:success]
+                self.Na__UserInterface__PushStatus(dialog, result[:message], 'error')
+                return
+            end
+
+            # Creating a folder is how you say which kind of site plan this model
+            # is, so selecting it is the same gesture - no second click.
+            self.Na__ProjectLink__WriteSitePlanFolder(Sketchup.active_model, result[:folder_name])
+            self.Na__UserInterface__PushStatus(dialog, "#{result[:message]} This model now exports into it.", 'success')
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Which Site Plan Folder This Model Exports Into
+        # ---------------------------------------------------------------
+        # Stored choice first. With nothing stored, a project holding exactly one
+        # site plan folder answers itself - that covers every project that
+        # existed before the split. Two folders and no choice returns empty, and
+        # the caller refuses to export.
+        # ---------------------------------------------------------------
+        def self.Na__ProjectActions__SelectedSitePlanFolder(model, link)
+            stored = self.Na__ProjectLink__ReadSitePlanFolder(model)
+            return stored unless stored.empty?
+
+            folders = link[:linked] ? self.Na__PortalMapper__ListSitePlanFolders(link[:project_root]) : []
+            return folders.first[:folder_name].to_s if folders.length == 1
+
+            ''
+        end
+        # ---------------------------------------------------------------
+
         # ACTION HANDLER | Open The Build Pipeline In Its Own Console
         # ---------------------------------------------------------------
         def self.Na__ProjectActions__OpenPipeline(dialog)
@@ -497,6 +633,14 @@ module TrueVision3D
                 { glb_count: 0 }
             end
 
+            siteplan_folders  = link[:linked] ? self.Na__PortalMapper__ListSitePlanFolders(link[:project_root]) : []
+            siteplan_selected = self.Na__ProjectActions__SelectedSitePlanFolder(model, link)
+            siteplan_info     = if link[:linked] && !siteplan_selected.empty?
+                self.Na__PortalMapper__InspectTargetFolder(link[:project_root], siteplan_selected)
+            else
+                { exists: false, glb_count: 0, last_written: '', folder_path: '' }
+            end
+
             {
                 linked:           link[:linked],
                 should_prompt:    self.Na__ProjectLink__ShouldPrompt?(model),
@@ -509,6 +653,13 @@ module TrueVision3D
                 project_brief:    self.Na__ProjectActions__BriefFor(link),
                 target_folder:    target,
                 target_glb_count: target_info[:glb_count].to_i,
+                siteplan_folder:       siteplan_selected,
+                siteplan_folder_path:  siteplan_info[:folder_path].to_s,
+                siteplan_exists:       siteplan_info[:exists] == true,
+                siteplan_glb_count:    siteplan_info[:glb_count].to_i,
+                siteplan_last_written: siteplan_info[:last_written].to_s,
+                siteplan_folders:      siteplan_folders,
+                siteplan_variants:     self.Na__PortalMapper__SitePlanVariants,
                 folders:          folders,
                 phases:           self.Na__ProjectActions__PhaseCatalogue(link),
                 structure:        link[:linked] ? self.Na__PortalMapper__BuildStructureTree(
@@ -522,7 +673,10 @@ module TrueVision3D
                 linked: false, should_prompt: false, portal_found: false,
                 portal_root: '', project_code: '', project_name: '', project_folder: '',
                 project_root: '', project_brief: "Project status failed: #{e.message}",
-                target_folder: '', target_glb_count: 0, folders: [], phases: [], structure: []
+                target_folder: '', target_glb_count: 0, folders: [], phases: [], structure: [],
+                siteplan_folder: '', siteplan_folder_path: '', siteplan_exists: false,
+                siteplan_glb_count: 0, siteplan_last_written: '',
+                siteplan_folders: [], siteplan_variants: []
             }
         end
         # ---------------------------------------------------------------

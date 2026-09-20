@@ -579,6 +579,11 @@
             running || !naTvgbState.canExportSitePlan,
             'No site plan tags (71-75) in this model.'
         );
+        var sitePlanBlocked = !naTvgbProject.linked ? 'Link this model to a project first.'
+                            : !naTvgbState.canExportSitePlan ? 'No site plan tags (71-75) in this model.'
+                            : !naTvgbProject.sitePlanFolder ? 'Choose Existing or Proposed first.'
+                            : '';
+        na__tvgb__lockCard('naTvgbSitePlanExportCard', running || sitePlanBlocked !== '', sitePlanBlocked);
 
         // Project-dependent cards: need a link, a target folder, and something to export
         var noProject   = !naTvgbProject.linked;
@@ -650,7 +655,11 @@
         phases         : [],      // <-- canonical phase catalogue from Ruby
         folders        : [],      // <-- folders that exist on disk
         structure      : [],      // <-- folder tree rows for the structure panel
-        portalFound    : false
+        portalFound    : false,
+
+        sitePlanFolder   : '',    // <-- Existing or Proposed; '' means not chosen, and nothing exports
+        sitePlanFolders  : [],    // <-- site plan folders that exist on disk
+        sitePlanVariants : []     // <-- the catalogue of variants a project may hold
     };
 
     var NA_TVGB_PROJECT_CODE_PATTERN = /^[A-Z]{2}[0-9]{2}$/;
@@ -1187,12 +1196,17 @@
         naTvgbProject.structure      = Array.isArray(status.structure) ? status.structure : [];
         naTvgbProject.portalFound    = !!status.portal_found;
 
+        naTvgbProject.sitePlanFolders  = Array.isArray(status.siteplan_folders)  ? status.siteplan_folders  : [];
+        naTvgbProject.sitePlanVariants = Array.isArray(status.siteplan_variants) ? status.siteplan_variants : [];
+        naTvgbProject.sitePlanFolder   = status.siteplan_folder || '';
+
         if (!naTvgbProject.selectedFolder || !na__tvgb__folderExists(naTvgbProject.selectedFolder)) {
             naTvgbProject.selectedFolder = naTvgbProject.targetFolder;
         }
 
 
         na__tvgb__renderProjectCard(status);
+        na__tvgb__renderSitePlanCard(status);
         na__tvgb__renderPhaseSelect();
         na__tvgb__renderSchemeList();
         na__tvgb__renderTree('naTvgbStructureTree', naTvgbProject.structure, null);
@@ -1241,6 +1255,135 @@
         if (portalInput && !portalInput.value && status.portal_root) {
             portalInput.value = status.portal_root;
         }
+    }
+
+    // Site plan data is not a design phase, but it is chosen the same way: a
+    // radio list of the folders that exist, a dropdown of the ones that do not
+    // yet, and a Create button. The variant is never inferred from the model.
+    function na__tvgb__renderSitePlanCard(status) {
+        var group = document.getElementById('naTvgbSitePlanGroup');
+        if (group) { group.style.display = status.linked ? '' : 'none'; }
+        if (!status.linked) { return; }
+
+        na__tvgb__renderSitePlanList();
+        na__tvgb__renderSitePlanSelect();
+
+        var selected = naTvgbProject.sitePlanFolder;
+        na__tvgb__setText('naTvgbSitePlanFolder',
+            selected ? (status.siteplan_folder_path || selected) : 'Not chosen yet — pick Existing or Proposed');
+
+        var count = Number(status.siteplan_glb_count || 0);
+        var state;
+        if (!selected) {
+            state = 'Nothing is exported until a site plan folder is chosen';
+        } else if (!status.siteplan_exists) {
+            state = 'Not created yet — the first export makes it';
+        } else if (count === 0) {
+            state = 'Folder present, no site plan GLBs in it yet';
+        } else {
+            state = count + ' GLB' + (count === 1 ? '' : 's');
+            if (status.siteplan_last_written) { state += ' · last written ' + status.siteplan_last_written; }
+        }
+        na__tvgb__setText('naTvgbSitePlanState', state);
+
+        var variant = na__tvgb__sitePlanVariantFor(selected);
+        na__tvgb__setText('naTvgbSitePlanExportLabel',
+            variant ? ('Export The ' + variant.label + ' Into This Project')
+                    : 'Export Site Plan Into This Project');
+    }
+
+    function na__tvgb__sitePlanVariantFor(folderName) {
+        if (!folderName) { return null; }
+        for (var i = 0; i < naTvgbProject.sitePlanFolders.length; i += 1) {
+            if (naTvgbProject.sitePlanFolders[i].folder_name === folderName) {
+                return { label: naTvgbProject.sitePlanFolders[i].variant_label || 'Site Plan' };
+            }
+        }
+        for (var j = 0; j < naTvgbProject.sitePlanVariants.length; j += 1) {
+            if (naTvgbProject.sitePlanVariants[j].folder_name === folderName) {
+                return { label: naTvgbProject.sitePlanVariants[j].label };
+            }
+        }
+        return null;
+    }
+
+    function na__tvgb__renderSitePlanList() {
+        var list = document.getElementById('naTvgbSitePlanList');
+        if (!list) { return; }
+
+        if (naTvgbProject.sitePlanFolders.length === 0) {
+            list.innerHTML = '<div class="naTvgb__Note naTvgb__Note--empty">'
+                + 'No site plan folders yet. Choose Existing or Proposed below and create one.'
+                + '</div>';
+            return;
+        }
+
+        list.innerHTML = naTvgbProject.sitePlanFolders.map(function(folder) {
+            var selected = folder.folder_name === naTvgbProject.sitePlanFolder;
+            var meta     = folder.glb_count + ' GLB' + (folder.glb_count === 1 ? '' : 's');
+            if (folder.last_written) { meta += ' · last written ' + folder.last_written; }
+
+            var tag = '';
+            if (folder.is_legacy) {
+                tag = '<span class="naTvgb__SchemeRow__Tag naTvgb__SchemeRow__Tag--alias">Original folder</span>';
+            } else if (folder.glb_count === 0) {
+                tag = '<span class="naTvgb__SchemeRow__Tag naTvgb__SchemeRow__Tag--empty">Empty</span>';
+            }
+
+            return '<button type="button" class="naTvgb__SchemeRow' + (selected ? ' naTvgb__SchemeRow--selected' : '') + '"'
+                + ' onclick="Na__Tvgb__SelectSitePlanFolder(\'' + na__tvgb__escAttr(folder.folder_name) + '\')">'
+                + '<span class="naTvgb__SchemeRow__Radio"></span>'
+                + '<span class="naTvgb__SchemeRow__Body">'
+                + '<span class="naTvgb__SchemeRow__Name">' + na__tvgb__escHtml(folder.folder_name) + '</span>'
+                + '<span class="naTvgb__SchemeRow__Meta">' + na__tvgb__escHtml((folder.variant_label || 'Site Plan') + ' · ' + meta) + '</span>'
+                + '</span>'
+                + tag
+                + '</button>';
+        }).join('');
+    }
+
+    // Only variants that have no folder yet are offerable, so Create Folder can
+    // never be a second way to reach a folder the list above already shows.
+    function na__tvgb__renderSitePlanSelect() {
+        var select = document.getElementById('naTvgbNewSitePlanSelect');
+        if (!select) { return; }
+
+        var previous = select.value;
+        var existing = {};
+        naTvgbProject.sitePlanFolders.forEach(function(f) { existing[f.folder_name] = true; });
+
+        var options = naTvgbProject.sitePlanVariants.filter(function(v) { return !existing[v.folder_name]; });
+
+        select.innerHTML = options.map(function(v) {
+            return '<option value="' + na__tvgb__escHtml(v.variant_id) + '">'
+                 + na__tvgb__escHtml(v.label + ' — ' + v.folder_name)
+                 + '</option>';
+        }).join('');
+
+        if (previous) { select.value = previous; }
+        if (!select.value && options.length) { select.value = options[0].variant_id; }
+
+        var btn = document.getElementById('naTvgbCreateSitePlanBtn');
+        if (btn) {
+            btn.disabled = options.length === 0 || naTvgbState.isRunning;
+            btn.title    = options.length === 0 ? 'This project already has both site plan folders.' : '';
+        }
+    }
+
+    function Na__Tvgb__SelectSitePlanFolder(folderName) {
+        naTvgbProject.sitePlanFolder = String(folderName || '');
+        na__tvgb__renderSitePlanList();
+
+        na__tvgb__dispatch('set_siteplan_folder', { folderName: naTvgbProject.sitePlanFolder });
+    }
+
+    function Na__Tvgb__CreateSitePlanFolder() {
+        var select = document.getElementById('naTvgbNewSitePlanSelect');
+        if (!select || !select.value) {
+            na__tvgb__setStatus('This project already has both site plan folders.', 'warning');
+            return;
+        }
+        na__tvgb__dispatch('create_siteplan_folder', { variantId: select.value });
     }
 
     function na__tvgb__renderPhaseSelect() {
@@ -1428,6 +1571,8 @@
     window.Na__Tvgb__HandleCodeKeydown        = Na__Tvgb__HandleCodeKeydown;
     window.Na__Tvgb__RunProjectAction         = Na__Tvgb__RunProjectAction;
     window.Na__Tvgb__SelectScheme             = Na__Tvgb__SelectScheme;
+    window.Na__Tvgb__SelectSitePlanFolder     = Na__Tvgb__SelectSitePlanFolder;
+    window.Na__Tvgb__CreateSitePlanFolder     = Na__Tvgb__CreateSitePlanFolder;
     window.Na__Tvgb__ConfirmUnlinkProject     = Na__Tvgb__ConfirmUnlinkProject;
     window.Na__Tvgb__CloseConfirmModal        = Na__Tvgb__CloseConfirmModal;
     window.Na__Tvgb__AcceptConfirmModal       = Na__Tvgb__AcceptConfirmModal;

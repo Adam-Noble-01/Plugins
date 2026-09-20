@@ -3,7 +3,7 @@
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
         "version"           : "1.4.3",
-        "lastUpdated"       : "11-Sep-2026",
+        "lastUpdated"       : "20-Sep-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json (v1.0.0)"
@@ -367,6 +367,26 @@
             }
         },
 
+        "MAT800__SitePlanFillSeries__": {
+            "MAT801__SitePlan__WoodlandGreen": {
+                "SketchUpName": "MAT801__SitePlan__WoodlandGreen",
+                "Description": "Site plan face fill - woodland, hedges and planting. OPAQUE in SketchUp so the model reads while it is drawn; TrueVision applies the drawing transparency from SitePlan__FillOpacity in the Tags SSOT.",
+                "BaseColor": "rgb(220, 237, 207)",
+                "Opacity": 1.0
+            },
+            "MAT802__SitePlan__WaterBlue": {
+                "SketchUpName": "MAT802__SitePlan__WaterBlue",
+                "Description": "Site plan face fill - ponds, lakes and watercourses. Opaque in SketchUp; TrueVision applies the drawing transparency.",
+                "BaseColor": "rgb(186, 228, 253)",
+                "Opacity": 1.0
+            },
+            "MAT803__SitePlan__ProposalRed": {
+                "SketchUpName": "MAT803__SitePlan__ProposalRed",
+                "Description": "Site plan face fill - the proposal, both new construction and alterations. Opaque in SketchUp; TrueVision washes it back to rgba(255, 0, 0, 0.1) from SitePlan__FillOpacity.",
+                "BaseColor": "rgb(255, 0, 0)",
+                "Opacity": 1.0
+            }
+        },
         "MAT900__SceneEntourageSeries__": {
             "MAT901__Entourage__Silhouette__MidGrey": {
                 "SketchUpName"       : "MAT901__Entourage__Silhouette__MidGrey",

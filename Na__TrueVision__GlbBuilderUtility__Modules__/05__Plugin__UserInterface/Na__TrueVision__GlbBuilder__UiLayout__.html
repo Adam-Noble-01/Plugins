@@ -193,7 +193,7 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                         <span class="naTvgb__ActionCard__Icon">&#128506;</span>
                         <span class="naTvgb__ActionCard__Body">
                             <span class="naTvgb__ActionCard__Label">Export Site Plan Data</span>
-                            <span class="naTvgb__ActionCard__Desc">One linework GLB per site plan tag (71-75), plus fills and a manifest, into SitePlan__DrawingData.</span>
+                            <span class="naTvgb__ActionCard__Desc">One linework GLB per site plan tag (71-75), plus fills and a manifest. Goes straight to the site plan folder set on the Project tab &mdash; no folder picker once this model is linked.</span>
                         </span>
                     </button>
 
@@ -298,6 +298,51 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                         <button type="button" class="naTvgb__Btn" id="naTvgbDuplicateBtn"
                                 onclick="Na__Tvgb__ConfirmDuplicateScheme()">Duplicate Selected</button>
                     </div>
+                </div>
+
+                <!-- Site plan data store -->
+                <div class="naTvgb__SettingsGroup" id="naTvgbSitePlanGroup">
+                    <h3 class="naTvgb__SettingsGroup__Title">Site Plan Data</h3>
+                    <p class="naTvgb__SettingsGroup__Desc">
+                        Site plan drawings read their own folders, beside the design phase folders. A project
+                        can hold an <strong>Existing</strong> site plan and a <strong>Proposed</strong> one
+                        &mdash; a scheme that re-cuts the ground cannot be told with layers alone. Pick which
+                        one this model is before exporting; nothing is ever guessed, so an existing site plan
+                        cannot be written over a proposed one.
+                    </p>
+
+                    <div class="naTvgb__SchemeList" id="naTvgbSitePlanList"></div>
+
+                    <div class="naTvgb__FieldRow">
+                        <label class="naTvgb__FieldRow__Label" for="naTvgbNewSitePlanSelect">New Folder</label>
+                        <select id="naTvgbNewSitePlanSelect" class="naTvgb__Select"></select>
+                    </div>
+
+                    <div class="naTvgb__ButtonRow">
+                        <button type="button" class="naTvgb__Btn naTvgb__Btn--primary"
+                                id="naTvgbCreateSitePlanBtn"
+                                onclick="Na__Tvgb__CreateSitePlanFolder()">Create Folder</button>
+                    </div>
+
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Exports Into</span>
+                        <span class="naTvgb__ProjectStatus__Value naTvgb__ProjectStatus__Value--path"
+                              id="naTvgbSitePlanFolder">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">On Disk</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbSitePlanState">&mdash;</span>
+                    </div>
+
+                    <button type="button" class="naTvgb__ActionCard naTvgb__ActionCard--primary"
+                            id="naTvgbSitePlanExportCard"
+                            onclick="Na__Tvgb__RunProjectAction('export_siteplan_to_project')">
+                        <span class="naTvgb__ActionCard__Icon">&#128506;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label" id="naTvgbSitePlanExportLabel">Export Site Plan Into This Project</span>
+                            <span class="naTvgb__ActionCard__Desc" id="naTvgbSitePlanExportDesc">Writes straight into the selected site plan folder, created if missing. No folder picker, and an existing site plan can never be written over a proposed one.</span>
+                        </span>
+                    </button>
                 </div>
 
                 <!-- Live project structure -->

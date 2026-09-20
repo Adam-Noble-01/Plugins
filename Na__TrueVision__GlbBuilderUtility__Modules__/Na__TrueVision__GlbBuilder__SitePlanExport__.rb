@@ -32,6 +32,31 @@
 #   EngineCore__LineworkModelHandling__ (BuildGltfFromEdgeData), Logging__, CoreExport__.
 #
 # DEVELOPMENT LOG:
+# 20-Sep-2026 - Version 1.3.0
+# - NO MORE FOLDER PICKER ON A LINKED MODEL. Na__SitePlan__Run now resolves the
+#   destination from the project link itself, so every route - this dialog's
+#   Export Site Plan Data, the Project tab's button and the Extensions menu -
+#   lands in the same place without asking. The project code is set once and the
+#   store is chosen once; picking a folder by hand afterwards defeated the point.
+#   The confirmation names the project, the store and the full path before a byte
+#   is written. A model that is linked but has NO store chosen is told to choose
+#   one on the Project tab and stops - it is never guessed, or an existing site
+#   plan could be written over a proposed one. Only an UNLINKED model still sees
+#   a folder picker.
+#
+# 20-Sep-2026 - Version 1.2.0
+# - LEGACY TAG NAMES. A site plan entry may carry SitePlan__LegacyTagNames, an array of
+#   retired SketchUp tag names. Each one is registered against the SAME layer definition,
+#   and Na__SitePlan__Collect now resolves an entity's tag to the definition's CANONICAL
+#   :tag_name rather than to the name on the entity. So a model still tagged with a
+#   retired name exports to the layer it was renamed from, and a model holding BOTH names
+#   collects into one bucket and writes one GLB instead of two files racing for one name.
+#   Without this, renaming a tag in the SSOT silently stops that geometry exporting.
+# - The "tags with nothing on them" count in the pre-export summary now counts canonical
+#   names only (an alias is not a layer), and still subtracts the skipped map, so a layer
+#   whose edges were all hidden, soft or smooth is reported once, under Check, instead of
+#   being reported as both empty and problematic in the same dialog.
+#
 # 14-Sep-2026 - Version 1.1.1
 # - The checks are no longer only in the summary shown before export. Every one is
 #   written to the export log, and the completion message lists them (up to eight)
@@ -66,7 +91,7 @@ module TrueVision3D
             'FillFileSuffix'             => '__FillModel__',
             'ExportIgnoresTagVisibility' => true
         }.freeze
-        NA__SITEPLAN__EXPORTER_VERSION  = '1.1.1'.freeze                          # <-- Written into the manifest and GLB asset
+        NA__SITEPLAN__EXPORTER_VERSION  = '1.3.0'.freeze                          # <-- Written into the manifest and GLB asset
         NA__SITEPLAN__SCHEMA_VERSION    = 1                                        # <-- Manifest schema version
         NA__SITEPLAN__MAX_DEPTH         = 64                                       # <-- Nesting guard for the walk
         NA__SITEPLAN__FLAT_TOLERANCE_M  = 0.5                                      # <-- Height span above which a layer is flagged
@@ -124,14 +149,39 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | MAT Id -> "#RRGGBB" From the Materials SSOT
+        # ---------------------------------------------------------------
+        # A site plan FILL is a face material, not an edge colour, so it cannot
+        # be resolved from the EdgeMaterials index. Colours there are written
+        # "rgb(R, G, B)"; TrueVision wants a hex.
+        # ---------------------------------------------------------------
+        def self.Na__SitePlan__MaterialHexIndex(materials_data)
+            index = {}
+            library = materials_data.is_a?(Hash) ? materials_data['Na__DataLib__CoreIndex__Materials'] : nil
+            return index unless library.is_a?(Hash)
+
+            library.each_value do |series|
+                next unless series.is_a?(Hash)
+                series.each do |key, entry|
+                    next unless entry.is_a?(Hash)
+                    match = entry['BaseColor'].to_s.match(/\Argb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)\z/)
+                    next unless match
+                    index[key] = format('#%02X%02X%02X', match[1].to_i, match[2].to_i, match[3].to_i)
+                end
+            end
+            index
+        end
+        # ---------------------------------------------------------------
+
         # HELPER FUNCTION | Build the Site Plan Layer Definitions { tag name => definition }
         # ---------------------------------------------------------------
-        def self.Na__SitePlan__BuildLayerDefinitions(tags_data, edge_data)
+        def self.Na__SitePlan__BuildLayerDefinitions(tags_data, edge_data, materials_data = nil)
             layers  = {}
             library = tags_data.is_a?(Hash) ? tags_data['Na__DataLib__CoreIndex__Tags'] : nil
             return layers unless library.is_a?(Hash)
 
             hex_by_id = self.Na__SitePlan__EdgeHexIndex(edge_data)
+            mat_by_id = self.Na__SitePlan__MaterialHexIndex(materials_data)
 
             library.each_value do |section|
                 next unless section.is_a?(Hash)
@@ -143,25 +193,52 @@ module TrueVision3D
 
                     line_id = entry['SitePlan__LineColourId']
                     fill_id = entry['SitePlan__FillColourId']
+                    mat_id  = entry['SitePlan__FillMaterialId']
+                    fill_hex = if mat_id
+                                   mat_by_id[mat_id]                            # <-- A face material, the normal case
+                               elsif fill_id
+                                   hex_by_id[fill_id]                           # <-- Legacy: a fill named as an edge colour
+                               end
 
-                    layers[name] = {
+                    definition = {
                         tag_name:   name,
                         stem:       stem,
                         label:      entry['SitePlan__LayerLabel'] || stem.sub('TrueVision__SitePlan__', ''),
                         group:      entry['SitePlan__LayerGroup'],
                         draw_order: entry['SitePlan__DrawOrder'],
+                        z_line:     entry['SitePlan__ZIndexLine'],
+                        z_fill:     entry['SitePlan__ZIndexFill'],
                         fills:      entry['SitePlan__ExportFills'] == true,
                         scales:     entry['SitePlan__VisibleAtScales'].is_a?(Array) ? entry['SitePlan__VisibleAtScales'] : [],
                         style:      {
                             'LineColourId' => line_id,
                             'LineHex'      => line_id ? hex_by_id[line_id] : nil,
                             'LineType'     => entry['SitePlan__LineType'],
+                            'LineDashScale'  => entry['SitePlan__LineDashScale'],   # <-- Shrinks the dash pattern for this layer only; nil means the line type as drawn
+
                             'LineWeightMm' => entry['SitePlan__LineWeightMm'],
-                            'FillColourId' => fill_id,
-                            'FillHex'      => fill_id ? hex_by_id[fill_id] : nil,
-                            'FillOpacity'  => entry['SitePlan__FillOpacity']
+                            'LineWeightPt'   => entry['SitePlan__LineWeightPt'],
+                            'FillColourId'   => fill_id,
+                            'FillMaterialId' => mat_id,
+                            'FillHex'        => fill_hex,
+                            'FillOpacity'    => entry['SitePlan__FillOpacity'],
+                            'HatchPatternId' => entry['SitePlan__FillHatchId']
                         }
                     }
+
+                    layers[name] = definition                                      # <-- Keyed by the canonical tag name
+
+                    # LEGACY TAG NAMES | A retired tag name points at the SAME definition
+                    # object, so a model still tagged with it exports to the canonical
+                    # layer instead of silently dropping out. The definition's :tag_name
+                    # stays canonical - that is what folds both names into one bucket in
+                    # Na__SitePlan__Collect, so one GLB is written, not two.
+                    Array(entry['SitePlan__LegacyTagNames']).each do |legacy|
+                        next unless legacy.is_a?(String)
+                        next if legacy.empty? || legacy == name
+                        next if layers.key?(legacy) && layers[legacy][:tag_name] == legacy
+                        layers[legacy] = definition                                # <-- A live tag always beats another entry's alias
+                    end
                 end
             end
             layers
@@ -306,7 +383,10 @@ module TrueVision3D
                 next if ctx[:exclusion_pattern] && tag_name =~ ctx[:exclusion_pattern]
                 next if !ctx[:ignore_visibility] && layer && !layer.visible?
 
-                owner = ctx[:layers].key?(tag_name) ? tag_name : current_tag
+                # The CANONICAL tag name, never the name on the entity. A retired tag
+                # name resolves to the live layer it was renamed from, so both names
+                # collect into one bucket and one GLB (SitePlan__LegacyTagNames).
+                owner = ctx[:layers].key?(tag_name) ? ctx[:layers][tag_name][:tag_name] : current_tag
 
                 if entity.respond_to?(:hidden?) && entity.hidden?
                     self.Na__SitePlan__CountSkipped(ctx, owner, entity)              # <-- Counted, so a gap in the linework shows in the summary
@@ -346,7 +426,8 @@ module TrueVision3D
         def self.Na__SitePlan__Scan(model)
             tags_data  = self.Na__SitePlan__LoadDataLibFile('Na__DataLib__CoreIndex__Tags__.json', :tags)
             edge_data  = self.Na__SitePlan__LoadDataLibFile('Na__DataLib__CoreIndex__EdgeMaterials__.json', :edge_materials)
-            layer_defs = self.Na__SitePlan__BuildLayerDefinitions(tags_data, edge_data)
+            mats_data  = self.Na__SitePlan__LoadDataLibFile('Na__DataLib__CoreIndex__Materials__.json', :materials)
+            layer_defs = self.Na__SitePlan__BuildLayerDefinitions(tags_data, edge_data, mats_data)
             config     = self.Na__SitePlan__Config(tags_data)
 
             exclusions  = tags_data.is_a?(Hash) ? tags_data['ExportExclusions'] : nil
@@ -463,6 +544,43 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | The Folder This Model's Project Says To Export Into
+        # ---------------------------------------------------------------
+        # THE POINT OF THE PROJECT LINK IS THAT NOBODY EVER PICKS A FOLDER AGAIN.
+        # The code is set once, the store is chosen once on the Project tab, and
+        # every export after that - this dialog, the Project tab, the Extensions
+        # menu - resolves the same folder without asking.
+        #
+        # Returns nil when the model is not linked, which is the only case that
+        # still falls back to a folder picker. Returns :unchosen when the model IS
+        # linked but no site plan store has been chosen: that must not be guessed,
+        # or an existing site plan lands on top of a proposed one.
+        # ---------------------------------------------------------------
+        def self.Na__SitePlan__ProjectTarget(model)
+            return nil unless self.respond_to?(:Na__ProjectLink__Read)
+
+            link = self.Na__ProjectLink__Read(model)
+            return nil unless link[:linked]
+
+            folder = self.respond_to?(:Na__ProjectActions__SelectedSitePlanFolder) ?
+                self.Na__ProjectActions__SelectedSitePlanFolder(model, link).to_s : ''
+            return :unchosen if folder.empty?
+
+            variant = self.respond_to?(:Na__PortalMapper__IdentifySitePlanFolder) ?
+                self.Na__PortalMapper__IdentifySitePlanFolder(folder) : nil
+
+            {
+                path:   self.Na__PortalMapper__PhaseFolderPath(link[:project_root], folder),
+                folder: folder,
+                label:  variant ? variant[:label] : folder,
+                code:   link[:project_code].to_s
+            }
+        rescue => e
+            Na__Log__Warn "  [SitePlan] Could not resolve the project's site plan folder: #{e.message}"
+            nil
+        end
+        # ---------------------------------------------------------------
+
         # HELPER FUNCTION | Summary Shown Before Anything Is Written
         # ---------------------------------------------------------------
         def self.Na__SitePlan__SummaryText(scan, prefix)
@@ -476,7 +594,13 @@ module TrueVision3D
                 lines << text
             end
 
-            unused = scan[:layers].keys - buckets.keys - (scan[:skipped] || {}).keys
+            # Canonical names only. scan[:layers] is also keyed by every legacy tag
+            # name, and an alias is not a layer that can be "unused". The skipped term
+            # keeps a layer whose edges were all hidden, soft or smooth out of this
+            # count - it is already reported under Check, and would otherwise be
+            # reported twice, contradicting itself.
+            canonical = scan[:layers].each_value.map { |defn| defn[:tag_name] }.uniq
+            unused    = canonical - buckets.keys - (scan[:skipped] || {}).keys
             lines << ''
             lines << "Site plan tags with nothing on them: #{unused.length}" unless unused.empty?
 
@@ -655,6 +779,8 @@ module TrueVision3D
                         'Layer__Label'           => defn[:label],
                         'Layer__Group'           => defn[:group],
                         'Layer__DrawOrder'       => defn[:draw_order],
+                        'Layer__ZIndexLine'      => defn[:z_line],
+                        'Layer__ZIndexFill'      => defn[:z_fill],
                         'Layer__LineworkFile'    => linework_file,
                         'Layer__FillFile'        => fill_file,
                         'Layer__SegmentCount'    => bucket[:positions].length / 6,
@@ -729,7 +855,13 @@ module TrueVision3D
 
         # FUNCTION | Run the Site Plan Export (Scan, Confirm, Choose Folder, Write)
         # ---------------------------------------------------------------
-        def self.Na__SitePlan__Run(model = Sketchup.active_model)
+        # export_dir: nil        - ask for the folder, as the Export tab does.
+        # export_dir: "<path>"   - write straight there, created if missing. The
+        #                          Project tab passes the linked project's site
+        #                          plan folder, so there is no folder picker and
+        #                          no chance of exporting into the wrong project.
+        # ---------------------------------------------------------------
+        def self.Na__SitePlan__Run(model = Sketchup.active_model, export_dir: nil)
             return false unless model
 
             if model.active_path
@@ -759,10 +891,38 @@ module TrueVision3D
 
             prefix  = self.Na__SitePlan__ProjectPrefix(model)
             summary = self.Na__SitePlan__SummaryText(scan, prefix)
-            return false unless UI.messagebox("#{summary}\n\nChoose the export folder next. Continue?", MB_YESNO) == IDYES
 
-            export_dir = self.Na__SitePlan__ChooseFolder(scan[:config])
+            # WHERE IT GOES, decided before anything is shown. A caller that named
+            # a folder wins; otherwise the project link answers; only an unlinked
+            # model ever sees a folder picker.
+            target = export_dir ? nil : self.Na__SitePlan__ProjectTarget(model)
+
+            if target == :unchosen
+                UI.messagebox(
+                    "This model is linked to a project, but no site plan store has been chosen.\n\n" \
+                    "Open the Project tab, pick Existing Site Plan or Proposed Site Plan under " \
+                    "Site Plan Data, then export again.\n\n" \
+                    'It is not guessed on purpose: an existing site plan must never be written over a proposed one.'
+                )
+                return false
+            end
+
+            export_dir ||= target && target[:path]
+
+            # The last thing read before anything is written says exactly where it
+            # lands - the project, the store and the path.
+            tail = if target
+                "Export into #{target[:code]} - #{target[:label]}:\n#{target[:path]}\n\nContinue?"
+            elsif export_dir
+                "Export into:\n#{export_dir}\n\nContinue?"
+            else
+                'Choose the export folder next. Continue?'
+            end
+            return false unless UI.messagebox("#{summary}\n\n#{tail}", MB_YESNO) == IDYES
+
+            export_dir ||= self.Na__SitePlan__ChooseFolder(scan[:config])       # <-- Unlinked models only
             return false unless export_dir
+            FileUtils.mkdir_p(export_dir) unless Dir.exist?(export_dir)
 
             result = self.Na__SitePlan__Write(model, scan, prefix, export_dir)
 
