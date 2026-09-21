@@ -2,7 +2,7 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout), SitePlan__ (site plan drawing export).",
-        "version"           : "2.7.0",
+        "version"           : "2.7.1",
         "lastUpdated"       : "21-Sep-2026",
         "namingConvention"  : "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
         "fieldPrefixes"     : {
@@ -1454,6 +1454,7 @@
             "71__SitePlan__BaseMap__OsMapping__General",
             "71__SitePlan__BaseMap__OsMapping__MainRoads",
             "71__SitePlan__BaseMap__OsMapping__MinorStreets",
+            "71__SitePlan__BaseMap__OsMapping__MajorFeature",
             "71__SitePlan__BaseMap__OsMapping__MinorFeature",
             "71__SitePlan__BaseMap__NeighbouringBuildings",
             "71__SitePlan__BaseMap__Waterbodies",
@@ -1530,6 +1531,7 @@
             "71__SitePlan__BaseMap__OsMapping__General",
             "71__SitePlan__BaseMap__OsMapping__MainRoads",
             "71__SitePlan__BaseMap__OsMapping__MinorStreets",
+            "71__SitePlan__BaseMap__OsMapping__MajorFeature",
             "71__SitePlan__BaseMap__OsMapping__MinorFeature",
             "71__SitePlan__BaseMap__NeighbouringBuildings",
             "71__SitePlan__BaseMap__Waterbodies",
