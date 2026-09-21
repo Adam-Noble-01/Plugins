@@ -37,8 +37,20 @@
 - Run **Create Standardised Tags From Index** to add the two tags to a model. Reloading the SSOT or
   the plugin never creates tags.
 
+**Create Standardised Tags From Index now puts new site plan tags where Adam can see them, and makes the fill materials** (Tag Manager)
+- New 71-75 tags go BESIDE the model's other site plan tags: at the top level when any of them is at
+  the top level (RB05's are), otherwise in the "Site Plan" tag folder as before. New tags filed into
+  a collapsed folder, in a model that keeps its site plan tags at the top level, read as never made.
+- The same run creates the MAT800 site plan fill materials from the Materials SSOT (all seven), and
+  sets an existing one's colour from the SSOT. Before this nothing created them at all.
+- The summary says where the new site plan tags went, and that Purge Unused deletes empty tags - which
+  is what removed the new grass tags from RB05 0.3.1 five minutes after they were made.
+- Proven by running the real `Na__TagsManager__CreateStandardisedTags` in SketchUp's own Ruby against
+  a stand-in model: top level, in the folder, and none at all.
+
 **Files**
 - `Na__TrueVision__GlbBuilder__SitePlanExport__.rb` (1.4.0)
+- `Na__TrueVision__GlbBuilder__TagsManager__.rb`
 - `../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json` (2.7.0)
 - `../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json` (1.7.0)
 

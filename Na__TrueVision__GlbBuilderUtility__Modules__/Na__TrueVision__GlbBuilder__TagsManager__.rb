@@ -15,7 +15,13 @@
 # - Parses tag entries and constructs SketchUp tags (layers) in the active model
 # - Checks for tag existence before attempting creation to avoid duplicates
 # - Wraps creation in a single SketchUp operation for clean undo support
-# - Files new site plan tags (71-75, SitePlan__ entries) in the "Site Plan" tag folder
+# - Files new site plan tags (71-75, SitePlan__ entries) BESIDE THE MODEL'S OTHER SITE PLAN
+#   TAGS: at the top level when any of them is at the top level, otherwise in the "Site Plan"
+#   tag folder. (21-Sep-2026: RB05 keeps its site plan tags at the top level, and new ones filed
+#   into a collapsed folder were read as never having been made.)
+# - Creates the site plan fill materials (Materials SSOT, MAT800__SitePlanFillSeries__) in the
+#   same run, so the faces a fill tag washes can be painted to match. Existing ones are kept and
+#   their colour set from the SSOT.
 # - Creates the linetype tags (Glb__LineworkOnly entries) and files the 02 ones in
 #   the "Linetypes" tag folder, applying each tag's Layout__LineStyleName so the
 #   line reads as dashed, dotted or centre in SketchUp as well as in the drawings
@@ -135,7 +141,8 @@ module TrueVision3D
                         'description'       => entry['Tag__Description'],
                         'line_style_name'   => entry['Layout__LineStyleName'],
                         'edge_colour_rgb'   => entry['Layout__EdgeColourRGB'],
-                        'folder_name'       => (is_site_plan ? site_plan_folder : ((is_linetype && !is_model_flag) ? linetype_folder : (is_modifier ? modifier_folder : nil)))
+                        'folder_name'       => (is_site_plan ? site_plan_folder : ((is_linetype && !is_model_flag) ? linetype_folder : (is_modifier ? modifier_folder : nil))),
+                        'is_site_plan'      => is_site_plan
                     }
                 end
             end
@@ -280,6 +287,58 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Does the Model Keep Its Site Plan Tags at the Top Level?
+        # ---------------------------------------------------------------
+        # A new site plan tag goes where its siblings are. True when any existing
+        # 71-75 site plan tag sits outside every tag folder (or tag folders do not
+        # exist in this SketchUp); false only when every one of them is in a folder,
+        # or when the model has none yet.
+        # ---------------------------------------------------------------
+        def self.Na__TagsManager__SitePlanTagsAtTopLevel?(model)
+            model.layers.any? do |layer|
+                next false unless layer.name =~ /\A7[1-5]__SitePlan__/
+                !layer.respond_to?(:folder) || layer.folder.nil?
+            end
+        rescue
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Create the Site Plan Fill Materials From the Materials SSOT
+        # ---------------------------------------------------------------
+        # Every MAT800__SitePlanFillSeries__ entry, opaque (the drawing transparency lives
+        # in TrueVision). A missing one is created; an existing one keeps its place and has
+        # its colour set from the SSOT. Returns [created names, updated names].
+        # ---------------------------------------------------------------
+        def self.Na__TagsManager__CreateSitePlanFillMaterials(model)
+            path = File.expand_path('../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json', __dir__)
+            data = File.exist?(path) ? JSON.parse(File.read(path, encoding: 'UTF-8')) : Na__DataLib__CacheData.Na__Cache__LoadData(:materials)
+            series = data.is_a?(Hash) && data['Na__DataLib__CoreIndex__Materials'].is_a?(Hash) ? data['Na__DataLib__CoreIndex__Materials']['MAT800__SitePlanFillSeries__'] : nil
+            return [[], []] unless series.is_a?(Hash)
+
+            created = []
+            updated = []
+            series.each_value do |entry|
+                next unless entry.is_a?(Hash) && entry['SketchUpName'].is_a?(String)
+                r, g, b = entry['BaseColor'].to_s.scan(/\d+/).map(&:to_i)
+                next if b.nil?
+                material = model.materials[entry['SketchUpName']]
+                if material
+                    updated << entry['SketchUpName']
+                else
+                    material = model.materials.add(entry['SketchUpName'])
+                    created << entry['SketchUpName']
+                end
+                material.color = Sketchup::Color.new(r, g, b)
+                material.alpha = 1.0
+            end
+            [created, updated]
+        rescue => e
+            puts "    [TagsManager] Site plan fill materials not created: #{e.message}"
+            [[], []]
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Create Standardised Tags From Index
         # ------------------------------------------------------------
         def self.Na__TagsManager__CreateStandardisedTags
@@ -291,6 +350,7 @@ module TrueVision3D
                 return
             end
 
+            site_plan_top = self.Na__TagsManager__SitePlanTagsAtTopLevel?(model)     # <-- New site plan tags go beside the existing ones
             created_tags  = []                                                        # <-- Tracks newly created tags
             skipped_tags  = []                                                        # <-- Tracks already-existing tags
             error_tags    = []                                                        # <-- Tracks any creation failures
@@ -311,7 +371,8 @@ module TrueVision3D
                         begin
                             new_layer = model.layers.add(tag_name)
                             self.Na__TagsManager__ApplyTagStyling(new_layer, tag_entry)
-                            self.Na__TagsManager__FileTagInFolder(model, new_layer, tag_entry['folder_name'])
+                            folder_name = (tag_entry['is_site_plan'] && site_plan_top) ? nil : tag_entry['folder_name']
+                            self.Na__TagsManager__FileTagInFolder(model, new_layer, folder_name)
                             created_tags << tag_name
                             puts "  [OK]   Tag created: #{tag_name}"
                         rescue => e
@@ -321,6 +382,7 @@ module TrueVision3D
                     end
                 end
 
+                fill_created, fill_updated = self.Na__TagsManager__CreateSitePlanFillMaterials(model)
                 model.commit_operation                                                # <-- Commit all tag creations as one undo step
 
             rescue => e
@@ -356,6 +418,13 @@ module TrueVision3D
             puts "\n=== TrueVision3D - Create Standardised Tags - Complete ==="
             puts summary_lines.join("\n")
             puts "==========================================================\n"
+
+            summary_lines << ""
+            summary_lines << "Site plan fill materials created (#{fill_created.length}):"
+            summary_lines << (fill_created.empty? ? "  None - all #{fill_updated.length} already in the model (colours set from the SSOT)" : fill_created.map { |m| "  + #{m}" }.join("\n"))
+            summary_lines << ""
+            summary_lines << "New site plan tags are filed #{site_plan_top ? 'at the TOP of the tag list, beside the other site plan tags' : 'in the Site Plan tag folder'}."
+            summary_lines << "Purge Unused deletes empty tags - tag your faces before purging."
 
             UI.messagebox(summary_lines.join("\n"))                                   # <-- Show summary to user
         end
