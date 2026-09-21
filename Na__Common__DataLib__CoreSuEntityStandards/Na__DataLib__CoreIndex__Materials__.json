@@ -2,7 +2,7 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
-        "version"           : "1.6.0",
+        "version"           : "1.7.0",
         "lastUpdated"       : "21-Sep-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
@@ -400,8 +400,14 @@
             },
             "MAT806__SitePlan__HardStandingGrey": {
                 "SketchUpName": "MAT806__SitePlan__HardStandingGrey",
-                "Description": "Site plan face fill - hard standing: drives, paths, parking and yards (73__SitePlan__SiteFeature__Access, 73__SitePlan__SiteFeature__Paths, 74__SitePlan__ExternalWorks__HardSurfaces). A very light neutral grey, about 8 percent, a touch lighter than the grass wash, so a drive reads as quiet paving between the fields and still survives a laser printer. Opaque in SketchUp; TrueVision applies the drawing transparency.",
-                "BaseColor": "rgb(235, 235, 235)",
+                "Description": "Site plan face fill - hard standing and paved driveways: drives, parking courts, yards and turning heads (74__SitePlan__ExternalWorks__HardStandingAndDriveways, 73__SitePlan__SiteFeature__Access, 74__SitePlan__ExternalWorks__HardSurfaces). A very light NEUTRAL grey, about 11 percent - the darker of the two hard standing greys, so a drive reads as tarmac beside the stone of MAT807 and still survives a laser printer. Opaque in SketchUp; TrueVision applies the drawing transparency.",
+                "BaseColor": "rgb(228, 228, 228)",
+                "Opacity": 1.0
+            },
+            "MAT807__SitePlan__PavingGrey": {
+                "SketchUpName": "MAT807__SitePlan__PavingGrey",
+                "Description": "Site plan face fill - paths and paving: footpaths, patios, terraces and paved areas (74__SitePlan__ExternalWorks__PathsAndPaving, 73__SitePlan__SiteFeature__Paths). A very light WARM grey, about 6 percent - the lighter of the two hard standing greys and a touch warm, so paving reads as stone beside the neutral drive (MAT806) rather than as the same surface a shade paler. Opaque in SketchUp; TrueVision applies the drawing transparency.",
+                "BaseColor": "rgb(240, 238, 233)",
                 "Opacity": 1.0
             }
         },

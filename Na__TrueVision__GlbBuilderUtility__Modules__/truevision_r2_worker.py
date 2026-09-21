@@ -4,6 +4,7 @@ import importlib.util
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
@@ -54,10 +55,14 @@ def manage(request, sync, client, bucket):
     # Delete only the reviewed keys; never issue a project-wide recursive delete.
     for obj in expected:
         try:
-            # Recheck each object immediately before deleting it.
+            # Recheck each object immediately before deleting it. HEAD reports
+            # Last-Modified as an HTTP date, whole seconds only, while the listing
+            # carries milliseconds - an exact match failed every object (131 of
+            # 131 on 20-Sep-2026). Compare to the second; ETag and size carry
+            # the content check.
             head = client.head_object(Bucket=bucket, Key=obj['key'])
-            if (head['ETag'] != obj['etag'] or head['ContentLength'] != obj['size']
-                    or head['LastModified'].isoformat() != obj['modified']):
+            drift = abs((head['LastModified'] - datetime.fromisoformat(obj['modified'])).total_seconds())
+            if head['ETag'] != obj['etag'] or head['ContentLength'] != obj['size'] or drift >= 1:
                 raise ValueError('Object changed since preview')
             client.delete_object(Bucket=bucket, Key=obj['key'])
             deleted.append(obj['key'])

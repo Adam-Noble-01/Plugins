@@ -1096,7 +1096,7 @@
 
         na__tvgb__showConfirm({
             title:          permanent ? 'Permanently delete this folder?' : 'Delete this folder?',
-            text:           text + ' Files already pushed to Cloudflare R2 are NOT removed by this.',
+            text:           text + ' Cloudflare R2 is not touched now - the next push removes this folder’s GLBs from R2 as well.',
             detail:         folder.folder_name,
             structure:      true,
             affectedFolder: folder.folder_name,

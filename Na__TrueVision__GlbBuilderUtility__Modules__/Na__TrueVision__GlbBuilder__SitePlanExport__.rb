@@ -22,7 +22,9 @@
 # - Linework GLB: one non-indexed LINES primitive (POSITION + COLOR_0), world metres,
 #   Y up - the same frame as the model GLBs, so the site plan lines up with the model.
 # - Fill GLB (fill tags only): one LINE_LOOP primitive per face ring, with the extras
-#   Na__SitePlanFace (face index) and Na__SitePlanRing (outer / inner).
+#   Na__SitePlanFace (face index) and Na__SitePlanRing (outer / inner). A fill tag
+#   whose faces have no edges on that tag writes its fill GLB ALONE, and the manifest
+#   names no linework file for it (Layer__LineworkFile null, Layer__SegmentCount 0).
 # - The manifest is written last. Older site plan GLBs in the folder that this export
 #   did not write are offered for deletion, so the pipeline stops publishing them.
 #
@@ -32,6 +34,19 @@
 #   EngineCore__LineworkModelHandling__ (BuildGltfFromEdgeData), Logging__, CoreExport__.
 #
 # DEVELOPMENT LOG:
+# 21-Sep-2026 - Version 1.4.0
+# - A FILL TAG'S FACES NEED NO EDGES OF THEIR OWN (site plan composites finding F6).
+#   The natural way to wash an area already drawn by other lines is to select its
+#   FACE and give it a fill tag - the edges stay on the lines they belong to. That
+#   collected rings and no segments, and Na__SitePlan__Write skipped the layer
+#   outright: no fill, no manifest record, only a line under Check saying so.
+#   Adam, 21-Sep-2026, asking for hard standing and paving fills: "a tag ... that I
+#   can use to assign two types of very light grey fill".
+# - Such a layer now writes its FILL GLB alone. Its manifest record carries
+#   Layer__LineworkFile null and Layer__SegmentCount 0; the ProjectVision build
+#   script and TrueVision's site plan store both accept a record like that.
+# - A layer with neither edges nor any ring it can write is still skipped, and says so.
+#
 # 20-Sep-2026 - Version 1.3.0
 # - NO MORE FOLDER PICKER ON A LINKED MODEL. Na__SitePlan__Run now resolves the
 #   destination from the project link itself, so every route - this dialog's
@@ -91,7 +106,7 @@ module TrueVision3D
             'FillFileSuffix'             => '__FillModel__',
             'ExportIgnoresTagVisibility' => true
         }.freeze
-        NA__SITEPLAN__EXPORTER_VERSION  = '1.3.0'.freeze                          # <-- Written into the manifest and GLB asset
+        NA__SITEPLAN__EXPORTER_VERSION  = '1.4.0'.freeze                          # <-- Written into the manifest and GLB asset
         NA__SITEPLAN__SCHEMA_VERSION    = 1                                        # <-- Manifest schema version
         NA__SITEPLAN__MAX_DEPTH         = 64                                       # <-- Nesting guard for the walk
         NA__SITEPLAN__FLAT_TOLERANCE_M  = 0.5                                      # <-- Height span above which a layer is flagged
@@ -484,9 +499,6 @@ module TrueVision3D
                     list << "no faces, so no fill; draw the outline as a closed face"
                 end
 
-                if bucket[:positions].empty? && !bucket[:rings].empty?
-                    list << "faces but no visible edges, so nothing to outline; the layer is skipped"
-                end
 
                 reach = [bucket[:min][0].abs, bucket[:max][0].abs, bucket[:min][2].abs, bucket[:max][2].abs].max
                 if reach.finite? && reach > NA__SITEPLAN__FAR_WARNING_M
@@ -750,15 +762,23 @@ module TrueVision3D
                     defn   = bucket[:defn]
                     base   = "#{prefix}#{defn[:stem]}"
 
-                    if bucket[:positions].empty?
+                    # A FILL TAG'S FACES NEED NO EDGES OF THEIR OWN (finding F6). Tagging
+                    # only the FACE of an area other lines already draw is the natural
+                    # gesture, and it used to write nothing at all. Such a layer now
+                    # writes its fill GLB alone and the manifest names no linework file.
+                    faces_only = bucket[:positions].empty?
+                    if faces_only && !(defn[:fills] && !bucket[:rings].empty?)
                         Na__Log__Warn "  [SitePlan] #{tag_name}: no visible edges - skipped"
                         next
                     end
 
-                    linework_file = "#{base}#{config['LineworkFileSuffix']}.glb"
-                    self.Na__SitePlan__WriteLinework(bucket, File.join(export_dir, linework_file))
-                    written << linework_file
-                    Na__Log__Puts "  [SitePlan] #{linework_file} - #{bucket[:positions].length / 6} line(s)"
+                    linework_file = nil
+                    unless faces_only
+                        linework_file = "#{base}#{config['LineworkFileSuffix']}.glb"
+                        self.Na__SitePlan__WriteLinework(bucket, File.join(export_dir, linework_file))
+                        written << linework_file
+                        Na__Log__Puts "  [SitePlan] #{linework_file} - #{bucket[:positions].length / 6} line(s)"
+                    end
 
                     fill_file = nil
                     if defn[:fills] && !bucket[:rings].empty?
@@ -766,8 +786,13 @@ module TrueVision3D
                         if self.Na__SitePlan__WriteFill(bucket, File.join(export_dir, candidate))
                             fill_file = candidate
                             written << fill_file
-                            Na__Log__Puts "  [SitePlan] #{fill_file} - #{bucket[:rings].length} ring(s) from #{bucket[:face_count]} face(s)"
+                            Na__Log__Puts "  [SitePlan] #{fill_file} - #{bucket[:rings].length} ring(s) from #{bucket[:face_count]} face(s)#{faces_only ? ', faces only - no outline of its own' : ''}"
                         end
+                    end
+
+                    if linework_file.nil? && fill_file.nil?
+                        Na__Log__Warn "  [SitePlan] #{tag_name}: faces only, and no ring could be written - skipped"
+                        next
                     end
 
                     self.Na__SitePlan__Grow(overall, bucket[:min][0], bucket[:min][1], bucket[:min][2])
@@ -795,7 +820,7 @@ module TrueVision3D
                 records.sort_by! { |record| [record['Layer__DrawOrder'] || 0, record['Layer__TagName']] }
 
                 manifest = {
-                    'SitePlanData__Description'     => 'Site plan drawing data exported by the TrueVision3D GLB Builder. One linework GLB per site plan tag, plus a fill GLB for fill tags. Read by the ProjectVision build script and TrueVision3D site plan drawings.',
+                    'SitePlanData__Description'     => 'Site plan drawing data exported by the TrueVision3D GLB Builder. One linework GLB per site plan tag, plus a fill GLB for fill tags; a fill tag holding faces alone has a fill GLB and no linework GLB. Read by the ProjectVision build script and TrueVision3D site plan drawings.',
                     'SitePlanData__SchemaVersion'   => NA__SITEPLAN__SCHEMA_VERSION,
                     'SitePlanData__ProjectPrefix'   => prefix.sub(/__\z/, ''),
                     'SitePlanData__SourceModelFile' => (model.path.to_s.empty? ? nil : File.basename(model.path)),

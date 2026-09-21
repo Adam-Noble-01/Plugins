@@ -424,7 +424,8 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                         <p class="naTvgb__DangerZone__Desc">
                             By default the folder is moved into <code>00__Archive</code>, which the build
                             skips &mdash; the scheme disappears from TrueVision but the files stay
-                            recoverable on disk. <strong>This never removes anything from Cloudflare R2.</strong>
+                            recoverable on disk. <strong>Cloudflare R2 is not touched until the next push,
+                            which removes the folder's GLBs from R2 as well.</strong>
                         </p>
 
                         <div class="naTvgb__FieldRow">

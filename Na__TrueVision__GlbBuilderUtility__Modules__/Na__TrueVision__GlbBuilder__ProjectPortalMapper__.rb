@@ -418,7 +418,9 @@ module TrueVision3D
             folders = []
             Dir.entries(content_path).sort.each do |entry|
                 next if entry == '.' || entry == '..'
-                next if entry == siteplan_name
+                # By PREFIX, as the build does: an exact match let SitePlan__DrawingData__Existing
+                # through as a "scheme", which SuggestTargetFolder could then pick as the export target
+                next if !siteplan_name.empty? && entry.start_with?(siteplan_name)
                 next if skip_prefixes.any? { |prefix| entry.start_with?(prefix.to_s) }
 
                 folder_path = File.join(content_path, entry)
@@ -624,12 +626,10 @@ module TrueVision3D
                 }
             end
 
-            # The site plan store and the archive are shown for context, greyed out
-            siteplan_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'SitePlanFolderName').to_s
-            siteplan_path = File.join(content_path, siteplan_name)
-            if !siteplan_name.empty? && Dir.exist?(siteplan_path)
-                count = Dir.glob(File.join(siteplan_path, '*.glb')).length
-                rows << { depth: 2, label: siteplan_name, meta: "#{count} GLB#{count == 1 ? '' : 's'} · not a design phase", kind: 'aside', marker: '' }
+            # The site plan stores and the archive are shown for context, greyed out
+            self.Na__PortalMapper__ListSitePlanFolders(project_root).each do |store|
+                count = store[:glb_count].to_i
+                rows << { depth: 2, label: store[:folder_name], meta: "#{count} GLB#{count == 1 ? '' : 's'} · not a design phase", kind: 'aside', marker: '' }
             end
 
             archive_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'ArchiveFolderName').to_s
@@ -762,10 +762,9 @@ module TrueVision3D
         # scheme disappears from TrueVision__ProjectData__.json while the files
         # stay recoverable on disk. `permanent` really does remove it.
         #
-        # NOTE | Neither mode touches Cloudflare R2. The sync only uploads; the
-        # sole remote deletion path is CloudflareR2__ModelSync__Main__.py --purge,
-        # which is interactive and purges every GLB for a project code. Files
-        # already pushed stay in the bucket, orphaned but invisible to the app.
+        # NOTE | Neither mode touches Cloudflare R2 itself. The next push does:
+        # since v2.10.2 the sync mirrors, deleting every R2 GLB under the project
+        # that no local folder holds any more - and 00__Archive is never synced.
         # ---------------------------------------------------------------
         def self.Na__PortalMapper__DeletePhaseFolder(project_root, folder_name, permanent: false)
             name = folder_name.to_s
@@ -783,7 +782,7 @@ module TrueVision3D
                 return {
                     success:   true,
                     permanent: true,
-                    message:   "#{name} permanently deleted (#{glb_count} GLB file(s)). Any copies already in R2 remain there until purged."
+                    message:   "#{name} permanently deleted (#{glb_count} GLB file(s)). The next push removes its GLBs from R2 as well."
                 }
             end
 
@@ -797,7 +796,7 @@ module TrueVision3D
             {
                 success:   true,
                 permanent: false,
-                message:   "#{name} moved into #{archive_name}/Deleted__#{stamp} (#{glb_count} GLB file(s)). Any copies already in R2 remain there until purged.",
+                message:   "#{name} moved into #{archive_name}/Deleted__#{stamp} (#{glb_count} GLB file(s)). The next push removes its GLBs from R2 as well.",
                 path:      archive_root.tr('\\', '/')
             }
         rescue => e

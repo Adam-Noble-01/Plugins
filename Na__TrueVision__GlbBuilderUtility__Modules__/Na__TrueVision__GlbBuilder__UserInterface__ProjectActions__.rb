@@ -334,9 +334,11 @@ module TrueVision3D
             skip_archive = params['skipArchive'] == true
             inspection   = self.Na__PortalMapper__InspectTargetFolder(link[:project_root], target_folder)
 
-            # Only the files this export will actually write may be cleared, so a
-            # partial selection never deletes the models it is leaving alone.
-            writable_names = self.Na__ProjectActions__SelectedFileNames
+            # Cleared: the files this export will write, and any GLB the model no
+            # longer produces at all. A file the model still produces but the user
+            # toggled off is left alone, so a partial selection never deletes the
+            # models it is leaving alone.
+            writable_names = self.Na__ProjectActions__ReplaceableFileNames(target_path)
 
             if inspection[:glb_count].to_i > 0
                 if skip_archive
@@ -344,7 +346,7 @@ module TrueVision3D
                     archive_step = {
                         label:   'Previous Export',
                         status:  'skip',
-                        message: "Not archived by choice - #{removed} previous GLB(s) replaced."
+                        message: "Not archived by choice - #{removed} previous GLB(s) cleared."
                     }
                 else
                     archived     = self.Na__PortalMapper__ArchiveFolderContents(
@@ -436,19 +438,32 @@ module TrueVision3D
         end
         # ---------------------------------------------------------------
 
-        # HELPER FUNCTION | The Output File Names This Export Will Write
+        # HELPER FUNCTION | The Folder GLBs This Export May Clear
         # ---------------------------------------------------------------
-        # Read from the same manifest the dialog shows, so the files cleared
-        # beforehand are exactly the files about to be replaced.
+        # Read from the same manifest the dialog shows. Two kinds of file go:
+        #   - the files this export is about to write;
+        #   - any GLB in the folder the model no longer produces at all - a tag
+        #     removed or emptied, a file renamed (RB05__Storey__... became
+        #     Storey__...).
+        # v2.10.0 cleared only the first kind, so the GLB of a removed tag
+        # survived every export: the build listed it, the sync re-uploaded it
+        # and TrueVision drew it. A file the model still produces but the user
+        # toggled off is the one thing left in place.
         # ---------------------------------------------------------------
-        def self.Na__ProjectActions__SelectedFileNames
-            status = self.Na__UserInterface__BuildModelStatus
-            Array(status[:groups])
-                .flat_map { |group| Array(group[:rows]) }
-                .select   { |row| row[:selected] }
-                .map      { |row| row[:name].to_s }
+        def self.Na__ProjectActions__ReplaceableFileNames(folder_path)
+            status   = self.Na__UserInterface__BuildModelStatus
+            rows     = Array(status[:groups]).flat_map { |group| Array(group[:rows]) }
+            selected = rows.select { |row| row[:selected] }.map { |row| row[:name].to_s }
+            produced = rows.each_with_object({}) { |row, hash| hash[row[:name].to_s] = true }
+            return selected if produced.empty?                           # <-- A model that produces nothing condemns nothing
+
+            stale = Dir.glob(File.join(folder_path.to_s, '*.glb'))
+                       .map    { |file| File.basename(file) }
+                       .reject { |name| produced[name] }
+
+            selected + stale
         rescue => e
-            Na__Log__Warn "[ProjectActions] Could not resolve the selected file names: #{e.message}"
+            Na__Log__Warn "[ProjectActions] Could not resolve the replaceable file names: #{e.message}"
             nil                                                          # <-- nil means "no filter", the previous behaviour
         end
         # ---------------------------------------------------------------

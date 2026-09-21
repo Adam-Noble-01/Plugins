@@ -8,6 +8,87 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.10.3 - 21-Sep-2026
+#### Tag The Face And It Fills: Two Hard Standing Greys, And A Fill That No Longer Needs Edges Of Its Own
+
+**A fill tag's faces export even when none of their edges are on that tag** (Site Plan Export 1.4.0)
+- Adam, 21-Sep-2026: "We need a tag specifically for hard standing and paved driveways ... that I can
+  use to assign two types of very light grey fill, so I can mark paths properly on the models, too,
+  and paving areas."
+- The natural way to wash a drive that other lines already draw is to select its FACE and give it a
+  fill tag, leaving the edges where they belong. That collected rings and no segments, and
+  `Na__SitePlan__Write` skipped the layer outright - no fill, no manifest record (site plan
+  composites finding F6). Such a layer now writes its FILL GLB alone; its manifest record carries
+  `Layer__LineworkFile: null` and `Layer__SegmentCount: 0`. A layer with neither edges nor a ring it
+  can write is still skipped, and the log says which.
+- The ProjectVision build script and TrueVision's site plan store (1.2.0) accept a record like that;
+  both were proven against it, and against their old code, which dropped it.
+
+**Two dedicated FILL tags, two very light greys** (Tags SSOT 2.7.0, Materials SSOT 1.7.0)
+- `74__SitePlan__ExternalWorks__HardStandingAndDriveways` - drives, parking courts, yards, turning
+  heads - in `MAT806__SitePlan__HardStandingGrey`, now `rgb(228, 228, 228)`: a neutral grey, the
+  darker of the two, reading as tarmac.
+- `74__SitePlan__ExternalWorks__PathsAndPaving` - footpaths, patios, terraces, paved areas - in the
+  new `MAT807__SitePlan__PavingGrey`, `rgb(240, 238, 233)`: lighter and a touch warm, reading as
+  stone beside the drive rather than as the same surface a shade paler.
+- Both are fill Z 2 and draw any edges they carry exactly like Site Paths (mid grey, 0.75 pt, line
+  Z 2), so a drive traced over its line merges into it. `73__SitePlan__SiteFeature__Paths` moved onto
+  the paving grey; Site Access and Hard Surfaces keep the drive grey.
+- Run **Create Standardised Tags From Index** to add the two tags to a model. Reloading the SSOT or
+  the plugin never creates tags.
+
+**Files**
+- `Na__TrueVision__GlbBuilder__SitePlanExport__.rb` (1.4.0)
+- `../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json` (2.7.0)
+- `../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json` (1.7.0)
+
+**NOT YET RUN IN SKETCHUP.** Syntax-checked through SketchUp's own Ruby only.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.10.2 - 21-Sep-2026
+#### The Purge That Deleted Nothing, And The Export That Kept Everything
+
+**The purge could never pass its own safety check**
+- `truevision_r2_worker.py` re-reads each object with HEAD before deleting it and refused any
+  object whose Last-Modified differed from the preview listing. The listing carries milliseconds
+  (`08:54:52.282`), but HEAD sends an HTTP date, whole seconds only (`08:54:52`). So every object
+  "changed since preview". On 20-Sep-2026 23:32 the purge of RB05 `Scheme-01` reported
+  **Deleted 0 GLBs; 131 remain; 131 errors.**
+- The timestamps are now compared to the second. ETag and size still have to match exactly, so an
+  object replaced after the preview is still refused.
+
+**Stale GLBs survived every export - a v2.10.0 regression**
+- v2.9.3 promised that "a stale file whose tag no longer exists cannot survive into the new set".
+  v2.10.0 (Export Just The Furniture) narrowed the clearing to the files the export was about to
+  write, so a partial selection could not delete the rest of the scheme. It also meant the GLB of a
+  removed tag, or of a renamed file (`RB05__Storey__...` before `Storey__...`), was never cleared.
+  The build listed it, the push uploaded it, and TrueVision drew it.
+- `Na__ProjectActions__ReplaceableFileNames` (was `SelectedFileNames`) now clears the files this
+  export writes **plus every GLB in the folder the model no longer produces at all**. A file the
+  model still produces but that is toggled off is still left in place. Archiving still zips the
+  whole folder first, so nothing is lost on the default path.
+
+**The push now mirrors - ProjectVision 0.4.2**
+- `CloudflareR2__ModelSync__Main__.py` deletes GLBs from R2 that no local folder holds any more,
+  after every upload has succeeded. Deleting or archiving a scheme folder now takes it off R2 at the
+  next push. The Delete modal, the Danger Zone text and the folder-delete messages said the
+  opposite, and now say this.
+- `Na__CloudSync__DescribeR2Outcome` reads the new `Stale GLB cleanup: N removed from R2, M failed.`
+  line, so the report says how many stale GLBs went.
+
+**Site plan stores were listed as design phase schemes**
+- `Na__PortalMapper__ListPhaseFolders` skipped only the exact `SitePlan__DrawingData`, so
+  `SitePlan__DrawingData__Existing` appeared in the scheme list and the Danger Zone picker, and
+  `SuggestTargetFolder` could pick it as the export target once the real target was deleted. It
+  now skips by prefix, as the build does. The structure tree shows every site plan store as a
+  greyed aside instead.
+
+**Not a bug, for the record**
+- A missing target folder is created by the export (`FileUtils.mkdir_p` in
+  `Na__ProjectActions__ExportToProject`). The 21-Sep 09:45 "Project Build" failure was a
+  `git diff` holding the master index open - see ProjectVision 0.4.2.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.10.1 - 20-Sep-2026
 #### One Danger Zone, One Modal, One Way Of Asking
 

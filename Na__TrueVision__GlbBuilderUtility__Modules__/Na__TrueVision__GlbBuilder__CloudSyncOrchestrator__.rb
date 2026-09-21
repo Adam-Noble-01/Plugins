@@ -234,10 +234,20 @@ module TrueVision3D
             if (match = output.match(/Upload complete!\s*(\d+) file\(s\) uploaded,\s*(\d+) failed/i))
                 uploaded = match[1].to_i
                 failed   = match[2].to_i
+                message  = "#{uploaded} file(s) uploaded to R2#{failed.zero? ? '' : ", #{failed} failed"}."
+
+                # The sync mirrors: GLBs no local folder holds are deleted once the uploads land
+                if (cleanup = output.match(/Stale GLB cleanup:\s*(\d+) removed from R2,\s*(\d+) failed/i))
+                    failed  += cleanup[2].to_i
+                    message += " #{cleanup[1]} stale GLB(s) removed from R2#{cleanup[2].to_i.zero? ? '' : ", #{cleanup[2]} could not be"}."
+                elsif output =~ /\[HELD\]/
+                    message += ' Stale GLBs were left on R2 because an upload failed.'
+                end
+
                 return {
                     label:   label,
                     success: failed.zero?,
-                    message: "#{uploaded} file(s) uploaded to R2#{failed.zero? ? '' : ", #{failed} failed"}."
+                    message: message
                 }
             end
 
