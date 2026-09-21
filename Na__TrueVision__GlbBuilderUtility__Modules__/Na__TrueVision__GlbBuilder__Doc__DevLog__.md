@@ -8,6 +8,48 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.10.4 - 22-Sep-2026
+#### Still Water For A Pool, And A Dotted Line For Hard Surfaces Being Taken Out
+
+**`74__SitePlan__ExternalWorks__StillWater` - the water wash without the ripples** (Tags SSOT 2.8.0)
+- Adam, 22-Sep-2026: "Add a still water because I've got a pool to do on this project. Use the water
+  texture we've already used, but just without the hatching."
+- A FILL tag in `MAT802__SitePlan__WaterBlue`, the Waterbodies blue, with no hatch. It sits at fill Z 4,
+  level with Waterbodies, and draws any edges it carries exactly like Waterbodies. The ripple hatch
+  stays on Waterbodies for OS ponds and lakes. No new material; MAT802's description now names still
+  water too (Materials SSOT 1.7.1).
+- Tag only the pool's FACE. Its edges can stay on the terrace; a face tagged alone exports its fill
+  (2.10.3).
+
+**`74__SitePlan__ExternalWorks__HardSurfaces__Removed` - paths, roads and hard standing being removed** (Tags SSOT 2.8.0)
+- Adam: "this is used for me to tag paths, roads, etc., that are being removed from within the site, so
+  this should be a mid-grey dotted line rendered in TrueVision."
+- Lines only, no fill: mid grey L60, TrueVision's `dotted` (0.4 mm dots, 1.2 mm gaps), 0.75 pt at line
+  Z 2 - the weight and Z of Site Paths, which carries RB05's drives, so only the dots differ.
+- `Layout__LineStyleName: "Dot"`, so the tag shows dotted in SketchUp as well. Create Standardised Tags
+  From Index already applies a tag's line style; nothing in the Ruby changed.
+- Both new tags are in both exclusion lists.
+
+**Proven end to end, on the real code, outside SketchUp**
+- `Na__SitePlan__Scan` and `Na__SitePlan__Write` ran unchanged in SketchUp's own Ruby 3.2 DLL. The
+  stand-in model was a terrace group on Site Paths, a pool face inside it tagged Still Water, and an
+  old path on the removal tag. The runners are in `D:/_ClaudeScratch/siteplan_proof_runners/`.
+- Still Water wrote its fill GLB alone ("1 ring(s) from 1 face(s), faces only"), with the manifest
+  naming no linework file, fill `#BAE4FD` and no hatch. The removal tag wrote 4 segments.
+- The ProjectVision build script took the folder. TrueVision's store and GLB parser loaded the pool as
+  one ring at its true corners. TrueVision's edge style resolver draws the removal layer `#999999`
+  dotted 0.265 mm.
+- `Na__Test__SitePlanComposites__` gained three guards over every site plan tag. Each tag must be in
+  both exclusion lists, use a TrueVision line type, and use a line colour from the EdgeStyles palette.
+
+**Files**
+- `../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json` (2.8.0)
+- `../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json` (1.7.1)
+
+**NOT YET RUN IN SKETCHUP.** Run Create Standardised Tags From Index to add the two tags, or load
+`D:/_ClaudeScratch/na_siteplan_tags.rb` from the Ruby Console.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.10.3 - 21-Sep-2026
 #### Tag The Face And It Fills: Two Hard Standing Greys, And A Fill That No Longer Needs Edges Of Its Own
 
