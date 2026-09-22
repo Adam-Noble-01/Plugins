@@ -8,6 +8,51 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.10.5 - 22-Sep-2026
+#### Walls, Fences And Buildings Being Taken Out
+
+**`73__SitePlan__Buildings__Existing__Removed` - a blue, small dotted line** (Tags SSOT 2.9.0)
+- Adam, 22-Sep-2026, naming it: "73__SitePlan__Buildings__Existing__Removed ... a blue, small dotted
+  line showing the removed building, no fill."
+- Blue (`MTE205`, `#1E88E5`), TrueVision's `dotted` at 0.5 pt, with no fill, at line Z 5 level with the
+  other buildings. It sorts directly under Existing Buildings and takes SketchUp's `Dot` style.
+- **SMALL is the layer's dash scale**, `SitePlan__LineDashScale: 0.5`, the lever built for the Proposed
+  Alterations dashes. The dotted pattern becomes 0.2 mm dashes on a 0.8 mm repeat, and TrueVision's
+  round caps draw that as 0.38 mm dots with 0.42 mm gaps. The other removal lines repeat every 1.6 mm.
+  That is one number to change, and it changes this layer only.
+- `73__SitePlan__Buildings__ToBeDemolished` (soft black, dashed) is untouched.
+
+**`72__SitePlan__Boundary__WallsAndFences__Removed`** (Tags SSOT 2.9.0)
+- Adam, 22-Sep-2026: "Add fences removed". Named the way he named the hard surfaces one: the fences'
+  own tag plus `__Removed`. That sorts it directly under `72__SitePlan__Boundary__WallsAndFences` in
+  SketchUp's tag list, and it covers walls, gates and piers too.
+- It draws the same mid grey dotted line as `74__SitePlan__ExternalWorks__HardSurfaces__Removed`, so
+  everything being taken out reads alike. It uses the fences' own weight and line Z (0.75 pt, Z 3),
+  has no fill and takes SketchUp's `Dot` line style. A fence that stays is still soft black and solid.
+- Move the fence's edges onto the new tag rather than tracing over them. Dots painted over a solid
+  line read as solid.
+- It is in both exclusion lists. No Ruby changed: the exporter and Create Standardised Tags From
+  Index read it from the SSOT.
+
+**Proven on the real code, outside SketchUp** (runners in `D:/_ClaudeScratch/siteplan_proof_runners/`)
+- The exporter ran in SketchUp's Ruby DLL against a stand-in model and wrote the removed fence as
+  2 lines at line Z 3, beside a kept fence on Walls and Fences. The ProjectVision build script took
+  both.
+- TrueVision's store loaded the removal layer in the Boundaries group, and its edge style resolver
+  draws it `#999999` dotted 0.265 mm. The kept fence draws `#333333` solid.
+- The Tag Manager's loader lists the new tag. The one-shot loader adds it with the Dot style.
+- The same run covers a shed on the building removal tag beside a barn on Existing Buildings. The
+  manifest carries `LineDashScale: 0.5`, and the build script and store keep it. The resolver draws
+  the shed `#1E88E5` dotted `[0.2, 0.6]` mm at 0.176 mm with no fill, and the barn stays red and
+  solid at 0.529 mm.
+
+**Files**
+- `../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Tags__.json` (2.9.0)
+
+**NOT YET RUN IN SKETCHUP.** Run Create Standardised Tags From Index, or load
+`D:/_ClaudeScratch/na_siteplan_tags.rb` from the Ruby Console.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.10.4 - 22-Sep-2026
 #### Still Water For A Pool, And A Dotted Line For Hard Surfaces Being Taken Out
 
