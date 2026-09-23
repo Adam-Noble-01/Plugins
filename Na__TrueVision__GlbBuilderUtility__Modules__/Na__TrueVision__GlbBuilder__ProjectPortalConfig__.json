@@ -7,9 +7,10 @@
     },
 
     "PortalRoots" : {
-        "_note"          : "Searched in order. The first path that exists and contains a {NN}-Projects folder wins. Override in the dialog's Project tab if the portal lives elsewhere.",
+        "_note"          : "Searched in order, after any Portal Root saved on the model. The first path that contains a {NN}-Projects folder AND sits in a full repo clone (BuildPipeline.ScriptDirRel beside it) wins; a bare {NN}-Projects tree is used only when no clone is found. Each computer keeps the repo somewhere different, so list every one - a path missing on this computer is skipped. Override in the dialog's Project tab if the portal lives elsewhere.",
         "SearchPaths"    : [
             "D:/WE10_--_Public-Repo_--_Live-Website/na-project-portal",
+            "D:/11_RefLib__StudioRepository__RemoteSystem/NaWeb/na-project-portal",
             "C:/WE10_--_Public-Repo_--_Live-Website/na-project-portal",
             "E:/WE10_--_Public-Repo_--_Live-Website/na-project-portal"
         ],

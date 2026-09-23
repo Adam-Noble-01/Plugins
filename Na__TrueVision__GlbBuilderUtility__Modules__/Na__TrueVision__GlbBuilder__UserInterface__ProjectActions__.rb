@@ -20,6 +20,10 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 23-Sep-2026 - Version 2.10.6
+# - Export To Project and the site plan export refuse, and say why, when the
+#   linked project is not on this computer, instead of building its path.
+#
 # 20-Sep-2026 - Version 2.10.0
 # - SITE PLAN DATA ON THE PROJECT TAB, WITH AN EXISTING / PROPOSED CHOICE.
 #   A project can now hold two site plan stores, chosen the same way a design
@@ -322,6 +326,13 @@ module TrueVision3D
                 return
             end
 
+            missing = self.Na__PortalMapper__MissingProjectMessage(link[:project_root])
+            if missing
+                self.Na__UserInterface__PushStatus(dialog, missing, 'error')
+                self.Na__UserInterface__PushReport(dialog, self.Na__UserInterface__BuildIdleReport)
+                return
+            end
+
             target_path = self.Na__PortalMapper__PhaseFolderPath(link[:project_root], target_folder)
             FileUtils.mkdir_p(target_path) unless Dir.exist?(target_path)
 
@@ -527,6 +538,12 @@ module TrueVision3D
                     'Choose Existing or Proposed first - a site plan must not be written into the wrong folder.',
                     'warning'
                 )
+                return
+            end
+
+            missing = self.Na__PortalMapper__MissingProjectMessage(link[:project_root])
+            if missing
+                self.Na__UserInterface__PushStatus(dialog, missing, 'error')
                 return
             end
 

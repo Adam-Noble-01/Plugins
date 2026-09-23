@@ -8,6 +8,60 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.10.6 - 23-Sep-2026
+#### A Linked Model Finds Its Project On Whichever Computer Opens It
+
+**The bug: "Launcher not found at: D:\11_RefLib__StudioRepository__RemoteSystem\NaWeb\na-apps\\..."**
+- RB05's site plan model (`RB05_T01_M00__SitePlanModel__Proposed__0.4.0__.skp`) was linked to RB05 on the
+  computer whose repo sits at `D:/11_RefLib__StudioRepository__RemoteSystem/NaWeb`. The project link
+  stores `portal_root` and `project_root` as absolute paths, and the link travels inside the .skp.
+- Opened on the studio PC, where the repo is `D:/WE10_--_Public-Repo_--_Live-Website`, every Project tab
+  action used the other computer's paths as they were. Open Build Pipeline Window, Push, Dry Run and
+  Fetch R2 looked for the ProjectVision scripts beside a portal that is not on this computer.
+- Worse, Export The Proposed Site Plan Into This Project ran `mkdir_p` on the missing path and BUILT it:
+  `D:\11_RefLib__StudioRepository__RemoteSystem\NaWeb\na-project-portal\26-Projects\RB05__WestFarm\30__TrueVision__AppContent\SitePlan__DrawingData__Proposed`,
+  holding only that export (19:19, 23-Sep-2026). RB05's real site plan folder was not touched, so nothing
+  pushed since carries that export.
+- The Portal Root field hid it. It fills once, so it kept showing the WE10 path this computer resolved
+  while the link used the other one. Saving it would only have half fixed it: it sets `portal_root`, which
+  the pipeline and the push use, but not `project_root`, which every export uses.
+
+**The fix**
+- `Na__ProjectLink__Read` re-derives `portal_root` and `project_root` on the computer reading the link,
+  from what does travel: the project year and folder name, under the portal this computer resolves.
+  Nothing is written back to the model. Everything reads the link through it, so the pipeline window,
+  push, dry run, Fetch R2, both exports and the Project tab all follow.
+- `Na__PortalMapper__ResolvePortalRoot` prefers a portal inside a full repo clone
+  (`BuildPipeline.ScriptDirRel` beside it) to a bare `{NN}-Projects` tree. The stray tree above has a year
+  folder, and as the model's stored override it would otherwise still win. Re-linking RB05 here now lands
+  on WE10 too.
+- Nothing is created under a project that is not on this computer. Export To Project Folder, Export And
+  Sync To Cloud, both site plan routes, Create Folder and Duplicate Selected refuse with a message naming
+  the path (`Na__PortalMapper__MissingProjectMessage`).
+- The portal config lists `D:/11_RefLib__StudioRepository__RemoteSystem/NaWeb/na-project-portal` as a
+  search path, so the other computer finds its own portal without an override saved on each model.
+
+**Proven on the real code, outside SketchUp** (runner in `D:/_ClaudeScratch/linkproof_runners/`)
+- The real modules ran in SketchUp's Ruby DLL against this PC's folders, with the link set as the other
+  computer stored it. Read gave the WE10 portal and project. Open Build Pipeline Window built
+  `cmd.exe /c start "" "D:\WE10_...\ProjectVision__BuildScript__.bat" --Project--RB05--TV` (captured, not
+  run). The push script folder holds both scripts. The Project tab status, structure tree and site plan
+  folder all point at WE10.
+- A linked project that is not on the computer: all five routes refused, and nothing was created.
+- A project in a scratch repo clone: the site plan exported into it, the confirmation named the project,
+  store and path, and the manifest carries `SitePlanData__ExporterVersion` 1.4.1.
+
+**Files**
+- `Na__TrueVision__GlbBuilder__ProjectLink__.rb`
+- `Na__TrueVision__GlbBuilder__ProjectPortalMapper__.rb`
+- `Na__TrueVision__GlbBuilder__UserInterface__ProjectActions__.rb`
+- `Na__TrueVision__GlbBuilder__SitePlanExport__.rb` (exporter 1.4.1)
+- `Na__TrueVision__GlbBuilder__ProjectPortalConfig__.json`
+
+**NOT YET RUN IN SKETCHUP.** Reload the scripts, delete the stray
+`D:\11_RefLib__StudioRepository__RemoteSystem` folder, then export the site plan again.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.10.5 - 22-Sep-2026
 #### Walls, Fences And Buildings Being Taken Out
 

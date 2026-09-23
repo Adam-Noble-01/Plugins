@@ -34,6 +34,15 @@
 #   EngineCore__LineworkModelHandling__ (BuildGltfFromEdgeData), Logging__, CoreExport__.
 #
 # DEVELOPMENT LOG:
+# 23-Sep-2026 - Version 1.4.1
+# - A LINKED PROJECT THAT IS NOT ON THIS COMPUTER IS NEVER BUILT AROUND THE EXPORT.
+#   RB05's site plan model was linked on the computer whose repo sits at
+#   D:/11_RefLib__StudioRepository__RemoteSystem/NaWeb. Exported here, the
+#   mkdir_p before writing built that whole path - a fake na-project-portal
+#   holding only this export - and the site plan landed there, not in RB05.
+#   The project link now resolves this computer's copy (GLB Builder 2.10.6), and
+#   when there is none the export stops with a message instead.
+#
 # 21-Sep-2026 - Version 1.4.0
 # - A FILL TAG'S FACES NEED NO EDGES OF THEIR OWN (site plan composites finding F6).
 #   The natural way to wash an area already drawn by other lines is to select its
@@ -106,7 +115,7 @@ module TrueVision3D
             'FillFileSuffix'             => '__FillModel__',
             'ExportIgnoresTagVisibility' => true
         }.freeze
-        NA__SITEPLAN__EXPORTER_VERSION  = '1.4.0'.freeze                          # <-- Written into the manifest and GLB asset
+        NA__SITEPLAN__EXPORTER_VERSION  = '1.4.1'.freeze                          # <-- Written into the manifest and GLB asset
         NA__SITEPLAN__SCHEMA_VERSION    = 1                                        # <-- Manifest schema version
         NA__SITEPLAN__MAX_DEPTH         = 64                                       # <-- Nesting guard for the walk
         NA__SITEPLAN__FLAT_TOLERANCE_M  = 0.5                                      # <-- Height span above which a layer is flagged
@@ -582,10 +591,11 @@ module TrueVision3D
                 self.Na__PortalMapper__IdentifySitePlanFolder(folder) : nil
 
             {
-                path:   self.Na__PortalMapper__PhaseFolderPath(link[:project_root], folder),
-                folder: folder,
-                label:  variant ? variant[:label] : folder,
-                code:   link[:project_code].to_s
+                path:         self.Na__PortalMapper__PhaseFolderPath(link[:project_root], folder),
+                folder:       folder,
+                label:        variant ? variant[:label] : folder,
+                code:         link[:project_code].to_s,
+                project_root: link[:project_root].to_s
             }
         rescue => e
             Na__Log__Warn "  [SitePlan] Could not resolve the project's site plan folder: #{e.message}"
@@ -929,6 +939,14 @@ module TrueVision3D
                     "Site Plan Data, then export again.\n\n" \
                     'It is not guessed on purpose: an existing site plan must never be written over a proposed one.'
                 )
+                return false
+            end
+
+            # The mkdir_p below would build a missing project's whole path, so a
+            # project that is not on this computer stops here instead.
+            missing = target && self.Na__PortalMapper__MissingProjectMessage(target[:project_root])
+            if missing
+                UI.messagebox(missing)
                 return false
             end
 

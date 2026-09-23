@@ -26,6 +26,10 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 23-Sep-2026 - Version 2.10.6
+# - A portal inside a full repo clone beats a bare {NN}-Projects tree, and no
+#   folder is created under a project that is not on this computer.
+#
 # 19-Sep-2026 - Version 2.9.0
 # - Initial portal mapper.
 #
@@ -117,25 +121,40 @@ module TrueVision3D
 
         # FUNCTION | Find The na-project-portal Root
         # ---------------------------------------------------------------
-        # A stored override on the model wins; otherwise the configured search
-        # paths are tried in order. A path only counts when it actually holds a
+        # A stored override on the model is tried first, then the configured
+        # search paths in order. A path only counts when it actually holds a
         # {NN}-Projects folder, so a stale drive letter cannot match.
+        #
+        # The first path inside a full repo clone - the ProjectVision scripts
+        # beside it - beats any path that is not. The override on the model is the portal of
+        # whichever computer linked it, and on another computer a bare
+        # {NN}-Projects tree can sit at that path: RB05's site plan export once
+        # built one there with mkdir_p (23-Sep-2026). Such a tree holds a year
+        # folder, but no build, no push and no master index.
         # ---------------------------------------------------------------
         def self.Na__PortalMapper__ResolvePortalRoot(override_path = nil)
             candidates = []
             candidates << override_path.to_s unless override_path.to_s.strip.empty?
             candidates.concat(Array(self.Na__PortalMapper__Config.dig('PortalRoots', 'SearchPaths')))
 
-            candidates.each do |candidate|
-                path = candidate.to_s.tr('\\', '/')
-                next if path.empty?
-                next unless Dir.exist?(path)
-                next unless self.Na__PortalMapper__YearFolders(path).any?
+            portals = candidates
+                .map    { |candidate| candidate.to_s.tr('\\', '/') }
+                .reject(&:empty?)
+                .select { |path| Dir.exist?(path) && self.Na__PortalMapper__YearFolders(path).any? }
 
-                return path
-            end
+            portals.find { |path| self.Na__PortalMapper__InRepoClone?(path) } || portals.first
+        end
+        # ---------------------------------------------------------------
 
-            nil
+        # HELPER FUNCTION | Report Whether A Portal Sits In A Full Repo Clone
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__InRepoClone?(portal_root)
+            rel = self.Na__PortalMapper__Config.dig('BuildPipeline', 'ScriptDirRel').to_s
+            return false if rel.empty?
+
+            Dir.exist?(File.join(self.Na__PortalMapper__RepoRoot(portal_root), rel))
+        rescue
+            false
         end
         # ---------------------------------------------------------------
 
@@ -535,6 +554,9 @@ module TrueVision3D
             variant = self.Na__PortalMapper__SitePlanVariants.find { |v| v[:variant_id] == variant_id.to_s }
             return { success: false, message: "Unknown site plan variant: #{variant_id}." } unless variant
 
+            missing = self.Na__PortalMapper__MissingProjectMessage(project_root)
+            return { success: false, message: missing } if missing
+
             path = self.Na__PortalMapper__PhaseFolderPath(project_root, variant[:folder_name])
 
             if Dir.exist?(path)
@@ -555,6 +577,24 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__PortalMapper__PhaseFolderPath(project_root, folder_name)
             File.join(project_root.to_s, self.Na__PortalMapper__ContentFolderName, folder_name.to_s).tr('\\', '/')
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Refuse To Write Into A Project That Is Not On This Computer
+        # ---------------------------------------------------------------
+        # Exports and new folders are made with mkdir_p, which builds every
+        # missing folder above them too. Pointed at a project that is not on this
+        # computer, it builds a fake portal around the export and the files land
+        # there, not in the project - RB05's site plan did, 23-Sep-2026. Anything
+        # that writes under a project asks here first. nil means go ahead.
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__MissingProjectMessage(project_root)
+            root = project_root.to_s
+            return nil if !root.empty? && Dir.exist?(root)
+
+            "The project folder is not on this computer:\n#{root}\n\n" \
+            'Nothing was written. Check that the Portal Root on the Project tab is where ' \
+            'na-project-portal lives on this computer, and that the project is in it.'
         end
         # ---------------------------------------------------------------
 
@@ -684,6 +724,9 @@ module TrueVision3D
         def self.Na__PortalMapper__CreatePhaseFolder(project_root, phase_id, scheme_number = nil)
             phase = self.Na__PortalMapper__DesignPhases.find { |p| p['PhaseId'].to_s == phase_id.to_s }
             return { success: false, message: "Unknown design phase: #{phase_id}" } unless phase
+
+            missing = self.Na__PortalMapper__MissingProjectMessage(project_root)
+            return { success: false, message: missing } if missing
 
             number      = scheme_number || self.Na__PortalMapper__NextSchemeNumber(project_root, phase_id)
             folder_name = self.Na__PortalMapper__BuildFolderName(phase_id, number)

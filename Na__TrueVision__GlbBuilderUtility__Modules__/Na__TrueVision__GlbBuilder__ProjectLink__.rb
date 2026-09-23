@@ -27,6 +27,11 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 23-Sep-2026 - Version 2.10.6
+# - Na__ProjectLink__Read re-derives portal_root and project_root on the
+#   computer reading the link, so a model linked on another computer exports
+#   into this computer's copy of the project.
+#
 # 19-Sep-2026 - Version 2.9.0
 # - Initial project link dictionary.
 #
@@ -82,10 +87,38 @@ module TrueVision3D
 
             link[:prompt_dismissed] = (link[:prompt_dismissed].to_s == 'true')
             link[:linked]           = self.Na__ProjectLink__ValidCode?(link[:project_code])
-            link
+            link[:linked] ? self.Na__ProjectLink__Localise(link) : link
         rescue => e
             Na__Log__Warn "[ProjectLink] Could not read the project link: #{e.message}"
             self.Na__ProjectLink__BlankLink
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Point The Link's Folders At This Computer's Portal
+        # ---------------------------------------------------------------
+        # portal_root and project_root are absolute paths from the computer that
+        # linked the model, and the link travels inside the .skp. RB05's site plan
+        # model was linked where the repo is D:/11_RefLib__StudioRepository__RemoteSystem/NaWeb;
+        # opened here, every export, push and pipeline launch aimed at that path.
+        #
+        # So the paths are re-derived from what does travel - the project year
+        # and folder name - under the portal THIS computer resolves. Nothing is
+        # written back: reading must not dirty the model, and the stored paths
+        # stay right for the computer that wrote them. When the project is not
+        # found here the stored paths are returned untouched, and anything that
+        # would write under them refuses (Na__PortalMapper__MissingProjectMessage).
+        # ---------------------------------------------------------------
+        def self.Na__ProjectLink__Localise(link)
+            portal = self.Na__PortalMapper__ResolvePortalRoot(link[:portal_root])
+            return link unless portal && !link[:project_folder].to_s.empty?
+
+            local = File.join(portal, "#{link[:project_year]}-Projects", link[:project_folder]).tr('\\', '/')
+            return link unless Dir.exist?(local)
+
+            link.merge(portal_root: portal, project_root: local)
+        rescue => e
+            Na__Log__Warn "[ProjectLink] Could not find the project on this computer: #{e.message}"
+            link
         end
         # ---------------------------------------------------------------
 
