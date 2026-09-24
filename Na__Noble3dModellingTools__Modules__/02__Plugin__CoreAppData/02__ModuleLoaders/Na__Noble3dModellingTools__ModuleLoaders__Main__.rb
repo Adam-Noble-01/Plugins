@@ -56,6 +56,8 @@ module Na__Noble3dModellingTools
 
             require_relative '../../10__PluginModules/32__SourceCode__VegetationSketcher/Na__Noble3dModellingTools__VegetationSketcher__Loader__'
             require_relative '../../10__PluginModules/33__SourceCode__OrientFacesTowardCamera/Na__Noble3dModellingTools__OrientFacesTowardCamera__Loader__'
+            require_relative '../../10__PluginModules/34__SourceCode__ToScaleOrthoTextureMaker/Na__Noble3dModellingTools__ToScaleOrthoTextureMaker__Loader__'
+            require_relative '../../10__PluginModules/35__SourceCode__TexturedPlaneToImage/Na__Noble3dModellingTools__TexturedPlaneToImage__Loader__'
 
             @na_feature_modules_loaded = true
             true

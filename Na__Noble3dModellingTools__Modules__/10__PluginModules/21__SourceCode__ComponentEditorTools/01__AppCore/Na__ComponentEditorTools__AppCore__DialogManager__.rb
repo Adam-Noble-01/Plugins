@@ -157,6 +157,15 @@ module Na__ComponentEditorTools
         def self.Na__ComponentEditorTools__BindCallbacks(dialog)
             callback_registry = {
 
+                'na_componenteditortools_advanced' => proc { |raw_payload|
+                    payload = Na__UiBridge.Na__ComponentEditorTools__ParseJsonPayload(raw_payload)
+                    result = Na__AdvancedEditor.request(payload)
+                    result[:request_id] = payload['request_id']
+                    Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
+                        @na_dialog, 'Na__ComponentEditorTools__ReceiveAdvanced', result
+                    )
+                },
+
                 # ----- Monitoring toggle -------------------------------------
 
                 'na_componenteditortools_set_monitoring' => proc { |raw_payload|

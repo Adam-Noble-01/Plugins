@@ -201,6 +201,12 @@ module Na__Noble3dModellingTools
             when 'orient_faces_toward_camera'
                 proc { Na__OrientFacesTowardCamera.Na__OrientFacesTowardCamera__Run }
 
+            when 'to_scale_ortho_texture_maker'
+                proc { Na__ToScaleOrthoTextureMaker.Na__ToScaleOrthoTextureMaker__Run }
+
+            when 'textured_plane_to_image'
+                proc { Na__TexturedPlaneToImage.Na__TexturedPlaneToImage__Run }
+
             else
                 nil
             end

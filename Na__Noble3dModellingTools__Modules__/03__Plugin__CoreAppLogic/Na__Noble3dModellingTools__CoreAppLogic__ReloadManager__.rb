@@ -153,6 +153,12 @@ module Na__Noble3dModellingTools
                 Na__GroupComponentConverter__DialogManager.Na__GroupComponentConverter__ResetDialog
                 puts '[Na__Noble3dModellingTools] Reload reset Group / Component Converter dialog.'
             end
+
+            if defined?(Na__ToScaleOrthoTextureMaker__DialogManager) &&
+               Na__ToScaleOrthoTextureMaker__DialogManager.respond_to?(:Na__ToScaleOrthoTextureMaker__DialogManager__ResetDialog)
+                Na__ToScaleOrthoTextureMaker__DialogManager.Na__ToScaleOrthoTextureMaker__DialogManager__ResetDialog
+                puts '[Na__Noble3dModellingTools] Reload reset To Scale Ortho Texture Maker dialog.'
+            end
         rescue => error
             puts "[Na__Noble3dModellingTools] Feature dialog reset warning: #{error.class}: #{error.message}"
         end

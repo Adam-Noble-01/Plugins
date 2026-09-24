@@ -1,0 +1,163 @@
+# Isolated logic regression tests, explicitly loaded using run_ruby_checks.py.
+require 'tmpdir'
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+module Sketchup
+    Color = Struct.new(:red, :green, :blue)
+    class Model; LOAD_STATUS_SUCCESS = 0; end
+    class << self
+        attr_accessor :active_model, :open_count, :open_result, :next_model
+        def platform; :platform_win; end
+        def open_file(*args, **options)
+            self.open_count = open_count.to_i + 1
+            self.active_model = next_model if next_model
+            open_result
+        end
+    end
+    class Resource
+        attr_accessor :name, :alive, :folder
+        def initialize(name); @name = name; @alive = true; end
+        def entityID; object_id; end
+        def valid?; alive; end
+        def display_name; name == 'Layer0' ? 'Untagged' : name; end
+        def visible?; true; end
+        def attribute_dictionary(name, create); @attributes ||= {}; @attributes[name] ||= {}; end
+    end
+    class Layer < Resource; attr_accessor :color, :line_style, :visible; end
+    class Material < Resource
+        attr_accessor :color, :alpha, :texture, :roughness_factor, :roughness_enabled,
+                      :metallic_factor, :metalness_enabled, :normal_scale, :ao_strength
+        def initialize(name); super; @color = Color.new(255, 0, 0); @alpha = 0.5; end
+    end
+end
+class FakeEntity
+    attr_accessor :layer, :alive, :material, :back_material
+    def initialize(layer); @layer = layer; @alive = true; end
+    def valid?; alive; end
+    def entityID; object_id; end
+    def typename; 'Face'; end
+end
+class FakeDefinition
+    attr_accessor :entities, :name, :live
+    def initialize(entities); @entities = entities; @name = 'Nested'; end
+    def instances; []; end
+    def image?; false; end
+    def group?; false; end
+    def live_component?; live; end
+end
+class FakeLayers < Array
+    attr_accessor :model, :failure, :received_flag
+    def [](key); key.is_a?(String) ? find { |item| item.name == key } : super; end
+    def add(name); item = Sketchup::Layer.new(name); self << item; item; end
+    def remove(tag, flag)
+        @received_flag = flag
+        return false if failure == :false_return
+        model.all.each do |entity|
+            next unless entity.layer == tag
+            entity.layer = self[0] unless failure == :wrong_layer
+            entity.alive = false if failure == :erase
+        end
+        delete(tag); tag.alive = false
+        true
+    end
+end
+class FakeMaterials < Array
+    def [](key); key.is_a?(String) ? find { |item| item.name == key } : super; end
+    def add(name); item = Sketchup::Material.new(name); self << item; item; end
+    def unique_name(name); self[name] ? unique_name(name + '_1') : name; end
+end
+class FakeModel
+    attr_accessor :path, :layers, :entities, :definitions, :materials, :active_layer, :dirty, :aborted, :committed, :save_success
+    def initialize(path = '')
+        @path = path; @layers = FakeLayers.new([Sketchup::Layer.new('Layer0'), Sketchup::Layer.new('Tag A'), Sketchup::Layer.new('Tag B')]); @layers.model = self
+        @entities = [FakeEntity.new(layers[1])]
+        @definitions = [FakeDefinition.new([FakeEntity.new(layers[1])])]
+        @materials = FakeMaterials.new([Sketchup::Material.new('Material A')])
+        @entities[0].material = @entities[0].back_material = materials[0]
+        @active_layer = layers[1]; @dirty = false; @save_success = true
+    end
+    def all; entities + definitions.flat_map(&:entities); end
+    def line_styles; Hash.new { |_, name| name }; end
+    def title; 'Test'; end
+    def modified?; !!dirty; end
+    def start_operation(*args)
+        @saved = [layers.dup, all.map { |e| [e, e.layer, e.alive, e.material, e.back_material] }, active_layer, (layers + materials).map { |r| [r, r.name] }, materials.dup]
+        true
+    end
+    def commit_operation; @committed = true; @dirty = true; true; end
+    def abort_operation
+        @aborted = true; layers.replace(@saved[0]); layers.each { |t| t.alive = true }
+        @saved[1].each { |entity, tag, alive, front, back| entity.layer = tag; entity.alive = alive; entity.material = front; entity.back_material = back }
+        materials.replace(@saved[4])
+        @active_layer = @saved[2]; @saved[3].each { |r, n| r.name = n }; true
+    end
+    def save
+        return false unless save_success
+        File.binwrite(path, 'updated model'); @dirty = false; true
+    end
+end
+module Na__ComponentEditorTools
+    module Na__LibraryExtractor; def self.Na__ComponentEditorTools__InvalidateCache; end; end
+    module Na__LibraryScanner; def self.Na__ComponentEditorTools__InvalidateCache; end; end
+end
+require_relative '../10__AdvancedEditor/Na__ComponentEditorTools__AdvancedEditor__Main__'
+EDITOR = Na__ComponentEditorTools::Na__AdvancedEditor
+@passed = 0
+def check(label)
+    raise "FAIL: #{label}" unless yield
+    @passed += 1
+end
+def setup(path = '')
+    Sketchup.active_model = FakeModel.new(path)
+    EDITOR.request('action' => 'query', 'path' => '')[:data]
+end
+def action(data, kind = 'delete_tag', extra = {})
+    EDITOR.request({ 'action' => kind, 'token' => data[:token], 'id' => data[:tags][1][:id], 'existing_name' => 'Tag A' }.merge(extra))
+end
+d = setup
+check('nested usage count') { d[:tags][1][:uses] == 2 }
+check('both material sides counted') { d[:materials][0][:uses] == 2 }
+check('blank rename blocked') { !action(d, 'rename', 'name' => ' ')[:success] }
+check('duplicate name blocked') { !action(d, 'rename', 'name' => 'tag b')[:success] }
+check('default protected') { !action(d, 'delete_tag', 'id' => d[:tags][0][:id], 'existing_name' => 'Layer0')[:success] }
+check('stale token blocked') { !action(d, 'rename', 'name' => 'New', 'token' => 'old')[:success] }
+check('stale name blocked') { !action(d, 'rename', 'name' => 'New', 'existing_name' => 'Old')[:success] }
+check('rename exact name') { action(d, 'rename', 'name' => 'New')[:success] && Sketchup.active_model.layers[1].name == 'New' }
+d = setup
+check('material rename') { action(d, 'rename', 'id' => d[:materials][0][:id], 'existing_name' => 'Material A', 'name' => 'New Material')[:success] }
+d = setup
+check('material deletion forbidden') { !action(d, 'delete_tag', 'id' => d[:materials][0][:id], 'existing_name' => 'Material A')[:success] }
+d = setup
+model = Sketchup.active_model
+check('delete successful') { action(d)[:success] }
+check('explicit non-destructive flag') { model.layers.received_flag == false }
+check('nested entities preserved and untagged') { model.all.all? { |e| e.valid? && e.layer == model.layers[0] } }
+check('active tag changed to default') { model.active_layer == model.layers[0] }
+[:erase, :wrong_layer, :false_return].each do |failure|
+    d = setup; model = Sketchup.active_model; model.layers.failure = failure
+    check("#{failure} aborts") { !action(d)[:success] && model.aborted && !model.committed }
+    check("#{failure} restores entities and tags") { model.layers.length == 3 && model.all.all? { |e| e.valid? && e.layer == model.layers[1] } }
+end
+d = setup; Sketchup.active_model.definitions[0].live = true
+check('live component protected') { !action(d)[:success] }
+d = setup; Sketchup.active_model = FakeModel.new
+check('model switch blocked') { !action(d)[:success] }
+d = setup; Sketchup.active_model.path = 'changed.skp'
+check('path switch blocked') { !action(d)[:success] }
+Dir.mktmpdir('na-advanced-unit-') do |dir|
+    path = File.join(dir, 'fixture.skp'); File.binwrite(path, 'original bytes')
+    d = setup(path); action(d, 'rename', 'name' => 'Changed')
+    check('row edits leave disk intact') { File.binread(path) == 'original bytes' }
+    response = EDITOR.request('action' => 'save_file', 'token' => d[:token])
+    check('file saved') { response[:success] && File.binread(path) == 'updated model' }
+    check('backup exact') { File.binread(Dir.glob(path + '*.bak').first) == 'original bytes' }
+    Sketchup.active_model.dirty = true; File.binwrite(path, 'external change')
+    check('external change rejected') { !EDITOR.request('action' => 'save_file', 'token' => d[:token])[:success] && File.binread(path) == 'external change' }
+    d = setup(path); Sketchup.active_model.dirty = true
+    other = File.join(dir, 'other.skp'); File.binwrite(other, 'other')
+    check('modified current model blocks opening another file') { !EDITOR.request('action' => 'query', 'path' => other)[:success] && Sketchup.open_count.to_i == 0 }
+    check('failed query invalidates session') { !action(d)[:success] }
+    setup(path); Sketchup.next_model = FakeModel.new(other); Sketchup.open_result = 1
+    check('newer file rejected') { !EDITOR.request('action' => 'query', 'path' => other)[:success] }
+    check('newer-file block persists on current-model requery') { !EDITOR.request('action' => 'query', 'path' => '')[:success] }
+end
+puts "Advanced unit tests: #{@passed} checks passed"

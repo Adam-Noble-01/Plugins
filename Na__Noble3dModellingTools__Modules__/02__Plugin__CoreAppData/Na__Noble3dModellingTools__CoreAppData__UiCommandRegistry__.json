@@ -514,6 +514,24 @@
             "menu_text"         : "Orient Faces Toward Camera",
             "handler_key"       : "orient_faces_toward_camera",
             "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "to_scale_ortho_texture_maker",
+            "command_name"      : "Na Noble3d - To Scale Ortho Texture Maker",
+            "tooltip"           : "Capture the ortho viewport as a true-scale textured plane",
+            "status_bar_text"   : "Open To Scale Ortho Texture Maker",
+            "menu_text"         : "To Scale Ortho Texture Maker",
+            "handler_key"       : "to_scale_ortho_texture_maker",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "textured_plane_to_image",
+            "command_name"      : "Na Noble3d - Textured Plane to Image",
+            "tooltip"           : "Replace a positioned textured rectangle with a SketchUp Image in the same place",
+            "status_bar_text"   : "Convert selected textured planes to images",
+            "menu_text"         : "Textured Plane to Image",
+            "handler_key"       : "textured_plane_to_image",
+            "expose_to_hotkeys" : true
         }
     ],
     "buttons"                : [
@@ -958,6 +976,28 @@
             "description"            : "Reports a breakdown of screen text vs leader count, then offers a delete-all confirmation."
         },
         {
+            "button_id"              : "btn_to_scale_ortho_texture_maker",
+            "tab_name"               : "Misc Utils",
+            "tool_group_name"        : "Ortho Reference Planes",
+            "tool_group_description" : "Capture the current ortho viewport as a true-scale textured plane, then export that texture.",
+            "tool_group_order"       : 25,
+            "button_order"           : 10,
+            "button_label"           : "To Scale Ortho Texture Maker",
+            "command_id"             : "to_scale_ortho_texture_maker",
+            "description"            : "Captures the active parallel-projection viewport as a flat textured plane that matches the view. Export writes the baked PNG with the true-scale millimetre size in the filename."
+        },
+        {
+            "button_id"              : "btn_textured_plane_to_image",
+            "tab_name"               : "Misc Utils",
+            "tool_group_name"        : "Ortho Reference Planes",
+            "tool_group_description" : "Capture the current ortho viewport as a true-scale textured plane, then export that texture.",
+            "tool_group_order"       : 25,
+            "button_order"           : 20,
+            "button_label"           : "Textured Plane to Image",
+            "command_id"             : "textured_plane_to_image",
+            "description"            : "Replaces a scaled and positioned textured rectangle with a SketchUp Image of the same size and place. The image stays visible in wireframe."
+        },
+        {
             "button_id"              : "btn_scene_image_exporter",
             "tab_name"               : "Misc Utils",
             "tool_group_name"        : "Image Export",
@@ -1267,6 +1307,14 @@
         },
         {
             "command_id"        : "orient_faces_toward_camera",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "to_scale_ortho_texture_maker",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "textured_plane_to_image",
             "expose_to_hotkeys" : true
         }
     ]

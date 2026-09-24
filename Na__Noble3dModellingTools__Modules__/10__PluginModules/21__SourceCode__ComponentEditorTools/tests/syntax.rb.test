@@ -1,0 +1,5 @@
+require 'json'
+root = File.expand_path('..', __dir__)
+files = Dir.glob(File.join(root, '**', '*.rb'))
+files.each { |path| RubyVM::InstructionSequence.compile_file(path) }
+puts "Ruby syntax: #{files.length} files passed"

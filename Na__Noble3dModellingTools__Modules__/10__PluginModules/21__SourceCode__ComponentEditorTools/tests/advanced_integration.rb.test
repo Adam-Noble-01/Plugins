@@ -1,0 +1,94 @@
+# Explicit SketchUp integration test. Never autoloaded by the plugin reloader.
+# Run ONLY in a new disposable SketchUp process via -RubyStartup.
+require 'json'
+require 'tmpdir'
+require_relative '../10__AdvancedEditor/Na__ComponentEditorTools__AdvancedEditor__Main__'
+
+module NaAdvancedIntegration
+    def self.run
+        checks = []
+        output = File.join(Sketchup.temp_dir, 'na-advanced-integration-results.json')
+        model = Sketchup.active_model
+        raise 'Tests require an unsaved new model.' unless model.path.empty?
+        root = Dir.mktmpdir('na-advanced-test-')
+        editor = Na__ComponentEditorTools::Na__AdvancedEditor
+        assert = lambda { |condition, label| raise label unless condition; checks << label }
+        tag = model.layers.add('Test Tag A')
+        keep = model.layers.add('Test Tag B')
+        folder = model.layers.add_folder('Test folder')
+        folder.add_layer(tag)
+        material = model.materials.add('Test Material')
+        material.color = 'red'
+        group = model.entities.add_group
+        group.layer = tag
+        face = group.entities.add_face([0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0])
+        face.layer = tag
+        face.material = material
+        face.back_material = material
+        face.hidden = true
+        nested = group.entities.add_group
+        edge = nested.entities.add_line([0, 0, 0], [0, 0, 10])
+        edge.layer = tag
+        unused = model.definitions.add('Unused definition')
+        unused_edge = unused.entities.add_line([0, 0, 0], [20, 0, 0])
+        unused_edge.layer = tag
+        group.locked = true
+        model.active_layer = tag
+        path = File.join(root, 'advanced-fixture.skp')
+        assert.call(model.save(path), 'fixture saved outside the library')
+        original = File.binread(path)
+
+        response = editor.request('action' => 'query', 'path' => path)
+        assert.call(response[:success], "query succeeds: #{response[:message]}")
+        data = response[:data]
+        token = data[:token]
+        tag_row = data[:tags].find { |t| t[:name] == tag.name }
+        mat_row = data[:materials].find { |m| m[:name] == material.name }
+        assert.call(tag_row[:uses] == 4, 'tag usage includes root group, hidden face, nested edge and unused definition')
+        assert.call(mat_row[:uses] == 2, 'material usage includes face front and back')
+        assert.call(data[:definitions].any? { |d| d[:name] == unused.name }, 'unused definitions are listed')
+        default = data[:tags].find { |t| t[:default] }
+        call = lambda { |action, row, extra = {}| editor.request({ 'action' => action, 'token' => token, 'id' => row[:id], 'existing_name' => row[:name] }.merge(extra)) }
+        assert.call(!call.call('delete_tag', default)[:success], 'default tag deletion blocked')
+        assert.call(!call.call('rename', default, 'name' => 'Forbidden')[:success], 'default tag rename blocked')
+        assert.call(!call.call('rename', tag_row, 'name' => keep.name)[:success], 'duplicate tag name blocked')
+        assert.call(!call.call('rename', tag_row, 'name' => ' ')[:success], 'empty name blocked')
+        assert.call(!call.call('rename', tag_row, 'name' => 'No', 'token' => 'stale')[:success], 'stale session rejected')
+        assert.call(!call.call('rename', tag_row, 'name' => 'No', 'existing_name' => 'old')[:success], 'stale resource name rejected')
+        assert.call(!call.call('delete_tag', mat_row)[:success], 'material cannot enter tag deletion route')
+        response = call.call('rename', mat_row, 'name' => 'Renamed Material')
+        assert.call(response[:success] && face.material == material && face.back_material == material && material.name == 'Renamed Material', 'material rename preserves front and back assignments')
+        before_ids = editor.all_entities(model).map(&:persistent_id).sort
+        response = call.call('delete_tag', tag_row)
+        assert.call(response[:success], "delete succeeds: #{response[:message]}")
+        assert.call([group, face, edge, unused_edge].all? { |e| e.valid? && e.layer == model.layers[0] }, 'all affected nested and unused entities moved to Untagged')
+        assert.call(editor.all_entities(model).map(&:persistent_id).sort == before_ids, 'every entity identity preserved')
+        assert.call(group.locked? && face.hidden?, 'locked and hidden states preserved')
+        assert.call(model.active_layer == model.layers[0] && keep.valid?, 'active deleted tag reset and unrelated tag preserved')
+        assert.call(File.binread(path) == original, 'row edits do not write library files')
+        Sketchup.undo
+        assert.call(model.layers['Test Tag A'] && face.layer.name == 'Test Tag A', 'one Undo restores deleted tag and assignments')
+
+        # Refresh token after undo, then exercise disk save and backup verification.
+        response = editor.request('action' => 'query', 'path' => path)
+        token = response[:data][:token]
+        response = editor.request('action' => 'save_file', 'token' => token)
+        assert.call(response[:success], "file save succeeds: #{response[:message]}")
+        backups = Dir.glob(path + '.na-backup-*.bak')
+        assert.call(backups.length == 1 && File.binread(backups.first) == original, 'backup is byte-for-byte original file')
+        model.layers.add('Unsaved edit')
+        saved_bytes = File.binread(path)
+        File.open(path, 'ab') { |file| file.write('external-change') }
+        response = editor.request('action' => 'save_file', 'token' => token)
+        assert.call(!response[:success], 'external disk changes block overwrite')
+        File.binwrite(path, saved_bytes)
+        response = editor.request('action' => 'query', 'path' => File.join(root, 'missing.skp'))
+        assert.call(!response[:success] && !editor.request('action' => 'save_file', 'token' => token)[:success], 'failed query invalidates old edit session')
+        model.save
+        File.write(output, JSON.pretty_generate(success: true, checks: checks, fixture: path))
+    rescue Exception => error
+        File.write(output, JSON.pretty_generate(success: false, checks: checks, error: error.full_message))
+    end
+end
+
+UI.start_timer(3, false) { NaAdvancedIntegration.run }

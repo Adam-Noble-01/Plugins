@@ -33,6 +33,7 @@ require_relative '../08__LibraryManager/Na__ComponentEditorTools__LibraryManager
 require_relative '../08__LibraryManager/Na__ComponentEditorTools__LibraryManager__Editor__'
 require_relative '../08__LibraryManager/Na__ComponentEditorTools__LibraryManager__PlacementTool__'
 require_relative '../09__ExportTools/Na__ComponentEditorTools__ExportTools__Main__'
+require_relative '../10__AdvancedEditor/Na__ComponentEditorTools__AdvancedEditor__Main__'
 require_relative 'Na__ComponentEditorTools__AppCore__PluginReloader__'
 require_relative 'Na__ComponentEditorTools__AppCore__DialogManager__'
 

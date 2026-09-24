@@ -205,6 +205,10 @@ module Na__ComponentEditorTools
 
 # endregion -------------------------------------------------------------------
 
+        # Drop the in-memory copy whenever this file is loaded so Reload Plugin
+        # re-reads the user taxonomy JSON.
+        @na_taxonomy_cache = nil
+
     end
 end
 

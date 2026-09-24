@@ -1,0 +1,54 @@
+load File.join(__dir__, 'advanced_unit.rb.test')
+standards = Na__ComponentEditorTools::Na__AdvancedStandards
+catalog = standards.load_catalog
+check('both actual SSOT files load without errors') { catalog[:errors].empty? }
+check('32 real material recipes loaded') { catalog[:materials].length == 32 }
+check('real tag entries loaded') { catalog[:tags].length > 50 }
+check('UI catalog hides internal recipe data') { !standards.public_catalog(catalog)[:materials][0].key?(:raw) }
+d = setup
+tag_entry = catalog[:tags].first
+target = Sketchup::Layer.new(tag_entry[:name]); Sketchup.active_model.layers << target
+source = Sketchup.active_model.layers[1]
+response = action(d, 'retag_ssot', 'standard_key' => tag_entry[:key])
+check('retag reuses existing canonical tag') { response[:success] && Sketchup.active_model.all.all? { |entity| entity.layer == target } }
+check('retag preserves source and geometry') { source.valid? && Sketchup.active_model.all.all?(&:valid?) }
+d = setup
+response = action(d, 'retag_ssot', 'standard_key' => tag_entry[:key])
+check('missing SSOT tag created with standard metadata') { response[:success] && Sketchup.active_model.layers[tag_entry[:name]].attribute_dictionary('Na__Noble3dModellingTools__TagUtils', false).any? }
+d = setup
+check('forged SSOT key blocked before transaction') { !action(d, 'retag_ssot', 'standard_key' => 'invented')[:success] && !Sketchup.active_model.committed }
+check('cross-type SSOT action blocked') { !action(d, 'swap_material_ssot', 'standard_key' => catalog[:materials].first[:key])[:success] }
+glass = catalog[:materials].find { |entry| entry[:key] == 'MAT101__GenericGlass' }
+d = setup
+model = Sketchup.active_model
+source = model.materials[0]
+prior = model.materials.add(glass[:name]); prior.texture = Struct.new(:filename).new('old-texture')
+model.definitions[0].entities[0].material = prior
+response = EDITOR.request('action' => 'swap_material_ssot', 'token' => d[:token], 'id' => d[:materials][0][:id], 'existing_name' => source.name, 'standard_key' => glass[:key])
+raise response[:message] unless response[:success]
+target = model.materials[glass[:name]]
+check('canonical replacement refreshed from actual SSOT recipe') { target != prior && target.alpha == glass[:raw]['Opacity'] && target.texture.nil? }
+check('front and back source assignments swapped') { model.entities[0].material == target && model.entities[0].back_material == target }
+check('nested uses of existing canonical material refreshed') { model.definitions[0].entities[0].material == target }
+check('old material preserved under unique name') { prior.name.include?('__BeforeSSOT') && source.valid? && prior.valid? }
+check('PBR and renderer metadata built') { target.roughness_enabled && target.attribute_dictionary('Na__Noble3dModellingTools__MaterialUtils', false)['Na__MaterialId'] == glass[:key] }
+d = setup
+default = catalog[:materials].find { |entry| entry[:default] }
+response = EDITOR.request('action' => 'swap_material_ssot', 'token' => d[:token], 'id' => d[:materials][0][:id], 'existing_name' => 'Material A', 'standard_key' => default[:key])
+check('default material removes direct front/back assignments') { response[:success] && Sketchup.active_model.entities[0].material.nil? && Sketchup.active_model.entities[0].back_material.nil? }
+d = setup
+model = Sketchup.active_model
+prior = model.materials.add(glass[:name])
+session_catalog = EDITOR.instance_variable_get(:@session)[:standards]
+session_catalog[:materials].find { |entry| entry[:key] == glass[:key] }[:raw]['BaseColor'] = 'invalid recipe'
+response = EDITOR.request('action' => 'swap_material_ssot', 'token' => d[:token], 'id' => d[:materials][0][:id], 'existing_name' => 'Material A', 'standard_key' => glass[:key])
+check('incomplete material recipe aborts whole swap') { !response[:success] && model.aborted && model.materials[glass[:name]] == prior && model.materials.length == 2 && model.entities[0].material == model.materials[0] }
+d = setup
+EDITOR.instance_variable_get(:@session)[:standards][:fingerprints].transform_values! { |_| 'changed' }
+check('changed SSOT rejected before edits') { !action(d, 'retag_ssot', 'standard_key' => tag_entry[:key])[:success] && !Sketchup.active_model.committed }
+catalog[:materials].reject { |entry| entry[:default] }.each do |entry|
+    model = FakeModel.new
+    material, = standards.build_material(model, entry, catalog)
+    check("build complete recipe #{entry[:key]}") { material.name == entry[:name] && material.alpha.between?(0, 1) && material.roughness_enabled && material.metalness_enabled }
+end
+puts "SSOT and advanced regression tests: #{@passed} checks passed"

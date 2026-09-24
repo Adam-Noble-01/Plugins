@@ -356,6 +356,9 @@
         chip.appendChild(color_swatch);
         chip.appendChild(label);
         chip.appendChild(remove_btn);
+        if (typeof window.Na__ComponentEditorTools__ApplyChipColor === 'function') {
+            window.Na__ComponentEditorTools__ApplyChipColor(chip, type_name);
+        }
         return chip;
     }
 

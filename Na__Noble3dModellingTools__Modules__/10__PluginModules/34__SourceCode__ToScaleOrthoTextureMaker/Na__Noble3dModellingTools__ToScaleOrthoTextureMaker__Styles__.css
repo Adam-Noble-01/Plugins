@@ -1,0 +1,172 @@
+/* ============================================================================= */
+/* NA NOBLE3D MODELLING TOOLS - TO SCALE ORTHO TEXTURE MAKER - STYLES            */
+/* FILE : Na__Noble3dModellingTools__ToScaleOrthoTextureMaker__Styles__.css      */
+/* ============================================================================= */
+
+:root {
+    --naOrtho__Bg          : #f4f6f8;
+    --naOrtho__PanelBg     : #ffffff;
+    --naOrtho__Text        : #1b1f24;
+    --naOrtho__MutedText   : #5b636d;
+    --naOrtho__Border      : #d6dbe1;
+    --naOrtho__Accent      : #2f77d5;
+    --naOrtho__AccentHover : #2464b8;
+    --naOrtho__Success     : #1f7a42;
+    --naOrtho__Error       : #b32d2d;
+    --naOrtho__Busy        : #9a6700;
+}
+
+html, body {
+    margin : 0;
+    padding : 0;
+    width : 100%;
+    height : 100%;
+    font-family : "Segoe UI", sans-serif;
+    color : var(--naOrtho__Text);
+    background : var(--naOrtho__Bg);
+}
+
+.naOrtho__TabBar {
+    display : flex;
+    border-bottom : 1px solid var(--naOrtho__Border);
+    background : var(--naOrtho__PanelBg);
+    padding : 0 14px;
+}
+
+.naOrtho__TabButton {
+    border : none;
+    background : transparent;
+    color : var(--naOrtho__MutedText);
+    font-size : 13px;
+    padding : 11px 14px 10px 14px;
+    cursor : pointer;
+    border-bottom : 2px solid transparent;
+}
+
+.naOrtho__TabButton--active {
+    color : var(--naOrtho__Accent);
+    border-bottom-color : var(--naOrtho__Accent);
+    font-weight : 600;
+}
+
+.naOrtho__TabContent { display : none; }
+.naOrtho__TabContent--active { display : block; }
+
+.naOrtho__Panel {
+    box-sizing : border-box;
+    padding : 20px;
+    background : var(--naOrtho__PanelBg);
+    min-height : 100%;
+}
+
+h1 { margin : 0 0 12px 0; font-size : 19px; }
+
+.naOrtho__Subheading {
+    margin : 0 0 8px 0;
+    font-size : 15px;
+    font-weight : 600;
+}
+
+.naOrtho__Help {
+    margin : 0 0 18px 0;
+    line-height : 1.45;
+    font-size : 13px;
+}
+
+.naOrtho__Help--secondary {
+    margin : 0 0 10px 0;
+    font-size : 12px;
+    color : var(--naOrtho__MutedText);
+}
+
+.naOrtho__Divider {
+    height : 1px;
+    margin : 22px 0 16px 0;
+    background : var(--naOrtho__Border);
+}
+
+label {
+    display : block;
+    margin : 12px 0 6px 0;
+    font-size : 13px;
+}
+
+select, button {
+    width : 100%;
+    box-sizing : border-box;
+    border-radius : 4px;
+    border : 1px solid var(--naOrtho__Border);
+    padding : 10px 12px;
+    font-size : 13px;
+}
+
+select {
+    color : var(--naOrtho__Text);
+    background : #ffffff;
+}
+
+button {
+    margin-top : 16px;
+    color : #ffffff;
+    background : var(--naOrtho__Accent);
+    border : none;
+    cursor : pointer;
+}
+
+button:hover { background : var(--naOrtho__AccentHover); }
+
+.naOrtho__ButtonSecondary { background : #5b636d; }
+.naOrtho__ButtonSecondary:hover { background : #3d444d; }
+
+button:disabled {
+    background : #d6dbe1;
+    color : #5b636d;
+    cursor : wait;
+}
+
+.naOrtho__Status {
+    margin-top : 16px;
+    padding : 10px 12px;
+    border-radius : 4px;
+    font-size : 13px;
+    background : rgba(47, 119, 213, 0.10);
+    border : 1px solid rgba(47, 119, 213, 0.40);
+}
+
+.naOrtho__Status--success {
+    background : rgba(31, 122, 66, 0.12);
+    border-color : rgba(31, 122, 66, 0.45);
+}
+
+.naOrtho__Status--error {
+    background : rgba(179, 45, 45, 0.12);
+    border-color : rgba(179, 45, 45, 0.45);
+}
+
+.naOrtho__Status--info {
+    background : rgba(47, 119, 213, 0.10);
+    border-color : rgba(47, 119, 213, 0.40);
+}
+
+.naOrtho__Status--busy {
+    background : rgba(154, 103, 0, 0.12);
+    border-color : rgba(154, 103, 0, 0.45);
+    display : flex;
+    align-items : center;
+    gap : 10px;
+}
+
+.naOrtho__Status--busy::before {
+    content : "";
+    width : 14px;
+    height : 14px;
+    border-radius : 50%;
+    border : 2px solid rgba(154, 103, 0, 0.30);
+    border-top-color : var(--naOrtho__Busy);
+    animation : naOrtho__Spin 0.8s linear infinite;
+}
+
+@keyframes naOrtho__Spin {
+    from { transform : rotate(0deg); }
+    to   { transform : rotate(360deg); }
+}

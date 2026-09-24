@@ -44,6 +44,7 @@
                 <button class="naComponentEditor__TabButton" data-tab-id="thumbnail" type="button">Thumbnail</button>
                 <button class="naComponentEditor__TabButton" data-tab-id="export" type="button">Export</button>
                 <button class="naComponentEditor__TabButton" data-tab-id="settings" type="button">Settings</button>
+                <button class="naComponentEditor__TabButton" data-tab-id="advanced" type="button">Advanced</button>
                 <span class="naComponentEditor__TabDivider" aria-hidden="true"></span>
                 <button class="naComponentEditor__TabButton naComponentEditor__TabButton--active" data-tab-id="gallery" type="button">Gallery</button>
                 <button class="naComponentEditor__TabButton" data-tab-id="index" type="button">Index</button>
@@ -385,13 +386,17 @@
                 </section>
 
                 <section class="naComponentEditor__Panel">
-                    <h2 class="naComponentEditor__PanelHeading">Component Categories &amp; Types</h2>
-                    <p class="naComponentEditor__PanelSubheading">Define the broad categories and their contextual types used to classify components in the Index and filter the Gallery.</p>
-                    <div id="na-settings-taxonomy-list" class="naComponentEditor__TaxonomyList"></div>
-                    <div class="naComponentEditor__BlockedAddRow">
-                        <input id="na-settings-category-input" class="naComponentEditor__Input naComponentEditor__BlockedInput" type="text" placeholder="New category name&hellip;">
-                        <button id="na-settings-btn-add-category" class="naComponentEditor__Button" type="button">Add Category</button>
-                    </div>
+                    <details class="naComponentEditor__SettingsDisclosure">
+                        <summary class="naComponentEditor__SettingsDisclosureSummary">Component Categories &amp; Types</summary>
+                        <div class="naComponentEditor__SettingsDisclosureBody">
+                            <p class="naComponentEditor__PanelSubheading">Define the broad categories and their contextual types used to classify components in the Index and filter the Gallery.</p>
+                            <div id="na-settings-taxonomy-list" class="naComponentEditor__TaxonomyList"></div>
+                            <div class="naComponentEditor__BlockedAddRow">
+                                <input id="na-settings-category-input" class="naComponentEditor__Input naComponentEditor__BlockedInput" type="text" placeholder="New category name&hellip;">
+                                <button id="na-settings-btn-add-category" class="naComponentEditor__Button" type="button">Add Category</button>
+                            </div>
+                        </div>
+                    </details>
                 </section>
 
                 <section class="naComponentEditor__Panel">
@@ -476,6 +481,36 @@
             </section>
             <!-- endregion --------------------------------------------------- -->
 
+            <section id="na-component-tab-advanced" class="naComponentEditor__TabPanel" data-tab-id="advanced">
+                <div class="naAdvanced__Heading">
+                    <div><h2>Advanced component editor</h2><p id="na-advanced-source">Query the current model or choose Advanced on a library Index row.</p></div>
+                    <div class="naAdvanced__Actions">
+                        <button id="na-advanced-current" class="naComponentEditor__Button" type="button">Use current model</button>
+                        <button id="na-advanced-query" class="naComponentEditor__Button naComponentEditor__Button--primary" type="button">Query tags &amp; materials</button>
+                        <button id="na-advanced-save-file" class="naComponentEditor__Button" type="button" disabled>Save file + backup</button>
+                    </div>
+                </div>
+                <p class="naAdvanced__Notice">Edits affect the entire queried model, including nested and unused definitions. Row Save and Delete are undoable in SketchUp. Save file writes all current model changes to disk and keeps an original backup.</p>
+                <p id="na-advanced-status" role="status" aria-live="polite">Ready to query.</p>
+                <div id="na-advanced-summary" class="naAdvanced__Summary"></div>
+                <div class="naAdvanced__Workspace">
+                    <div class="naAdvanced__Inventory">
+                        <div class="naAdvanced__Actions">
+                            <button id="na-advanced-tags" class="naComponentEditor__Button" type="button" aria-pressed="true">Tags</button>
+                            <button id="na-advanced-materials" class="naComponentEditor__Button" type="button" aria-pressed="false">Materials</button>
+                            <input id="na-advanced-filter" type="search" placeholder="Filter names…" aria-label="Filter tags or materials">
+                            <button id="na-advanced-edit" class="naComponentEditor__Button" type="button" disabled>Edit list →</button>
+                        </div>
+                        <div id="na-advanced-list" class="naAdvanced__List"><p class="naAdvanced__Empty">Run a query to list every tag and material in this model.</p></div>
+                        <details id="na-advanced-breakdown"><summary>Model contents breakdown</summary><div id="na-advanced-contents"></div></details>
+                    </div>
+                    <aside id="na-advanced-editor" class="naAdvanced__Editor" hidden aria-label="Resource editor">
+                        <div class="naAdvanced__Heading"><h3 id="na-advanced-editor-title">Tags editor</h3><button id="na-advanced-close" class="naComponentEditor__Button" type="button">Close</button></div>
+                        <p id="na-advanced-editor-help">Delete moves every entity on that tag to Untagged. The default tag is protected.</p>
+                        <div id="na-advanced-edit-list"></div>
+                    </aside>
+                </div>
+            </section>
         </main>
 
         <!-- REGION | Status Bar --------------------------------------------- -->
@@ -496,6 +531,7 @@
     <script src="Na__ComponentEditorTools__Tab__Settings__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Gallery__.js"></script>
     <script src="Na__ComponentEditorTools__Tab__Index__.js"></script>
+    <script src="Na__ComponentEditorTools__Tab__Advanced__.js"></script>
     <script src="Na__ComponentEditorTools__TabRouter__.js"></script>
     <!-- endregion --------------------------------------------------------------- -->
 

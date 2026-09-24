@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To Scale Ortho Texture Maker</title>
+    <link rel="stylesheet" href="./Na__Noble3dModellingTools__ToScaleOrthoTextureMaker__Styles__.css">
+</head>
+<body>
+    <div class="naOrtho__TabBar">
+        <button class="naOrtho__TabButton naOrtho__TabButton--active" type="button" onclick="naShowTab('main', this)">Main</button>
+        <button class="naOrtho__TabButton" type="button" onclick="naShowTab('settings', this)">Settings</button>
+    </div>
+
+    <div id="tab-main" class="naOrtho__TabContent naOrtho__TabContent--active">
+        <div class="naOrtho__Panel">
+            <h1>To Scale Ortho Texture Maker</h1>
+            <p class="naOrtho__Help">
+                Set up an ortho camera (Parallel Projection plus a standard view or scene), then click Capture.
+                A flat textured plane is created that matches the current viewport.
+            </p>
+
+            <label for="na-scene-select">Scene Source</label>
+            <select id="na-scene-select"></select>
+
+            <label for="na-resolution-select">Capture Resolution</label>
+            <select id="na-resolution-select">
+                <option value="1024">1024 px</option>
+                <option value="2048" selected>2048 px</option>
+                <option value="3072">3072 px</option>
+                <option value="4096">4096 px (safe max)</option>
+                <option value="6144">6144 px (GPU dependent)</option>
+                <option value="8192">8192 px (8K, may fail)</option>
+            </select>
+
+            <label for="na-background-select">Background</label>
+            <select id="na-background-select">
+                <option value="transparent" selected>Transparent (default)</option>
+                <option value="white">Solid White</option>
+            </select>
+
+            <button id="na-btn-run" type="button">Capture Viewport</button>
+            <div id="na-status-main" class="naOrtho__Status naOrtho__Status--info">Ready.</div>
+
+            <div class="naOrtho__Divider"></div>
+            <h2 class="naOrtho__Subheading">Export Texture</h2>
+            <p class="naOrtho__Help naOrtho__Help--secondary">
+                Exports the baked texture from the selected ortho capture group to a PNG.
+                The filename includes the true-scale millimetre size.
+            </p>
+            <button id="na-btn-export" type="button" class="naOrtho__ButtonSecondary">Export Texture</button>
+            <div id="na-status-export" class="naOrtho__Status naOrtho__Status--info">No export run yet.</div>
+        </div>
+    </div>
+
+    <div id="tab-settings" class="naOrtho__TabContent">
+        <div class="naOrtho__Panel">
+            <h1>Settings</h1>
+            <p class="naOrtho__Help">
+                Reloads this tool's Ruby files without restarting SketchUp.
+                Use Noble 3D Tools, Settings, Reload Plugin Data for a full plugin reload.
+            </p>
+            <button id="na-btn-refresh" type="button">Refresh Scripts</button>
+            <div id="na-status-settings" class="naOrtho__Status naOrtho__Status--info">No refresh run yet.</div>
+        </div>
+    </div>
+
+    <script src="./Na__Noble3dModellingTools__ToScaleOrthoTextureMaker__UiBridge__.js"></script>
+</body>
+</html>

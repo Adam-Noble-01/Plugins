@@ -3,6 +3,40 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.6 - 24-Sep-2026 - Textured Plane to Image
+
+- Added module 35 under Misc Utils > Ortho Reference Planes: **Textured Plane to Image**.
+- Select a textured rectangle, or a group that contains one. The command replaces it with a SketchUp Image of the same width, height, and position, so the picture stays visible in wireframe.
+- The face must be a four-sided rectangle. The image uses the texture region actually shown on the face, including a crop or tile. One undo restores the face.
+- Sub-devlog: `10__PluginModules/35__SourceCode__TexturedPlaneToImage/Na__Noble3dModellingTools__TexturedPlaneToImage__DEVLOG__.md`.
+
+### Validation Checklist
+- [ ] Reload Plugin Data, then Misc Utils > Ortho Reference Planes shows Textured Plane to Image.
+- [ ] Select a textured rectangular face and run the command. An image sits on the same outline. Wireframe still shows it. One undo restores the face.
+- [ ] Select an ortho capture group and run the command. The plane becomes an image inside that group.
+
+### Status
+**Written; not yet exercised in SketchUp.** Reload Plugin Data, then run the checklist.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.9.5 - 24-Sep-2026 - To Scale Ortho Texture Maker
+
+- Ported the standalone To Scale Ortho Texture Maker into module 34, Misc Utils > Ortho Reference Planes.
+- The command opens the tool dialog from the Noble menu and hotkey list. Capture still builds a flat textured plane from the parallel viewport, and Export still writes a PNG named with the true-scale millimetre size.
+- Existing capture groups keep the `Na__Ortho__` name prefix and `Na__Ortho__Capture` dictionary, so older captures still export.
+- Sub-devlog: `10__PluginModules/34__SourceCode__ToScaleOrthoTextureMaker/Na__Noble3dModellingTools__ToScaleOrthoTextureMaker__DEVLOG__.md`.
+
+### Validation Checklist
+- [ ] Reload Plugin Data, then Misc Utils > Ortho Reference Planes shows To Scale Ortho Texture Maker.
+- [ ] Capture Viewport from a parallel view creates one flat textured group. One undo removes it.
+- [ ] Export Texture saves a PNG whose filename includes the millimetre size.
+
+### Status
+**Written; not yet exercised in SketchUp.** Reload Plugin Data, then run the checklist.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.4 - 18-Sep-2026 - Vegetation Scatter Brush
 
 - Added **Scatter trees & shrubs** within Vegetation Sketcher, opening a matching Noble HtmlDialog. Capture multiple selected trees/shrubs, assign relative probability weights and paint a parametric forest onto faces or connected terrain.

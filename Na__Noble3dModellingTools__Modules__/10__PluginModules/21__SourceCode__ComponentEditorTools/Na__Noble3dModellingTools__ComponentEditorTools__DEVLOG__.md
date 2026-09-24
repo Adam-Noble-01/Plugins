@@ -24,6 +24,32 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 # VERSION HISTORY
 # =============================================================================
 
+## 24-Sep-2026 — Advanced editor SSOT dropdowns
+
+- Query reads the shared local Tags and Materials JSON collections directly. Each
+  editor row has a grouped dropdown, collection search and description. Query again
+  refreshes the collection; changes to its source files invalidate pending swaps.
+- Retag all uses creates/reuses the chosen standard tag and reassigns all matching
+  entities, including nested and unused definitions. Original tags remain available.
+- Swap all uses builds the selected material through Noble's existing material
+  builder, with default inheritance, colour, opacity, PBR and renderer metadata.
+  Face fronts/backs and group/component materials are reassigned. Selecting Default
+  clears direct assignments, allowing SketchUp's usual material inheritance.
+- A same-named material is refreshed from a fresh SSOT recipe; its original is
+  retained under a unique `__BeforeSSOT` name and all its uses move to the new one.
+  This prevents old textures or PBR maps leaking into the standard material.
+- Each swap is one undoable operation with entity/assignment verification. An
+  incomplete material/tag build aborts the transaction. Save file + backup remains
+  the explicit disk-save step. SSOT files themselves are read-only.
+- Regression checks: actual SSOT parsing and material recipes, nested/front/back
+  replacement, missing/existing target tags, stale data, failed build rollback,
+  protected default tag, grouped dropdown filtering and callback payloads. Native
+  SketchUp visual verification is separate from the isolated Ruby/DOM tests.
+
+API references: [material properties](https://ruby.sketchup.com/Sketchup/Material.html),
+[entity assignments](https://ruby.sketchup.com/Sketchup/Drawingelement.html),
+[face back materials](https://ruby.sketchup.com/Sketchup/Face.html#back_material=-instance_method).
+
 
 # Na Noble3d Modelling Tools — Component Editor Tools
 ## Version 0.6.3 - 12-Aug-2026 - Export Tab: 2D Projection Fixes (Faceted Curves + Seam Stragglers)

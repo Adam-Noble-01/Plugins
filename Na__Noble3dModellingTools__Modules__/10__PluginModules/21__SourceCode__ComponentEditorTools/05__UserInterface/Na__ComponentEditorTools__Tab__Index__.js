@@ -577,6 +577,15 @@
         actions_td.appendChild(insert_btn);
         actions_td.appendChild(open_btn);
         actions_td.appendChild(copy_btn);
+        var advanced_btn = document.createElement('button');
+        advanced_btn.type = 'button';
+        advanced_btn.className = 'naComponentEditor__Button naComponentEditor__IndexBtn';
+        advanced_btn.textContent = 'Advanced';
+        advanced_btn.title = 'Open this component as a model and query its tags, materials and contents';
+        advanced_btn.addEventListener('click', function () {
+            window.Na__ComponentEditorTools__AdvancedTab.open(entry);
+        });
+        actions_td.appendChild(advanced_btn);
         return actions_td;
     }
 
