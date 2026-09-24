@@ -74,6 +74,10 @@ module Na__InsertPrimatives
         '04__GeometryHelpers/Na__InsertPrimatives__DrawnSubtract__.rb',
         '04__GeometryHelpers/Na__InsertPrimatives__DrawnSlopePush__.rb',
         '21__System__DrawnRoofs/Na__InsertPrimatives__DrawnRoofTools__.rb',
+        '22__System__DrawnStairs/Na__InsertPrimatives__DrawnStair__Geometry__.rb',
+        '22__System__DrawnStairs/Na__InsertPrimatives__DrawnStair__Entry__.rb',
+        '22__System__DrawnStairs/Na__InsertPrimatives__DrawnStair__Preview__.rb',
+        '22__System__DrawnStairs/Na__InsertPrimatives__DrawnStairTool__.rb',
         '30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__QuadRing__.rb',
         '04__GeometryHelpers/Na__InsertPrimatives__DrawnEdgeLoops__.rb',
         '30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__Commit__.rb',
@@ -84,7 +88,15 @@ module Na__InsertPrimatives
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Geometry__.rb',
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Mitre__.rb',
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Revise__.rb',
-        '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamferTool__.rb'
+        '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamferTool__.rb',
+        '04__GeometryHelpers/Na__InsertPrimatives__DrawnProfileSweep__.rb',
+        '06__Tools__DrawnShared/Na__InsertPrimatives__DrawnProfileSweepTool__.rb',
+        '32__System__DeepOgee/Na__InsertPrimatives__DrawnOgee__Geometry__.rb',
+        '32__System__DeepOgee/Na__InsertPrimatives__DrawnOgee__Revise__.rb',
+        '32__System__DeepOgee/Na__InsertPrimatives__DrawnOgeeTool__.rb',
+        '33__System__DeepFillet/Na__InsertPrimatives__DrawnFillet__Geometry__.rb',
+        '33__System__DeepFillet/Na__InsertPrimatives__DrawnFillet__Revise__.rb',
+        '33__System__DeepFillet/Na__InsertPrimatives__DrawnFilletTool__.rb'
     ].freeze
 
     # endregion -------------------------------------------------------------------

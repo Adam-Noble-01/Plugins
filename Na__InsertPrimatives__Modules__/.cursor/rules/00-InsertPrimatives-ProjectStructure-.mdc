@@ -18,14 +18,17 @@ alwaysApply: true
 - `01__AppCore` — PathResolver, LoadManifest, Main, Reloader, ModeSwitch
 - `02__AppData` — `AppConfig__Main.json` (`Na__DevMode__Enabled`) + ConfigLoader; `UserConfig__Main.json` (menu placement) + UserConfigLoader (`Na__UserConfig__*`); ToolMemory (`Na__ToolMemory__*`, model attribute dictionary); persisted drawn-tool settings
 - `03__AppUtils` — VCB parse, VCB arithmetic, format helpers, keyboard mixin
-- `04__GeometryHelpers` — voxel grid, solids, roof geom, deep pick (hub + Focus/Pick/Context), slope, edge loops
+- `04__GeometryHelpers` — voxel grid, solids, roof geom, deep pick (hub + Focus/Pick/Context), slope, edge loops, profile sweep (`Na__ProfileSweep__*`: corner frame, plan, build and mitre for any edge profile)
 - `05__PreviewGraphics` — cube wireframe (`Na__Preview__*`) and drawn previews (`Na__DrawnPreview__*`)
-- `06__Tools__DrawnShared` — drag state machine mixin; shared revise for the modifier tools (`DrawnReviseShared` + `Watch` model observer + `Animate` ghost engine)
+- `06__Tools__DrawnShared` — drag state machine mixin; shared revise for the modifier tools (`DrawnReviseShared` + `Watch` model observer + `Animate` ghost engine); `DrawnProfileSweepTool`, the mixin every profile tool includes after its own revise module
 - `10__System__PlaceCube` — click-to-place cube tool and plane mode
 - `20__System__DrawnPrimitives` — plane / volume / cylinder tools
 - `21__System__DrawnRoofs` — pitched / hipped roof tools
+- `22__System__DrawnStairs` — staircase: a DrawnVolumeTool subclass that adds a side stage and a flight stage after the block (tool, geometry, entry, preview)
 - `30__System__DeepPushPull` — nested push/pull 3d + 2d (tool, commit, quad ring, revise, 2d pick)
 - `31__System__DeepChamfer` — nested chamfer (tool, geometry, mitre, revise)
+- `32__System__DeepOgee` — nested ogee moulding: a DrawnChamferTool subclass through the chamfer's `na_drawn__*` cut hooks, on the shared profile sweep (tool, geometry, revise)
+- `33__System__DeepFillet` — nested fillet / radius, the same pattern (tool, geometry, revise). A new profile tool is its curve, its solve and its words — everything else is the profile sweep
 - `40__UserInterface` — right-click HtmlDialog (lifecycle/callbacks/placement + HTML builder)
 
 Filenames stay `Na__InsertPrimatives__<Domain>__<Purpose>__.rb`. Folder numbers do not appear in filenames.

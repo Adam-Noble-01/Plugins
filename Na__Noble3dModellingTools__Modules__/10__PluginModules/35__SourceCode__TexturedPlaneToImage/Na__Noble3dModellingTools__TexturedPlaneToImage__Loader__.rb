@@ -9,6 +9,8 @@
 #
 # =============================================================================
 
+require_relative 'Na__Noble3dModellingTools__TexturedPlaneToImage__PlacementContext__'
+require_relative 'Na__Noble3dModellingTools__TexturedPlaneToImage__NativeBridge__'
 require_relative 'Na__Noble3dModellingTools__TexturedPlaneToImage__FaceProbe__'
 require_relative 'Na__Noble3dModellingTools__TexturedPlaneToImage__BitmapWriter__'
 require_relative 'Na__Noble3dModellingTools__TexturedPlaneToImage__ImagePlacer__'

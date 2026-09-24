@@ -18,6 +18,8 @@
 # - Bare numbers are millimetres, matching the rest of this plugin. Suffixes
 #   mm / cm / m are accepted and share NA_UNIT_CONVERSIONS_TO_MM with the
 #   original cube-mode parser so the two never drift apart.
+# - The one exception is a roof's rise slot, where a bare number is a PITCH in
+#   degrees and a rise has to name its unit — see Na__DrawnVcb__ParsePitchOrRise.
 #
 # WHY NOT String#to_l:
 # - to_l follows the model units, so a bare "2400" in an imperial model becomes
@@ -57,6 +59,12 @@ module Na__InsertPrimatives
     # take "35deg" as a pitch instead of a rise. Checked before the dimension
     # pattern, which would reject the suffix rather than misread it.
     NA_DRAWN_VCB_ANGLE_PATTERN = /\A([+-])?\s*(\d+(?:\.\d+)?)\s*(?:deg|d|°)\z/i
+
+    # The same with the suffix optional, for the roofs' rise slot: there a bare
+    # "35" is 35 degrees of pitch, because nobody specifies a roof by its
+    # measured rise. A rise has to name its unit (3000mm, 3m), which this
+    # rejects, so it falls through to the dimension pattern instead.
+    NA_DRAWN_VCB_PITCH_PATTERN = /\A([+-])?\s*(\d+(?:\.\d+)?)\s*(?:deg|d|°)?\z/i
 
     # endregion -------------------------------------------------------------------
 
@@ -121,10 +129,12 @@ module Na__InsertPrimatives
     # FUNCTION | Read a Token as an Angle in Degrees
     # Returns nil when the token is an ordinary dimension, otherwise
     # [sign, degrees] with sign nil, :plus or :minus so "+5deg" can mean five
-    # degrees steeper than whatever is on screen.
+    # degrees steeper than whatever is on screen. With bare_is_angle a number
+    # needs no suffix at all to count as degrees.
     # ------------------------------------------------------------
-    def self.Na__DrawnVcb__ParseAngleToken(token)
-        match = NA_DRAWN_VCB_ANGLE_PATTERN.match(token.to_s.strip)
+    def self.Na__DrawnVcb__ParseAngleToken(token, bare_is_angle = false)
+        pattern = bare_is_angle ? NA_DRAWN_VCB_PITCH_PATTERN : NA_DRAWN_VCB_ANGLE_PATTERN
+        match   = pattern.match(token.to_s.strip)
         return nil unless match
 
         sign =
@@ -135,6 +145,26 @@ module Na__InsertPrimatives
             end
 
         [sign, match[2].to_f]
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Read a Roof's Rise-Slot Token — a Pitch Unless It Names a Length
+    # Returns nil for an empty token (keep the live rise), otherwise
+    # [:pitch, sign, degrees] for "35", "35d", "35°" or "+5", and
+    # [:rise, sign, inches] for "3000mm", "3m" or "+100mm".
+    # ------------------------------------------------------------
+    def self.Na__DrawnVcb__ParsePitchOrRise(token)
+        text = token.to_s.strip
+        return nil if text.empty?
+
+        pitch = Na__InsertPrimatives.Na__DrawnVcb__ParseAngleToken(text, true)
+        return [:pitch] + pitch if pitch
+
+        unless NA_DRAWN_VCB_TOKEN_PATTERN.match(text)
+            raise ArgumentError, "cannot read '#{text}' — type a pitch such as 35, or a rise with its unit such as 3000mm"
+        end
+
+        [:rise] + Na__InsertPrimatives.Na__DrawnVcb__ParseToken(text)
     end
     # ---------------------------------------------------------------
 

@@ -17,16 +17,20 @@
 # - The footprint plane is pinned to plan. A roof has no plane decision to make,
 #   so the drag never infers one and TAB is freed up for the decision that does
 #   matter: which way the ridge runs.
-# - The height stage takes a rise in mm OR a pitch in degrees. Typing 35deg sets
-#   the rise from the span, and the preview reports both numbers the whole time
-#   so the two are never in doubt.
+# - The height stage takes a PITCH. A bare number is degrees, so typing 35 sets
+#   the rise from the span, because roofs are specified by pitch and nobody
+#   types a measured rise. A rise can still be given, but it has to carry its
+#   unit (3000mm, 3m). The preview reports both numbers the whole time so the
+#   two are never in doubt.
 # - Only the roof kind differs between the two tools, so the whole behaviour
 #   lives in DrawnRoofToolBase and the subclasses are three methods each.
 #
 # MEASUREMENTS BOX:
-#   plan stage    6000 | 6000,4000 | +500,-200 | 6000,4000,2000 | 6000,4000,35d
-#   height stage  2000 (rise) | 35d | 35deg | 35° (pitch) | +100 | +5d | +5deg
-#   Bare numbers are mm; mm | cm | m suffixes accepted.
+#   plan stage     6000 | 6000,4000 | +500,-200 | 6000,4000,35 | 6000,4000,3000mm
+#   pitch stage    35 | 35d | 35° | +5 | -2.5 (pitch)  ·  3000mm | 3m | +100mm (rise)
+#   after drawing  35 or 3000mm alone re-pitches | 6000, | ,4000 | 6000,4000,35
+#   Plan sizes: bare numbers are mm. The rise slot: bare numbers are DEGREES,
+#   and a rise must name mm | cm | m. A pitch outside 0-90 is refused.
 #
 # =============================================================================
 
@@ -97,11 +101,12 @@ module Na__InsertPrimatives
             [
                 'Drag the plan rectangle on X,Y then pull up in Z and click',
                 'Every pick snaps to the voxel grid — hold CTRL to snap to vertices instead',
+                'Hold CTRL+SHIFT to snap to a vertex and then round it onto the grid',
                 'TAB cycles the ridge direction: Auto > along X > along Y',
-                'VCB plan  : 6000 pins W | ,4000 pins L | 6000,4000,35d builds it',
-                'VCB height: 2000 (rise) | 35d or 35deg (pitch) | +100 | +5d',
+                'VCB plan  : 6000 pins W | ,4000 pins L | 6000,4000,35 builds it at 35 degrees',
+                'VCB pitch : 35 is degrees | +5 steeper | a rise needs its unit: 3000mm or 3m',
                 'A pinned axis stops following the drag — BKSP releases it again',
-                'Type straight after drawing to correct the roof in place'
+                'Type straight after drawing: 35 re-pitches the roof, 6000,4000 resizes its plan'
             ]
         end
         # ---------------------------------------------------------------
@@ -375,9 +380,9 @@ module Na__InsertPrimatives
                 "#{width_mm} x #{length_mm} mm plan — release or click to set the footprint"
             when :picking_depth
                 note = na_drawn__pyramid? ? ' (pyramid — ridge has no length)' : ''
-                "Rise #{rise_mm} mm, pitch #{Na__InsertPrimatives.Na__DrawnFormat__Degrees(na_drawn__pitch_degrees)} deg#{note} — click to place"
+                "Pitch #{Na__InsertPrimatives.Na__DrawnFormat__Degrees(na_drawn__pitch_degrees)} deg, rise #{rise_mm} mm#{note} — click to place, or type a pitch"
             else
-                na_drawn__revise_available? ? 'Type a rise or a pitch to correct the roof just drawn' : 'Click and drag out the plan footprint'
+                na_drawn__revise_available? ? 'Type a pitch (35) or a rise (3000mm) to correct the roof just drawn' : 'Click and drag out the plan footprint'
             end
         end
         # ---------------------------------------------------------------
@@ -385,10 +390,20 @@ module Na__InsertPrimatives
         # FUNCTION | Measurements Box Label and Live Value
         # ------------------------------------------------------------
         def na_drawn__vcb_label_and_value
-            return ['Roof rise or pitch', na_drawn__format_sizes([@na_size_d])] if @na_state == :picking_depth
-            return ['Roof W,L,rise', ''] if @na_state == :idle && !na_drawn__revise_available?
+            return ['Roof pitch', na_drawn__pitch_vcb_text] if @na_state == :picking_depth
+            return ['Roof W,L,pitch', ''] if @na_state == :idle && !na_drawn__revise_available?
 
-            ['Roof W,L,rise', na_drawn__format_sizes([@na_size_u, @na_size_v, @na_size_d])]
+            ['Roof W,L,pitch', "#{na_drawn__format_sizes([@na_size_u, @na_size_v])},#{na_drawn__pitch_vcb_text}"]
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Live Pitch as the Measurements Box Shows It
+        # In degrees, because that is what a bare number typed back into the box
+        # now means. A rise shown in mm would invite the one entry in this tool
+        # that is no longer read as millimetres.
+        # ------------------------------------------------------------
+        def na_drawn__pitch_vcb_text
+            "#{Na__InsertPrimatives.Na__DrawnFormat__Degrees(na_drawn__pitch_degrees)}°"
         end
         # ---------------------------------------------------------------
 
@@ -410,7 +425,7 @@ module Na__InsertPrimatives
                 na_drawn__advance_from_b(view)
 
             when :picking_depth
-                raise ArgumentError, 'rise takes a single value' if na_drawn__entry_parts(text).length > 1
+                raise ArgumentError, 'pitch takes a single value' if na_drawn__entry_parts(text).length > 1
 
                 @na_size_d = na_drawn__resolve_rise_token(text)
                 Na__InsertPrimatives.Na__DrawnVcb__ValidatePositive([@na_size_d], ['Rise'])
@@ -424,11 +439,20 @@ module Na__InsertPrimatives
                     return false
                 end
 
-                # Revise has no drag, so "the axis still under the mouse" means
-                # nothing here. Clearing the pins keeps a typed entry strictly
-                # positional: 350 is always the width, ,1610 always the height.
+                # Revise has no drag, so the pins are cleared and a comma makes
+                # the entry positional: 6000, is the width, ,4000 the length,
+                # 6000,4000,35 all three. A roof is re-pitched far more often
+                # than it is re-planned, so a comma-free entry is the rise slot:
+                # 35 re-pitches the roof just drawn, 3000mm sets its rise.
                 na_drawn__clear_locks
-                na_drawn__apply_typed_sizes(text)
+
+                if na_drawn__entry_parts(text).length == 1
+                    @na_size_d = na_drawn__resolve_rise_token(text)
+                    Na__InsertPrimatives.Na__DrawnVcb__ValidatePositive([@na_size_d], ['Rise'])
+                else
+                    na_drawn__apply_typed_sizes(text)
+                end
+
                 na_drawn__revise_roof(view)
 
             else
@@ -453,27 +477,35 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Resolve the Rise Slot from Either a Length or an Angle
-        # An angle is relative to the live pitch, a length to the live rise, so
-        # "+100" and "+5deg" both mean what they look like they mean.
+        # FUNCTION | Resolve the Rise Slot — a Pitch in Degrees Unless a Length Is Named
+        # ------------------------------------------------------------
+        # A bare number is a PITCH: 35 is 35 degrees and +5 is five degrees
+        # steeper than the roof on screen, because roofs are specified by pitch
+        # and nobody types a measured rise. A rise has to carry its unit —
+        # 3000mm, 3m, or +100mm to add to the live one. The d / deg / °
+        # suffixes still read as a pitch, so the old habit keeps working.
+        #
+        # A pitch outside 0-90 is refused rather than clamped. The clamp in
+        # Na__DrawnRoof__HeightFromPitch would quietly turn a habitual "3000"
+        # into the steepest roof it allows; a refusal that names the fix does not.
         # ------------------------------------------------------------
         def na_drawn__resolve_rise_token(token_text)
-            angle = Na__InsertPrimatives.Na__DrawnVcb__ParseAngleToken(token_text)
+            kind, sign, amount = Na__InsertPrimatives.Na__DrawnVcb__ParsePitchOrRise(token_text)
 
-            unless angle
-                token = Na__InsertPrimatives.Na__DrawnVcb__ParseToken(token_text)
-                return Na__InsertPrimatives.Na__DrawnVcb__ApplyToken(token, @na_size_d)
-            end
+            return @na_size_d.to_f.abs if kind.nil?                           # <-- An empty slot keeps the live rise
+            return Na__InsertPrimatives.Na__DrawnVcb__ApplyToken([sign, amount], @na_size_d) if kind == :rise
 
-            sign, degrees = angle
-            base          = na_drawn__pitch_degrees
-
+            base   = na_drawn__pitch_degrees
             target =
                 case sign
-                when :plus  then base + degrees
-                when :minus then base - degrees
-                else             degrees
+                when :plus  then base + amount
+                when :minus then base - amount
+                else             amount
                 end
+
+            unless target > 0.0 && target < 90.0
+                raise ArgumentError, "#{Na__InsertPrimatives.Na__DrawnFormat__Degrees(target)}° is not a roof pitch — a rise needs its unit, e.g. 3000mm"
+            end
 
             Na__InsertPrimatives.Na__DrawnRoof__HeightFromPitch(target, na_drawn__pitch_run)
         end
@@ -485,7 +517,7 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__apply_typed_sizes(text)
             parts = na_drawn__entry_parts(text)
-            raise ArgumentError, 'roof takes W, W,L or W,L,rise' if parts.length > 3
+            raise ArgumentError, 'roof takes W, W,L or W,L,pitch' if parts.length > 3
 
             plan_tokens = parts[0, 2].map { |part| Na__InsertPrimatives.Na__DrawnVcb__ParseToken(part) }
             plan_tokens = na_drawn__align_single_token(plan_tokens, [:u, :v])

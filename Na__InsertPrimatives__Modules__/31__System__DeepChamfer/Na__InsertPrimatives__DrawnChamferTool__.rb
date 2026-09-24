@@ -180,13 +180,13 @@ module Na__InsertPrimatives
 
             unless target[:face_count] == 2
                 UI.beep
-                Sketchup::set_status_text("A chamfer needs an edge bordering exactly two faces (this one has #{target[:face_count]})", SB_PROMPT)
+                Sketchup::set_status_text("#{na_drawn__cut_phrase.capitalize} needs an edge bordering exactly two faces (this one has #{target[:face_count]})", SB_PROMPT)
                 return false
             end
 
-            unless Na__InsertPrimatives.Na__DrawnChamfer__Solve(target, 1.0)
+            unless na_drawn__solve_cut(target, 1.0)
                 UI.beep
-                Sketchup::set_status_text('These faces are too close to flat for a chamfer', SB_PROMPT)
+                Sketchup::set_status_text("These faces are too close to flat for #{na_drawn__cut_phrase}", SB_PROMPT)
                 return false
             end
 
@@ -228,6 +228,93 @@ module Na__InsertPrimatives
                 'Double-click an edge to cut it at the last setback placed (remembered in the model)',
                 'The edge must border exactly two faces'
             ]
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Cut Hooks — the Seams a Profile Tool Replaces
+        # -----------------------------------------------------------------------------
+        #
+        # Deep Ogee (32__System__DeepOgee) is this tool with a different cut: the
+        # same hover, bank, drag, mitre, retype and undo, sweeping a curved
+        # profile where this one sweeps a straight chord. Every place the chamfer
+        # geometry or the chamfer's name is needed goes through one of these, so
+        # a subclass swaps the geometry and the words and inherits the rest.
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | What the Cut Is Called, for Messages and Undo Names
+        # ------------------------------------------------------------
+        def na_drawn__cut_title
+            'Chamfer'
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Cut With Its Article, for Messages
+        # ------------------------------------------------------------
+        def na_drawn__cut_phrase
+            'a chamfer'
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Cut as a Verb, for Messages
+        # ------------------------------------------------------------
+        def na_drawn__cut_verb
+            'chamfer'
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Solve One Edge at a World Setback
+        # ------------------------------------------------------------
+        def na_drawn__solve_cut(target, setback)
+            Na__InsertPrimatives.Na__DrawnChamfer__Solve(target, setback)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Read the Drag's Travel Along the Bisector as a Size
+        # The chord crosses the bisector at t = d * cos_half, so this puts the
+        # cut plane under the cursor. A profile tool whose curve crosses the
+        # bisector somewhere else answers so its own curve follows the cursor.
+        # ------------------------------------------------------------
+        def na_drawn__size_from_travel(travel)
+            travel / @na_ch_cos_half
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Mitre Every Shared Corner of a Solved Batch
+        # ------------------------------------------------------------
+        def na_drawn__mitre_cuts(targets, solves)
+            Na__InsertPrimatives.Na__DrawnChamfer__MitreBatch(targets, solves)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Plan Every Face a Single Cut Touches
+        # ------------------------------------------------------------
+        def na_drawn__plan_cut(target, solve)
+            Na__InsertPrimatives.Na__DrawnChamfer__BuildPlans(target, solve)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Erase and Rebuild a Single Cut
+        # ------------------------------------------------------------
+        def na_drawn__build_cut(entities, target, solve, plans, build_transform)
+            Na__InsertPrimatives.Na__DrawnChamfer__Build(entities, target, solve, plans, build_transform)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Plan Every Face a Batch Group Touches
+        # ------------------------------------------------------------
+        def na_drawn__plan_group(targets, solves)
+            Na__InsertPrimatives.Na__DrawnChamfer__BuildGroupPlans(targets, solves)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Erase and Rebuild a Whole Batch Group
+        # ------------------------------------------------------------
+        def na_drawn__build_group(model, targets, solves, plans, build_transform)
+            Na__InsertPrimatives.Na__DrawnChamfer__BuildGroup(model, targets, solves, plans, build_transform)
         end
         # ---------------------------------------------------------------
 
@@ -341,7 +428,7 @@ module Na__InsertPrimatives
         # FUNCTION | Arrow Keys Have No Meaning on a Chamfer
         # ------------------------------------------------------------
         def na_drawn__apply_axis_lock(axis, view)
-            Sketchup::set_status_text('A chamfer follows its own corner — axis locks are not used here', SB_PROMPT)
+            Sketchup::set_status_text("#{na_drawn__cut_phrase.capitalize} follows its own corner — axis locks are not used here", SB_PROMPT)
             false
         end
         # ---------------------------------------------------------------
@@ -357,6 +444,15 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__tab_hint
             ''
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | CTRL+SHIFT Stays Plain Vertex Snapping Here
+        # SHIFT is how edges are banked, so the vertex-then-grid mode the other
+        # tools give CTRL+SHIFT is not offered: here it still means plain CTRL.
+        # ------------------------------------------------------------
+        def na_drawn__vertex_grid_supported?
+            false
         end
         # ---------------------------------------------------------------
 
@@ -413,7 +509,7 @@ module Na__InsertPrimatives
             return false unless source
 
             travel  = (source - @na_ch_anchor).dot(@na_ch_bisector).to_f
-            setback = na_drawn__snap_distance(travel / @na_ch_cos_half).to_f
+            setback = na_drawn__snap_distance(na_drawn__size_from_travel(travel)).to_f
             setback = 0.0 if setback < 0.0                                    # <-- Dragging out of the corner closes the chamfer
 
             return false if na_drawn__locked?(:d)
@@ -449,7 +545,7 @@ module Na__InsertPrimatives
             return unless @na_ch_target && @na_size_d.to_f > 0.0
 
             if @na_ch_batch.length <= 1
-                @na_ch_solve = Na__InsertPrimatives.Na__DrawnChamfer__Solve(@na_ch_target, @na_size_d)
+                @na_ch_solve = na_drawn__solve_cut(@na_ch_target, @na_size_d)
                 return
             end
 
@@ -459,14 +555,14 @@ module Na__InsertPrimatives
             # A refusal here does not kill the drag: the preview falls back to
             # the unmitred shapes and the note explains what commit will say.
             all_solves = @na_ch_batch.map do |member|
-                Na__InsertPrimatives.Na__DrawnChamfer__Solve(member, @na_size_d)
+                na_drawn__solve_cut(member, @na_size_d)
             end
 
             @na_ch_solve = all_solves[0]
             return unless @na_ch_solve
 
             if all_solves.all?
-                @na_ch_mitre_note = Na__InsertPrimatives.Na__DrawnChamfer__MitreBatch(@na_ch_batch, all_solves)
+                @na_ch_mitre_note = na_drawn__mitre_cuts(@na_ch_batch, all_solves)
             end
 
             @na_ch_batch_solves = all_solves[1..-1].compact
@@ -547,14 +643,14 @@ module Na__InsertPrimatives
 
             unless target[:face_count] == 2
                 UI.beep
-                Sketchup::set_status_text("A chamfer needs an edge bordering exactly two faces (this one has #{target[:face_count]})", SB_PROMPT)
+                Sketchup::set_status_text("#{na_drawn__cut_phrase.capitalize} needs an edge bordering exactly two faces (this one has #{target[:face_count]})", SB_PROMPT)
                 return false
             end
 
-            probe = Na__InsertPrimatives.Na__DrawnChamfer__Solve(target, 1.0)
+            probe = na_drawn__solve_cut(target, 1.0)
             unless probe
                 UI.beep
-                Sketchup::set_status_text('These faces are too close to flat for a chamfer', SB_PROMPT)
+                Sketchup::set_status_text("These faces are too close to flat for #{na_drawn__cut_phrase}", SB_PROMPT)
                 return false
             end
 
@@ -626,7 +722,7 @@ module Na__InsertPrimatives
                 Sketchup::set_status_text("Dragging #{@na_ch_batch.length} edges together", SB_PROMPT)
             elsif target[:shared_count].to_i > 1
                 Sketchup::set_status_text(
-                    "Heads up: this definition has #{target[:shared_count]} instances — chamfering changes all of them",
+                    "Heads up: this definition has #{target[:shared_count]} instances — #{na_drawn__cut_verb}ing changes all of them",
                     SB_PROMPT
                 )
             end
@@ -825,7 +921,7 @@ module Na__InsertPrimatives
 
             length_mm = Na__InsertPrimatives.Na__DrawnFormat__Mm(world_v0.distance(world_v1)).abs
             usable    = target[:face_count] == 2
-            second    = usable ? Na__InsertPrimatives.Na__DeepPick__PathLabel(target) : "#{target[:face_count]} faces — cannot chamfer"
+            second    = usable ? Na__InsertPrimatives.Na__DeepPick__PathLabel(target) : "#{target[:face_count]} faces — cannot #{na_drawn__cut_verb}"
 
             Na__InsertPrimatives.Na__DrawnPreview__DrawWorldLabel(
                 view, world_v1, ["#{length_mm} mm edge", second]
@@ -980,7 +1076,7 @@ module Na__InsertPrimatives
             end
 
             tokens = Na__InsertPrimatives.Na__DrawnVcb__ParseEntry(text)
-            raise ArgumentError, 'chamfer takes a single setback' if tokens.length > 1
+            raise ArgumentError, "#{na_drawn__cut_title.downcase} takes a single setback" if tokens.length > 1
 
             setbacks = Na__InsertPrimatives.Na__DrawnVcb__ResolveAgainst(tokens, [@na_size_d])
             Na__InsertPrimatives.Na__DrawnVcb__ValidatePositive(setbacks, ['Setback'])
@@ -1019,10 +1115,10 @@ module Na__InsertPrimatives
 
             return na_drawn__commit_batch(view, @na_ch_batch) if @na_ch_batch.length > 1
 
-            solve = Na__InsertPrimatives.Na__DrawnChamfer__Solve(target, @na_size_d)
+            solve = na_drawn__solve_cut(target, @na_size_d)
             unless solve
                 UI.beep
-                Sketchup::set_status_text('This chamfer cannot be solved here', SB_PROMPT)
+                Sketchup::set_status_text("This #{na_drawn__cut_title.downcase} cannot be solved here", SB_PROMPT)
                 return false
             end
 
@@ -1030,18 +1126,18 @@ module Na__InsertPrimatives
             # unambiguous definition-local space, and a refusal here costs
             # nothing — no context change, no operation, no erase.
             begin
-                plans = Na__InsertPrimatives.Na__DrawnChamfer__BuildPlans(target, solve)
+                plans = na_drawn__plan_cut(target, solve)
             rescue StandardError => error
                 UI.beep
-                Sketchup::set_status_text("Chamfer refused: #{error.message}", SB_PROMPT)
-                Na__InsertPrimatives.Na__Debug__Puts "NA CHAMFER refused: #{error.message}"
+                Sketchup::set_status_text("#{na_drawn__cut_title} refused: #{error.message}", SB_PROMPT)
+                Na__InsertPrimatives.Na__Debug__Puts "NA #{na_drawn__cut_title.upcase} refused: #{error.message}"
                 return false
             end
 
             model   = Sketchup.active_model
             members = na_revise__snapshot_members([target], model)           # <-- Read while the edge still exists; the cut erases it
 
-            result = Na__InsertPrimatives.Na__DeepPick__ExecuteInContext(model, target[:path], 'Chamfer Edge') do |entered|
+            result = Na__InsertPrimatives.Na__DeepPick__ExecuteInContext(model, target[:path], "#{na_drawn__cut_title} Edge") do |entered|
                 parent   = target[:edge].parent
                 entities = parent.respond_to?(:entities) ? parent.entities : model.active_entities
 
@@ -1050,7 +1146,7 @@ module Na__InsertPrimatives
                 # they go through edit_transform — read here, where it is the
                 # newly opened session's. Nothing entered, and reads and adds
                 # share one space: the identity. See the header rule.
-                Na__InsertPrimatives.Na__DrawnChamfer__Build(
+                na_drawn__build_cut(
                     entities, target, solve, plans, na_drawn__build_transform(model, entered)
                 )
 
@@ -1061,7 +1157,7 @@ module Na__InsertPrimatives
 
             unless result[:success]
                 UI.beep
-                Sketchup::set_status_text("Chamfer failed: #{result[:error]}", SB_PROMPT)
+                Sketchup::set_status_text("#{na_drawn__cut_title} failed: #{result[:error]}", SB_PROMPT)
                 na_revise__load_memory                                        # <-- The aborted operation rolled its memory write back too
                 na_drawn__reset_pick_state
                 view.invalidate if view
@@ -1104,7 +1200,7 @@ module Na__InsertPrimatives
                 group_solves = []                                             # <-- Assigned inside the block, read after it
 
                 result = Na__InsertPrimatives.Na__DeepPick__ExecuteInContext(
-                    model, group_targets.first[:path], 'Chamfer Edges'
+                    model, group_targets.first[:path], "#{na_drawn__cut_title} Edges"
                 ) do |entered|
                     # Validate and solve the whole group first, then mitre any
                     # shared corners, then plan every touched face exactly once,
@@ -1133,21 +1229,21 @@ module Na__InsertPrimatives
                             :face_count     => faces.length,
                             :transformation => (xform_now || member[:transformation])
                         )
-                        solve = Na__InsertPrimatives.Na__DrawnChamfer__Solve(fresh, @na_size_d)
+                        solve = na_drawn__solve_cut(fresh, @na_size_d)
                         raise 'an edge could not be solved at this setback' unless solve
 
                         working      << fresh
                         group_solves << solve
                     end
 
-                    mitre_error = Na__InsertPrimatives.Na__DrawnChamfer__MitreBatch(working, group_solves)
+                    mitre_error = na_drawn__mitre_cuts(working, group_solves)
                     raise mitre_error if mitre_error
 
                     # Planned and added in the SAME space, so the identity —
                     # never edit_transform, which would carry global points
                     # through the open group's transform a second time.
-                    plans = Na__InsertPrimatives.Na__DrawnChamfer__BuildGroupPlans(working, group_solves)
-                    Na__InsertPrimatives.Na__DrawnChamfer__BuildGroup(
+                    plans = na_drawn__plan_group(working, group_solves)
+                    na_drawn__build_group(
                         model, working, group_solves, plans, Geom::Transformation.new
                     )
 
@@ -1168,8 +1264,8 @@ module Na__InsertPrimatives
 
             if cut.zero?
                 UI.beep
-                Sketchup::set_status_text("Chamfer failed: #{errors.first}", SB_PROMPT)
-                Na__InsertPrimatives.Na__Debug__Puts "NA CHAMFER batch failed: #{errors.join(' | ')}"
+                Sketchup::set_status_text("#{na_drawn__cut_title} failed: #{errors.first}", SB_PROMPT)
+                Na__InsertPrimatives.Na__Debug__Puts "NA #{na_drawn__cut_title.upcase} batch failed: #{errors.join(' | ')}"
                 na_revise__load_memory                                        # <-- Every operation aborted, so the memory write did too
                 na_drawn__reset_pick_state
                 view.invalidate if view
@@ -1178,7 +1274,7 @@ module Na__InsertPrimatives
 
             Na__InsertPrimatives.Na__Debug__Puts "\n"
             Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
-            Na__InsertPrimatives.Na__Debug__Puts 'DEEP CHAMFER BATCH CUT'
+            Na__InsertPrimatives.Na__Debug__Puts "DEEP #{na_drawn__cut_title.upcase} BATCH CUT"
             Na__InsertPrimatives.Na__Debug__Puts "Edges  : #{cut} of #{targets.length} cut at #{Na__InsertPrimatives.Na__DrawnFormat__Mm(@na_size_d).abs}mm"
             Na__InsertPrimatives.Na__Debug__Puts "Groups : #{groups.length} context#{groups.length == 1 ? '' : 's'} (one undo step each)"
             errors.each { |message| Na__InsertPrimatives.Na__Debug__Puts "Refused: #{message}" }

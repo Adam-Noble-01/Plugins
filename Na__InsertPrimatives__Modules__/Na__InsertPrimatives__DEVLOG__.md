@@ -3,6 +3,636 @@
 
 # =============================================================================
 
+## Version 5.1.13 - 24-Sep-2026 - Staircase: a Block, a Side, and an Even Flight
+
+### Asked For
+*"Draw like the volume tool, then select a volume side to be the stairs side and its
+creates a equal set of steps"* — *"Report the pitch in degrees as you draw in the preview,
+and user can type a value to set the degrees in the VCB, but alteratively can type ####r or
+####g or ####r,####g which can control the rise and going if it needs to be strict like a
+part k staircase in the UK"* — *"after setting the steps bounds depth the user can press up
+or down arrow to increase or decrease amount of steps."* With four mockups: the block, its
+side's top edge picked out in blue, and the flight dragged inward under a 35° pitch line.
+
+### The Gesture
+1. **Block.** Exactly Drawn Volume: drag the base, then the height, or type
+   `3595,1525,1690`. Inherited whole, with grid snapping, CTRL, CTRL+SHIFT, TAB planes and
+   arrow-key axis locks.
+2. **Side.** The block stays on screen and the side under the cursor turns blue, with an
+   arrow pointing into the block. From above, where no side faces the camera, it is the side
+   whose top edge is nearest the cursor. Click, or press Enter.
+3. **Flight.** Drag inward. The drag sets the **run**, from the chosen side to the top
+   riser, and the block past it stays full height as the landing. UP and DOWN add and remove
+   a step while the run holds. A gold line runs through the nosings at both ends with the
+   pitch written on it. The card beside it gives the risers, goings, run, landing and a
+   Part K check. Click or Enter builds.
+
+### Even Steps, Counted the UK Way
+N risers and N − 1 goings in the flight, and the landing is the last tread:
+`rise = height / N`, `going = run / (N − 1)`, `pitch = atan(rise / going)`. The first riser
+stands on the chosen side. A run of the whole block leaves no landing. The top riser then
+meets the floor beyond the far face, so the block tops out one rise below its drawn
+height. A fresh block opens at the step count nearest a 175mm rise; after that, the rise of
+the last stair built is the target, for the session.
+
+### Typed Values
+| Typed | Means |
+|---|---|
+| `35` (`35d`, `35deg`, `35°`) | a **pitch**: the run becomes (N − 1) × rise / tan(pitch) |
+| `175r` | an exact **rise**. The risers become the whole number nearest the block's height, and the height becomes risers × 175, so the top can move by up to half a rise. The status bar says how far. |
+| `250g` | an exact **going**: the run becomes goings × 250, and the landing takes the rest |
+| `175r,250g` | both, in either order |
+| `9s` (`9st`, `9steps`, `9risers`) | the **step count** |
+| `+5`, `+10r`, `-20g`, `+1s` | relative to the stair on screen |
+
+A bare number is a pitch, as it is on a roof (5.1.10): a stair is specified by its
+steepness. In the flight stage a typed value builds the stair, the way a typed pitch builds
+a roof. Straight after, the same entries correct it in place. An exact rise or going stays
+exact through later corrections, so `9s` after `175r` is nine rises of 175. A pitch
+releases an exact going, because both set the run.
+
+### Refused With the Fix Named
+Nothing is clamped. Each refusal says what would work, and every fix it names was checked
+to be accepted:
+- `175` → *175.0° is not a stair pitch — a rise needs r (175r), a going needs g (250g)*
+- `30` on a 1690 run → *30.0° needs a 2634.4 run for 10 risers — the block is 1690 deep,
+  and 42.0° is the shallowest that fits*
+- `250g` on the same → *9 goings of 250 need a 2250 run — the block is 1690 deep; 187.7g
+  fits, or 7s at this going*
+- `9r` → *a 9 rise is not a step — a step rises at least 50. A count of steps takes an s,
+  e.g. 10s*
+- `1s`, `200s` and `35,250g` are refused the same way.
+
+### Part K Readout
+These are the private stair limits of Approved Document K, Table 1.1: rise 150–220, going
+220–300, pitch at most 42°, and 2R + G from 550 to 700. A pass reads green, as `OK · 2R+G
+590`, and a failure reads red with the first two problems named. It is a readout, not a
+gate, because garden steps and loft ladders get drawn with this tool too. The limits live in
+`NA_DRAWN_STAIR_PARTK_RULES`, so a utility or general access stair is one table away. 2R + G
+is ADK's "normal relationship" rather than a hard limit, but it is reported as a failure
+here, to be on the safe side.
+
+### Built on Drawn Volume, Not Beside It
+`DrawnStairTool < DrawnVolumeTool`, the way Deep Ogee and Deep Fillet sit on Deep Chamfer.
+It overrides the depth stage's completion and adds two states, `:picking_side` and
+`:picking_going`, with their own mouse, Enter, double-click, BKSP, arrow and status
+handling. Everything else goes to `super`. Drawn Volume's Subtraction and Transparent
+options are answered `false`. They are read by option id, not by mode key, so a
+Subtraction left switched on in Drawn Volume would otherwise send the stair hunting for a
+group to cut. The volume and the shared mixin are untouched.
+
+### The Drag Cuts a Plane, Not a Line
+This is Deep Chamfer's lesson again. The cursor ray is intersected with the block's top
+face when the camera looks down onto it, so the landing edge sits under the cursor. At eye
+level, or in a side elevation, it is intersected with the side profile through the middle
+of the width instead. The plane is chosen from the camera's direction, not the ray's, so it
+cannot change mid-drag. The run rounds to the grid the way the chamfer's setback does, CTRL
+runs it to a vertex such as the edge of an upper floor, and CTRL+SHIFT rounds that.
+
+### What Is Built
+One group, `01__DrawnStaircase`, in one operation. The step profile is laid on one end and
+pushed across the width, the way the volume pushes its base. The group is pinned to the
+world identity before any point goes in, like every drawn shape (the Coordinate Rule), so
+it lands where it was previewed inside open, moved, rotated and nested groups. A correction
+rebuilds that group in place. It is refused, rather than landing displaced, if the editing
+context has changed since the stair was built.
+
+### Rehearsed Before Shipping
+The profile, solve, side frames and entry resolution were ported to Python and run against
+the mockup's 3595 x 1525 x 1690 block:
+- On all four sides, the first riser stands on the chosen face, the flight covers the
+  block's footprint, and the frames wind the same way.
+- Every profile is closed, simple and rectilinear, and the preview's column fill tiles it
+  exactly, from 2 to 33 risers and runs from 5mm to the whole block.
+- A zero run folds to the plain block, a full run leaves no landing, and a run within 0.5mm
+  of the far face snaps to it.
+- 21 entries are accepted and 15 refused, with every named fix accepted in turn.
+
+### Also: Ogee Moves to the End
+Asked for straight after 5.1.12: *"make Ogee last — Chamfer, Fillet, Ogee"*. The Modify
+tools now read Deep Push Pull, Deep Chamfer, Deep Fillet, Deep Ogee. The popup shows the
+new order straight after Reload Plugin Data. The Extensions submenu shows it after a
+SketchUp restart, because the API cannot move a menu item that already exists. Load order
+is unchanged.
+
+### Files
+- **New** `22__System__DrawnStairs/`:
+  - `Na__InsertPrimatives__DrawnStairTool__.rb`, the tool;
+  - `..__DrawnStair__Geometry__.rb`: block frame, side frames and picking, the drag plane,
+    step count, solve, profile, Part K and the build;
+  - `..__DrawnStair__Entry__.rb`: the typed grammar and its resolution;
+  - `..__DrawnStair__Preview__.rb`: the side and flight previews.
+- `01__AppCore`: the manifest entries, `Na__ModeSwitch__ActivateDrawnStairTool`,
+  `Na__DrawnMode__SetStairMode`, and the folder map.
+- `40__UserInterface`: the Staircase button under Draw and its callback, and Fillet above
+  Ogee.
+- `Na__InsertPrimatives__Loader__.rb`: the `NA_DrawStaircasePrimitive` command, the
+  `staircase` menu entry, and Fillet above Ogee.
+- `.cursor/rules`: the folder map.
+
+### Testing Notes
+- [ ] Reload Plugin Data. **Staircase** appears under Draw in the popup, and at the bottom
+      of the Extensions submenu until a restart moves it under Drawn Cylinder.
+- [ ] Drag a block 3595 x 1525 x 1690. Hover each side: it turns blue with an arrow
+      pointing in. From straight above, hover near each top edge instead.
+- [ ] Click a short side and drag inward. The flight follows the cursor, the gold line and
+      degrees update, and the card reads 10 risers of 169. UP and DOWN change the count
+      while the run holds.
+- [ ] Click to build: one solid group, and one Ctrl+Z removes it.
+- [ ] Type `35` in the flight stage: it builds at 35°. Then `175r`: 10 risers of 175, and
+      the status bar says the flight rises 1750, 60 above the block. Then `250g`, then `9s`.
+- [ ] Type `175`, or `3000`: refused, the stair untouched, the fix in the status bar.
+- [ ] A shallow flight reads green for Part K. Drag it steep until it turns red and names
+      the pitch.
+- [ ] Inside a group that is moved AND rotated, and one nested three deep: the stair lands
+      where it was previewed.
+- [ ] With Subtraction left on in Drawn Volume, the Staircase still goes block, side,
+      flight.
+- [ ] The popup's Modify tools read Push Pull, Chamfer, Fillet, Ogee.
+
+# =============================================================================
+
+## Version 5.1.12 - 24-Sep-2026 - Deep Fillet, and One Profile Sweep for Every Moulding
+
+### Asked For
+*"Now add fillet / radius — default should be 6 sides if fillet less than r10, 12 sides if
+r10 - r200, 24 sides if r200 - r2000, 48 sides if r2000+ — typing ##s changes the segments
+making up the fillet / radius."*
+
+### Deep Fillet
+A new tool alongside Deep Chamfer and Deep Ogee: the Extensions submenu, the popup under
+Deep Ogee, and `Na__InsertPrimatives.Na__InsertPrimatives__DeepFillet` for a hotkey. It
+works exactly as the chamfer does, with the same hover, bank, drag, retype and repeat.
+- **The size is a true radius** at any corner angle. The round is an arc tangent to both
+  faces: its centre sits on the bisector r / sin(half) from the corner, and it touches each
+  face r / tan(half) back. That is r on a square corner, 16.6 for R40 at 135 degrees and
+  69.3 at 60 degrees. The section is solved in **world** space and carried back into the
+  space the edge reports through the inverse of `target[:transformation]`, so the radius
+  holds inside rotated, nested and non-uniformly scaled components.
+- **The drag puts the arc under the cursor.** The chamfer reads travel along the bisector
+  as `travel / cos_half`, which puts its chord under the cursor. The chamfer now routes that
+  reading through a hook, `na_drawn__size_from_travel`, and the fillet answers
+  `travel / (1/sin(half) − 1)`, so the arc's nearest point to the corner follows the
+  mouse. For a cove the travel is the radius.
+- **Sides are automatic:** 6 under R10, 12 up to R200, 24 up to R2000, and 48 beyond. A
+  radius sitting exactly on a band edge takes the band above; the grid puts R10 and R200
+  there often, so the mm value is rounded to a millionth before it is compared.
+- **"##s" sets the sides of the fillet in hand.** Mid-drag it redraws the preview. Straight
+  after a cut it re-cuts that fillet at its own radius. With nothing grabbed it waits for
+  the next fillet. A typed count belongs to the fillet it was typed for: it stays with that
+  fillet through retyped radii, and the next fillet goes back to automatic.
+- **TAB swaps the round-over for a cove** of the same radius, the ogee's turn-round idea
+  carried over. It works mid-drag, or straight after a cut to re-cut that fillet, and the
+  choice is remembered between sessions.
+- **Internal corners fill.** On a concave edge the same plan fills the corner up to the
+  arc, so a round becomes a classic internal fillet and a cove a quadrant bead.
+
+### One Profile Sweep, Shared
+The ogee's plan, build and mitre were never ogee-specific, so they now live in one place
+that every profile tool uses:
+- `04__GeometryHelpers/Na__InsertPrimatives__DrawnProfileSweep__.rb` (`Na__ProfileSweep__*`)
+  holds the corner frame, the solve packer, the profile-aware face planner, the facet
+  build, the batch plan and build, and the corner mitre. Two things were generalised on the
+  way:
+  - **Symmetric profiles mitre with faces in either order.** A fillet reads the same from
+    either face, so `:symmetric` solves skip the ogee's "roll off the same face" check.
+  - **Facets face the air on concave corners too.** On a convex corner the air is
+    opposite the bisector; on a concave one it is on the bisector's side. The corner
+    frame reports which, as `:convex`.
+- `06__Tools__DrawnShared/Na__InsertPrimatives__DrawnProfileSweepTool__.rb` is the tool-side
+  mixin. It answers the chamfer's plan, build and mitre hooks, draws any profile, and
+  carries a profile through the retype ghost. A tool describes its shape with
+  `na_drawn__profile_state` (the ogee's `{flip, sides}`, the fillet's
+  `{kind, sides_typed, sides}`). The shared capture merges that into the retype record, so
+  a rebuild can wear it again, and redraws the ghost when the shape has changed.
+- Deep Ogee now includes that mixin. Its mitre file is gone, its geometry file is its curve
+  and its solve, and its revise module is its wording. Nothing about how it cuts has
+  changed, and the 5.1.11 rehearsal was re-run against it and passes.
+
+A new profile tool is now its curve, its solve and its words.
+
+### Reload or Restart
+This update moves methods out of the Ogee tool and into the shared mixin. Under Reload
+Plugin Data a moved method's old copy stays in memory (see 5.1.9) and keeps answering.
+The old copies are identical, so the Ogee keeps working, and the Fillet runs the new code
+either way. A **SketchUp restart** puts the Ogee on the shared code as well.
+
+### Rehearsed Before Shipping
+- The fillet section: every point lies exactly R from the centre and is tangent to both
+  faces at 90, 135 and 60 degrees. The setback is r / tan(half) and the arc takes the short
+  way round. The cove is R from the edge everywhere and concave.
+- Automatic sides at every band edge: R5, R9.99, R10, R199.9, R200, R1999, R2000 and R5000.
+- The drag's arc sits under the cursor at 90 and 135 degrees.
+- Facets face the air on a convex box edge and on a concave internal corner.
+- A square-corner mitre closes even when the two edges list their faces in opposite
+  orders.
+- The ogee rehearsal still passes.
+
+### Files
+- **New:**
+  - `04__GeometryHelpers/Na__InsertPrimatives__DrawnProfileSweep__.rb`
+  - `06__Tools__DrawnShared/Na__InsertPrimatives__DrawnProfileSweepTool__.rb`
+  - `33__System__DeepFillet/` with its tool, geometry and revise files.
+- **Deep Ogee:** the geometry, revise and tool files are slimmed onto the shared layers,
+  and `Na__InsertPrimatives__DrawnOgee__Mitre__.rb` is removed.
+- `31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamferTool__.rb`: the
+  `na_drawn__size_from_travel` hook. Its default is the old `travel / cos_half`.
+- Wiring:
+  - `02__AppData`: `Na__DrawnSettings__FilletCove?` / `ToggleFilletCove` and
+    `NA_TOOL_MEMORY_FILLET_KEY`.
+  - `04__GeometryHelpers/..DrawnGridSnap__.rb`: `NA_DRAWN_FILLET_COVE_KEY`.
+  - `01__AppCore`: the manifest, the mode switch and the folder map.
+  - `40__UserInterface`: the popup button and its callback.
+  - The Loader: the `NA_DeepFillet` command and the `fillet` menu entry.
+  - `.cursor/rules`.
+
+### Testing Notes
+- [ ] Restart SketchUp (or Reload Plugin Data; see above). **Deep Fillet** appears in the
+      menu and in the popup under Deep Ogee.
+- [ ] Drag a fillet on a box edge: the arc follows the cursor, the status reads
+      `Fillet R40 · 12 sides (auto)`, and it cuts tangent to both faces.
+- [ ] R8 cuts with 6 sides, R10 with 12, R250 with 24 and R2500 with 48.
+- [ ] Type `8s` mid-drag, then cut: 8 sides. The next fillet is automatic again.
+- [ ] Straight after a cut, `24s` re-cuts it with 24 sides and `60` re-cuts it at R60,
+      keeping its typed count.
+- [ ] TAB mid-drag shows the cove; TAB after a cut re-cuts it as a cove.
+- [ ] An internal corner fills with a concave fillet whose faces point outward (no
+      blue-grey back faces).
+- [ ] SHIFT-bank the four top edges of a box: the fillets mitre cleanly.
+- [ ] Deep Ogee and Deep Chamfer still cut, bank, mitre and retype as before.
+
+# =============================================================================
+
+## Version 5.1.11 - 24-Sep-2026 - Deep Ogee: a Classical Moulding on Any Edge
+
+### Asked For
+*"create a version that creates a classical Ogee moulding on an edge, i very commonly have
+to detail classical mouldings and edges so a fast way to apply them on selected edges in
+the same manner as the chamfer tool would be awesome."*
+
+### What It Is
+A new tool, **Deep Ogee**, in the Extensions submenu, the right-click popup under Deep
+Chamfer, and `Na__InsertPrimatives.Na__InsertPrimatives__DeepOgee` for a hotkey. It works
+exactly as Deep Chamfer does: hover an edge at any nesting depth, click to grab it, drag
+into the corner to size it, then click, press Enter or type a size to cut it. SHIFT+click
+banks edges so that one drag moulds them all.
+
+### The Profile — a Roman Ogee
+Two quarter arcs of radius s/2, where s is the size (the setback on each face, exactly as
+a chamfer's). The **roll** is convex and leaves its face tangent, so the edge rolls over
+like a bullnose. The **cove** is concave and arrives at the other face square, leaving a
+crisp lip under it. The arcs meet tangent at the inflection of the S. On a corner that
+is not square, the same shape is laid in the oblique frame of the two faces, so the roll
+still leaves its face tangent and the lip still runs parallel to it.
+
+- **Which face rolls:** the face nearer horizontal. The top and the underside of a table
+  top both roll over, and every banked edge agrees, which is what lets them mitre.
+- **TAB turns it round** for every edge being cut. Mid-drag it flips the preview.
+  Straight after a cut, it re-cuts that ogee the other way round through the same
+  undo-and-rebuild that a typed size uses. The choice is remembered between sessions.
+- **Smoothness:** each quarter arc takes a quarter of the Circle Sides setting, so 24
+  gives 12 facets. `48s` doubles it, before a cut or after one (which re-cuts the ogee
+  just made). The seams between facets are softened and smoothed, so the moulding shades
+  as one curved surface. The edges onto the two faces stay hard.
+
+### Corners Mitre
+Where two banked edges meet at a square corner, every profile point is mitred the way the
+chamfer mitres its two. Point *i* swept along one edge and point *i* swept along the
+other are two lines, and where they cross is that point's place on the mitre. On a
+square corner every pair crosses and the crossings run down the diagonal, so the four
+top edges of a box are one pass that closes like a picture frame. A corner is refused,
+with the reason in the status bar, when:
+- it is not square in the third direction and the lines do not meet;
+- the two edges roll off different kinds of face;
+- three moulded edges meet at one corner. The curved three-way junction is not built.
+
+### Built on the Chamfer, Not Beside It
+`DrawnOgeeTool < DrawnChamferTool`. The chamfer tool gained a **Cut Hooks** region:
+`na_drawn__solve_cut`, `na_drawn__mitre_cuts`, `na_drawn__plan_cut`, `na_drawn__build_cut`,
+`na_drawn__plan_group`, `na_drawn__build_group`, plus `na_drawn__cut_title`,
+`na_drawn__cut_phrase` and `na_drawn__cut_verb` for its messages. Every call to the chamfer
+geometry and every place its name appears goes through them. The chamfer's own answers are
+its existing functions and words, so Deep Chamfer behaves exactly as it did. The only
+change in its wording is the multiple-instances warning, which is now built from the verb
+("chamfering changes all of them" reads the same as before). Deep Ogee overrides the hooks
+and inherits the deep pick, the bank, the corner-plane drag, CTRL vertex snapping, grid
+snapping, one undo step per group, retype, double-click repeat and the replay ghost.
+
+The chamfer's own geometry files are untouched. The ogee geometry reuses the chamfer's
+inward directions, corner-vertex identity, face rebuild and single-substitution merge, and
+adds a profile-aware planner in which an end face is clipped by the whole profile instead
+of the pair `[a, b]`.
+
+### Rehearsed Before Shipping
+The maths was run numerically on a 600 x 400 x 300 box before handing over, with the
+profile, the roll rule, facet orientation, end-face ordering, the flip, and the four-corner
+mitre of the whole top all mirrored from the Ruby. Every facet has air on its outward side
+and solid on its inward side, in both orientations and on the underside and vertical edges.
+The four corner mitres meet to 5e-15 mm and lie on the diagonal.
+
+### Files
+- **New** `32__System__DeepOgee/`:
+  - `Na__InsertPrimatives__DrawnOgeeTool__.rb` for the tool;
+  - `..__DrawnOgee__Geometry__.rb` for the profile, solve, plan and build;
+  - `..__DrawnOgee__Mitre__.rb` for the corner mitres and the batch plan and build;
+  - `..__DrawnOgee__Revise__.rb` for memory, wording, the retype flip and smoothing, and
+    the ghost.
+- `31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamferTool__.rb`: the Cut Hooks
+  region, with the geometry calls and messages routed through it.
+- `02__AppData`: `Na__DrawnSettings__OgeeFlipped?` / `ToggleOgeeFlip`, and
+  `NA_TOOL_MEMORY_OGEE_KEY`.
+- `04__GeometryHelpers/Na__InsertPrimatives__DrawnGridSnap__.rb`: `NA_DRAWN_OGEE_FLIP_KEY`.
+- `01__AppCore`: the LoadManifest entries, `Na__ModeSwitch__ActivateDrawnOgeeTool`,
+  `Na__DrawnMode__SetOgeeMode`, and the folder map.
+- `40__UserInterface`: the Deep Ogee popup button and its callback.
+- `Na__InsertPrimatives__Loader__.rb`: the `NA_DeepOgee` command and the `ogee` menu entry.
+- `.cursor/rules`: the folder map.
+
+### Testing Notes
+- [ ] Reload Plugin Data. **Deep Ogee** appears at the bottom of the Extensions submenu (it
+      moves under Deep Chamfer after a SketchUp restart) and in the popup under Deep
+      Chamfer.
+- [ ] One edge of a box top: drag, click. The top rolls over, the cove finishes in a lip
+      on the side face, the curve shades smoothly, and the end faces are clipped to the
+      profile.
+- [ ] TAB mid-drag turns the preview round. TAB straight after the cut re-cuts it the
+      other way round, and Ctrl+Z still undoes to the uncut box.
+- [ ] SHIFT-bank all four top edges of a box and drag once: the four mitres close cleanly.
+- [ ] Type `60` straight after a cut: it resizes. `48s`: it re-cuts smoother at the same
+      size.
+- [ ] Inside a group that is moved AND rotated, and one nested three deep: the moulding
+      lands on the edge that was picked.
+- [ ] Deep Chamfer still cuts, banks and mitres exactly as before.
+
+# =============================================================================
+
+## Version 5.1.10 - 24-Sep-2026 - Roofs Read a Bare Number as a Pitch
+
+### Asked For
+*"assume the value type is degrees pitch, if the user types a value such as 3000mm or 3m
+then use that to determine the rise ... otherwise a value like 30 is assumed to mean 30
+degrees as no one uses measured rises."*
+
+### What a Typed Rise-Slot Value Means Now
+| Typed | Was | Now |
+|---|---|---|
+| `30` | a 30mm rise | a **30° pitch** |
+| `+5` | 5mm more rise | **5° steeper** |
+| `30d`, `30deg`, `30°` | 30° pitch | 30° pitch (unchanged) |
+| `3000mm`, `3m`, `300cm` | a 3000mm rise | a 3000mm rise (unchanged) |
+| `+100mm` | 100mm more rise | 100mm more rise (unchanged) |
+| `3000` | a 3000mm rise | **refused**: "3000.0° is not a roof pitch — a rise needs its unit, e.g. 3000mm" |
+
+This applies wherever a roof takes a rise: the pitch stage, the third slot of a plan
+entry (`6000,4000,35`), and a retype straight after drawing. Plan sizes are untouched, so
+a bare number there is still millimetres.
+
+### Refused, Not Clamped
+`Na__DrawnRoof__HeightFromPitch` clamps to 0.5–89.5°, which is the right safety net for
+geometry and the wrong answer to a typing habit: a `3000` meant as millimetres would have
+built the steepest roof the clamp allows, without a word. A pitch outside 0–90 is now
+refused, with the fix named in the status bar.
+
+### The Measurements Box Shows the Pitch
+The box displays what a bare number typed into it will mean. In the pitch stage it reads
+`Roof pitch` with the live pitch in degrees (for example `35.0°`), and after drawing it
+reads `Roof W,L,pitch` as `6000,4000,35.0°`. Showing the rise in millimetres there would
+invite exactly the entry that is no longer read as millimetres. The status line leads
+with the pitch too.
+
+### Retyping After Drawing
+The idle hint has always said *"Type a rise or a pitch to correct the roof just drawn"*,
+but the retype path was strictly positional. A lone `2000` set the width and a lone `35d`
+failed to parse. A comma-free entry now goes to the rise slot: `35` re-pitches the roof
+just drawn and `3000mm` sets its rise. The plan is still reachable positionally: `6000,`
+is the width, `,4000` the length, and `6000,4000,35` sets all three.
+
+### Files
+- `03__AppUtils/Na__InsertPrimatives__DrawnVcbArithmetic__.rb`:
+  `NA_DRAWN_VCB_PITCH_PATTERN`, `Na__DrawnVcb__ParsePitchOrRise`, and
+  `Na__DrawnVcb__ParseAngleToken` gains `bare_is_angle`.
+- `21__System__DrawnRoofs/Na__InsertPrimatives__DrawnRoofTools__.rb`:
+  `na_drawn__resolve_rise_token` reads pitch-first and refuses outside 0–90,
+  `na_drawn__pitch_vcb_text`, the measurements-box label and value, the retype routing,
+  and the status text, hints and header.
+
+### Testing Notes
+- [ ] Pitched Roof: drag the plan, then type `30`. The roof builds at 30°.
+- [ ] Type `3m` in the pitch stage: the rise is 3000mm, and the pitch reads from it.
+- [ ] Type `3000` in the pitch stage: a beep and the "not a roof pitch" message, with no
+      roof built.
+- [ ] `6000,4000,35` in the plan stage builds a 6000 x 4000 roof at 35°.
+- [ ] Straight after drawing, `40` re-pitches that roof to 40° and `+5` makes it 45°.
+      `6000,` still changes only the width.
+- [ ] The Hipped Roof behaves the same.
+
+# =============================================================================
+
+## Version 5.1.9 - 24-Sep-2026 - Reload Plugin Data Kept the Method 5.1.8 Deleted
+
+### Reported
+*"holding control + shift + pushing does not lock either"* and *"see 1906 that should be
+1905 when pushing with control shift"*, with a screenshot of the regular Deep Push/Pull
+reading `Push 1906 mm` while CTRL+SHIFT was held. The message before it said the orange
+mark was missing, which has the same cause.
+
+### The Cause
+5.1.7 opted Push/Pull out of CTRL+SHIFT with its own `na_drawn__vertex_grid_supported?`
+returning `false`. 5.1.8 opted it back in by *deleting* that method, so that the mixin's
+`true` would show through. On disk that is correct, but not in a running SketchUp. Reload
+Plugin Data re-runs every file with `load`, which re-opens each class and redefines what
+the file contains. It never removes what the file no longer contains. The 5.1.7 `false`
+therefore stayed on `DrawnPushPullTool`, and on the 2D subclass. A class's own method
+always wins over a mixin's, so CTRL+SHIFT went on behaving as plain CTRL: an exact 1906
+and no mark.
+
+### The Fix
+The method is back in Push/Pull, returning `true`. It repeats the mixin's answer on
+purpose, because a definition in this file is the only thing a reload can put over the
+stale one. A SketchUp restart would also have cleared it.
+
+### The Rule Going Forward
+Under Reload Plugin Data, deleting a method changes nothing; only redefining one does. To
+undo an override, replace it with a definition that gives the new answer rather than
+deleting it. The same goes for constants. The reloader shares this behaviour with the
+Noble3d and Profile Path Tracer reload managers it mirrors.
+
+### Files
+- `30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPullTool__.rb`:
+  `na_drawn__vertex_grid_supported?` returning `true`, with the reason.
+
+### Testing Notes
+- [ ] Reload Plugin Data only, no restart. In Deep Push/Pull, CTRL+SHIFT to the same
+      vertex gives `Push 1905 mm`, the orange square beside the vertex, and
+      `Vertex → Grid 5mm — CTRL+SHIFT` in the status bar.
+- [ ] The same in a 2D scene tab.
+- [ ] CTRL alone still gives the exact 1906.
+
+# =============================================================================
+
+## Version 5.1.8 - 24-Sep-2026 - CTRL+SHIFT Reaches Both Push/Pull Tools
+
+### Asked For
+*"does the 2d push pull have the same feature?"* It did not. Deep Push/Pull 2D is a
+subclass of the 3D tool, and 5.1.7 left both out because SHIFT is their slope mode. The
+agreed follow-up: give both tools CTRL+SHIFT, and on a roof end let it do both things.
+
+### What CTRL+SHIFT Does in Push/Pull
+The travel is read from the vertex the InputPoint lands on, exactly as with CTRL, and is
+then rounded to the grid step. Push/Pull has always rounded the travel rather than the
+point (a face normal is rarely axis-aligned; see the file header), and CTRL+SHIFT keeps to
+that. A wall face that starts on the grid and is pulled square to an axis therefore ends
+on the grid. That covers the elevation case this was asked for: pulling walls out to the
+vertices of a CAD drawing in a 2D view.
+
+### Roof Ends: SHIFT Does Both
+| Held | Wall or box face | Roof end (a slope to follow) |
+|---|---|---|
+| nothing | along the normal, rounded | along the normal, rounded |
+| SHIFT | no slope to follow, so along the normal, rounded | down the rake, rounded |
+| CTRL | along the normal to the exact vertex | along the normal to the exact vertex |
+| CTRL+SHIFT | along the normal to the vertex, **rounded** (new) | down the rake to the vertex, **rounded** (was exact) |
+
+SHIFT still means slope mode wherever the face has a slope to follow, so on a roof end
+CTRL+SHIFT runs down the rake to the vertex and rounds the distance in grid steps along
+the slope, as a plain SHIFT slope push always has. The one combination given up is the old
+exact, unrounded slope push to a vertex. That was agreed on purpose: CTRL+SHIFT now means
+"on the grid" in every tool that offers it, which is the promise the feature exists to
+keep.
+
+### The Mark and the Status Line
+The 5.1.7 orange square is drawn here too, at the point the rounding actually leaves: the
+vertex slid along the measured direction by the amount rounded off. The status bar now
+lists `CTRL+SHIFT vertex→grid` and reads `Vertex → Grid 5mm — CTRL+SHIFT` while the keys
+are held. The "SHIFT: no sloped neighbour to follow here" note stays quiet while CTRL is
+down as well, because SHIFT is doing something after all.
+
+Deep Chamfer still opts out. SHIFT+click banks edges there, so CTRL+SHIFT still means
+plain CTRL.
+
+### Files
+- `30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPullTool__.rb`: the 5.1.7
+  opt-out removed, `na_drawn__recalculate_sizes` records the rounded point for the mark,
+  `draw` draws it, `na_drawn__slope_hint` stays quiet under CTRL, plus header notes and a
+  console hint line.
+- `30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull2dTool__.rb`: a console
+  hint line. Everything else is inherited from the 3D tool.
+- `06__Tools__DrawnShared/Na__InsertPrimatives__DrawnToolShared__.rb` and
+  `31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamferTool__.rb`: comments only.
+
+### Testing Notes
+- [ ] A 2D scene tab over a CAD elevation: grab a wall by its edge and CTRL+SHIFT a CAD
+      vertex. The pull is a whole multiple of 5mm and the orange square sits beside the
+      vertex.
+- [ ] The same pull with CTRL alone still lands exactly on the vertex.
+- [ ] 3D Push/Pull on a box face with CTRL+SHIFT: the distance rounds, the status line
+      shows `Vertex → Grid 5mm — CTRL+SHIFT`, and there is no "no sloped neighbour" note.
+- [ ] A roof end with CTRL+SHIFT: it follows the rake (`Slope` in the status line) and
+      the distance rounds.
+- [ ] An arrow-key axis lock with CTRL+SHIFT: the distance measured along the locked axis
+      rounds.
+
+# =============================================================================
+
+## Version 5.1.7 - 24-Sep-2026 - CTRL+SHIFT Snaps to the Vertex, Then Rounds It onto the Grid
+
+### Asked For
+Tracing an imported CAD drawing with new volumes and planes that still sit on the grid:
+*"I'm pointing you towards THIS vertex, snap to it but THEN APPLY the correction based on
+the current setting setup"* — *"so you can infer to vertex points without losing the
+strict accuracy."*
+
+### Three Snap Modes
+| Held | Where the point comes from | Rounded onto the grid? |
+|---|---|---|
+| nothing | the stage's own source: InputPoint while idle or on an auto plane, a pick ray on a locked plane or in the depth stage | yes |
+| CTRL | SketchUp's InputPoint, at every stage | no |
+| CTRL+SHIFT | SketchUp's InputPoint, at every stage | **yes**: the same `SnapPoint`, on the step the popup's Snap Grid button sets |
+
+### What CTRL+SHIFT Adds That the Plain Grid Could Not Do
+It is easy to assume the plain grid ignores geometry, and it does not do so everywhere.
+While idle and on an auto plane the plain cursor already comes from the InputPoint, so
+hovering a CAD vertex for the first two corners already rounds that vertex. What the plain
+grid cannot do is:
+
+- take a **depth, height or roof rise** from a vertex. The depth stage follows a pick ray
+  projected onto the extrusion axis, which knows nothing about the model;
+- snap to vertices on a **TAB- or arrow-locked plane**. That is a ray-plane intersection,
+  just as blind.
+
+Until now the only way to reach a vertex in either place was CTRL, which gave up the grid.
+CTRL+SHIFT is CTRL's InputPoint at every stage with the rounding put back.
+
+### Rounded to the Lattice, Not to the Size
+A CTRL+SHIFT point lands on the nearest lattice point, exactly as a plain-grid point does.
+Two shapes traced to the same CAD corner meet on the same point, and every dimension
+between two CTRL+SHIFT picks is a whole number of steps. The one way to get a ragged size
+is to mix modes within one shape: a first corner placed with CTRL alone keeps its exact,
+off-grid position, and the rounded second corner cannot make up for it.
+
+The cylinder radius is still rounded as a distance, for the same reason as on the plain
+grid: the diagonal between two lattice points is not itself a grid multiple.
+
+### Seeing the Correction
+The InputPoint marker stays on the vertex that was pointed at, and an orange open square
+marks the grid point it became, with a dotted leader between the two. At working zoom the
+square just frames the inference dot, which is the sign the mode is live. Zoom in and they
+pull apart by exactly how far the vertex was off the grid. It is drawn in screen space like
+the 5.1.6 cutter, so the preview's own fill cannot hide it, and it is left out of
+Subtraction's pick-the-group stage, which takes nothing from the cursor point. The status
+bar reads `Vertex → Grid 5mm — CTRL+SHIFT` while the keys are held.
+
+### Shape Tools Only
+Drawn Plane, Volume and Cylinder, and the Pitched and Hipped Roofs. Deep Push/Pull (2D
+included) and Deep Chamfer are unchanged: SHIFT is already slope mode and edge banking
+there, so CTRL+SHIFT keeps its old meaning. In Push/Pull that is still slope mode plus
+vertex snapping, unrounded. Both answer `false` to `na_drawn__vertex_grid_supported?`, and
+their status lines still advertise CTRL alone.
+
+### No New Coordinate Maths
+Both halves already existed: the InputPoint pick (CTRL) and the lattice rounding (plain
+grid). CTRL+SHIFT only chains them, so it rounds in the same drawing-axes frame the plain
+grid always has, inside or outside an open group, with no conversion of its own to get
+wrong.
+
+### Files
+- `06__Tools__DrawnShared/Na__InsertPrimatives__DrawnToolShared__.rb`:
+  `na_drawn__snap_mode`, `na_drawn__vertex_grid_supported?`, `na_drawn__snap_point` and
+  `na_drawn__snap_distance` round unless CTRL is held alone, the correction mark in
+  `draw`, the status fragments `na_drawn__grid_description` and `na_drawn__vertex_hint`,
+  and a SNAP MODES note in the header.
+- `05__PreviewGraphics/Na__InsertPrimatives__DrawnPreviewGraphics__.rb`:
+  `Na__DrawnPreview__DrawGridCorrection`, `NA_DRAWN_GRID_MARK_COLOR`,
+  `NA_DRAWN_GRID_MARK_PIXELS`.
+- `30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPullTool__.rb` and
+  `31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamferTool__.rb`: the opt-out.
+- The Plane, Volume, Cylinder and Roof tools: one console hint line each.
+
+### Testing Notes
+- [ ] Drawn Volume over an imported DWG: CTRL+SHIFT on a CAD corner, CTRL+SHIFT on the
+      opposite corner, then CTRL+SHIFT on a vertex at the wanted height. The console
+      `Anchor:` and `Size` lines are whole multiples of 5mm.
+- [ ] The same three picks with CTRL alone still give the exact, off-grid numbers.
+- [ ] Hold CTRL, then press and release SHIFT with the mouse still: the status bar swaps
+      between `Grid OFF — CTRL vertex snap` and `Vertex → Grid 5mm — CTRL+SHIFT`, and the
+      orange square comes and goes.
+- [ ] Zoom right in on a CAD vertex that is off the grid: the square sits beside the
+      inference dot with a dotted leader between them.
+- [ ] A TAB-locked plane (XZ, say) over a CAD elevation: CTRL+SHIFT picks its vertices
+      and rounds them.
+- [ ] Snap Grid set to 10mm in the popup: CTRL+SHIFT rounds to 10mm.
+- [ ] Cylinder: CTRL+SHIFT centre on one vertex and radius to another; the radius reads as
+      a multiple of the step.
+- [ ] Deep Push/Pull on a roof end: CTRL+SHIFT still slope-pushes to an exact vertex, and
+      the status line shows only `CTRL vertex`.
+- [ ] Inside a group that is moved AND rotated: CTRL+SHIFT lands on the same lattice the
+      plain grid uses there.
+- [ ] With two keyboard layouts installed, Ctrl+Shift is also Windows' layout-switch
+      hotkey. If the layout starts flipping, turn that hotkey off under Settings → Time &
+      language → Typing → Advanced keyboard settings → Input language hot keys.
+
+# =============================================================================
+
 ## Version 5.1.6 - 17-Sep-2026 - The Cutter Preview Draws Through the Wall
 
 ### Asked For

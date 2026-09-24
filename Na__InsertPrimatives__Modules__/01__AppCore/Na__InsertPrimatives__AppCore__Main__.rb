@@ -16,14 +16,17 @@
 # - 01__AppCore              : this file, PathResolver, LoadManifest, Reloader, ModeSwitch
 # - 02__AppData              : AppConfig + UserConfig JSON and loaders, tool memory, persisted drawn-tool settings
 # - 03__AppUtils             : VCB parse, VCB arithmetic, format helpers, keyboard mixin
-# - 04__GeometryHelpers      : voxel grid, solids, roof geom, deep pick, slope, loops
+# - 04__GeometryHelpers      : voxel grid, solids, roof geom, deep pick, slope, loops, profile sweep
 # - 05__PreviewGraphics      : cube wireframe and drawn shaded previews
-# - 06__Tools__DrawnShared   : drag state machine mixin, shared revise (retype / repeat / ghost)
+# - 06__Tools__DrawnShared   : drag state machine mixin, shared revise (retype / repeat / ghost), profile sweep tool
 # - 10__System__PlaceCube    : click-to-place cube tool and plane mode
 # - 20__System__DrawnPrimitives : plane / volume / cylinder tools
 # - 21__System__DrawnRoofs   : pitched / hipped roof tools
+# - 22__System__DrawnStairs  : staircase: a block, a side, then an even flight (a Drawn Volume subclass)
 # - 30__System__DeepPushPull : nested push/pull 3d + 2d
 # - 31__System__DeepChamfer  : nested chamfer
+# - 32__System__DeepOgee     : nested ogee moulding (a Deep Chamfer subclass)
+# - 33__System__DeepFillet   : nested fillet / radius (a Deep Chamfer subclass)
 # - 40__UserInterface        : right-click HtmlDialog
 #
 # =============================================================================

@@ -39,6 +39,8 @@ module Na__InsertPrimatives
     NA_DRAWN_PLANE_FACES_KEY    = 'DrawnPlaneFacesEnabled'
     NA_DRAWN_SEGMENTS_KEY       = 'DrawnCircleSegments'
     NA_DRAWN_QUAD_PUSH_KEY      = 'DrawnQuadPushEnabled'
+    NA_DRAWN_OGEE_FLIP_KEY      = 'DrawnOgeeFlipped'
+    NA_DRAWN_FILLET_COVE_KEY    = 'DrawnFilletCove'
 
     NA_DRAWN_DEFAULT_SEGMENTS   = 24                                          # <-- Matches the SketchUp native circle default
     NA_DRAWN_SEGMENT_CYCLE      = [8, 12, 16, 24, 32, 48, 64, 96].freeze      # <-- Right-click menu cycle order

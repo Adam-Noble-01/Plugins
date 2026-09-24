@@ -400,6 +400,12 @@ module Na__InsertPrimatives
             end
         end
 
+        dialog.add_action_callback("setStairMode") do |_action_context|
+            Na__InsertPrimatives.Na__RightClickPopup__RunAction(tool_instance) do
+                tool_instance.Na__DrawnMode__SetStairMode()
+            end
+        end
+
         dialog.add_action_callback("setPitchedRoofMode") do |_action_context|
             Na__InsertPrimatives.Na__RightClickPopup__RunAction(tool_instance) do
                 tool_instance.Na__DrawnMode__SetPitchedRoofMode()
@@ -421,6 +427,18 @@ module Na__InsertPrimatives
         dialog.add_action_callback("setChamferMode") do |_action_context|
             Na__InsertPrimatives.Na__RightClickPopup__RunAction(tool_instance) do
                 tool_instance.Na__DrawnMode__SetChamferMode()
+            end
+        end
+
+        dialog.add_action_callback("setFilletMode") do |_action_context|
+            Na__InsertPrimatives.Na__RightClickPopup__RunAction(tool_instance) do
+                tool_instance.Na__DrawnMode__SetFilletMode()
+            end
+        end
+
+        dialog.add_action_callback("setOgeeMode") do |_action_context|
+            Na__InsertPrimatives.Na__RightClickPopup__RunAction(tool_instance) do
+                tool_instance.Na__DrawnMode__SetOgeeMode()
             end
         end
 

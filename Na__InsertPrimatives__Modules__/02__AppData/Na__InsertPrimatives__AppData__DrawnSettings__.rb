@@ -116,6 +116,51 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Is Deep Ogee Turned Round?
+    # When on, the ogee rolls off the face that is NOT nearer horizontal.
+    # TAB's choice, remembered between sessions like the quad push setting.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__OgeeFlipped?
+        if @na_drawn_ogee_flipped.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OGEE_FLIP_KEY, false)
+            @na_drawn_ogee_flipped = (stored == true || stored == 'true' || stored == 1)
+        end
+
+        @na_drawn_ogee_flipped
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Turn Deep Ogee Round, Returning the New Setting
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__ToggleOgeeFlip
+        @na_drawn_ogee_flipped = !Na__InsertPrimatives.Na__DrawnSettings__OgeeFlipped?
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OGEE_FLIP_KEY, @na_drawn_ogee_flipped)
+        @na_drawn_ogee_flipped
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Does Deep Fillet Cut a Cove Instead of a Round-Over?
+    # TAB's choice, remembered between sessions like the ogee's turn-round.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__FilletCove?
+        if @na_drawn_fillet_cove.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_FILLET_COVE_KEY, false)
+            @na_drawn_fillet_cove = (stored == true || stored == 'true' || stored == 1)
+        end
+
+        @na_drawn_fillet_cove
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Swap Deep Fillet Between Round-Over and Cove, Returning the New Setting
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__ToggleFilletCove
+        @na_drawn_fillet_cove = !Na__InsertPrimatives.Na__DrawnSettings__FilletCove?
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_FILLET_COVE_KEY, @na_drawn_fillet_cove)
+        @na_drawn_fillet_cove
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Segment Count Used for Circles and Cylinders
     # ------------------------------------------------------------
     def self.Na__DrawnSettings__CircleSegments

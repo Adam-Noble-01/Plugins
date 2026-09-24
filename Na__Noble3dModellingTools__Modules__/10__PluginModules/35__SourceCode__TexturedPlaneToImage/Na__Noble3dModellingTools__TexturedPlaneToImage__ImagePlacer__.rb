@@ -28,15 +28,19 @@ module Na__Noble3dModellingTools
             origin = corners[0]
             width_vector = corners[1] - origin
             height_vector = corners[3] - origin
+            width_inches = width_vector.length.to_f
+            height_inches = height_vector.length.to_f
 
-            image = face.parent.entities.add_image(image_path, ORIGIN, width_vector.length, height_vector.length)
+            image = face.parent.entities.add_image(image_path, ORIGIN, width_inches, height_inches)
             return { success: false, message: 'SketchUp did not create the image.' } unless image
 
             x_axis = width_vector.clone
             y_axis = height_vector.clone
             x_axis.normalize!
             y_axis.normalize!
-            image.transformation = Geom::Transformation.axes(origin, x_axis, y_axis, x_axis * y_axis)
+            image.transform!(Geom::Transformation.axes(origin, x_axis, y_axis, x_axis * y_axis))
+            image.width = width_inches
+            image.height = height_inches
             image.layer = description[:layer] if description[:layer]
             na_erase_face(face)
             { success: true, image: image }

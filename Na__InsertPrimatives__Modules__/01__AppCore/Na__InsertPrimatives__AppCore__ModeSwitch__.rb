@@ -67,6 +67,18 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Activate the Drawn Staircase Tool
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__ActivateDrawnStairTool
+        model = Sketchup.active_model
+        return nil unless model
+
+        tool = DrawnStairTool.new
+        model.select_tool(tool)
+        tool
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Activate the Deep Push/Pull Tool the Camera Calls For
     # ------------------------------------------------------------
     # ONE entry point, two tools. The menu item, the keyboard shortcut and the
@@ -103,6 +115,30 @@ module Na__InsertPrimatives
         return nil unless model
 
         tool = DrawnChamferTool.new
+        model.select_tool(tool)
+        tool
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Activate the Deep Ogee Tool
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__ActivateDrawnOgeeTool
+        model = Sketchup.active_model
+        return nil unless model
+
+        tool = DrawnOgeeTool.new
+        model.select_tool(tool)
+        tool
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Activate the Deep Fillet Tool
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__ActivateDrawnFilletTool
+        model = Sketchup.active_model
+        return nil unless model
+
+        tool = DrawnFilletTool.new
         model.select_tool(tool)
         tool
     end
@@ -162,6 +198,13 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Switch to the Drawn Staircase Tool
+        # ------------------------------------------------------------
+        def Na__DrawnMode__SetStairMode
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnStairTool
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Switch to the Click-and-Drag Pitched Roof Tool
         # ------------------------------------------------------------
         def Na__DrawnMode__SetPitchedRoofMode
@@ -187,6 +230,20 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def Na__DrawnMode__SetChamferMode
             Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnChamferTool
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Switch to the Deep Ogee Tool
+        # ------------------------------------------------------------
+        def Na__DrawnMode__SetOgeeMode
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnOgeeTool
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Switch to the Deep Fillet Tool
+        # ------------------------------------------------------------
+        def Na__DrawnMode__SetFilletMode
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnFilletTool
         end
         # ---------------------------------------------------------------
 

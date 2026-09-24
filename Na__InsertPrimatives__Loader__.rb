@@ -262,6 +262,16 @@ begin
     drawn_cylinder_cmd.menu_text       = "Drawn Cylinder"
     # ---------------------------------------------------------------
 
+    # COMMAND SETUP | Drawn Staircase Tool (Block, Side, Then the Flight)
+    # ------------------------------------------------------------
+    stair_cmd = UI::Command.new('NA_DrawStaircasePrimitive') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DrawStair)
+    }
+    stair_cmd.tooltip         = "Draw Staircase Primitive"
+    stair_cmd.status_bar_text = "Drag a block, pick the side it rises from, then drag the flight in: even steps, Part K checked"
+    stair_cmd.menu_text       = "Staircase"
+    # ---------------------------------------------------------------
+
     # COMMAND SETUP | Pitched Roof Tool (Click and Drag Gable Roof)
     # ------------------------------------------------------------
     pitched_roof_cmd = UI::Command.new('NA_DrawPitchedRoofPrimitive') {
@@ -303,6 +313,26 @@ begin
     chamfer_cmd.tooltip         = "Deep Chamfer"
     chamfer_cmd.status_bar_text = "Chamfer any edge at any nesting depth, on the voxel grid"
     chamfer_cmd.menu_text       = "Deep Chamfer"
+    # ---------------------------------------------------------------
+
+    # COMMAND SETUP | Deep Fillet Tool
+    # ------------------------------------------------------------
+    fillet_cmd = UI::Command.new('NA_DeepFillet') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DeepFillet)
+    }
+    fillet_cmd.tooltip         = "Deep Fillet"
+    fillet_cmd.status_bar_text = "Round any edge to a true radius, at any nesting depth"
+    fillet_cmd.menu_text       = "Deep Fillet"
+    # ---------------------------------------------------------------
+
+    # COMMAND SETUP | Deep Ogee Tool
+    # ------------------------------------------------------------
+    ogee_cmd = UI::Command.new('NA_DeepOgee') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DeepOgee)
+    }
+    ogee_cmd.tooltip         = "Deep Ogee"
+    ogee_cmd.status_bar_text = "Run a classical ogee moulding along any edge, at any nesting depth"
+    ogee_cmd.menu_text       = "Deep Ogee"
     # ---------------------------------------------------------------
 
     # COMMAND SETUP | Hot Reload All Plugin Modules
@@ -388,6 +418,7 @@ begin
     Na__InsertPrimatives__AddMenuEntry('drawn_plane')     { |m| m.add_item(drawn_plane_cmd) }
     Na__InsertPrimatives__AddMenuEntry('drawn_volume')    { |m| m.add_item(drawn_volume_cmd) }
     Na__InsertPrimatives__AddMenuEntry('drawn_cylinder')  { |m| m.add_item(drawn_cylinder_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('staircase')       { |m| m.add_item(stair_cmd) }
     Na__InsertPrimatives__AddMenuEntry('sep_after_draw')  { |m| m.add_separator }
 
     Na__InsertPrimatives__AddMenuEntry('pitched_roof')    { |m| m.add_item(pitched_roof_cmd) }
@@ -396,6 +427,8 @@ begin
 
     Na__InsertPrimatives__AddMenuEntry('push_pull')       { |m| m.add_item(push_pull_cmd) }
     Na__InsertPrimatives__AddMenuEntry('chamfer')         { |m| m.add_item(chamfer_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('fillet')          { |m| m.add_item(fillet_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('ogee')            { |m| m.add_item(ogee_cmd) }
     Na__InsertPrimatives__AddMenuEntry('sep_after_mod')   { |m| m.add_separator }
 
     Na__InsertPrimatives__AddMenuEntry('reload')              { |m| m.add_item(reload_cmd) }

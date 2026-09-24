@@ -113,10 +113,13 @@ module Na__InsertPrimatives
         drawn_p_btn = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Drawn Plane',      'setDrawnPlaneMode',    :drawn_plane,        active_key, submenu)
         drawn_v_btn = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Drawn Volume',     'setDrawnVolumeMode',   :drawn_volume,       active_key, submenu)
         drawn_c_btn = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Drawn Cylinder',   'setDrawnCylinderMode', :drawn_cylinder,     active_key, submenu)
+        stair_btn   = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Staircase',        'setStairMode',         :drawn_stair,        active_key, submenu)
         roof_p_btn  = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Pitched Roof',     'setPitchedRoofMode',   :drawn_pitched_roof, active_key, submenu)
         roof_h_btn  = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Hipped Roof',      'setHippedRoofMode',    :drawn_hipped_roof,  active_key, submenu)
         push_btn    = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Deep Push / Pull', 'setPushPullMode',      :drawn_push_pull,    active_key, submenu)
         chamfer_btn = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Deep Chamfer',     'setChamferMode',       :drawn_chamfer,      active_key, submenu)
+        fillet_btn  = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Deep Fillet',      'setFilletMode',        :drawn_fillet,       active_key, submenu)
+        ogee_btn    = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Deep Ogee',        'setOgeeMode',          :drawn_ogee,         active_key, submenu)
 
         <<~HTML
         <!DOCTYPE html>
@@ -215,6 +218,7 @@ module Na__InsertPrimatives
             #{drawn_p_btn}
             #{drawn_v_btn}
             #{drawn_c_btn}
+            #{stair_btn}
 
             <div class="heading">Roof</div>
             #{roof_p_btn}
@@ -223,6 +227,8 @@ module Na__InsertPrimatives
             <div class="heading">Modify</div>
             #{push_btn}
             #{chamfer_btn}
+            #{fillet_btn}
+            #{ogee_btn}
 
             <div class="rule"></div>
             <button id="gridBtn" onclick="sketchup.cycleGridStep()">Snap Grid: #{grid_label}</button>

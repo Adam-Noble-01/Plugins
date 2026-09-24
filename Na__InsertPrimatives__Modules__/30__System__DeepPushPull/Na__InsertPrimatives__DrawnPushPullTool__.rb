@@ -14,14 +14,18 @@
 #   click again to place. One click fewer than native when the face is buried:
 #   there is no double-clicking down through groups first.
 # - Distances snap to the shared voxel step, CTRL suspends that for vertex
-#   snapping, and the measurements box pins the distance — the same three
-#   controls every other tool in this plugin uses.
+#   snapping, CTRL+SHIFT snaps to the vertex and rounds the distance anyway,
+#   and the measurements box pins the distance — the same controls every
+#   other tool in this plugin uses.
 #
 # WHY THE DISTANCE IS SNAPPED, NOT THE POINT:
 # - Elsewhere the cursor point is rounded onto the lattice. That is wrong here:
 #   a face normal is rarely axis-aligned, so rounding a point on it would give
 #   ragged distances. The travel along the push direction is snapped instead,
 #   which keeps clean 5mm pushes whatever angle the face sits at.
+# - CTRL+SHIFT keeps to the same rule: the vertex decides the travel and the
+#   travel is what gets rounded. A face that starts on the grid and is pushed
+#   square to an axis still ends on it.
 #
 # TAB — QUAD MODE:
 # - SketchUp's push welds the new wall into the coplanar wall it grew out of and
@@ -44,6 +48,11 @@
 #   this tool only asks for a direction and travels along it.
 # - Held, not toggled, and inert on geometry with no trajectory to continue —
 #   a box says so in the status bar and pushes normally.
+# - With CTRL down as well it is CTRL+SHIFT, which means vertex-then-grid here
+#   as in every shape tool, and slope mode rides along wherever there is a
+#   slope to follow: a roof end runs down its rake to the vertex, distance
+#   rounded. The one combination given up (5.1.8) is an exact, unrounded
+#   slope push to a vertex.
 #
 # ARROW KEY AXIS LOCK — WHAT IT ACTUALLY MEANS:
 # - Sketchup::Face#pushpull only ever extrudes along the face normal, so a lock
@@ -170,6 +179,7 @@ module Na__InsertPrimatives
                 'Hover any face, click to grab it, drag to push, click to place',
                 'Reaches faces inside groups and components without opening them',
                 "Distance snaps to the #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} grid — hold CTRL for vertex snapping",
+                'Hold CTRL+SHIFT to snap to a vertex and round the distance — on a roof end it follows the rake as well',
                 'ARROWS lock the measured axis: Right X, Left Y, Up Z, Down releases',
                 'Hold SHIFT to push along the NEIGHBOURING face instead — a roof runs on down its own rake',
                 'TAB toggles QUAD mode — the extrusion keeps its start loop as edges, no face',
@@ -206,6 +216,20 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__slope_mode?
             @na_shift_held && !@na_pp_slope.nil?
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | CTRL+SHIFT Is Vertex-Then-Grid Here Too
+        # ------------------------------------------------------------
+        # The mixin already answers yes; this says it again on purpose. 5.1.7
+        # defined this method here as false, and Reload Plugin Data re-loads
+        # files without removing methods, so in a session that loaded 5.1.7
+        # only a definition in THIS file can replace that one. Without it the
+        # stale false outlives every reload: CTRL+SHIFT stays plain CTRL, the
+        # distance goes unrounded and the orange mark never draws.
+        # ------------------------------------------------------------
+        def na_drawn__vertex_grid_supported?
+            true
         end
         # ---------------------------------------------------------------
 
@@ -488,6 +512,11 @@ module Na__InsertPrimatives
             snapped    = na_drawn__snap_distance(travel).to_f
             @na_sign_d = snapped < 0.0 ? -1.0 : 1.0
             @na_size_d = snapped.abs
+
+            # Where that rounding leaves the cursor point: slid along the
+            # measured direction by the amount rounded off. CTRL+SHIFT's mark
+            # is drawn there, beside the vertex the travel was read from.
+            @na_cursor_snapped = Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(@na_cursor_raw, direction, snapped - travel)
         end
         # ---------------------------------------------------------------
 
@@ -873,6 +902,7 @@ module Na__InsertPrimatives
 
             na_drawn__draw_push_preview(view)
             Na__InsertPrimatives.Na__DrawnPreview__DrawCrosshair(view, @na_point_a, nil, NA_DRAWN_ANCHOR_COLOR)
+            na_drawn__draw_grid_correction(view)                              # <-- CTRL+SHIFT only; the mixin decides
         end
         # ---------------------------------------------------------------
 
@@ -1122,11 +1152,13 @@ module Na__InsertPrimatives
         # what it is following. SHIFT doing nothing says WHY, because a modifier
         # that silently no-ops on a box is the kind of thing users decide is
         # broken. And with SHIFT up, a face that HAS a trajectory advertises it,
-        # which is the only way anyone finds the feature at all.
+        # which is the only way anyone finds the feature at all. With CTRL down
+        # as well SHIFT is never doing nothing — it is rounding the vertex snap,
+        # and the grid fragment says so — so the no-neighbour line stays quiet.
         # ------------------------------------------------------------
         def na_drawn__slope_hint
             return " — SHIFT slope #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)}" if na_drawn__slope_mode?
-            return ' — SHIFT: no sloped neighbour to follow here' if @na_shift_held && @na_pp_target
+            return ' — SHIFT: no sloped neighbour to follow here' if @na_shift_held && !@na_ctrl_held && @na_pp_target
             return '' unless @na_pp_slope
 
             " — SHIFT follows the #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)} neighbour"

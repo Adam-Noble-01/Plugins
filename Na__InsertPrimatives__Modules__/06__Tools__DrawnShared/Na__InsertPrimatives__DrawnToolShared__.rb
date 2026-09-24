@@ -30,6 +30,15 @@
 # before release completes the stage, anything shorter is treated as a click and
 # leaves the stage open for a second click.
 #
+# SNAP MODES — held keys, re-read from the flags of every mouse event:
+#   none        the stage's own cursor source, rounded onto the voxel grid
+#   CTRL        SketchUp's inference at every stage, kept exactly where it lands
+#   CTRL+SHIFT  SketchUp's inference at every stage, THEN rounded onto the grid,
+#               so a vertex on an imported CAD drawing can be pointed at without
+#               the shape leaving the lattice. Deep Push/Pull rounds the travel
+#               rather than the point; Deep Chamfer opts out through
+#               na_drawn__vertex_grid_supported?
+#
 # SUBCLASS CONTRACT — each host tool must define:
 #   na_drawn__tool_title            String shown in the status bar
 #   na_drawn__mode_key              :drawn_plane or :drawn_volume
@@ -139,7 +148,7 @@ module Na__InsertPrimatives
 
             @na_tab_held          = false
             @na_ctrl_held         = false
-            @na_shift_held        = false                                     # <-- Only the push tools read it; see Na__SlopePush__
+            @na_shift_held        = false                                     # <-- Slope mode in the push tools; with CTRL it rounds the vertex snap
             @na_axis_lock         = nil                                       # <-- nil / :x / :y / :z from the arrow keys
             @na_locked_slots      = {}                                        # <-- :u / :v / :d => true once typed
             @na_lock_order        = []                                        # <-- Newest last, so BKSP can peel them off
@@ -524,11 +533,26 @@ module Na__InsertPrimatives
 
             if @na_state == :idle
                 Na__InsertPrimatives.Na__DrawnPreview__DrawCrosshair(view, @na_cursor_snapped)
+                na_drawn__draw_grid_correction(view)
                 return
             end
 
             na_drawn__draw_preview(view)
             Na__InsertPrimatives.Na__DrawnPreview__DrawCrosshair(view, @na_point_a, nil, NA_DRAWN_ANCHOR_COLOR)
+            na_drawn__draw_grid_correction(view)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Show the Vertex CTRL+SHIFT Took and the Grid Point It Became
+        # Drawn last so nothing covers it. Not in the target stage: that stage
+        # hunts a group, not a point, so a mark there would claim a correction
+        # that is not being applied to anything.
+        # ------------------------------------------------------------
+        def na_drawn__draw_grid_correction(view)
+            return unless na_drawn__snap_mode == :vertex_grid
+            return if @na_state == :picking_target
+
+            Na__InsertPrimatives.Na__DrawnPreview__DrawGridCorrection(view, @na_cursor_raw, @na_cursor_snapped)
         end
         # ---------------------------------------------------------------
 
@@ -723,6 +747,8 @@ module Na__InsertPrimatives
         #   idle / auto plane  InputPoint, so the cursor follows real geometry
         #   locked plane       pick ray intersected with the locked drawing plane
         #   depth stage        pick ray projected onto the extrusion axis
+        # Held CTRL overrides all three with the InputPoint; whether its answer
+        # is then rounded is na_drawn__snap_mode's call, not this one's.
         # ------------------------------------------------------------
         def na_drawn__update_cursor(view, x, y)
             @na_last_mouse_x = x
@@ -730,7 +756,7 @@ module Na__InsertPrimatives
 
             resolved =
                 if @na_ctrl_held
-                    na_drawn__input_point_position(view, x, y)                 # <-- Ctrl wants SketchUp's own inference, not a ray
+                    na_drawn__input_point_position(view, x, y)                 # <-- CTRL and CTRL+SHIFT want SketchUp's own inference, not a ray
                 elsif @na_state == :picking_depth && @na_point_a
                     na_drawn__depth_point_from_ray(view, x, y)
                 elsif @na_state == :picking_b && @na_point_a && @na_plane_lock != :auto
@@ -749,22 +775,56 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Snap a Point to the Voxel Grid Unless Ctrl Overrides It
-        # Holding Ctrl hands the point straight back untouched, so whatever
+        # FUNCTION | Which Snap the Held Keys Are Asking For
+        # ------------------------------------------------------------
+        #   :grid         nothing held — the stage's own cursor source, rounded
+        #   :vertex       CTRL         — SketchUp's inference, left where it lands
+        #   :vertex_grid  CTRL+SHIFT   — SketchUp's inference, THEN rounded
+        #
+        # The third exists for tracing an imported CAD drawing: point at ITS
+        # vertex and the shape still lands on this plugin's lattice. Both CTRL
+        # modes take the point from the InputPoint at every stage, so they
+        # differ only in whether the answer is rounded afterwards — and the
+        # rounding is the same SnapPoint the plain grid uses, on the same step.
+        # ------------------------------------------------------------
+        def na_drawn__snap_mode
+            return :grid unless @na_ctrl_held
+            return :vertex_grid if @na_shift_held && na_drawn__vertex_grid_supported?
+
+            :vertex
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Does CTRL+SHIFT Mean Vertex-Then-Grid in This Tool?
+        # ------------------------------------------------------------
+        # Yes for the shape tools and for Deep Push/Pull, where SHIFT's slope
+        # mode simply rides along on a face that has a slope to follow. Deep
+        # Chamfer answers no: SHIFT banks edges there, so CTRL+SHIFT goes on
+        # meaning plain CTRL, exactly as it did before this existed.
+        # ------------------------------------------------------------
+        def na_drawn__vertex_grid_supported?
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Snap a Point to the Voxel Grid Unless CTRL Alone Overrides It
+        # Holding CTRL hands the point straight back untouched, so whatever
         # SketchUp's InputPoint inferred — a vertex, a midpoint, an endpoint on a
         # nested component — survives instead of being rounded onto the lattice.
+        # Add SHIFT and the inferred point is rounded after all: the vertex
+        # says roughly where, the grid says exactly where.
         # ------------------------------------------------------------
         def na_drawn__snap_point(point)
-            return point if @na_ctrl_held
+            return point if na_drawn__snap_mode == :vertex
 
             Na__InsertPrimatives.Na__DrawnGrid__SnapPoint(point)
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Snap a Distance to the Voxel Grid Unless Ctrl Overrides It
+        # FUNCTION | Snap a Distance to the Voxel Grid Unless CTRL Alone Overrides It
         # ------------------------------------------------------------
         def na_drawn__snap_distance(value)
-            return value.to_f if @na_ctrl_held
+            return value.to_f if na_drawn__snap_mode == :vertex
 
             Na__InsertPrimatives.Na__DrawnGrid__SnapDistance(value)
         end
@@ -1151,7 +1211,7 @@ module Na__InsertPrimatives
                 "#{na_drawn__tool_title} | #{na_drawn__status_detail} | " \
                 "#{na_drawn__grid_description} | " \
                 "#{na_drawn__plane_description}#{na_drawn__axis_description}#{na_drawn__lock_summary}#{na_drawn__option_summary} | " \
-                "#{na_drawn__tab_hint}  ARROWS axis  CTRL vertex  BKSP back  ESC cancel"
+                "#{na_drawn__tab_hint}  ARROWS axis  #{na_drawn__vertex_hint}  BKSP back  ESC cancel"
 
             return if composed == @na_last_status_text
 
@@ -1196,9 +1256,20 @@ module Na__InsertPrimatives
         # FUNCTION | Status Fragment for the Snap State
         # ------------------------------------------------------------
         def na_drawn__grid_description
-            return 'Grid OFF — CTRL vertex snap' if @na_ctrl_held
+            case na_drawn__snap_mode
+            when :vertex      then 'Grid OFF — CTRL vertex snap'
+            when :vertex_grid then "Vertex → Grid #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} — CTRL+SHIFT"
+            else                   "Grid #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
+            end
+        end
+        # ---------------------------------------------------------------
 
-            "Grid #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
+        # FUNCTION | Which Vertex Snap Keys This Tool Answers To
+        # ------------------------------------------------------------
+        def na_drawn__vertex_hint
+            return 'CTRL vertex' unless na_drawn__vertex_grid_supported?
+
+            'CTRL vertex  CTRL+SHIFT vertex→grid'
         end
         # ---------------------------------------------------------------
 

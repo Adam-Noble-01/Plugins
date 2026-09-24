@@ -37,6 +37,8 @@ module Na__Noble3dModellingTools
             path = na_temp_png_path
             if na_full_bleed?(corner_uvs)
                 source.save_file(path)
+            elsif na_write_native_png(source, corner_uvs, width, height, path)
+                nil
             else
                 na_write_sampled_png(source, corner_uvs, width, height, path)
             end
@@ -75,6 +77,27 @@ module Na__Noble3dModellingTools
                 (actual.x - target.x).abs < NA_FULL_BLEED_TOLERANCE &&
                     (actual.y - target.y).abs < NA_FULL_BLEED_TOLERANCE
             end
+        end
+
+        def self.na_write_native_png(source, corner_uvs, width, height, path)
+            return false unless Na__TexturedPlaneToImage__NativeBridge.na_available?
+            return false unless source.respond_to?(:data) && source.data
+
+            pixel_bytes = Na__TexturedPlaneToImage__NativeBridge.Na__TexturedPlaneToImage__NativeBridge__Sample(
+                source,
+                corner_uvs,
+                width,
+                height
+            )
+            return false unless pixel_bytes
+
+            image_rep = Sketchup::ImageRep.new
+            image_rep.set_data(width, height, 32, 0, pixel_bytes)
+            image_rep.save_file(path)
+            true
+        rescue StandardError => error
+            puts "[Na__TexturedPlaneToImage] Native sampler failed, using Ruby: #{error.class}: #{error.message}"
+            false
         end
 
         def self.na_write_sampled_png(source, corner_uvs, width, height, path)

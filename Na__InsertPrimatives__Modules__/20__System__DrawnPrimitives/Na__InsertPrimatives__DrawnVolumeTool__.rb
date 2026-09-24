@@ -86,6 +86,7 @@ module Na__InsertPrimatives
             hints = [
                 'Drag out the base rectangle, then drag the extrusion and click',
                 'Every pick snaps to the voxel grid — hold CTRL to snap to vertices instead',
+                'Hold CTRL+SHIFT to snap to a vertex and then round it onto the grid',
                 'TAB cycles the base plane: Auto > XY > XZ > YZ',
                 'VCB base : 2400 pins W | ,1200 pins L | 2400,1200 moves on | 2400,1200,300 places it',
                 'VCB depth: 300 | +50 | -25',

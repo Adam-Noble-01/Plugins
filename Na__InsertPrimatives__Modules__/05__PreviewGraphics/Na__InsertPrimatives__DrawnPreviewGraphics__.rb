@@ -68,6 +68,12 @@ module Na__InsertPrimatives
     NA_DRAWN_TEXT_ACCENT_COLOR   = Sketchup::Color.new(  0,  90, 190)
     NA_DRAWN_TEXT_LOCKED_COLOR   = Sketchup::Color.new(200,  70,   0)         # <-- A typed dimension the drag can no longer move
 
+    # CTRL+SHIFT's rounded point: an open square framing the inference dot on
+    # the vertex it came from. The pinned-dimension orange, because both mean
+    # the same thing — a value held to something other than the raw mouse.
+    NA_DRAWN_GRID_MARK_COLOR     = NA_DRAWN_TEXT_LOCKED_COLOR
+    NA_DRAWN_GRID_MARK_PIXELS    = 14.0                                       # <-- Square side, on screen; frames an InputPoint dot
+
     NA_DRAWN_TEXT_SIZE           = 12
     NA_DRAWN_TEXT_LINE_HEIGHT    = 16
     NA_DRAWN_TEXT_CHAR_WIDTH     = 6.6                                        # <-- Estimated px per character at the size and weight above
@@ -746,6 +752,49 @@ module Na__InsertPrimatives
         view.drawing_color = NA_DRAWN_GUIDE_COLOR
         view.draw_line(point_a, point_b)
         view.line_stipple  = ''
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Mark Where a Vertex Snap Was Rounded onto the Grid
+    # ------------------------------------------------------------
+    # CTRL+SHIFT is two steps — land on the vertex, then round it — so both are
+    # shown. The InputPoint's own marker sits on the vertex that was pointed
+    # at; this adds an open square on the grid point it became and a dotted
+    # leader between them. At working zoom the two sit on top of each other,
+    # and the square framing the inference dot is the sign the correction is
+    # live. Zoom in and they pull apart by exactly how far the vertex was off
+    # the grid.
+    #
+    # Screen space, like the cutter, so the preview's own fill cannot hide it.
+    # Both points sit under the cursor and so in front of the camera; if one
+    # ever is not, ScreenPoints refuses and nothing is drawn.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawGridCorrection(view, vertex_point, grid_point)
+        return unless view && vertex_point && grid_point
+
+        screen = Na__InsertPrimatives.Na__DrawnPreview__ScreenPoints(view, [vertex_point, grid_point])
+        return unless screen
+
+        vertex_2d, grid_2d = screen
+        half               = NA_DRAWN_GRID_MARK_PIXELS * 0.5
+
+        view.line_width    = 2
+        view.drawing_color = NA_DRAWN_GRID_MARK_COLOR
+
+        if vertex_2d.distance(grid_2d) >= 1.0                                 # <-- Under a pixel apart there is no leader to see
+            view.line_stipple = '.'
+            view.draw2d(GL_LINES, [vertex_2d, grid_2d])
+        end
+
+        view.line_stipple = ''
+        view.draw2d(GL_LINE_LOOP, [
+            Geom::Point3d.new(grid_2d.x - half, grid_2d.y - half, 0),
+            Geom::Point3d.new(grid_2d.x + half, grid_2d.y - half, 0),
+            Geom::Point3d.new(grid_2d.x + half, grid_2d.y + half, 0),
+            Geom::Point3d.new(grid_2d.x - half, grid_2d.y + half, 0)
+        ])
+    rescue StandardError
+        nil                                                                   # <-- Never let a decoration kill the whole draw pass
     end
     # ---------------------------------------------------------------
 

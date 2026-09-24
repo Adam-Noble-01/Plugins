@@ -82,6 +82,7 @@ module Na__InsertPrimatives
             [
                 'Click the circle centre, drag the radius, then drag the height',
                 'Centre and radius snap to the grid — hold CTRL to snap to vertices instead',
+                'Hold CTRL+SHIFT to snap to a vertex and then round it onto the grid',
                 'TAB cycles the base plane: Auto > XY > XZ > YZ',
                 'VCB radius: 600 | d1200 (diameter) | +50 | 600,300 (R,H)',
                 'VCB height: 300 | +50 | -25',

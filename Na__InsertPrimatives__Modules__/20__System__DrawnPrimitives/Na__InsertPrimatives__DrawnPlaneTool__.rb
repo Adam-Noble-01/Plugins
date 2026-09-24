@@ -77,6 +77,7 @@ module Na__InsertPrimatives
             [
                 'Click and drag a rectangle, or click once then click again',
                 'Both corners snap to the voxel grid — hold CTRL to snap to vertices instead',
+                'Hold CTRL+SHIFT to snap to a vertex and then round it onto the grid',
                 'TAB cycles the drawing plane: Auto > XY > XZ > YZ',
                 'VCB: 350 pins the width | ,1610 pins the height | 350,1610 places it',
                 'A pinned axis stops following the drag — BKSP releases it again',

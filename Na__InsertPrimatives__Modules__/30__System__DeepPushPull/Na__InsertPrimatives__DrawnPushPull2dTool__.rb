@@ -140,6 +140,7 @@ module Na__InsertPrimatives
                 'Click to grab, drag across the screen, click to place',
                 'Orbit into perspective and the 3D face version takes back over on its own',
                 "Distance snaps to the #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} grid — hold CTRL for vertex snapping",
+                'Hold CTRL+SHIFT to snap to a vertex and then round the distance onto the grid',
                 'ARROWS lock the measured axis, TAB toggles QUAD mode',
                 'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
                 'VCB: 300 | +50 | -25   (the typed distance pins and places)',

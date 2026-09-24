@@ -38,6 +38,8 @@ module Na__InsertPrimatives
     NA_TOOL_MEMORY_DICTIONARY    = 'Na__InsertPrimatives__ToolMemory'.freeze
     NA_TOOL_MEMORY_PUSH_PULL_KEY = 'Na__DeepPushPull__LastDistanceMm'.freeze     # <-- Signed: negative is INTO the material
     NA_TOOL_MEMORY_CHAMFER_KEY   = 'Na__DeepChamfer__LastSetbackMm'.freeze
+    NA_TOOL_MEMORY_OGEE_KEY      = 'Na__DeepOgee__LastSizeMm'.freeze
+    NA_TOOL_MEMORY_FILLET_KEY    = 'Na__DeepFillet__LastRadiusMm'.freeze
 
     # endregion -------------------------------------------------------------------
 

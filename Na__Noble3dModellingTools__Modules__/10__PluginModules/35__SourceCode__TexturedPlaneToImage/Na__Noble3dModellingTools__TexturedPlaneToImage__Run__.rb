@@ -30,7 +30,7 @@ module Na__Noble3dModellingTools
             model = Sketchup.active_model
             return na_result(false, 'No active model available.') unless model
 
-            faces = na_faces_from_selection(model)
+            faces = na_collect_targets(model)
             return na_result(false, 'Select one or more textured rectangular faces, or groups that contain them.') if faces.empty?
 
             operation_started = false
@@ -39,8 +39,8 @@ module Na__Noble3dModellingTools
 
             model.start_operation(NA_OPERATION_NAME, true)
             operation_started = true
-            faces.each do |face|
-                result = na_convert_face(face)
+            faces.each do |target|
+                result = na_convert_target(model, target)
                 if result[:success]
                     converted_count += 1
                 else
@@ -67,26 +67,51 @@ module Na__Noble3dModellingTools
 # REGION | Selection and Conversion
 # -----------------------------------------------------------------------------
 
-        def self.na_faces_from_selection(model)
-            faces = []
+        def self.na_collect_targets(model)
+            targets = []
             model.selection.each do |entity|
                 if entity.is_a?(Sketchup::Face)
-                    faces << entity
-                elsif entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
-                    next if entity.respond_to?(:locked?) && entity.locked?
-
-                    container = na_unique_container(entity)
-                    container.definition.entities.grep(Sketchup::Face).each { |face| faces << face }
+                    targets << { face: entity, chain: [] }
+                elsif na_container?(entity)
+                    na_walk_container(na_unique_container(entity), [], targets)
                 end
             end
-            faces.uniq
+            targets
+        end
+
+        def self.na_walk_container(container, chain, targets)
+            return if container.respond_to?(:locked?) && container.locked?
+
+            container = na_unique_container(container)
+            current_chain = chain[0...-1] + [container]
+            container.definition.entities.each do |child|
+                if child.is_a?(Sketchup::Face)
+                    targets << { face: child, chain: current_chain.dup }
+                elsif na_container?(child)
+                    na_walk_container(child, current_chain + [child], targets)
+                end
+            end
+        end
+
+        def self.na_container?(entity)
+            entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
         end
 
         def self.na_unique_container(entity)
-            return entity unless entity.definition.respond_to?(:count_instances)
+            return entity unless entity.respond_to?(:definition) && entity.definition.respond_to?(:count_instances)
             return entity if entity.definition.count_instances <= 1
 
             entity.make_unique
+        end
+
+        def self.na_convert_target(model, target)
+            Na__TexturedPlaneToImage__PlacementContext.Na__TexturedPlaneToImage__PlacementContext__InContext(model, target[:chain]) do |entered|
+                result = na_convert_face(target[:face])
+                unless entered
+                    Na__TexturedPlaneToImage__PlacementContext.Na__TexturedPlaneToImage__PlacementContext__Invalidate(target[:chain])
+                end
+                result
+            end
         end
 
         def self.na_orient_to_textured_side(description)
