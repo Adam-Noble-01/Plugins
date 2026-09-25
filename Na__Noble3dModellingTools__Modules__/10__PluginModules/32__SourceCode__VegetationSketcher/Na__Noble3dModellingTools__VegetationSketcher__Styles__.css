@@ -365,6 +365,18 @@ input[type="range"] {
     margin-top            : 3px;
 }
 
+.naVegetation__Check--first {
+    margin-top            : 0;
+}
+
+.naVegetation__Fields--spaced {
+    margin-top            : 12px;
+}
+
+#naVegetation_placementFields input:disabled {
+    opacity               : 0.5;
+}
+
 .naVegetation__Inline {
     display               : flex;
     align-items           : center;

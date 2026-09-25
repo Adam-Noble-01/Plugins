@@ -10,6 +10,8 @@
 #
 # Millimetre meshes are converted to SketchUp inches only at fill_from_mesh.
 # Smooth shading is a 40.3 degree edge threshold, independent of form rounding.
+# World transforms are used as-is: in the open context add_instance and
+# #transformation are world, so edit_transform would convert twice.
 #
 # =============================================================================
 
@@ -49,9 +51,9 @@ module Na__Noble3dModellingTools
             model.start_operation(name, true)
             started = true
             definition = model.definitions.add(name)
-            group = model.active_entities.add_instance(definition, model.edit_transform.inverse * world_transform)
+            group = model.active_entities.add_instance(definition, world_transform)
             group.name = name
-            group.transformation = model.edit_transform.inverse * world_transform
+            group.transformation = world_transform
             na_populate(group, data, resolved, model)
             model.commit_operation
             group
@@ -100,7 +102,7 @@ module Na__Noble3dModellingTools
 
         # HELPER FUNCTION | Fill Foliage, Optional Trunk, Material and Dictionary
         # ------------------------------------------------------------
-        def self.na_populate(group, data, options, model)
+        def self.na_populate(group, data, options, model, remember_model: true)
             material = na_whitecard_material(model)
             root_entities = Na__VegetationSketcher__DataSerializer.Na__VegetationSketcher__DataSerializer__Entities(group)
             foliage = options['preset'] == 'tree' ? root_entities.add_group : group
@@ -108,7 +110,7 @@ module Na__Noble3dModellingTools
             na_fill_foliage(foliage, data, material, options['smooth'])
             na_fill_trunk(root_entities, data, options, material) if options['preset'] == 'tree'
             group.material = material
-            Na__VegetationSketcher__DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model, group, options, data[:quads].length)
+            Na__VegetationSketcher__DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model, group, options, data[:quads].length, remember_model: remember_model)
             group
         end
         # ------------------------------------------------------------

@@ -22,6 +22,7 @@
 # =============================================================================
 
 require 'json'
+require_relative 'Na__Noble3dModellingTools__VegetationSketcher__Placement__'
 
 module Na__Noble3dModellingTools
     module Na__VegetationSketcher__DialogManager
@@ -38,6 +39,7 @@ module Na__Noble3dModellingTools
         NA_DIALOG_MIN_HEIGHT      = 620
         NA_PANEL_DEBOUNCE         = 0.65
         NA_PREF_SETTINGS          = 'settings'.freeze
+        NA_PREF_PLACEMENT         = 'placement'.freeze
         NA_JS_RECEIVE             = 'Na__VegetationSketcher__Receive'.freeze
 
 # endregion -------------------------------------------------------------------
@@ -194,8 +196,10 @@ module Na__Noble3dModellingTools
             na_attach_model
             case action
             when 'options', 'variation' then na_handle_options_action(action, payload)
+            when 'placement'            then na_handle_placement_action(payload)
             when 'preset'               then na_handle_preset_action(payload)
             when 'tree_type'            then na_handle_tree_type_action(payload)
+            when 'shrub_type'           then na_handle_shrub_type_action(payload)
             when 'new'                  then na_handle_new_action
             when 'start'                then na_handle_start_action(payload)
             when 'stop'                 then na_handle_stop_action(payload)
@@ -221,6 +225,17 @@ module Na__Noble3dModellingTools
             na_update_target(payload) if @na_target && @na_live && !na_placing?
             na_push_state
             na_preview
+        end
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Store Placement Variation Ranges
+        # ------------------------------------------------------------
+        # Not context-checked: the ranges belong to the planting tool, never
+        # to the selected vegetation, so a selection change cannot stale them.
+        def self.na_handle_placement_action(payload)
+            na_apply_placement(payload.fetch('placement'))
+            na_push_state
+            na_report(@na_placement['enabled'] ? 'Placement variation saved. Each new plant rolls its own size and turn.' : 'Placement variation off. Plants use the exact size above.')
         end
         # ------------------------------------------------------------
 
@@ -251,6 +266,18 @@ module Na__Noble3dModellingTools
         end
         # ------------------------------------------------------------
 
+        def self.na_handle_shrub_type_action(payload)
+            na_validate_context(payload)
+            raise ArgumentError, 'Choose the Planting preset first.' unless @na_options['preset'] == 'shrub'
+            options = Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__ShrubPreset(payload['shrub_type'])
+            %w[seed smooth vary].each { |key| options[key] = @na_options[key] }
+            na_apply_options(options)
+            na_update_target(payload) if @na_target && @na_live && !na_placing?
+            na_push_state
+            na_preview
+            na_report(Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__Label(@na_options) + ' loaded. Plant individually or choose a ready-made mix in Scatter.')
+        end
+
         # HELPER FUNCTION | Leave Editing Mode Without Changing Settings
         # ------------------------------------------------------------
         def self.na_handle_new_action
@@ -268,8 +295,12 @@ module Na__Noble3dModellingTools
             na_stop
             na_new_mode
             na_apply_options(payload.fetch('settings'))
-            tool_class = @na_options['preset'] == 'hedge' ? Na__VegetationSketcher__HedgeTool : Na__VegetationSketcher__PlacementTool
-            @na_tool = tool_class.new(@na_options, self)
+            na_apply_placement(payload['placement']) if payload['placement']
+            @na_tool = if @na_options['preset'] == 'hedge'
+                           Na__VegetationSketcher__HedgeTool.new(@na_options, self)
+                       else
+                           Na__VegetationSketcher__PlacementTool.new(@na_options, self, na_placement)
+                       end
             @na_observed_model.select_tool(@na_tool)
             @na_observed_model.active_view.invalidate
             Sketchup.focus if Sketchup.respond_to?(:focus)
@@ -317,6 +348,24 @@ module Na__Noble3dModellingTools
             @na_options = Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__Resolve(raw)
             Sketchup.write_default(NA_DIALOG_PREFERENCES_KEY, NA_PREF_SETTINGS, JSON.generate(@na_options))
             @na_tool.na_update_options(@na_options) if na_placing?
+        end
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Validate, Remember and Push Placement Ranges
+        # ------------------------------------------------------------
+        def self.na_apply_placement(raw)
+            @na_placement = Na__VegetationSketcher__Placement.Na__VegetationSketcher__Placement__Resolve(raw)
+            Sketchup.write_default(NA_DIALOG_PREFERENCES_KEY, NA_PREF_PLACEMENT, JSON.generate(@na_placement))
+            @na_tool.na_update_placement(@na_placement) if na_placing? && @na_tool.respond_to?(:na_update_placement)
+        end
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Placement Ranges, Read Once From Preferences
+        # ------------------------------------------------------------
+        def self.na_placement
+            @na_placement ||= Na__VegetationSketcher__Placement.Na__VegetationSketcher__Placement__Load(
+                Sketchup.read_default(NA_DIALOG_PREFERENCES_KEY, NA_PREF_PLACEMENT, '{}')
+            )
         end
         # ------------------------------------------------------------
 
@@ -594,9 +643,12 @@ module Na__Noble3dModellingTools
         def self.na_push_state
             na_send_js('state', {
                 settings:    @na_options,
+                placement:   na_placement,
+                placement_limits: Na__VegetationSketcher__Placement::NA_LIMITS,
                 limit:       Na__VegetationSketcher__Mesh::NA_MAX_QUADS,
                 limits:      Na__VegetationSketcher__Options::NA_LIMITS,
                 tree_types:  Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__TreeTypeInfo,
+                shrub_types: Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__ShrubTypeInfo,
                 context:     @na_context,
                 target_id:   na_target_id,
                 target_name: @na_target && @na_target.valid? ? @na_target.name : nil,

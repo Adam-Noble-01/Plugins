@@ -3,6 +3,241 @@
 
 # =============================================================================
 
+## Version 5.1.15 - 25-Sep-2026 - Stop Chamfers: a Cut That Ends on a Section Line
+
+### Asked For
+*"Now make it so on sections like this if you try to chamfer, it creates a stop chamfer"*,
+with two screenshots: a box whose top-front arris had been split into three sections by
+lines drawn across the top and front faces, and a newel post whose chamfered arrises end
+in the classic pyramid stop: the chamfer's flat end, then a sloping triangle closing down
+to a point on the arris.
+
+### Why Sections Failed Before
+Chamfering the middle piece of a sectioned arris treated each end as a corner. The faces
+past the end, which are the next section and lie coplanar with the faces being cut, were
+"end faces" and were clipped with the pair `[a, b]`. `b` does not lie in the plane of a
+top-face section, so the rebuild asked for a non-planar face and the cut failed, or would
+have cut into a section nobody asked to touch.
+
+### What a Section Does Now
+At each end of the grabbed piece, the tool asks one question: **does the arris carry
+straight on?** That means another edge at the vertex runs collinear with it, within
+0.5 degrees, away from the piece.
+- **It carries on into an edge that is not being cut:** the end **stops**. The full-width
+  cut begins a stop length in from the end, and the corner vertex stays where it is as the
+  stop's apex, exactly on the section line. The stop closes the cut down to that point:
+  one sloping triangle for a chamfer (the pyramid stop in the reference), and a fan of
+  triangles for a curve, smoothed so it reads as one run-out. **Nothing past the section
+  line is touched**, because the next section's faces are never planned. Only faces A and
+  B learn where the cut begins.
+- **It carries on into another banked edge:** the joint is **through**. Two neighbouring
+  pieces banked together are one continuous cut that meets full width on the section line,
+  with no stop and no mitre. It used to refuse, because the two pieces share no face.
+- **It does not carry on:** it is an ordinary end, a real corner, clipped or mitred
+  exactly as before. The end piece of a sectioned arris therefore stops at its section and
+  finishes normally at the real corner.
+
+**The stop is as long as the cut is wide**, the proportion in the reference. It shrinks
+to fit a short piece: at most 40% of the piece per stop when both ends stop, and 80% when
+one does.
+
+### One Implementation for All Three Tools
+Stops live in the shared profile sweep (`04__GeometryHelpers/..DrawnProfileSweep__.rb`,
+the new **Stops** region):
+- `Na__ProfileSweep__Continuation` finds the edge that carries the arris on.
+- `Na__ProfileSweep__ApplyStops` marks `:stop0/1` or `:through0/1` and moves a stopped
+  end's profile in along the edge. It also gives a chamfer's solve the `[a, b]` profile
+  keys the sweep reads.
+- `Na__ProfileSweep__AddStops` builds the stop, facing the air by the same rule as the
+  facets.
+
+The planner learnt a third substitution beside singles and runs. A **stop substitution**
+keeps the corner vertex and inserts the point where the cut begins beside it. The side it
+goes on is read from the ORIGINAL loop (does the arris run on toward its partner from
+here?), because a nearest-point test is fooled on a long face.
+
+Deep Chamfer calls `na_drawn__solve_member` everywhere it used to call its solve: its
+cut, then `ApplyStops`. A stopped or through cut is planned, built and mitred by the
+profile sweep as the two-point profile `[a, b]`. Every other chamfer keeps its own planner
+and its three-way mitres, byte for byte. Deep Ogee and Deep Fillet get stops for free.
+
+### The Preview Says So
+A stopped end's cap is drawn in the cut's amber, because it is new surface: the stop
+itself. An ordinary end's removed corner stays in plane blue, and a through end draws no
+cap. The summary card adds `stopped at both ends · 78 mm stops`, the status line reads
+`Chamfer 55 mm (stopped both ends)`, and the retype ghost keeps its stop and through
+flags. Ogee and Fillet read the same.
+
+### Rehearsed, Then Confirmed
+Before handing over, the whole solid was rebuilt numerically on the reported box: 800
+long, sectioned at 150 and 645, the middle piece chamfered at 55. It stayed closed, with
+every edge used by exactly two faces. Its orientation was consistent, with every directed
+edge met once each way. Every face was planar, and every face past the section lines was
+untouched. The same held with the edge running the other way, for a stopped R40 fillet
+with a 12-facet fan, for the end piece with one stop and one real corner, and for two
+banked neighbours meeting through. The stop limits were checked at 40% and 80%. Adam then
+confirmed it live: *"Works excellently!"*
+
+### Files
+- `04__GeometryHelpers/Na__InsertPrimatives__DrawnProfileSweep__.rb`:
+  - the Stops region;
+  - stop substitutions in `Na__ProfileSweep__RebuildPlan`;
+  - stop- and through-aware `BuildPlans`, `BuildGroupPlans` and `MitreBatch`;
+  - `AddStops` called from `Build` and `BuildGroup`;
+  - `SetEnd`, split out of `PatchEnd`.
+- `31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamferTool__.rb`:
+  - `na_drawn__solve_member` and `na_drawn__batch_edges`;
+  - stop-aware routing in the plan, build and mitre hooks;
+  - `na_drawn__draw_end_cap`, `na_drawn__stop_summary` and `na_drawn__stop_note`;
+  - a Stops line in the console report.
+- `31__System__DeepChamfer/..DrawnChamfer__Revise__.rb` and
+  `06__Tools__DrawnShared/..DrawnProfileSweepTool__.rb`: the ghost keeps stop and through
+  flags, and the shared preview shows the stop line.
+- The Ogee and Fillet tools: the stop note on their status lines.
+
+### Testing Notes
+- [x] The middle section of a box's arris: pyramid stops at both ends, and the sections
+      either side are untouched.
+- [ ] The end section: a stop at the section line, an ordinary finish at the real corner.
+- [ ] SHIFT-bank two neighbouring sections: one continuous chamfer through the section
+      line, stopped only at the outer ends.
+- [ ] A newel post: bank the four sectioned arrises and cut them in one drag; all four
+      stop.
+- [ ] A stopped Ogee and a stopped Fillet: the stop fans down to the section point.
+- [ ] Retype a stopped chamfer (`60`): it rebuilds with its stops, the ghost shows them,
+      and Ctrl+Z returns the plain box.
+
+# =============================================================================
+
+## Version 5.1.14 - 25-Sep-2026 - Roofs Stand on a Fascia and Soffit
+
+### Asked For
+*"Add a Fascia & Soffit Mode, this asks the user to first draw a rectangle for the wall face
+of the soffit … soffit sticks out (projection) and facia is the z height of the the
+facia/soffit block."* Then drag the fascia up, drag the soffit out, and the roof tool
+carries on from the top of the new platform. *"Make this the default and you can switch off
+the fascia and soffit in the menu if needed to have the original roof only element."* The
+option goes under the roof tools in the popup, the same way Drawn Volume's options sit under
+it, and only while a roof tool is running.
+
+### The Gesture
+With **Fascia & Soffit** on, which is now the default, both roof tools take two more stages:
+1. **Wall line.** Drag the rectangle on the top of the wall, as the footprint was dragged
+   before.
+2. **Fascia.** Pull up and click, or type `225`. The plinth grows up off the wall line.
+3. **Soffit.** Drag out past the wall and click, or type `300`. The plinth grows out by the
+   same amount on all four sides. A leader from the wall face to the eaves carries the
+   figure.
+4. **Pitch.** Unchanged: pull up or type `35`. The roof stands on the plinth. Its pitch is
+   measured over the **eaves**, the wall line plus a soffit on each side, and its plan
+   dimensions are the eaves.
+
+With the mockup's 19275 x 8555 wall line and a 300 soffit, the eaves come out 19875 x 9155,
+the figures in the mockup.
+
+### Typed Values
+| Stage | Typed | Means |
+|---|---|---|
+| fascia | `225` · `225,300` · `225,300,35` | fascia · then the soffit, on to the pitch · then the pitch, built |
+| soffit | `300` · `300,35` | soffit · then the pitch, built |
+| pitch | `35`, `3000mm` · `250s`, `250f` | as before · change the plinth and stay in the stage |
+| after | `250f` · `400s` · `250f,400s` | correct the plinth of the roof just built |
+| wall line | `6000,4000,35` | built straight away on the last fascia and soffit (225 / 300 until one has been built) |
+
+A lettered value goes where its letter says, wherever it is typed, so `300s,225` in the
+fascia stage is a 225 fascia and a 300 soffit. Bare numbers are mm in the fascia and soffit
+stages; only the pitch slot reads degrees (5.1.10). No entry the roofs already took ends in
+`f` or `s`, so nothing is read differently. A correction after building **holds the pitch**:
+a wider soffit makes a wider roof at the same pitch, not a flatter one.
+
+### Refused With the Fix Named
+- `0` for the fascia: *a 0mm fascia is no fascia — give it a height such as 225, or switch
+  Fascia & Soffit off in the right-click menu for the roof alone*
+- `300s` alone in the fascia stage: *the fascia needs a height first — e.g. 225,300*
+- `-500s` on a 300 soffit (a relative entry, 300 − 500): *a -200mm soffit would set the
+  eaves inside the wall — 0 keeps them flush with it*
+- `250f` on a roof built without a plinth: *switch Fascia & Soffit on … and draw it again*
+
+A soffit of 0 is allowed: a flush eaves, the fascia straight up off the wall face.
+
+### The Soffit Drag Cuts a Plane
+This is Deep Chamfer's lesson again. Looking down on the roof, or up at the eaves, the
+cursor ray is cut with the plan plane at the fascia top, so the eaves edge sits under the
+cursor. At eye level that plane is edge-on, so the ray is cut with an upright plane through
+the middle of the wall line, facing the camera. The plane is chosen from the camera, so it
+cannot change mid-drag. The soffit is how far the cursor is outside the wall line, measured
+from the side it is furthest past. Past a corner the eaves corner follows the cursor square.
+Both stages round the distance onto the grid, not the point, the way the stair rounds its
+run. CTRL takes a vertex, such as an existing gutter or verge, and CTRL+SHIFT rounds it.
+
+### What Is Built
+One group, named `01__DrawnPitchedRoof` or `01__DrawnHippedRoof` as before, holding two:
+`02__FasciaSoffit`, the plinth box, and `02__RoofMass`, the roof. Each is a solid of its own,
+so the fascia board and the tiled slope can take different materials and still move as one
+roof. The outer group is pinned to the world identity and the two inside it to theirs,
+before any point goes in (the Coordinate Rule), so it lands where it was previewed inside
+open, moved, rotated and nested groups. Create and rebuild share one `FillGroup`, so the two
+cannot disagree about where the eaves are. The Solid line in the console reports each child.
+With the option off, the roof group holds its faces directly, exactly as before.
+
+### Built Beside the Roof, Not Into It
+The stages live in a new mixin, `DrawnRoofFasciaSoffit`, included in `DrawnRoofToolBase`
+after `DrawnToolShared`. Its `onLButtonDown`, `onLButtonDoubleClick`, `onReturn`, cursor,
+step-back and rise methods sit in front of the shared ones and hand back with `super`
+outside their stages, the way the Staircase sits on Drawn Volume. The roof class gained one
+seam, `na_roof__footprint`, which every piece of roof maths now goes through: the wall
+rectangle without a plinth, the eaves with one. The shared mixin is untouched.
+- **Which roofs have a plinth.** While the wall line is being drawn, the option decides.
+  Once the drag has left the wall line, the drag's own decision holds, so a toggle mid-drag
+  cannot pull the plinth out from under the preview. After building, the roof on offer for
+  correction decides, so a plinth roof is corrected as one even with the option then
+  switched off.
+- **Double clicks.** The second half of a double click lands in the next stage with nothing
+  dragged yet. It is ignored when it lands where that stage began, so it neither beeps at a
+  fascia of nothing nor builds a roof with no rise.
+- **BKSP** steps back pitch → soffit → fascia → wall line.
+- **One option, two tools.** Declared once and listed under both roofs, keyed by its id, so
+  switching it off under Pitched Roof switches it off under Hipped Roof too. The popup needed
+  no change: it already builds each tool's submenu from `NA_TOOL_OPTIONS`.
+
+### Files
+- **New** `21__System__DrawnRoofs/Na__InsertPrimatives__DrawnRoof__FasciaSoffit__.rb`: the
+  stages, the cursor and plane maths, the previews, the status and the typed grammar.
+- `21__System__DrawnRoofs/Na__InsertPrimatives__DrawnRoofTools__.rb`: includes the mixin,
+  routes the footprint, previews, status, typed entries, build and revise through it.
+- `04__GeometryHelpers/Na__InsertPrimatives__DrawnRoofGeometry__.rb`: `PlinthFootprint`,
+  `PlinthBoxPoints`, the session memory, `FillGroup`, and a `plinth` argument on
+  `CreateRoof` / `RebuildRoof` (optional, so a roof alone builds as before).
+- `02__AppData/Na__InsertPrimatives__AppData__ToolOptions__.rb`: the shared
+  `roof_fascia_soffit` option, ON by default.
+- `01__AppCore/Na__InsertPrimatives__AppCore__LoadManifest__.rb`: the new file, before the
+  roof tools.
+
+### Testing Notes
+- [ ] Reload Plugin Data. Start Hipped Roof and right-click: **Fascia & Soffit: On** sits
+      under Hipped Roof, and under Pitched Roof when that is running. It is not under any
+      other tool.
+- [ ] Drag a 19275 x 8555 wall line on top of a block. Pull up: an amber plinth follows, with
+      the fascia figure on its corner. Click, then drag out: the plinth grows on all four
+      sides and the leader reads the soffit. Click, pull up the roof: it stands on the plinth
+      and the card reads 19875 x 9155 eaves with a 300 soffit.
+- [ ] Click to build: one group holding `02__FasciaSoffit` and `02__RoofMass`, each solid,
+      and one Ctrl+Z removes it all.
+- [ ] Type straight after: `400s`. The roof widens and the pitch stays. Then `250f`, then
+      `35`.
+- [ ] In the fascia stage type `225,300,35`: it builds without further clicks.
+- [ ] Type `0` in the fascia stage, and `-500s` after building on a 300 soffit: both refused,
+      with the fix in the status bar.
+- [ ] Double-click through the stages: no beeps, and nothing builds before the roof stage.
+- [ ] Look at the eaves at eye level and drag the soffit sideways past a side wall. It still
+      follows.
+- [ ] BKSP from the pitch stage steps back soffit, fascia, wall line.
+- [ ] Switch the option off: both roof tools go back to the roof alone, exactly as before.
+- [ ] Inside a group that is moved AND rotated, and one nested three deep: the roof and its
+      plinth land where they were previewed.
+
+# =============================================================================
+
 ## Version 5.1.13 - 24-Sep-2026 - Staircase: a Block, a Side, and an Even Flight
 
 ### Asked For

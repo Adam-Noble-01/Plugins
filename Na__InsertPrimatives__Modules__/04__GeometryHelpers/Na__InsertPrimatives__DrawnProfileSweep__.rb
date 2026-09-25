@@ -23,6 +23,10 @@
 #   Na__InsertPrimatives__DrawnChamfer__Geometry__.rb) with one change: an
 #   end face the chamfer clips with the pair [a, b] is clipped here by the
 #   whole profile [a, ..., b].
+# - Where the arris carries straight on past an end — an edge split into
+#   sections — the cut STOPS there instead of clipping anything (see the
+#   Stops region). Deep Chamfer sends every stopped cut through here too,
+#   as the two-point profile [a, b], so all three tools stop the same way.
 #
 # THE SOLVE A PROFILE TOOL HANDS BACK (Na__ProfileSweep__SolveHash builds it):
 #   every key the chamfer tool reads — :cos_half, :v0/:v1, :a0/:a1/:b0/:b1,
@@ -162,6 +166,146 @@ module Na__InsertPrimatives
 
 
     # -----------------------------------------------------------------------------
+    # REGION | Stops — Where the Arris Carries On Past an End
+    # -----------------------------------------------------------------------------
+    #
+    # An edge split into SECTIONS (lines drawn across its two faces, dividing
+    # the arris into pieces) is asking for a cut along one piece that stops
+    # short of the next. At an end where the arris runs straight on, the cut
+    # must not touch the next section, so instead of clipping end faces it
+    # STOPS: the full-width cut begins a stop-length in from the end, and a
+    # stop closes it down to a point on the arris at the section line itself —
+    # the classic pyramid stop, one sloping triangle for a chamfer, a fan for a
+    # curve. The stop is as long as the cut is wide, the proportion of a
+    # traditional stop, shortened if the section is too short to hold it.
+    #
+    # When the next piece of the same arris is banked in the same batch there
+    # is no stop at all: the joint is THROUGH, and the two cuts meet full width
+    # on the section line.
+    # -----------------------------------------------------------------------------
+
+    NA_SWEEP_STOP_COLLINEAR  = 0.99996                                        # <-- cos 0.5 deg: an edge this straight on carries the arris on
+    NA_SWEEP_STOP_SHARE_BOTH = 0.4                                            # <-- Of the piece's length, per stop, with a stop at each end
+    NA_SWEEP_STOP_SHARE_ONE  = 0.8                                            # <-- With a stop at one end only
+
+    # FUNCTION | The Edge That Carries the Arris On Past This End, or nil
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__Continuation(edge, vertex)
+        toward = edge.other_vertex(vertex).position - vertex.position
+        return nil unless toward.length > 0
+        toward.normalize!
+
+        vertex.edges.find do |other|
+            next false if other == edge || !other.valid?
+
+            beyond = other.other_vertex(vertex).position - vertex.position
+            next false unless beyond.length > 0
+
+            beyond.normalize.dot(toward) < -NA_SWEEP_STOP_COLLINEAR
+        end
+    rescue StandardError
+        nil
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Give a Chamfer Solve the Profile Keys the Sweep Reads
+    # A chamfer is the two-point profile [a, b]. It reads the same from either
+    # face, and whether its corner is convex comes from the bisector against
+    # face A, as the corner frame decides it.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__EnsureProfile(target, solve)
+        unless solve[:profile0] && solve[:profile1]
+            solve[:profile0]          = [solve[:a0], solve[:b0]]
+            solve[:profile1]          = [solve[:a1], solve[:b1]]
+            solve[:world][:profile0]  = [solve[:world][:a0], solve[:world][:b0]]
+            solve[:world][:profile1]  = [solve[:world][:a1], solve[:world][:b1]]
+            solve[:symmetric]         = true unless solve.key?(:symmetric)
+        end
+
+        if solve[:convex].nil?
+            face_a = target[:faces] ? target[:faces][0] : nil
+            solve[:convex] = face_a ? solve[:bisector_local].dot(face_a.normal) < 0.0 : true
+        end
+
+        solve
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Stop the Cut at Each End Where the Arris Carries On
+    # Mutates and returns the solve. At an end whose arris runs straight on:
+    #   * into another edge in batch_edges — :through0/1, the cuts meet full width
+    #   * into anything else — :stop0/1, and that end's profile moves a stop's
+    #     length in along the edge, so the cut begins there and the corner vertex
+    #     is left behind as the stop's apex
+    # :stop_length_world records how long the stops came out. A solve with
+    # neither end continuing is returned unchanged but for its profile keys.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__ApplyStops(target, solve, batch_edges = nil)
+        return solve unless solve
+
+        edge = target[:edge]
+        return solve unless edge && edge.valid?
+
+        Na__InsertPrimatives.Na__ProfileSweep__EnsureProfile(target, solve)
+
+        heading = solve[:v1] - solve[:v0]
+        span    = heading.length.to_f
+        return solve unless span > 0.0
+        along = heading.normalize
+
+        stop_ends = []
+
+        [[0, edge.start], [1, edge.end]].each do |end_index, vertex|
+            continuation = Na__InsertPrimatives.Na__ProfileSweep__Continuation(edge, vertex)
+            next unless continuation
+
+            if batch_edges && batch_edges.include?(continuation)
+                solve[end_index.zero? ? :through0 : :through1] = true
+            else
+                stop_ends << end_index
+            end
+        end
+
+        return solve if stop_ends.empty?
+
+        xform      = target[:transformation]
+        edge_scale = along.transform(xform).length.to_f
+        edge_scale = 1.0 unless edge_scale > 0.0
+
+        stop_local = solve[:width_world].to_f / edge_scale                    # <-- As long as the cut is wide
+        limit      = span * (stop_ends.length == 2 ? NA_SWEEP_STOP_SHARE_BOTH : NA_SWEEP_STOP_SHARE_ONE)
+        stop_local = limit if stop_local > limit
+        return solve unless stop_local > 0.0
+
+        stop_ends.each do |end_index|
+            inward  = end_index.zero? ? along : along.reverse
+            key     = end_index.zero? ? :profile0 : :profile1
+            shifted = solve[key].map { |point| Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(point, inward, stop_local) }
+
+            Na__InsertPrimatives.Na__ProfileSweep__SetEnd(solve, end_index, shifted, xform)
+            solve[end_index.zero? ? :stop0 : :stop1] = true
+        end
+
+        solve[:stop_length_world] = stop_local * edge_scale
+        solve
+    rescue StandardError
+        solve
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Does This Solve Stop, or Run Through, at Either End?
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__Stopped?(solve)
+        return false unless solve
+
+        (solve[:stop0] || solve[:stop1] || solve[:through0] || solve[:through1]) ? true : false
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
     # REGION | Plan
     # -----------------------------------------------------------------------------
 
@@ -172,9 +316,15 @@ module Na__InsertPrimatives
     # end faces, whose corner the profile clips). The run is laid in whichever
     # direction starts nearer the previous loop position, which keeps the
     # rebuilt winding sane — the same test the chamfer uses for its pair.
+    #
+    # stop_subs are [corner, partner, point]: at a STOPPED end the corner
+    # stays where it is — it is the stop's apex — and the point where the
+    # full-width cut begins is inserted beside it, on the side the arris runs
+    # toward its partner. Which side that is comes from the original loop, so
+    # it cannot be fooled the way a nearest-point test can on a long face.
     # Raises before anything is touched when a face cannot be planned.
     # ------------------------------------------------------------
-    def self.Na__ProfileSweep__RebuildPlan(face, single_subs, run_subs)
+    def self.Na__ProfileSweep__RebuildPlan(face, single_subs, run_subs, stop_subs = [])
         raise 'a profile beside an opening is not supported yet' if face.loops.length > 1
 
         original = face.outer_loop.vertices.map { |vertex| vertex.position }
@@ -186,6 +336,18 @@ module Na__InsertPrimatives
             single = single_subs.find { |corner, _| Na__InsertPrimatives.Na__DrawnChamfer__SamePoint?(position, corner) }
             if single
                 points << single[1]
+                next
+            end
+
+            stop = stop_subs.find { |corner, _, _| Na__InsertPrimatives.Na__DrawnChamfer__SamePoint?(position, corner) }
+            if stop
+                following = original[(index + 1) % original.length]
+
+                if Na__InsertPrimatives.Na__DrawnChamfer__SamePoint?(following, stop[1])
+                    points << position << stop[2]                             # <-- The arris runs on from here: the cut starts after the apex
+                else
+                    points << stop[2] << position                             # <-- The arris arrived from the partner: the cut ends before it
+                end
                 next
             end
 
@@ -213,25 +375,44 @@ module Na__InsertPrimatives
     # ---------------------------------------------------------------
 
     # FUNCTION | Plan Every Face a Single-Edge Profile Touches
-    # Raises on anything it cannot plan — a refusal before anything is erased
-    # costs the model nothing.
+    # An ordinary end clips its end faces with the profile. A STOPPED end
+    # touches nothing past its apex: the faces beyond it (the next section)
+    # are left exactly as they are, and only faces A and B learn where the
+    # full-width cut begins. Raises on anything it cannot plan — a refusal
+    # before anything is erased costs the model nothing.
     # ------------------------------------------------------------
     def self.Na__ProfileSweep__BuildPlans(target, solve)
         edge           = target[:edge]
         face_a, face_b = target[:faces]
-        end_faces      = (edge.start.faces.to_a + edge.end.faces.to_a).uniq - [face_a, face_b]
+
+        a_singles = []
+        b_singles = []
+        a_stops   = []
+        b_stops   = []
+        runs      = []
+        end_faces = []
+
+        [[edge.start, solve[:v0], solve[:v1], :profile0, :stop0],
+         [edge.end,   solve[:v1], solve[:v0], :profile1, :stop1]].each do |vertex, corner, partner, profile_key, stop_key|
+            profile = solve[profile_key]
+
+            if solve[stop_key]
+                a_stops << [corner, partner, profile.first]
+                b_stops << [corner, partner, profile.last]
+                next
+            end
+
+            a_singles << [corner, profile.first]
+            b_singles << [corner, profile.last]
+            runs      << [corner, profile]
+            end_faces.concat(vertex.faces.to_a - [face_a, face_b])
+        end
 
         plans = []
-        plans << Na__InsertPrimatives.Na__ProfileSweep__RebuildPlan(
-            face_a, [[solve[:v0], solve[:a0]], [solve[:v1], solve[:a1]]], []
-        )
-        plans << Na__InsertPrimatives.Na__ProfileSweep__RebuildPlan(
-            face_b, [[solve[:v0], solve[:b0]], [solve[:v1], solve[:b1]]], []
-        )
-        end_faces.each do |end_face|
-            plans << Na__InsertPrimatives.Na__ProfileSweep__RebuildPlan(
-                end_face, [], [[solve[:v0], solve[:profile0]], [solve[:v1], solve[:profile1]]]
-            )
+        plans << Na__InsertPrimatives.Na__ProfileSweep__RebuildPlan(face_a, a_singles, [], a_stops)
+        plans << Na__InsertPrimatives.Na__ProfileSweep__RebuildPlan(face_b, b_singles, [], b_stops)
+        end_faces.uniq.each do |end_face|
+            plans << Na__InsertPrimatives.Na__ProfileSweep__RebuildPlan(end_face, [], runs)
         end
 
         plans
@@ -300,6 +481,59 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Close Each Stopped End With Its Stop
+    # A fan of triangles from the apex (the corner vertex, left on the
+    # arris) to the profile where the full-width cut begins: one sloping
+    # triangle for a chamfer — the classic pyramid stop — and a fan for a
+    # curve, its seams softened so it reads as one run-out. Each triangle
+    # faces the air by the same rule as the facets: on a convex corner the
+    # material lies along the bisector from the apex, on a concave one the
+    # air does.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__AddStops(entities, solve, dress, build_transform)
+        bisector = solve[:bisector_local].transform(build_transform)
+        convex   = solve[:convex] != false
+        facets   = []
+
+        [[:stop0, :v0, :profile0], [:stop1, :v1, :profile1]].each do |stop_key, corner_key, profile_key|
+            next unless solve[stop_key]
+
+            apex    = solve[corner_key].transform(build_transform)
+            profile = solve[profile_key].map { |point| point.transform(build_transform) }
+            fan     = []
+
+            (0...(profile.length - 1)).each do |index|
+                facet = entities.add_face(apex, profile[index], profile[index + 1])
+                raise 'a stop could not be created at the end of this cut' unless facet
+
+                leaning = bisector.valid? ? facet.normal.dot(bisector) : 0.0
+                facet.reverse! if convex ? (leaning > 0.0) : (leaning < 0.0)
+
+                if dress
+                    facet.material      = dress[:material]      if dress[:material]
+                    facet.back_material = dress[:back_material] if dress[:back_material]
+                    facet.layer         = dress[:layer]         if dress[:layer]
+                end
+
+                fan << facet
+            end
+
+            fan.each_cons(2) do |left, right|
+                left.edges.each do |seam|
+                    next unless seam.used_by?(right)
+
+                    seam.soft   = true
+                    seam.smooth = true
+                end
+            end
+
+            facets.concat(fan)
+        end
+
+        facets
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Build a Single-Edge Profile Into an Entities Collection
     # Runs inside the operation ExecuteInContext opens, with the plans already
     # made. Erases are coordinate-free; every ADD goes through build_transform.
@@ -326,6 +560,7 @@ module Na__InsertPrimatives
         # plane does, so a painted board keeps its paint round the moulding.
         plans.each { |plan| Na__InsertPrimatives.Na__DrawnChamfer__RebuildFace(entities, plan, build_transform) }
         Na__InsertPrimatives.Na__ProfileSweep__AddMoulding(entities, solve, plans[0], build_transform)
+        Na__InsertPrimatives.Na__ProfileSweep__AddStops(entities, solve, plans[0], build_transform)
 
         true
     end
@@ -355,11 +590,11 @@ module Na__InsertPrimatives
     # edges at one corner (the curved three-way junction is not built).
     # -----------------------------------------------------------------------------
 
-    # FUNCTION | Overwrite One End's Profile With Its Mitred Points
+    # FUNCTION | Overwrite One End's Profile, Local and World
     # profile_ab is in a -> b order like every stored profile; its ends are the
     # solve's a and b at that end, so they move with it.
     # ------------------------------------------------------------
-    def self.Na__ProfileSweep__PatchEnd(solve, end_index, profile_ab, xform)
+    def self.Na__ProfileSweep__SetEnd(solve, end_index, profile_ab, xform)
         profile_key  = end_index.zero? ? :profile0 : :profile1
         a_key, b_key = end_index.zero? ? [:a0, :b0] : [:a1, :b1]
         world        = profile_ab.map { |point| point.transform(xform) }
@@ -370,6 +605,14 @@ module Na__InsertPrimatives
         solve[:world][profile_key] = world
         solve[:world][a_key]       = world.first
         solve[:world][b_key]       = world.last
+        solve
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Overwrite One End's Profile With Its Mitred Points
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__PatchEnd(solve, end_index, profile_ab, xform)
+        Na__InsertPrimatives.Na__ProfileSweep__SetEnd(solve, end_index, profile_ab, xform)
         solve[end_index.zero? ? :mitre0 : :mitre1] = true
     end
     # ---------------------------------------------------------------
@@ -385,13 +628,17 @@ module Na__InsertPrimatives
         ends = {}
 
         targets.each_with_index do |target, index|
-            next unless solves[index]
+            solve = solves[index]
+            next unless solve
 
             edge = target[:edge]
             next unless edge && edge.valid?
 
-            (ends[edge.start] ||= []) << [index, 0]
-            (ends[edge.end]   ||= []) << [index, 1]
+            # A stopped end ends on its own apex and a through end carries on
+            # into the next banked piece of the same arris: neither is a corner
+            # another edge can mitre to.
+            (ends[edge.start] ||= []) << [index, 0] unless solve[:stop0] || solve[:through0]
+            (ends[edge.end]   ||= []) << [index, 1] unless solve[:stop1] || solve[:through1]
         end
 
         patches = []
@@ -476,24 +723,35 @@ module Na__InsertPrimatives
 
     # FUNCTION | Plan Every Face a Whole Batch Group Touches, Exactly Once
     # Substitutions accumulate per face and are merged (a shared face collects
-    # the same mitred corner from both its edges), and a mitred end clips no
-    # end face at all — the mitre IS its ending.
+    # the same mitred corner from both its edges). Which ends clip their end
+    # faces: only the ordinary ones. A mitred end's ending IS the mitre; a
+    # through end hands over to the next banked piece of the same arris,
+    # whose own faces take the same corner point; a stopped end leaves every
+    # face past its apex alone and only tells faces A and B where the cut
+    # begins.
     # ------------------------------------------------------------
     def self.Na__ProfileSweep__BuildGroupPlans(targets, solves)
         accumulators = {}
-        fetch        = lambda { |face| accumulators[face] ||= { :singles => [], :runs => [] } }
+        fetch        = lambda { |face| accumulators[face] ||= { :singles => [], :runs => [], :stops => [] } }
 
         targets.each_with_index do |target, index|
             solve          = solves[index]
             edge           = target[:edge]
             face_a, face_b = target[:faces]
 
-            fetch.call(face_a)[:singles] << [solve[:v0], solve[:a0]] << [solve[:v1], solve[:a1]]
-            fetch.call(face_b)[:singles] << [solve[:v0], solve[:b0]] << [solve[:v1], solve[:b1]]
+            [[edge.start, solve[:v0], solve[:v1], :profile0, 0],
+             [edge.end,   solve[:v1], solve[:v0], :profile1, 1]].each do |vertex, corner, partner, profile_key, end_index|
+                profile = solve[profile_key]
 
-            [[edge.start, solve[:v0], solve[:profile0], solve[:mitre0]],
-             [edge.end,   solve[:v1], solve[:profile1], solve[:mitre1]]].each do |vertex, corner, profile, mitred|
-                next if mitred
+                if solve[end_index.zero? ? :stop0 : :stop1]
+                    fetch.call(face_a)[:stops] << [corner, partner, profile.first]
+                    fetch.call(face_b)[:stops] << [corner, partner, profile.last]
+                    next
+                end
+
+                fetch.call(face_a)[:singles] << [corner, profile.first]
+                fetch.call(face_b)[:singles] << [corner, profile.last]
+                next if solve[end_index.zero? ? :mitre0 : :mitre1] || solve[end_index.zero? ? :through0 : :through1]
 
                 (vertex.faces - [face_a, face_b]).each do |end_face|
                     fetch.call(end_face)[:runs] << [corner, profile]
@@ -502,10 +760,16 @@ module Na__InsertPrimatives
         end
 
         accumulators.map do |face, subs|
+            subs[:stops].each do |corner, _, _|
+                clash = subs[:singles].any? { |other, _| Na__InsertPrimatives.Na__DrawnChamfer__SamePoint?(other, corner) }
+                raise 'a stopped end meets another cut at the same corner — do these edges separately' if clash
+            end
+
             plan = Na__InsertPrimatives.Na__ProfileSweep__RebuildPlan(
                 face,
                 Na__InsertPrimatives.Na__DrawnChamfer__MergeSingles(subs[:singles]),
-                subs[:runs]
+                subs[:runs],
+                subs[:stops]
             )
             plan[:entities] = face.parent.respond_to?(:entities) ? face.parent.entities : nil
             plan
@@ -548,6 +812,7 @@ module Na__InsertPrimatives
 
         targets.each_index do |index|
             Na__InsertPrimatives.Na__ProfileSweep__AddMoulding(entity_set[index], solves[index], dress[index], build_transform)
+            Na__InsertPrimatives.Na__ProfileSweep__AddStops(entity_set[index], solves[index], dress[index], build_transform)
         end
 
         true

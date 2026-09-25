@@ -24,7 +24,7 @@ function check(value, message) { assert.ok(value, message); checks++; }
       window.__requests = [];
       window.__autoAck = true;
       window.__state = { settings: fixtures.hedge.settings, session: 'test-session', context: 1,
-        target_id: null, target_name: null, limit: 80000, placing: false, live: true, revision: null, tree_types: fixtures.tree_types };
+        target_id: null, target_name: null, limit: 80000, placing: false, live: true, revision: null, tree_types: fixtures.tree_types, shrub_types: fixtures.shrub_types };
       window.__respond = request => {
         const state = window.__state;
         if (request.payload.settings) state.settings = request.payload.settings;
@@ -37,11 +37,17 @@ function check(value, message) { assert.ok(value, message); checks++; }
           state.settings = { ...window.__fixtures[request.payload.tree_type === 'generic' ? 'tree' : request.payload.tree_type].settings,
             seed: previous.seed, smooth: previous.smooth, vary: previous.vary };
         }
+        if (request.action === 'shrub_type') {
+          const previous = state.settings;
+          state.settings = { ...window.__fixtures[request.payload.shrub_type === 'generic' ? 'shrub' : request.payload.shrub_type].settings,
+            seed: previous.seed, smooth: previous.smooth, vary: previous.vary };
+        }
         if (request.action === 'start') { state.placing = true; state.context++; state.target_id = null; }
         if (request.action === 'stop') state.placing = false;
         state.revision = request.revision;
         Na__VegetationSketcher__Receive('state', state);
-        const type = state.settings.preset === 'tree' && state.settings.tree_type !== 'generic' ? state.settings.tree_type : state.settings.preset;
+        const type = state.settings.preset === 'tree' && state.settings.tree_type !== 'generic' ? state.settings.tree_type
+          : state.settings.preset === 'shrub' && state.settings.shrub_type !== 'generic' ? state.settings.shrub_type : state.settings.preset;
         Na__VegetationSketcher__Receive('preview', window.__fixtures[type].mesh);
         Na__VegetationSketcher__Receive('ack', { id: request.id, success: true });
       };
@@ -211,6 +217,110 @@ function check(value, message) { assert.ok(value, message); checks++; }
     await page.locator('#naVegetation_btnStop').click();
     await page.waitForFunction(() => document.getElementById('naVegetation_btnStop').hidden);
     check(errors.length === 0, 'no browser errors during debounced editing: ' + errors.join(', '));
+    await page.locator('[data-preset="shrub"]').click();
+    await page.waitForFunction(() => !document.getElementById('naVegetation_selShrubType').disabled);
+    const cards = [];
+    for (const type of ['spreading','cushion','rounded','loose','upright','arching']) {
+      await page.locator('#naVegetation_selShrubType').selectOption(type);
+      await page.waitForFunction(type => window.__state.settings.shrub_type === type, type);
+      check(await page.locator('#naVegetation_inpHeight').inputValue() === String(fixtures[type].settings.height), type + ' loads height');
+      check(await page.evaluate(() => Array.from(document.querySelectorAll('[data-option]')).filter(e => !e.disabled).every(e => e.checkValidity())), type + ' inputs valid');
+      check((await page.locator('#naVegetation_shrubInfo').textContent()).length > 20, type + ' describes planting role');
+      const preview = await page.locator('#naVegetation_canvasPreview').evaluate(c => c.toDataURL());
+      await page.evaluate(type => Na__VegetationSketcher__Receive('preview', window.__fixtures[type].variant), type);
+      const variant = await page.locator('#naVegetation_canvasPreview').evaluate(c => c.toDataURL());
+      cards.push({ name: fixtures.shrub_types[type].name, height: fixtures[type].settings.height, preview, variant });
+    }
+    await page.locator('#naVegetation_btnStart').click();
+    await page.waitForFunction(() => window.__state.placing);
+    check(await page.evaluate(() => window.__requests.at(-1).payload.settings.shrub_type === 'arching'), 'plant carries chosen shrub type');
+    await page.locator('#naVegetation_btnStop').click();
+    await page.waitForFunction(() => !window.__state.placing);
+    await page.locator('[data-preset="tree"]').click();
+    await page.waitForFunction(() => window.__state.settings.preset === 'tree');
+    check(await page.locator('#naVegetation_selShrubType').isDisabled(), 'shrub selector hidden and disabled outside shrub preset');
+    check(errors.length === 0, 'no errors in shrub controls');
+    const sheet = await browser.newPage({ viewport: { width: 1380, height: 920 } });
+    await sheet.setContent('<html><head><style>body{font:15px Arial;background:#edf0f3;margin:24px;color:#253044}h1{font-size:24px}main{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}article{background:white;padding:16px;border:1px solid #d8dfe6;border-radius:6px}h2{font-size:17px;margin:0 0 5px}p{margin:0;color:#687789}img{width:50%;margin-top:10px}</style></head><body><h1>Noble whitecard planting-bed shrubs</h1><p>Actual mesh previews · two seeds per form · previews fitted individually</p><main></main></body></html>');
+    await sheet.evaluate(cards => {
+      const main=document.querySelector('main');
+      cards.forEach(card => { const article=document.createElement('article'); const h=document.createElement('h2'); h.textContent=card.name; const p=document.createElement('p'); p.textContent=card.height+' mm high'; article.append(h,p); [card.preview,card.variant].forEach(src=>{const img=document.createElement('img');img.src=src;article.append(img);});main.append(article); });
+    },cards);
+    await sheet.screenshot({path:path.join(__dirname,'shrubs-verified.png'),fullPage:true});
+    await sheet.close();
+    await page.locator('[data-preset="shrub"]').click();
+    await page.waitForFunction(() => window.__state.settings.preset === 'shrub');
+    const plantCards=[];
+    for (const type of ['daisy_clump','flower_spikes','umbel_clump','tuft_grass','fountain_grass','plume_grass']) {
+      await page.locator('#naVegetation_selShrubType').selectOption(type);
+      await page.waitForFunction(type => window.__state.settings.shrub_type === type,type);
+      check(await page.locator('#naVegetation_selPlantDetail').isVisible() && !await page.locator('#naVegetation_selPlantDetail').isDisabled(),type+' uses plant detail control');
+      check(await page.locator('#naVegetation_gridResolution').isHidden(),type+' hides canopy grid control');
+      check(await page.locator('#naVegetation_inpHeight').inputValue()===String(fixtures[type].settings.height),type+' loads correct height');
+      const preview=await page.locator('#naVegetation_canvasPreview').evaluate(c=>c.toDataURL());
+      plantCards.push({name:fixtures.shrub_types[type].name,height:fixtures[type].settings.height,quads:fixtures[type].mesh.requested_quads,preview});
+    }
+    await page.evaluate(()=>{window.__requests=[];});
+    await page.locator('#naVegetation_selPlantDetail').selectOption('low');
+    await page.waitForTimeout(300);
+    check(await page.evaluate(()=>window.__requests.length===0),'plant detail waits for the quiet period');
+    await page.waitForFunction(()=>window.__requests.some(r=>r.action==='options'&&r.payload.settings.plant_detail==='low'));
+    check(await page.evaluate(()=>window.__state.settings.plant_detail==='low'),'detail is serialized as a supported string');
+    await page.locator('#naVegetation_selPlantDetail').selectOption('high');
+    await page.locator('#naVegetation_btnStart').click();
+    await page.waitForFunction(()=>window.__state.placing);
+    check(await page.evaluate(()=>window.__requests.at(-1).payload.settings.plant_detail==='high'),'plant command carries the newest detail immediately');
+    await page.locator('#naVegetation_btnStop').click();
+    await page.waitForFunction(()=>!window.__state.placing);
+    await page.locator('#naVegetation_selShrubType').selectOption('rounded');
+    await page.waitForFunction(()=>window.__state.settings.shrub_type==='rounded');
+    check(await page.locator('#naVegetation_plantDetail').isHidden() && await page.locator('#naVegetation_selResolution').isVisible(),'returning to shrub restores quad resolution');
+    // Placement variation: its own debounced command, validated before planting.
+    await page.evaluate(()=>Na__VegetationSketcher__Receive('state',{...window.__state,placement:{enabled:true,scale_min:90,scale_max:110,height_min:95,height_max:105,rotation:360,lean:0},
+      placement_limits:{scale_min:[10,500],scale_max:[10,500],height_min:[25,400],height_max:[25,400],rotation:[0,360],lean:[0,30]}}));
+    check(await page.locator('#naVegetation_placementSection').isVisible() && await page.locator('#naVegetation_inpScaleMin').inputValue()==='90','placement ranges shown for plants and loaded from SketchUp');
+    await page.evaluate(()=>{window.__requests=[];});
+    await page.locator('#naVegetation_inpScaleMin').fill('70');
+    await page.locator('#naVegetation_inpLean').fill('6');
+    await page.waitForTimeout(300);
+    check(await page.evaluate(()=>window.__requests.length===0),'placement edits wait for the quiet period');
+    await page.waitForFunction(()=>window.__requests.some(r=>r.action==='placement'));
+    const placed=await page.evaluate(()=>window.__requests.filter(r=>r.action==='placement'));
+    check(placed.length===1&&placed[0].payload.placement.scale_min===70&&placed[0].payload.placement.lean===6&&placed[0].payload.placement.scale_max===110,'one placement command carries every range');
+    check(await page.evaluate(()=>!window.__requests.some(r=>r.action==='options')),'placement edits never send form options or touch selected vegetation');
+    await page.evaluate(()=>{window.__requests=[];});
+    await page.locator('#naVegetation_inpScaleMin').fill('150');
+    await page.locator('#naVegetation_btnStart').click();
+    check(await page.evaluate(()=>!window.__requests.some(r=>r.action==='start')),'an inverted size range blocks planting');
+    check((await page.locator('#naVegetation_status').textContent()).includes('Minimum size is above maximum size'),'the inverted range message names the fix');
+    await page.locator('#naVegetation_inpScaleMin').fill('80');
+    await page.locator('#naVegetation_btnStart').click();
+    await page.waitForFunction(()=>window.__state.placing);
+    const startPlacement=await page.evaluate(()=>window.__requests.find(r=>r.action==='start').payload.placement);
+    check(startPlacement&&startPlacement.scale_min===80&&startPlacement.enabled===true,'Plant carries the newest ranges immediately');
+    await page.locator('#naVegetation_btnStop').click();
+    await page.waitForFunction(()=>!window.__state.placing);
+    await page.locator('#naVegetation_chkPlacement').uncheck();
+    check(await page.locator('#naVegetation_inpScaleMin').isDisabled()&&await page.locator('#naVegetation_inpLean').isDisabled(),'turning variation off greys the ranges');
+    await page.waitForFunction(()=>window.__requests.some(r=>r.action==='placement'&&r.payload.placement.enabled===false));
+    await page.locator('#naVegetation_chkPlacement').check();
+    await page.evaluate(()=>{const body=document.querySelector('.naVegetation__Body');body.scrollTop=document.getElementById('naVegetation_placementSection').offsetTop-body.offsetTop-12;});
+    await page.screenshot({path:path.join(__dirname,'placement-verified.png')});
+    await page.locator('[data-preset="hedge"]').click();
+    await page.waitForFunction(()=>document.querySelector('[data-preset="hedge"]').getAttribute('aria-pressed')==='true');
+    check(await page.locator('#naVegetation_placementSection').isHidden(),'placement ranges hidden for hedges');
+    await page.evaluate(()=>{window.__requests=[];});
+    await page.locator('#naVegetation_btnStart').click();
+    await page.waitForFunction(()=>window.__requests.some(r=>r.action==='start'));
+    check(await page.evaluate(()=>!('placement' in window.__requests.find(r=>r.action==='start').payload)),'hedge Draw sends no placement ranges');
+    const plants=await browser.newPage({viewport:{width:1380,height:790}});
+    await plants.setContent('<html><head><style>body{font:15px Arial;background:#edf0f3;margin:22px;color:#253044}h1{font-size:24px;margin:0 0 6px}main{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:18px}article{background:white;padding:14px;border:1px solid #d8dfe6;border-radius:6px}h2{font-size:17px;margin:0 0 6px}p{margin:0;color:#687789}img{width:100%;margin-top:10px}</style></head><body><h1>Noble whitecard flowers &amp; grasses</h1><p>Actual generated meshes · Balanced detail · previews fitted individually</p><main></main></body></html>');
+    await plants.evaluate(cards=>{
+      cards.forEach(card=>{const box=document.createElement('article'),h=document.createElement('h2'),p=document.createElement('p'),img=document.createElement('img');h.textContent=card.name;p.textContent=card.height+' mm high · '+card.quads+' quads';img.src=card.preview;box.append(h,p,img);document.querySelector('main').append(box);});
+    },plantCards);
+    await plants.screenshot({path:path.join(__dirname,'flowers-grasses-verified.png'),fullPage:true});
+    await plants.close();
+    check(errors.length===0,'no browser errors in botanical plant controls: '+errors.join(', '));
     console.log(`PASS: ${checks} Chromium input, creation, selection and bridge checks.`);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -126,6 +126,15 @@ module Na__Noble3dModellingTools
             raise ArgumentError, 'Finish the active brush before changing scatter settings.' if @na_tool && action != 'finish'
             store = Na__VegetationSketcher__ScatterModel
             case action
+            when 'bed_mix', 'flower_mix'
+                flowers = action == 'flower_mix'
+                @na_sources = store.na_bed_sources(flowers ? 'flowers' : 'shrubs')
+                @na_options = Na__VegetationSketcher__ScatterCore.na_options('radius' => flowers ? 900 : 1200, 'spacing' => flowers ? 500 : 650, 'scale_min' => 90, 'scale_max' => 110, 'limit' => flowers ? 1000 : 1500)
+                @na_target = nil
+                @na_context += 1
+                # Do not reload a previously selected forest after loading a new mix.
+                @na_model.selection.clear
+                na_status((flowers ? 'Flowers and grasses' : 'Planting-bed') + ' mix loaded: six forms, two variations each. Adjust weights, then paint a new bed.')
             when 'capture'
                 @na_sources = store.na_capture(@na_model)
                 @na_target = nil
@@ -134,7 +143,7 @@ module Na__Noble3dModellingTools
             when 'paint'
                 na_apply(payload)
                 definitions = store.na_definitions(@na_model,@na_sources,@na_target)
-                @na_sources = @na_sources.each_with_index.map { |s,i| s.merge('definition_pid' => definitions[i].persistent_id) }
+                @na_sources = @na_sources.each_with_index.map { |s,i| s.merge('definition_pid' => definitions[i] && definitions[i].persistent_id) }
                 @na_target = nil
                 @na_context += 1
                 @na_tool = Na__VegetationSketcher__ScatterTool.new(@na_model,@na_options,@na_sources,self)

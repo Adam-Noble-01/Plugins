@@ -27,6 +27,16 @@ function check(value,message) { assert.ok(value,message); checks++; }
               s.sources=s.sources.map(source=>({...source,weight:r.payload.weights[source.key]}));
             }
             if(r.action==='capture') { s.context++; s.sources=[{key:'10',name:'Douglas fir',weight:100},{key:'11',name:'<Oak & shrub>',weight:100}]; }
+            if(r.action==='bed_mix') {
+              s.context++; s.target_id=null;
+              s.options={...s.options,radius:1200,spacing:650,scale_min:90,scale_max:110,limit:1500};
+              s.sources=['spreading','cushion','rounded','loose','upright','arching'].flatMap((type,i)=>[1,2].map(v=>({key:type+v,name:type+' '+v,weight:[15,20,25,20,10,10][i]/2})));
+            }
+            if(r.action==='flower_mix') {
+              s.context++; s.target_id=null;
+              s.options={...s.options,radius:900,spacing:500,scale_min:90,scale_max:110,limit:1000};
+              s.sources=['daisy_clump','flower_spikes','umbel_clump','tuft_grass','fountain_grass','plume_grass'].flatMap((type,i)=>[1,2].map(v=>({key:type+v,name:type+' '+v,weight:[25,20,15,20,15,5][i]/2})));
+            }
             if(r.action==='paint') { s.painting=true; s.target_id=null; s.context++; }
             if(r.action==='finish') { s.painting=false; s.target_id='500'; s.count=123; s.context++; }
             if(r.action==='variation') s.options.seed++;
@@ -80,6 +90,27 @@ function check(value,message) { assert.ok(value,message); checks++; }
     await page.locator('#naScatter_variation').click();
     await page.waitForFunction(()=>window.scatterState.options.seed===12346);
     check(await page.locator('[data-scatter="seed"]').inputValue()==='12346','new variation loads acknowledged seed');
+    await page.locator('#naScatter_bed_mix').click();
+    await page.waitForFunction(()=>document.querySelectorAll('[data-weight]').length===12 && !document.querySelector('#naScatter_paint').disabled);
+    check(await page.locator('[data-scatter="radius"]').inputValue()==='1200' && await page.locator('[data-scatter="spacing"]').inputValue()==='650','bed mix loads smaller brush and spacing');
+    check(await page.locator('#naScatter_regenerate').isDisabled(),'loading bed mix releases existing forest target');
+    check(await page.locator('[data-weight]').count()===12,'two variations of all six shrub types can be weighted');
+    await page.locator('[data-weight="spreading1"]').fill('0');
+    await page.locator('#naScatter_paint').click();
+    await page.waitForFunction(()=>window.scatterState.painting && !document.querySelector('#naScatter_finish').disabled);
+    check(await page.evaluate(()=>window.requests.at(-1).payload.weights.spreading1===0 && Object.keys(window.requests.at(-1).payload.weights).length===12),'bed painting forwards edited probabilities');
+    check(await page.locator('#naScatter_bed_mix').isDisabled(),'cannot replace source recipes during a stroke');
+    check(await page.locator('#naScatter_flower_mix').isDisabled(),'cannot load flowers during an active stroke');
+    await page.locator('#naScatter_finish').click();
+    await page.waitForFunction(()=>!document.querySelector('#naScatter_flower_mix').disabled);
+    await page.locator('#naScatter_flower_mix').click();
+    await page.waitForFunction(()=>document.querySelector('[data-weight="daisy_clump1"]') && !document.querySelector('#naScatter_paint').disabled);
+    check(await page.locator('[data-weight]').count()===12 && await page.locator('[data-scatter="spacing"]').inputValue()==='500','flowers and grasses mix loads twelve sources and closer spacing');
+    check(await page.locator('#naScatter_regenerate').isDisabled(),'new flower mix does not overwrite a selected forest');
+    await page.locator('[data-weight="plume_grass1"]').fill('0');
+    await page.locator('#naScatter_paint').click();
+    await page.waitForFunction(()=>window.scatterState.painting && !document.querySelector('#naScatter_finish').disabled);
+    check(await page.evaluate(()=>window.requests.at(-1).payload.weights.plume_grass1===0 && window.requests.at(-1).payload.options.radius===900),'flower painting passes edited weights and brush settings');
     check(errors.length===0,'no browser runtime errors: '+errors.join(', '));
     console.log(`PASS: ${checks} scatter browser controls and bridge checks.`);
   } finally { await browser.close(); }

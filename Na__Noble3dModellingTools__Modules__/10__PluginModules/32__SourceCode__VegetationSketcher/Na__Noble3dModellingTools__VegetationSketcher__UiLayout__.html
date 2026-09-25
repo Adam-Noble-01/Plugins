@@ -69,7 +69,7 @@ JS -> RUBY : sketchup.na_dialog_ready / na_event
           </button>
           <button type="button" class="naVegetation__Preset" data-preset="shrub" aria-pressed="false">
             <svg viewBox="0 0 60 42" aria-hidden="true"><path d="m5 28 6-13 16-7 17 4 11 13-4 11-24 4-18-4Z M27 8l-7 18 7 14 15-16 2-12 M5 28l15-2 22-2 13 1"/></svg>
-            <b>Shrub</b><span>Place a low form</span>
+            <b>Planting</b><span>Shrubs, flowers &amp; grass</span>
           </button>
         </div>
       </section>
@@ -88,8 +88,37 @@ JS -> RUBY : sketchup.na_dialog_ready / na_event
       </section>
 
       <section class="naVegetation__Group">
-        <button id="naVegetation_btnScatter" class="naVegetation__Btn" type="button">Scatter trees &amp; shrubs</button>
+        <button id="naVegetation_btnScatter" class="naVegetation__Btn" type="button">Scatter vegetation</button>
         <p class="naVegetation__Hint">Mix selected items by probability and brush parametric forests onto surfaces.</p>
+      </section>
+
+      <section class="naVegetation__Group" data-for="shrub" id="naVegetation_shrubTypeSection" hidden>
+        <label class="naVegetation__Row" for="naVegetation_selShrubType"><span>Plant type</span>
+          <select id="naVegetation_selShrubType" disabled>
+            <optgroup label="Shrubs">
+            <option value="generic">Generic shrub</option>
+            <option value="spreading">Low spreading</option>
+            <option value="cushion">Compact cushion</option>
+            <option value="rounded">Rounded shrub</option>
+            <option value="loose">Loose flowering form</option>
+            <option value="upright">Upright shrub</option>
+            <option value="arching">Arching shrub</option>
+            </optgroup>
+            <optgroup label="Flowers">
+              <option value="daisy_clump">Daisy-like clump</option>
+              <option value="flower_spikes">Flower spikes</option>
+              <option value="umbel_clump">Flat flower clusters</option>
+            </optgroup>
+            <optgroup label="Grasses">
+              <option value="tuft_grass">Compact tuft grass</option>
+              <option value="fountain_grass">Fountain grass</option>
+              <option value="plume_grass">Plumed grass</option>
+            </optgroup>
+          </select>
+        </label>
+        <p class="naVegetation__Hint" id="naVegetation_shrubInfo"></p>
+        <p class="naVegetation__Hint" id="naVegetation_shrubScale"></p>
+        <p class="naVegetation__Hint">New variation changes the form at the same size. Scatter includes shrub and flowers-and-grasses mixes with two variations of each form.</p>
       </section>
 
       <section class="naVegetation__Group naVegetation__Group--preview">
@@ -144,7 +173,7 @@ JS -> RUBY : sketchup.na_dialog_ready / na_event
 
       <section class="naVegetation__Group">
         <h2 class="naVegetation__GroupTitle">Mesh &amp; form</h2>
-        <label class="naVegetation__Row">
+        <label class="naVegetation__Row" id="naVegetation_gridResolution">
           <span>Quad resolution</span>
           <select id="naVegetation_selResolution" data-option="resolution">
             <option>10</option>
@@ -157,17 +186,25 @@ JS -> RUBY : sketchup.na_dialog_ready / na_event
           </select>
           <span class="naVegetation__Hint">mm</span>
         </label>
+        <label class="naVegetation__Row" id="naVegetation_plantDetail" hidden>
+          <span>Plant detail</span>
+          <select id="naVegetation_selPlantDetail" disabled>
+            <option value="low">Light</option>
+            <option value="medium" selected>Balanced</option>
+            <option value="high">Fuller</option>
+          </select>
+        </label>
         <div class="naVegetation__Modifier">
           <label for="naVegetation_rngSoften"><b>1</b> <span id="naVegetation_softenLabel">Soften corners</span></label>
           <output id="naVegetation_softenValue">45%</output>
         </div>
         <input id="naVegetation_rngSoften" data-option="soften" type="range" min="0" max="100" step="any" value="45" />
         <div class="naVegetation__Modifier">
-          <label for="naVegetation_rngRandom"><b>2</b> Randomise XYZ</label>
+          <label for="naVegetation_rngRandom"><b>2</b> <span id="naVegetation_randomLabel">Randomise XYZ</span></label>
           <output id="naVegetation_randomValue">55 mm</output>
         </div>
         <input id="naVegetation_rngRandom" data-option="random" type="range" min="0" max="500" step="any" value="55" />
-        <p class="naVegetation__Hint">Round the form first, then add organic variation. The base stays grounded.</p>
+        <p class="naVegetation__Hint" id="naVegetation_formHint">Round the form first, then add organic variation. The base stays grounded.</p>
         <label class="naVegetation__Check">
           <input id="naVegetation_chkSmooth" data-option="smooth" type="checkbox" checked />
           <span>Smooth model shading <small>40.3&deg; softening with smooth normals and coplanar edges. Off restores facets.</small></span>
@@ -181,6 +218,44 @@ JS -> RUBY : sketchup.na_dialog_ready / na_event
           <input id="naVegetation_chkVary" data-option="vary" type="checkbox" checked />
           <span>Vary each new planting</span>
         </label>
+      </section>
+
+      <section class="naVegetation__Group" data-for="plant" id="naVegetation_placementSection" hidden>
+        <div class="naVegetation__GroupHeader">
+          <h2 class="naVegetation__GroupTitle">Placement variation</h2>
+          <span class="naVegetation__Hint">like Scatter</span>
+        </div>
+        <label class="naVegetation__Check naVegetation__Check--first">
+          <input id="naVegetation_chkPlacement" data-placement="enabled" type="checkbox" checked />
+          <span>Randomise each placement <small>Every click rolls a new size, height, turn and lean within these ranges.</small></span>
+        </label>
+        <div class="naVegetation__Fields naVegetation__Fields--spaced" id="naVegetation_placementFields">
+          <label>
+            Minimum size · %
+            <input id="naVegetation_inpScaleMin" data-placement="scale_min" type="number" min="10" max="500" step="any" value="90" />
+          </label>
+          <label>
+            Maximum size · %
+            <input id="naVegetation_inpScaleMax" data-placement="scale_max" type="number" min="10" max="500" step="any" value="110" />
+          </label>
+          <label>
+            Minimum height stretch · %
+            <input id="naVegetation_inpHeightMin" data-placement="height_min" type="number" min="25" max="400" step="any" value="95" />
+          </label>
+          <label>
+            Maximum height stretch · %
+            <input id="naVegetation_inpHeightMax" data-placement="height_max" type="number" min="25" max="400" step="any" value="105" />
+          </label>
+          <label>
+            Random rotation · degrees
+            <input id="naVegetation_inpRotation" data-placement="rotation" type="number" min="0" max="360" step="any" value="360" />
+          </label>
+          <label>
+            Maximum lean · degrees
+            <input id="naVegetation_inpLean" data-placement="lean" type="number" min="0" max="30" step="any" value="0" />
+          </label>
+        </div>
+        <p class="naVegetation__Hint" id="naVegetation_placementHint">Size scales the whole plant; height stretch adds to it vertically. 100% keeps the dimensions above, which stay the saved base size. The viewport preview shows the next roll; R rolls again.</p>
       </section>
 
     </main>

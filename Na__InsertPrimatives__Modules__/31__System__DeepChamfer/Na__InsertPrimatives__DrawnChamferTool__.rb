@@ -184,7 +184,7 @@ module Na__InsertPrimatives
                 return false
             end
 
-            unless na_drawn__solve_cut(target, 1.0)
+            unless na_drawn__solve_member(target, 1.0)
                 UI.beep
                 Sketchup::set_status_text("These faces are too close to flat for #{na_drawn__cut_phrase}", SB_PROMPT)
                 return false
@@ -273,6 +273,27 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Solve One Member of the Cut: Its Shape, Then Its Stops
+        # Every solve the drag, the bank check and the commit ask for comes
+        # through here, so a stop at a section applies to whichever tool is
+        # cutting — see the Stops region of Na__InsertPrimatives__DrawnProfile-
+        # Sweep__.rb. The batch being cut tells a stop from a through joint: an
+        # arris carrying on into another banked edge is not stopped at all.
+        # ------------------------------------------------------------
+        def na_drawn__solve_member(target, setback)
+            Na__InsertPrimatives.Na__ProfileSweep__ApplyStops(
+                target, na_drawn__solve_cut(target, setback), na_drawn__batch_edges
+            )
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Edges Being Cut Together
+        # ------------------------------------------------------------
+        def na_drawn__batch_edges
+            (@na_ch_batch || []).map { |member| member[:edge] }
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Read the Drag's Travel Along the Bisector as a Size
         # The chord crosses the bisector at t = d * cos_half, so this puts the
         # cut plane under the cursor. A profile tool whose curve crosses the
@@ -284,15 +305,24 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Mitre Every Shared Corner of a Solved Batch
+        # A batch with a stopped or through end goes to the profile sweep, which
+        # knows to leave those ends alone; every other batch keeps the chamfer's
+        # own mitres, three-way corners included.
         # ------------------------------------------------------------
         def na_drawn__mitre_cuts(targets, solves)
+            return Na__InsertPrimatives.Na__ProfileSweep__MitreBatch(targets, solves) if na_drawn__any_stopped?(solves)
+
             Na__InsertPrimatives.Na__DrawnChamfer__MitreBatch(targets, solves)
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Plan Every Face a Single Cut Touches
+        # A stopped chamfer is the two-point profile [a, b] swept by the profile
+        # sweep, which plans the stop; an ordinary one keeps the chamfer planner.
         # ------------------------------------------------------------
         def na_drawn__plan_cut(target, solve)
+            return Na__InsertPrimatives.Na__ProfileSweep__BuildPlans(target, solve) if Na__InsertPrimatives.Na__ProfileSweep__Stopped?(solve)
+
             Na__InsertPrimatives.Na__DrawnChamfer__BuildPlans(target, solve)
         end
         # ---------------------------------------------------------------
@@ -300,6 +330,10 @@ module Na__InsertPrimatives
         # FUNCTION | Erase and Rebuild a Single Cut
         # ------------------------------------------------------------
         def na_drawn__build_cut(entities, target, solve, plans, build_transform)
+            if Na__InsertPrimatives.Na__ProfileSweep__Stopped?(solve)
+                return Na__InsertPrimatives.Na__ProfileSweep__Build(entities, target, solve, plans, build_transform)
+            end
+
             Na__InsertPrimatives.Na__DrawnChamfer__Build(entities, target, solve, plans, build_transform)
         end
         # ---------------------------------------------------------------
@@ -307,14 +341,29 @@ module Na__InsertPrimatives
         # FUNCTION | Plan Every Face a Batch Group Touches
         # ------------------------------------------------------------
         def na_drawn__plan_group(targets, solves)
+            return Na__InsertPrimatives.Na__ProfileSweep__BuildGroupPlans(targets, solves) if na_drawn__any_stopped?(solves)
+
             Na__InsertPrimatives.Na__DrawnChamfer__BuildGroupPlans(targets, solves)
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Erase and Rebuild a Whole Batch Group
+        # Routed by the same test as the plan, so plans are always built by the
+        # builder that made them.
         # ------------------------------------------------------------
         def na_drawn__build_group(model, targets, solves, plans, build_transform)
+            if na_drawn__any_stopped?(solves)
+                return Na__InsertPrimatives.Na__ProfileSweep__BuildGroup(model, targets, solves, plans, build_transform)
+            end
+
             Na__InsertPrimatives.Na__DrawnChamfer__BuildGroup(model, targets, solves, plans, build_transform)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Does Any Solve in a Batch Stop or Run Through at an End?
+        # ------------------------------------------------------------
+        def na_drawn__any_stopped?(solves)
+            solves.any? { |solve| Na__InsertPrimatives.Na__ProfileSweep__Stopped?(solve) }
         end
         # ---------------------------------------------------------------
 
@@ -545,7 +594,7 @@ module Na__InsertPrimatives
             return unless @na_ch_target && @na_size_d.to_f > 0.0
 
             if @na_ch_batch.length <= 1
-                @na_ch_solve = na_drawn__solve_cut(@na_ch_target, @na_size_d)
+                @na_ch_solve = na_drawn__solve_member(@na_ch_target, @na_size_d)
                 return
             end
 
@@ -555,7 +604,7 @@ module Na__InsertPrimatives
             # A refusal here does not kill the drag: the preview falls back to
             # the unmitred shapes and the note explains what commit will say.
             all_solves = @na_ch_batch.map do |member|
-                na_drawn__solve_cut(member, @na_size_d)
+                na_drawn__solve_member(member, @na_size_d)
             end
 
             @na_ch_solve = all_solves[0]
@@ -647,7 +696,7 @@ module Na__InsertPrimatives
                 return false
             end
 
-            probe = na_drawn__solve_cut(target, 1.0)
+            probe = na_drawn__solve_member(target, 1.0)
             unless probe
                 UI.beep
                 Sketchup::set_status_text("These faces are too close to flat for #{na_drawn__cut_phrase}", SB_PROMPT)
@@ -946,26 +995,55 @@ module Na__InsertPrimatives
                 view, [world[:v0], world[:v1], world[:b1], world[:b0]],
                 NA_DRAWN_PLANE_FILL_COLOR, NA_DRAWN_PLANE_BORDER_COLOR
             )
-            # A mitred end has no cap — the two chamfer planes meet along the
-            # mitre line instead, so its triangle would just stab through the
-            # partner's preview (exactly the artefact reported).
-            unless solve[:mitre0]
-                Na__InsertPrimatives.Na__DrawnPreview__DrawFilledPolygon(
-                    view, [world[:v0], world[:a0], world[:b0]],
-                    NA_DRAWN_PLANE_FILL_COLOR, NA_DRAWN_PLANE_BORDER_COLOR
-                )
-            end
-            unless solve[:mitre1]
-                Na__InsertPrimatives.Na__DrawnPreview__DrawFilledPolygon(
-                    view, [world[:v1], world[:a1], world[:b1]],
-                    NA_DRAWN_PLANE_FILL_COLOR, NA_DRAWN_PLANE_BORDER_COLOR
-                )
-            end
+            na_drawn__draw_end_cap(view, solve, 0, [world[:v0], world[:a0], world[:b0]])
+            na_drawn__draw_end_cap(view, solve, 1, [world[:v1], world[:a1], world[:b1]])
 
             Na__InsertPrimatives.Na__DrawnPreview__DrawFilledPolygon(
                 view, Na__InsertPrimatives.Na__DrawnChamfer__FaceLoopWorld(solve),
                 NA_DRAWN_VOLUME_FILL_COLOR, NA_DRAWN_VOLUME_BORDER_COLOR
             )
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Draw One End of a Cut: the Removed Cap, the Stop, or Nothing
+        # ------------------------------------------------------------
+        # A mitred end has no cap — the two cuts meet along the mitre line, so a
+        # triangle would just stab through the partner's preview (exactly the
+        # artefact once reported) — and neither has a through end, where the cut
+        # carries straight on into the next banked piece. An ordinary end shows
+        # the corner it removes, in the plane blue. A STOPPED end's cap is the
+        # stop itself: new surface, so it is drawn in the cut's amber. points is
+        # the corner then the profile, a fan from the corner either way.
+        # ------------------------------------------------------------
+        def na_drawn__draw_end_cap(view, solve, end_index, points)
+            return if solve[end_index.zero? ? :mitre0 : :mitre1] || solve[end_index.zero? ? :through0 : :through1]
+
+            stopped = solve[end_index.zero? ? :stop0 : :stop1]
+            Na__InsertPrimatives.Na__DrawnPreview__DrawFilledPolygon(
+                view, points,
+                stopped ? NA_DRAWN_VOLUME_FILL_COLOR   : NA_DRAWN_PLANE_FILL_COLOR,
+                stopped ? NA_DRAWN_VOLUME_BORDER_COLOR : NA_DRAWN_PLANE_BORDER_COLOR
+            )
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Summary Card's Line About Stops, or nil
+        # ------------------------------------------------------------
+        def na_drawn__stop_summary(solve)
+            return nil unless solve && (solve[:stop0] || solve[:stop1])
+
+            ends = (solve[:stop0] && solve[:stop1]) ? 'both ends' : 'one end'
+            "stopped at #{ends} · #{Na__InsertPrimatives.Na__DrawnFormat__Mm(solve[:stop_length_world]).abs} mm stops"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Status Line's Word About Stops, or ''
+        # ------------------------------------------------------------
+        def na_drawn__stop_note
+            solve = @na_ch_solve
+            return '' unless solve && (solve[:stop0] || solve[:stop1])
+
+            (solve[:stop0] && solve[:stop1]) ? ' (stopped both ends)' : ' (stopped one end)'
         end
         # ---------------------------------------------------------------
 
@@ -1010,6 +1088,9 @@ module Na__InsertPrimatives
                 summary_lines << "cutting #{@na_ch_batch_solves.length + 1} of #{@na_ch_batch.length} edges together"
             end
 
+            stop_line = na_drawn__stop_summary(solve)
+            summary_lines << stop_line if stop_line
+
             Na__InsertPrimatives.Na__DrawnPreview__DrawWorldLabel(view, world[:a1], summary_lines)
         end
         # ---------------------------------------------------------------
@@ -1028,7 +1109,7 @@ module Na__InsertPrimatives
                 setback = Na__InsertPrimatives.Na__DrawnFormat__Mm(@na_size_d).abs
                 text    = na_drawn__locked?(:d) ? "[#{setback}]" : setback.to_s
                 return "Chamfer #{text} mm — CORNER PROBLEM: #{@na_ch_mitre_note}" if @na_ch_mitre_note
-                return "Chamfer #{text} mm — release or click to cut"
+                return "Chamfer #{text} mm#{na_drawn__stop_note} — release or click to cut"
             end
 
             adjust = na_revise__status_hint
@@ -1115,7 +1196,7 @@ module Na__InsertPrimatives
 
             return na_drawn__commit_batch(view, @na_ch_batch) if @na_ch_batch.length > 1
 
-            solve = na_drawn__solve_cut(target, @na_size_d)
+            solve = na_drawn__solve_member(target, @na_size_d)
             unless solve
                 UI.beep
                 Sketchup::set_status_text("This #{na_drawn__cut_title.downcase} cannot be solved here", SB_PROMPT)
@@ -1229,7 +1310,7 @@ module Na__InsertPrimatives
                             :face_count     => faces.length,
                             :transformation => (xform_now || member[:transformation])
                         )
-                        solve = na_drawn__solve_cut(fresh, @na_size_d)
+                        solve = na_drawn__solve_member(fresh, @na_size_d)
                         raise 'an edge could not be solved at this setback' unless solve
 
                         working      << fresh
@@ -1318,6 +1399,7 @@ module Na__InsertPrimatives
             Na__InsertPrimatives.Na__Debug__Puts "Setback: #{Na__InsertPrimatives.Na__DrawnFormat__Mm(@na_size_d).abs}mm each face"
             Na__InsertPrimatives.Na__Debug__Puts "Face   : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(solve[:width_world]).abs}mm wide at #{Na__InsertPrimatives.Na__DrawnFormat__Degrees(solve[:face_angle_deg])} deg"
             Na__InsertPrimatives.Na__Debug__Puts "Edge   : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(solve[:edge_len_world]).abs}mm long"
+            Na__InsertPrimatives.Na__Debug__Puts "Stops  : #{na_drawn__stop_summary(solve)}" if na_drawn__stop_summary(solve)
             Na__InsertPrimatives.Na__Debug__Puts "Instances affected: #{target[:shared_count]}"
             Na__InsertPrimatives.Na__Debug__Puts "Grid   : #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
             Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'

@@ -5,13 +5,16 @@
 # FILE       : Na__Noble3dModellingTools__VegetationSketcher__Tool__.rb
 # NAMESPACE  : Na__Noble3dModellingTools::Na__VegetationSketcher__PlacementTool
 # AUTHOR     : Adam Noble - Noble Architecture
-# PURPOSE    : Click-to-plant trees and shrubs, and a simple two-point hedge
+# PURPOSE    : Click-to-plant trees and shrubs with optional random size,
+#              height stretch, turn and lean; and a simple two-point hedge
 # CREATED    : 2026
 #
 # SketchUp Tool API names stay unprefixed. Instance helpers use na_*.
 # View drawing, InputPoints and pick rays are always global.
 #
 # =============================================================================
+
+require_relative 'Na__Noble3dModellingTools__VegetationSketcher__Placement__'
 
 module Na__Noble3dModellingTools
 
@@ -23,13 +26,15 @@ module Na__Noble3dModellingTools
 
         attr_reader :na_model, :na_preview_data
 
-        def initialize(options, owner)
+        def initialize(options, owner, placement = nil)
             @na_options = options.dup
             @na_owner = owner
             @na_model = Sketchup.active_model
             @na_edit_path = @na_model.active_path
             @na_input = Sketchup::InputPoint.new
             @na_anchor_input = Sketchup::InputPoint.new
+            @na_placement = placement
+            na_reroll
         end
 
 # endregion -------------------------------------------------------------------
@@ -90,11 +95,34 @@ module Na__Noble3dModellingTools
             @na_model.active_view.invalidate
         end
 
+        # Placement ranges are separate from form options: they never rebuild
+        # the mesh or touch saved vegetation, only the next plant's transform.
+        def na_update_placement(placement)
+            @na_placement = placement
+            na_reroll
+            na_refresh_preview
+            na_status
+            @na_model.active_view.invalidate
+        end
+
+        def na_varied?
+            @na_options['preset'] != 'hedge' && !!(@na_placement && @na_placement['enabled'])
+        end
+
+        def na_reroll
+            @na_roll = Na__VegetationSketcher__Placement.Na__VegetationSketcher__Placement__Roll(na_varied? ? @na_placement : nil)
+            @na_progress_key = nil
+        end
+
+        def na_roll_text
+            na_varied? ? ' Next: ' + Na__VegetationSketcher__Placement.Na__VegetationSketcher__Placement__Describe(@na_roll) + '.' : ''
+        end
+
         def na_status
             text = if @na_options['preset'] == 'hedge'
                        @na_anchor ? 'Pick the hedge end or release the drag. Type a length. Left/Right: lock axis. Esc: cancel.' : 'Click and drag a hedgerow, or click its start and end. Left/Right: lock axis. R: new variation.'
                    else
-                       'Click to plant a whitecard ' + Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__Label(@na_options) + '. Repeat to plant more. R: new variation. Esc: finish.'
+                       'Click to plant a whitecard ' + Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__Label(@na_options) + '. Repeat to plant more. R: new variation.' + na_roll_text + ' Esc: finish.'
                    end
             Sketchup.status_text = text
             Sketchup.set_status_text(@na_options['preset'] == 'hedge' ? 'Length' : '', SB_VCB_LABEL)
@@ -129,7 +157,11 @@ module Na__Noble3dModellingTools
                 transform = Geom::Transformation.axes(@na_anchor, xaxis, Z_AXIS.cross(xaxis), Z_AXIS)
                 [transform, @na_anchor.distance(@na_cursor) * 25.4]
             elsif @na_options['preset'] != 'hedge' && @na_cursor
-                [Geom::Transformation.translation(@na_cursor.to_a), nil]
+                if na_varied?
+                    [Geom::Transformation.new(Na__VegetationSketcher__Placement.Na__VegetationSketcher__Placement__Matrix(@na_cursor, @na_roll)), nil]
+                else
+                    [Geom::Transformation.translation(@na_cursor.to_a), nil]
+                end
             end
         end
 
@@ -142,8 +174,8 @@ module Na__Noble3dModellingTools
             group = Na__VegetationSketcher__Builder.Na__VegetationSketcher__Builder__Create(@na_model, @na_options, *location)
             @na_owner.na_created(group)
             @na_anchor = nil
-            @na_progress_key = nil
             @na_mesh_key = nil
+            na_reroll
             @na_owner.na_new_variation if @na_options['vary']
             na_refresh_preview
             na_status
@@ -212,7 +244,9 @@ module Na__Noble3dModellingTools
             when 39 then @na_axis = @na_axis == :x ? nil : :x
             when 37 then @na_axis = @na_axis == :y ? nil : :y
             when 40 then @na_axis = nil
-            when 82 then @na_owner.na_new_variation
+            when 82
+                na_reroll
+                @na_owner.na_new_variation
             else return false
             end
             if @na_anchor && @na_cursor && @na_axis
@@ -286,7 +320,8 @@ module Na__Noble3dModellingTools
 
             @na_progress_key = progress_key
             count = length ? Na__VegetationSketcher__Mesh.Na__VegetationSketcher__Mesh__Count(Na__VegetationSketcher__Mesh.Na__VegetationSketcher__Mesh__Dimensions(@na_options, length), @na_options['resolution']) : @na_data[:requested_quads]
-            @na_owner.na_tool_progress(length, 'Click or release to create', count)
+            phase = na_varied? ? 'Next plant ' + Na__VegetationSketcher__Placement.Na__VegetationSketcher__Placement__Describe(@na_roll) : 'Click or release to create'
+            @na_owner.na_tool_progress(length, phase, count)
         end
 
         def draw(view)

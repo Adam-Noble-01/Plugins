@@ -60,7 +60,7 @@ module Na__Noble3dModellingTools
             3.times do |axis|
                 low, high = points.map { |p| p[axis] }.minmax
                 span = high - low
-                raise ArgumentError, 'Tree dimensions collapsed. Increase the tree size.' if span <= 1.0e-8
+                raise ArgumentError, 'Vegetation dimensions collapsed. Increase the size.' if span <= 1.0e-8
 
                 start = axis == 2 ? offset : -dims[axis] / 2.0
                 points.each { |p| p[axis] = start + (p[axis] - low) / span * dims[axis] }

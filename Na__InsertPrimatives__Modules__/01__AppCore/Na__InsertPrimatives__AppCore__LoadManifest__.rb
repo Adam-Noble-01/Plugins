@@ -73,6 +73,7 @@ module Na__InsertPrimatives
         '04__GeometryHelpers/Na__InsertPrimatives__DrawnDeepPick__Instance__.rb',
         '04__GeometryHelpers/Na__InsertPrimatives__DrawnSubtract__.rb',
         '04__GeometryHelpers/Na__InsertPrimatives__DrawnSlopePush__.rb',
+        '21__System__DrawnRoofs/Na__InsertPrimatives__DrawnRoof__FasciaSoffit__.rb',
         '21__System__DrawnRoofs/Na__InsertPrimatives__DrawnRoofTools__.rb',
         '22__System__DrawnStairs/Na__InsertPrimatives__DrawnStair__Geometry__.rb',
         '22__System__DrawnStairs/Na__InsertPrimatives__DrawnStair__Entry__.rb',

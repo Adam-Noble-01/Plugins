@@ -28,6 +28,17 @@
 #   hip    ridge is inset from both ends by the same amount it rises over, so all
 #          four planes share one pitch; a square footprint collapses to a pyramid
 #
+# FASCIA AND SOFFIT (the plinth):
+# - The drawn rectangle is the WALL line. The plinth is that rectangle pushed
+#   out by the soffit on every side and stood up by the fascia: its underside
+#   is the soffit, its outer faces are the fascia. The roof then sits on the
+#   plinth's top, so its eaves rectangle is the wall line plus two soffits and
+#   its pitch is measured over that wider span.
+# - Built as one group holding two: 02__FasciaSoffit and 02__RoofMass, each a
+#   solid of its own, so a fascia board and a tiled slope can take different
+#   materials and still move as one roof. Without the plinth the roof group
+#   holds its faces directly, exactly as before.
+#
 # =============================================================================
 
 require 'sketchup.rb'
@@ -48,6 +59,11 @@ module Na__InsertPrimatives
     NA_DRAWN_ROOF_MIN_PITCH_DEG = 0.5
     NA_DRAWN_ROOF_MAX_PITCH_DEG = 89.5
     NA_DRAWN_ROOF_DEFAULT_PITCH = 35.0
+
+    NA_DRAWN_ROOF_PLINTH_GROUP_NAME = '02__FasciaSoffit'
+    NA_DRAWN_ROOF_MASS_GROUP_NAME   = '02__RoofMass'
+    NA_DRAWN_ROOF_DEFAULT_FASCIA    = 225.mm                                  # <-- A typed W,L,pitch uses these until a plinth has been built
+    NA_DRAWN_ROOF_DEFAULT_SOFFIT    = 300.mm
 
     # endregion -------------------------------------------------------------------
 
@@ -236,6 +252,106 @@ module Na__InsertPrimatives
 
 
     # -----------------------------------------------------------------------------
+    # REGION | Fascia and Soffit Plinth
+    # -----------------------------------------------------------------------------
+
+    # FUNCTION | The Plinth and the Eaves Rectangle the Roof Sits On
+    # ------------------------------------------------------------
+    # u_len / v_len are the signed wall rectangle from `origin`. The soffit
+    # pushes it out on all four sides, against the drag signs, so the plinth
+    # grows outward whichever corner the wall was drawn from. Returns
+    #   :base_origin  plinth corner at the wall's level (the soffit line)
+    #   :origin       the same corner a fascia higher: the roof's eaves corner
+    #   :u / :v       the signed eaves sizes, wall plus two soffits
+    # A nil origin still answers the sizes, which is all the pitch maths needs.
+    # ------------------------------------------------------------
+    def self.Na__DrawnRoof__PlinthFootprint(origin, plane_key, u_len, v_len, fascia, soffit)
+        sign_u     = u_len.to_f >= 0.0 ? 1.0 : -1.0
+        sign_v     = v_len.to_f >= 0.0 ? 1.0 : -1.0
+        projection = soffit.to_f.abs
+        height     = fascia.to_f.abs
+
+        base_origin  = nil
+        eaves_origin = nil
+
+        if origin
+            u_axis, v_axis, n_axis = Na__InsertPrimatives.Na__DrawnGrid__PlaneAxes(plane_key)
+            base_origin  = Na__InsertPrimatives.Na__DrawnRoof__LocalToWorld(
+                origin, u_axis, v_axis, n_axis, -projection * sign_u, -projection * sign_v, 0.0
+            )
+            eaves_origin = Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(base_origin, n_axis, height)
+        end
+
+        {
+            :base_origin => base_origin,
+            :origin      => eaves_origin,
+            :u           => u_len.to_f + (2.0 * projection * sign_u),
+            :v           => v_len.to_f + (2.0 * projection * sign_v),
+            :fascia      => height,
+            :soffit      => projection
+        }
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Near and Far Rectangles of the Plinth Box
+    # ------------------------------------------------------------
+    def self.Na__DrawnRoof__PlinthBoxPoints(footprint, plane_key)
+        return nil unless footprint && footprint[:base_origin]
+
+        near = Na__InsertPrimatives.Na__DrawnGrid__BuildRectPoints(
+            footprint[:base_origin], plane_key, footprint[:u], footprint[:v]
+        )
+        far  = Na__InsertPrimatives.Na__DrawnGrid__OffsetPointsAlongNormal(near, plane_key, footprint[:fascia])
+        [near, far]
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Can a Plinth Be Built from This Fascia and Soffit?
+    # A soffit of nothing is a flush eaves and fine; a fascia of nothing is no
+    # plinth at all.
+    # ------------------------------------------------------------
+    def self.Na__DrawnRoof__PlinthBuildable?(plinth)
+        return true unless plinth
+
+        Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(plinth[:fascia]) && plinth[:soffit].to_f >= 0.0
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Fascia and Soffit the Next Typed Roof Uses
+    # The last plinth built, for the session, so a roof typed straight in as
+    # 6000,4000,35 matches the one drawn before it. 225 and 300 before then.
+    # ------------------------------------------------------------
+    def self.Na__DrawnRoof__PlinthMemory
+        @na_drawn_roof_plinth_memory ||= {
+            :fascia => NA_DRAWN_ROOF_DEFAULT_FASCIA.to_f,
+            :soffit => NA_DRAWN_ROOF_DEFAULT_SOFFIT.to_f
+        }
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Remember a Plinth That Was Just Built
+    # ------------------------------------------------------------
+    def self.Na__DrawnRoof__RememberPlinth(plinth)
+        return unless plinth
+
+        @na_drawn_roof_plinth_memory = {
+            :fascia => plinth[:fascia].to_f.abs,
+            :soffit => plinth[:soffit].to_f.abs
+        }
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Plinth Volume as Cubic Metres
+    # ------------------------------------------------------------
+    def self.Na__DrawnRoof__PlinthVolumeM3(footprint)
+        Na__InsertPrimatives.Na__DrawnFormat__VolumeM3(footprint[:u], footprint[:v], footprint[:fascia])
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
     # REGION | Solid Construction
     # -----------------------------------------------------------------------------
 
@@ -289,16 +405,70 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Add a Child Group Whose Axes Are Its Parent's
+    # ------------------------------------------------------------
+    # The parent is a roof group that is CLOSED and pinned to the world
+    # identity, so its entities read world coordinates and so will this
+    # child's once it too sits at the identity. Set explicitly rather than
+    # trusted, the same as every drawn group (the Coordinate Rule).
+    # ------------------------------------------------------------
+    def self.Na__DrawnRoof__AddChildGroup(parent, name)
+        child                = parent.entities.add_group
+        child.name           = name
+        child.transformation = Geom::Transformation.new
+        child
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Fill an Empty Roof Group With the Roof, and the Plinth If Asked
+    # ------------------------------------------------------------
+    # `plinth` is nil for a roof alone, whose faces go straight into the group
+    # as they always have, or { :fascia, :soffit } in internal inches. With a
+    # plinth, (origin, u_len, v_len) is still the WALL rectangle: the roof's
+    # own eaves rectangle is worked out here from it, so the create and the
+    # rebuild paths can never disagree about where the eaves are.
+    # ------------------------------------------------------------
+    def self.Na__DrawnRoof__FillGroup(group, origin, plane_key, u_len, v_len, height, ridge_axis, kind, plinth)
+        unless plinth
+            loops = Na__InsertPrimatives.Na__DrawnRoof__BuildFaces(origin, plane_key, u_len, v_len, height, ridge_axis, kind)
+            return false if loops.empty?
+            return false if Na__InsertPrimatives.Na__DrawnRoof__AddFaces(group.entities, loops) < 3
+
+            Na__InsertPrimatives.Na__DrawnRoof__OrientFacesOutward(group)
+            return true
+        end
+
+        footprint = Na__InsertPrimatives.Na__DrawnRoof__PlinthFootprint(
+            origin, plane_key, u_len, v_len, plinth[:fascia], plinth[:soffit]
+        )
+        loops = Na__InsertPrimatives.Na__DrawnRoof__BuildFaces(
+            footprint[:origin], plane_key, footprint[:u], footprint[:v], height, ridge_axis, kind
+        )
+        return false if loops.empty?
+
+        board = Na__InsertPrimatives.Na__DrawnRoof__AddChildGroup(group, NA_DRAWN_ROOF_PLINTH_GROUP_NAME)
+        base  = Na__InsertPrimatives.Na__DrawnGrid__BuildRectPoints(
+            footprint[:base_origin], plane_key, footprint[:u], footprint[:v]
+        )
+        return false unless Na__InsertPrimatives.Na__DrawnGeom__AddExtrudedBox(board.entities, base, plane_key, footprint[:fascia])
+
+        mass = Na__InsertPrimatives.Na__DrawnRoof__AddChildGroup(group, NA_DRAWN_ROOF_MASS_GROUP_NAME)
+        return false if Na__InsertPrimatives.Na__DrawnRoof__AddFaces(mass.entities, loops) < 3
+
+        Na__InsertPrimatives.Na__DrawnRoof__OrientFacesOutward(mass)
+        true
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Create a Drawn Roof Group
     # ------------------------------------------------------------
-    def self.Na__DrawnRoof__CreateRoof(origin, plane_key, u_len, v_len, height, ridge_axis, kind)
+    def self.Na__DrawnRoof__CreateRoof(origin, plane_key, u_len, v_len, height, ridge_axis, kind, plinth = nil)
         return nil unless origin
         return nil unless Na__InsertPrimatives.Na__DrawnRoof__Buildable?(u_len, v_len, height)
+        return nil unless Na__InsertPrimatives.Na__DrawnRoof__PlinthBuildable?(plinth)
 
         model    = Sketchup.active_model
         entities = model.active_entities
-        loops    = Na__InsertPrimatives.Na__DrawnRoof__BuildFaces(origin, plane_key, u_len, v_len, height, ridge_axis, kind)
-        return nil if loops.empty?
 
         model.start_operation('Draw Roof Primitive', true)
 
@@ -306,12 +476,11 @@ module Na__InsertPrimatives
         group.name = NA_DRAWN_ROOF_GROUP_NAMES[kind] || '01__DrawnRoof'
         Na__InsertPrimatives.Na__DrawnGeom__PinGroupToWorld(group)             # <-- Global loops into a closed group: see DrawnGeometry
 
-        if Na__InsertPrimatives.Na__DrawnRoof__AddFaces(group.entities, loops) < 3
+        unless Na__InsertPrimatives.Na__DrawnRoof__FillGroup(group, origin, plane_key, u_len, v_len, height, ridge_axis, kind, plinth)
             model.abort_operation
             return nil
         end
 
-        Na__InsertPrimatives.Na__DrawnRoof__OrientFacesOutward(group)
         model.commit_operation
         group
     end
@@ -319,27 +488,39 @@ module Na__InsertPrimatives
 
     # FUNCTION | Rebuild an Existing Drawn Roof Group in Place
     # ------------------------------------------------------------
-    def self.Na__DrawnRoof__RebuildRoof(group, origin, plane_key, u_len, v_len, height, ridge_axis, kind)
+    def self.Na__DrawnRoof__RebuildRoof(group, origin, plane_key, u_len, v_len, height, ridge_axis, kind, plinth = nil)
         return false unless group && group.valid? && origin
         return false unless Na__InsertPrimatives.Na__DrawnRoof__Buildable?(u_len, v_len, height)
+        return false unless Na__InsertPrimatives.Na__DrawnRoof__PlinthBuildable?(plinth)
 
         model = Sketchup.active_model
-        loops = Na__InsertPrimatives.Na__DrawnRoof__BuildFaces(origin, plane_key, u_len, v_len, height, ridge_axis, kind)
-        return false if loops.empty?
 
         model.start_operation('Adjust Drawn Roof', true)
 
         group.transformation = Geom::Transformation.new
         group.entities.clear!
 
-        if Na__InsertPrimatives.Na__DrawnRoof__AddFaces(group.entities, loops) < 3
+        unless Na__InsertPrimatives.Na__DrawnRoof__FillGroup(group, origin, plane_key, u_len, v_len, height, ridge_axis, kind, plinth)
             model.abort_operation
             return false
         end
 
-        Na__InsertPrimatives.Na__DrawnRoof__OrientFacesOutward(group)
         model.commit_operation
         true
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Solid State of a Roof, Plinth Included
+    # ------------------------------------------------------------
+    def self.Na__DrawnRoof__SolidState(group)
+        return Na__InsertPrimatives.Na__DrawnGeom__SolidState(group) unless group && group.valid?
+
+        children = group.entities.grep(Sketchup::Group)
+        return Na__InsertPrimatives.Na__DrawnGeom__SolidState(group) if children.empty?
+
+        children.map { |child| "#{child.name} #{Na__InsertPrimatives.Na__DrawnGeom__SolidState(child)}" }.join(', ')
+    rescue StandardError
+        'unknown'
     end
     # ---------------------------------------------------------------
 

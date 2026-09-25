@@ -3,6 +3,41 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.9 - 25-Sep-2026 - Vegetation Placement Variation
+
+- New **Placement variation** card in Vegetation Sketcher, shown for Tree and Planting. It works like the Scatter brush ranges. Every click rolls a new **size** (min–max %, default 90–110%), **height stretch** (min–max %, default 95–105%), **turn** (0–360°) and **lean** (0–30°, default 0) for that plant. **Randomise each placement** turns it off, so plants go in at the exact size.
+- The roll is the plant's instance transform, as in Scatter. The component keeps its exact base size, so the dialog's dimensions never drift from plant to plant. Entity Info shows each plant's scale. Lean pivots on the base, so the plant stays on the picked point.
+- The viewport preview shows the next roll, and the status bar and panel describe it (e.g. *Next plant 104% size, 98% height, 212° turn*). **R** rolls placement again along with the form seed.
+- The ranges are a user preference, not part of saved vegetation. They travel on their own debounced command, so editing them never rebuilds or live-updates a selected plant. An out-of-range value or a minimum above its maximum is refused with the fix named, never clamped.
+- **Fix, all individually placed vegetation and hedges:** Builder no longer multiplies the world placement by `edit_transform.inverse`. In an open group `add_instance` and `#transformation` are already world, so plants and hedges drawn inside a moved or rotated group were misplaced.
+- Validation: 417 vegetation Ruby checks (31 new: range refusal, roll bounds, skew-free matrices, exact lean, dialog/tool path, no base-size drift), 73 scatter Ruby checks, 106 main-dialog Chromium checks (10 new) and 26 scatter Chromium checks. Native SketchUp testing remains with the user.
+- Close the dialog, use **Reload Plugin Data**, reopen Vegetation Sketcher and choose **Tree** or **Planting**. The new card sits under Mesh & form.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.9.8 - 25-Sep-2026 - Whitecard Flowers and Grasses
+
+- Expanded the former Shrub card into **Planting**, with Shrubs, Flowers and Grasses in its Plant type menu. Added Daisy-like clump, Flower spikes, Flat flower clusters, Compact tuft grass, Fountain grass and Plumed grass.
+- Added a procedural generator for individual curved/creased blades, leaves, stem tubes, petals, branching clusters and lobed seed heads. White front/back surfaces keep thin foliage lightweight.
+- **Light / Balanced / Fuller** detail replaces canopy grid spacing for these plants. Balanced forms use 384–1,534 quads; all final plants stay within 2,000 quads. Drawing previews reduce curve/head detail and stay within 1,000 quads. Existing debounced form updates remain.
+- Scatter gains **Load flowers & grasses mix**, with two seeded variants of each type, weighted toward flowers and shorter grasses, a 900 mm brush radius and 500 mm spacing. Shared definitions are created on the first completed stroke and reused by regeneration.
+- New types/detail are saved with the existing vegetation and forest dictionaries. Existing shrubs, tree species and source mixes remain readable.
+- Validation: 386 vegetation Ruby checks, 73 scatter Ruby checks, 96 main-dialog Chromium checks and 26 scatter Chromium checks. Actual generated previews visually checked. Native SketchUp validation of the new plants remains for the user.
+- Close the dialogs and use **Reload Plugin Data**. Reopen **Vegetation Sketcher > Planting > Plant type**, or **Scatter vegetation > Load flowers & grasses mix**.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.9.7 - 25-Sep-2026 - Planting-Bed Shrubs
+
+- Added six shrub forms to Vegetation Sketcher: Low spreading, Compact cushion, Rounded shrub, Loose flowering form, Upright shrub and Arching shrub. Starting heights range from 250 to 1,400 mm, with editable exact dimensions and repeatable variations.
+- Forms use a closed low-poly skin, with stronger clustered/arching silhouettes and smooth model shading. Existing Generic shrubs retain their form. Shrub types persist through components, model defaults and live/manual edits.
+- Scatter gains **Load planting-bed mix**: two variations of each form, weighted toward low and medium planting, with a 1,200 mm brush radius, 650 mm spacing and 90–110% scale.
+- Loading the mix makes no geometry. The first completed stroke builds the shared sources and plants in one undo operation; later strokes reuse the definitions. Saved source recipes retain the mix without requiring separately planted samples.
+- Validation: 229 vegetation Ruby checks, 67 scatter Ruby checks, 73 main-dialog Chromium checks and 22 scatter Chromium checks. Visually inspected the six forms and their seed variations. Native SketchUp testing of this update remains with the user.
+- Close the vegetation/scatter dialogs, use **Reload Plugin Data**, then reopen. Choose **Shrub > Shrub type** for individual plants or **Scatter trees & shrubs > Load planting-bed mix** for a complete palette.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.6 - 24-Sep-2026 - Textured Plane to Image
 
 - Added module 35 under Misc Utils > Ortho Reference Planes: **Textured Plane to Image**.

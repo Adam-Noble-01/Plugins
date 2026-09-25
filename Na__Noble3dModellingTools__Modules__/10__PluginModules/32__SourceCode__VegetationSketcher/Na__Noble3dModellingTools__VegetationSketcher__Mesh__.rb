@@ -15,6 +15,8 @@
 # =============================================================================
 
 require_relative 'Na__Noble3dModellingTools__VegetationSketcher__TreeForms__'
+require_relative 'Na__Noble3dModellingTools__VegetationSketcher__ShrubForms__'
+require_relative 'Na__Noble3dModellingTools__VegetationSketcher__PlantForms__'
 
 module Na__Noble3dModellingTools
     module Na__VegetationSketcher__Mesh
@@ -36,6 +38,10 @@ module Na__Noble3dModellingTools
         # FUNCTION | Build Foliage Points, Quads and Optional Trunk Faces
         # ------------------------------------------------------------
         def self.Na__VegetationSketcher__Mesh__Build(options, length: nil, preview: false)
+            return Na__VegetationSketcher__PlantForms.na_build(options, preview: preview) if Na__VegetationSketcher__PlantForms.na_plant?(options)
+            if Na__VegetationSketcher__ShrubForms.na_shrub?(options)
+                options = options.merge('_shrub_profile' => Na__VegetationSketcher__ShrubForms.na_profile(options))
+            end
             dims = na_dimensions(options, length)
             path = options['preset'] == 'hedge' && options['path'] ? Na__VegetationSketcher__HedgePath.Na__VegetationSketcher__HedgePath__Prepare(options['path'], options['width']) : nil
             resolution = options['resolution'].to_f
@@ -183,7 +189,7 @@ module Na__Noble3dModellingTools
                 p[2] += dims[2] / 2.0 + offset unless path
                 p[2] = [p[2], 0.0].max
             end
-            if Na__VegetationSketcher__TreeForms.Na__VegetationSketcher__TreeForms__Species?(options)
+            if Na__VegetationSketcher__TreeForms.Na__VegetationSketcher__TreeForms__Species?(options) || Na__VegetationSketcher__ShrubForms.na_shrub?(options)
                 Na__VegetationSketcher__TreeForms.Na__VegetationSketcher__TreeForms__FitDimensions!(points, dims, offset)
             end
         end
@@ -228,6 +234,8 @@ module Na__Noble3dModellingTools
                 end
                 rounded = if Na__VegetationSketcher__TreeForms.Na__VegetationSketcher__TreeForms__Species?(options)
                               Na__VegetationSketcher__TreeForms.Na__VegetationSketcher__TreeForms__Crown(sphere, dims, options)
+                          elsif Na__VegetationSketcher__ShrubForms.na_shrub?(options)
+                              Na__VegetationSketcher__ShrubForms.na_crown(sphere, dims, options)
                           else
                               3.times.map { |k| p[k] * (1 - amount) + sphere[k] * half[k] * amount }
                           end

@@ -334,7 +334,7 @@ module Na__InsertPrimatives
                 text = na_drawn__locked?(:d) ? "[R#{size}]" : "R#{size}"
                 sides = na_drawn__sides_text(@na_size_d)
                 return "Fillet #{text} · #{sides} — CORNER PROBLEM: #{@na_ch_mitre_note}" if @na_ch_mitre_note
-                return "Fillet #{text} · #{sides} — release or click to cut"
+                return "Fillet #{text} · #{sides}#{na_drawn__stop_note} — release or click to cut"
             end
 
             adjust = na_revise__status_hint

@@ -53,6 +53,59 @@ For Douglas fir and oak, entered height/width/depth are **actual overall geometr
 
 Species and edited dimensions survive selection changes, model saving, copied definitions and live edits. Older trees without species data load as Generic canopy. Taller trees (up to 100 m) and wider canopies (up to 50 m) can be entered; choose a coarser grid if the 80,000-quad limit is exceeded.
 
+## Small-to-mid shrubs for planting beds
+
+Choose **Planting > Plant type > Shrubs**. Six indicative whitecard forms complement the original Generic shrub:
+
+| Form | Height | Width × depth | Role in a bed | Starter mix share |
+| --- | --- | --- | --- | --- |
+| Low spreading | 250 mm | 800 × 700 mm | Low groundcover / front edge | 15% |
+| Compact cushion | 450 mm | 550 × 500 mm | Small repeated mounds | 20% |
+| Rounded shrub | 750 mm | 850 × 750 mm | Mid-height planting | 25% |
+| Loose flowering form | 1,000 mm | 1,100 × 950 mm | Irregular clustered accents | 20% |
+| Upright shrub | 1,400 mm | 650 × 600 mm | Narrow vertical accents | 10% |
+| Arching shrub | 950 mm | 1,400 × 1,100 mm | Broad, flared foliage | 10% |
+
+These are editable modelling forms, not species-specific planting recommendations. Each uses a single closed quad skin, default 100 mm spacing and smooth model shading. New variation changes the silhouette and XYZ detail while keeping exact width, depth and height. At their starting sizes they use 170–808 foliage quads. Existing shrubs without a type retain the original Generic shrub.
+
+For a complete source set, open **Scatter vegetation > Load planting-bed mix**. This loads **12 sources: two seeded variations of each form**, with the shares above, a **1,200 mm brush radius**, **650 mm minimum spacing**, **90–110% scale** and a 1,500-plant cap. Change the individual weights or set them to zero, then choose **Paint new forest** and brush over the planting-bed face. No sample components need to be planted first. For a front-edge-only pass, keep the low spreading and cushion sources; a separate pass can add the taller accents.
+
+Loading the mix only changes dialog settings. The first successful brush stroke creates shared shrub definitions and plants in the same undo operation; subsequent strokes reuse those definitions. Recipes and seeds are retained in the forest's saved source mix, and creating these sources leaves the individual vegetation tool's last-used settings intact.
+
+## Flowers and ornamental grasses
+
+Choose **Planting > Plant type > Flowers / Grasses**. These use separate stems, flower heads and curved, creased leaves instead of a single canopy envelope. They remain whitecard and indicative, without textures or individual tiny florets.
+
+| Form | Height | Width × depth | Balanced quads |
+| --- | --- | --- | --- |
+| Daisy-like clump | 600 mm | 650 × 600 mm | 914 |
+| Flower spikes | 850 mm | 600 × 550 mm | 914 |
+| Flat flower clusters | 800 mm | 750 × 650 mm | 1,534 |
+| Compact tuft grass | 450 mm | 500 × 450 mm | 384 |
+| Fountain grass | 900 mm | 950 × 850 mm | 528 |
+| Plumed grass | 1,400 mm | 1,000 × 850 mm | 1,116 |
+
+**Plant detail: Light / Balanced / Fuller** controls fullness and curve subdivisions. Every finished plant is capped at **2,000 quads / 4,000 triangles**, regardless of its dimensions. The grid-resolution control returns when selecting a shrub or hedge. **Leaf arch / petal cup** changes blade droop and flower shape; **Stem variation** bends stems and grass blades coherently. New seeds rearrange the clump while retaining exact overall size.
+
+Leaves and petals use thin two-sided surfaces; stems and flower heads use closed sections. The complete plant is therefore a collection of surfaces, not a single watertight solid. Smooth model shading works as before. Viewport placement uses reduced curve segments and head sides, with a **1,000-quad cap**; final construction uses the selected detail. HTML changes retain the 650 ms quiet period.
+
+**Scatter vegetation > Load flowers & grasses mix** loads two variants of each of the six types at Balanced detail: 25% daisy-like, 20% spikes, 15% flat clusters, 20% tuft, 15% fountain and 5% plumed grass. The initial brush radius is **900 mm**, spacing **500 mm**, scale **90–110%**, and the plant limit is **1,000**. Individual source weights remain editable. This loads a new mix without changing an existing selected forest. Custom combinations and other detail settings can be captured from individually planted components with **Use selected vegetation**.
+
+## Placement variation
+
+For **Tree** and **Planting**, the **Placement variation** card gives each click its own roll, using the same kind of ranges as the Scatter brush:
+
+| Range | Default | Limits | Effect |
+| --- | --- | --- | --- |
+| Minimum / maximum size | 90–110% | 10–500% | Uniform scale of the whole plant |
+| Minimum / maximum height stretch | 95–105% | 25–400% | Extra vertical scale on top of size |
+| Random rotation | 360° | 0–360° | Turn about the vertical |
+| Maximum lean | 0° | 0–30° | Tilt in a random direction, pivoting on the base |
+
+The viewport preview shows the next roll. The status bar and the panel describe it, for example *Next plant 104% size, 98% height, 212° turn*. **R** rolls again, together with a new form seed. Untick **Randomise each placement** to plant at exactly the dimensions entered.
+
+The roll is applied as the instance transform, as in Scatter. The component definition keeps the exact base dimensions, which the panel shows and edits; Entity Info shows each plant's scale. Editing a placed plant rebuilds its definition and keeps its scale, turn and lean. The ranges are saved as a user preference rather than in the vegetation, and changing them never updates selected vegetation. A value outside its limits, or a minimum above its maximum, is refused with a message naming the fix.
+
 ## Edit
 
 Selecting one unlocked Noble vegetation component or legacy group automatically loads its settings. **Live update selected vegetation** applies changes after a brief pause. Turn it off to use **Update selected** manually. Creation and each applied update are undoable.
@@ -70,9 +123,9 @@ The hedge path is saved with its configuration. Changing width, height, variatio
 
 ## Scatter forests and shrub beds
 
-Open **Scatter trees & shrubs** inside Vegetation Sketcher.
+Open **Scatter vegetation** inside Vegetation Sketcher.
 
-1. Select tree/shrub groups or components in SketchUp, then choose **Use selected trees / shrubs**. Noble vegetation and custom components are supported; hedges and existing forest groups are excluded.
+1. Select vegetation groups or components in SketchUp, then choose **Use selected vegetation**, or load a ready-made mix. Noble vegetation and custom components are supported; hedges and existing forest groups are excluded.
 2. Set each source's probability weight. Weights are relative: **75 / 25** gives a 75% / 25% mix; **0** excludes a source. Small samples can differ from these expected percentages.
 3. Set brush radius, minimum spacing, placement chance, scale range, random rotation and maximum slope. All distances are in millimetres. **100% scale** preserves the selected source's current world size. Spacing separates planting points, so large canopies can overlap.
 4. Choose **Paint new forest**, then drag over a face or connected terrain surface. A ring and stroke points keep dragging light; plants appear on release. Each stroke is one undo step. **Esc** cancels the current stroke; **Enter**, the right-click menu or **Finish** ends the brush and selects the forest.
@@ -100,6 +153,6 @@ Limits keep generation bounded: up to **20 sources**, **2,000 brush positions**,
 
 `tests/ui.test.js` runs the actual HTML and JS in Chromium against a bridge double. Pass the Playwright package path and, optionally, the browser executable path as arguments. Run the Ruby tests first to generate the preset fixtures.
 
-Verified: **157 Ruby checks** and **52 Chromium checks**, including preview coalescing and cancellation, viewport mesh reuse and final density, species dimensions and topology, seed variation at fixed bounds, species persistence and live switching, default inputs, acknowledged Draw/Finish commands, selection lifecycle, saved path round trips, stale edits, manifold corner topology, keyboard events and smoothing flags. Species previews are also visually checked in Chromium. These tests do not measure native SketchUp responsiveness; the latest performance changes await the user's SketchUp check.
+Verified: **417 Ruby checks** and **106 Chromium checks**, including placement-variation ranges, rolls and matrices, preview coalescing and cancellation, viewport mesh reuse and final density, vegetation dimensions and topology, seed variation at fixed bounds, type/detail persistence, live switching, default inputs, acknowledged Draw/Finish commands, selection lifecycle, saved path round trips, stale edits, manifold corner topology, keyboard events and smoothing flags. Flower/grass checks cover all six types at all three detail settings, nondegenerate triangles, exact bounds, reduced viewport geometry and polygon caps. Previews are visually checked in Chromium. These tests do not measure native SketchUp responsiveness.
 
-Scatter adds **55 Ruby checks** and **17 Chromium checks**. Run `tests/run_ruby_checks.py tests/scatter.rb.test` with paths relative to this module, and `tests/scatter.ui.test.js` with the same Playwright/browser arguments as the existing browser suite. Coverage includes weighted sampling, repeatable seeds, spacing, slope limits, holes, transformed terrain, source scale, saved forests, retained source definitions, brush commit/cancel, acknowledged commands, stale targets, damaged data and model switching. The actual scatter menu is visually checked in Chromium. Ruby tests use native API contract doubles; an end-to-end native SketchUp brush test remains for the user.
+Scatter adds **73 Ruby checks** and **26 Chromium checks**. Run `tests/run_ruby_checks.py tests/scatter.rb.test` with paths relative to this module, and `tests/scatter.ui.test.js` with the same Playwright/browser arguments as the existing browser suite. Coverage includes weighted sampling, repeatable seeds, spacing, slope limits, holes, transformed terrain, source scale, saved forests, retained source definitions, brush commit/cancel, acknowledged commands, stale targets, damaged data, model switching, both built-in mixes, creating their source meshes on the first stroke and reusing their definitions on regeneration. Ruby tests use native API contract doubles; an end-to-end native SketchUp check of the new flowers, grasses and mix remains for the user.

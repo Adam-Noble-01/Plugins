@@ -232,3 +232,6 @@ puts "PASS: #{$checks} Ruby geometry, persistence, selection and lifecycle check
 load File.join(__dir__, 'hedge_tool.rb.test')
 load File.join(__dir__, 'tree_species.rb.test')
 load File.join(__dir__, 'preview_performance.rb.test')
+load File.join(__dir__, 'shrub_forms.rb.test')
+load File.join(__dir__, 'plant_forms.rb.test')
+load File.join(__dir__, 'placement.rb.test')

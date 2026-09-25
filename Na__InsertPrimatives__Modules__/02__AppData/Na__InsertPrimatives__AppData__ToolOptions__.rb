@@ -30,6 +30,10 @@
 #   :default  Value when nothing has been stored yet
 #   :summary  One line for the console banner and the status bar
 #
+# DECLARED OPTIONS:
+#   Pitched Roof, Hipped Roof   Fascia & Soffit (default ON, shared by both)
+#   Drawn Volume                Subtraction, Transparent (default OFF)
+#
 # =============================================================================
 
 require 'sketchup.rb'
@@ -41,7 +45,22 @@ module Na__InsertPrimatives
     # REGION | Option Declarations
     # -----------------------------------------------------------------------------
 
+    # One option shared by both roof tools: declared once and listed under
+    # each, so switching Fascia & Soffit off in the Pitched Roof's submenu
+    # switches it off for the Hipped Roof too. Find returns the first owner,
+    # and the state is keyed by :id, so the two can never disagree.
+    NA_TOOL_OPTION_ROOF_FASCIA_SOFFIT = {
+        :id      => 'roof_fascia_soffit',
+        :key     => 'RoofFasciaSoffitEnabled',
+        :label   => 'Fascia & Soffit',
+        :default => true,
+        :summary => 'Set out the wall line, pull up the fascia, drag out the soffit, then pitch the roof on top'
+    }.freeze
+
     NA_TOOL_OPTIONS = {
+
+        :drawn_pitched_roof => [NA_TOOL_OPTION_ROOF_FASCIA_SOFFIT],
+        :drawn_hipped_roof  => [NA_TOOL_OPTION_ROOF_FASCIA_SOFFIT],
 
         :drawn_volume => [
             {

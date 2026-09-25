@@ -70,15 +70,17 @@ module Na__Noble3dModellingTools
 
         # FUNCTION | Write Definition, Instance and Model Settings
         # ------------------------------------------------------------
-        def self.Na__VegetationSketcher__DataSerializer__Save(model, entity, options, quad_count)
+        def self.Na__VegetationSketcher__DataSerializer__Save(model, entity, options, quad_count, remember_model: true)
             data = na_build_payload(entity, options, quad_count)
             entity.definition.set_attribute(NA_DEFINITION_DICT, 'data', JSON.generate(data))
             entity.set_attribute(NA_INSTANCE_DICT, 'vegetation_id', "NVG-#{entity.persistent_id}")
             entity.set_attribute(NA_INSTANCE_DICT, 'version', NA_SCHEMA_VERSION)
             entity.set_attribute(NA_INSTANCE_DICT, 'settings', JSON.generate(data['configuration']))
             entity.set_attribute(NA_INSTANCE_DICT, 'quad_count', quad_count)
-            model.set_attribute(NA_MODEL_DICT, 'schema_version', NA_SCHEMA_VERSION)
-            model.set_attribute(NA_MODEL_DICT, 'last_settings', JSON.generate(data['configuration']))
+            if remember_model
+                model.set_attribute(NA_MODEL_DICT, 'schema_version', NA_SCHEMA_VERSION)
+                model.set_attribute(NA_MODEL_DICT, 'last_settings', JSON.generate(data['configuration']))
+            end
             data
         end
         # ------------------------------------------------------------
@@ -123,6 +125,7 @@ module Na__Noble3dModellingTools
                     'updated_at' => now,
                     'preset'     => options['preset'],
                     'tree_type'  => options['tree_type'],
+                    'shrub_type' => options['shrub_type'],
                     'quad_count' => quad_count
                 },
                 'configuration'  => Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__Resolve(options)

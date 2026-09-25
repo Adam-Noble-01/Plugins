@@ -8,6 +8,34 @@ module Na__Noble3dModellingTools
         NA_DICT = 'Na__VegetationSketcher__Scatter'.freeze
         NA_MAX_DABS = 2000
 
+        # Recipes stay data-only until the first successful brush stroke.
+        # Two deterministic forms of each type reduce repeated silhouettes.
+        def self.na_bed_sources(mix = 'shrubs')
+            weights = case mix
+                      when 'shrubs' then { 'spreading' => 15, 'cushion' => 20, 'rounded' => 25, 'loose' => 20, 'upright' => 10, 'arching' => 10 }
+                      when 'flowers' then { 'daisy_clump' => 25, 'flower_spikes' => 20, 'umbel_clump' => 15, 'tuft_grass' => 20, 'fountain_grass' => 15, 'plume_grass' => 5 }
+                      else raise ArgumentError, 'Choose a supported planting mix.'
+                      end
+            weights.flat_map.with_index do |(type, weight), index|
+                2.times.map do |variant|
+                    options = Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__ShrubPreset(type).merge('seed' => 17041 + index*977 + variant*401)
+                    { 'key' => "bed-#{type}-#{variant}", 'definition_pid' => nil,
+                      'name' => "#{Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__Label(options)} #{variant+1}",
+                      'weight' => weight/2.0, 'transform' => Geom::Transformation.new.to_a,
+                      'material' => nil, 'vegetation' => options }
+                end
+            end
+        end
+
+        def self.na_recipe(source)
+            raw = source['vegetation']
+            return nil unless raw
+            unless raw.is_a?(Hash) && raw['preset'] == 'shrub' && Na__VegetationSketcher__Options::NA_SHRUB_TYPES.key?(raw['shrub_type'])
+                raise ArgumentError, 'Invalid planting-bed shrub recipe.'
+            end
+            Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__Resolve(raw)
+        end
+
         def self.na_forest?(entity)
             entity.is_a?(Sketchup::Group) && entity.valid? && !!entity.get_attribute(NA_DICT, 'data')
         end
@@ -53,7 +81,8 @@ module Na__Noble3dModellingTools
             saved = {}
             library.entities.each { |e| saved[e.get_attribute(NA_DICT, 'source_key')] = e.definition if e.respond_to?(:definition) } if library
             sources.map do |source|
-                definition = saved[source['key']] || model.find_entity_by_persistent_id(source['definition_pid'])
+                definition = saved[source['key']] || (source['definition_pid'] && model.find_entity_by_persistent_id(source['definition_pid']))
+                next nil if !definition && na_recipe(source)
                 unless definition.is_a?(Sketchup::ComponentDefinition) && definition.valid?
                     raise ArgumentError, "Source '#{source['name']}' is missing. Capture the source items again."
                 end
@@ -171,6 +200,8 @@ module Na__Noble3dModellingTools
             result ||= na_generate(model,options,sources,dabs)
             # Validate transforms before starting a model operation.
             bases = sources.map { |s| Geom::Transformation.new(s.fetch('transform')) }
+            recipes = sources.each_with_index.map { |s,i| definitions[i] ? nil : na_recipe(s) }
+            meshes = recipes.map { |options| options && Na__VegetationSketcher__Mesh.Na__VegetationSketcher__Mesh__Build(options) }
             model.start_operation(group ? 'Regenerate Noble Forest' : 'Paint Noble Forest', true)
             started = true
             if group
@@ -188,7 +219,11 @@ module Na__Noble3dModellingTools
             library.hidden = true
             library.transformation = Geom::Transformation.translation(result[:plants].first[:point]) unless result[:plants].empty?
             sources.each_with_index do |s,i|
+                definitions[i] ||= model.definitions.add('Noble Whitecard ' + s['name'])
                 prototype = library.entities.add_instance(definitions[i],bases[i])
+                if recipes[i]
+                    Na__VegetationSketcher__Builder.na_populate(prototype,meshes[i],recipes[i],model,remember_model: false)
+                end
                 prototype.set_attribute(NA_DICT,'source_key',s['key'])
                 prototype.material = model.materials[s['material']] if s['material']
             end

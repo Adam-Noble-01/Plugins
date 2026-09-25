@@ -1,0 +1,73 @@
+# Loaded after the existing geometry, persistence and tool/controller checks.
+fixtures = JSON.parse(File.read(File.join(__dir__, 'fixtures.json')))
+fixtures['shrub_types'] = Options.Na__VegetationSketcher__Options__ShrubTypeInfo
+check('legacy shrubs retain generic form') { Options.Na__VegetationSketcher__Options__Resolve('preset'=>'shrub')['shrub_type']=='generic' }
+rejected('unsupported shrub selection rejected') { Options.Na__VegetationSketcher__Options__ShrubPreset('missing') }
+shapes = []
+%w[spreading cushion rounded loose upright arching].each_with_index do |type,index|
+  options = Options.Na__VegetationSketcher__Options__Resolve('preset'=>'shrub','shrub_type'=>type)
+  data = Mesh.Na__VegetationSketcher__Mesh__Build(options)
+  check("#{type}: compact quad budget") { data[:quads].length < 1000 && data[:requested_quads]==data[:quads].length && data[:trunk][:points].empty? }
+  edges = Hash.new(0)
+  data[:quads].each { |q| q.each_with_index { |a,i| edges[[a,q[(i+1)%4]].sort]+=1 } }
+  check("#{type}: one closed welded envelope") { edges.values.all? { |n| n==2 } && data[:points].length-edges.length+data[:quads].length==2 }
+  check("#{type}: no collapsed edges or triangles") do
+    edges.keys.all? { |a,b| Math.sqrt(3.times.sum { |k| (data[:points][a][k]-data[:points][b][k])**2 }) > 0.05 } &&
+      data[:quads].all? do |a,b,c,d|
+        [[a,b,c],[a,c,d]].all? do |i,j,k|
+          u=3.times.map { |axis| data[:points][j][axis]-data[:points][i][axis] }
+          v=3.times.map { |axis| data[:points][k][axis]-data[:points][i][axis] }
+          TreeForms.Na__VegetationSketcher__TreeForms__Cross(u,v).sum { |n| n*n } > 0.0001
+        end
+      end
+  end
+  [false,true,:viewport].each do |preview|
+    mesh=Mesh.Na__VegetationSketcher__Mesh__Build(options,preview:preview)
+    box=bounds_of(mesh[:points])
+    check("#{type}: #{preview} preview/final dimensions grounded and exact") { box[2][0].zero? && [options['width'],options['depth'],options['height']].each_with_index.all? { |n,i| (box[i][1]-box[i][0]-n).abs<1.0e-6 } }
+    check("#{type}: reduced viewport density") { mesh[:resolution]>=200 && mesh[:quads].length<=Mesh::NA_VIEWPORT_QUADS } if preview==:viewport
+  end
+  check("#{type}: repeatable geometry") { data[:points]==Mesh.Na__VegetationSketcher__Mesh__Build(options)[:points] }
+  varied=Mesh.Na__VegetationSketcher__Mesh__Build(options.merge('seed'=>91813))
+  check("#{type}: variation retains exact size") { varied[:points]!=data[:points] && bounds_of(varied[:points])==bounds_of(data[:points]) }
+  entity=Sketchup::ComponentInstance.new(500+index)
+  model=Sketchup::Model.new
+  DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model,entity,options,data[:quads].length)
+  check("#{type}: type, seed and dimensions survive persistence") { DataSerializer.Na__VegetationSketcher__DataSerializer__Load(entity)==options }
+  resized=options.merge('width'=>450,'depth'=>400,'height'=>650,'random'=>500)
+  check("#{type}: custom size and strong noise remain finite") { Mesh.Na__VegetationSketcher__Mesh__Build(resized)[:points].all? { |pt| pt.all?(&:finite?) && pt[2]>=0 } }
+  normalized=Mesh.Na__VegetationSketcher__Mesh__Build(options.merge('width'=>800,'depth'=>800,'height'=>800,'random'=>0))
+  shapes << normalized[:points]
+  fixtures[type]={settings:options,mesh:data,variant:varied}
+end
+check('shrub types have different shapes at identical dimensions') { shapes.uniq.length==6 }
+File.write(File.join(__dir__,'fixtures.json'),JSON.generate(fixtures))
+
+# Actual shrub command and stale-context handling; native population doubled.
+Builder.singleton_class.alias_method(:shrub_native_update,:Na__VegetationSketcher__Builder__Update)
+Builder.define_singleton_method(:Na__VegetationSketcher__Builder__Update) do |model,entity,options|
+  data=Mesh.Na__VegetationSketcher__Mesh__Build(options)
+  DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model,entity,options,data[:quads].length)
+end
+model=Sketchup::Model.new
+Sketchup.model=model
+model.view=TestView.new
+entity=Sketchup::ComponentInstance.new(601)
+DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model,entity,Options.Na__VegetationSketcher__Options__ShrubPreset('rounded'),200)
+model.active_entities << entity
+model.selection.add(entity)
+dialog=Dialog.Na__VegetationSketcher__ShowDialog
+dialog.callbacks['na_dialog_ready'].call(nil)
+state=dialog.events.reverse.find { |e,_| e=='state' }[1]
+payload={'context'=>state['context'],'target_id'=>state['target_id'],'shrub_type'=>'upright'}
+dialog.callbacks['na_event'].call(nil,JSON.generate(id:76,session:state['session'],revision:1,action:'shrub_type',payload:payload))
+check('shrub type command acknowledged and live saved') { dialog.events.last==['ack',{'id'=>76,'success'=>true}] && DataSerializer.Na__VegetationSketcher__DataSerializer__Load(entity)['shrub_type']=='upright' }
+Dialog.na_dispatch('live',payload.merge('enabled'=>false))
+Dialog.na_dispatch('shrub_type',payload.merge('shrub_type'=>'cushion'))
+check('paused live shrub edits retain previous geometry settings') { DataSerializer.Na__VegetationSketcher__DataSerializer__Load(entity)['shrub_type']=='upright' }
+Dialog.na_dispatch('new',{})
+rejected('stale shrub type cannot modify previous selected entity') { Dialog.na_dispatch('shrub_type',payload) }
+Dialog.Na__VegetationSketcher__ResetDialog
+UI.flush
+Builder.singleton_class.alias_method(:Na__VegetationSketcher__Builder__Update,:shrub_native_update)
+puts "PASS: #{$checks} total Ruby checks including planting-bed shrub forms."

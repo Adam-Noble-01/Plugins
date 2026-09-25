@@ -12,13 +12,15 @@
         inputs.forEach(input => { input.parentElement.nextElementSibling.textContent = total ? (Math.max(0,Number(input.value) || 0)/total*100).toFixed(1) + '%' : '0%'; });
         document.querySelectorAll('[data-weight],[data-scatter]').forEach(input => { input.disabled = busy || painting; });
         el('capture').disabled = busy || painting;
+        el('bed_mix').disabled = busy || painting;
+        el('flower_mix').disabled = busy || painting;
         el('paint').disabled = busy || painting || !total;
         el('finish').hidden = !painting;
         el('finish').disabled = busy;
         el('regenerate').disabled = busy || painting || !state.target_id || !total;
         el('variation').disabled = el('regenerate').disabled;
         el('mode').textContent = !state ? 'Connecting to SketchUp' : painting ? 'Scatter brush active' : state.target_id ? 'Editing selected forest' : 'Create a forest';
-        if (state) el('info').textContent = painting ? 'Drag on the target surface. Plants appear when you release the mouse.' : state.target_id ? state.count + ' plants · saved mix and painted area loaded.' : state.selected + ' items selected in SketchUp. Capture your vegetation sources to begin.';
+        if (state) el('info').textContent = painting ? 'Drag on the target surface. Plants appear when you release the mouse.' : state.target_id ? state.count + ' plants · saved mix and painted area loaded.' : state.sources.length ? state.sources.length + ' source items ready. Adjust the mix, then paint onto a surface.' : state.selected + ' items selected in SketchUp. Capture sources or load the planting-bed mix.';
     }
     function renderSources(sources) {
         el('sources').replaceChildren();
@@ -68,7 +70,7 @@
         } else if (event === 'status') status(payload.message,payload.error);
         else if (event === 'ack' && payload.id === pending) { clearTimeout(timeout); pending = null; labels(); }
     };
-    ['capture','paint','finish','regenerate','variation'].forEach(action => el(action).addEventListener('click',() => command(action)));
+    ['capture','bed_mix','flower_mix','paint','finish','regenerate','variation'].forEach(action => el(action).addEventListener('click',() => command(action)));
     function connect(attempt = 0) {
         if (state) return;
         if (window.sketchup && typeof window.sketchup.na_scatter_ready === 'function') window.sketchup.na_scatter_ready();

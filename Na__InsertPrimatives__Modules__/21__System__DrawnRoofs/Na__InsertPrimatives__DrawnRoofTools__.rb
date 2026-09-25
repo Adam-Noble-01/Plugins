@@ -32,13 +32,24 @@
 #   Plan sizes: bare numbers are mm. The rise slot: bare numbers are DEGREES,
 #   and a rise must name mm | cm | m. A pitch outside 0-90 is refused.
 #
+# POPUP SUBMENU OPTION (see Na__InsertPrimatives__AppData__ToolOptions__.rb):
+#   Fascia & Soffit  ON by default, shared by both roofs. The rectangle becomes
+#                    the WALL line, and two stages come before the pitch: pull
+#                    up the fascia, drag out the soffit. The roof is then
+#                    pitched over the eaves and sits on the plinth. Off, the
+#                    tools are the roof alone, exactly as before. Stage
+#                    behaviour lives in DrawnRoof__FasciaSoffit__.
+#
 # =============================================================================
 
 require 'sketchup.rb'
 require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__DrawnToolShared__'
 require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnRoofGeometry__'
+require_relative 'Na__InsertPrimatives__DrawnRoof__FasciaSoffit__'
 
 module Na__InsertPrimatives
+
+    # @delegate: Na__InsertPrimatives__DrawnRoof__FasciaSoffit__.rb
 
     # -----------------------------------------------------------------------------
     # REGION | Shared Roof Tool Behaviour
@@ -49,6 +60,7 @@ module Na__InsertPrimatives
     class DrawnRoofToolBase
 
         include Na__InsertPrimatives::DrawnToolShared
+        include Na__InsertPrimatives::DrawnRoofFasciaSoffit                    # <-- After the shared mixin, so its stage methods come first
 
         NA_ROOF_RIDGE_CYCLE  = [:auto, :u, :v].freeze
         NA_ROOF_RIDGE_LABELS = { :auto => 'auto (long side)', :u => 'X LOCK', :v => 'Y LOCK' }.freeze
@@ -57,6 +69,7 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def initialize
             na_drawn__init_shared_state
+            na_roof__init_plinth_state
             @na_ridge_axis = :auto
             @na_plane_key  = :xy
         end
@@ -98,7 +111,16 @@ module Na__InsertPrimatives
         # FUNCTION | Console Banner Hint Lines
         # ------------------------------------------------------------
         def na_drawn__activation_hints
-            [
+            hints = []
+
+            if na_roof__plinth_option?
+                hints << 'FASCIA & SOFFIT ON: the rectangle is the wall line — then the fascia, the soffit, and the pitch'
+                hints << 'VCB fascia: 225 | 225,300 on to the pitch | 225,300,35 builds it  ·  soffit: 300 | 300,35'
+                hints << 'After drawing: 250f or 400s correct the fascia or soffit and hold the pitch'
+                hints << 'Right-click for the menu — switch Fascia & Soffit off there for the roof alone'
+            end
+
+            hints + [
                 'Drag the plan rectangle on X,Y then pull up in Z and click',
                 'Every pick snaps to the voxel grid — hold CTRL to snap to vertices instead',
                 'Hold CTRL+SHIFT to snap to a vertex and then round it onto the grid',
@@ -201,10 +223,14 @@ module Na__InsertPrimatives
         # -----------------------------------------------------------------------------
 
         # FUNCTION | Ridge Layout for the Live Footprint
+        # The eaves rectangle when the roof stands on a plinth, which is what
+        # makes every pitch below measure over the span the roof really has.
         # ------------------------------------------------------------
         def na_drawn__roof_metrics
+            footprint = na_roof__footprint
+
             Na__InsertPrimatives.Na__DrawnRoof__RidgeLocal(
-                na_drawn__signed_u, na_drawn__signed_v, na_drawn__resolved_ridge_axis, na_drawn__roof_kind
+                footprint[:u], footprint[:v], na_drawn__resolved_ridge_axis, na_drawn__roof_kind
             )
         end
         # ---------------------------------------------------------------
@@ -246,9 +272,9 @@ module Na__InsertPrimatives
 
         # FUNCTION | Face Loops of the Live Roof
         # ------------------------------------------------------------
-        def na_drawn__roof_faces
+        def na_drawn__roof_faces(footprint = na_roof__footprint)
             Na__InsertPrimatives.Na__DrawnRoof__BuildFaces(
-                @na_point_a, @na_plane_key, na_drawn__signed_u, na_drawn__signed_v,
+                footprint[:origin], @na_plane_key, footprint[:u], footprint[:v],
                 na_drawn__signed_d, na_drawn__resolved_ridge_axis, na_drawn__roof_kind
             )
         end
@@ -259,6 +285,7 @@ module Na__InsertPrimatives
         def na_drawn__preview_points
             points = na_drawn__rectangle_points
             return [] unless points
+            return points + na_roof__plinth_preview_points if na_roof__plinth_drawn?
             return points unless @na_state == :picking_depth
 
             points + Na__InsertPrimatives.Na__DrawnGrid__OffsetPointsAlongNormal(points, @na_plane_key, na_drawn__signed_d)
@@ -272,7 +299,9 @@ module Na__InsertPrimatives
         # REGION | Subclass Contract — Drag Completion
         # -----------------------------------------------------------------------------
 
-        # FUNCTION | Footprint Settled — Move On to the Rise
+        # FUNCTION | Footprint Settled — Move On to the Rise, or to the Fascia
+        # With Fascia & Soffit on, the rectangle was the wall line and the
+        # plinth comes first. See DrawnRoof__FasciaSoffit__.
         # ------------------------------------------------------------
         def na_drawn__advance_from_b(view)
             unless na_drawn__rectangle_valid?
@@ -281,6 +310,9 @@ module Na__InsertPrimatives
                 return false
             end
 
+            return na_roof__begin_fascia_stage(view) if na_roof__plinth_option?
+
+            @na_roof_plinth_on = false
             @na_state  = :picking_depth
             @na_size_d = 0.0
             @na_sign_d = 1.0
@@ -313,7 +345,12 @@ module Na__InsertPrimatives
                 return
             end
 
-            if @na_state == :picking_depth && Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(@na_size_d)
+            return na_roof__draw_plinth_stage(view, points) if na_roof__plinth_stage?
+
+            # On a plinth the roof stage always draws the roof's own preview,
+            # so the plinth stays on screen before the roof has any rise.
+            if @na_state == :picking_depth &&
+               (@na_roof_plinth_on == true || Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(@na_size_d))
                 na_drawn__draw_roof_preview(view, points)
                 return
             end
@@ -332,6 +369,8 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__draw_roof_preview(view, base_points)
             Na__InsertPrimatives.Na__DrawnPreview__DrawOutline(view, base_points, NA_DRAWN_PLANE_BORDER_COLOR)
+
+            return na_drawn__draw_plinth_roof_preview(view, base_points) if @na_roof_plinth_on == true
 
             na_drawn__roof_faces.each do |loop_points|
                 Na__InsertPrimatives.Na__DrawnPreview__DrawFilledPolygon(
@@ -361,6 +400,46 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Draw the Plinth, Then the Roof Standing on Its Eaves
+        # ------------------------------------------------------------
+        # The wall line stays dashed underneath. The eaves rectangle carries
+        # the plan dimensions, because that is the roof's own plan and the
+        # span its pitch is read over; the card repeats the fascia and soffit.
+        # ------------------------------------------------------------
+        def na_drawn__draw_plinth_roof_preview(view, wall_points)
+            footprint = na_roof__footprint
+            box       = na_roof__draw_plinth_box(view, footprint)
+            eaves     = Na__InsertPrimatives.Na__DrawnGrid__BuildRectPoints(
+                footprint[:origin], @na_plane_key, footprint[:u], footprint[:v]
+            )
+
+            if Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(@na_size_d)
+                na_drawn__roof_faces(footprint).each do |loop_points|
+                    Na__InsertPrimatives.Na__DrawnPreview__DrawFilledPolygon(
+                        view, loop_points, NA_DRAWN_VOLUME_FILL_COLOR, NA_DRAWN_VOLUME_BORDER_COLOR
+                    )
+                end
+
+                ridge = Na__InsertPrimatives.Na__DrawnRoof__RidgeSegment(
+                    footprint[:origin], @na_plane_key, footprint[:u], footprint[:v],
+                    na_drawn__signed_d, na_drawn__resolved_ridge_axis, na_drawn__roof_kind
+                )
+
+                if ridge
+                    Na__InsertPrimatives.Na__DrawnPreview__DrawRidgeLine(view, ridge[0], ridge[1])
+                    Na__InsertPrimatives.Na__DrawnPreview__DrawEdgeLabel(
+                        view, ridge[0], ridge[1],
+                        "#{Na__InsertPrimatives.Na__DrawnFormat__Degrees(na_drawn__pitch_degrees)} deg",
+                        NA_DRAWN_TEXT_ACCENT_COLOR
+                    )
+                end
+            end
+
+            Na__InsertPrimatives.Na__DrawnPreview__LabelRectangle(view, eaves, footprint[:u], footprint[:v])
+            na_roof__summarise_plinth_roof(view, box ? box[1][2] : eaves[2], footprint)
+        end
+        # ---------------------------------------------------------------
+
         # endregion -------------------------------------------------------------------
 
 
@@ -375,14 +454,22 @@ module Na__InsertPrimatives
             length_mm = Na__InsertPrimatives.Na__DrawnFormat__Mm(@na_size_v).abs
             rise_mm   = Na__InsertPrimatives.Na__DrawnFormat__Mm(@na_size_d).abs
 
+            return na_roof__plinth_status if na_roof__plinth_stage?
+
             case @na_state
             when :picking_b
+                return "#{width_mm} x #{length_mm} mm wall line — release or click, then pull up the fascia" if na_roof__plinth_live?
+
                 "#{width_mm} x #{length_mm} mm plan — release or click to set the footprint"
             when :picking_depth
                 note = na_drawn__pyramid? ? ' (pyramid — ridge has no length)' : ''
-                "Pitch #{Na__InsertPrimatives.Na__DrawnFormat__Degrees(na_drawn__pitch_degrees)} deg, rise #{rise_mm} mm#{note} — click to place, or type a pitch"
+                "Pitch #{Na__InsertPrimatives.Na__DrawnFormat__Degrees(na_drawn__pitch_degrees)} deg, rise #{rise_mm} mm#{note}#{na_roof__plinth_note} — click to place, or type a pitch"
             else
-                na_drawn__revise_available? ? 'Type a pitch (35) or a rise (3000mm) to correct the roof just drawn' : 'Click and drag out the plan footprint'
+                return 'Click and drag out the wall line the roof sits on' if !na_drawn__revise_available? && na_roof__plinth_option?
+                return 'Click and drag out the plan footprint' unless na_drawn__revise_available?
+                return 'Type a pitch (35), a rise (3000mm), or 250f / 400s for the fascia and soffit, to correct the roof just drawn' if na_roof__plinth_live?
+
+                'Type a pitch (35) or a rise (3000mm) to correct the roof just drawn'
             end
         end
         # ---------------------------------------------------------------
@@ -390,6 +477,7 @@ module Na__InsertPrimatives
         # FUNCTION | Measurements Box Label and Live Value
         # ------------------------------------------------------------
         def na_drawn__vcb_label_and_value
+            return na_roof__plinth_vcb if na_roof__plinth_stage?
             return ['Roof pitch', na_drawn__pitch_vcb_text] if @na_state == :picking_depth
             return ['Roof W,L,pitch', ''] if @na_state == :idle && !na_drawn__revise_available?
 
@@ -419,12 +507,24 @@ module Na__InsertPrimatives
         def na_drawn__handle_vcb_text(text, view)
             case @na_state
             when :picking_b
+                # A W,L,pitch typed straight in skips the plinth stages, so it
+                # builds on the last fascia and soffit — loaded before the
+                # pitch is read, because the pitch is measured over the eaves.
+                na_roof__prime_plinth_from_memory if na_drawn__rise_typed?(text) && na_roof__plinth_live?
+
                 na_drawn__apply_typed_sizes(text)
                 return na_drawn__commit_roof(view) if na_drawn__rise_typed?(text)
                 return true unless na_drawn__all_locked?([:u, :v])            # <-- One plan side named: pin it, drag the other
                 na_drawn__advance_from_b(view)
 
+            when :picking_fascia
+                na_roof__apply_plinth_entry(text, view, :fascia)
+
+            when :picking_soffit
+                na_roof__apply_plinth_entry(text, view, :soffit)
+
             when :picking_depth
+                return na_roof__apply_plinth_entry(text, view, :pitch) if @na_roof_plinth_on == true && na_roof__plinth_entry?(text)
                 raise ArgumentError, 'pitch takes a single value' if na_drawn__entry_parts(text).length > 1
 
                 @na_size_d = na_drawn__resolve_rise_token(text)
@@ -444,7 +544,10 @@ module Na__InsertPrimatives
                 # 6000,4000,35 all three. A roof is re-pitched far more often
                 # than it is re-planned, so a comma-free entry is the rise slot:
                 # 35 re-pitches the roof just drawn, 3000mm sets its rise.
+                # A lettered 250f / 400s corrects its fascia and soffit.
                 na_drawn__clear_locks
+
+                return na_roof__revise_plinth(text, view) if na_roof__plinth_entry?(text)
 
                 if na_drawn__entry_parts(text).length == 1
                     @na_size_d = na_drawn__resolve_rise_token(text)
@@ -562,6 +665,17 @@ module Na__InsertPrimatives
                 return false
             end
 
+            # A roof on a plinth only ever rises off it, whatever sign a
+            # stale drag left behind.
+            plinth = na_roof__plinth_live? ? na_roof__plinth_spec : nil
+            @na_sign_d = 1.0 if plinth
+
+            unless Na__InsertPrimatives.Na__DrawnRoof__PlinthBuildable?(plinth)
+                UI.beep
+                Sketchup::set_status_text('The fascia has no height — pull it up, or type one such as 225', SB_PROMPT)
+                return false
+            end
+
             origin     = @na_point_a
             plane_key  = @na_plane_key
             width_len  = na_drawn__signed_u
@@ -572,7 +686,7 @@ module Na__InsertPrimatives
             volume     = na_drawn__volume_text
 
             group = Na__InsertPrimatives.Na__DrawnRoof__CreateRoof(
-                origin, plane_key, width_len, length_len, rise_len, ridge_axis, na_drawn__roof_kind
+                origin, plane_key, width_len, length_len, rise_len, ridge_axis, na_drawn__roof_kind, plinth
             )
 
             unless group
@@ -588,12 +702,14 @@ module Na__InsertPrimatives
                 :sign_u     => @na_sign_u,
                 :sign_v     => @na_sign_v,
                 :sign_d     => @na_sign_d,
-                :ridge_axis => ridge_axis
+                :ridge_axis => ridge_axis,
+                :plinth     => plinth
             }
 
+            Na__InsertPrimatives.Na__DrawnRoof__RememberPlinth(plinth)
             na_drawn__reset_pick_state
             na_drawn__arm_revise
-            na_drawn__log_roof('CREATED', group, origin, width_len, length_len, rise_len, ridge_axis, pitch, volume)
+            na_drawn__log_roof('CREATED', group, origin, width_len, length_len, rise_len, ridge_axis, pitch, volume, plinth)
             true
         end
         # ---------------------------------------------------------------
@@ -611,7 +727,7 @@ module Na__InsertPrimatives
 
             rebuilt = Na__InsertPrimatives.Na__DrawnRoof__RebuildRoof(
                 record[:group], record[:origin], record[:plane_key],
-                width_len, length_len, rise_len, ridge_axis, na_drawn__roof_kind
+                width_len, length_len, rise_len, ridge_axis, na_drawn__roof_kind, record[:plinth]
             )
 
             unless rebuilt
@@ -621,26 +737,35 @@ module Na__InsertPrimatives
             end
 
             record[:ridge_axis] = ridge_axis
+            Na__InsertPrimatives.Na__DrawnRoof__RememberPlinth(record[:plinth])
             na_drawn__arm_revise                                               # <-- Keep revising while the mouse stays put
             na_drawn__log_roof('ADJUSTED', record[:group], record[:origin], width_len, length_len, rise_len,
-                               ridge_axis, na_drawn__pitch_degrees, na_drawn__volume_text)
+                               ridge_axis, na_drawn__pitch_degrees, na_drawn__volume_text, record[:plinth])
             true
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Console Report for a Created or Adjusted Roof
+        # With a plinth, Plan is the wall line and Eaves the roof's own plan.
         # ------------------------------------------------------------
-        def na_drawn__log_roof(action, group, origin, width_len, length_len, rise_len, ridge_axis, pitch, volume)
+        def na_drawn__log_roof(action, group, origin, width_len, length_len, rise_len, ridge_axis, pitch, volume, plinth = nil)
             Na__InsertPrimatives.Na__Debug__Puts "\n"
             Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
             Na__InsertPrimatives.Na__Debug__Puts "#{na_drawn__roof_label.upcase} #{action}"
             Na__InsertPrimatives.Na__Debug__Puts "Corner: #{Na__InsertPrimatives.Na__DrawnFormat__PointMm(origin)}"
-            Na__InsertPrimatives.Na__Debug__Puts "Plan  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(width_len).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(length_len).abs}mm"
+            Na__InsertPrimatives.Na__Debug__Puts "Plan  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(width_len).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(length_len).abs}mm#{plinth ? ' wall line' : ''}"
+
+            if plinth
+                footprint = Na__InsertPrimatives.Na__DrawnRoof__PlinthFootprint(nil, :xy, width_len, length_len, plinth[:fascia], plinth[:soffit])
+                Na__InsertPrimatives.Na__Debug__Puts "Eaves : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(footprint[:u]).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(footprint[:v]).abs}mm"
+                Na__InsertPrimatives.Na__Debug__Puts "Fascia: #{Na__InsertPrimatives.Na__DrawnFormat__Mm(plinth[:fascia]).abs}mm  Soffit: #{Na__InsertPrimatives.Na__DrawnFormat__Mm(plinth[:soffit]).abs}mm  (#{Na__InsertPrimatives.Na__DrawnRoof__PlinthVolumeM3(footprint)} m3)"
+            end
+
             Na__InsertPrimatives.Na__Debug__Puts "Rise  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(rise_len).abs}mm"
             Na__InsertPrimatives.Na__Debug__Puts "Pitch : #{Na__InsertPrimatives.Na__DrawnFormat__Degrees(pitch)} deg"
             Na__InsertPrimatives.Na__Debug__Puts "Ridge : along #{ridge_axis == :u ? 'X' : 'Y'}#{na_drawn__pyramid? ? ' (collapsed to a pyramid apex)' : ''}"
             Na__InsertPrimatives.Na__Debug__Puts "Volume: #{volume} m3"
-            Na__InsertPrimatives.Na__Debug__Puts "Solid : #{Na__InsertPrimatives.Na__DrawnGeom__SolidState(group)}"
+            Na__InsertPrimatives.Na__Debug__Puts "Solid : #{Na__InsertPrimatives.Na__DrawnRoof__SolidState(group)}"
             Na__InsertPrimatives.Na__Debug__Puts "Grid  : #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
             Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
         end

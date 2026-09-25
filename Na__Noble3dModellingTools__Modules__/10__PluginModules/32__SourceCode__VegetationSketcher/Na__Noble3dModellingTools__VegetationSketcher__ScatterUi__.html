@@ -5,11 +5,15 @@
 </style></head><body><div class="naVegetation__App">
 <header class="naVegetation__Header"><strong class="naVegetation__HeaderTitle">Vegetation Scatter</strong><span class="naVegetation__Badge">SURFACE BRUSH</span></header>
 <main class="naVegetation__Body">
-<section class="naVegetation__Group naVegetation__Group--state"><h2 class="naVegetation__GroupTitle" id="naScatter_mode">Connecting to SketchUp</h2><p class="naScatter__Info" id="naScatter_info">Select your tree or shrub groups/components in the model.</p>
-<button class="naVegetation__Btn" id="naScatter_capture" type="button" disabled>Use selected trees / shrubs</button></section>
+<section class="naVegetation__Group naVegetation__Group--state"><h2 class="naVegetation__GroupTitle" id="naScatter_mode">Connecting to SketchUp</h2><p class="naScatter__Info" id="naScatter_info">Select vegetation groups/components, or load a ready-made mix.</p>
+<div class="naVegetation__ButtonRow"><button class="naVegetation__Btn" id="naScatter_capture" type="button" disabled>Use selected vegetation</button>
+<button class="naVegetation__Btn" id="naScatter_bed_mix" type="button" disabled>Load planting-bed mix</button></div>
+<p class="naVegetation__Hint">Planting-bed mix: six small-to-mid shrub forms, two variations each, 250–1,400 mm high. No source selection needed.</p></section>
+<section class="naVegetation__Group"><button class="naVegetation__Btn" id="naScatter_flower_mix" type="button" disabled>Load flowers &amp; grasses mix</button>
+<p class="naVegetation__Hint">Three flowering plants and three grasses, two variations each. Petals, stems, leaves and plumes at balanced detail.</p></section>
 <section class="naVegetation__Group"><div class="naVegetation__GroupHeader"><h2 class="naVegetation__GroupTitle">Source mix</h2><span class="naVegetation__Hint">Relative probability</span></div>
 <div class="naScatter__Empty" id="naScatter_empty">Select several vegetation items, then use the button above. Each captured item becomes a source for the brush.</div>
-<table class="naScatter__Mix" id="naScatter_mix" hidden><thead><tr><th>Tree / shrub</th><th>Weight</th><th>Share</th></tr></thead><tbody id="naScatter_sources"></tbody></table>
+<table class="naScatter__Mix" id="naScatter_mix" hidden><thead><tr><th>Plant</th><th>Weight</th><th>Share</th></tr></thead><tbody id="naScatter_sources"></tbody></table>
 <p class="naVegetation__Hint">Weights are normalised automatically: 75 and 25 gives a 75% / 25% mix. Set a weight to zero to exclude that item. Actual small samples can vary.</p></section>
 <section class="naVegetation__Group"><h2 class="naVegetation__GroupTitle">Brush &amp; distribution</h2><div class="naVegetation__Fields naScatter__Fields">
 <label>Brush radius · mm<input data-scatter="radius" type="number" min="250" max="100000" step="any" value="10000"></label>

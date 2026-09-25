@@ -283,7 +283,7 @@ module Na__InsertPrimatives
                 size = Na__InsertPrimatives.Na__DrawnFormat__Mm(@na_size_d).abs
                 text = na_drawn__locked?(:d) ? "[#{size}]" : size.to_s
                 return "Ogee #{text} mm — CORNER PROBLEM: #{@na_ch_mitre_note}" if @na_ch_mitre_note
-                return "Ogee #{text} mm — release or click to cut"
+                return "Ogee #{text} mm#{na_drawn__stop_note} — release or click to cut"
             end
 
             adjust = na_revise__status_hint

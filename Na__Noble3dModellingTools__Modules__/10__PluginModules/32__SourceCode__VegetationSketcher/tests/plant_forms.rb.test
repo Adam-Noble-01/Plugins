@@ -1,0 +1,48 @@
+# Actual procedural geometry, together with persistence/placement contracts.
+PlantForms = Na__Noble3dModellingTools::Na__VegetationSketcher__PlantForms
+fixtures = JSON.parse(File.read(File.join(__dir__,'fixtures.json')))
+counts={}
+PlantForms::NA_TYPES.each_with_index do |type,index|
+  options=Options.Na__VegetationSketcher__Options__Resolve('preset'=>'shrub','shrub_type'=>type)
+  counts[type]=[]
+  %w[low medium high].each do |detail|
+    config=options.merge('plant_detail'=>detail)
+    mesh=Mesh.Na__VegetationSketcher__Mesh__Build(config)
+    counts[type] << mesh[:quads].length
+    check("#{type}/#{detail}: actual bounded polygon budget") { mesh[:quads].length.between?(100,PlantForms::NA_MAX_QUADS) && mesh[:requested_quads]==mesh[:quads].length }
+    check("#{type}/#{detail}: no invalid indices or repeated corners") { mesh[:quads].all? { |q| q.length==4 && q.uniq.length==4 && q.all? { |i| i.between?(0,mesh[:points].length-1) } } }
+    check("#{type}/#{detail}: no degenerate native triangles") do
+      mesh[:quads].all? do |a,b,c,d|
+        [[a,b,c],[a,c,d]].all? do |i,j,k|
+          u=3.times.map { |axis| mesh[:points][j][axis]-mesh[:points][i][axis] }
+          v=3.times.map { |axis| mesh[:points][k][axis]-mesh[:points][i][axis] }
+          TreeForms.Na__VegetationSketcher__TreeForms__Cross(u,v).sum { |n| n*n } > 0.0001
+        end
+      end
+    end
+    box=bounds_of(mesh[:points])
+    check("#{type}/#{detail}: exact size and grounded") { box[2][0]==0 && [options['width'],options['depth'],options['height']].each_with_index.all? { |v,k| (box[k][1]-box[k][0]-v).abs<1.0e-6 } }
+    viewport=Mesh.Na__VegetationSketcher__Mesh__Build(config,preview: :viewport)
+    check("#{type}/#{detail}: drawing geometry reduced and bounded") { viewport[:quads].length<=PlantForms::NA_VIEWPORT_QUADS && viewport[:quads].length<mesh[:quads].length && viewport[:requested_quads]==mesh[:quads].length }
+    check("#{type}/#{detail}: drawing preview retains overall scale") { bounds_of(viewport[:points])==box }
+    check("#{type}/#{detail}: seed repeatable") { Mesh.Na__VegetationSketcher__Mesh__Build(config)[:points]==mesh[:points] }
+  end
+  check("#{type}: increasing detail increases geometry") { counts[type].each_cons(2).all? { |a,b| b>a } }
+  data=Mesh.Na__VegetationSketcher__Mesh__Build(options)
+  variant=Mesh.Na__VegetationSketcher__Mesh__Build(options.merge('seed'=>70431))
+  check("#{type}: seed changes structure within fixed bounds") { data[:points]!=variant[:points] && bounds_of(data[:points])==bounds_of(variant[:points]) }
+  changed=Mesh.Na__VegetationSketcher__Mesh__Build(options.merge('soften'=>10,'random'=>150))
+  check("#{type}: arch and variation controls affect geometry") { changed[:points]!=data[:points] && changed[:points].all? { |p| p.all?(&:finite?) } }
+  dense=Mesh.Na__VegetationSketcher__Mesh__Build(options.merge('width'=>10000,'depth'=>8000,'height'=>15000,'resolution'=>10,'plant_detail'=>'high'))
+  check("#{type}: size and old grid setting cannot explode detail") { dense[:quads].length<=2000 }
+  entity=Sketchup::ComponentInstance.new(800+index)
+  model=Sketchup::Model.new
+  config=options.merge('plant_detail'=>'low')
+  DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model,entity,config,data[:quads].length)
+  check("#{type}: type/detail/seed persist") { DataSerializer.Na__VegetationSketcher__DataSerializer__Load(entity)==config }
+  fixtures[type]={settings:options,mesh:data,variant:variant}
+end
+check('invalid saved detail falls back safely') { Options.Na__VegetationSketcher__Options__Resolve('preset'=>'shrub','shrub_type'=>'daisy_clump','plant_detail'=>'unknown')['plant_detail']=='medium' }
+File.write(File.join(__dir__,'fixtures.json'),JSON.generate(fixtures))
+puts "Plant quads [Light, Balanced, Fuller]: #{counts}"
+puts "PASS: #{$checks} total Ruby checks including articulated flowers and grasses."

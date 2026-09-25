@@ -133,16 +133,8 @@ module Na__InsertPrimatives
                 NA_DRAWN_PLANE_FILL_COLOR, NA_DRAWN_PLANE_BORDER_COLOR
             )
 
-            unless solve[:mitre0]
-                Na__InsertPrimatives.Na__DrawnPreview__DrawFilledPolygon(
-                    view, [world[:v0]] + profile0, NA_DRAWN_PLANE_FILL_COLOR, NA_DRAWN_PLANE_BORDER_COLOR
-                )
-            end
-            unless solve[:mitre1]
-                Na__InsertPrimatives.Na__DrawnPreview__DrawFilledPolygon(
-                    view, [world[:v1]] + profile1, NA_DRAWN_PLANE_FILL_COLOR, NA_DRAWN_PLANE_BORDER_COLOR
-                )
-            end
+            na_drawn__draw_end_cap(view, solve, 0, [world[:v0]] + profile0)          # <-- The chamfer tool's: cap, stop or nothing
+            na_drawn__draw_end_cap(view, solve, 1, [world[:v1]] + profile1)
 
             near = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(profile0)
             far  = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(profile1)
@@ -199,6 +191,9 @@ module Na__InsertPrimatives
                 lines << "#{@na_ch_batch_solves.length + 1} of #{@na_ch_batch.length} edges together"
             end
 
+            stop_line = na_drawn__stop_summary(solve)
+            lines << stop_line if stop_line
+
             Na__InsertPrimatives.Na__DrawnPreview__DrawWorldLabel(view, world[:a1], lines)
         end
         # ---------------------------------------------------------------
@@ -252,7 +247,12 @@ module Na__InsertPrimatives
                         end
                 end
 
-                { :world => copied, :mitre0 => solve[:mitre0], :mitre1 => solve[:mitre1] }
+                {
+                    :world    => copied,
+                    :mitre0   => solve[:mitre0],   :mitre1   => solve[:mitre1],
+                    :stop0    => solve[:stop0],    :stop1    => solve[:stop1],
+                    :through0 => solve[:through0], :through1 => solve[:through1]
+                }
             end.compact
 
             { :from_setback => @na_size_d.to_f.abs, :solves => shapes, :state => na_drawn__profile_state }
@@ -305,7 +305,7 @@ module Na__InsertPrimatives
                 scaled = na_revise__scaled_world(solve[:world], scale)
                 next unless scaled
 
-                na_drawn__draw_cut_faces(view, { :world => scaled, :mitre0 => solve[:mitre0], :mitre1 => solve[:mitre1] })
+                na_drawn__draw_cut_faces(view, solve.merge(:world => scaled))    # <-- Keeps its mitre, stop and through flags
                 label_anchor ||= scaled[:a1]
             end
 

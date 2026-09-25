@@ -28,8 +28,8 @@
     var NA_ACK_TIMEOUT_MS = 45000;
     var NA_CONNECT_RETRY_MS = 400;
     var NA_CONNECT_ATTEMPTS = 20;
-    var NA_IMMEDIATE_ACTIONS = ['start', 'stop', 'update', 'variation', 'preset', 'tree_type', 'new', 'load', 'scatter'];
-    var NA_CONTEXT_SENSITIVE_ACTIONS = ['options', 'variation', 'update', 'live', 'tree_type'];
+    var NA_IMMEDIATE_ACTIONS = ['start', 'stop', 'update', 'variation', 'preset', 'tree_type', 'shrub_type', 'new', 'load', 'scatter'];
+    var NA_CONTEXT_SENSITIVE_ACTIONS = ['options', 'variation', 'update', 'live', 'tree_type', 'shrub_type'];
 
     var naState = {
         settings: { preset: 'hedge' },
@@ -51,7 +51,10 @@
         ackTimer: null,
         readyTimer: null,
         validationError: false,
-        treeTypes: {}
+        treeTypes: {},
+        shrubTypes: {},
+        placement: null,
+        placementTimer: null
     };
 
     var naCanvas = na_el('naVegetation_canvasPreview');
@@ -74,6 +77,10 @@
 
     function na_optionInputs() {
         return document.querySelectorAll('[data-option]');
+    }
+
+    function na_placementInputs() {
+        return document.querySelectorAll('[data-placement]');
     }
 
     function na_setStatus(message, variant) {
@@ -145,7 +152,7 @@
                 return queued.action !== 'options';
             });
         }
-        if (action === 'options' && naState.pending.length && naState.pending[naState.pending.length - 1].action === 'options') {
+        if ((action === 'options' || action === 'placement') && naState.pending.length && naState.pending[naState.pending.length - 1].action === action) {
             naState.pending.pop();
         }
         naState.pending.push(item);
@@ -177,6 +184,7 @@
         if (next.preset === 'hedge' && next.path && next.length !== naState.settings.length) {
             next.path = na_scalePath(next.path, next.length / naState.settings.length);
         }
+        if (!na_el('naVegetation_selPlantDetail').disabled) next.plant_detail = na_el('naVegetation_selPlantDetail').value;
         if (naState.validationError) {
             naState.validationError = false;
             na_setStatus('Ready.');
@@ -203,6 +211,81 @@
         na_command('options', { settings: value });
     }
 
+    // Placement ranges only shape the next plant's transform, so they travel
+    // on their own command and never rebuild or update selected vegetation.
+    function na_placementError(message, input, interactive) {
+        naState.validationError = true;
+        na_setStatus(message, 'error');
+        if (interactive && input) {
+            input.reportValidity();
+        }
+        return null;
+    }
+
+    function na_collectPlacement(interactive) {
+        var next = Object.assign({}, naState.placement || {});
+        var inputs = na_placementInputs();
+        var enabled = na_el('naVegetation_chkPlacement').checked;
+        var i;
+        var input;
+        var label;
+        next.enabled = enabled;
+        for (i = 0; i < inputs.length; i++) {
+            input = inputs[i];
+            if (input.type === 'checkbox') {
+                continue;
+            }
+            if (input.value.trim() === '' || !Number.isFinite(Number(input.value)) || Number(input.value) < Number(input.min) || Number(input.value) > Number(input.max)) {
+                if (!enabled) {
+                    continue;
+                }
+                label = input.parentNode.firstChild.textContent.trim().split(' · ')[0];
+                return na_placementError('Enter a ' + label.toLowerCase() + ' from ' + input.min + ' to ' + input.max + '.', input, interactive);
+            }
+            next[input.getAttribute('data-placement')] = Number(input.value);
+        }
+        if (enabled && next.scale_min > next.scale_max) {
+            return na_placementError('Minimum size is above maximum size. Lower the minimum or raise the maximum.', null, interactive);
+        }
+        if (enabled && next.height_min > next.height_max) {
+            return na_placementError('Minimum height stretch is above the maximum. Lower the minimum or raise the maximum.', null, interactive);
+        }
+        if (naState.validationError) {
+            naState.validationError = false;
+            na_setStatus('Ready.');
+        }
+        return next;
+    }
+
+    function na_sendPlacement() {
+        clearTimeout(naState.placementTimer);
+        naState.placementTimer = null;
+        var value = na_collectPlacement();
+        if (!value) {
+            return;
+        }
+        naState.placement = value;
+        na_command('placement', { placement: value });
+    }
+
+    function na_applyPlacementToInputs(limits) {
+        var inputs = na_placementInputs();
+        var i;
+        var key;
+        for (i = 0; i < inputs.length; i++) {
+            key = inputs[i].getAttribute('data-placement');
+            if (inputs[i].type === 'checkbox') {
+                inputs[i].checked = !!naState.placement[key];
+            } else {
+                inputs[i].value = naState.placement[key];
+                if (limits && limits[key]) {
+                    inputs[i].min = limits[key][0];
+                    inputs[i].max = limits[key][1];
+                }
+            }
+        }
+    }
+
     // endregion ---------------------------------------------------------------
 
 
@@ -218,16 +301,36 @@
         var settings = naState.settings;
         var species = settings.preset === 'tree' && settings.tree_type && settings.tree_type !== 'generic';
         var tree = naState.treeTypes[settings.tree_type] || {};
+        var shrub = naState.shrubTypes[settings.shrub_type] || {};
+        var botanical = settings.preset === 'shrub' && !!shrub.procedural;
         var over = naState.mesh && naState.mesh.requested_quads > naState.limit;
 
         na_el('naVegetation_softenValue').textContent = na_el('naVegetation_rngSoften').value + '%';
         na_el('naVegetation_randomValue').textContent = na_el('naVegetation_rngRandom').value + ' mm';
         na_updateScopedVisibility(settings.preset);
+        na_placementInputs().forEach(function (input) {
+            if (input.type !== 'checkbox') {
+                input.disabled = input.disabled || !na_el('naVegetation_chkPlacement').checked;
+            }
+        });
+        na_el('naVegetation_gridResolution').hidden = botanical;
+        na_el('naVegetation_selResolution').disabled = botanical || !naState.ready;
+        na_el('naVegetation_plantDetail').hidden = !botanical;
+        na_el('naVegetation_selPlantDetail').disabled = !botanical || !naState.ready;
         na_updatePresetButtons(settings.preset);
 
         na_el('naVegetation_widthLabel').textContent = settings.preset === 'tree' ? 'Canopy width' : 'Width';
         na_el('naVegetation_treeInfo').textContent = (tree.botanical ? tree.botanical + ' · ' : '') + (tree.description || 'An adjustable rounded whitecard canopy.');
-        na_el('naVegetation_softenLabel').textContent = species ? 'Crown rounding' : 'Soften corners';
+        na_el('naVegetation_softenLabel').textContent = species || (settings.preset === 'shrub' && settings.shrub_type !== 'generic') ? 'Crown rounding' : 'Soften corners';
+        if (botanical) na_el('naVegetation_softenLabel').textContent = 'Leaf arch / petal cup';
+        na_el('naVegetation_randomLabel').textContent = botanical ? 'Stem variation' : 'Randomise XYZ';
+        na_el('naVegetation_formHint').textContent = botanical
+            ? 'Separate stems, petals and creased leaves. Plant detail controls fullness and curves; the mesh stays capped for scattering.'
+            : 'Round the form first, then add organic variation. The base stays grounded.';
+        na_el('naVegetation_shrubInfo').textContent = shrub.description || 'The original adjustable rounded shrub.';
+        na_el('naVegetation_shrubScale').textContent = settings.preset === 'shrub'
+            ? 'Model size: ' + na_metres(settings.height) + ' m high · ' + na_metres(settings.width) + ' × ' + na_metres(settings.depth) + ' m spread'
+            : '';
         na_el('naVegetation_treeScale').textContent = settings.preset === 'tree'
             ? 'Model size: ' + na_metres(settings.height) + ' m high · ' + na_metres(settings.width) + ' × ' + na_metres(settings.depth) + ' m canopy'
             : '';
@@ -236,7 +339,7 @@
         na_el('naVegetation_btnStart').textContent = na_startLabel(settings, species, tree);
         na_el('naVegetation_help').textContent = settings.preset === 'hedge'
             ? 'Click corners; Enter, double-click or Finish builds the hedge. Right/Left: red/green. Down: parallel. Up: unlock. Backspace: undo point. Esc: cancel.'
-            : 'Click in the model to plant. R: new variation. Esc: finish.';
+            : 'Click in the model to plant. R: new variation and placement roll. Esc: finish.';
         na_el('naVegetation_btnStop').hidden = !naState.placing;
         na_el('naVegetation_btnStop').textContent = settings.preset === 'hedge' ? 'Finish hedge' : 'Finish';
         na_el('naVegetation_viewportState').hidden = !naState.placing;
@@ -306,7 +409,7 @@
         if (settings.preset === 'tree') {
             return 'Plant ' + (species ? tree.name || 'tree' : 'tree') + ' in SketchUp';
         }
-        return 'Plant shrub in SketchUp';
+        return 'Plant ' + ((naState.shrubTypes[settings.shrub_type] || {}).name || 'shrub') + ' in SketchUp';
     }
 
     // endregion ---------------------------------------------------------------
@@ -349,9 +452,14 @@
         naState.placing = payload.placing;
         naState.settings = payload.settings;
         naState.treeTypes = payload.tree_types || naState.treeTypes;
+        naState.shrubTypes = payload.shrub_types || naState.shrubTypes;
         naState.limit = payload.limit;
         if (external || changedContext || payload.revision >= naState.revision) {
             na_applySettingsToInputs(payload);
+        }
+        if (payload.placement && !naState.placementTimer && !naState.pending.some(function (item) { return item.action === 'placement'; })) {
+            naState.placement = payload.placement;
+            na_applyPlacementToInputs(payload.placement_limits);
         }
         na_el('naVegetation_chkLive').checked = payload.live;
         na_el('naVegetation_selectionInfo').textContent = na_selectionCopy(payload);
@@ -365,6 +473,8 @@
         var el;
         var key;
         na_el('naVegetation_selTreeType').value = naState.settings.tree_type || 'generic';
+        na_el('naVegetation_selShrubType').value = naState.settings.shrub_type || 'generic';
+        na_el('naVegetation_selPlantDetail').value = naState.settings.plant_detail || 'medium';
         for (i = 0; i < inputs.length; i++) {
             el = inputs[i];
             key = na_optionKey(el);
@@ -407,14 +517,14 @@
         naState.mesh = payload;
         over = naState.mesh.requested_quads > naState.limit;
         na_el('naVegetation_meshInfo').classList.toggle('naVegetation__Hint--overBudget', over);
-        na_el('naVegetation_meshInfo').textContent = naState.mesh.requested_quads.toLocaleString() + ' foliage quads / ' + (naState.mesh.requested_quads * 2).toLocaleString() + ' triangles' +
+        na_el('naVegetation_meshInfo').textContent = naState.mesh.requested_quads.toLocaleString() + (naState.mesh.form_mode === 'botanical' ? ' plant quads / ' : ' foliage quads / ') + (naState.mesh.requested_quads * 2).toLocaleString() + ' triangles' +
             (over
                 ? '. Choose a coarser resolution or a smaller form (80,000 quad limit).'
                 : naState.mesh.viewport_preview
-                    ? ' · 50% resolution drawing preview; creation uses your chosen resolution.'
+                    ? (naState.mesh.form_mode === 'botanical' ? ' · Reduced drawing detail; creation uses your chosen plant detail.' : ' · 50% resolution drawing preview; creation uses your chosen resolution.')
                     : naState.mesh.preview_coarse
                         ? ' · Simplified preview; creation uses your chosen resolution.'
-                        : ' · Preview at your chosen resolution.');
+                        : (naState.mesh.form_mode === 'botanical' ? ' · Preview at your chosen plant detail (2,000 quad cap).' : ' · Preview at your chosen resolution.'));
         na_updateLabels();
         na_drawPreview();
     }
@@ -599,6 +709,14 @@
                 naState.timer = setTimeout(na_sendSettings, NA_SETTINGS_DEBOUNCE_MS);
             });
         });
+        na_placementInputs().forEach(function (el) {
+            el.addEventListener('input', function () {
+                naState.pending = naState.pending.filter(function (item) { return item.action !== 'placement'; });
+                na_updateLabels();
+                clearTimeout(naState.placementTimer);
+                naState.placementTimer = setTimeout(na_sendPlacement, NA_SETTINGS_DEBOUNCE_MS);
+            });
+        });
         document.querySelectorAll('[data-preset]').forEach(function (el) {
             el.addEventListener('click', function () {
                 clearTimeout(naState.timer);
@@ -611,6 +729,17 @@
             naState.revision++;
             na_command('tree_type', { tree_type: na_el('naVegetation_selTreeType').value });
         });
+        na_el('naVegetation_selShrubType').addEventListener('change', function () {
+            clearTimeout(naState.timer);
+            naState.revision++;
+            na_command('shrub_type', { shrub_type: na_el('naVegetation_selShrubType').value });
+        });
+        na_el('naVegetation_selPlantDetail').addEventListener('change', function () {
+            naState.pending = naState.pending.filter(function (item) { return item.action !== 'options'; });
+            naState.revision++;
+            clearTimeout(naState.timer);
+            naState.timer = setTimeout(na_sendSettings, NA_SETTINGS_DEBOUNCE_MS);
+        });
         na_el('naVegetation_btnVariation').addEventListener('click', function () {
             clearTimeout(naState.timer);
             naState.revision++;
@@ -620,7 +749,17 @@
         na_el('naVegetation_btnStart').addEventListener('click', function () {
             clearTimeout(naState.timer);
             var o = na_collect(true);
-            if (o) { na_command('start', { settings: o }); }
+            var p = o && o.preset !== 'hedge' ? na_collectPlacement(true) : undefined;
+            if (!o || p === null) { return; }
+            if (p) {
+                clearTimeout(naState.placementTimer);
+                naState.placementTimer = null;
+                naState.pending = naState.pending.filter(function (item) { return item.action !== 'placement'; });
+                naState.placement = p;
+                na_command('start', { settings: o, placement: p });
+            } else {
+                na_command('start', { settings: o });
+            }
         });
         na_el('naVegetation_btnStop').addEventListener('click', function () {
             clearTimeout(naState.timer);

@@ -322,4 +322,114 @@ check('model switch clears both native sources and HTML source palette') { state
 D.Na__VegetationSketcher__Scatter__ResetDialog
 UI.flush
 check('scatter dialog closes cleanly') { D.instance_variable_get(:@na_dialog).nil? }
+require File.join(ROOT,PREFIX+'Options__')
+require File.join(ROOT,PREFIX+'Mesh__')
+require File.join(ROOT,PREFIX+'Builder__')
+module Geom
+  class PolygonMesh
+    HIDE_BASED_ON_INDEX=1
+    SOFTEN_BASED_ON_INDEX=2
+    SMOOTH_SOFT_EDGES=4
+    attr_reader :points,:polygons
+    def initialize(*); @points=[]; @polygons=[]; end
+    def add_point(p); @points << p; @points.length; end
+    def add_polygon(*p); @polygons << p.flatten; end
+  end
+end
+module Sketchup
+  class Edge; end
+  class Color
+    def initialize(*rgb); @rgb=rgb; end
+    def to_a; @rgb; end
+  end
+  class Material < Attributes
+    attr_accessor :color,:name
+    def alpha; 1.0; end
+    def texture; nil; end
+  end
+  class Materials < Array
+    def add(name); material=Material.new; material.name=name; self << material; material; end
+    def [](key); key.is_a?(String) ? find { |m| m.name==key } : super; end
+  end
+  class Definitions < Hash
+    def add(name); d=ComponentDefinition.new; d.name=name; self[d.persistent_id]=d; d; end
+  end
+  class Entities
+    attr_reader :mesh
+    def fill_from_mesh(mesh,*); @mesh=mesh; true; end
+  end
+end
+model=Sketchup::Model.new
+model.view=view
+model.instance_variable_set(:@definitions,Sketchup::Definitions.new)
+model.instance_variable_set(:@materials,Sketchup::Materials.new)
+model.paths[path]=Sketchup::InstancePath.new([face])
+Sketchup.model=model
+model.set_attribute('Na__VegetationSketcher__Model','last_settings','keep creation defaults')
+D.Na__VegetationSketcher__Scatter__ShowDialog
+dialog=D.instance_variable_get(:@na_dialog)
+dialog.callbacks['na_scatter_ready'].call(nil)
+state=dialog.events.reverse.find { |e,_| e=='state' }[1]
+request={id:80,session:state['session'],action:'bed_mix',payload:{context:state['context'],target_id:nil}}
+dialog.callbacks['na_scatter_event'].call(nil,JSON.generate(request))
+state=dialog.events.reverse.find { |e,_| e=='state' }[1]
+check('bed mix loads without creating model geometry') { model.operations==0 && state['sources'].length==12 && dialog.events.last==['ack',{'id'=>80,'success'=>true}] }
+check('bed mix uses small brush and closer spacing') { state['options']['radius']==1200 && state['options']['spacing']==650 }
+check('bed mix has six types with two different seeds each') { state['sources'].group_by { |s| s['vegetation']['shrub_type'] }.values.all? { |pair| pair.length==2 && pair.map { |s| s['vegetation']['seed'] }.uniq.length==2 } }
+check('bed weights total 100 percent') { state['sources'].sum { |s| s['weight'] }==100 }
+weights=state['sources'].to_h { |s| [s['key'],s['weight']] }
+paint={id:81,session:state['session'],action:'paint',payload:{context:state['context'],target_id:nil,options:state['options'],weights:weights}}
+dialog.callbacks['na_scatter_event'].call(nil,JSON.generate(paint))
+check('recipe-only mix can activate painting') { model.operations==0 && dialog.events.last==['ack',{'id'=>81,'success'=>true}] }
+tool=D.instance_variable_get(:@na_tool)
+tool.onLButtonDown(0,0,0,view)
+tool.onLButtonUp(0,0,0,view)
+bed=tool.na_group
+check('bed stroke creates sources and plants in one operation') { bed && model.operations==1 && model.commits==1 && S.na_load(bed)['count']>0 && model.definitions.length==12 }
+definitions=S.na_definitions(model,S.na_load(bed)['sources'],bed)
+check('all built-in sources have native mesh payload and saved shrub settings') do
+  definitions.all? do |d|
+    config=JSON.parse(d.get_attribute('Na__VegetationSketcher__Definition','data'))['configuration']
+    bounds=d.entities.mesh.points.map(&:last).minmax
+    config['preset']=='shrub' && bounds[0].zero? && (bounds[1]-config['height']/25.4).abs<1.0e-7
+  end
+end
+check('bed source generation preserves individual creation defaults') { model.get_attribute('Na__VegetationSketcher__Model','last_settings')=='keep creation defaults' }
+first_definitions=definitions.map(&:persistent_id)
+tool.onLButtonDown(0,80,0,view)
+tool.onLButtonUp(0,80,0,view)
+check('later strokes reuse shrub definitions') { model.definitions.length==12 && S.na_definitions(model,S.na_load(bed)['sources'],bed).map(&:persistent_id)==first_definitions }
+saved=S.na_load(bed)
+check('bed recipes survive forest serialization') { saved['sources'].all? { |s| S.na_recipe(s)['shrub_type']!='generic' && s['definition_pid'] } }
+before=model.operations
+rejected('damaged built-in recipe rejected before geometry') { S.na_rebuild(model,nil,state['options'],[state['sources'].first.merge('vegetation'=>{'preset'=>'tree'})],raw) }
+check('invalid recipe opens no operation') { model.operations==before }
+model.select_tool(nil)
+UI.flush
+state=dialog.events.reverse.find { |e,_| e=='state' }[1]
+before=model.operations
+flower={id:85,session:state['session'],action:'flower_mix',payload:{context:state['context'],target_id:state['target_id']}}
+dialog.callbacks['na_scatter_event'].call(nil,JSON.generate(flower))
+state=dialog.events.reverse.find { |e,_| e=='state' }[1]
+check('flower mix loads data only and releases previous target') { state['target_id'].nil? && state['sources'].length==12 && model.operations==before && dialog.events.last==['ack',{'id'=>85,'success'=>true}] }
+check('flower mix has articulated plants and two variants per type') { state['sources'].all? { |s| Na__Noble3dModellingTools::Na__VegetationSketcher__PlantForms.na_plant?(s['vegetation']) } && state['sources'].map { |s| s['vegetation']['shrub_type'] }.uniq.length==6 }
+check('flower mix radius and spacing suit smaller planting') { state['options']['radius']==900 && state['options']['spacing']==500 && state['sources'].sum { |s| s['weight'] }==100 }
+paint={id:86,session:state['session'],action:'paint',payload:{context:state['context'],target_id:nil,options:state['options'],weights:state['sources'].to_h { |s| [s['key'],s['weight']] }}}
+dialog.callbacks['na_scatter_event'].call(nil,JSON.generate(paint))
+tool=D.instance_variable_get(:@na_tool)
+tool.onLButtonDown(0,0,0,view)
+tool.onLButtonUp(0,0,0,view)
+flowers=tool.na_group
+check('flower stroke creates native mesh payloads and shared instances in one operation') { flowers && model.operations==before+1 && model.definitions.length==24 && S.na_load(flowers)['count']>0 }
+data=S.na_load(flowers)
+defs=S.na_definitions(model,data['sources'],flowers)
+check('all flower mix sources stay inside budget after native triangulation') { defs.all? { |d| d.entities.mesh.polygons.length<=4000 && d.entities.mesh.polygons.length>200 } }
+model.select_tool(nil)
+UI.flush
+state=dialog.events.reverse.find { |e,_| e=='state' }[1]
+regen={id:87,session:state['session'],action:'regenerate',payload:{context:state['context'],target_id:state['target_id'],options:state['options'],weights:state['sources'].to_h { |s| [s['key'],s['weight']] }}}
+dialog.callbacks['na_scatter_event'].call(nil,JSON.generate(regen))
+check('saved flower mix regenerates without duplicating definitions') { dialog.events.last==['ack',{'id'=>87,'success'=>true}] && model.definitions.length==24 && S.na_load(flowers)['sources'].all? { |s| s['vegetation']['plant_detail']=='medium' } }
+D.Na__VegetationSketcher__Scatter__ResetDialog
+UI.flush
 puts "PASS: #{$checks} scatter geometry, weighting, persistence, brush and bridge checks."

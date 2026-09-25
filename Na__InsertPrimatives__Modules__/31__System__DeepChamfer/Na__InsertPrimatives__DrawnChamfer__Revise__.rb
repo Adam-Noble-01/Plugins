@@ -157,7 +157,12 @@ module Na__InsertPrimatives
                 copied = {}
                 world.each { |key, point| copied[key] = point ? point.clone : nil }
 
-                { :world => copied, :mitre0 => solve[:mitre0], :mitre1 => solve[:mitre1] }
+                {
+                    :world    => copied,
+                    :mitre0   => solve[:mitre0],   :mitre1   => solve[:mitre1],
+                    :stop0    => solve[:stop0],    :stop1    => solve[:stop1],
+                    :through0 => solve[:through0], :through1 => solve[:through1]
+                }
             end.compact
 
             { :from_setback => @na_size_d.to_f.abs, :solves => shapes }
@@ -332,7 +337,7 @@ module Na__InsertPrimatives
                 scaled = na_revise__scaled_world(solve[:world], scale)
                 next unless scaled
 
-                na_drawn__draw_cut_faces(view, { :world => scaled, :mitre0 => solve[:mitre0], :mitre1 => solve[:mitre1] })
+                na_drawn__draw_cut_faces(view, solve.merge(:world => scaled))    # <-- Keeps its mitre, stop and through flags
                 label_anchor ||= scaled[:a1]
             end
 
