@@ -7,6 +7,7 @@ After installing an update, close the dialog, use **Reload Plugin Data**, then r
 
 - **Hedge:** choose **Draw hedge in SketchUp**. Click a start point, then click each corner. Dragging sets the first run too. The whole path stays in preview until **Enter**, **double-click**, **right-click**, or **Finish hedge** creates one component.
 - **Tree / Shrub:** choose **Plant in SketchUp**, then click to place. Repeat to plant more. **Finish** ends placement and loads the last planting for editing.
+- **Vines:** choose **Paint vines on faces in SketchUp**, drag along a wall face, then release to grow an editable vine stroke.
 - No selection is required to create vegetation. **New vegetation** leaves editing mode.
 
 ### Hedge controls
@@ -24,6 +25,17 @@ After installing an update, close the dialog, use **Reload Plugin Data**, then r
 | R | New organic variation |
 
 Locks re-anchor at every corner. Hedges use open paths on the horizontal plane through the first point. Miter sections join adjacent runs with shared vertices and no internal caps. Excessively sharp turns, overlapping runs and runs too short for their hedge width are rejected before creation. Change the path or width to resolve these cases.
+
+## Wall vines
+
+Choose **Vines**, then **Wisteria**, **Ivy** or **Leafy climber**. Wisteria has paired leaflets and hanging flower clusters; ivy uses broader lobed leaves. All remain whitecard geometry.
+
+- Drag up/across a wall to guide the main stem. Branches and leaves grow around that path. **Brush spread**, **foliage density**, **leaf size**, **flowering branches** (wisteria) and **wall clearance** control the result. **Light / Balanced / Fuller** adjusts curves and flower geometry.
+- Each release creates a separate component in one undo operation. **Esc** cancels the current stroke; **Enter**, the context menu or **Finish** ends painting. **R** changes the organic variation. Individual planting scale/lean ranges do not apply to wall vines.
+- One planar face per stroke. Release and paint a new stroke to turn a corner or change faces. Openings in the face and its outer boundary trim the generated geometry. Paint around openings; crossing a hole splits the path instead of bridging it. Separate window components are not openings in the host face.
+- Face orientation comes from transformed geometry, including nested, scaled and mirrored components. Foliage grows toward the side you paint; flower clusters hang along projected world-down. The source wall is not modified.
+- Select a completed vine to edit its form with the existing live-update controls. The seed, path and wall boundary are saved in its vegetation dictionary. Edits preserve the instance transform. The boundary is a saved snapshot: vines do not automatically follow later wall moves, new openings or other wall edits. Repaint after those changes.
+- Native previews refresh at most once every 150 ms while the path changes, using reduced leaf/flower detail. HTML previews keep the 650 ms quiet period. Creation uses full detail. A stroke supports up to **20 m**, **512 path points**, **2,000 wall-boundary vertices**, and **12,000 quads**; viewport meshes are capped at **6,000 quads**. Paint several strokes for large walls.
 
 ## Shape and shading
 
@@ -125,7 +137,7 @@ The hedge path is saved with its configuration. Changing width, height, variatio
 
 Open **Scatter vegetation** inside Vegetation Sketcher.
 
-1. Select vegetation groups or components in SketchUp, then choose **Use selected vegetation**, or load a ready-made mix. Noble vegetation and custom components are supported; hedges and existing forest groups are excluded.
+1. Select vegetation groups or components in SketchUp, then choose **Use selected vegetation**, or load a ready-made mix. Noble vegetation and custom components are supported; hedges, wall vines and existing forest groups are excluded.
 2. Set each source's probability weight. Weights are relative: **75 / 25** gives a 75% / 25% mix; **0** excludes a source. Small samples can differ from these expected percentages.
 3. Set brush radius, minimum spacing, placement chance, scale range, random rotation and maximum slope. All distances are in millimetres. **100% scale** preserves the selected source's current world size. Spacing separates planting points, so large canopies can overlap.
 4. Choose **Paint new forest**, then drag over a face or connected terrain surface. A ring and stroke points keep dragging light; plants appear on release. Each stroke is one undo step. **Esc** cancels the current stroke; **Enter**, the right-click menu or **Finish** ends the brush and selects the forest.
@@ -153,6 +165,6 @@ Limits keep generation bounded: up to **20 sources**, **2,000 brush positions**,
 
 `tests/ui.test.js` runs the actual HTML and JS in Chromium against a bridge double. Pass the Playwright package path and, optionally, the browser executable path as arguments. Run the Ruby tests first to generate the preset fixtures.
 
-Verified: **417 Ruby checks** and **106 Chromium checks**, including placement-variation ranges, rolls and matrices, preview coalescing and cancellation, viewport mesh reuse and final density, vegetation dimensions and topology, seed variation at fixed bounds, type/detail persistence, live switching, default inputs, acknowledged Draw/Finish commands, selection lifecycle, saved path round trips, stale edits, manifold corner topology, keyboard events and smoothing flags. Flower/grass checks cover all six types at all three detail settings, nondegenerate triangles, exact bounds, reduced viewport geometry and polygon caps. Previews are visually checked in Chromium. These tests do not measure native SketchUp responsiveness.
+Verified: **501 Ruby checks** and **119 Chromium checks**, including placement-variation ranges, rolls and matrices, preview coalescing and cancellation, viewport mesh reuse and final density, vegetation dimensions and topology, seed variation at fixed bounds, type/detail persistence, live switching, default inputs, acknowledged Draw/Finish commands, selection lifecycle, saved path round trips, stale edits, manifold corner topology, keyboard events and smoothing flags. Flower/grass checks cover all six types at all three detail settings, nondegenerate triangles, exact bounds, reduced viewport geometry and polygon caps. Vine checks cover three forms, finite nondegenerate geometry, wall openings (including small holes inside a quad), detail budgets, deterministic seeds, saved wall masks, nested/mirrored face orientation, release/cancel/context-change events, dialog start/finish and observer teardown. Previews are visually checked in Chromium. These tests do not measure native SketchUp responsiveness.
 
-Scatter adds **73 Ruby checks** and **26 Chromium checks**. Run `tests/run_ruby_checks.py tests/scatter.rb.test` with paths relative to this module, and `tests/scatter.ui.test.js` with the same Playwright/browser arguments as the existing browser suite. Coverage includes weighted sampling, repeatable seeds, spacing, slope limits, holes, transformed terrain, source scale, saved forests, retained source definitions, brush commit/cancel, acknowledged commands, stale targets, damaged data, model switching, both built-in mixes, creating their source meshes on the first stroke and reusing their definitions on regeneration. Ruby tests use native API contract doubles; an end-to-end native SketchUp check of the new flowers, grasses and mix remains for the user.
+Scatter adds **73 Ruby checks** and **26 Chromium checks**. Run `tests/run_ruby_checks.py tests/scatter.rb.test` with paths relative to this module, and `tests/scatter.ui.test.js` with the same Playwright/browser arguments as the existing browser suite. Coverage includes weighted sampling, repeatable seeds, spacing, slope limits, holes, transformed terrain, source scale, saved forests, retained source definitions, brush commit/cancel, acknowledged commands, stale targets, damaged data, model switching, both built-in mixes, creating their source meshes on the first stroke and reusing their definitions on regeneration. Ruby tests use native API contract doubles; end-to-end native SketchUp validation of wall painting remains for the user.

@@ -298,6 +298,8 @@ module Na__Noble3dModellingTools
             na_apply_placement(payload['placement']) if payload['placement']
             @na_tool = if @na_options['preset'] == 'hedge'
                            Na__VegetationSketcher__HedgeTool.new(@na_options, self)
+                       elsif @na_options['preset'] == 'vine'
+                           Na__VegetationSketcher__VineTool.new(@na_options, self)
                        else
                            Na__VegetationSketcher__PlacementTool.new(@na_options, self, na_placement)
                        end
@@ -305,7 +307,11 @@ module Na__Noble3dModellingTools
             @na_observed_model.active_view.invalidate
             Sketchup.focus if Sketchup.respond_to?(:focus)
             na_push_state
-            na_report(@na_options['preset'] == 'hedge' ? 'Click or drag the first run, then click each corner. Enter or Finish creates the joined hedge.' : 'Plant mode is active. Click in SketchUp to create vegetation.')
+            na_report(case @na_options['preset']
+                      when 'hedge' then 'Click or drag the first run, then click each corner. Enter or Finish creates the joined hedge.'
+                      when 'vine' then 'Drag on a wall face to guide the vine. Release to create an editable stroke; Esc cancels a stroke.'
+                      else 'Plant mode is active. Click in SketchUp to create vegetation.'
+                      end)
         end
         # ------------------------------------------------------------
 
@@ -409,7 +415,7 @@ module Na__Noble3dModellingTools
             na_cancel_panel
             na_detach_target
             @na_target = @na_last_created = nil
-            @na_options = @na_options.merge('path' => nil) if @na_options
+            @na_options = @na_options.merge('path' => nil, 'vine_stroke' => nil) if @na_options
             @na_context += 1
             @na_selection_signature = na_selection_signature
             @na_selection_path = (@na_observed_model.active_path || []).map(&:persistent_id)

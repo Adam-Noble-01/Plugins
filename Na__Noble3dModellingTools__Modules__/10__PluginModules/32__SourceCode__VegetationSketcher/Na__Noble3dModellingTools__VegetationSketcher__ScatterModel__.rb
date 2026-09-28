@@ -49,7 +49,7 @@ module Na__Noble3dModellingTools
                 serializer = Na__VegetationSketcher__DataSerializer
                 if serializer.Na__VegetationSketcher__DataSerializer__HasData?(entity)
                     options = serializer.Na__VegetationSketcher__DataSerializer__Load(entity)
-                    raise ArgumentError, 'Select trees or shrubs rather than hedgerows.' if options['preset'] == 'hedge'
+                    raise ArgumentError, 'Select trees or planting items; hedgerows and wall vines have their own drawing tools.' if %w[hedge vine].include?(options['preset'])
                 end
                 matrix = (model.edit_transform * entity.transformation).to_a
                 matrix[12,3] = [0,0,0]

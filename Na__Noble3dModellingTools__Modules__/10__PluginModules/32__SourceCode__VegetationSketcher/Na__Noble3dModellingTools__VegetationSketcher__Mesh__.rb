@@ -17,6 +17,7 @@
 require_relative 'Na__Noble3dModellingTools__VegetationSketcher__TreeForms__'
 require_relative 'Na__Noble3dModellingTools__VegetationSketcher__ShrubForms__'
 require_relative 'Na__Noble3dModellingTools__VegetationSketcher__PlantForms__'
+require_relative 'Na__Noble3dModellingTools__VegetationSketcher__VineForms__'
 
 module Na__Noble3dModellingTools
     module Na__VegetationSketcher__Mesh
@@ -38,6 +39,7 @@ module Na__Noble3dModellingTools
         # FUNCTION | Build Foliage Points, Quads and Optional Trunk Faces
         # ------------------------------------------------------------
         def self.Na__VegetationSketcher__Mesh__Build(options, length: nil, preview: false)
+            return Na__VegetationSketcher__VineForms.na_build(options, preview: preview) if options['preset'] == 'vine'
             return Na__VegetationSketcher__PlantForms.na_build(options, preview: preview) if Na__VegetationSketcher__PlantForms.na_plant?(options)
             if Na__VegetationSketcher__ShrubForms.na_shrub?(options)
                 options = options.merge('_shrub_profile' => Na__VegetationSketcher__ShrubForms.na_profile(options))

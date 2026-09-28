@@ -17,6 +17,7 @@
 
 require 'json'
 require_relative 'Na__Noble3dModellingTools__VegetationSketcher__HedgePath__'
+require_relative 'Na__Noble3dModellingTools__VegetationSketcher__VineForms__'
 
 module Na__Noble3dModellingTools
     module Na__VegetationSketcher__Options
@@ -37,10 +38,22 @@ module Na__Noble3dModellingTools
             'path'            => nil,
             'tree_type'       => 'generic',
             'shrub_type'      => 'generic',
-            'plant_detail'    => 'medium'
+            'plant_detail'    => 'medium',
+            'vine_type'       => 'wisteria',
+            'vine_width'      => 850,
+            'vine_density'    => 110,
+            'vine_leaf_size'  => 120,
+            'vine_flowers'    => 65,
+            'vine_offset'     => 25,
+            'vine_stroke'     => nil
         }.freeze
 
         NA_PRESETS = {
+            'vine' => {
+                'width' => 700, 'depth' => 180, 'height' => 2200,
+                'soften' => 65, 'random' => 100,
+                'trunk_height' => 300, 'trunk_diameter' => 100
+            },
             'hedge' => {
                 'width'           => 800,
                 'depth'           => 800,
@@ -147,7 +160,12 @@ module Na__Noble3dModellingTools
             'random'         => [0, 500],
             'trunk_height'   => [25, 75000],
             'trunk_diameter' => [20, 5000],
-            'seed'           => [1, 2147483646]
+            'seed'           => [1, 2147483646],
+            'vine_width'     => [100, 2000],
+            'vine_density'   => [20, 200],
+            'vine_leaf_size' => [30, 250],
+            'vine_flowers'   => [0, 100],
+            'vine_offset'    => [5, 200]
         }.freeze
 
 # endregion -------------------------------------------------------------------
@@ -188,7 +206,9 @@ module Na__Noble3dModellingTools
         # FUNCTION | Short Display Name For the Current Preset
         # ------------------------------------------------------------
         def self.Na__VegetationSketcher__Options__Label(options)
-            if options['preset'] == 'tree'
+            if options['preset'] == 'vine'
+                { 'wisteria' => 'Wisteria vine', 'ivy' => 'Ivy vine', 'climber' => 'Leafy climber' }.fetch(options['vine_type'], 'Wisteria vine')
+            elsif options['preset'] == 'tree'
                 NA_TREE_TYPES.fetch(options['tree_type'], NA_TREE_TYPES['generic'])['name']
             elsif options['preset'] == 'shrub'
                 NA_SHRUB_TYPES.fetch(options['shrub_type'], NA_SHRUB_TYPES['generic'])['name']
@@ -253,6 +273,12 @@ module Na__Noble3dModellingTools
         # HELPER FUNCTION | Apply Booleans, Trunk Caps and an Optional Hedge Path
         # ------------------------------------------------------------
         def self.na_apply_flags_and_path(result, raw, kind)
+            if kind == 'vine'
+                type = raw.fetch('vine_type', 'wisteria')
+                raise ArgumentError, 'Choose Wisteria, Ivy or Leafy climber.' unless Na__VegetationSketcher__VineForms::NA_TYPES.include?(type)
+                result['vine_type'] = type
+                result['vine_stroke'] = Na__VegetationSketcher__VineForms.na_stroke(raw['vine_stroke'])
+            end
             detail = raw.fetch('plant_detail', result['plant_detail'])
             result['plant_detail'] = %w[low medium high].include?(detail) ? detail : 'medium'
             %w[smooth vary].each { |key| result[key] = raw[key] == true if raw.key?(key) }

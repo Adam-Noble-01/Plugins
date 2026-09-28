@@ -26,7 +26,7 @@ def rejected(message)
 end
 
 fixtures = {}
-Options::NA_PRESETS.each_key do |kind|
+%w[hedge tree shrub].each do |kind|
   options = Options.Na__VegetationSketcher__Options__Resolve(Options.Na__VegetationSketcher__Options__Preset(kind))
   check("#{kind}: options round trip") { Options.Na__VegetationSketcher__Options__Resolve(JSON.generate(options)) == options }
   mesh = Mesh.Na__VegetationSketcher__Mesh__Build(options)
@@ -235,3 +235,4 @@ load File.join(__dir__, 'preview_performance.rb.test')
 load File.join(__dir__, 'shrub_forms.rb.test')
 load File.join(__dir__, 'plant_forms.rb.test')
 load File.join(__dir__, 'placement.rb.test')
+load File.join(__dir__, 'vine.rb.test')

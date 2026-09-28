@@ -1,0 +1,178 @@
+# Real vine meshes and brush event flow. Host doubles do not replace native QA.
+Vines=Na__Noble3dModellingTools::Na__VegetationSketcher__VineForms
+fixtures=JSON.parse(File.read(File.join(__dir__,'fixtures.json')))
+base=Options.Na__VegetationSketcher__Options__Preset('vine')
+counts={}
+%w[wisteria ivy climber].each do |type|
+  counts[type]=[]
+  %w[low medium high].each do |detail|
+    options=Options.Na__VegetationSketcher__Options__Resolve(base.merge('vine_type'=>type,'plant_detail'=>detail))
+    data=Mesh.Na__VegetationSketcher__Mesh__Build(options)
+    counts[type]<<data[:quads].length
+    check("#{type}/#{detail} bounded vines") { data[:quads].length.between?(50,Vines::NA_MAX_QUADS) }
+    check("#{type}/#{detail} whitecard stays in front of wall") { data[:points].all? { |p| p.all?(&:finite?) && p[1]>=base['vine_offset']-3.1 } }
+    check("#{type}/#{detail} native triangles nondegenerate") do
+      data[:quads].all? do |a,b,c,d|
+        [[a,b,c],[a,c,d]].all? do |i,j,k|
+          u=3.times.map { |axis| data[:points][j][axis]-data[:points][i][axis] }
+          v=3.times.map { |axis| data[:points][k][axis]-data[:points][i][axis] }
+          TreeForms.Na__VegetationSketcher__TreeForms__Cross(u,v).sum { |n| n*n }>0.00001
+        end
+      end
+    end
+    preview=Mesh.Na__VegetationSketcher__Mesh__Build(options,preview: :viewport)
+    check("#{type}/#{detail} reduced viewport geometry") { preview[:quads].length<data[:quads].length && preview[:quads].length<=Vines::NA_VIEWPORT_QUADS }
+    check("#{type}/#{detail} repeatable seed") { Mesh.Na__VegetationSketcher__Mesh__Build(options)==data }
+    check("#{type}/#{detail} seeded variation") { Mesh.Na__VegetationSketcher__Mesh__Build(options.merge('seed'=>54321))[:points]!=data[:points] }
+    fixtures[type]={settings:options,mesh:data} if detail=='medium'
+  end
+  check("#{type} detail increases leaf curves") { counts[type].each_cons(2).all? { |a,b| b>a } }
+end
+fixtures['vine']=fixtures['wisteria']
+File.write(File.join(__dir__,'fixtures.json'),JSON.generate(fixtures))
+wall=[[-1000,-200],[1000,-200],[1000,3000],[-1000,3000]]
+hole=[[-150,600],[150,600],[150,1000],[-150,1000]]
+stroke={'paths'=>[[[-350,0],[-350,2500]]],'loops'=>[wall,hole]}
+with_hole=Options.Na__VegetationSketcher__Options__Resolve(base.merge('vine_stroke'=>stroke,'vine_flowers'=>100,'vine_width'=>1400))
+mesh=Mesh.Na__VegetationSketcher__Mesh__Build(with_hole)
+check('wall openings trim every produced quad edge') do
+  mesh[:quads].all? do |q|
+    p=q.map { |id| [mesh[:points][id][0],mesh[:points][id][2]] }
+    p.each_with_index.all? { |a,i| Vines.na_supported_segment?(a,p[(i+1)%4],[wall,hole]) }
+  end
+end
+check('window centre is outside wall, boundary winding irrelevant') { !Vines.na_inside?([0,800],[wall,hole]) && !Vines.na_inside?([0,800],[wall.reverse,hole.reverse]) && Vines.na_inside?([500,800],[wall,hole]) }
+check('fast cursor segment cannot bridge an opening') { !Vines.na_supported_segment?([-500,800],[500,800],[wall,hole]) }
+writer=Vines::WallWriter.new([wall,[[10,10],[20,10],[20,20],[10,20]]])
+fits=writer.safe do
+  ids=[[0,30,0],[50,30,0],[50,30,50],[0,30,50]].map { |p| writer.point(p) }
+  writer.quad(*ids)
+end
+check('small hole wholly inside a leaf quad is not covered') { !fits && writer.quads.empty? && writer.points.empty? }
+no_flowers=Mesh.Na__VegetationSketcher__Mesh__Build(base.merge('vine_flowers'=>0))
+flowers=Mesh.Na__VegetationSketcher__Mesh__Build(base.merge('vine_flowers'=>100))
+check('flower percentage changes wisteria clusters') { flowers[:quads].length>no_flowers[:quads].length }
+check('density changes branching') { Mesh.Na__VegetationSketcher__Mesh__Build(base.merge('vine_density'=>200))[:quads].length>Mesh.Na__VegetationSketcher__Mesh__Build(base.merge('vine_density'=>20))[:quads].length }
+long=base.merge('vine_stroke'=>{'paths'=>[[[0,0],[0,20000]]],'loops'=>[[[-2000,-500],[2000,-500],[2000,22000],[-2000,22000]]]},'vine_density'=>200,'vine_flowers'=>100,'plant_detail'=>'high')
+check('long dense vine has bounded full and preview meshes') { Mesh.Na__VegetationSketcher__Mesh__Build(long)[:quads].length<=12000 && Mesh.Na__VegetationSketcher__Mesh__Build(long,preview: :viewport)[:quads].length<=6000 }
+[{'paths'=>[],'loops'=>[wall]}, {'paths'=>[[[0,0],[0,10]]],'loops'=>[wall]}, {'paths'=>[[[0,0],[0,21000]]],'loops'=>[wall]}, {'paths'=>[[[0,0],[0,Float::INFINITY]]],'loops'=>[wall]}].each { |raw| rejected('invalid saved brush input refused') { Vines.na_stroke(raw) } }
+entity=Sketchup::ComponentInstance.new(3001)
+model=Sketchup::Model.new
+DataSerializer.Na__VegetationSketcher__DataSerializer__Save(model,entity,with_hole,mesh[:quads].length)
+restored=DataSerializer.Na__VegetationSketcher__DataSerializer__Load(entity)
+check('vine path, openings and controls survive save/load') { restored==with_hole && Mesh.Na__VegetationSketcher__Mesh__Build(restored)==mesh }
+check('new model defaults do not replay a previous wall path') { DataSerializer.Na__VegetationSketcher__DataSerializer__ModelOptions(model,'{}')['vine_stroke'].nil? }
+
+# Full affine contracts for wall picking; earlier translation-only tests stay as-is.
+module Geom
+  class Point3d
+    def transform(t); Point3d.new(t.apply(to_a,1)); end
+  end
+  class Transformation
+    def initialize(a=nil); @a=a || [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]; end
+    def to_a; @a.dup; end
+    def apply(p,w); 3.times.map { |i| 3.times.sum { |j| @a[i+j*4]*p[j] }+@a[12+i]*w }; end
+    def inverse
+      rows=4.times.map { |i| 4.times.map { |j| @a[i+j*4].to_f }+4.times.map { |j| i==j ? 1.0 : 0.0 } }
+      4.times do |i|
+        pivot=(i...4).max_by { |k| rows[k][i].abs }; rows[i],rows[pivot]=rows[pivot],rows[i]
+        factor=rows[i][i]; raise ArgumentError,'singular' if factor.abs<1e-12
+        rows[i].map! { |v| v/factor }
+        4.times { |k| next if k==i; factor=rows[k][i]; rows[k]=8.times.map { |j| rows[k][j]-factor*rows[i][j] } }
+      end
+      self.class.new(4.times.flat_map { |col| 4.times.map { |row| rows[row][col+4] } })
+    end
+  end
+end
+module Sketchup
+  class Face
+    attr_accessor :valid
+    attr_reader :persistent_id
+    def initialize(id=99); @persistent_id=id; @valid=true; end
+    def valid?; @valid; end
+    def loops
+      points=[[-2000,0,-300],[2000,0,-300],[2000,0,3000],[-2000,0,3000]]
+      [Struct.new(:vertices).new(points.map { |p| Struct.new(:position).new(Geom::Point3d.new(p.map(&:mm))) })]
+    end
+    def mesh(_flags)
+      vertices=loops.first.vertices
+      Object.new.tap do |m|
+        m.define_singleton_method(:polygons) { [[1,2,3],[1,3,4]] }
+        m.define_singleton_method(:point_at) { |i| vertices[i-1].position }
+      end
+    end
+  end
+  class InstancePath
+    def initialize(path); @path=path; end
+    def transformation; @path.length>1 ? @path.first.transformation : Geom::Transformation.new; end
+  end
+end
+require File.join(ROOT,PREFIX+'VineTool__')
+VineTool=Na__Noble3dModellingTools::Na__VegetationSketcher__VineTool
+face=Sketchup::Face.new
+view=TestView.new
+view.define_singleton_method(:pickray) { |x,y| [Geom::Point3d.new(x.mm,-500.mm,y.mm),Geom::Vector3d.new(0,1,0)] }
+model=Sketchup::Model.new
+model.view=view
+model.define_singleton_method(:raytest) { |ray| [Geom::Point3d.new(ray[0].x,0,ray[0].z),[face]] }
+Sketchup.model=model
+owner=ToolOwner.new
+tool=VineTool.new(base.merge('vary'=>false),owner)
+model.select_tool(tool)
+Builder.singleton_class.alias_method(:vine_native_create,:Na__VegetationSketcher__Builder__Create)
+created=[]
+Builder.define_singleton_method(:Na__VegetationSketcher__Builder__Create) do |m,o,tr,*_|
+  data=Mesh.Na__VegetationSketcher__Mesh__Build(o)
+  e=Sketchup::ComponentInstance.new(4000+created.length)
+  DataSerializer.Na__VegetationSketcher__DataSerializer__Save(m,e,o,data[:quads].length)
+  m.active_entities << e
+  created << {settings:o,transform:tr,data:data}
+  e
+end
+tool.onLButtonDown(0,0,0,view)
+tool.onMouseMove(0,0,1000,view)
+check('drag previews but does not create model geometry') { created.empty? && tool.na_preview_data[:quads].length>0 }
+first_preview=tool.na_preview_data
+tool.onMouseMove(0,0,1000,view)
+check('stationary cursor does not rebuild preview') { tool.na_preview_data.equal?(first_preview) }
+tool.onLButtonUp(0,150,1500,view)
+check('release creates exactly one saved editable stroke') { created.length==1 && owner.created_items.length==1 && created[0][:settings]['vine_stroke']['paths'][0].length==3 }
+normal=created[0][:transform].to_a[4,3]
+check('outward direction faces the painted side') { normal==[0,-1,0] }
+world=created[0][:data][:points].map { |p| Geom::Point3d.new(p.map(&:mm)).transform(created[0][:transform]).to_a }
+check('all planted geometry lies in front of the wall') { world.all? { |p| p[1]<0 } }
+tool.onLButtonDown(0,500,0,view); tool.onMouseMove(0,500,800,view); tool.onCancel(0,view)
+check('escape cancels an uncommitted stroke') { created.length==1 && tool.na_active? && tool.na_preview_data.nil? }
+tool.onLButtonDown(0,500,0,view); tool.onLButtonUp(0,500,0,view)
+check('click without drag creates nothing and gives feedback') { created.length==1 && !owner.errors.empty? }
+tool.onLButtonDown(0,500,0,view); tool.onMouseMove(0,500,1000,view)
+model.active_path=[Object.new]
+tool.onLButtonUp(0,500,1000,view)
+check('changed editing context prevents commit') { created.length==1 }
+model.active_path=nil
+# Mirrored non-uniform scaling of a nested wall still produces unit wall axes.
+parent=Object.new
+parent.define_singleton_method(:transformation) { Geom::Transformation.new([-2,0,0,0,0,3,0,0,0,0,0.5,0,8,12,15,1]) }
+parent.define_singleton_method(:persistent_id) { 100 }
+surface=tool.na_surface(Geom::Point3d.new(8,12,15),[parent,face],[0,1,0])
+axes=surface[:frame].to_a
+check('nested mirrored wall uses an orthonormal world frame') { [axes[0,3],axes[4,3],axes[8,3]].all? { |a| (a.sum { |v| v*v }-1).abs<1e-9 } && axes[12,3]==[8,12,15] && axes[4,3]==[0,-1,0] }
+check('world-up direction keeps hanging flowers upright') { axes[8,3]==[0,0,1] }
+model.select_tool(nil)
+dialog=Dialog.Na__VegetationSketcher__ShowDialog
+dialog.callbacks['na_dialog_ready'].call(nil)
+Dialog.na_dispatch('preset',{'preset'=>'vine'})
+Dialog.na_dispatch('start',{'settings'=>base.merge('vary'=>false)})
+active=model.instance_variable_get(:@tool)
+check('dialog Paint action activates the wall brush') { active.is_a?(VineTool) && active.na_active? }
+active.onLButtonDown(0,700,0,view); active.onLButtonUp(0,700,1600,view)
+Dialog.na_dispatch('stop',{})
+check('Finish selects and loads the saved vine path') { Dialog.na_target_id && Dialog.instance_variable_get(:@na_options)['vine_stroke'] }
+Dialog.na_dispatch('new',{})
+check('New vegetation leaves the saved wall stroke intact') { Dialog.instance_variable_get(:@na_options)['vine_stroke'].nil? && DataSerializer.Na__VegetationSketcher__DataSerializer__Load(model.selection.to_a.first)['vine_stroke'] }
+Dialog.Na__VegetationSketcher__ResetDialog
+UI.flush
+check('closing vine mode detaches model observers') { model.observers.empty? && model.selection.observers.empty? }
+Builder.singleton_class.alias_method(:Na__VegetationSketcher__Builder__Create,:vine_native_create)
+puts "Vine quads [Light, Balanced, Fuller]: #{counts}"
+puts "PASS: #{$checks} total Ruby checks including wall vines."

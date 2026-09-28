@@ -3,6 +3,19 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.10 - 28-Sep-2026 - Paintable Wall Vines
+
+- Added **Vines** to Vegetation Sketcher, with **Wisteria**, **Ivy** and **Leafy climber**. Drag along a face to guide a branching stem; release creates one editable whitecard component and one undo step. Esc cancels an unfinished stroke; Enter or Finish ends painting.
+- New controls for brush spread, foliage density, leaf size, flowering branches and wall clearance. Existing plant detail, smoothing, organic seed and debounced live editing apply. Wisteria uses attached hanging, lobed flower clusters; leaves and stems stay lightweight.
+- Face frames use transformed geometry and projected world-up, including nested/mirrored/nonuniformly scaled instances. Painted face loops clip stems and leaves at boundaries and openings. A stroke stays on one planar face; use a new stroke around a corner.
+- Path and boundary snapshots persist in the existing definition/model dictionaries. Selecting a vine restores its controls; editing retains its placement. New mode and model creation defaults clear the previous painted path. Vines use their own brush and are excluded from forest source capture.
+- Drawing meshes use reduced leaf/flower detail, refresh only when the path changes and at most every 150 ms. HTML updates retain the 650 ms quiet period. Stroke bounds: 20 m, 512 points, 2,000 wall-boundary vertices, 12,000 final quads / 6,000 preview quads.
+- Fixed a cross-command timing issue: a delayed placement-preference response no longer overwrites pending form edits while changing modes.
+- Validation: 501 vegetation Ruby checks, 73 scatter Ruby checks, 119 main-dialog Chromium checks and 26 scatter Chromium checks. Rendered form/UI previews inspected. Native SketchUp wall-painting validation remains for the user.
+- Close Vegetation Sketcher, use **Reload Plugin Data**, reopen it and choose **Vines > Paint vines on faces in SketchUp**. Saved vines retain a wall-boundary snapshot; repaint after changing the source wall's geometry.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.9 - 25-Sep-2026 - Vegetation Placement Variation
 
 - New **Placement variation** card in Vegetation Sketcher, shown for Tree and Planting. It works like the Scatter brush ranges. Every click rolls a new **size** (min–max %, default 90–110%), **height stretch** (min–max %, default 95–105%), **turn** (0–360°) and **lean** (0–30°, default 0) for that plant. **Randomise each placement** turns it off, so plants go in at the exact size.

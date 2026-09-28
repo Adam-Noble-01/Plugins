@@ -92,7 +92,7 @@ module Na__Noble3dModellingTools
             data = raw || fallback
             data = JSON.parse(data) if data.is_a?(String)
             data = data.merge('smooth' => true) unless data.key?('shading_version')
-            Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__Resolve(data.merge('path' => nil))
+            Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__Resolve(data.merge('path' => nil, 'vine_stroke' => nil))
         rescue StandardError
             Na__VegetationSketcher__Options.Na__VegetationSketcher__Options__Resolve
         end

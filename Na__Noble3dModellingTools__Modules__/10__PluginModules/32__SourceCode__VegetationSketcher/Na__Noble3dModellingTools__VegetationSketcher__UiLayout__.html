@@ -71,6 +71,10 @@ JS -> RUBY : sketchup.na_dialog_ready / na_event
             <svg viewBox="0 0 60 42" aria-hidden="true"><path d="m5 28 6-13 16-7 17 4 11 13-4 11-24 4-18-4Z M27 8l-7 18 7 14 15-16 2-12 M5 28l15-2 22-2 13 1"/></svg>
             <b>Planting</b><span>Shrubs, flowers &amp; grass</span>
           </button>
+          <button type="button" class="naVegetation__Preset" data-preset="vine" aria-pressed="false">
+            <svg viewBox="0 0 60 42" aria-hidden="true"><path d="M12 39V3h38v36 M29 38q-8-9 2-18t0-17 M29 30q-15 0-11-10 12-2 11 10 M32 21q14-1 12-11-12 0-12 11 M29 12Q16 12 18 4"/></svg>
+            <b>Vines</b><span>Paint wall climbers</span>
+          </button>
         </div>
       </section>
 
@@ -121,6 +125,26 @@ JS -> RUBY : sketchup.na_dialog_ready / na_event
         <p class="naVegetation__Hint">New variation changes the form at the same size. Scatter includes shrub and flowers-and-grasses mixes with two variations of each form.</p>
       </section>
 
+      <section class="naVegetation__Group" data-for="vine" id="naVegetation_vineSection" hidden>
+        <label class="naVegetation__Row" for="naVegetation_selVineType"><span>Climbing plant</span>
+          <select id="naVegetation_selVineType" data-option="vine_type" data-value-type="string">
+            <option value="wisteria">Wisteria</option>
+            <option value="ivy">Ivy</option>
+            <option value="climber">Leafy climber</option>
+          </select>
+        </label>
+        <p class="naVegetation__Hint" id="naVegetation_vineInfo">Branching stems, paired leaves and hanging flower clusters.</p>
+        <div class="naVegetation__Fields naVegetation__Fields--spaced">
+          <label>Brush spread · mm<input data-option="vine_width" id="naVegetation_vineWidth" type="number" min="100" max="2000" step="any" value="850" /></label>
+          <label>Foliage density · %<input data-option="vine_density" id="naVegetation_vineDensity" type="number" min="20" max="200" step="any" value="110" /></label>
+          <label>Leaf size · mm<input data-option="vine_leaf_size" id="naVegetation_vineLeaf" type="number" min="30" max="250" step="any" value="120" /></label>
+          <label>Flowering branches · %<input data-option="vine_flowers" id="naVegetation_vineFlowers" type="number" min="0" max="100" step="any" value="65" /></label>
+          <label>Wall clearance · mm<input data-option="vine_offset" id="naVegetation_vineOffset" type="number" min="5" max="200" step="any" value="25" /></label>
+        </div>
+        <p class="naVegetation__Hint">Drag up and across a wall to guide growth. Each release creates an editable vine stroke. One face per stroke; release to turn a corner. Face openings and edges trim the foliage.</p>
+        <p class="naVegetation__Hint">Select a painted vine to change its type, spread, leaves or flowers. The saved path stays in place. Paint several strokes for denser coverage.</p>
+      </section>
+
       <section class="naVegetation__Group naVegetation__Group--preview">
         <div class="naVegetation__GroupHeader">
           <h2 class="naVegetation__GroupTitle">Form preview</h2>
@@ -137,7 +161,7 @@ JS -> RUBY : sketchup.na_dialog_ready / na_event
         <div id="naVegetation_treeScale" class="naVegetation__Hint naVegetation__Hint--scale" data-for="tree" hidden></div>
       </section>
 
-      <section class="naVegetation__Group">
+      <section class="naVegetation__Group" data-for="not-vine">
         <div class="naVegetation__GroupHeader">
           <h2 class="naVegetation__GroupTitle">Dimensions</h2>
           <span class="naVegetation__Hint">millimetres</span>

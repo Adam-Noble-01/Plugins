@@ -47,7 +47,8 @@ function check(value, message) { assert.ok(value, message); checks++; }
         state.revision = request.revision;
         Na__VegetationSketcher__Receive('state', state);
         const type = state.settings.preset === 'tree' && state.settings.tree_type !== 'generic' ? state.settings.tree_type
-          : state.settings.preset === 'shrub' && state.settings.shrub_type !== 'generic' ? state.settings.shrub_type : state.settings.preset;
+          : state.settings.preset === 'shrub' && state.settings.shrub_type !== 'generic' ? state.settings.shrub_type
+          : state.settings.preset === 'vine' ? state.settings.vine_type : state.settings.preset;
         Na__VegetationSketcher__Receive('preview', window.__fixtures[type].mesh);
         Na__VegetationSketcher__Receive('ack', { id: request.id, success: true });
       };
@@ -265,6 +266,7 @@ function check(value, message) { assert.ok(value, message); checks++; }
     await page.waitForTimeout(300);
     check(await page.evaluate(()=>window.__requests.length===0),'plant detail waits for the quiet period');
     await page.waitForFunction(()=>window.__requests.some(r=>r.action==='options'&&r.payload.settings.plant_detail==='low'));
+    await page.waitForFunction(()=>window.__state.settings.plant_detail==='low');
     check(await page.evaluate(()=>window.__state.settings.plant_detail==='low'),'detail is serialized as a supported string');
     await page.locator('#naVegetation_selPlantDetail').selectOption('high');
     await page.locator('#naVegetation_btnStart').click();
@@ -313,6 +315,52 @@ function check(value, message) { assert.ok(value, message); checks++; }
     await page.locator('#naVegetation_btnStart').click();
     await page.waitForFunction(()=>window.__requests.some(r=>r.action==='start'));
     check(await page.evaluate(()=>!('placement' in window.__requests.find(r=>r.action==='start').payload)),'hedge Draw sends no placement ranges');
+    await page.locator('#naVegetation_btnStop').click();
+    await page.waitForFunction(()=>!window.__state.placing);
+    await page.locator('[data-preset="vine"]').click();
+    await page.waitForFunction(()=>window.__state.settings.preset==='vine');
+    check(await page.locator('#naVegetation_vineSection').isVisible(),'vines expose wall brush controls');
+    check(await page.locator('#naVegetation_placementSection').isHidden(),'wall vines do not use individual planting rolls');
+    check(await page.locator('#naVegetation_inpHeight').isDisabled(),'hidden base dimensions do not block wall painting');
+    check(await page.locator('#naVegetation_gridResolution').isHidden() && await page.locator('#naVegetation_plantDetail').isVisible(),'vines use bounded plant detail');
+    check((await page.locator('#naVegetation_btnStart').textContent()).includes('Paint vines'),'vines have a clear painting action');
+    const vineCards=[];
+    for(const type of ['wisteria','ivy','climber']) {
+      await page.locator('#naVegetation_selVineType').selectOption(type);
+      await page.waitForFunction(type=>window.__state.settings.vine_type===type,type);
+      check(await page.locator('#naVegetation_vineFlowers').isDisabled()===(type!=='wisteria'),type+' flowering control scoped correctly');
+      const preview=await page.locator('#naVegetation_canvasPreview').evaluate(c=>c.toDataURL());
+      vineCards.push({name:type,preview});
+    }
+    await page.locator('#naVegetation_selVineType').selectOption('wisteria');
+    await page.waitForFunction(()=>window.__state.settings.vine_type==='wisteria');
+    await page.evaluate(()=>{window.__requests=[];});
+    await page.locator('#naVegetation_vineWidth').fill('900');
+    await page.locator('#naVegetation_vineFlowers').fill('85');
+    await page.waitForTimeout(300);
+    check(await page.evaluate(()=>window.__requests.length===0),'vine edits retain steady debounce');
+    await page.locator('#naVegetation_btnStart').click();
+    await page.waitForFunction(()=>window.__state.placing);
+    const vineStart=await page.evaluate(()=>window.__requests.find(r=>r.action==='start'));
+    check(vineStart.payload.settings.vine_width===900 && vineStart.payload.settings.vine_flowers===85 && vineStart.payload.settings.vine_type==='wisteria','paint carries latest controls and string type');
+    check(!vineStart.payload.placement,'vine painting ignores planting randomisation');
+    check((await page.locator('#naVegetation_help').textContent()).includes('One face per stroke'),'wall painting interaction and face boundary are explained');
+    await page.locator('#naVegetation_btnStop').click();
+    await page.waitForFunction(()=>!window.__state.placing);
+    await page.evaluate(()=>{window.__requests=[];});
+    await page.locator('#naVegetation_vineWidth').fill('');
+    await page.locator('#naVegetation_btnStart').click();
+    check(await page.evaluate(()=>!window.__requests.some(r=>r.action==='start')),'invalid vine brush spread blocks Paint');
+    await page.locator('#naVegetation_vineWidth').fill('900');
+    await page.waitForFunction(()=>window.__state.settings.vine_width===900);
+    await page.waitForFunction(()=>!document.getElementById('naVegetation_status').textContent.includes('Enter a valid'));
+    await page.evaluate(()=>{document.querySelector('.naVegetation__Body').scrollTop=document.getElementById('naVegetation_vineSection').offsetTop-100;});
+    await page.screenshot({path:path.join(__dirname,'vine-ui-verified.png')});
+    const vines=await browser.newPage({viewport:{width:1320,height:530}});
+    await vines.setContent('<html><head><style>body{font:15px Arial;background:#edf0f3;margin:22px;color:#253044}main{display:flex;gap:16px}article{flex:1;background:white;padding:14px}img{width:100%}</style></head><body><h1>Noble whitecard wall climbers</h1><p>Actual generated meshes · Balanced detail · example painted path</p><main></main></body></html>');
+    await vines.evaluate(cards=>cards.forEach(card=>{const box=document.createElement('article'),h=document.createElement('h2'),img=document.createElement('img');h.textContent=card.name;img.src=card.preview;box.append(h,img);document.querySelector('main').append(box);}),vineCards);
+    await vines.screenshot({path:path.join(__dirname,'vines-verified.png'),fullPage:true});
+    await vines.close();
     const plants=await browser.newPage({viewport:{width:1380,height:790}});
     await plants.setContent('<html><head><style>body{font:15px Arial;background:#edf0f3;margin:22px;color:#253044}h1{font-size:24px;margin:0 0 6px}main{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:18px}article{background:white;padding:14px;border:1px solid #d8dfe6;border-radius:6px}h2{font-size:17px;margin:0 0 6px}p{margin:0;color:#687789}img{width:100%;margin-top:10px}</style></head><body><h1>Noble whitecard flowers &amp; grasses</h1><p>Actual generated meshes · Balanced detail · previews fitted individually</p><main></main></body></html>');
     await plants.evaluate(cards=>{

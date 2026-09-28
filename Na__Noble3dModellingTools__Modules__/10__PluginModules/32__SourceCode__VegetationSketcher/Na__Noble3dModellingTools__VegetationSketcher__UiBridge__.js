@@ -170,6 +170,10 @@
             if (input.disabled) {
                 continue;
             }
+            if (input.dataset.valueType === 'string') {
+                next[na_optionKey(input)] = input.value;
+                continue;
+            }
             if (input.type !== 'checkbox' && (!input.checkValidity() || input.value.trim() === '' || !Number.isFinite(Number(input.value)))) {
                 name = na_optionKey(input).replace(/_/g, ' ');
                 naState.validationError = true;
@@ -202,7 +206,7 @@
     }
 
     function na_sendSettings() {
-        clearTimeout(naState.timer);
+        clearTimeout(naState.timer); naState.timer = null;
         var value = na_collect();
         if (!value) {
             return;
@@ -303,6 +307,8 @@
         var tree = naState.treeTypes[settings.tree_type] || {};
         var shrub = naState.shrubTypes[settings.shrub_type] || {};
         var botanical = settings.preset === 'shrub' && !!shrub.procedural;
+        var vine = settings.preset === 'vine';
+        var articulated = botanical || vine;
         var over = naState.mesh && naState.mesh.requested_quads > naState.limit;
 
         na_el('naVegetation_softenValue').textContent = na_el('naVegetation_rngSoften').value + '%';
@@ -313,20 +319,30 @@
                 input.disabled = input.disabled || !na_el('naVegetation_chkPlacement').checked;
             }
         });
-        na_el('naVegetation_gridResolution').hidden = botanical;
-        na_el('naVegetation_selResolution').disabled = botanical || !naState.ready;
-        na_el('naVegetation_plantDetail').hidden = !botanical;
-        na_el('naVegetation_selPlantDetail').disabled = !botanical || !naState.ready;
+        na_el('naVegetation_gridResolution').hidden = articulated;
+        na_el('naVegetation_selResolution').disabled = articulated || !naState.ready;
+        na_el('naVegetation_plantDetail').hidden = !articulated;
+        na_el('naVegetation_selPlantDetail').disabled = !articulated || !naState.ready;
+        var vineType = na_el('naVegetation_selVineType').value;
+        na_el('naVegetation_vineFlowers').disabled = !vine || !naState.ready || vineType !== 'wisteria';
+        na_el('naVegetation_vineInfo').textContent = {
+            wisteria: 'Branching stems, paired leaflets and hanging flower clusters.',
+            ivy: 'Lobed leaves on branching stems for leafy wall coverage.',
+            climber: 'An open network of stems and pointed leaves for a general climbing plant.'
+        }[vineType] || '';
         na_updatePresetButtons(settings.preset);
 
         na_el('naVegetation_widthLabel').textContent = settings.preset === 'tree' ? 'Canopy width' : 'Width';
         na_el('naVegetation_treeInfo').textContent = (tree.botanical ? tree.botanical + ' · ' : '') + (tree.description || 'An adjustable rounded whitecard canopy.');
         na_el('naVegetation_softenLabel').textContent = species || (settings.preset === 'shrub' && settings.shrub_type !== 'generic') ? 'Crown rounding' : 'Soften corners';
         if (botanical) na_el('naVegetation_softenLabel').textContent = 'Leaf arch / petal cup';
+        if (vine) na_el('naVegetation_softenLabel').textContent = 'Leaf curl / branch arch';
         na_el('naVegetation_randomLabel').textContent = botanical ? 'Stem variation' : 'Randomise XYZ';
+        if (vine) na_el('naVegetation_randomLabel').textContent = 'Branch variation';
         na_el('naVegetation_formHint').textContent = botanical
             ? 'Separate stems, petals and creased leaves. Plant detail controls fullness and curves; the mesh stays capped for scattering.'
             : 'Round the form first, then add organic variation. The base stays grounded.';
+        if (vine) na_el('naVegetation_formHint').textContent = 'Lightweight stems, separate leaves and hanging wisteria flowers. Plant detail controls leaf curves and flower shape. Drawing uses reduced detail.';
         na_el('naVegetation_shrubInfo').textContent = shrub.description || 'The original adjustable rounded shrub.';
         na_el('naVegetation_shrubScale').textContent = settings.preset === 'shrub'
             ? 'Model size: ' + na_metres(settings.height) + ' m high · ' + na_metres(settings.width) + ' × ' + na_metres(settings.depth) + ' m spread'
@@ -340,6 +356,7 @@
         na_el('naVegetation_help').textContent = settings.preset === 'hedge'
             ? 'Click corners; Enter, double-click or Finish builds the hedge. Right/Left: red/green. Down: parallel. Up: unlock. Backspace: undo point. Esc: cancel.'
             : 'Click in the model to plant. R: new variation and placement roll. Esc: finish.';
+        if (vine) na_el('naVegetation_help').textContent = 'Drag on a wall; release to grow. One face per stroke. R: new variation. Esc: cancel stroke / finish. Enter: finish.';
         na_el('naVegetation_btnStop').hidden = !naState.placing;
         na_el('naVegetation_btnStop').textContent = settings.preset === 'hedge' ? 'Finish hedge' : 'Finish';
         na_el('naVegetation_viewportState').hidden = !naState.placing;
@@ -368,12 +385,17 @@
         var j;
         for (i = 0; i < scoped.length; i++) {
             el = scoped[i];
-            el.hidden = el.dataset.for === 'plant' ? preset === 'hedge' : preset !== el.dataset.for;
+            el.hidden = el.dataset.for === 'plant' ? !['tree', 'shrub'].includes(preset)
+                : el.dataset.for === 'not-vine' ? preset === 'vine' : preset !== el.dataset.for;
             nested = el.querySelectorAll('input,select');
             for (j = 0; j < nested.length; j++) {
                 nested[j].disabled = el.hidden || !naState.ready;
             }
         }
+        // A scoped child must not re-enable inputs hidden by its parent.
+        scoped.forEach(function (section) {
+            if (section.hidden) section.querySelectorAll('input,select').forEach(function (input) { input.disabled = true; });
+        });
     }
 
     function na_updatePresetButtons(preset) {
@@ -406,6 +428,7 @@
         if (settings.preset === 'hedge') {
             return 'Draw hedge in SketchUp';
         }
+        if (settings.preset === 'vine') return 'Paint vines on faces in SketchUp';
         if (settings.preset === 'tree') {
             return 'Plant ' + (species ? tree.name || 'tree' : 'tree') + ' in SketchUp';
         }
@@ -439,7 +462,7 @@
         var changedContext = naState.context !== payload.context;
         var external = payload.revision == null;
         if (changedContext) {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             naState.pending = naState.pending.filter(function (item) {
                 return NA_CONTEXT_SENSITIVE_ACTIONS.indexOf(item.action) === -1;
             });
@@ -454,7 +477,8 @@
         naState.treeTypes = payload.tree_types || naState.treeTypes;
         naState.shrubTypes = payload.shrub_types || naState.shrubTypes;
         naState.limit = payload.limit;
-        if (external || changedContext || payload.revision >= naState.revision) {
+        var pendingForm = naState.timer || naState.pending.some(function (item) { return item.action === 'options'; });
+        if (changedContext || (!pendingForm && (external || payload.revision >= naState.revision))) {
             na_applySettingsToInputs(payload);
         }
         if (payload.placement && !naState.placementTimer && !naState.pending.some(function (item) { return item.action === 'placement'; })) {
@@ -492,6 +516,7 @@
 
     function na_selectionCopy(payload) {
         if (naState.placing) {
+            if (naState.settings.preset === 'vine') return 'Drag along a wall face. Each release creates a saved, editable vine stroke.';
             return naState.settings.preset === 'hedge'
                 ? 'Click to add connected runs. Finish creates the whole hedge as one component.'
                 : 'Move into the model to plant. Finish returns to editing.';
@@ -525,6 +550,10 @@
                     : naState.mesh.preview_coarse
                         ? ' · Simplified preview; creation uses your chosen resolution.'
                         : (naState.mesh.form_mode === 'botanical' ? ' · Preview at your chosen plant detail (2,000 quad cap).' : ' · Preview at your chosen resolution.'));
+        if (naState.mesh.form_mode === 'vine') {
+            na_el('naVegetation_meshInfo').textContent = naState.mesh.quads.length.toLocaleString() + ' vine quads · '
+                + (naState.mesh.viewport_preview ? 'Reduced drawing detail; release builds full detail.' : '12,000 quad cap per stroke. Preview shows the saved stroke or an example path.');
+        }
         na_updateLabels();
         na_drawPreview();
     }
@@ -697,7 +726,7 @@
 
     function na_bindControls() {
         na_el('naVegetation_btnScatter').addEventListener('click', function () {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             na_command('scatter');
         });
         na_optionInputs().forEach(function (el) {
@@ -705,7 +734,7 @@
                 naState.pending = naState.pending.filter(function (item) { return item.action !== 'options'; });
                 naState.revision++;
                 na_updateLabels();
-                clearTimeout(naState.timer);
+                clearTimeout(naState.timer); naState.timer = null;
                 naState.timer = setTimeout(na_sendSettings, NA_SETTINGS_DEBOUNCE_MS);
             });
         });
@@ -719,37 +748,37 @@
         });
         document.querySelectorAll('[data-preset]').forEach(function (el) {
             el.addEventListener('click', function () {
-                clearTimeout(naState.timer);
+                clearTimeout(naState.timer); naState.timer = null;
                 naState.revision++;
                 na_command('preset', { preset: el.dataset.preset });
             });
         });
         na_el('naVegetation_selTreeType').addEventListener('change', function () {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             naState.revision++;
             na_command('tree_type', { tree_type: na_el('naVegetation_selTreeType').value });
         });
         na_el('naVegetation_selShrubType').addEventListener('change', function () {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             naState.revision++;
             na_command('shrub_type', { shrub_type: na_el('naVegetation_selShrubType').value });
         });
         na_el('naVegetation_selPlantDetail').addEventListener('change', function () {
             naState.pending = naState.pending.filter(function (item) { return item.action !== 'options'; });
             naState.revision++;
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             naState.timer = setTimeout(na_sendSettings, NA_SETTINGS_DEBOUNCE_MS);
         });
         na_el('naVegetation_btnVariation').addEventListener('click', function () {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             naState.revision++;
             var o = na_collect(true);
             if (o) { na_command('variation', { settings: o }); }
         });
         na_el('naVegetation_btnStart').addEventListener('click', function () {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             var o = na_collect(true);
-            var p = o && o.preset !== 'hedge' ? na_collectPlacement(true) : undefined;
+            var p = o && ['tree', 'shrub'].includes(o.preset) ? na_collectPlacement(true) : undefined;
             if (!o || p === null) { return; }
             if (p) {
                 clearTimeout(naState.placementTimer);
@@ -762,26 +791,26 @@
             }
         });
         na_el('naVegetation_btnStop').addEventListener('click', function () {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             var o = na_collect(true);
             if (o) { na_command('stop', { settings: o }); }
         });
         na_el('naVegetation_btnNew').addEventListener('click', function () {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             naState.revision++;
             na_command('new');
         });
         na_el('naVegetation_btnLoad').addEventListener('click', function () {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             na_command('load');
         });
         na_el('naVegetation_btnUpdate').addEventListener('click', function () {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             var o = na_collect(true);
             if (o) { na_command('update', { settings: o }); }
         });
         na_el('naVegetation_chkLive').addEventListener('change', function () {
-            clearTimeout(naState.timer);
+            clearTimeout(naState.timer); naState.timer = null;
             na_command('live', { enabled: na_el('naVegetation_chkLive').checked });
         });
         na_el('naVegetation_chkWire').addEventListener('change', na_drawPreview);
