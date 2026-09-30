@@ -197,20 +197,28 @@ module Na__ComponentEditorTools
 # REGION | Core Load/Edit/Save/Remove
 # -----------------------------------------------------------------------------
 
+        # Load, edit and save inside an operation that is always aborted (see
+        # Na__ComponentEditorTools__LibraryManager__SafeLoad__.rb): the open model
+        # keeps no trace, and a component placed in it is never deleted. A load
+        # name SketchUp suffixed with "#n" is put back to the file's own name
+        # before saving, so the suffix never reaches the library file.
         def self.Na__ComponentEditorTools__LoadEditSaveRemove(file_path)
-            model      = Sketchup.active_model
-            definition = model.definitions.load(file_path)
-            raise "Could not load definition from: #{file_path}" unless definition
+            model = Sketchup.active_model
+            Na__LibrarySafeLoad.Na__ComponentEditorTools__WithTemporaryDefinition(file_path, 'Edit library component') do |definition, load_info|
+                if load_info[:name_changed_on_load]
+                    Na__LibrarySafeLoad.Na__ComponentEditorTools__ApplyName(
+                        model, definition, File.basename(file_path.to_s, '.*'), move_clash_aside: true
+                    )
+                end
 
-            new_save_path = yield(definition)
-            save_path     = new_save_path || file_path
+                new_save_path = yield(definition)
+                save_path     = new_save_path || file_path
 
-            save_ok = definition.save_as(save_path)
-            raise "save_as returned false for: #{save_path}" unless save_ok
+                save_ok = definition.save_as(save_path)
+                raise "save_as returned false for: #{save_path}" unless save_ok
 
-            model.definitions.remove(definition) rescue nil
-
-            save_path
+                save_path
+            end
         end
 
 # endregion -------------------------------------------------------------------

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "sketchup": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2026/SketchUp/Plugins/Na__SketchUpMcp__Modules__/30__McpServer__Python/Na__SketchUpMcp__Server__Main__.py"],
+      "env": { "PYTHONUTF8": "1" }
+    }
+  }
+}

@@ -99,10 +99,11 @@ module Na__InsertPrimatives
         NA_DRAWN_DRAG_MIN_PX      = 6.0                                        # <-- Below this a press-release is a click
         NA_DRAWN_PLANE_LOCK_CYCLE = [:auto, :xy, :xz, :yz].freeze
 
-        # Digits, numpad and the main-row = + , - . keys. Seeing one of these
-        # means a measurements-box entry is under way, which is what arms the
+        # Digits, numpad and the main-row = + , - . keys, plus X and / for the
+        # push tool's quad arrays (*4, 4x, /7). Seeing one of these means a
+        # measurements-box entry is under way, which is what arms the
         # Backspace guard so a typo fix is not swallowed as a step-back.
-        NA_DRAWN_VCB_ENTRY_KEYS   = ((48..57).to_a + (96..111).to_a + [187, 188, 189, 190]).freeze
+        NA_DRAWN_VCB_ENTRY_KEYS   = ((48..57).to_a + (96..111).to_a + [88, 187, 188, 189, 190, 191]).freeze
 
         # endregion -------------------------------------------------------------------
 

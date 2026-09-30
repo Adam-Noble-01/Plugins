@@ -1,0 +1,333 @@
+/* ============================================================================= */
+/* NA SKETCHUP MCP - STATUS DIALOG STYLES                                        */
+/*                                                                               */
+/* FILE       : Na__SketchUpMcp__Styles__.css                                    */
+/* PURPOSE    : Stylesheet inlined into the status dialog layout template       */
+/* ============================================================================= */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Design Tokens (:root Variables)
+ * ----------------------------------------------------------------------------- */
+
+:root {
+    --naSuMcp_Bg            : #f4f6f8;
+    --naSuMcp_PanelBg       : #ffffff;
+    --naSuMcp_Text          : #1b1f24;
+    --naSuMcp_MutedText     : #5b636d;
+    --naSuMcp_Border        : #d6dbe1;
+    --naSuMcp_Accent        : #2f77d5;
+    --naSuMcp_AccentHover   : #2464b8;
+    --naSuMcp_Success       : #1f7a42;
+    --naSuMcp_Error         : #b32d2d;
+    --naSuMcp_Warning       : #9a6700;
+    --naSuMcp_CodeBg        : #f0f2f5;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Base Layout - Document, Shell
+ * ----------------------------------------------------------------------------- */
+
+* {
+    box-sizing              : border-box;
+}
+
+html,
+body {
+    margin                  : 0;
+    padding                 : 0;
+    width                   : 100%;
+    height                  : 100%;
+    font-family             : "Segoe UI", Arial, sans-serif;
+    font-size               : 12px;
+    background              : var(--naSuMcp_Bg);
+    color                   : var(--naSuMcp_Text);
+}
+
+.naSuMcp__Shell {
+    display                 : flex;
+    flex-direction          : column;
+    width                   : 100%;
+    height                  : 100%;
+}
+
+.naSuMcp__MainContent {
+    flex                    : 1;
+    overflow                : auto;
+    padding                 : 12px;
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 12px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Brand Header - Logo Left, Title Right
+ * ----------------------------------------------------------------------------- */
+
+.na-brand-header {
+    display                 : flex;
+    align-items             : center;
+    justify-content         : space-between;
+    padding                 : 12px 16px;
+    border-bottom           : 1px solid var(--naSuMcp_Border);
+    background              : var(--naSuMcp_PanelBg);
+}
+
+.na-brand-header__logo {
+    height                  : 36px;
+    width                   : auto;
+    display                 : block;
+}
+
+.na-brand-header__right {
+    display                 : flex;
+    flex-direction          : column;
+    align-items             : flex-end;
+    gap                     : 3px;
+}
+
+.na-brand-header__title {
+    font-size               : 18px;
+    font-weight             : 600;
+    line-height             : 1;
+}
+
+.na-brand-header__subtitle {
+    font-size               : 11px;
+    color                   : var(--naSuMcp_MutedText);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Cards, Facts, Notes
+ * ----------------------------------------------------------------------------- */
+
+.naSuMcp__Card {
+    background              : var(--naSuMcp_PanelBg);
+    border                  : 1px solid var(--naSuMcp_Border);
+    border-radius           : 8px;
+    padding                 : 12px;
+}
+
+.naSuMcp__CardHeader {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 8px;
+    margin-bottom           : 8px;
+}
+
+.naSuMcp__CardTitle {
+    margin                  : 0;
+    font-size               : 14px;
+    flex                    : 1;
+}
+
+.naSuMcp__Facts {
+    display                 : grid;
+    grid-template-columns   : 120px 1fr;
+    gap                     : 4px 10px;
+    margin                  : 0 0 10px;
+}
+
+.naSuMcp__Facts dt {
+    color                   : var(--naSuMcp_MutedText);
+}
+
+.naSuMcp__Facts dd {
+    margin                  : 0;
+    word-break              : break-all;
+}
+
+.naSuMcp__Note {
+    margin                  : 6px 0 0;
+    color                   : var(--naSuMcp_MutedText);
+    line-height             : 1.45;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Status Dot
+ * ----------------------------------------------------------------------------- */
+
+.naSuMcp__Dot {
+    width                   : 10px;
+    height                  : 10px;
+    border-radius           : 50%;
+    display                 : inline-block;
+}
+
+.naSuMcp__Dot--on {
+    background              : var(--naSuMcp_Success);
+    box-shadow              : 0 0 0 3px rgba(31, 122, 66, 0.18);
+}
+
+.naSuMcp__Dot--off {
+    background              : var(--naSuMcp_Error);
+}
+
+.naSuMcp__Dot--readonly {
+    background              : var(--naSuMcp_Warning);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Buttons, Toggles, Tabs
+ * ----------------------------------------------------------------------------- */
+
+.naSuMcp__ButtonRow {
+    display                 : flex;
+    gap                     : 6px;
+    flex-wrap               : wrap;
+    margin-top              : 8px;
+}
+
+.naSuMcp__Button {
+    border                  : 1px solid var(--naSuMcp_Border);
+    border-radius           : 4px;
+    background              : #fdfdfd;
+    padding                 : 6px 12px;
+    font-size               : 12px;
+    cursor                  : pointer;
+}
+
+.naSuMcp__Button:hover {
+    border-color            : var(--naSuMcp_Accent);
+}
+
+.naSuMcp__Button--primary {
+    color                   : #ffffff;
+    background              : var(--naSuMcp_Accent);
+    border-color            : var(--naSuMcp_Accent);
+}
+
+.naSuMcp__Button--primary:hover {
+    background              : var(--naSuMcp_AccentHover);
+}
+
+.naSuMcp__Button--small {
+    padding                 : 3px 8px;
+    font-size               : 11px;
+}
+
+.naSuMcp__Toggle {
+    display                 : flex;
+    align-items             : flex-start;
+    gap                     : 8px;
+    padding                 : 5px 0;
+    line-height             : 1.4;
+    cursor                  : pointer;
+}
+
+.naSuMcp__Toggle input {
+    margin-top              : 2px;
+}
+
+.naSuMcp__TabBar {
+    display                 : flex;
+    flex-wrap               : wrap;
+    gap                     : 4px;
+}
+
+.naSuMcp__TabButton {
+    border                  : 1px solid var(--naSuMcp_Border);
+    border-radius           : 4px;
+    background              : #fdfdfd;
+    padding                 : 4px 8px;
+    font-size               : 11px;
+    cursor                  : pointer;
+}
+
+.naSuMcp__TabButton--active {
+    color                   : #ffffff;
+    background              : var(--naSuMcp_Accent);
+    border-color            : var(--naSuMcp_Accent);
+}
+
+.naSuMcp__Snippet {
+    background              : var(--naSuMcp_CodeBg);
+    border                  : 1px solid var(--naSuMcp_Border);
+    border-radius           : 4px;
+    padding                 : 8px;
+    font-family             : Consolas, "Courier New", monospace;
+    font-size               : 11px;
+    white-space             : pre-wrap;
+    word-break              : break-all;
+    margin                  : 8px 0 0;
+    max-height              : 180px;
+    overflow                : auto;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Activity Table
+ * ----------------------------------------------------------------------------- */
+
+.naSuMcp__Activity {
+    width                   : 100%;
+    border-collapse         : collapse;
+    font-size               : 11px;
+}
+
+.naSuMcp__Activity th {
+    text-align              : left;
+    color                   : var(--naSuMcp_MutedText);
+    font-weight             : 600;
+    border-bottom           : 1px solid var(--naSuMcp_Border);
+    padding                 : 4px;
+}
+
+.naSuMcp__Activity td {
+    padding                 : 3px 4px;
+    border-bottom           : 1px solid #eef0f3;
+    vertical-align          : top;
+}
+
+.naSuMcp__Activity tr.naSuMcp__Row--failed td {
+    color                   : var(--naSuMcp_Error);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* -----------------------------------------------------------------------------
+ * REGION | Footer Status Line
+ * ----------------------------------------------------------------------------- */
+
+.naSuMcp__Footer {
+    border-top              : 1px solid var(--naSuMcp_Border);
+    background              : var(--naSuMcp_PanelBg);
+    padding                 : 8px 12px;
+}
+
+.naSuMcp__Status {
+    margin                  : 0;
+    font-size               : 12px;
+}
+
+.naSuMcp__Status--success {
+    color                   : var(--naSuMcp_Success);
+}
+
+.naSuMcp__Status--error {
+    color                   : var(--naSuMcp_Error);
+}
+
+.naSuMcp__Status--info {
+    color                   : var(--naSuMcp_MutedText);
+}
+
+/* endregion ------------------------------------------------------------------- */

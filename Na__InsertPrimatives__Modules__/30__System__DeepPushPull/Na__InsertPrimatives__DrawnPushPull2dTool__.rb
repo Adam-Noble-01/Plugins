@@ -142,6 +142,7 @@ module Na__InsertPrimatives
                 "Distance snaps to the #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} grid — hold CTRL for vertex snapping",
                 'Hold CTRL+SHIFT to snap to a vertex and then round the distance onto the grid',
                 'ARROWS lock the measured axis, TAB toggles QUAD mode',
+                'Hold SHIFT+ALT to FOLLOW — every corner of the wall runs along its own edge',
                 'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
                 'VCB: 300 | +50 | -25   (the typed distance pins and places)',
                 'After placing, keep typing: 1200 resizes the pull, -1200 turns it round — the strip replays the change',
@@ -417,7 +418,7 @@ module Na__InsertPrimatives
             offset = na_drawn__push_offset_vector
             return points unless offset && @na_state == :picking_depth
 
-            points + @na_pp2d_edge_world.map { |point| point.offset(offset) }
+            points + @na_pp2d_edge_world.map { |point| na_drawn__move_world_point(point, offset) }
         end
         # ---------------------------------------------------------------
 
@@ -535,7 +536,10 @@ module Na__InsertPrimatives
                     ["#{@na_pp_area} m2 face", path]
                 end
 
-            if na_drawn__slope_mode?
+            if na_drawn__follow_requested?
+                reason = na_drawn__follow_reason
+                lines << (reason ? "SHIFT+ALT FOLLOW off — #{reason}" : 'SHIFT+ALT FOLLOW — each corner along its own edge')
+            elsif na_drawn__slope_mode?
                 lines << "SHIFT SLOPE — #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)}"
             elsif @na_pp_slope
                 lines << "SHIFT — follow the #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)} neighbour"
@@ -615,13 +619,13 @@ module Na__InsertPrimatives
             na_drawn__draw_sweep_quad(view, offset)
 
             return if @na_pp_loop.nil? || @na_pp_loop.empty?
-            moved_loop = @na_pp_loop.map { |point| point.offset(offset) }
+            moved_loop = @na_pp_loop.map { |point| na_drawn__move_world_point(point, offset) }
 
             Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(view, moved_loop, border, cutting ? 3 : 2)
 
             if @na_pp2d_edge_world && cutting
                 moved_edge = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(
-                    [@na_pp2d_edge_world[0].offset(offset), @na_pp2d_edge_world[1].offset(offset)]
+                    @na_pp2d_edge_world.map { |point| na_drawn__move_world_point(point, offset) }
                 )
                 view.line_stipple  = ''
                 view.line_width    = NA_PP2D_EDGE_WIDTH
@@ -662,7 +666,8 @@ module Na__InsertPrimatives
             start_mid = na_drawn__2d_label_anchor
             return super unless offset && start_mid
 
-            moved_mid = start_mid.offset(offset)
+            moved_ends = @na_pp2d_edge_world.map { |point| na_drawn__move_world_point(point, offset) }
+            moved_mid  = Geom::Point3d.linear_combination(0.5, moved_ends[0], 0.5, moved_ends[1])
             centre    = Geom::Point3d.new(
                 (start_mid.x.to_f + moved_mid.x.to_f) * 0.5,
                 (start_mid.y.to_f + moved_mid.y.to_f) * 0.5,
@@ -706,6 +711,9 @@ module Na__InsertPrimatives
                 lines << "#{@na_pp_area} m2 wall"
             end
 
+            follow = na_drawn__follow_note
+            lines << follow.sub(/\A · /, '') unless follow.empty?
+
             lines
         end
         # ---------------------------------------------------------------
@@ -720,7 +728,7 @@ module Na__InsertPrimatives
 
             Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuad(
                 view,
-                [near_a, near_b, near_b.offset(offset), near_a.offset(offset)],
+                [near_a, near_b, na_drawn__move_world_point(near_b, offset), na_drawn__move_world_point(near_a, offset)],
                 NA_PP2D_SWEEP_FILL,
                 NA_PP2D_SWEEP_BORDER
             )
@@ -745,7 +753,7 @@ module Na__InsertPrimatives
                 text     = na_drawn__locked?(:d) ? "[#{distance}]" : distance.to_s
                 return "Loop cut #{text} mm inset — release or click to cut#{slope}" if na_drawn__loop_cut_mode?
 
-                verb = na_drawn__slope_mode? ? 'Slope' : 'Pull'
+                verb = na_drawn__follow_mode? ? 'Follow' : (na_drawn__slope_mode? ? 'Slope' : 'Pull')
                 return "#{verb}#{quads} #{text} mm — release or click to place#{slope}"
             end
 

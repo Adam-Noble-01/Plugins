@@ -1,0 +1,430 @@
+# =============================================================================
+# NA SKETCHUP MCP - TESTS - BRIDGE CORE (RUBY, SKETCHUP'S OWN RUBY 3.2)
+# =============================================================================
+#
+# FILE       : Na__SketchUpMcp__Tests__BridgeCore__.rb.test
+# PURPOSE    : Check the bridge's pure Ruby parts outside SketchUp: linear maths,
+#              units, params, Outliner names, face orientation, and the socket
+#              server end to end over real TCP
+# CREATED    : 2026
+#
+# RUN: python Na__SketchUpMcp__Tests__RunRubyChecks__.py Na__SketchUpMcp__Tests__BridgeCore__.rb.test
+#
+# The .rb.test extension keeps Reload Plugin Data from ever loading this file
+# into SketchUp. Only tiny doubles of Sketchup/UI/Geom are defined here; the
+# code under test is the real plugin code.
+#
+# =============================================================================
+
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+
+require 'json'
+require 'socket'
+require 'tmpdir'
+require 'fileutils'
+
+# -----------------------------------------------------------------------------
+# REGION | Minimal API Doubles
+# -----------------------------------------------------------------------------
+
+module Sketchup
+    class Model
+        def title
+            'Test Model'
+        end
+
+        def path
+            ''
+        end
+    end
+
+    def self.version
+        '26.2.243'
+    end
+
+    def self.status_text=(_text); end
+
+    def self.active_model
+        @na_model ||= Model.new
+    end
+end
+
+module UI
+    def self.start_timer(_interval, _repeat = false, &block)
+        @na_timer = block
+        1
+    end
+
+    def self.stop_timer(_id)
+        @na_timer = nil
+    end
+end
+
+module Geom
+    class Point3d
+        attr_reader :x, :y, :z
+
+        def initialize(x = 0, y = 0, z = 0)
+            @x = x.to_f
+            @y = y.to_f
+            @z = z.to_f
+        end
+    end
+
+    class Vector3d < Point3d; end
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Code Under Test
+# -----------------------------------------------------------------------------
+
+NA_ROOT = $NA_MODULES_ROOT
+%w[
+    03__Plugin__CoreAppLogic/Na__SketchUpMcp__CoreAppLogic__PathResolver__.rb
+    03__Plugin__CoreAppLogic/Na__SketchUpMcp__CoreAppLogic__ConfigLoader__.rb
+    03__Plugin__CoreAppLogic/Na__SketchUpMcp__CoreAppLogic__ActivityLog__.rb
+    04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__McpError__.rb
+    06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Params__.rb
+    06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Units__.rb
+    06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__LinearMath__.rb
+    06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Creation__.rb
+    06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__SolidHealth__.rb
+    04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__ConnectionFile__.rb
+    04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__ApiSelfTest__.rb
+    04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__CommandRouter__.rb
+    04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__SocketServer__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__Status__.rb
+].each { |relative| load File.join(NA_ROOT, relative) }
+
+# Keep test connection files and settings out of the real 91__UserConfig__LocalOnly.
+NA_TEST_DIR = Dir.mktmpdir('na_mcp_ruby_test_')
+module Na__SketchUpMcp
+    module Na__PathResolver
+        def self.Na__PathResolver__ConnectionsDirectory
+            File.join(NA_TEST_DIR, 'Connections')
+        end
+    end
+
+    module Na__ConfigLoader
+        def self.Na__ConfigLoader__UserSettings
+            { 'bridge' => { 'port' => 18_385 } }
+        end
+    end
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Tiny Test Harness
+# -----------------------------------------------------------------------------
+
+$na_passed = 0
+$na_failed = []
+
+def na_check(label)
+    if yield
+        $na_passed += 1
+    else
+        $na_failed << label
+    end
+rescue StandardError, ScriptError => error
+    $na_failed << "#{label} (raised #{error.class}: #{error.message})"
+end
+
+def na_close(a, b, tolerance = 1.0e-9)
+    Array(a).zip(Array(b)).all? { |x, y| (x - y).abs <= tolerance }
+end
+
+def na_refuses(code)
+    yield
+    false
+rescue Na__SketchUpMcp::Na__McpError => error
+    error.na_code == code
+end
+
+LM = Na__SketchUpMcp::Na__LinearMath
+UN = Na__SketchUpMcp::Na__Units
+PA = Na__SketchUpMcp::Na__Params
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Linear Maths
+# -----------------------------------------------------------------------------
+
+rotation_30 = [[Math.cos(Math::PI / 6), Math.sin(Math::PI / 6), 0.0], [-Math.sin(Math::PI / 6), Math.cos(Math::PI / 6), 0.0], [0.0, 0.0, 1.0]]
+scaled = rotation_30.each_with_index.map { |column, index| LM.Na__LinearMath__Scale(column, [2.0, 3.0, 4.0][index]) }
+parts = LM.Na__LinearMath__DecomposePlacement([1.0, 2.0, 3.0], scaled)
+na_check('decompose: scale per axis') { na_close(parts[:scale], [2.0, 3.0, 4.0]) }
+na_check('decompose: yaw 30 degrees') { na_close(parts[:rotation_zyx_degrees], [0.0, 0.0, 30.0], 1.0e-9) }
+na_check('decompose: not mirrored') { parts[:mirrored] == false }
+
+mirrored = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]]
+na_check('decompose: mirror detected, z axis kept as given') do
+    mirror_parts = LM.Na__LinearMath__DecomposePlacement([0.0, 0.0, 0.0], mirrored)
+    mirror_parts[:mirrored] && na_close(mirror_parts[:axes][2], [0.0, 0.0, -1.0]) && na_close(mirror_parts[:rotation_zyx_degrees], [0.0, 0.0, 0.0])
+end
+
+non_uniform = [[2.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+na_check('inverse transpose keeps a normal perpendicular after non-uniform scale') do
+    # plane x + y = 0 has normal (1,1,0); after scaling x by 2 the true normal is (0.5, 1, 0).
+    normal = LM.Na__LinearMath__Normalize(LM.Na__LinearMath__InverseTransposeTimesVector(non_uniform, [1.0, 1.0, 0.0]))
+    na_close(normal, LM.Na__LinearMath__Normalize([0.5, 1.0, 0.0]))
+end
+na_check('scale along normal: uniform scale 3 -> 3') do
+    uniform = [[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]]
+    na_close(LM.Na__LinearMath__ScaleAlongNormal(uniform, [0.0, 0.0, 1.0]), 3.0)
+end
+na_check('scale along normal: x scaled 2, normal along y -> 1') { na_close(LM.Na__LinearMath__ScaleAlongNormal(non_uniform, [0.0, 1.0, 0.0]), 1.0) }
+na_check('scale along normal: rotation only -> 1') { na_close(LM.Na__LinearMath__ScaleAlongNormal(rotation_30, [0.0, 0.0, 1.0]), 1.0) }
+na_check('polygon normal: counter-clockwise from above is +Z') do
+    na_close(LM.Na__LinearMath__PolygonNormal([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]]), [0.0, 0.0, 1.0])
+end
+na_check('polygon normal: clockwise is -Z') do
+    na_close(LM.Na__LinearMath__PolygonNormal([[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]]), [0.0, 0.0, -1.0])
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Units and Params
+# -----------------------------------------------------------------------------
+
+na_check('units: 25.4 mm is one inch') { na_close(UN.Na__Units__ToInches(25.4, 'mm'), 1.0) }
+na_check('units: "2.4m" read as 2400 mm') { na_close(UN.Na__Units__FromInches(UN.Na__Units__ToInches('2.4m', 'mm'), 'mm'), 2400.0) }
+na_check("units: 8'6\" is 102 inches") { na_close(UN.Na__Units__ToInches("8'6\"", 'mm'), 102.0) }
+na_check('units: "96in" in a mm call') { na_close(UN.Na__Units__ToInches('96in', 'mm'), 96.0) }
+na_check('units: bare string uses the call unit') { na_close(UN.Na__Units__ToInches('1000', 'mm'), 1000.0 / 25.4) }
+na_check('units: nonsense string refused') { na_refuses('invalid_params') { UN.Na__Units__ToInches('twelve', 'mm') } }
+na_check('units: unknown unit refused with the list') { na_refuses('invalid_params') { UN.Na__Units__Resolve('furlong', nil) } }
+na_check('units: aliases (millimetres -> mm)') { UN.Na__Units__Resolve('millimetres', nil) == 'mm' }
+na_check('units: area mm2') { na_close(UN.Na__Units__AreaFromSquareInches(1.0, 'mm'), 645.16) }
+na_check('units: degrees round trip') { na_close(UN.Na__Units__Degrees(UN.Na__Units__Radians(37.5)), 37.5) }
+na_check('units: zero-length direction refused') { na_refuses('invalid_params') { UN.Na__Units__Direction([0, 0, 0]) } }
+na_check('params: integer out of range refused, not clamped') { na_refuses('invalid_params') { PA.Na__Params__Integer({ 'n' => 99 }, 'n', nil, max: 10) } }
+na_check('params: 3.0 accepted as integer 3') { PA.Na__Params__Integer({ 'n' => 3.0 }, 'n') == 3 }
+na_check('params: enum refused with choices') { na_refuses('invalid_params') { PA.Na__Params__Enum({ 'a' => 'x' }, 'a', %w[p q]) } }
+na_check('params: id array rejects strings') { na_refuses('invalid_params') { PA.Na__Params__IdArray({ 'ids' => ['12'] }, 'ids') } }
+na_check('params: missing required refused') { na_refuses('invalid_params') { PA.Na__Params__Required({}, 'code') } }
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Outliner Names (nothing may land as plain "Group")
+# -----------------------------------------------------------------------------
+
+CR = Na__SketchUpMcp::Na__Creation
+inches = ->(*millimetres) { millimetres.map { |value| value / 25.4 } }
+na_check('name: box size in mm') { CR.Na__Creation__SizeText([inches.(0, 0, 0), inches.(1200, 600, 150)], 'mm') == '1200 x 600 x 150' }
+na_check('name: flat face drops its zero axis') { CR.Na__Creation__SizeText([inches.(0, 0, 0), inches.(6000, 4000, 0)], 'mm') == '6000 x 4000' }
+na_check('name: floating-point noise rounds away') { CR.Na__Creation__SizeText([inches.(10, 10, 10), inches.(1210.0004, 610, 160)], 'mm') == '1200 x 600 x 150' }
+na_check('name: metres keep decimals and say so') { CR.Na__Creation__SizeText([inches.(0, 0, 0), inches.(1200, 600, 150)], 'm') == '1.2 x 0.6 x 0.15 m' }
+na_check('name: no bounds -> no size') { CR.Na__Creation__SizeText(nil, 'mm') == '' }
+na_check('name: compact number') { CR.Na__Creation__CompactNumber(2400.0004, 'mm') == '2400' && CR.Na__Creation__CompactNumber(-0.0001, 'mm') == '0' }
+na_check('name: plan section') { CR.Na__Creation__SectionName([0, 0, 1200], [0, 0, -1], 'mm') == 'Plan section at 1200' }
+na_check('name: vertical section on x') { CR.Na__Creation__SectionName([3000, 0, 0], [1, 0, 0], 'mm') == 'Section at x = 3000' }
+na_check('name: 2D point means z = 0') { CR.Na__Creation__SectionName([5, 5], [0, 0, 1], 'm') == 'Plan section at 0 m' }
+na_check('name: oblique section') { CR.Na__Creation__SectionName([0, 0, 0], [1, 1, 0], 'mm') == 'Section plane' }
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Solid Health (face orientation, on a 2 x 2 x 2 cube of doubles)
+# -----------------------------------------------------------------------------
+
+class NaTestVertex
+    attr_reader :position
+
+    def initialize(point)
+        @position = point
+    end
+end
+
+# An edge knows its faces; reversed_in? asks the face which way its loop runs.
+class NaTestEdge
+    attr_reader :faces, :ends
+
+    def initialize(first, second)
+        @ends = [first, second]
+        @faces = []
+    end
+
+    def entityID
+        object_id
+    end
+
+    def reversed_in?(face)
+        face.na_runs_backwards?(self)
+    end
+end
+
+class NaTestFace
+    attr_reader :edges
+
+    def initialize(indices, points, edge_table)
+        @indices = indices.dup
+        @points = points
+        @edges = na_loop_pairs.map do |first, second|
+            key = [first, second].sort
+            edge = (edge_table[key] ||= NaTestEdge.new(*key))
+            edge.faces << self
+            edge
+        end
+    end
+
+    def entityID
+        object_id
+    end
+
+    def valid?
+        true
+    end
+
+    def reverse!
+        @indices.reverse!
+        self
+    end
+
+    def vertices
+        @indices.map { |index| NaTestVertex.new(Geom::Point3d.new(*@points[index])) }
+    end
+
+    def normal
+        Geom::Vector3d.new(*Na__SketchUpMcp::Na__LinearMath.Na__LinearMath__PolygonNormal(@indices.map { |index| @points[index] }))
+    end
+
+    def area
+        sums = [0.0, 0.0, 0.0]
+        loop_points = @indices.map { |index| @points[index] }
+        loop_points.each_with_index do |point, position|
+            following = loop_points[(position + 1) % loop_points.length]
+            sums[0] += (point[1] - following[1]) * (point[2] + following[2])
+            sums[1] += (point[2] - following[2]) * (point[0] + following[0])
+            sums[2] += (point[0] - following[0]) * (point[1] + following[1])
+        end
+        Math.sqrt(sums.sum { |value| value * value }) / 2.0
+    end
+
+    def na_loop_pairs
+        @indices.each_with_index.map { |index, position| [index, @indices[(position + 1) % @indices.length]] }
+    end
+
+    def na_runs_backwards?(edge)
+        na_loop_pairs.any? { |first, second| [second, first] == edge.ends }
+    end
+end
+
+SH = Na__SketchUpMcp::Na__SolidHealth
+CUBE_POINTS = [[0, 0, 0], [2, 0, 0], [2, 2, 0], [0, 2, 0], [0, 0, 2], [2, 0, 2], [2, 2, 2], [0, 2, 2]].freeze
+CUBE_OUTWARD = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [2, 3, 7, 6], [1, 2, 6, 5], [3, 0, 4, 7]].freeze
+
+# reverse: indices of faces to wind inward; drop: faces to leave out (an open box).
+def na_cube(reverse: [], drop: [])
+    table = {}
+    CUBE_OUTWARD.each_with_index.reject { |_loop, index| drop.include?(index) }.map do |loop_indices, index|
+        NaTestFace.new(reverse.include?(index) ? loop_indices.reverse : loop_indices, CUBE_POINTS, table)
+    end
+end
+
+na_check('solid: outward cube has volume +8 and needs nothing') do
+    faces = na_cube
+    report = SH.Na__SolidHealth__OrientShells(faces)
+    report == { 'shells' => 1, 'closed_shells' => 1, 'faces_flipped' => 0, 'shells_turned_outward' => 0 } && na_close(SH.Na__SolidHealth__SignedVolume(faces), 8.0)
+end
+na_check('solid: two wrongly wound faces are turned to match') do
+    faces = na_cube(reverse: [1, 4])
+    report = SH.Na__SolidHealth__OrientShells(faces)
+    report['faces_flipped'] == 2 && report['shells_turned_outward'].zero? && na_close(SH.Na__SolidHealth__SignedVolume(faces), 8.0)
+end
+na_check('solid: an inside-out cube is turned outward') do
+    faces = na_cube(reverse: (0..5).to_a)
+    before = SH.Na__SolidHealth__SignedVolume(faces)
+    report = SH.Na__SolidHealth__OrientShells(faces)
+    na_close(before, -8.0) && report['shells_turned_outward'] == 1 && na_close(SH.Na__SolidHealth__SignedVolume(faces), 8.0)
+end
+na_check('solid: a wrong first face is outvoted by the volume check') do
+    faces = na_cube(reverse: [0])
+    report = SH.Na__SolidHealth__OrientShells(faces)
+    report['faces_flipped'] == 5 && report['shells_turned_outward'] == 1 && na_close(SH.Na__SolidHealth__SignedVolume(faces), 8.0)
+end
+na_check('solid: an open box is made consistent but not called closed') do
+    faces = na_cube(reverse: [2], drop: [1])
+    report = SH.Na__SolidHealth__OrientShells(faces)
+    report['closed_shells'].zero? && report['shells'] == 1 && report['faces_flipped'] == 1
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Socket Server Over Real TCP
+# -----------------------------------------------------------------------------
+
+server = Na__SketchUpMcp::Na__SocketServer
+status = server.Na__SocketServer__Start
+na_check('server: started on a free port from 18385') { status['running'] && status['port'].between?(18_385, 18_394) }
+connection_path = File.join(NA_TEST_DIR, 'Connections', "Na__SketchUpMcp__Connection__#{Process.pid}.json")
+connection = File.exist?(connection_path) ? JSON.parse(File.read(connection_path)) : {}
+na_check('server: connection file written with port and token') { connection['port'] == status['port'] && connection['token'].to_s.length == 32 }
+
+def na_exchange(port, payload_line, pumps = 400)
+    reply = nil
+    client = Thread.new do
+        socket = TCPSocket.new('127.0.0.1', port)
+        socket.write(payload_line)
+        reply = socket.gets
+        socket.close
+    end
+    pumps.times do
+        Na__SketchUpMcp::Na__SocketServer.Na__SocketServer__Pump
+        break unless client.alive?
+
+        sleep 0.005
+    end
+    client.join(2)
+    reply
+end
+
+ping = { 'id' => 1, 'token' => connection['token'], 'command' => 'ping', 'params' => {} }
+ping_reply = na_exchange(status['port'], JSON.generate(ping) + "\n")
+na_check('server: ping answered') do
+    parsed = JSON.parse(ping_reply.to_s)
+    parsed['ok'] == true && parsed['result']['pong'] == true && parsed['id'] == 1
+end
+
+bad_token = na_exchange(status['port'], JSON.generate(ping.merge('token' => 'x' * 32)) + "\n")
+na_check('server: wrong token refused') { JSON.parse(bad_token.to_s).dig('error', 'code') == 'unauthorized' }
+
+http_reply = na_exchange(status['port'], "POST / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n{\"command\":\"ping\"}\n")
+na_check('server: HTTP-style first line dropped without reply') { http_reply.nil? }
+
+unknown = na_exchange(status['port'], JSON.generate(ping.merge('command' => 'no_such_command')) + "\n")
+na_check('server: unknown command named') { JSON.parse(unknown.to_s).dig('error', 'code') == 'unknown_command' }
+
+probe = na_exchange(status['port'], JSON.generate(ping.merge('command' => 'api_probe', 'params' => { 'signatures' => ['Geom::Point3d#x', 'Geom::Point3d#no_such', 'Nope::Thing#x'] })) + "\n")
+na_check('server: api_probe answers true / false / nil') do
+    results = JSON.parse(probe.to_s).dig('result', 'results') || {}
+    results['Geom::Point3d#x'] == true && results['Geom::Point3d#no_such'] == false && results['Nope::Thing#x'].nil?
+end
+
+silent = TCPSocket.new('127.0.0.1', status['port'])
+started = Time.now
+20.times { server.Na__SocketServer__Pump }
+na_check('server: an idle client never blocks the pump') { Time.now - started < 0.5 }
+silent.close
+
+server.Na__SocketServer__Stop(silent: true)
+na_check('server: stop removes the connection file') { !File.exist?(connection_path) }
+FileUtils.rm_rf(NA_TEST_DIR)
+
+# endregion -------------------------------------------------------------------
+
+puts "BridgeCore: #{$na_passed} passed, #{$na_failed.length} failed."
+$na_failed.each { |label| puts "  FAILED: #{label}" }
+raise 'BridgeCore tests failed' unless $na_failed.empty?
+
+# =============================================================================
+# END OF FILE
+# =============================================================================

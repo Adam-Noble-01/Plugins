@@ -1,0 +1,6 @@
+# Na SketchUp MCP - local ignores (the Plugins root .gitignore already ignores
+# **/91__UserConfig__LocalOnly/ and **/90__AppCache__TempFilesCache/)
+__pycache__/
+*.pyc
+40__Tests__Validation/Temp/
+*.mcpb

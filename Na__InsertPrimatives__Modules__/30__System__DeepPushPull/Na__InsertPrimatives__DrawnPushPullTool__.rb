@@ -78,6 +78,19 @@
 # - The mechanics are shared with the chamfer tool (06__Tools__DrawnShared,
 #   DrawnReviseShared); the push-specific half is DrawnPushPullRevise.
 #
+# SHIFT+ALT — FOLLOW MODE:
+# - Every corner of the face runs along its OWN edge instead of the whole face
+#   moving one way, so a tapered slab's front runs up the roof at the top and
+#   along the soffit at the bottom, and every neighbour keeps its plane. With
+#   QUADS on, inward is a follow loop cut. See DrawnPushPullFollow.
+#
+# QUAD LINES — OFFSET, ARRAY, DIVIDE (QUADS on):
+# - Hover a face near one of its quad lines and the whole ring that line
+#   belongs to lights up; drag along the run to push/pull a new ring off it.
+#   Type *4 to array it or /7 to divide the span, mid-drag or after placing,
+#   and a loop cut takes *N and /N the same way. Further in from the line the
+#   face is pushed exactly as before. See DrawnPushPullQuadOffset.
+#
 # =============================================================================
 
 require 'sketchup.rb'
@@ -88,6 +101,8 @@ require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnSlopePush__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__QuadRing__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__Commit__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__Revise__'
+require_relative 'Na__InsertPrimatives__DrawnPushPull__QuadOffset__'
+require_relative 'Na__InsertPrimatives__DrawnPushPull__Follow__'
 
 module Na__InsertPrimatives
     # -----------------------------------------------------------------------------
@@ -102,6 +117,8 @@ module Na__InsertPrimatives
         include Na__InsertPrimatives::DrawnReviseShared                       # <-- After DrawnToolShared, so its life-cycle wrappers sit over the mixin's
         include Na__InsertPrimatives::DrawnPushPullCommit
         include Na__InsertPrimatives::DrawnPushPullRevise                     # <-- The push half of the revise contract
+        include Na__InsertPrimatives::DrawnPushPullQuadOffset                 # <-- Quad lines: offset, array, divide. After Revise, so its overrides sit in front
+        include Na__InsertPrimatives::DrawnPushPullFollow                     # <-- SHIFT+ALT: every corner along its own edge
 
         NA_PP_MIN_AXIS_FACTOR = 0.0872                                        # <-- cos 85 degrees; below this the lock is refused
         NA_PP_HOVER_FILL      = Sketchup::Color.new(  0, 140, 255,  80)
@@ -116,6 +133,7 @@ module Na__InsertPrimatives
             na_drawn__init_shared_state
             na_drawn__clear_target
             na_revise__init_state                                             # <-- No push placed yet, so nothing to retype or repeat
+            na_qo__init_state                                                 # <-- No quad line on offer or grabbed
         end
         # ---------------------------------------------------------------
 
@@ -182,8 +200,11 @@ module Na__InsertPrimatives
                 'Hold CTRL+SHIFT to snap to a vertex and round the distance — on a roof end it follows the rake as well',
                 'ARROWS lock the measured axis: Right X, Left Y, Up Z, Down releases',
                 'Hold SHIFT to push along the NEIGHBOURING face instead — a roof runs on down its own rake',
+                'Hold SHIFT+ALT to FOLLOW — every corner runs along its own edge, so a taper stays a taper',
                 'TAB toggles QUAD mode — the extrusion keeps its start loop as edges, no face',
                 'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
+                'With QUADS on, hover near a quad line to grab its whole ring — drag along the run to offset a new one',
+                'Quad offsets and loop cuts take *4 (array) and /7 (divide), while dragging or after placing',
                 'VCB: 300 | +50 | -25   (the typed distance pins and places)',
                 'After placing, keep typing: 1200 resizes the push, -1200 turns it round — the preview replays the change',
                 'Double-click a face to push it by the last distance placed (remembered in the model)'
@@ -215,7 +236,7 @@ module Na__InsertPrimatives
         # than leaving the user pressing a key that does nothing.
         # ------------------------------------------------------------
         def na_drawn__slope_mode?
-            @na_shift_held && !@na_pp_slope.nil?
+            @na_shift_held && !@na_pp_slope.nil? && !na_drawn__follow_requested?   # <-- SHIFT+ALT is follow, not slope
         end
         # ---------------------------------------------------------------
 
@@ -370,6 +391,8 @@ module Na__InsertPrimatives
         # to fall back to, so the mixin's demotion to :picking_b is replaced.
         # ------------------------------------------------------------
         def na_drawn__step_back(view)
+            return na_qo__step_back(view) if na_qo__active?
+
             released = na_drawn__release_last_lock
 
             unless released
@@ -392,7 +415,7 @@ module Na__InsertPrimatives
             return false unless @na_state == :picking_depth
 
             na_drawn__trace('onReturn — placing')
-            na_drawn__commit_push(view)
+            na_qo__active? ? na_qo__commit(view) : na_drawn__commit_push(view)
             na_drawn__update_status_text
             na_drawn__refresh_vcb
             view.invalidate if view
@@ -413,6 +436,7 @@ module Na__InsertPrimatives
             na_drawn__sync_modifier(flags)
             return false unless na_drawn__ensure_known_state
             return false unless @na_state == :picking_depth
+            return na_qo__double_click(view, x, y) if na_qo__active?
 
             travelled_px = (x.to_f - @na_press_x.to_f).abs + (y.to_f - @na_press_y.to_f).abs
 
@@ -462,6 +486,7 @@ module Na__InsertPrimatives
             @na_last_mouse_x = x
             @na_last_mouse_y = y
 
+            return na_qo__update_cursor(view, x, y) if na_qo__active?          # <-- A grabbed ring measures along its own run
             return false unless @na_state == :picking_depth && @na_point_a
 
             resolved =
@@ -523,6 +548,8 @@ module Na__InsertPrimatives
         # FUNCTION | Arrow Keys Lock the Measured Axis
         # ------------------------------------------------------------
         def na_drawn__apply_axis_lock(axis, view)
+            return na_qo__refuse_axis_lock if na_qo__active?
+
             previous      = @na_axis_lock
             @na_axis_lock = (@na_axis_lock == axis) ? nil : axis
 
@@ -544,7 +571,7 @@ module Na__InsertPrimatives
         # FUNCTION | The Axis Ray Runs Through the Grabbed Point
         # ------------------------------------------------------------
         def na_drawn__axis_ray_origin
-            @na_point_a
+            na_qo__active? ? nil : @na_point_a                                 # <-- A ring's run is not the locked axis; no ray to draw
         end
         # ---------------------------------------------------------------
 
@@ -601,6 +628,7 @@ module Na__InsertPrimatives
         # FUNCTION | Describe the Push Direction Rather Than a Drawing Plane
         # ------------------------------------------------------------
         def na_drawn__plane_description
+            return na_qo__plane_description if na_qo__active? || na_qo__hovering?
             return 'No face grabbed' unless @na_pp_target
             return 'Loose geometry face' if @na_pp_target[:depth].to_i.zero?
 
@@ -613,6 +641,7 @@ module Na__InsertPrimatives
         def na_drawn__reset_pick_state
             super
             na_drawn__clear_target
+            na_qo__clear_grab
             @na_size_d = 0.0
             @na_sign_d = 1.0
         end
@@ -661,10 +690,12 @@ module Na__InsertPrimatives
 
             if target.nil?
                 na_drawn__clear_target
+                na_qo__clear_hover
                 return false
             end
 
             na_drawn__adopt_target(target)
+            na_qo__track_hover(view, x, y, target)                            # <-- QUADS on and near a quad line: its ring is offered instead
             true
         end
         # ---------------------------------------------------------------
@@ -727,6 +758,7 @@ module Na__InsertPrimatives
             @na_pp_area        = Na__InsertPrimatives.Na__DeepPick__WorldAreaM2(target[:face], target[:transformation])
             @na_pp_fingerprint = na_drawn__target_fingerprint(target)
             @na_pp_slope       = Na__InsertPrimatives.Na__SlopePush__Best(target)
+            na_drawn__follow_refresh(target)                                  # <-- The rail at every corner, for SHIFT+ALT
             true
         end
         # ---------------------------------------------------------------
@@ -746,11 +778,14 @@ module Na__InsertPrimatives
                 # Taking hold of a face is the "something else" that closes the
                 # measurements box on the previous push, exactly as it does in
                 # the native tool. A click that grabs nothing leaves it open.
-                na_revise__forget if na_drawn__grab_face(view, x, y)
+                # A quad line beside the cursor is taken ahead of the face it
+                # borders, which is what the hover was already showing.
+                grabbed = na_qo__try_grab(view, x, y) || na_drawn__grab_face(view, x, y)
+                na_revise__forget if grabbed
             when :picking_depth
                 @na_drag_press_active = false
                 na_drawn__update_cursor(view, x, y)
-                na_drawn__commit_push(view)
+                na_qo__active? ? na_qo__commit(view) : na_drawn__commit_push(view)
             end
 
             na_drawn__update_status_text
@@ -831,7 +866,7 @@ module Na__InsertPrimatives
             return if travelled_px < NA_DRAWN_DRAG_MIN_PX
 
             na_drawn__update_cursor(view, x, y)
-            na_drawn__commit_push(view)
+            na_qo__active? ? na_qo__commit(view) : na_drawn__commit_push(view)
             na_drawn__update_status_text
             na_drawn__refresh_vcb
             view.invalidate
@@ -855,7 +890,7 @@ module Na__InsertPrimatives
         # FUNCTION | Distance Settled — Push the Face
         # ------------------------------------------------------------
         def na_drawn__advance_from_depth(view)
-            na_drawn__commit_push(view)
+            na_qo__active? ? na_qo__commit(view) : na_drawn__commit_push(view)
         end
         # ---------------------------------------------------------------
 
@@ -869,13 +904,14 @@ module Na__InsertPrimatives
         # FUNCTION | Points the Preview Occupies, for the Draw Extents
         # ------------------------------------------------------------
         def na_drawn__preview_points
+            return na_qo__preview_points if na_qo__active? || na_qo__hovering?
             return [] if @na_pp_loop.nil? || @na_pp_loop.empty?
             return @na_pp_loop unless @na_state == :picking_depth
 
             offset = na_drawn__push_offset_vector
             return @na_pp_loop unless offset
 
-            @na_pp_loop + @na_pp_loop.map { |point| point.offset(offset) }
+            @na_pp_loop + @na_pp_loop.map { |point| na_drawn__move_world_point(point, offset) }
         end
         # ---------------------------------------------------------------
 
@@ -909,6 +945,7 @@ module Na__InsertPrimatives
         # FUNCTION | Shade the Face Under the Cursor
         # ------------------------------------------------------------
         def na_drawn__draw_hover(view)
+            return na_qo__draw_hover(view) if na_qo__hovering?
             return if @na_pp_triangles.nil? || @na_pp_triangles.empty?
 
             quads = na_drawn__quad_mode?
@@ -929,8 +966,12 @@ module Na__InsertPrimatives
 
             lines = ["#{@na_pp_area} m2 face", Na__InsertPrimatives.Na__DeepPick__PathLabel(@na_pp_target)]
             lines << 'QUADS — keeps the start loop' if quads
+            lines.concat(na_qo__face_hover_notes(quads))
 
-            if na_drawn__slope_mode?
+            if na_drawn__follow_requested?
+                reason = na_drawn__follow_reason
+                lines << (reason ? "SHIFT+ALT FOLLOW off — #{reason}" : 'SHIFT+ALT FOLLOW — each corner along its own edge')
+            elsif na_drawn__slope_mode?
                 lines << "SHIFT SLOPE — #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)}"
             elsif @na_pp_slope
                 lines << "SHIFT — follow the #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)} neighbour"
@@ -943,6 +984,7 @@ module Na__InsertPrimatives
         # FUNCTION | Preview the Face at Its Pushed Position
         # ------------------------------------------------------------
         def na_drawn__draw_push_preview(view)
+            return na_qo__draw_preview(view) if na_qo__active?
             return if @na_pp_loop.nil? || @na_pp_loop.empty?
 
             # In quad mode the start loop is not just where the face was, it is
@@ -965,8 +1007,8 @@ module Na__InsertPrimatives
                 return
             end
 
-            moved_triangles = @na_pp_triangles.map { |points| points.map { |point| point.offset(offset) } }
-            moved_loop      = @na_pp_loop.map { |point| point.offset(offset) }
+            moved_triangles = @na_pp_triangles.map { |points| points.map { |point| na_drawn__move_world_point(point, offset) } }
+            moved_loop      = @na_pp_loop.map { |point| na_drawn__move_world_point(point, offset) }
 
             Na__InsertPrimatives.Na__DrawnPreview__DrawTriangles(view, moved_triangles, NA_PP_RESULT_FILL)
             Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(view, moved_loop, NA_PP_RESULT_BORDER)
@@ -997,7 +1039,7 @@ module Na__InsertPrimatives
         # is genuinely all that is going to be created.
         # ------------------------------------------------------------
         def na_drawn__draw_loop_cut_preview(view, offset)
-            cut_loop = @na_pp_loop.map { |point| point.offset(offset) }
+            cut_loop = @na_pp_loop.map { |point| na_drawn__move_world_point(point, offset) }
 
             Na__InsertPrimatives.Na__DrawnPreview__DrawTriangles(view, @na_pp_triangles, NA_PP_HOVER_FILL)
             Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(view, @na_pp_loop, NA_PP_HOVER_BORDER, 1)
@@ -1082,6 +1124,9 @@ module Na__InsertPrimatives
                 lines << "#{@na_pp_area} m2 face"
             end
 
+            follow = na_drawn__follow_note
+            lines << follow.sub(/\A · /, '') unless follow.empty?
+
             Na__InsertPrimatives.Na__DrawnPreview__DrawWorldLabel(view, moved, lines)
         end
         # ---------------------------------------------------------------
@@ -1126,6 +1171,8 @@ module Na__InsertPrimatives
         # FUNCTION | Middle Section of the Status Bar Line
         # ------------------------------------------------------------
         def na_drawn__status_detail
+            return na_qo__status_detail if na_qo__active? || na_qo__hovering?
+
             quads = na_drawn__quad_mode? ? ' QUADS' : ''
             slope = na_drawn__slope_hint
 
@@ -1134,7 +1181,7 @@ module Na__InsertPrimatives
                 text     = na_drawn__locked?(:d) ? "[#{distance}]" : distance.to_s
                 return "Loop cut #{text} mm inset — release or click to cut#{slope}" if na_drawn__loop_cut_mode?
 
-                verb = na_drawn__slope_mode? ? 'Slope' : 'Push'
+                verb = na_drawn__follow_mode? ? 'Follow' : (na_drawn__slope_mode? ? 'Slope' : 'Push')
                 return "#{verb}#{quads} #{text} mm — release or click to place#{slope}"
             end
 
@@ -1157,17 +1204,20 @@ module Na__InsertPrimatives
         # and the grid fragment says so — so the no-neighbour line stays quiet.
         # ------------------------------------------------------------
         def na_drawn__slope_hint
-            return " — SHIFT slope #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)}" if na_drawn__slope_mode?
-            return ' — SHIFT: no sloped neighbour to follow here' if @na_shift_held && !@na_ctrl_held && @na_pp_target
+            return " —#{na_drawn__follow_note.sub(/\A ·/, '')}" if na_drawn__follow_requested?
+            return " — SHIFT slope #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)} (+ALT: every corner its own edge)" if na_drawn__slope_mode?
+            return ' — SHIFT: no sloped neighbour here (+ALT: every corner its own edge)' if @na_shift_held && !@na_ctrl_held && @na_pp_target
             return '' unless @na_pp_slope
 
-            " — SHIFT follows the #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)} neighbour"
+            " — SHIFT follows the #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)} neighbour, SHIFT+ALT every corner's own edge"
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Measurements Box Label and Live Value
         # ------------------------------------------------------------
         def na_drawn__vcb_label_and_value
+            return na_qo__vcb_label_and_value if na_qo__active? || na_qo__record_open?
+
             label = na_drawn__slope_mode? ? 'Slope distance' : 'Push distance'
             return [label, na_drawn__format_sizes([@na_size_d])] if @na_state == :picking_depth
 
@@ -1199,12 +1249,17 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__handle_vcb_text(text, view)
             return na_revise__retype(text, view) if na_revise__available?
+            return na_qo__handle_vcb_text(text, view) if na_qo__active?
 
             unless @na_state == :picking_depth
                 UI.beep
                 Sketchup::set_status_text("Grab a face before typing a distance#{na_revise__status_hint}", SB_PROMPT)
                 return false
             end
+
+            # *4 or /7 while dragging a face: a loop cut turned into an array,
+            # or refused with the reason when the drag is not a cut.
+            return na_qo__convert_cut_drag(text, view) if Na__InsertPrimatives.Na__QuadRings__ArrayEntry?(text)
 
             tokens = Na__InsertPrimatives.Na__DrawnVcb__ParseEntry(text)
             raise ArgumentError, 'push takes a single distance' if tokens.length > 1

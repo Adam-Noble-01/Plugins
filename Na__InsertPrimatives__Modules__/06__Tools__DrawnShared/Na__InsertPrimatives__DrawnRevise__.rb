@@ -74,6 +74,7 @@
 #   na_revise__draw_ghost(view, ghost, value, from, to)   One animation frame
 #   na_revise__ghost_points(ghost, value)                 Points for the draw extents
 #   na_revise__placed_label(record)       Optional; how the placed size reads in the status bar
+#   na_revise__animate_change(rec, a, b)  Optional; how a retype's change is replayed
 #
 # RECORD SHAPE (built by the host's capture, armed with na_revise__arm):
 #   :value      the signed measured size the placement was made at
@@ -444,7 +445,7 @@ module Na__InsertPrimatives
                 end
 
                 if na_revise__rebuild(record, reacquired, value, view)
-                    na_revise__animate(@na_revise_record || record, record[:value], value)
+                    na_revise__animate_change(@na_revise_record || record, record[:value], value)
                     na_revise__notice(
                         "Adjusted #{na_revise__value_label(record[:value])} → #{na_revise__value_label(value)}" \
                         " — type again to change it, or grab #{na_revise__target_noun} to move on"
@@ -468,6 +469,17 @@ module Na__InsertPrimatives
             ensure
                 @na_revise_busy = false
             end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Replay the Change a Retype Just Made
+        # The engine sweeps one number from the old value to the new. A host
+        # whose value is more than one number (Deep Push/Pull's quad arrays,
+        # where a retype can change the count) overrides this and keeps both
+        # layouts in the ghost instead.
+        # ------------------------------------------------------------
+        def na_revise__animate_change(record, from_value, to_value)
+            na_revise__animate(record, from_value, to_value)
         end
         # ---------------------------------------------------------------
 

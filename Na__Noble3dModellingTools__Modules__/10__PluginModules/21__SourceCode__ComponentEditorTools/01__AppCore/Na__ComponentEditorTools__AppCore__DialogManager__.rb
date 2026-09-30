@@ -710,6 +710,17 @@ module Na__ComponentEditorTools
             )
         end
 
+        # Called by 12__McpOperations after the library changed on disk: the next
+        # Gallery / Index visit re-scans, and unchanged files still come from the
+        # per-file extract cache. An open dialog is told, not reloaded.
+        def self.Na__ComponentEditorTools__ForgetLibraryCache(status_text = nil)
+            @na_library_cache = nil
+            Na__LibraryExtractor.Na__ComponentEditorTools__PurgeLastResult
+            return unless @na_dialog && @na_dialog.visible?
+
+            self.Na__ComponentEditorTools__PushStatus(status_text || 'The library changed on disk. Switch to another tab and back to see it (no full reload needed).', 'info')
+        end
+
         def self.Na__ComponentEditorTools__PushCachedLibraryDataIfAvailable
             return if @na_library_cache
 

@@ -171,6 +171,7 @@ module Na__InsertPrimatives
                 :axis_lock   => @na_axis_lock,
                 :slope       => @na_pp_slope,
                 :slope_mode  => sloped ? true : false,
+                :follow      => na_drawn__follow_mode?,
                 :quad        => na_drawn__quad_mode?,
                 :cut         => cutting ? true : false,
                 :ghost       => ghost
@@ -196,7 +197,8 @@ module Na__InsertPrimatives
                 :direction   => direction ? direction.clone : nil,
                 :axis_factor => na_drawn__axis_travel_factor,
                 :quad        => na_drawn__quad_mode?,
-                :edge_world  => (edge && edge.length == 2) ? edge.map { |point| point.clone } : nil
+                :edge_world  => (edge && edge.length == 2) ? edge.map { |point| point.clone } : nil,
+                :follow      => na_drawn__follow_mode? ? @na_pp_follow : nil      # <-- The world rails, so the replay follows them too
             }
         end
         # ---------------------------------------------------------------
@@ -300,21 +302,28 @@ module Na__InsertPrimatives
         # original drag direction and the ghost into the new record.
         # ------------------------------------------------------------
         def na_revise__wearing(record, target, value)
-            held_shift = @na_shift_held
-            held_axis  = @na_axis_lock
+            held_shift  = @na_shift_held
+            held_alt    = @na_alt_held
+            held_axis   = @na_axis_lock
+            held_follow = @na_pp_follow
 
             @na_revise_replaying = record
             @na_pp_target        = target
             @na_pp_slope         = record[:slope]
-            @na_shift_held       = record[:slope_mode] ? true : false
+            @na_shift_held       = (record[:slope_mode] || record[:follow]) ? true : false
+            @na_alt_held         = record[:follow] ? true : false
             @na_axis_lock        = record[:axis_lock]
             @na_size_d           = value.to_f.abs
             @na_sign_d           = value.to_f < 0.0 ? -1.0 : 1.0
+            na_drawn__follow_refresh(target) if record[:follow]              # <-- The face found again, read afresh
 
             yield
         ensure
             @na_shift_held       = held_shift
+            @na_alt_held         = held_alt
             @na_axis_lock        = held_axis
+            @na_pp_follow        = held_follow
+            @na_pp_follow_lookup = nil
             @na_revise_replaying = nil
         end
         # ---------------------------------------------------------------
@@ -386,7 +395,7 @@ module Na__InsertPrimatives
             colours = self.class
 
             moved_loop = loop_points.map do |point|
-                Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(point, direction, world)
+                na_revise__ghost_move(ghost, point, direction, world)
             end
 
             Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(
@@ -400,7 +409,7 @@ module Na__InsertPrimatives
                 Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(view, moved_loop, colours::NA_PP_QUAD_BORDER, 3)
             else
                 moved_triangles = (ghost[:triangles] || []).map do |points|
-                    points.map { |point| Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(point, direction, world) }
+                    points.map { |point| na_revise__ghost_move(ghost, point, direction, world) }
                 end
 
                 Na__InsertPrimatives.Na__DrawnPreview__DrawTriangles(view, moved_triangles, colours::NA_PP_RESULT_FILL)
@@ -483,10 +492,31 @@ module Na__InsertPrimatives
             world  = value.to_f / factor
 
             loop_points + loop_points.map do |point|
-                Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(point, direction, world)
+                na_revise__ghost_move(ghost, point, direction, world)
             end
         rescue StandardError
             []
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Where a Ghost Point Goes: Along the Push, or Along Its Rail
+        # A follow push replays with each corner on the rail it followed; any
+        # other ghost point moves the way it always did.
+        # ------------------------------------------------------------
+        def na_revise__ghost_move(ghost, point, direction, world)
+            follow = ghost[:follow]
+
+            if follow && follow[:ok]
+                rail = follow[:rails].find { |candidate| candidate[:point].distance(point) < NA_FOLLOW_TOL }
+
+                if rail
+                    return Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(
+                        point, Na__InsertPrimatives.Na__FollowPush__Vector(rail[:dir], follow[:normal], world), 1.0
+                    )
+                end
+            end
+
+            Na__InsertPrimatives.Na__DrawnGrid__OffsetPoint(point, direction, world)
         end
         # ---------------------------------------------------------------
 

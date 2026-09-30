@@ -24,6 +24,78 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 # VERSION HISTORY
 # =============================================================================
 
+# Na Noble3d Modelling Tools — Component Editor Tools
+## Version 0.6.4 - 30-Sep-2026 - Library Tools for Agents (12__McpOperations) and Safe Library Loading
+
+### Overview
+Adam asked for agents to use the library the way he does in the Gallery and Index, and to save new assets with the right folder, number and name. The new `12__McpOperations` folder is the seam the Na SketchUp MCP (1.0.3, tools `asset_library` / `asset_library_edit`) calls. Building it exposed a data-loss bug in how the Gallery loaded library files, so that is fixed too. The same tools then tidied `Na__CoreLib__3dAssets`: 67 steps, journaled.
+
+### Update 01 - Safe Library Loading (Extractor and Editor)
+Three things were checked live in SketchUp 2026.2 on 30-Sep-2026:
+- `DefinitionList#load` brings every nested definition with it (20 for the fleur-de-lis finial). The Extractor removed only the top one, so each Reload Library left orphans in the open model. The finial test model had gathered 877 unused definitions.
+- Loading a path that is already loaded returns the **same** definition, placed instances and all. `definitions.remove` on it deletes those instances.
+- A name clash, even with a name SketchUp still reserves from an earlier rename in the session, renames the loaded definition (`...Type-01` became `...Type-#1`). Saving it back writes the `#1` into the file. That is how `#1` and `#4` names reached several library files.
+
+The fixes:
+- New `08__LibraryManager/Na__ComponentEditorTools__LibraryManager__SafeLoad__.rb`:
+  - `WithTemporaryDefinition` loads inside `start_operation ... abort_operation`, which takes everything back out.
+  - `LoadedDefinitionFor` finds a file already loaded in the model.
+  - `ApplyName` sets a name and proves it held, moving a visible clash aside only inside an aborted operation.
+  - `Na__LibraryInUseError` refuses a placed file when asked to.
+- `Extractor.ExtractFromFile` and `Editor.LoadEditSaveRemove` now use it. Nothing is removed any more, so a placed component can never be deleted. The Editor puts a `#n`-suffixed load name back to the file name before saving.
+- Proved live: the Gallery's own extraction re-read 49 renamed files in 24 s, and the model's definition count did not change (908 before, 908 after). A load plus thumbnail inside the operation also aborts cleanly.
+
+### Update 02 - 12__McpOperations: The Agent Seam
+- `...__Main__.rb` is the seam: `Na__McpOperations.Na__ComponentEditorTools__McpRead(action, params)` / `...McpEdit`, and `Na__McpOperationsError` (code, message, hint, details).
+- `...__Convention__.rb` handles names and codes:
+  - parse into kinds (filed, placeholder, short or letter code, old prefix, unfiled, uncoded);
+  - name issues (trailing `__`, runs of underscores, spaces, line breaks, `#n` suffixes, segment characters, known typos);
+  - folder issues (code versus category folder, bare series folders, series thousands);
+  - mechanical fixes;
+  - series and family ranges, and the next free numbers (codes ending in 0 are kept for folder bases).
+- `...__Catalogue__.rb` does overview, browse, get (with the Gallery thumbnail), next_code, check_name and audit. It reads file names and the extract cache only, and opens files only in `get` and a deep `audit`.
+- `...__Plan__.rb` runs every change as a plan:
+  - It is played first on a virtual copy of the file list: targets must be free (case-insensitive), names must follow the convention, placed components are refused, no code may be used twice by a touched file, and no path may exceed Windows' 259 characters.
+  - Then it is applied in order within a time budget. It keeps a journal under `<library>/00__Archive/00__McpLibraryJournals/<id>/` with byte copies of rewritten files, originals kept for archives, and removed files. `revert` walks it backwards, and nothing is deleted.
+- `...__AssetOps__.rb` does save, rename, move, update, archive, create_folder and refresh as one-step plans.
+- `...__Archive__.rb` writes Adam's archive style (30-Sep-2026): a single-entry zip made with Ruby's own zlib into the set's `00__Archive` as `<name>__30-Sep-2026.zip`. The zip is read back and compared before the original moves into the journal.
+- `DialogManager` gains `Na__ComponentEditorTools__ForgetLibraryCache`. After a change on disk the next Gallery or Index visit re-scans, and an open dialog shows a status line.
+
+### Update 03 - Library Convention Config
+- New `07__UserData/Na__ComponentEditorTools__LibraryConvention__.json`. It holds the rules as data:
+  - the default set, the journal folder, holding folders and unfiled prefixes;
+  - the archive date suffix, the allowed segment pattern and word fixes;
+  - the category numbers with their tag names (existing and proposed) and taxonomy defaults;
+  - series taxonomy defaults.
+- The numbering it records was read from Adam's Na and Va libraries:
+  - category folders mirror the SSOT tag numbers (08 and 09 site, 11-19 building elements, 60 entourage);
+  - a series folder `NN_S000__Name` owns its thousand;
+  - a flat category numbers in hundreds families.
+
+### Update 04 - The First Tidy (Na__CoreLib__3dAssets)
+- Journal `20260930-142039__Na-CoreLib-3dAssets-tidy-30-Sep-2026` holds the 67 steps:
+  - 5 new folders and 7 series folders given their prefix;
+  - 34 code fixes: 27/28/29 prefixes (the Proposed tag numbers) back to 17/18/19, four uses of 13_2025, 04_ and ADR codes, 85_85, and loose root files filed;
+  - 2 definition-name fixes and 12 trailing `__` names;
+  - the older Covered Type-06 pot zipped to `00__Archive/13_2025__ChimneyPot__Covered__Type-06__30-Sep-2026.zip`;
+  - rip-downs, orphan `.skb` backups and the old naming example parked.
+- Blank Category / Type library data was filled from the folder. Nothing was overwritten.
+- Checked afterwards, headless through `11__HeadlessLibrary/capi.py`: 58 visible files. Every definition name matches its file, every name is `NN_NNNN__...__`, no code is used twice, and every code matches its category folder. The zip passes `testzip` and matches the kept original.
+- The first run stopped at step 39. A journal backup path was 260 characters, and SketchUp's Ruby cannot open that. The sofa file was untouched. Journal file names now shorten themselves when needed, and the dry run refuses long target paths. The run then continued from the journal.
+
+### Update 05 - Tests
+- New `tests/mcp_operations_unit.rb.test` (76 checks). It uses a throwaway library in a temp folder and a fake SketchUp model with rollback, and covers the convention, catalogue, dry runs, clashes, duplicate codes, the placed-component refusal, apply and exact-byte revert, save, rename, archive zips, long paths and SafeLoad. Run it with the Na SketchUp MCP runner:
+  `python <Plugins>/Na__SketchUpMcp__Modules__/40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py <this module>/tests/mcp_operations_unit.rb.test`
+- `tests/syntax.rb.test`: 28 files compile. `advanced_unit` 31 of 31 pass. Two older suites did not run offline, and neither is affected by this change. `standards_unit` expects 32 SSOT materials, but the materials file changed in commit e8fc6f3. `advanced_integration` runs only inside SketchUp (it calls `UI.start_timer`).
+
+### Validation Checklist
+- [ ] Reload Plugin Data, open the Gallery: the renamed components show under their new names and folders (switch tabs once if it was already open).
+- [ ] Reload Library in the Gallery, then check Window > Model Info > Statistics: the definition count does not grow. Purge Unused clears the 877 orphans left in `02__BespokeFinialTest` by the old code.
+- [ ] Index: edit a Gallery Name on a component placed in the open model. The placed copies stay.
+- [ ] Open `Na__CoreLib__3dAssets/00__Archive/13_2025__ChimneyPot__Covered__Type-06__30-Sep-2026.zip` in Explorer: it holds the .skp.
+
+---
+
 ## 24-Sep-2026 — Advanced editor SSOT dropdowns
 
 - Query reads the shared local Tags and Materials JSON collections directly. Each
@@ -554,7 +626,19 @@ Non-manifold         =  0
 | `...__Extractor__.rb` | Temp-load definitions, extract metadata/thumbnails, cache |
 | `...__Serializer__.rb` | Read/write `Na__ComponentLibrary` attribute dictionary |
 | `...__Editor__.rb` | On-disk edits: rename, metadata, library data, single-field updates |
+| `...__SafeLoad__.rb` | Loads a library file inside an always-aborted operation; in-use detection; name that holds |
 | `...__PlacementTool__.rb` | Interactive library component insertion |
+
+#### MCP Operations (`12__McpOperations/`)
+
+| File | Responsibility |
+|------|---------------|
+| `...__Main__.rb` | The seam the Na SketchUp MCP calls (`McpRead` / `McpEdit`) and `Na__McpOperationsError` |
+| `...__Convention__.rb` | Parse, check and build names and codes; series and family ranges; next free numbers |
+| `...__Catalogue__.rb` | overview, browse, get, next_code, check_name, audit |
+| `...__Plan__.rb` | Checked, journaled, revertible changes on disk (create, rename, move, archive, rewrite, save) |
+| `...__AssetOps__.rb` | save, rename, move, update, archive, create_folder, refresh as one-step plans |
+| `...__Archive__.rb` | Date-stamped single-file zips into a set's `00__Archive`, proved before use |
 
 #### User Interface (`05__UserInterface/`)
 
@@ -578,6 +662,7 @@ Non-manifold         =  0
 |------|---------|
 | `Na__ComponentEditorTools__UserConfig__.json` | Library path, blocked folders/files |
 | `Na__ComponentEditorTools__CategoryTaxonomy__.json` | Category → Type lists (auto-created on first run) |
+| `Na__ComponentEditorTools__LibraryConvention__.json` | Library naming and numbering rules, tag and taxonomy maps, archive style (read by `12__McpOperations`) |
 
 # =============================================================================
 # END OF FILE

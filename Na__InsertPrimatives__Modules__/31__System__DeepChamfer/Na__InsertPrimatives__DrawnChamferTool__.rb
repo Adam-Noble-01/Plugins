@@ -77,6 +77,25 @@
 #   own attribute dictionary. Mechanics shared with Deep Push/Pull through
 #   DrawnReviseShared; the chamfer-specific half is DrawnChamferRevise.
 #
+# THE CUT CANNOT OUTGROW ITS FACES:
+# - At grab the faces are measured and the largest size they allow is known.
+#   The drag eases into it (slope 1 at the edge, flattening onto the maximum)
+#   so it cannot overshoot, and a typed size above it is refused with the
+#   limit named. The full size builds: the face it consumes is dropped. See
+#   DrawnChamferLimit.
+#
+# HOT SWAP FROM THE RIGHT-CLICK MENU:
+# - Chamfer, Fillet and Ogee chosen from the menu hand over the banked edges,
+#   the drag and the size, so the preview redraws in the new profile instead
+#   of starting again. See DrawnChamferHotSwap.
+#
+# PRESELECTED LOOSE EDGES:
+# - Select loose edges BEFORE starting the tool and they are the edges it
+#   cuts: banked on activation, and a press anywhere drags them all from the
+#   nearest one. A group, a component or nothing selected leaves the deep
+#   picker exactly as it was. Deep Ogee and Deep Fillet inherit it. See
+#   DrawnChamferPreselect.
+#
 # =============================================================================
 
 require 'sketchup.rb'
@@ -86,6 +105,9 @@ require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnDeepPick__'
 require_relative 'Na__InsertPrimatives__DrawnChamfer__Geometry__'
 require_relative 'Na__InsertPrimatives__DrawnChamfer__Mitre__'
 require_relative 'Na__InsertPrimatives__DrawnChamfer__Revise__'
+require_relative 'Na__InsertPrimatives__DrawnChamfer__Preselect__'
+require_relative 'Na__InsertPrimatives__DrawnChamfer__Limit__'
+require_relative 'Na__InsertPrimatives__DrawnChamfer__HotSwap__'
 
 module Na__InsertPrimatives
 
@@ -104,6 +126,9 @@ module Na__InsertPrimatives
         include Na__InsertPrimatives::DrawnToolShared
         include Na__InsertPrimatives::DrawnReviseShared                       # <-- After DrawnToolShared, so its life-cycle wrappers sit over the mixin's
         include Na__InsertPrimatives::DrawnChamferRevise                      # <-- The chamfer half of the revise contract
+        include Na__InsertPrimatives::DrawnChamferPreselect                   # <-- Loose edges selected before the tool starts are the bank
+        include Na__InsertPrimatives::DrawnChamferLimit                       # <-- The largest cut the faces allow; the drag eases into it
+        include Na__InsertPrimatives::DrawnChamferHotSwap                     # <-- Chamfer / Fillet / Ogee from the menu keep the edges and the drag
 
         NA_CH_HOVER_COLOR   = Sketchup::Color.new(  0, 110, 235, 235)
         NA_CH_SELECT_COLOR  = Sketchup::Color.new(226, 118,   0, 255)         # <-- Edges banked with SHIFT, waiting for the drag
@@ -119,6 +144,29 @@ module Na__InsertPrimatives
             @na_ch_multi        = []                                          # <-- SHIFT-banked edge targets, surviving hover and drag-cancel
             @na_ch_batch        = []                                          # <-- Driver + banked, fixed at grab time
             @na_ch_batch_solves = []
+            na_ps__init_state                                                 # <-- No preselected edges until activate reads the selection
+        end
+        # ---------------------------------------------------------------
+
+        # ACTIVATE | Take Over a Handover, or Read the Selection Once
+        # Everything else about activation is the mixins'. Started from the
+        # menu by another profile tool, this takes over its edges and its drag
+        # (DrawnChamferHotSwap); started any other way, it takes one look at
+        # what the user selected before starting the tool.
+        # ------------------------------------------------------------
+        def activate
+            super
+
+            if na_hs__pending?
+                na_hs__apply
+            else
+                na_ps__adopt_selection
+            end
+
+            na_drawn__update_status_text
+
+            model = Sketchup.active_model
+            model.active_view.invalidate if model
         end
         # ---------------------------------------------------------------
 
@@ -137,6 +185,8 @@ module Na__InsertPrimatives
             @na_ch_cos_half     = 1.0
             @na_ch_batch        = []
             @na_ch_batch_solves = []
+            @na_ch_travel_zero  = 0.0                                         # <-- Travel at the press; non-zero only for a press beside a preselected edge
+            @na_ch_max_size     = nil                                         # <-- The largest size the grabbed batch's faces allow, or nil
         end
         # ---------------------------------------------------------------
 
@@ -226,7 +276,9 @@ module Na__InsertPrimatives
                 'VCB: 50 | +5 | -5   (the typed setback pins and cuts)',
                 'After cutting, keep typing: 75 resizes the chamfer, +5 / -5 adjust it — the preview replays the change',
                 'Double-click an edge to cut it at the last setback placed (remembered in the model)',
-                'The edge must border exactly two faces'
+                'The edge must border exactly two faces',
+                'Select loose edges BEFORE starting the tool and they are the ones cut — press and drag anywhere',
+                'Right-click → Deep Fillet / Deep Ogee swaps the profile mid-drag, keeping the edges'
             ]
         end
         # ---------------------------------------------------------------
@@ -558,8 +610,12 @@ module Na__InsertPrimatives
             return false unless source
 
             travel  = (source - @na_ch_anchor).dot(@na_ch_bisector).to_f
-            setback = na_drawn__snap_distance(na_drawn__size_from_travel(travel)).to_f
+            travel -= @na_ch_travel_zero.to_f unless @na_ctrl_held               # <-- A press beside a preselected edge starts at nothing; a vertex snap stays absolute
+            raw     = na_drawn__size_from_travel(travel)
+            raw     = na_lm__ease(raw, @na_ch_max_size) unless @na_ctrl_held     # <-- Eases into the faces' limit; a vertex snap is only clamped
+            setback = na_drawn__snap_distance(raw).to_f
             setback = 0.0 if setback < 0.0                                    # <-- Dragging out of the corner closes the chamfer
+            setback = @na_ch_max_size.to_f if @na_ch_max_size && setback > @na_ch_max_size.to_f
 
             return false if na_drawn__locked?(:d)
 
@@ -634,7 +690,12 @@ module Na__InsertPrimatives
             @na_last_mouse_y = y
 
             if @na_state == :idle
-                @na_ch_target = Na__InsertPrimatives.Na__DeepPick__EdgeAt(view, x, y)
+                @na_ch_target =
+                    if na_ps__active?
+                        na_ps__nearest(view, x, y)                            # <-- Preselected edges: the one a press here would drive
+                    else
+                        Na__InsertPrimatives.Na__DeepPick__EdgeAt(view, x, y)
+                    end
             else
                 na_drawn__update_cursor(view, x, y)
             end
@@ -658,6 +719,8 @@ module Na__InsertPrimatives
             when :idle
                 if (flags.to_i & NA_CH_MK_SHIFT) != 0
                     na_drawn__toggle_multi_edge(view, x, y)                   # <-- SHIFT banks edges; the plain click drags them all
+                elsif na_ps__active?
+                    na_ps__grab(view, x, y)                                   # <-- Preselected edges: a press anywhere, the nearest drives
                 else
                     na_drawn__grab_edge(view, x, y)
                 end
@@ -674,9 +737,11 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Take Hold of the Edge Under the Cursor
+        # Or of the edge handed in: a preselected edge is grabbed from wherever
+        # the press landed, without picking at all.
         # ------------------------------------------------------------
-        def na_drawn__grab_edge(view, x, y)
-            target = Na__InsertPrimatives.Na__DeepPick__EdgeAt(view, x, y)
+        def na_drawn__grab_edge(view, x, y, target = nil)
+            target ||= Na__InsertPrimatives.Na__DeepPick__EdgeAt(view, x, y)
 
             unless target
                 UI.beep
@@ -766,6 +831,7 @@ module Na__InsertPrimatives
                 banked[:edge] == target[:edge] && banked[:path] == target[:path]
             end
             @na_ch_batch_solves = []
+            @na_ch_max_size     = na_lm__max_for(@na_ch_batch)                # <-- Measured once per grab; the drag eases into it
 
             if @na_ch_batch.length > 1
                 Sketchup::set_status_text("Dragging #{@na_ch_batch.length} edges together", SB_PROMPT)
@@ -972,9 +1038,10 @@ module Na__InsertPrimatives
             usable    = target[:face_count] == 2
             second    = usable ? Na__InsertPrimatives.Na__DeepPick__PathLabel(target) : "#{target[:face_count]} faces — cannot #{na_drawn__cut_verb}"
 
-            Na__InsertPrimatives.Na__DrawnPreview__DrawWorldLabel(
-                view, world_v1, ["#{length_mm} mm edge", second]
-            )
+            lines = ["#{length_mm} mm edge", second]
+            lines << na_ps__highlight_note if @na_state == :idle && na_ps__active?
+
+            Na__InsertPrimatives.Na__DrawnPreview__DrawWorldLabel(view, world_v1, lines)
         end
         # ---------------------------------------------------------------
 
@@ -1088,6 +1155,8 @@ module Na__InsertPrimatives
                 summary_lines << "cutting #{@na_ch_batch_solves.length + 1} of #{@na_ch_batch.length} edges together"
             end
 
+            summary_lines[0] += na_lm__range_note(@na_size_d, @na_ch_max_size)
+
             stop_line = na_drawn__stop_summary(solve)
             summary_lines << stop_line if stop_line
 
@@ -1109,8 +1178,10 @@ module Na__InsertPrimatives
                 setback = Na__InsertPrimatives.Na__DrawnFormat__Mm(@na_size_d).abs
                 text    = na_drawn__locked?(:d) ? "[#{setback}]" : setback.to_s
                 return "Chamfer #{text} mm — CORNER PROBLEM: #{@na_ch_mitre_note}" if @na_ch_mitre_note
-                return "Chamfer #{text} mm#{na_drawn__stop_note} — release or click to cut"
+                return "Chamfer #{text} mm#{na_lm__range_note(@na_size_d, @na_ch_max_size)}#{na_drawn__stop_note} — release or click to cut"
             end
+
+            return na_ps__status_detail if na_ps__active?
 
             adjust = na_revise__status_hint
 
@@ -1194,6 +1265,22 @@ module Na__InsertPrimatives
                 return false
             end
 
+            # Measured again here, on the faces as they are now: a retype runs
+            # this after its undo, when there was no grab to measure at. The
+            # record keeps it (DrawnChamferLimit) for the next retype.
+            @na_ch_commit_max = na_lm__max_for(@na_ch_batch.length > 1 ? @na_ch_batch : [target])
+
+            if na_lm__over?(@na_size_d, @na_ch_commit_max)
+                UI.beep
+                na_revise__notice(na_lm__over_message(@na_size_d, @na_ch_commit_max))
+
+                if na_drawn__release_last_lock                                # <-- A refused typed size gives the drag back
+                    na_drawn__update_cursor(view, @na_last_mouse_x, @na_last_mouse_y)
+                end
+
+                return false
+            end
+
             return na_drawn__commit_batch(view, @na_ch_batch) if @na_ch_batch.length > 1
 
             solve = na_drawn__solve_member(target, @na_size_d)
@@ -1211,6 +1298,7 @@ module Na__InsertPrimatives
             rescue StandardError => error
                 UI.beep
                 Sketchup::set_status_text("#{na_drawn__cut_title} refused: #{error.message}", SB_PROMPT)
+                na_revise__notice("#{na_drawn__cut_title} refused: #{error.message}")   # <-- The status line redraws straight after; this one lands after it
                 Na__InsertPrimatives.Na__Debug__Puts "NA #{na_drawn__cut_title.upcase} refused: #{error.message}"
                 return false
             end
@@ -1239,6 +1327,8 @@ module Na__InsertPrimatives
             unless result[:success]
                 UI.beep
                 Sketchup::set_status_text("#{na_drawn__cut_title} failed: #{result[:error]}", SB_PROMPT)
+                na_revise__notice("#{na_drawn__cut_title} failed: #{result[:error]}")
+                Na__InsertPrimatives.Na__Debug__Puts "NA #{na_drawn__cut_title.upcase} failed: #{result[:error]}"
                 na_revise__load_memory                                        # <-- The aborted operation rolled its memory write back too
                 na_drawn__reset_pick_state
                 view.invalidate if view
@@ -1346,6 +1436,7 @@ module Na__InsertPrimatives
             if cut.zero?
                 UI.beep
                 Sketchup::set_status_text("#{na_drawn__cut_title} failed: #{errors.first}", SB_PROMPT)
+                na_revise__notice("#{na_drawn__cut_title} failed: #{errors.first}")
                 Na__InsertPrimatives.Na__Debug__Puts "NA #{na_drawn__cut_title.upcase} batch failed: #{errors.join(' | ')}"
                 na_revise__load_memory                                        # <-- Every operation aborted, so the memory write did too
                 na_drawn__reset_pick_state
@@ -1362,7 +1453,7 @@ module Na__InsertPrimatives
             Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
 
             if errors.any?
-                Sketchup::set_status_text("#{cut} edges cut — #{errors.length} group(s) refused, see console", SB_PROMPT)
+                na_revise__notice("#{cut} edges cut — #{errors.length} group(s) refused: #{errors.first}")
             end
 
             # Only the edges that were actually cut are worth retyping: the ones

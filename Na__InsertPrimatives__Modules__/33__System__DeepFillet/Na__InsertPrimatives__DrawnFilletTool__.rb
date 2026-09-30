@@ -311,7 +311,7 @@ module Na__InsertPrimatives
                 kind    = solve[:kind] == :cove ? 'cove' : 'round-over'
                 back_mm = Na__InsertPrimatives.Na__DrawnFormat__Mm(solve[:setback_world]).abs
                 edge_mm = Na__InsertPrimatives.Na__DrawnFormat__Mm(solve[:edge_len_world]).abs
-                lines << "Fillet #{na_drawn__size_text(@na_size_d)} · #{na_drawn__sides_text(@na_size_d)}"
+                lines << "Fillet #{na_drawn__size_text(@na_size_d)}#{na_lm__range_note(@na_size_d, @na_ch_max_size)} · #{na_drawn__sides_text(@na_size_d)}"
                 lines << "#{kind} (TAB swaps) · #{back_mm} mm back on each face · edge #{edge_mm} mm"
             end
 
@@ -334,8 +334,10 @@ module Na__InsertPrimatives
                 text = na_drawn__locked?(:d) ? "[R#{size}]" : "R#{size}"
                 sides = na_drawn__sides_text(@na_size_d)
                 return "Fillet #{text} · #{sides} — CORNER PROBLEM: #{@na_ch_mitre_note}" if @na_ch_mitre_note
-                return "Fillet #{text} · #{sides}#{na_drawn__stop_note} — release or click to cut"
+                return "Fillet #{text}#{na_lm__range_note(@na_size_d, @na_ch_max_size)} · #{sides}#{na_drawn__stop_note} — release or click to cut"
             end
+
+            return na_ps__status_detail if na_ps__active?                        # <-- Preselected edges, from the chamfer
 
             adjust = na_revise__status_hint
             typed  = @na_fl_sides_typed ? " — next fillet #{@na_fl_sides_typed} sides (typed)" : ''

@@ -3,6 +3,26 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.13 - 30-Sep-2026 - Component Library Tools for Agents and Safe Library Loading
+
+- Component Editor Tools 0.6.4. The full entry is in `10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__DEVLOG__.md`.
+- **New `12__McpOperations` folder.** It is the seam the Na SketchUp MCP 1.0.3 calls (`asset_library`, `asset_library_edit`), so agents can use the library as Adam does in the Gallery and Index:
+  - browse it, check names and take the next free code;
+  - save, rename, move, update and archive assets;
+  - apply or revert whole tidy plans.
+  Every change is journaled with byte copies, and archives are date-stamped zips in `00__Archive`.
+- **Bug fixed: Gallery extraction and Index edits.** They loaded library files into the open model and removed only the top definition. Nested definitions piled up as orphans (877 in one test model), and a component already placed in the model could be deleted along with its copies. Both now load through the new `LibraryManager__SafeLoad__.rb`, inside an operation that is always aborted, so the open model is left exactly as it was.
+- **New `07__UserData/Na__ComponentEditorTools__LibraryConvention__.json`.** It holds the library naming and numbering rules: category numbers mirror the SSOT tag numbers, series folders own a thousand, and the definition is named like its file.
+- **First use.** `Na__CoreLib__3dAssets` was tidied (67 steps). The audit afterwards found 0 of 58 components off the convention.
+- **Validation.** 76 of 76 checks pass in the new `tests/mcp_operations_unit.rb.test` (SketchUp's own Ruby), and 28 of 28 module files compile.
+
+### Validation Checklist
+- [ ] Reload Plugin Data, open Component Editor Tools > Gallery: the tidied library shows its new names and folders.
+- [ ] Reload Library, then check Window > Model Info > Statistics: the definition count no longer grows.
+- [ ] Ask an agent (Na SketchUp MCP) to save a placed component to the library: it proposes the folder, code and name, then saves.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.12 - 30-Sep-2026 - Most-Used Quick Launch Row
 
 - Every tool launch is now counted. Dialog cards, search results, menus and hotkeys all go through `RunCommandById`, so that is where the count is taken. A new row of six tiny cards under the search bar shows your six most-used tools, most used on the left. It re-ranks after every launch. Ties go to the tool used most recently. Hover a card for its full name and launch count.

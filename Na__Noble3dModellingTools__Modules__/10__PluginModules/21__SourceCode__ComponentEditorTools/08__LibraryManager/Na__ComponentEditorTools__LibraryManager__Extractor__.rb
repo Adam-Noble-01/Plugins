@@ -95,17 +95,19 @@ module Na__ComponentEditorTools
 
             return self.Na__ComponentEditorTools__ErrorResult(entry, 'File not found.') unless File.exist?(file_path.to_s)
 
-            model = Sketchup.active_model
-            definition = model.definitions.load(file_path)
-            raise 'Could not load component definition.' unless definition
-
-            def_name        = definition.name.to_s
-            def_description = definition.description.to_s
-            attribute_data  = self.Na__ComponentEditorTools__ExtractAttributes(definition)
-            thumbnail_uri   = self.Na__ComponentEditorTools__SaveThumbnail(definition, file_path)
-            library_data    = Na__LibrarySerializer.Na__ComponentEditorTools__ReadFromDefinition(definition)
-
-            model.definitions.remove(definition) rescue nil
+            # Read inside an operation that is always aborted, so nested definitions
+            # are not left behind and a component placed in the open model is never
+            # removed (see Na__ComponentEditorTools__LibraryManager__SafeLoad__.rb).
+            def_name, def_description, attribute_data, thumbnail_uri, library_data =
+                Na__LibrarySafeLoad.Na__ComponentEditorTools__WithTemporaryDefinition(file_path, 'Read library component') do |definition, _load_info|
+                    [
+                        definition.name.to_s,
+                        definition.description.to_s,
+                        self.Na__ComponentEditorTools__ExtractAttributes(definition),
+                        self.Na__ComponentEditorTools__SaveThumbnail(definition, file_path),
+                        Na__LibrarySerializer.Na__ComponentEditorTools__ReadFromDefinition(definition)
+                    ]
+                end
 
             result = {
                 'cache_key'        => cache_key,

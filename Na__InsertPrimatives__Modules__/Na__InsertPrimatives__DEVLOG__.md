@@ -3,6 +3,514 @@
 
 # =============================================================================
 
+## Version 5.1.21 - 30-Sep-2026 - SHIFT+ALT Follow: Every Corner Along Its Own Edge
+
+### Asked For
+*"make the push tool have an additional modifer … Image 03 shows a markup of what i want to
+happen with Shift + Alt, you see how the face / edge loops should follow the taper
+inwards?"*, with Fredo6's *Follow Push Pull* as the reference. Wanted in both the 3D and
+the 2D push/pull.
+
+The slab in the screenshots is a front fascia on a tapered roof slab. On it:
+- a **plain push** carries the whole face along its normal, so its ring floats off the rising
+  top;
+- **SHIFT** carries the whole face up the roof slope, so its ring floats off the soffit.
+
+The markup wants both at once: the top edge up the roof, the bottom along the soffit.
+
+### Follow Mode
+Hold **SHIFT+ALT**. Every corner of the face slides along its **rail**, the line where the
+two faces either side of that corner meet. On a solid that is the edge running back from
+the corner. Each corner travels however far its own rail needs for the face to land on a
+plane parallel to where it started, the drag distance away:
+- **the face stays flat:** every corner lands on one offset plane;
+- **every neighbour stays flat:** its corners only move within its own plane;
+- **nothing new is made:** the solid is stretched or shortened in place, through
+  `transform_by_vectors`, and each corner's landing is checked.
+
+With **QUADS on**:
+- **dragging in** is a **follow loop cut**: a ring on the offset face's outline, each corner
+  on its rail, stitched into the faces round it;
+- **dragging out** stretches and keeps the start loop as a quad line.
+
+### Limits, Said
+- **Inward**, a corner cannot run past the far end of its edge. The deepest push, the
+  shortest rail's reach along the normal, is shown on the card; past it is refused before
+  anything is touched.
+- **Outward** is unlimited.
+- **When FOLLOW cannot run,** the status line and hover label say why: an open edge, a corner
+  with no single line to follow, or a rail running along the face.
+
+### ALT, Safely
+There is no ALT bit in the mouse flags, which is why held ALT was abandoned in 0.4.36 (a
+bare ALT's key-up goes to the menu bar). As SHIFT+ALT the release is not bare, so the key-up
+arrives. As a safety net, ALT is cleared whenever the mouse flags say SHIFT is up, so a lost
+key-up can never outlive the SHIFT it rode on. The ALT key-down is swallowed, so it cannot
+wake the menu bar.
+
+### Everywhere the Push Is Seen
+- **Previews:** the 3D face, loop and loop-cut preview, and the 2D strip, edge, loop and
+  label, all move each corner along its rail (`na_drawn__move_world_point`).
+- **Retype:** the record wears FOLLOW, and the face found again is re-read, so a retyped
+  distance replays as a follow push. The ghost follows the rails too.
+- **Wording:** status *Follow 500 mm*, and a card line *FOLLOW — each corner along its own edge
+  (1000 mm in at most)*. SHIFT alone now mentions *+ALT: every corner its own edge*.
+
+### Verified Live (rolled back, model unchanged)
+The test slab was 3000 long, 1000 deep, with a 150 fascia and a top rising to 600 at the
+back.
+
+| Case | Result |
+|---|---|
+| rails | 4, deepest inward push 1000 |
+| follow loop cut 500 in | ring at 500 with its top at **375**, the roof height there; manifold |
+| follow out 300 | front at -300, roof line carried down to 15; every face planar; manifold |
+| follow in 300 | top at 285; planar; manifold |
+| in 1200 | refused, past the end of an edge |
+| out 300 with QUADS | the start line kept; manifold |
+
+### Files
+- **New** `30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__Follow__.rb`: rails
+  (`Na__FollowPush__*`), and the `DrawnPushPullFollow` mixin (ALT, the preview mapping, the
+  limit, the commit).
+- `30__System__DeepPushPull/..DrawnPushPullTool__.rb`:
+  - the include;
+  - slope stands down for SHIFT+ALT;
+  - rails read on adopt;
+  - the previews, the status, the hints and the hover label.
+- `30__System__DeepPushPull/..DrawnPushPull__Commit__.rb`: the follow branch, the undo name,
+  the refusal and the log line.
+- `30__System__DeepPushPull/..DrawnPushPull__Revise__.rb`: the record, wearing, and the ghost
+  (`na_revise__ghost_move`).
+- `30__System__DeepPushPull/..DrawnPushPull2dTool__.rb`: the strip, edge, loop, label, verb,
+  hover line and hint.
+- `01__AppCore/..LoadManifest__.rb`: the new file.
+
+### Testing Notes
+- [ ] The tapered slab's fascia, QUADS on, SHIFT+ALT drag in: the ring runs up the roof,
+      down the end and along the soffit, as marked up.
+- [ ] SHIFT+ALT drag out without QUADS: the roof and soffit extend in their own planes.
+- [ ] Release ALT mid-drag: back to SHIFT slope; release both: plain push.
+- [ ] Retype after a follow push (`800`): it replays as a follow push, one Ctrl+Z.
+- [ ] 2D elevation: SHIFT+ALT on the fascia edge.
+- [ ] If Windows has two keyboard layouts, Left ALT+SHIFT also switches layout (a Windows
+      setting, outside the plugin).
+
+# =============================================================================
+
+## Version 5.1.20 - 30-Sep-2026 - Hot Swap: Chamfer, Fillet and Ogee Mid-Drag From the Menu
+
+### Asked For
+*"make it possible to hot swap during the preview with the right click menu chamfer ->
+radius -> ogee, effectively refresh the prview with the new profile. at the moment you
+loose the selection and have to start again again if you need to change the edge
+modification type"*
+
+### Why the Selection Was Lost
+Each menu button started a brand-new tool. The banked edges and the drag lived on the old
+one, and `select_tool` threw it away.
+
+### The Handover
+Choosing Deep Chamfer, Deep Fillet or Deep Ogee from the right-click menu while one of them
+holds something now hands it across. The running tool packs up what it holds; the new tool
+unpacks it in `activate`, instead of reading the selection.
+
+| Carried | How |
+|---|---|
+| the bank (preselected or SHIFT-picked) | re-checked against the new profile; an edge it cannot cut is left out and counted |
+| the drag | the same driver grabbed again at the same press point, which rebuilds the corner frame, the batch and the new profile's own limit; the preview simply redraws |
+| the size | kept as the number it was (chamfer 15 → R15 → ogee 15), trimmed to the new limit if over it |
+| a typed size | stays pinned |
+| the press offset | kept, so nothing jumps |
+
+The mouse position is restored last, so the next move measures from where the cursor
+really is. From then on the drag is click-move-click (the button is up).
+
+**What is not carried:**
+- **Nothing held:** the menu switches exactly as before.
+- **The tool already running:** everything is kept, and it says so.
+- **The retype of a cut already made:** it belongs to the tool that made it.
+
+A notice says what came across: *Deep Chamfer → Deep Fillet: the same 8 edges, previewed as
+a fillet*. If the new profile refuses the dragged edge, the bank is still kept and the
+notice says why.
+
+### Files
+- **New** `31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__HotSwap__.rb`
+  (`DrawnChamferHotSwap`): the three menu buttons, the snapshot, and the take-over.
+- `31__System__DeepChamfer/..DrawnChamferTool__.rb`: the include; `activate` takes over a
+  handover, or reads the selection; a banner hint.
+- `01__AppCore/..LoadManifest__.rb`: the new file.
+
+### Offline
+18 checks against doubles:
+- chamfer → fillet mid-drag: the bank less a refused edge, regrabbed at the press point, the
+  size trimmed to the new limit, the lock and the press offset kept, the mouse restored;
+- fillet → ogee with the driver refused: the bank kept, the reason said;
+- the running tool kept;
+- nothing held falls back to the plain switch.
+
+All 69 files compile.
+
+### Testing Notes
+- [ ] Bank the plinth's 8 edges, drag a chamfer, right-click → Deep Fillet: the preview
+      becomes a round on the same 8 edges; click cuts it.
+- [ ] Then right-click → Deep Ogee, then back to Deep Chamfer, all mid-drag.
+- [ ] Preselected loose edges, swap before dragging: the bank comes across.
+- [ ] Type `10` (pinned), swap: still 10, pinned.
+
+# =============================================================================
+
+## Version 5.1.19 - 30-Sep-2026 - Cutting Beside an Opening: the Plinth Round a Column
+
+### Reported
+Two screenshots of a plinth round the base of a column, with *"it never does the actual
+chamfering in this circumstance … its not translating to actual geomtry"*:
+- 8 edges banked (top and bottom rings) at 15 mm, *75% of 20 mm max*;
+- the top 4 at 20 mm, *100% of 20 mm max*.
+
+Both previewed correctly, and neither cut.
+
+### Why
+The plinth's top is a frame round the column: **one face with an opening in it**. Both
+rebuild planners refused any face with more than one loop (*"chamfering beside an opening
+is not supported yet"*), so the whole batch aborted. The failure then went unseen: the
+tool's status line redraws straight after a click, over the message.
+
+### What SketchUp Actually Does (measured live, rolled back)
+- **An opening whose edges still stand** (a column rising through): re-adding the frame's
+  outer loop does **not** reopen it. Adding the opening's loop as a face splits the new
+  frame, and erasing that fill leaves the opening. The result is a closed solid.
+- **An opening filled by another face** (an inset panel): re-adding the outer loop **cuts
+  round it automatically**.
+
+### The Fix
+- **Planned loop by loop.** Both planners (`Na__DrawnChamfer__RebuildPlan` and
+  `Na__ProfileSweep__RebuildPlan`) now plan every loop with the same substitutions
+  (`SubstituteLoop`). An edge on an opening is cut too.
+- **Openings put back.** `Na__DrawnChamfer__RebuildFace` puts each opening back through
+  `RestoreOpenings`:
+  - one the new face already has is left alone;
+  - a missing one is added and its fill erased;
+  - a face that was already there is never erased.
+- **The 100% case drops the frame.** A frame whose outline the cut brings right in to its
+  opening is consumed, so it is dropped and the cuts meet the column's base.
+- **Failures are said where they will be seen.** Refusals and failures also go through the
+  delayed notice, which lands after the status line redraws.
+
+### Verified Live (rolled back, model unchanged)
+On a 160 mm plinth, 100 high, with a 120 mm column through it:
+
+| Case | Result |
+|---|---|
+| 8 edges, chamfer 15 | built, manifold, 19 faces |
+| top 4, chamfer 20 (100%) | built, manifold, 14 faces: the frame consumed |
+| top 4, chamfer 10 | built, manifold, 15 faces: the frame keeps its opening |
+| top 4, fillet R10 | built, manifold |
+
+The measured limit was 20.0 mm, as the preview showed.
+
+### Files
+- `31__System__DeepChamfer/..DrawnChamfer__Geometry__.rb`: `SubstituteLoop`, `SameLoop?`,
+  `RestoreOpenings`, and the holes in `RebuildPlan` / `RebuildFace`.
+- `04__GeometryHelpers/..DrawnProfileSweep__.rb`: `SubstituteLoop`, and the holes in
+  `RebuildPlan`.
+- `31__System__DeepChamfer/..DrawnChamferTool__.rb`: failures through the notice.
+
+### Testing Notes
+- [ ] The plinth: 8 edges at 15, then the top 4 at 20 (100%). Both cut.
+- [ ] A fillet and an ogee on the same plinth top.
+- [ ] Chamfer the edge where the column meets the plinth top (an edge ON the opening).
+
+# =============================================================================
+
+## Version 5.1.18 - 30-Sep-2026 - A Cut Can Be the Full Thickness, and Never More
+
+### Asked For
+*"dosnt work, fails to do the chamfers … It dosnt work if the thickness of the chamfer if
+the chamfer is the thickness of the material so im trying 100mm chamfer, but that piece is
+100mm thick consitently … have it do a test so it cant over shoot … if the preview range was
+restricted to the max the chamfer is able to do bound by the thickess then the dragging
+control could feel more refined because it would be infinite and we could use a gradual
+curve between 0 - 100% chamfer"*
+
+### Why a Full-Thickness Cut Failed
+A 100 chamfer on a 100 face lands its offset points exactly on the face's far corners. The
+rebuild re-adds every face it touched with its corners substituted. For the strip the cut
+runs across, that loop is the far edge twice over, which is no face at all, and `add_face`
+refused it. The whole operation aborted. The same happened to the L-shaped top of a wall,
+whose loop ran out along the far edge and straight back.
+
+### The Fix: Faces the Cut Consumes Are Dropped
+`Na__DrawnChamfer__CleanLoop` removes repeated points and straight-back folds from a
+substituted loop:
+- a strip consumed whole drops below three points and is not re-added;
+- the end face keeps its clipped corner;
+- an L top keeps its other leg.
+
+A loop with neither is unchanged. All three tools rebuild faces through
+`Na__DrawnChamfer__RebuildFace` (single cuts, mitred batches and the profile sweep), so
+Fillet and Ogee get it too. **Verified live** (rolled back, model unchanged): a 100 mm chamfer
+on a 100 mm wall built a manifold solid, and so did a mitred corner pair on an L wall at the
+full 100. A 60 mm control built as before.
+
+### The Largest Cut Is Measured
+At grab, each face's **reach** is measured, in world units: straight across the face from the
+edge, to the nearest part of its boundary alongside the edge. The other leg of an L does not
+count. The largest size is the one whose cut just reaches the nearer face, read through the
+tool's own solve, so a chamfer, a round, a cove and an ogee each get their own answer. A
+batch takes its smallest. Under a scaled instance the limit scales with it.
+
+### The Drag Eases Into It
+`size = max × tanh(drag / max)`:
+- **Near the edge** the slope is 1, so a small cut still sits under the cursor as before.
+- **Further out** it bends over and settles on the maximum, however far the mouse goes: no
+  overshoot, and the last few millimetres take a long, fine drag. The grid rounding lands
+  exactly on the full size when dragged far enough.
+- **CTRL** vertex snapping stays absolute and is only clamped.
+
+The card and the status line show the fraction: *Chamfer 75 mm · 75% of 100 mm max*.
+
+### Typed Sizes Above It Are Refused, With the Limit Named
+*120 mm is more than this corner has — the faces allow a chamfer of 100 mm at most*.
+- **Mid-drag**, the refused value is released, so the drag carries on.
+- **After cutting**, the limit read before the cut rides on the retype record. A retype
+  above it is refused before anything is undone.
+
+### Files
+- **New** `31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Limit__.rb`:
+  `Na__DrawnChamfer__FaceReach` / `MaxSize`, and the `DrawnChamferLimit` mixin (ease, refusal,
+  range note, record and retype).
+- `31__System__DeepChamfer/..DrawnChamfer__Geometry__.rb`: `CleanLoop`, used by `RebuildFace`.
+- `31__System__DeepChamfer/..DrawnChamferTool__.rb`:
+  - the limit is measured at grab, and again at commit;
+  - the eased drag;
+  - the refusal;
+  - the card and status fraction.
+- The Ogee and Fillet tools: the fraction on their card and status line.
+- `01__AppCore/..LoadManifest__.rb`: the new file.
+
+### Offline
+17 checks against doubles, covering:
+- the 100 limit on a 100 × 300 wall, whichever face is the thinner;
+- the L top measured across its own strip, and the scaled instance doubling it;
+- the consumed strip dropped, the end face kept as a quad, the L fold back to its leg, and an
+  ordinary loop unchanged;
+- the ease curve, the refusal and the fraction.
+
+All 68 files compile.
+
+### Testing Notes
+- [ ] 100 mm chamfer on the 100 mm wall top: it builds, the top strip is gone.
+- [ ] Drag far past the wall: the preview stops at 100%, and small drags still track 1:1.
+- [ ] Type `120` mid-drag: refused naming 100, the drag carries on.
+- [ ] Cut 60, then retype `150`: refused before anything is undone; `100` works.
+- [ ] Same with Fillet (radius) and Ogee.
+- [ ] The notched chain from the screenshot at full thickness: the concave corners are the
+      untested case; if they refuse, the status line says why.
+
+# =============================================================================
+
+## Version 5.1.17 - 30-Sep-2026 - Preselected Loose Edges Are What Chamfer, Fillet and Ogee Cut
+
+### Asked For
+*"make the chamfer, radius and Ogee tools that work on edges have the ability that if you
+select LOOSE EDGES ahead of running, these become the candidate edges vs having to use the
+selector … IF Group / component / no selection then tool should behave as it does
+currently with the deep selection mode, but if the user pre selects edge / edges use the
+for the chamfer / radius / ogee instead and show the preview over them etc"*
+
+### What the Selection Means Now
+On activation the tool reads the selection once:
+
+| Selected before starting | Result |
+|---|---|
+| loose edges (faces alongside are ignored) | they become the bank, drawn in the bank colour |
+| a group or component, alone or with edges | deep picking, exactly as before (still biased to the selected group) |
+| nothing, or faces only | deep picking, exactly as before |
+
+An edge that cannot take the cut (not two faces, or two faces too near flat) is left out.
+The status line says how many were left out. If none can be cut, it says so and deep
+picking carries on.
+
+### Using It
+- **Press anywhere and drag.** The selected edge nearest the press, measured on screen,
+  drives the drag, and the rest ride along at the same size. The whole batch is previewed
+  and mitred, the same as a SHIFT bank. Hovering shows which edge would drive, with the
+  label *drives 6 selected edges — press and drag*.
+- **The drag is zeroed where the press lands.** Pressing beside the edge, not on it, starts
+  the cut at nothing rather than at the gap. CTRL vertex snapping stays absolute.
+- **The rest is unchanged.** SHIFT+click still adds or removes any edge at any depth, BKSP
+  un-banks the newest, and ESC clears the bank and returns to hovering. A successful cut
+  empties the bank, the retype stays open on it, and a double-click with no drag repeats the
+  remembered size on the whole selection.
+
+### Files
+- **New** `31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Preselect__.rb`
+  (`DrawnChamferPreselect`): reads the selection, finds the nearest driver, grabs it and
+  supplies the wording.
+- `31__System__DeepChamfer/..DrawnChamferTool__.rb`:
+  - `activate` reads the selection;
+  - the idle hover and the idle press route through the selection while it is active;
+  - `na_drawn__grab_edge` takes an optional target;
+  - the drag subtracts the press offset;
+  - the hover label and the status line say so.
+- `32__System__DeepOgee/..DrawnOgeeTool__.rb` and `33__System__DeepFillet/..DrawnFilletTool__.rb`:
+  their own idle status lines hand over to the selection's while it is active. Everything
+  else is inherited.
+- `01__AppCore/..LoadManifest__.rb`: the new file.
+
+### Rehearsed Offline
+Against doubles, 9 checks:
+- two good edges banked, with a flat one and a one-face one counted as left out;
+- a group in the selection, an empty selection and faces alone all leave deep picking alone;
+- a selection of unusable edges says why;
+- the mode ends when its edges are gone.
+
+All 67 files compile.
+
+### Testing Notes
+- [ ] Select 4 edges round the top of a loose box, start Deep Chamfer: they draw in the bank
+      colour. Press anywhere near one and drag: all four preview mitred, click cuts them.
+- [ ] Same with Deep Fillet and Deep Ogee.
+- [ ] Select a group, start the tool: hovering reaches inside it exactly as before.
+- [ ] Nothing selected: unchanged.
+- [ ] Select edges, SHIFT+click one away, ESC: back to hovering.
+- [ ] After the cut, type a new size: the whole selection re-cuts, one Ctrl+Z.
+
+# =============================================================================
+
+## Version 5.1.16 - 30-Sep-2026 - Quad Lines Become Handles: Offset, Array and Divide
+
+### Asked For
+*"Make it so you can offset quads if you select one so you can "Push Pull" a new quad from
+ones youve created. so when you mouse over the quad the preview clearly shows the quad your
+refeerencing and add new previews for the quad offsets showing spacing and dimensions …
+type into the vcb things like \*4 or /7 to act as a array or divide feature and ensuring its
+as forgiving as the other vcb modules weve made already such as after the fact editing and
+visual animations"*, asked of "the volume tool WHEN in the quad mode". The screenshot was
+Deep Push/Pull with QUADS on, hovering one segment of a strip (`01__DrawnVolume`) beside a
+quad line, with an arrow dragging a new line off it, so it was built into Push/Pull's QUADS
+mode (Drawn Volume has no quad mode).
+
+### Why a Quad Line Could Not Be Used Before
+A loop cut is made from an END face: drag it in with QUADS on and a ring appears. The ring
+itself is edges only, no face, so there was nothing to grab. Every further division of a
+run had to be measured from the end again.
+
+### The Gesture
+With QUADS on:
+1. **Hover** a face within 12 px of one of its quad lines (an edge dividing a flat surface:
+   two faces, coplanar). The whole ring that line belongs to lights up all the way round
+   the solid, heavy magenta with its corners marked. The quad under the cursor is shaded
+   faintly, and an arrow each way along the run carries how much run there is that way.
+   Further in from the line, the face is pushed exactly as before.
+2. **Drag along the run.** A new ring follows the cursor, grid-snapped like every distance
+   in this plugin (CTRL and CTRL+SHIFT as usual). A dimension string runs from the
+   reference ring to the new one, with a tick at every ring and every span labelled, and a
+   card reads *Quad offset 450 mm · 850 mm of run left beyond it*.
+3. **Click or release** to cut it. One undo step, in the ring's own context, at any depth.
+
+### The Measurements Box
+| Typed | Mid-drag | After placing |
+|---|---|---|
+| `450` | pins and places | re-spaces, keeping the count |
+| `-450` | arithmetic, as for a push | the other side of the reference |
+| `*4` `4x` `x4` `4*` | array of 4, drag goes on | array of 4 at the same offset |
+| `/7` `7/` | divide into 7, drag goes on | 7 equal spaces over the same span |
+| `450*4` `3000/7` | both, placed | both |
+
+`×` and `÷` are read too, and a comma is a space (`450, *4`). *4 means rings at 1, 2, 3 and
+4 times the offset, and /7 means 7 equal spaces up to it, the way native Move's copy array
+reads.
+
+### Forgiving, Not Silent
+- An array that would run off the end of the run is **refused, naming the count that fits**:
+  *\*10 at 450 mm needs 4500 mm, the run has 2650 mm — \*5 fits*. Rings are never dropped
+  quietly off the end. Mid-drag the rings turn red and the card says NOT PLACEABLE.
+- `*0` says what `*1` does; `*4.5` says *\*4 or \*5*; two operators, a count over 200 and
+  an unreadable count each say what to type instead.
+- BKSP peels back the typed distance, then the count, then the grab.
+
+### After Placing: Retype and the Ghost
+Every entry after placing is a retype through the shared revise mechanics: the cut is taken
+back off the undo stack and made again at the new layout, one undo step in total. The ghost
+now animates **every ring**: each travels from its old offset to its new one, rings a
+bigger count adds fan out of the last old ring, and rings a smaller count drops fold onto
+the last new one.
+
+The shared engine only sweeps one number, and a layout is an offset plus a count. So
+`DrawnReviseShared` gained one optional hook, `na_revise__animate_change`, whose default is
+the old single-number sweep. Chamfer, Ogee, Fillet and ordinary pushes are unchanged.
+
+### The Loop Cut Joins In
+Drag an end face in with QUADS on and type `*4`, or type it after the cut is placed. The cut
+becomes an array from that face, through the same code: the face's own loop is the ring,
+offset into the solid. `*4` on an outward push is refused: *this was a push — hover a quad
+line, or drag INTO a face*.
+
+### How the Ring Is Found
+`Na__InsertPrimatives__DrawnQuadRings__.rb` walks by the edge-loop rule. At each ring corner
+the edge carrying the ring on is the one that shares no face with the edge arriving, because
+both rails share one. The walk stops when it returns to the start edge, which gives a closed
+ring. It also stops at a dead end: a line drawn across one face only gives an open chain,
+which offsets just as well.
+
+The run direction is read off a rail. **Every face the ring crosses must contain it**, and
+that is checked, so a tapered or chamfered piece is refused with the reason rather than
+half-cut. The reach each way is the shortest walk along the rails, through every collinear
+piece, to where the run stops.
+
+### Coordinates
+Topology and rails are compared in the space the entities report. Reach and everything
+drawn are world, through the pick's transformation. The commit re-reads the ring **inside**
+its operation (after the context opens), moves it along the run in world and brings it back
+into the space the collection is accepting, so an instance scale cannot stretch the
+spacing. The offline test ran the same ring through a rotated, x2-scaled, moved instance.
+
+### Rehearsed Offline
+SketchUp's bundled Ruby 3.2 was loaded through ctypes against doubles: a 3000 mm strip with
+rings at 1000 and 2000. 82 checks passed, covering:
+- the walk closing on 4 edges;
+- the run pointing into whichever quad was hovered;
+- reaches of 2000 / 1000, doubled under the scaled instance;
+- an open chain on one face;
+- every parser spelling and refusal;
+- the fit advice, the retype layouts and the ghost interpolation;
+- finding the line again after an undo replaced its objects.
+
+All 66 plugin files compile.
+
+### Files
+- **New** `04__GeometryHelpers/Na__InsertPrimatives__DrawnQuadRings__.rb`: the quad-line
+  test, ring walk, run, reach, layouts, entry parser, open/closed stitch and screen picking.
+- **New** `30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__QuadOffset__.rb`
+  (`DrawnPushPullQuadOffset`): hover, grab, drag, VCB, commit, preview, retype and ghost.
+  It is included after `DrawnPushPullRevise`, so its revise overrides fall back with super.
+- `30__System__DeepPushPull/..DrawnPushPullTool__.rb`: the include, and a one-line
+  dispatch at each hook (hover, click, release, Enter, double-click, cursor, BKSP, arrows,
+  draw, status, VCB, extents); the header and banner hints.
+- `06__Tools__DrawnShared/..DrawnRevise__.rb`: `na_revise__animate_change`.
+- `06__Tools__DrawnShared/..DrawnToolShared__.rb`: X and / arm the BKSP typing guard.
+- `01__AppCore/..LoadManifest__.rb`: the two new files.
+
+Perspective tool only. The 2D variant keeps its edge pick and refuses `*N` with *orbit out
+of the 2D view first*.
+
+### Testing Notes
+- [ ] QUADS on, hover near a quad line on a strip: the whole ring lights up, arrows show the
+      run each way, and further into the face it is the ordinary face hover again.
+- [ ] Drag a new ring off it, click: one line all the way round, one Ctrl+Z.
+- [ ] Mid-drag `*4`: four rings follow the mouse, spans labelled; click places all four.
+- [ ] Place one ring, then `/7`: the ghost fans the rings in, one Ctrl+Z undoes all of it.
+- [ ] `*10` on a short run: refused, the status names the count that fits.
+- [ ] `-450` after placing: the ring moves to the other side of the reference.
+- [ ] End face dragged in (loop cut), then `*4`: an array of loop cuts from the end.
+- [ ] Coordinate rule: the same inside a moved and rotated group nested three deep, and in a
+      scaled group (the spacing must read true in world mm).
+
+# =============================================================================
+
 ## Version 5.1.15 - 25-Sep-2026 - Stop Chamfers: a Cut That Ends on a Section Line
 
 ### Asked For

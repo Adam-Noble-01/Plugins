@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "file": "Na__ComponentEditorTools__LibraryConvention__.json",
+    "purpose": "The naming and numbering rules for Adam's component library. Read by 12__McpOperations (the agent library tools) to check names, allocate codes and fill blank library data. Edit here; the Ruby reads it on every call.",
+    "schema_version": 1,
+    "updated": "30-Sep-2026"
+  },
+  "default_set": "Na__CoreLib__3dAssets",
+  "journal_folder": "00__Archive/00__McpLibraryJournals",
+  "holding_folders": {
+    "archive": "00__Archive",
+    "to_sort": "85__ToSort",
+    "work_in_progress": "95__TEMP__Ripdown"
+  },
+  "unfiled_prefixes": ["85__", "86__", "95__", "TEMP__", "RIPDOWN__", "VALIDATE__"],
+  "archive_date_suffix": "__%d-%b-%Y",
+  "archive_rule": "Archiving an asset zips it into its set's 00__Archive as <name>__30-Sep-2026.zip (Adam, 30-Sep-2026). The zip is read back and checked before the original leaves the library.",
+  "rules": {
+    "code": "NN_NNNN: NN = the category folder number, NNNN = the asset number. Four digits, unique within a library set.",
+    "category_folder": "NN__Domain__Category, e.g. 13__Building__Roof. NN mirrors the SSOT tag numbers (existing-building numbers 11-19 for building elements).",
+    "series_folder": "NN_S000__SeriesName inside a category, e.g. 13_2000__ChimneyPots. Its files take codes in the same thousand (13_2001-13_2999). Codes ending in 0 are kept for folder bases.",
+    "flat_category": "A category without series folders numbers in hundreds families: 60_03xx men and women, 60_05xx animals.",
+    "file_name": "NN_NNNN__Series__Item__Descriptor__Type-01__Size__.skp. Double underscores between PascalCase segments, hyphens inside a segment, and always a trailing __ before .skp.",
+    "definition_name": "The component definition inside the file is named exactly like the file, without .skp.",
+    "unfiled": "85__ (to sort), 95__TEMP__ / RIPDOWN__ (work in progress) and TEMP__ are unfiled. NN_NNNN__ (letters N) marks a number not yet allocated."
+  },
+  "allowed_segment_pattern": "^[A-Za-z0-9.&()+-]+(?:_[A-Za-z0-9.&()+-]+)*$",
+  "word_fixes": {
+    "Oudoor": "Outdoor",
+    "Inudction": "Induction",
+    "WallHuing": "WallHung",
+    "Commisions": "Commissions",
+    "Coted": "Coated"
+  },
+  "categories": {
+    "08": { "folder": "08__Site__Boundaries",      "tag": "08__Site__Boundaries",      "taxonomy": ["Environment", "Site Boundary"] },
+    "09": { "folder": "09__Site__Vegetation__2D",  "tag": "09__Site__Vegetation__2D",  "taxonomy": ["Environment", "Site Vegetation 2D"] },
+    "11": { "folder": "11__Building__Masonry",     "tag_existing": "11__ExistingBuilding__Walls",         "tag_proposed": "21__ProposedBuilding__Walls",         "taxonomy": ["Building", ""] },
+    "12": { "folder": "12__Building__Floors",      "tag_existing": "12__ExistingBuilding__Floors",        "tag_proposed": "22__ProposedBuilding__Floors",        "taxonomy": ["Building", "Floor"] },
+    "13": { "folder": "13__Building__Roof",        "tag_existing": "13__ExistingBuilding__Roofs",         "tag_proposed": "23__ProposedBuilding__Roofs",         "taxonomy": ["Building", "Roof"] },
+    "14": { "folder": "14__Building__Windows",     "tag_existing": "14__ExistingBuilding__Windows",       "tag_proposed": "24__ProposedBuilding__Windows",       "taxonomy": ["Building", "Window"] },
+    "15": { "folder": "15__Building__Doors",       "tag_existing": "15__ExistingBuilding__Doors",         "tag_proposed": "25__ProposedBuilding__Doors",         "taxonomy": ["Building", "Door"] },
+    "16": { "folder": "16__Building__Staircase",   "tag_existing": "16__ExistingBuilding__Staircase",     "tag_proposed": "26__ProposedBuilding__Staircase",     "taxonomy": ["Building", "Staircase"] },
+    "17": { "folder": "17__Building__Fixtures",    "tag_existing": "17__ExistingBuilding__Fixtures",      "tag_proposed": "27__ProposedBuilding__Fixtures",      "taxonomy": ["Fixtures", ""] },
+    "18": { "folder": "18__Objects__Furniture",    "tag_existing": "18__ExistingBuilding__Furniture",     "tag_proposed": "28__ProposedBuilding__Furniture",     "taxonomy": ["Furniture", ""] },
+    "19": { "folder": "19__Objects__InteriorDecor", "tag_existing": "19__ExistingBuilding__InteriorDecor", "tag_proposed": "29__ProposedBuilding__InteriorDecor", "taxonomy": ["Interior Furnishings", "Decor Accessories"] },
+    "60": { "folder": "60__Scene__Entourage__2D",  "tag": "60__Scene__Entourage__2D",  "taxonomy": ["Environment", "People"] }
+  },
+  "series_taxonomy": {
+    "11_2000": ["Building", "Column"],
+    "13_2000": ["Building", "Roof"],
+    "13_5000": ["Building", "Roof"],
+    "13_6000": ["Building", "Rooflight"],
+    "13_7000": ["Building", "Structural"],
+    "17_1000": ["Fixtures", "Kitchen Fixtures"],
+    "17_2000": ["Fixtures", ""],
+    "17_4000": ["Fixtures", "Bathroom Fixtures"],
+    "17_9000": ["Fixtures", "Heating"],
+    "18_1000": ["Furniture", "Lounge"],
+    "18_2000": ["Furniture", "Bedroom"],
+    "18_3000": ["Furniture", "Dining Room"],
+    "18_9000": ["Furniture", "Outdoor Lounge"],
+    "18_9400": ["Furniture", "Home Bar"]
+  }
+}

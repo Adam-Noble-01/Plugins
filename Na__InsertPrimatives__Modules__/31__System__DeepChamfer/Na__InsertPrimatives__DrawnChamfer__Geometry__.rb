@@ -147,13 +147,37 @@ module Na__InsertPrimatives
     # faces, whose corners get clipped). Pair order is settled by which offset
     # point sits nearer the previous loop position, keeping the winding sane.
     # Raises before anything is touched when the face cannot be planned.
+    #
+    # OPENINGS: a face with holes (the top of a plinth a column stands on, a
+    # board with a slot) is planned loop by loop. The same substitutions run on
+    # every inner loop, so an edge ON an opening is cut too, and the rebuild
+    # puts each opening back (Na__DrawnChamfer__RebuildFace).
     # ------------------------------------------------------------
     def self.Na__DrawnChamfer__RebuildPlan(face, single_subs, pair_subs)
-        raise 'chamfering beside an opening is not supported yet' if face.loops.length > 1
-
         original = face.outer_loop.vertices.map { |vertex| vertex.position }
         raise 'a face around this corner has no usable boundary' if original.length < 3
 
+        holes = face.loops.reject { |loop| loop.outer? }.map do |loop|
+            Na__InsertPrimatives.Na__DrawnChamfer__SubstituteLoop(
+                loop.vertices.map { |vertex| vertex.position }, single_subs, pair_subs
+            )
+        end
+
+        {
+            :face          => face,
+            :points        => Na__InsertPrimatives.Na__DrawnChamfer__SubstituteLoop(original, single_subs, pair_subs),
+            :holes         => holes,
+            :normal        => face.normal,
+            :material      => face.material,
+            :back_material => face.back_material,
+            :layer         => face.layer
+        }
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | One Loop's Positions With the Cut's Corners Substituted
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__SubstituteLoop(original, single_subs, pair_subs)
         points = []
 
         original.each_with_index do |position, index|
@@ -177,14 +201,7 @@ module Na__InsertPrimatives
             end
         end
 
-        {
-            :face          => face,
-            :points        => points,
-            :normal        => face.normal,
-            :material      => face.material,
-            :back_material => face.back_material,
-            :layer         => face.layer
-        }
+        points
     end
     # ---------------------------------------------------------------
 
@@ -223,16 +240,116 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Tidy a Rebuilt Loop: Repeated Points and Folds Come Out
+    # ------------------------------------------------------------
+    # A cut as deep as the face is wide lands its offset points ON the face's
+    # far corners. The substituted loop then repeats points, or runs out along
+    # a line and straight back (a fold), and add_face refuses both. Taking them
+    # out leaves exactly the face that is left: the end face keeps its clipped
+    # corner, the far part of an L-shaped top keeps its own outline, and a
+    # strip the cut consumed whole drops below three points and is not
+    # rebuilt at all. A loop with neither is returned unchanged.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__CleanLoop(points)
+        loop_points = points.dup
+        changed     = true
+
+        while changed && loop_points.length >= 3
+            changed = false
+            count   = loop_points.length
+
+            count.times do |index|
+                here  = loop_points[index]
+                ahead = loop_points[(index + 1) % count]
+
+                if Na__InsertPrimatives.Na__DrawnChamfer__SamePoint?(here, ahead)
+                    loop_points.delete_at((index + 1) % count)
+                    changed = true
+                    break
+                end
+
+                incoming = here - loop_points[index - 1]
+                outgoing = ahead - here
+                next if incoming.length == 0 || outgoing.length == 0
+
+                if incoming.parallel?(outgoing) && incoming.dot(outgoing) < 0.0
+                    loop_points.delete_at(index)
+                    changed = true
+                    break
+                end
+            end
+        end
+
+        loop_points
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Are Two Loops the Same Outline, Whatever Point They Start At?
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__SameLoop?(loop_a, loop_b)
+        return false unless loop_a.length == loop_b.length
+
+        loop_a.all? do |point|
+            loop_b.any? { |other| Na__InsertPrimatives.Na__DrawnChamfer__SamePoint?(point, other) }
+        end
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Put a Rebuilt Face's Openings Back
+    # ------------------------------------------------------------
+    # Measured in SketchUp (30-Sep-2026) rather than assumed: re-adding a
+    # face's outer loop does NOT reopen an opening whose edges are still
+    # standing (a column rising through a plinth top), but it DOES cut round
+    # a face still filling one (an inset panel). So an opening the new face
+    # already has is left alone, and a missing one is made the native way:
+    # add the loop as a face, which splits the new face, then erase that fill.
+    # The fill is only erased when add_face created it; a face that was
+    # already there is never touched.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__RestoreOpenings(entities, face, holes, build_transform)
+        holes.each do |hole|
+            already = face.loops.any? do |loop|
+                !loop.outer? &&
+                    Na__InsertPrimatives.Na__DrawnChamfer__SameLoop?(
+                        loop.vertices.map { |vertex| vertex.position }, hole.map { |point| point.transform(build_transform) }
+                    )
+            end
+            next if already
+
+            before = entities.grep(Sketchup::Face)
+            fill   = entities.add_face(hole.map { |point| point.transform(build_transform) })
+            next unless fill && fill.valid? && fill != face
+
+            fill.erase! unless before.include?(fill)
+        end
+
+        face
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Re-Add a Planned Face and Restore Its Dress
     # Every point goes through build_transform — the open editing session's
     # coordinate system per the header rule, the identity at root. add_face
     # reuses surviving coincident edges, which is what knits the rebuilt faces
     # back onto the untouched neighbours. Winding is restored against the
     # captured normal (transformed the same way) so materials stay put.
+    # A face the cut consumed whole (a full-depth cut) has already been erased
+    # with the others, and is simply not re-added: nil. So is a face with an
+    # opening whose outline the cut has brought right in to the opening: the
+    # frame round a column, chamfered to the full width of the frame.
     # ------------------------------------------------------------
     def self.Na__DrawnChamfer__RebuildFace(entities, plan, build_transform)
-        face = entities.add_face(plan[:points].map { |point| point.transform(build_transform) })
+        points = Na__InsertPrimatives.Na__DrawnChamfer__CleanLoop(plan[:points])
+        return nil if points.length < 3
+
+        holes = (plan[:holes] || []).map { |hole| Na__InsertPrimatives.Na__DrawnChamfer__CleanLoop(hole) }
+        holes = holes.select { |hole| hole.length >= 3 }
+        return nil if holes.any? { |hole| Na__InsertPrimatives.Na__DrawnChamfer__SameLoop?(points, hole) }
+
+        face = entities.add_face(points.map { |point| point.transform(build_transform) })
         raise 'a face could not be rebuilt around the chamfer' unless face
+
+        Na__InsertPrimatives.Na__DrawnChamfer__RestoreOpenings(entities, face, holes, build_transform)
 
         if plan[:normal]
             session_normal = plan[:normal].transform(build_transform)

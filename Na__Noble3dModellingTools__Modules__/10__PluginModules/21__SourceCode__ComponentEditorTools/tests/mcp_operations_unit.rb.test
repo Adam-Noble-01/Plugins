@@ -1,0 +1,387 @@
+# Unit tests for 12__McpOperations and the library SafeLoad, run with SketchUp's
+# bundled Ruby (no SketchUp process):
+#   python <Plugins>/Na__SketchUpMcp__Modules__/40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py <this file>
+# A throwaway library is built in a temp folder; a small fake SketchUp model
+# stands in for definitions.load / save_as / start_operation / abort_operation.
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+require 'json'
+require 'fileutils'
+require 'tmpdir'
+
+NA_TEST_MODULE_ROOT = File.expand_path('..', __dir__)
+$na_failures = []
+$na_checks = 0
+
+def check(label)
+    $na_checks += 1
+    ok = begin
+        yield
+    rescue StandardError => error
+        $na_failures << "#{label} (raised #{error.class}: #{error.message})"
+        return
+    end
+    $na_failures << label unless ok
+end
+
+# --- Fake SketchUp --------------------------------------------------------------
+
+class NaFakeDefinition
+    attr_accessor :name, :description, :path
+    attr_writer :instances
+
+    def initialize(name, path)
+        @name = name
+        @path = path
+        @description = ''
+        @attrs = {}
+        @instances = 0
+    end
+
+    def group?; false; end
+    def image?; false; end
+    def valid?; true; end
+    def count_instances; @instances; end
+
+    def attribute_dictionary(dict_name, create = false)
+        return @attrs[dict_name] if @attrs.key?(dict_name)
+
+        create ? (@attrs[dict_name] = {}) : nil
+    end
+
+    def get_attribute(dict_name, key, default_value = nil)
+        (@attrs[dict_name] || {}).fetch(key, default_value)
+    end
+
+    def delete_attribute(dict_name, key)
+        (@attrs[dict_name] || {}).delete(key)
+    end
+
+    def attrs_copy
+        JSON.parse(JSON.generate(@attrs))
+    end
+
+    def restore(snapshot)
+        @name = snapshot[:name]
+        @description = snapshot[:description]
+        @attrs = snapshot[:attrs]
+    end
+
+    def save_as(target)
+        File.write(target, JSON.generate('name' => @name, 'description' => @description, 'attrs' => @attrs))
+        true
+    end
+end
+
+class NaFakeDefinitions
+    include Enumerable
+
+    def initialize
+        @list = []
+    end
+
+    attr_reader :list
+
+    def each(&block)
+        @list.each(&block)
+    end
+
+    def load(path)
+        existing = @list.find { |definition| definition.path == path }
+        return existing if existing
+
+        data = JSON.parse(File.read(path)) rescue {}
+        definition = NaFakeDefinition.new(data['name'] || File.basename(path, '.skp'), path)
+        (data['attrs'] || {}).each { |dict_name, values| values.each { |key, value| definition.attribute_dictionary(dict_name, true)[key] = value } }
+        @list << definition
+        definition
+    end
+
+    def unique_name(base)
+        "#{base}#1"
+    end
+end
+
+class NaFakeModel
+    attr_reader :definitions, :aborted, :committed
+
+    def initialize
+        @definitions = NaFakeDefinitions.new
+        @aborted = 0
+        @committed = 0
+    end
+
+    def start_operation(_name, _disable_ui = false)
+        @snapshot_list = @definitions.list.dup
+        @snapshot_state = @definitions.list.map { |definition| [definition, { name: definition.name, description: definition.description, attrs: definition.attrs_copy }] }
+    end
+
+    def abort_operation
+        @aborted += 1
+        @definitions.list.replace(@snapshot_list)
+        @snapshot_state.each { |definition, state| definition.restore(state) }
+    end
+
+    def commit_operation
+        @committed += 1
+    end
+end
+
+module Sketchup
+    def self.active_model
+        $na_fake_model
+    end
+
+    def self.temp_dir
+        Dir.tmpdir
+    end
+end
+
+# --- Load the real code, with a stub user config ----------------------------------
+
+module Na__ComponentEditorTools
+    module Na__UserConfig
+        def self.Na__ComponentEditorTools__LibraryPath; $na_library_root; end
+        def self.Na__ComponentEditorTools__BlockedFolders; ['00__Archive', '00__Retired', '95__TEMP__Ripdown']; end
+        def self.Na__ComponentEditorTools__BlockedFiles; []; end
+        def self.Na__ComponentEditorTools__FolderAliases; { 'Na__CoreLib__3dAssets' => { 'alias' => 'Noble Architecture', 'order' => 2 } }; end
+    end
+end
+
+%w[
+    01__AppCore/Na__ComponentEditorTools__AppCore__PathResolver__.rb
+    08__LibraryManager/Na__ComponentEditorTools__LibraryManager__Scanner__.rb
+    08__LibraryManager/Na__ComponentEditorTools__LibraryManager__Serializer__.rb
+    08__LibraryManager/Na__ComponentEditorTools__LibraryManager__SafeLoad__.rb
+    12__McpOperations/Na__ComponentEditorTools__McpOperations__Main__.rb
+    12__McpOperations/Na__ComponentEditorTools__McpOperations__Convention__.rb
+    12__McpOperations/Na__ComponentEditorTools__McpOperations__Catalogue__.rb
+    12__McpOperations/Na__ComponentEditorTools__McpOperations__Archive__.rb
+    12__McpOperations/Na__ComponentEditorTools__McpOperations__Plan__.rb
+    12__McpOperations/Na__ComponentEditorTools__McpOperations__AssetOps__.rb
+].each { |relative| load File.join(NA_TEST_MODULE_ROOT, relative) }
+
+CONV = Na__ComponentEditorTools::Na__McpConvention
+CONV.Na__ComponentEditorTools__UseConfigPath(File.join(NA_TEST_MODULE_ROOT, '07__UserData', 'Na__ComponentEditorTools__LibraryConvention__.json'))
+OPS = Na__ComponentEditorTools::Na__McpOperations
+
+def fake_skp(path, name, attrs = {})
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, JSON.generate('name' => name, 'attrs' => attrs))
+end
+
+def build_library
+    $na_fake_model = NaFakeModel.new
+    $na_library_root = File.join(Dir.mktmpdir('na_lib_'), 'Lib').tr('\\', '/')
+    set = File.join($na_library_root, 'Na__CoreLib__3dAssets')
+    fake_skp("#{set}/13__Building__Roof/13_2000__ChimneyPots/13_2021__ChimneyPot__Tall__Type-01__.skp", '13_2021__ChimneyPot__Tall__Type-01__')
+    fake_skp("#{set}/13__Building__Roof/13_2000__ChimneyPots/13_2025__ChimneyPot__Covered__Type-05__.skp", '13_2025__ChimneyPot__Covered__Type-05__')
+    fake_skp("#{set}/13__Building__Roof/13_2000__ChimneyPots/13_2025__ChimneyPot__Covered__Type-07.skp", '13_2025__ChimneyPot__Covered__Type-07')
+    fake_skp("#{set}/13__Building__Roof/13_2000__ChimneyPots/04_Whitecard__ChimneyPot__Type-02__.skp", '04_Whitecard__ChimneyPot__Type-02__')
+    fake_skp("#{set}/17__Building__Fixtures/4000__Bathroom/27_4003__Bathroom__Toilet__Standard__Type-03__.skp", '27_4003__Bathroom__Toilet__Standard__Type-03__',
+             'Na__ComponentLibrary' => { 'gallery_name' => 'Toilet', 'truevision_valid' => 'true' })
+    fake_skp("#{set}/60__Scene__Entourage__2D/60_0301__SceneEntourage__Man__Var-01__.skp", '60_0301__SceneEntourage__Man__Var-01__')
+    fake_skp("#{set}/60__Scene__Entourage__2D/60_0321__SceneEntourage__Woman__Var-01__.skp", '60_0321__SceneEntourage__Woman__Var-01__')
+    fake_skp("#{set}/00__Archive/13_2022__ChimneyPot__Old__.skp", '13_2022__ChimneyPot__Old__')
+    File.write("#{set}/17__Building__Fixtures/4000__Bathroom/27_50__Old__.skb", 'backup')
+    set
+end
+
+# --- Convention -----------------------------------------------------------------------
+
+check('filed name parses') { p = CONV.Na__ComponentEditorTools__ParseName('13_5001__Roof__RidgeFinial__FleurDeLis__Type-01__.skp'); p['kind'] == 'filed' && p['code'] == '13_5001' && p['segments'] == %w[Roof RidgeFinial FleurDeLis Type-01] && p['trailing_underscores'] }
+check('short code') { CONV.Na__ComponentEditorTools__ParseName('27_22__Bathroom__Sink____')['kind'] == 'short_code' }
+check('letter code') { CONV.Na__ComponentEditorTools__ParseName('ADR6001__RoofLight__Velux__')['kind'] == 'letter_code' }
+check('old prefix') { CONV.Na__ComponentEditorTools__ParseName('04_Whitecard__ChimneyPot__Type-02__')['kind'] == 'old_prefix' }
+check('unfiled prefixes') { %w[85__Bracket RIPDOWN__ChimneyPot VALIDATE__HOPPER 95__TEMP__X].all? { |n| CONV.Na__ComponentEditorTools__ParseName(n)['kind'] == 'unfiled' } }
+check('uncoded') { CONV.Na__ComponentEditorTools__ParseName('skp98B3.tmp')['kind'] == 'uncoded' }
+check('85_85 short code, not unfiled') { CONV.Na__ComponentEditorTools__ParseName('85_85__Stairs__NewelPost__Type-01')['kind'] == 'short_code' }
+
+rules = ->(stem, folder = '') { CONV.Na__ComponentEditorTools__CheckAsset(stem, folder)['issues'].map { |i| i['rule'] } }
+check('missing trailing __ warns') { rules.call('13_2021__ChimneyPot__Tall__Type-01', '13__Building__Roof/13_2000__ChimneyPots').include?('trailing_underscores') }
+check('typo found') { rules.call('90_9001__OudoorLiving__CoffeeTable__', '18__Objects__Furniture').include?('typo') }
+check('mangled name found') { rules.call('13_5001__Roof__Type-#1').include?('mangled_name') }
+check('spaces found') { rules.call('Temp Bath 2').include?('spaces') }
+check('line break found') { rules.call("85_02__Sofa__L1400mmxW865mm\n").include?('control_characters') }
+check('category mismatch') { rules.call('27_4003__Bathroom__Toilet__', '17__Building__Fixtures/17_4000__Bathroom').include?('category_mismatch') }
+check('bare series folder') { rules.call('17_4003__Bathroom__Toilet__', '17__Building__Fixtures/4000__Bathroom').include?('series_folder_name') }
+check('series mismatch') { rules.call('13_6001__RoofLight__', '13__Building__Roof/13_2000__ChimneyPots').include?('series_mismatch') }
+check('clean name has no issues') { rules.call('13_2021__ChimneyPot__Tall__Type-01__', '13__Building__Roof/13_2000__ChimneyPots').empty? }
+check('set root warns') { rules.call('85__Bracket__Type-01__').include?('set_root') }
+check('definition name mismatch') { CONV.Na__ComponentEditorTools__CheckAsset('13_2023__Pot__Type-04__', '13__Building__Roof/13_2000__ChimneyPots', definition_name: '13_2023__Pot__Type-04')['issues'].any? { |i| i['rule'] == 'definition_name' } }
+check('suggested fix: prefix, typo, underscores') do
+    CONV.Na__ComponentEditorTools__CheckAsset('27_22__OudoorLiving__Sink__Type-01____', '17__Building__Fixtures/17_4000__Bathroom')['suggested_name'].nil? &&
+        CONV.Na__ComponentEditorTools__CheckAsset('27_4003__Oudoor__Toilet__Type-03', '17__Building__Fixtures/17_4000__Bathroom')['suggested_name'] == '17_4003__Outdoor__Toilet__Type-03__'
+end
+check('series ranges') { CONV.Na__ComponentEditorTools__SeriesRange(2000) == [2000, 2999] && CONV.Na__ComponentEditorTools__SeriesRange(2010) == [2010, 2019] && CONV.Na__ComponentEditorTools__SeriesRange(2200) == [2200, 2299] && CONV.Na__ComponentEditorTools__SeriesRange(1005) == [1000, 1999] && CONV.Na__ComponentEditorTools__SeriesRange(0) == [0, 999] }
+check('family ranges') { CONV.Na__ComponentEditorTools__FamilyRange('13_20') == [2000, 2099] && CONV.Na__ComponentEditorTools__FamilyRange('202') == [2020, 2029] && CONV.Na__ComponentEditorTools__FamilyRange('60_03') == [300, 399] }
+check('next numbers skip used and x0') { CONV.Na__ComponentEditorTools__NextNumbers([2021, 2022, 2023, 2025, 2026, 2029], 2000, 2999, 2) == [2031, 2032] }
+check('first number in empty range') { CONV.Na__ComponentEditorTools__NextNumbers([], 5000, 5999, 1) == [5001] }
+check('build stem') { CONV.Na__ComponentEditorTools__BuildStem('13_5002', '13_5002__Roof__RidgeFinial__Type-02.skp') == '13_5002__Roof__RidgeFinial__Type-02__' }
+check('build stem refuses a bad code') { begin; CONV.Na__ComponentEditorTools__BuildStem('13_52', 'X'); false; rescue Na__ComponentEditorTools::Na__McpOperationsError; true; end }
+check('taxonomy defaults') { CONV.Na__ComponentEditorTools__TaxonomyFor('17', '17_4000') == ['Fixtures', 'Bathroom Fixtures'] && CONV.Na__ComponentEditorTools__TaxonomyFor('13', nil) == %w[Building Roof] }
+
+# --- Catalogue ------------------------------------------------------------------------
+
+set = build_library
+overview = OPS.Na__ComponentEditorTools__McpRead('overview', {})
+check('overview counts visible files') { overview['files'] == 7 && overview['set'] == 'Na__CoreLib__3dAssets' }
+roof = overview['categories'].find { |c| c['folder'] == '13__Building__Roof' }
+check('overview next code skips the archived 13_2022') { roof && roof['series'][0]['next_code'] == '13_2026' }
+fixtures = overview['categories'].find { |c| c['folder'] == '17__Building__Fixtures' }
+check('overview flags bare series folder') { fixtures['series'][0]['fix'] == 'Rename to 17_4000__Bathroom' }
+entourage = overview['categories'].find { |c| c['folder'] == '60__Scene__Entourage__2D' }
+check('flat category families') { entourage['families'].map { |f| f['family'] } == ['0300'] }
+
+next_code = OPS.Na__ComponentEditorTools__McpRead('next_code', 'series' => '13_2000', 'count' => 2)
+check('next_code in series') { next_code['codes'] == %w[13_2026 13_2027] && next_code['folder'] == '13__Building__Roof/13_2000__ChimneyPots' }
+check('next_code in a family') { OPS.Na__ComponentEditorTools__McpRead('next_code', 'category' => '60', 'family' => '60_03')['code'] == '60_0322' }
+check('next_code without series lists choices') { OPS.Na__ComponentEditorTools__McpRead('next_code', 'category' => '60')['code'].nil? }
+check('check_name catches a taken code') { OPS.Na__ComponentEditorTools__McpRead('check_name', 'name' => '13_2021__ChimneyPot__New__', 'folder' => '13__Building__Roof/13_2000__ChimneyPots')['issues'].any? { |i| i['rule'] == 'code_taken' } }
+audit = OPS.Na__ComponentEditorTools__McpRead('audit', {})
+check('audit finds the duplicate code') { audit['duplicate_codes'].key?('13_2025') && audit['by_rule']['duplicate_code'] == 2 }
+check('audit finds category mismatch and old prefix') { audit['by_rule']['category_mismatch'] == 1 && audit['by_rule']['old_prefix'] == 1 }
+browse = OPS.Na__ComponentEditorTools__McpRead('browse', 'query' => 'toilet')
+check('browse query') { browse['total'] == 1 && browse['items'][0]['code'] == '27_4003' }
+
+# --- Plan: dry run and refusals ----------------------------------------------------------
+
+tidy = {
+    'title' => 'Test tidy',
+    'steps' => [
+        { 'op' => 'rename_folder', 'from' => '17__Building__Fixtures/4000__Bathroom', 'to' => '17__Building__Fixtures/17_4000__Bathroom' },
+        { 'op' => 'rename_asset', 'from' => '17__Building__Fixtures/17_4000__Bathroom/27_4003__Bathroom__Toilet__Standard__Type-03__.skp',
+          'to' => '17__Building__Fixtures/17_4000__Bathroom/17_4003__Bathroom__Toilet__Standard__Type-03__.skp' },
+        { 'op' => 'rename_asset', 'from' => '13__Building__Roof/13_2000__ChimneyPots/13_2025__ChimneyPot__Covered__Type-07.skp',
+          'to' => '13__Building__Roof/13_2000__ChimneyPots/13_2027__ChimneyPot__Covered__Type-07__.skp',
+          'library_data' => { 'gallery_name' => 'Chimney Pot - Covered 07' } },
+        { 'op' => 'rename_asset', 'from' => '13__Building__Roof/13_2000__ChimneyPots/04_Whitecard__ChimneyPot__Type-02__.skp',
+          'to' => '13__Building__Roof/13_2000__ChimneyPots/13_2011__ChimneyPot__Whitecard__Type-02__.skp' },
+        { 'op' => 'create_folder', 'path' => '00__Archive' },
+        { 'op' => 'move_file', 'from' => '17__Building__Fixtures/17_4000__Bathroom/27_50__Old__.skb', 'to' => '00__Archive/27_50__Old__.skb' }
+    ]
+}
+dry = OPS.Na__ComponentEditorTools__McpEdit('apply_plan', 'plan' => tidy)
+check('dry run changes nothing') { dry['dry_run'] == true && dry['errors'].zero? && File.exist?("#{set}/17__Building__Fixtures/4000__Bathroom/27_4003__Bathroom__Toilet__Standard__Type-03__.skp") }
+check('dry run warns the archive exists') { dry['checks'].any? { |c| c['op'] == 'create_folder' && c['level'] == 'warning' } }
+
+clash = { 'steps' => [{ 'op' => 'rename_asset', 'from' => '13__Building__Roof/13_2000__ChimneyPots/13_2025__ChimneyPot__Covered__Type-07.skp',
+                        'to' => '13__Building__Roof/13_2000__ChimneyPots/13_2021__ChimneyPot__Tall__Type-01__.skp' }] }
+check('target clash is an error') { OPS.Na__ComponentEditorTools__McpEdit('apply_plan', 'plan' => clash)['errors'] >= 1 }
+dup = { 'steps' => [{ 'op' => 'rename_asset', 'from' => '13__Building__Roof/13_2000__ChimneyPots/04_Whitecard__ChimneyPot__Type-02__.skp',
+                      'to' => '13__Building__Roof/13_2000__ChimneyPots/13_2021__ChimneyPot__Whitecard__Type-02__.skp' }] }
+check('duplicate code is an error') { OPS.Na__ComponentEditorTools__McpEdit('apply_plan', 'plan' => dup)['checks'].any? { |c| c['op'] == 'duplicate_code' } }
+check('applying a plan with errors changes nothing') do
+    begin
+        OPS.Na__ComponentEditorTools__McpEdit('apply_plan', 'plan' => dup, 'dry_run' => false)
+        false
+    rescue Na__ComponentEditorTools::Na__McpOperationsError => error
+        error.na_code == 'invalid_params' && File.exist?("#{set}/13__Building__Roof/13_2000__ChimneyPots/04_Whitecard__ChimneyPot__Type-02__.skp")
+    end
+end
+
+in_use_path = "#{set}/13__Building__Roof/13_2000__ChimneyPots/13_2021__ChimneyPot__Tall__Type-01__.skp"
+placed = $na_fake_model.definitions.load(in_use_path)
+placed.instances = 3
+in_use = { 'steps' => [{ 'op' => 'update_asset', 'path' => in_use_path, 'library_data' => { 'notes' => 'x' } }] }
+check('a placed component is refused') { OPS.Na__ComponentEditorTools__McpEdit('apply_plan', 'plan' => in_use)['errors'] == 1 }
+$na_fake_model.definitions.list.clear
+
+# --- Plan: apply, then revert ------------------------------------------------------------------
+
+original_bytes = File.binread("#{set}/13__Building__Roof/13_2000__ChimneyPots/13_2025__ChimneyPot__Covered__Type-07.skp")
+applied = OPS.Na__ComponentEditorTools__McpEdit('apply_plan', 'plan' => tidy, 'dry_run' => false)
+bath = "#{set}/17__Building__Fixtures/17_4000__Bathroom"
+pots = "#{set}/13__Building__Roof/13_2000__ChimneyPots"
+check('plan completes') { applied['status'] == 'complete' && applied['done'] == 6 }
+check('folder renamed') { Dir.exist?(bath) && !Dir.exist?("#{set}/17__Building__Fixtures/4000__Bathroom") }
+toilet = JSON.parse(File.read("#{bath}/17_4003__Bathroom__Toilet__Standard__Type-03__.skp"))
+check('definition renamed to the file name, data kept') { toilet['name'] == '17_4003__Bathroom__Toilet__Standard__Type-03__' && toilet['attrs']['Na__ComponentLibrary']['truevision_valid'] == 'true' }
+covered = JSON.parse(File.read("#{pots}/13_2027__ChimneyPot__Covered__Type-07__.skp"))
+check('library data written') { covered['attrs']['Na__ComponentLibrary']['gallery_name'] == 'Chimney Pot - Covered 07' }
+check('.skb moved, not deleted') { File.exist?("#{set}/00__Archive/27_50__Old__.skb") }
+check('every load was rolled back') { $na_fake_model.definitions.list.empty? && $na_fake_model.aborted >= 3 }
+journal_dir = File.join($na_library_root, '00__Archive', '00__McpLibraryJournals', applied['journal'])
+check('backups written') { Dir.glob("#{journal_dir}/backup/*").length == 3 }
+check('journal listed in overview') { OPS.Na__ComponentEditorTools__McpRead('overview', {})['journals'].first['id'] == applied['journal'] }
+check('continue says nothing is left') { OPS.Na__ComponentEditorTools__McpEdit('apply_plan', 'journal' => applied['journal'])['status'] == 'complete' }
+
+reverted = OPS.Na__ComponentEditorTools__McpEdit('revert', 'journal' => applied['journal'])
+check('revert completes') { reverted['status'] == 'reverted' }
+check('revert restores exact bytes and names') { File.binread("#{pots}/13_2025__ChimneyPot__Covered__Type-07.skp") == original_bytes && !File.exist?("#{pots}/13_2027__ChimneyPot__Covered__Type-07__.skp") }
+check('revert restores the folder') { Dir.exist?("#{set}/17__Building__Fixtures/4000__Bathroom") && File.exist?("#{set}/17__Building__Fixtures/4000__Bathroom/27_50__Old__.skb") }
+check('revert twice is harmless') { OPS.Na__ComponentEditorTools__McpEdit('revert', 'journal' => applied['journal'])['status'] == 'reverted' }
+
+# --- Single edits: save, rename, update, create_folder ------------------------------------------
+
+component = NaFakeDefinition.new('50_1002__Finial__FleurDeLis__', '')
+$na_fake_model.definitions.list << component
+saved =OPS.Na__ComponentEditorTools__McpEdit('save', 'definition_object' => component, 'series' => '13_2000', 'name' => 'ChimneyPot__Test__Type-01',
+                                             'library_data' => { 'gallery_name' => 'Test pot' })
+saved_path = "#{pots}/13_2026__ChimneyPot__Test__Type-01__.skp"
+saved_data = File.exist?(saved_path) ? JSON.parse(File.read(saved_path)) : {}
+check('save allocates the next code and names the file') { saved['code'] == '13_2026' && File.exist?(saved_path) }
+check('saved definition named like the file, taxonomy filled') { saved_data['name'] == '13_2026__ChimneyPot__Test__Type-01__' && saved_data['attrs']['Na__ComponentLibrary']['category'] == 'Building' }
+check('save leaves the model definition untouched') { component.name == '50_1002__Finial__FleurDeLis__' }
+check('save refuses to overwrite') { begin; OPS.Na__ComponentEditorTools__McpEdit('save', 'definition_object' => component, 'code' => '13_2026', 'series' => '13_2000', 'name' => 'ChimneyPot__Test__Type-01'); false; rescue Na__ComponentEditorTools::Na__McpOperationsError; true; end }
+renamed = OPS.Na__ComponentEditorTools__McpEdit('rename', 'path' => saved_path, 'name' => 'ChimneyPot__TestRenamed__Type-01')
+check('rename keeps the code, renames file and definition') { renamed['status'] == 'complete' && JSON.parse(File.read("#{pots}/13_2026__ChimneyPot__TestRenamed__Type-01__.skp"))['name'] == '13_2026__ChimneyPot__TestRenamed__Type-01__' }
+updated = OPS.Na__ComponentEditorTools__McpEdit('update', 'path' => "#{pots}/13_2026__ChimneyPot__TestRenamed__Type-01__.skp", 'library_data' => { 'notes' => 'Checked' }, 'dry_run' => true)
+check('update dry run') { updated['dry_run'] == true && updated['errors'].zero? }
+reverted_save = OPS.Na__ComponentEditorTools__McpEdit('revert', 'journal' => saved['journal'])
+check('reverting a save moves the file into the journal') { reverted_save['status'] == 'reverted' || reverted_save['status'] == 'partly_reverted' }
+check('create_folder refuses a non-library name') { begin; OPS.Na__ComponentEditorTools__McpEdit('create_folder', 'folder' => '18__Objects__Furniture/Lounge Stuff'); false; rescue Na__ComponentEditorTools::Na__McpOperationsError; true; end }
+check('create_folder makes a series folder') { OPS.Na__ComponentEditorTools__McpEdit('create_folder', 'folder' => '18__Objects__Furniture/18_1000__Lounge')['status'] == 'complete' && Dir.exist?("#{set}/18__Objects__Furniture/18_1000__Lounge") }
+check('paths outside the library are refused') { begin; OPS.Na__ComponentEditorTools__McpRead('get', 'path' => 'C:/Windows/notepad.skp'); false; rescue Na__ComponentEditorTools::Na__McpOperationsError => e; e.na_code == 'invalid_params'; end }
+
+# --- Archive zips -------------------------------------------------------------------------
+
+archive_source = "#{pots}/13_2021__ChimneyPot__Tall__Type-01__.skp"
+archive_bytes = File.binread(archive_source)
+archived = OPS.Na__ComponentEditorTools__McpEdit('archive', 'path' => archive_source)
+zip_path = "#{set}/00__Archive/13_2021__ChimneyPot__Tall__Type-01#{Time.now.strftime('__%d-%b-%Y')}.zip"
+check('archive zips into the set archive, date-stamped with one __') { archived['status'] == 'complete' && File.file?(zip_path) && !File.exist?(archive_source) }
+check('the zip reads back to the exact bytes') { Na__ComponentEditorTools::Na__McpArchive.Na__ComponentEditorTools__VerifyZip(zip_path, archive_bytes, Zlib.crc32(archive_bytes)) }
+archive_journal = File.join($na_library_root, '00__Archive', '00__McpLibraryJournals', archived['journal'].to_s)
+check('the original is kept in the journal') { Dir.glob("#{archive_journal}/archived/*").length == 1 }
+check('a second archive of a missing file is refused') { begin; OPS.Na__ComponentEditorTools__McpEdit('archive', 'path' => archive_source); false; rescue Na__ComponentEditorTools::Na__McpOperationsError; true; end }
+reverted_archive = OPS.Na__ComponentEditorTools__McpEdit('revert', 'journal' => archived['journal'])
+check('reverting an archive restores the file and removes the zip') { reverted_archive['status'] == 'reverted' && File.binread(archive_source) == archive_bytes && !File.exist?(zip_path) }
+check('archive_file in a plan checks the .zip target') do
+    plan = { 'steps' => [{ 'op' => 'archive_file', 'from' => archive_source, 'to' => '00__Archive/not-a-zip.skp' }] }
+    OPS.Na__ComponentEditorTools__McpEdit('apply_plan', 'plan' => plan)['errors'] == 1
+end
+
+check('a target past the Windows path limit is refused') do
+    long_name = "13_2099__ChimneyPot__#{'VeryLongDescriptor__' * 12}Type-01__.skp"
+    plan = { 'steps' => [{ 'op' => 'rename_asset', 'from' => archive_source, 'to' => "13__Building__Roof/13_2000__ChimneyPots/#{long_name}" }] }
+    OPS.Na__ComponentEditorTools__McpEdit('apply_plan', 'plan' => plan)['checks'].any? { |c| c['notes'].to_a.any? { |n| n.include?('Windows allows 259') } }
+end
+check('journal files shorten to fit the path limit') do
+    short = Na__ComponentEditorTools::Na__McpLibraryPlan.Na__ComponentEditorTools__JournalFilePath('D:/' + ('x' * 240), 39, 'D:/lib/90_9002__OudoorLiving__LoungeSofa__RattanRope__Type-01.skp')
+    short.end_with?('/039.skp') && short.length <= 259
+end
+
+# --- SafeLoad -------------------------------------------------------------------------
+
+model = NaFakeModel.new
+$na_fake_model = model
+probe = "#{pots}/13_2021__ChimneyPot__Tall__Type-01__.skp"
+seen = Na__ComponentEditorTools::Na__LibrarySafeLoad.Na__ComponentEditorTools__WithTemporaryDefinition(probe, 'probe') { |definition, info| [definition.name, info[:in_use]] }
+check('safe load yields and rolls back') { seen == ['13_2021__ChimneyPot__Tall__Type-01__', false] && model.definitions.list.empty? && model.aborted == 1 }
+check('safe load refuses an in-use file when asked') do
+    model.definitions.load(probe).instances = 2
+    begin
+        Na__ComponentEditorTools::Na__LibrarySafeLoad.Na__ComponentEditorTools__WithTemporaryDefinition(probe, 'probe', allow_in_use: false) { true }
+        false
+    rescue Na__ComponentEditorTools::Na__LibraryInUseError => error
+        error.na_instance_count == 2
+    end
+end
+
+FileUtils.rm_rf(File.dirname($na_library_root))
+puts "McpOperations unit: #{$na_checks - $na_failures.length}/#{$na_checks} checks passed."
+unless $na_failures.empty?
+    $na_failures.each { |failure| warn "FAILED: #{failure}" }
+    raise "#{$na_failures.length} McpOperations check(s) failed"
+end

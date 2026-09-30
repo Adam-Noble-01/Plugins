@@ -53,6 +53,15 @@ module Na__InsertPrimatives
                 return false
             end
 
+            # FOLLOW's one limit, checked before anything is touched: a corner
+            # cannot run past the far end of the edge it follows.
+            follow_problem = na_drawn__follow_problem
+            if follow_problem
+                UI.beep
+                na_revise__notice("Not placed — #{follow_problem}")
+                return false
+            end
+
             world_travel = na_drawn__world_travel_distance
             local_offset = na_drawn__local_offset_vector(target)
 
@@ -207,7 +216,10 @@ module Na__InsertPrimatives
             quads   = na_drawn__quad_mode?
             sheared = shear.length.to_f >= NA_SLOPE_PUSH_MIN_SHEAR
             cut     = Na__InsertPrimatives.Na__EdgeLoops__IsCut?(quads, local_distance)
-            op_name = if    cut     then 'Deep Push Pull (Edge Loop)'
+            follow  = na_drawn__follow_mode?                                  # <-- SHIFT+ALT: every corner along its own edge
+            op_name = if    follow && cut then 'Deep Push Pull (Follow Loop Cut)'
+                      elsif follow  then 'Deep Push Pull (Follow)'
+                      elsif cut     then 'Deep Push Pull (Edge Loop)'
                       elsif sheared then 'Deep Push Pull (Slope)'
                       elsif quads   then 'Deep Push Pull (Quads)'
                       else               'Deep Push Pull'
@@ -253,7 +265,16 @@ module Na__InsertPrimatives
                 normal_now = sheared ? face.normal : nil
                 interior   = sheared ? Na__InsertPrimatives.Na__SlopePush__InteriorPoint(face) : nil
 
-                if cut
+                if follow
+                    # FOLLOW. Every corner runs along its own rail to the plane
+                    # the drag distance away; inward with QUADS it is a follow
+                    # loop cut instead. Rails are read inside, in the space the
+                    # face reports now. See DrawnPushPullFollow.
+                    @na_pp_quad_stats = na_drawn__execute_follow(
+                        model, entities, face, target, entered, na_drawn__world_travel_distance, loops, cut
+                    )
+                    na_drawn__trace("follow: #{cut ? 'loop cut' : 'stretched'} along every corner's edge")
+                elsif cut
                     # LOOP CUT. Nothing is pushed at all — that is the whole
                     # point of the inward gesture. The ring is offset along the
                     # WHOLE travel, not just its normal share: in slope mode the
@@ -472,6 +493,7 @@ module Na__InsertPrimatives
 
             Na__InsertPrimatives.Na__Debug__Puts "Instances affected: #{target[:shared_count]}"
             Na__InsertPrimatives.Na__Debug__Puts "Grid  : #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
+            Na__InsertPrimatives.Na__Debug__Puts "Follow: every corner along its own edge (SHIFT+ALT)" if na_drawn__follow_mode?
             Na__InsertPrimatives.Na__Debug__Puts "Quads : #{na_drawn__quad_report}"
             Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
         end

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<!--
+=============================================================================
+NA SKETCHUP MCP - HTMLDIALOG UI LAYOUT
+
+FILE       : Na__SketchUpMcp__UiLayout__.html
+PURPOSE    : Shell markup for the status dialog; Ruby inlines the stylesheet
+             and bridge script into the placeholders and pushes state as JSON
+
+CONFIG-FIRST DESIGN NOTE:
+Nothing here is data. Bridge state, toggles, client snippets and the activity
+log are rendered by Na__SketchUpMcp__UiBridge__.js from the state object Ruby
+sends (Na__SketchUpMcp__CoreAppLogic__DialogManager__.rb).
+=============================================================================
+-->
+<html lang="en">
+<head>
+    <!-- --------------------------------------------------------------------- -->
+    <!-- REGION | Document Head - Charset, Title, Inlined Stylesheet          -->
+    <!-- --------------------------------------------------------------------- -->
+
+    <meta charset="utf-8">
+    <title>{{DIALOG_TITLE}}</title>
+    <style>
+    {{STYLESHEET_CONTENT}}
+    </style>
+
+    <!-- endregion ----------------------------------------------------------- -->
+</head>
+<body>
+
+    <div class="naSuMcp__Shell">
+
+        <!-- REGION | Brand Header - logo left, title right -->
+
+        <header class="na-brand-header">
+            <div class="na-brand-header__left">
+                <img src="{{LOGO_FILE_URI}}" class="na-brand-header__logo" alt="Noble Architecture" onerror="this.style.display='none'">
+            </div>
+            <div class="na-brand-header__right">
+                <span class="na-brand-header__title">SketchUp MCP Bridge</span>
+                <span class="na-brand-header__subtitle">Agents in SketchUp, safely</span>
+            </div>
+        </header>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+        <main class="naSuMcp__MainContent">
+
+            <!-- REGION | Bridge Status Card -->
+
+            <section class="naSuMcp__Card">
+                <header class="naSuMcp__CardHeader">
+                    <span id="naSuMcpStatusDot" class="naSuMcp__Dot naSuMcp__Dot--off"></span>
+                    <h2 id="naSuMcpStatusTitle" class="naSuMcp__CardTitle">Bridge stopped</h2>
+                </header>
+                <dl id="naSuMcpFacts" class="naSuMcp__Facts"></dl>
+                <div class="naSuMcp__ButtonRow">
+                    <button type="button" class="naSuMcp__Button naSuMcp__Button--primary" onclick="Na__SketchUpMcp__Action('start')">Start</button>
+                    <button type="button" class="naSuMcp__Button" onclick="Na__SketchUpMcp__Action('stop')">Stop</button>
+                    <button type="button" class="naSuMcp__Button" onclick="Na__SketchUpMcp__Action('restart')">Restart</button>
+                </div>
+            </section>
+
+            <!-- endregion --------------------------------------------------- -->
+
+            <!-- REGION | Safety Toggles -->
+
+            <section class="naSuMcp__Card">
+                <header class="naSuMcp__CardHeader"><h2 class="naSuMcp__CardTitle">Safety</h2></header>
+                <label class="naSuMcp__Toggle">
+                    <input id="naSuMcpReadOnly" type="checkbox" onchange="Na__SketchUpMcp__Action('toggle_read_only')">
+                    <span><strong>Read-only mode</strong> - agents can look, measure and capture, but every change is refused.</span>
+                </label>
+                <label class="naSuMcp__Toggle">
+                    <input id="naSuMcpEval" type="checkbox" onchange="Na__SketchUpMcp__Action('toggle_eval')">
+                    <span><strong>Allow Ruby eval</strong> - lets agents run Ruby for anything the tools do not cover (one undo step, dialogs auto-answered).</span>
+                </label>
+                <label class="naSuMcp__Toggle">
+                    <input id="naSuMcpAutoStart" type="checkbox" onchange="Na__SketchUpMcp__Action('toggle_auto_start')">
+                    <span><strong>Start with SketchUp</strong> - listen as soon as SketchUp opens.</span>
+                </label>
+                <p class="naSuMcp__Note">Every agent change is one undo step named "MCP: ..." in Edit &gt; Undo. The bridge only listens on this PC (127.0.0.1) and every request needs this session's token.</p>
+            </section>
+
+            <!-- endregion --------------------------------------------------- -->
+
+            <!-- REGION | Client Setup Tabs -->
+
+            <section class="naSuMcp__Card">
+                <header class="naSuMcp__CardHeader"><h2 class="naSuMcp__CardTitle">Connect an agent</h2></header>
+                <nav id="naSuMcpClientTabs" class="naSuMcp__TabBar"></nav>
+                <p id="naSuMcpClientHint" class="naSuMcp__Note"></p>
+                <pre id="naSuMcpClientSnippet" class="naSuMcp__Snippet"></pre>
+                <div class="naSuMcp__ButtonRow">
+                    <button type="button" class="naSuMcp__Button" onclick="Na__SketchUpMcp__CopySnippet()">Copy</button>
+                </div>
+            </section>
+
+            <!-- endregion --------------------------------------------------- -->
+
+            <!-- REGION | API Self-Test -->
+
+            <section class="naSuMcp__Card">
+                <header class="naSuMcp__CardHeader">
+                    <h2 class="naSuMcp__CardTitle">API self-test</h2>
+                    <button type="button" class="naSuMcp__Button naSuMcp__Button--small" onclick="Na__SketchUpMcp__Action('self_test')">Run again</button>
+                </header>
+                <p id="naSuMcpSelfTest" class="naSuMcp__Note"></p>
+            </section>
+
+            <!-- endregion --------------------------------------------------- -->
+
+            <!-- REGION | Activity Log -->
+
+            <section class="naSuMcp__Card">
+                <header class="naSuMcp__CardHeader">
+                    <h2 class="naSuMcp__CardTitle">Activity</h2>
+                    <button type="button" class="naSuMcp__Button naSuMcp__Button--small" onclick="Na__SketchUpMcp__Action('clear_log')">Clear</button>
+                </header>
+                <table class="naSuMcp__Activity">
+                    <thead><tr><th>Time</th><th>Tool</th><th>ms</th><th>Outcome</th></tr></thead>
+                    <tbody id="naSuMcpActivityRows"></tbody>
+                </table>
+            </section>
+
+            <!-- endregion --------------------------------------------------- -->
+
+        </main>
+
+        <!-- REGION | Footer Status Line -->
+
+        <footer class="naSuMcp__Footer">
+            <p id="naSuMcpStatus" class="naSuMcp__Status naSuMcp__Status--info">Waiting for SketchUp...</p>
+        </footer>
+
+        <!-- endregion ------------------------------------------------------- -->
+
+    </div>
+
+    <script>
+    {{UI_BRIDGE_SCRIPT}}
+    </script>
+
+</body>
+</html>

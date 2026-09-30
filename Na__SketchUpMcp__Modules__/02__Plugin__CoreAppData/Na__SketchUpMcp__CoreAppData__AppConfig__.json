@@ -1,0 +1,54 @@
+{
+    "config_schema_notes": {
+        "purpose": "App-wide settings for the Na SketchUp MCP bridge. Every magic number the Ruby bridge uses lives here.",
+        "user_overrides": "Toggles changed in the status dialog are saved to 91__UserConfig__LocalOnly/Na__SketchUpMcp__UserConfig__Settings__.json and win over this file. Delete that file to return to these defaults.",
+        "tool_definitions": "Tool names, descriptions, input schemas and handler routes live in Na__SketchUpMcp__CoreAppData__ToolRegistry__.json, not here."
+    },
+    "metadata": {
+        "plugin_name": "Na SketchUp MCP",
+        "bridge_version": "1.0.3",
+        "author": "Noble Architecture",
+        "menu_name": "Na SketchUp MCP"
+    },
+    "bridge": {
+        "host": "127.0.0.1",
+        "port": 8385,
+        "port_search_count": 10,
+        "poll_interval_seconds": 0.05,
+        "max_request_bytes": 8388608,
+        "max_clients": 8,
+        "client_idle_timeout_seconds": 30,
+        "auto_start": true
+    },
+    "safety": {
+        "read_only_mode": false,
+        "allow_ruby_eval": true,
+        "status_bar_messages": true
+    },
+    "defaults": {
+        "units": "mm",
+        "query_limit": 50,
+        "query_limit_max": 500,
+        "max_traversal_entities": 250000,
+        "max_ids_per_call": 2000,
+        "max_vertices_per_entity": 400,
+        "max_attribute_value_chars": 2000,
+        "eval_max_result_chars": 20000,
+        "capture_width": 1280,
+        "capture_height": 800,
+        "capture_max_pixels": 16000,
+        "curve_segments": 24,
+        "soften_angle_degrees": 20.0
+    },
+    "dialog": {
+        "title": "Na SketchUp MCP",
+        "preferences_key": "Na__SketchUpMcp__StatusDialog",
+        "width": 560,
+        "height": 760,
+        "resizable": true
+    },
+    "activity_log": {
+        "max_entries": 200,
+        "console_logging": false
+    }
+}

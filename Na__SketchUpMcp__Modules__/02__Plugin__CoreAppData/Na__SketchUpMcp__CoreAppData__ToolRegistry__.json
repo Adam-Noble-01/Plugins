@@ -1,0 +1,1319 @@
+{
+    "registry_schema_notes": {
+        "purpose": "Single source of truth for every MCP tool. The Python server reads name/title/description/input_schema/annotations/toolsets/timeout_s; the Ruby bridge reads handler_key/mutates/operation/api/title.",
+        "fields": {
+            "name": "MCP tool name, [a-z][a-z0-9_]*, unique. Claude Code shows it as mcp__sketchup__<name> (keep that under 64 characters).",
+            "title": "Human title; also the undo name 'MCP: <title>' for model-changing tools.",
+            "runs_on": "bridge = executed inside SketchUp by Na__CommandRouter; server = answered by the Python server alone.",
+            "handler_key": "Key in Na__CommandRouter::NA_HANDLER_ROUTES.",
+            "mutates": "true = changes the model: refused in read-only mode, wrapped in one undo operation unless operation is false.",
+            "operation": "false = the handler manages undo itself (or must not be inside an operation, e.g. model_undo).",
+            "api": "SketchUp Ruby API methods the tool cannot work without. Checked offline against the official stubs index and live at bridge start; a tool with a missing dependency is refused with that reason.",
+            "toolsets": "core = the 22-tool set for clients with tool limits (--toolset core); every tool is in full.",
+            "timeout_s": "How long the Python server waits for SketchUp before reporting 'status unknown' (never auto-retried).",
+            "$use": "Inside input_schema, {\"$use\": \"name\"} is replaced by common_schemas[name] (plus any sibling keys, e.g. a longer description) when the Python server loads this file."
+        },
+        "adding_a_tool": "Add an entry here, add a handler method in 10__BridgeHandlers, add its route in Na__CommandRouter, run 40__Tests__Validation, then Reload Plugin Data and restart the MCP server."
+    },
+    "server": {
+        "name": "sketchup",
+        "title": "Na SketchUp MCP",
+        "version": "1.0.3",
+        "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
+        "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
+        "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
+    },
+    "common_schemas": {
+        "units": {"type": "string", "enum": ["mm", "cm", "m", "in", "ft", "yd", "model"], "description": "Unit for every length in this call's input AND output. Default mm. 'model' = the model's own display unit."},
+        "id": {"type": "integer", "description": "Persistent id of an entity (the 'id' returned by entity_query, outliner_tree, selection_get)."},
+        "ids": {"type": "array", "items": {"type": "integer"}, "minItems": 1, "description": "Persistent ids of entities (from entity_query, outliner_tree, selection_get)."},
+        "path": {"type": "array", "items": {"type": "integer"}, "description": "Optional instance path: ids of the groups/components from the model root down to the container. Only needed when a component is used several times and you mean one particular copy."},
+        "point": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 3, "description": "[x, y, z] in the call's units (z defaults to 0)."},
+        "points": {"type": "array", "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 3}, "description": "List of [x, y, z] points in the call's units."},
+        "vector": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "[x, y, z] displacement in the call's units."},
+        "direction": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "[x, y, z] direction (unitless, any length except zero)."},
+        "parent_id": {"type": "integer", "description": "Where new geometry goes. Omit = the active context (the open group, else the model root). 0 = model root. Otherwise the id of a group/component whose definition receives it."},
+        "coords": {"type": "string", "enum": ["world", "local"], "description": "Frame of the given points. world (default) = model axes, correct at any nesting depth and inside open groups. local = the parent's own axes."},
+        "name": {"type": "string", "description": "Name shown in the Outliner, as the user would call it (e.g. \"Wall - North\"), following the naming style already in the model. Always pass one: without it the object is named from its kind and size, e.g. \"Box 1200 x 600 x 150\"."},
+        "tag": {"type": "string", "description": "Tag (layer) name, created if missing. \"Untagged\" for none."},
+        "material": {"type": "string", "description": "Material name, \"#RRGGBB\" for a plain colour (created and reused on demand), or \"none\"."},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 500, "description": "Maximum items to return (default 50)."},
+        "offset": {"type": "integer", "minimum": 0, "description": "Items to skip, for paging (use next_offset from the previous call)."},
+        "response_format": {"type": "string", "enum": ["concise", "detailed"], "description": "concise (default): id, type, name, tag, material, world bounds. detailed: adds placement, size, volume, counts, attribute dictionary names."},
+        "camera": {
+            "type": "object",
+            "description": "Camera in world coordinates. Any subset of fields.",
+            "properties": {
+                "eye": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Camera position."},
+                "target": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Point looked at."},
+                "up": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Up direction."},
+                "perspective": {"type": "boolean", "description": "false = parallel projection."},
+                "fov": {"type": "number", "description": "Field of view in degrees (perspective only)."},
+                "ortho_height": {"type": "number", "description": "Visible height for parallel projection, in the call's units."}
+            }
+        },
+        "standard_view": {"type": "string", "enum": ["top", "bottom", "front", "back", "left", "right", "iso", "iso_front_left", "iso_back_right", "iso_back_left"], "description": "Point the camera at the model (or at zoom_ids) from a standard direction. front looks along +Y; iso is from front-right-above."}
+    },
+    "toolsets": {
+        "core": [
+            "sketchup_status", "model_info", "entity_query", "entity_get", "outliner_tree", "selection_get", "selection_set",
+            "context_set", "geometry_draw", "geometry_create_solid", "geometry_extrude", "group_create", "component_place",
+            "entity_transform", "entity_delete", "material_apply", "view_set", "view_capture", "model_undo", "ruby_eval",
+            "ruby_api_lookup", "batch_execute"
+        ]
+    },
+    "tools": [
+        {
+            "name": "sketchup_status",
+            "title": "SketchUp Status",
+            "runs_on": "bridge",
+            "handler_key": "sketchup_status",
+            "mutates": false,
+            "timeout_s": 15,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup.version", "Sketchup.is_pro?", "Sketchup::Model#active_path", "Sketchup::Tools#active_tool_name"],
+            "description": "Call this first. Reports whether SketchUp is connected, its version and licence (Pro is needed for solid_boolean), the open model (title, path, unsaved changes), the active edit context (open groups), selection count, active tool and scene, the bridge's read-only / Ruby-eval settings, and any tools unavailable in this SketchUp. Lists every running SketchUp window (each is a separate process); pass select_pid to direct all later calls to another window. If SketchUp is not connected, the reply says how to start the bridge (Extensions > Na SketchUp MCP > Bridge Running).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "select_pid": {"type": "integer", "description": "Switch this MCP server to the SketchUp process with this pid (from 'instances')."},
+                    "include_extensions": {"type": "boolean", "description": "Also list installed SketchUp extensions (name, version, loaded)."}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "model_info",
+            "title": "Model Info",
+            "runs_on": "bridge",
+            "handler_key": "model_info",
+            "mutates": false,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#options", "Sketchup::OptionsProvider#keys", "Sketchup::Model#number_faces", "Sketchup::Model#georeferenced?", "Sketchup::Model#shadow_info"],
+            "description": "Overview of the open model: title, path, description, unsaved changes, the model's unit settings (UnitsOptions with readable names), world bounds, counts (root entities by type, total faces, component and group definitions, materials, tags, tag folders, scenes, styles), active context, active tag / scene / style, and location (georeferenced, latitude, longitude, north angle). include_statistics walks the whole hierarchy and counts every entity type including nested copies (can be slow on big models; capped and reported as truncated).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "include_statistics": {"type": "boolean", "description": "Walk the full hierarchy and count entities by type (default false)."},
+                    "max_depth": {"type": "integer", "minimum": 0, "maximum": 64, "description": "Nesting depth for statistics (default 32)."},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "model_settings",
+            "title": "Model Settings",
+            "runs_on": "bridge",
+            "handler_key": "model_settings",
+            "mutates": true,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::OptionsProvider#[]=", "Sketchup::OptionsProvider#key?", "Sketchup::ShadowInfo#[]=", "Sketchup::Model#description="],
+            "description": "Change model-wide settings: display units (Model Info > Units), the model description, and geo-location. Only keys this SketchUp really has are accepted (read them from model_info units_options); unknown keys are refused with the valid list. This changes how SketchUp DISPLAYS lengths; it does not change geometry, and it does not change the units this MCP server uses (that is each call's 'units' argument).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "length_unit": {"type": "string", "enum": ["mm", "cm", "m", "in", "ft", "yd"]},
+                    "length_format": {"type": "string", "enum": ["decimal", "architectural", "engineering", "fractional"]},
+                    "length_precision": {"type": "integer", "minimum": 0, "maximum": 6, "description": "Decimal places shown."},
+                    "area_unit": {"type": "string", "enum": ["in2", "ft2", "mm2", "cm2", "m2", "yd2"]},
+                    "volume_unit": {"type": "string", "enum": ["in3", "ft3", "mm3", "cm3", "m3", "yd3", "l", "us_gallon"]},
+                    "units_options": {"type": "object", "description": "Raw UnitsOptions keys and values, e.g. {\"LengthSnapEnabled\": false}."},
+                    "description": {"type": "string", "description": "Model description (Model Info > File)."},
+                    "location": {
+                        "type": "object",
+                        "description": "Geo-location (Model Info > Geo-location, manual).",
+                        "properties": {
+                            "latitude": {"type": "number"},
+                            "longitude": {"type": "number"},
+                            "city": {"type": "string"},
+                            "country": {"type": "string"},
+                            "north_angle": {"type": "number", "description": "Degrees."}
+                        }
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "model_file",
+            "title": "Model File",
+            "runs_on": "bridge",
+            "handler_key": "model_file",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 600,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Model#save", "Sketchup::Model#save_copy", "Sketchup.open_file", "Sketchup.file_new", "Sketchup::Model#close", "Sketchup::Model#export", "Sketchup::Model#import"],
+            "description": "File operations. action: save (to its current path), save_as (.skp path; the model now lives there), save_copy (.skp copy; the open model keeps its path), open (.skp; replaces the open model), new (empty model), export (3D/CAD/PDF by extension: dae, kmz, obj, fbx, stl, 3ds, dwg, dxf, ifc, pdf, glb, usdz, wrl, xsi - some need Pro), import (dwg, dxf, 3ds, dae, kmz, stl, ifc, images...; for .skp use component_place skp_path). Never overwrites a file unless overwrite:true and never discards unsaved work unless discard_unsaved_changes:true: only pass those when the user explicitly asked. options = the documented exporter/importer options for that format (e.g. {\"units\": \"mm\", \"triangulated_faces\": true}); unknown option names are rejected with the valid list. Summary dialogs are always off. For PNG/JPG images of the view use view_capture.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["save", "save_as", "save_copy", "open", "new", "export", "import"]},
+                    "path": {"type": "string", "description": "Absolute file path. Its extension picks the export/import format."},
+                    "overwrite": {"type": "boolean", "description": "Allow replacing an existing file (default false)."},
+                    "discard_unsaved_changes": {"type": "boolean", "description": "For open/new: throw away unsaved changes in the current model (default false). Only with the user's explicit agreement."},
+                    "options": {"type": "object", "description": "Exporter/importer options documented by SketchUp for this format (see ruby_api_lookup query 'exporter options')."},
+                    "selection_only": {"type": "boolean", "description": "Export only the current selection (sets selectionset_only)."}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "model_purge",
+            "title": "Purge Unused",
+            "runs_on": "bridge",
+            "handler_key": "model_purge",
+            "mutates": true,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::DefinitionList#purge_unused", "Sketchup::Materials#purge_unused", "Sketchup::Layers#purge_unused", "Sketchup::Styles#purge_unused"],
+            "description": "Remove unused component definitions, materials, tags, styles and (SketchUp 2025+) environments, like Window > Model Info > Statistics > Purge Unused. Components are purged first so the materials and tags they held can go too. Returns how many of each were removed. One undo step.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "what": {"type": "array", "items": {"type": "string", "enum": ["components", "materials", "tags", "styles", "environments"]}, "description": "Which collections to purge (default all)."}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "entity_query",
+            "title": "Query Entities",
+            "runs_on": "bridge",
+            "handler_key": "entity_query",
+            "mutates": false,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#find_entity_by_persistent_id", "Sketchup::Entity#persistent_id", "Sketchup::Model#active_path", "Sketchup::Entity#attribute_dictionary", "Sketchup::Face#area", "Sketchup::Edge#length"],
+            "description": "Find entities and get their ids. Searches one context (default: the active context; parent_id 0 = model root; or inside a group/component), optionally recursive into nested groups, or the current selection. Filters combine (AND): types, name_contains (instance or definition name), definition_name, tag, material ('none' = default material), attribute {dictionary, key?, value?}, visibility. Paged with limit/offset; 'total' counts every match and next_offset is null on the last page. Each result has world-space bounds in the call's units; nested results carry 'path' (ids from the root). Use entity_get for full detail on a few ids.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "parent_id": {"$use": "parent_id", "description": "Where to look. Omit = active context. 0 = model root. Else a group/component id (searches inside it)."},
+                    "path": {"$use": "path"},
+                    "recursive": {"type": "boolean", "description": "Also search inside nested groups/components (default false)."},
+                    "max_depth": {"type": "integer", "minimum": 0, "maximum": 64, "description": "Nesting depth when recursive (default 8)."},
+                    "types": {"type": "array", "items": {"type": "string", "enum": ["Face", "Edge", "Group", "ComponentInstance", "Instance", "Image", "Text", "Dimension", "DimensionLinear", "DimensionRadial", "ConstructionLine", "ConstructionPoint", "SectionPlane"]}, "description": "Entity types to include (Instance = Group + ComponentInstance)."},
+                    "name_contains": {"type": "string", "description": "Case-insensitive substring of the instance or definition name."},
+                    "definition_name": {"type": "string", "description": "Exact component definition name."},
+                    "tag": {"type": "string", "description": "Exact tag name (\"Untagged\" for none)."},
+                    "material": {"type": "string", "description": "Exact material name, or \"none\"."},
+                    "attribute": {"type": "object", "description": "Has attribute: {\"dictionary\": \"...\", \"key\": \"...\" (optional), \"value\": ... (optional)}.", "properties": {"dictionary": {"type": "string"}, "key": {"type": "string"}, "value": {}}, "required": ["dictionary"]},
+                    "visibility": {"type": "string", "enum": ["all", "visible", "hidden"], "description": "Hidden-state filter (default all)."},
+                    "selection_only": {"type": "boolean", "description": "Search the current selection instead of a context."},
+                    "limit": {"$use": "limit"},
+                    "offset": {"$use": "offset"},
+                    "response_format": {"$use": "response_format"},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "entity_get",
+            "title": "Get Entity Details",
+            "runs_on": "bridge",
+            "handler_key": "entity_get",
+            "mutates": false,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#find_entity_by_persistent_id", "Sketchup::Face#loops", "Sketchup::Loop#vertices", "Sketchup::Vertex#position", "Sketchup::Entity#attribute_dictionaries"],
+            "description": "Full detail for up to 100 ids: type, names, tag, material, world bounds, and by type - faces (world area, world normal, vertex count, holes, back material), edges (world length, soft/smooth, curve/arc centre and radius), groups/components (world placement: origin, unit axes, scale, mirrored, rotation_xyz degrees; oriented size; volume and manifold; entity count; copies of the definition; attribute dictionaries), text, dimensions, section planes, images, definitions, materials, tags. include_geometry adds world coordinates (face loops, edge ends, guide positions). Attribute values are included by default (long strings truncated).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids", "maxItems": 100},
+                    "path": {"$use": "path"},
+                    "include_geometry": {"type": "boolean", "description": "Add world coordinates of vertices/endpoints (default false)."},
+                    "include_attributes": {"type": "boolean", "description": "Add attribute dictionary contents (default true)."},
+                    "max_vertices": {"type": "integer", "minimum": 3, "maximum": 400, "description": "Per-loop vertex cap for include_geometry (default 200)."},
+                    "units": {"$use": "units"}
+                },
+                "required": ["ids"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "outliner_tree",
+            "title": "Outliner Tree",
+            "runs_on": "bridge",
+            "handler_key": "outliner_tree",
+            "mutates": false,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#entities", "Sketchup::ComponentDefinition#entities", "Sketchup::Drawingelement#layer"],
+            "description": "The group/component hierarchy, like SketchUp's Outliner: id, type, name, definition, tag, hidden, locked and children for every group/component, plus counts of loose geometry per level (faces, edges...). Start here to understand how a model is organised. Default root is the model root (parent_id to start inside a group). Depth and siblings are capped (max_depth, max_children); deeper levels report nested_instances_not_shown.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "parent_id": {"$use": "parent_id", "description": "Start inside this group/component (default 0 = model root)."},
+                    "max_depth": {"type": "integer", "minimum": 0, "maximum": 32, "description": "Levels below the start (default 3)."},
+                    "max_children": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "Children listed per node (default 100)."},
+                    "include_loose_counts": {"type": "boolean", "description": "Count loose faces/edges per level (default true)."},
+                    "include_bounds": {"type": "boolean", "description": "Add world bounds per node (default false)."},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "collection_list",
+            "title": "List Collection",
+            "runs_on": "bridge",
+            "handler_key": "collection_list",
+            "mutates": false,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#materials", "Sketchup::Model#layers", "Sketchup::Model#pages", "Sketchup::Model#definitions", "Sketchup::Model#styles", "Sketchup::Model#line_styles"],
+            "description": "List a model collection: materials (colour, alpha, texture size; detailed adds PBR), tags (visible, colour, line style, folder, active), tag_folders, scenes (flags for what each scene remembers, style; detailed adds camera and timings), definitions (component definitions with instance counts and size; groups/images excluded unless asked; detailed adds file, behaviour, attributes), styles, line_styles, environments (2025+). include_usage counts how many faces/entities use each material or tag. Filter with name_contains; paged with limit/offset.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "collection": {"type": "string", "enum": ["materials", "tags", "tag_folders", "scenes", "definitions", "styles", "line_styles", "environments"]},
+                    "name_contains": {"type": "string", "description": "Case-insensitive name filter."},
+                    "include_usage": {"type": "boolean", "description": "materials/tags: count elements using each (default false)."},
+                    "include_groups": {"type": "boolean", "description": "definitions: include group definitions (default false)."},
+                    "include_images": {"type": "boolean", "description": "definitions: include image definitions (default false)."},
+                    "used_only": {"type": "boolean", "description": "definitions: only those with instances (default false)."},
+                    "limit": {"$use": "limit"},
+                    "offset": {"$use": "offset"},
+                    "response_format": {"$use": "response_format"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["collection"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "selection_get",
+            "title": "Get Selection",
+            "runs_on": "bridge",
+            "handler_key": "selection_get",
+            "mutates": false,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#selection", "Sketchup::Selection#length"],
+            "description": "What the user has selected: count, count by type, the combined world bounds, and paged summaries with ids. When the user says 'this', 'these' or 'the selected ...', call this first. The selection always belongs to the active context (the open group, if any), which is also returned.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limit": {"$use": "limit"},
+                    "offset": {"$use": "offset"},
+                    "response_format": {"$use": "response_format"},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "selection_set",
+            "title": "Set Selection",
+            "runs_on": "bridge",
+            "handler_key": "selection_set",
+            "mutates": false,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Selection#add", "Sketchup::Selection#remove", "Sketchup::Selection#toggle", "Sketchup::Selection#clear", "Sketchup::Selection#invert"],
+            "description": "Change the selection to show the user what you mean or to prepare a native tool: replace (default), add, remove, toggle (need ids), clear, invert, select_all (active context). Only entities of the active context can be selected; to select inside a group, open it first with context_set. Does not change the model or the undo stack.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["replace", "add", "remove", "toggle", "clear", "invert", "select_all"]},
+                    "ids": {"$use": "ids"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "context_set",
+            "title": "Set Edit Context",
+            "runs_on": "bridge",
+            "handler_key": "context_set",
+            "mutates": false,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#active_path=", "Sketchup::Model#close_active"],
+            "description": "Open a group/component for editing (like double-clicking it) or close back out. open: pass the id; its full path from the root is worked out for you (pass path to choose a particular copy of a shared component). close: one level up. close_all: back to the model root. Needed before selecting or grouping entities inside a group. Locked instances and Live Components cannot be opened. Cannot be used inside an atomic batch_execute (it splits SketchUp's undo operation).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["open", "close", "close_all"]},
+                    "id": {"$use": "id", "description": "Group/component to open."},
+                    "path": {"$use": "path"}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "geometry_measure",
+            "title": "Measure",
+            "runs_on": "bridge",
+            "handler_key": "geometry_measure",
+            "mutates": false,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Face#area", "Sketchup::Edge#length", "Sketchup::Group#volume", "Sketchup::Group#manifold?", "Sketchup::Model#raytest"],
+            "description": "Measure in world units. ids: combined world bounds, total face area (true world area even inside scaled/rotated nested groups; groups/components measure everything inside them), total edge length, face/edge counts, and solid volume (manifold groups/components only; non-solids are listed). points: segment lengths, total and straight distance of a polyline. raytest: cast a ray from origin along direction and report what it hits (point, distance, entity id, path), e.g. find the floor below a point or what a wall faces; max_hits > 1 lists everything along the ray.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids"},
+                    "measure": {"type": "array", "items": {"type": "string", "enum": ["bounds", "area", "volume", "length", "counts"]}, "description": "What to measure for ids (default bounds, area, volume)."},
+                    "points": {"$use": "points", "description": "A polyline to measure."},
+                    "raytest": {
+                        "type": "object",
+                        "properties": {
+                            "origin": {"$use": "point"},
+                            "direction": {"$use": "direction"},
+                            "include_hidden": {"type": "boolean", "description": "Hit hidden geometry too (default false)."},
+                            "max_hits": {"type": "integer", "minimum": 1, "maximum": 50, "description": "Default 1."}
+                        },
+                        "required": ["origin", "direction"]
+                    },
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "geometry_draw",
+            "title": "Draw Geometry",
+            "runs_on": "bridge",
+            "handler_key": "geometry_draw",
+            "mutates": true,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#add_face", "Sketchup::Entities#add_edges", "Sketchup::Entities#add_line", "Sketchup::Entities#add_circle", "Sketchup::Entities#add_arc", "Sketchup::Entities#add_ngon", "Sketchup::Face#pushpull", "Sketchup::Face#reverse!", "Sketchup::Entities#add_group"],
+            "description": "Draw lines and planar shapes, optionally filled and extruded. kind: line (2 points), polyline (points, closed?), rectangle (2 opposite corners on a plane parallel to XY/XZ/YZ, or 3 points: corner, end of first side, point setting the second side), circle / polygon (center, radius, normal, segments/sides), arc (center, radius, x_axis = start direction, normal, start_angle, end_angle in degrees), face (points = outer loop, holes = inner loops). Closed shapes are filled unless fill_face:false; extrude pushes the face by that distance along its normal. Face normals follow the right-hand rule of the points (counter-clockwise from above = up) or 'normal', never SketchUp's ground-plane quirk, so extrude > 0 goes up for a CCW footprint. Closed shapes default to wrap_in:'group' (never merges with existing geometry); lines default to 'none' (they split faces they are drawn on). Returns the new group's id, or the new face/edge ids when unwrapped. Pass name for wrapped shapes: it is how the user finds them in the Outliner.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": ["line", "polyline", "rectangle", "circle", "arc", "polygon", "face"]},
+                    "points": {"$use": "points"},
+                    "closed": {"type": "boolean", "description": "polyline: join the last point to the first (and fill)."},
+                    "center": {"$use": "point"},
+                    "radius": {"type": "number", "description": "circle/arc/polygon radius."},
+                    "normal": {"$use": "direction", "description": "Plane normal for circle/arc/polygon (default [0,0,1])."},
+                    "x_axis": {"$use": "direction", "description": "arc: direction of the 0-degree point (default [1,0,0])."},
+                    "start_angle": {"type": "number", "description": "arc start, degrees (default 0)."},
+                    "end_angle": {"type": "number", "description": "arc end, degrees (e.g. 90)."},
+                    "sides": {"type": "integer", "minimum": 3, "maximum": 360, "description": "polygon sides (default 6)."},
+                    "segments": {"type": "integer", "minimum": 3, "maximum": 720, "description": "Curve segments (default 24)."},
+                    "holes": {"type": "array", "items": {"$use": "points"}, "description": "face: inner loops to cut out."},
+                    "fill_face": {"type": "boolean", "description": "Create the face for closed shapes (default true)."},
+                    "extrude": {"type": "number", "description": "Push/pull the new face by this distance along its normal."},
+                    "parent_id": {"$use": "parent_id"},
+                    "path": {"$use": "path"},
+                    "coords": {"$use": "coords"},
+                    "wrap_in": {"type": "string", "enum": ["group", "component", "none"], "description": "Container for the new geometry (default group for closed shapes, none for lines)."},
+                    "name": {"$use": "name"},
+                    "definition_name": {"type": "string", "description": "Definition name when wrap_in is component."},
+                    "tag": {"$use": "tag"},
+                    "material": {"$use": "material"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["kind"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "geometry_create_solid",
+            "title": "Create Solid",
+            "runs_on": "bridge",
+            "handler_key": "geometry_create_solid",
+            "mutates": true,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#add_group", "Sketchup::Group#transformation=", "Sketchup::Face#reverse!", "Sketchup::Edge#soft=", "Sketchup::Edge#smooth=", "Geom::Transformation.axes"],
+            "description": "Create a closed solid in its own group (or component): box (size [x, y, z]), cylinder, cone, prism, pyramid (radius, height; prism/pyramid use sides), tube (radius, inner_radius, height), sphere, hemisphere (radius), torus (radius to tube centre, minor_radius). Faces point outward, curved surfaces are softened, the result is manifold (ready for solid_boolean and volume). position is where the anchor goes: corner = min corner (default for box), base_center (default for most), center (default for sphere/torus). Orientation: rotation_z (degrees about the solid's own vertical) and/or z_axis / x_axis. The group's own axes follow the solid, so later rotate/scale edits behave naturally. Works in any parent at any depth. Always pass name (what the user would call it): it is how they find it in the Outliner.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "shape": {"type": "string", "enum": ["box", "cylinder", "cone", "sphere", "hemisphere", "prism", "pyramid", "tube", "torus"]},
+                    "size": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "box: [width x, depth y, height z]."},
+                    "radius": {"type": "number"},
+                    "height": {"type": "number"},
+                    "inner_radius": {"type": "number", "description": "tube: hole radius."},
+                    "minor_radius": {"type": "number", "description": "torus: tube radius."},
+                    "sides": {"type": "integer", "minimum": 3, "maximum": 360, "description": "prism/pyramid sides (default 6)."},
+                    "segments": {"type": "integer", "minimum": 3, "maximum": 360, "description": "Curve resolution (default 24)."},
+                    "position": {"$use": "point", "description": "Where the anchor point goes (default [0,0,0])."},
+                    "anchor": {"type": "string", "enum": ["corner", "base_center", "center"]},
+                    "rotation_z": {"type": "number", "description": "Degrees about the solid's vertical axis."},
+                    "z_axis": {"$use": "direction", "description": "The solid's up direction (default [0,0,1])."},
+                    "x_axis": {"$use": "direction", "description": "The solid's width direction."},
+                    "parent_id": {"$use": "parent_id"},
+                    "path": {"$use": "path"},
+                    "coords": {"$use": "coords"},
+                    "wrap_in": {"type": "string", "enum": ["group", "component"], "description": "Default group."},
+                    "name": {"$use": "name"},
+                    "definition_name": {"type": "string"},
+                    "description": {"type": "string", "description": "Component description."},
+                    "tag": {"$use": "tag"},
+                    "material": {"$use": "material"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["shape"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "geometry_create_mesh",
+            "title": "Create Mesh",
+            "runs_on": "bridge",
+            "handler_key": "geometry_create_mesh",
+            "mutates": true,
+            "timeout_s": 300,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#add_face", "Sketchup::Entities#add_group"],
+            "description": "Build arbitrary geometry fast from a vertex list and polygons (indices into vertices, 3+ each, counter-clockwise seen from outside). Uses SketchUp's EntitiesBuilder (2022+): vertices and edges are shared, nothing merges with existing geometry. Non-planar polygons are split into triangles automatically. smooth:true softens edges between faces meeting at less than smooth_angle (default 30 degrees). Up to 50,000 polygons per call; wrapped in a new group by default. Always pass name: it is how the user finds it in the Outliner. Faces are made consistent and closed shells are turned outward, so a closed mesh is a real solid whatever the winding; the result reports open shells.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "vertices": {"$use": "points"},
+                    "polygons": {"type": "array", "items": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 3}},
+                    "smooth": {"type": "boolean"},
+                    "smooth_angle": {"type": "number", "minimum": 0, "maximum": 180},
+                    "parent_id": {"$use": "parent_id"},
+                    "path": {"$use": "path"},
+                    "coords": {"$use": "coords"},
+                    "wrap_in": {"type": "string", "enum": ["group", "component", "none"]},
+                    "name": {"$use": "name"},
+                    "definition_name": {"type": "string"},
+                    "tag": {"$use": "tag"},
+                    "material": {"$use": "material"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["vertices", "polygons"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "geometry_extrude",
+            "title": "Push/Pull or Follow Me",
+            "runs_on": "bridge",
+            "handler_key": "geometry_extrude",
+            "mutates": true,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Face#pushpull", "Sketchup::Face#followme", "Sketchup::Entities#add_curve", "Sketchup::Entities#erase_entities"],
+            "description": "Extrude existing faces. mode pushpull: face_ids pushed by distance along each face's front normal (negative = the other way; copy:true keeps the original face, like Ctrl). Distances are world distances even inside scaled groups. mode followme: sweep profile_face_id along a path - either path_edge_ids (edges in the same context as the face) or path_points (world points; drawn in the face's context and removed afterwards unless keep_path). Typical uses: mouldings, cornices, gutters, handrails, pipes, pierced openings.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "mode": {"type": "string", "enum": ["pushpull", "followme"]},
+                    "face_ids": {"$use": "ids", "description": "pushpull: faces to push."},
+                    "distance": {"type": "number", "description": "pushpull distance."},
+                    "copy": {"type": "boolean", "description": "pushpull: leave the starting face in place."},
+                    "profile_face_id": {"$use": "id", "description": "followme: the profile face."},
+                    "path_edge_ids": {"$use": "ids", "description": "followme: connected path edges."},
+                    "path_points": {"$use": "points", "description": "followme: path as points (instead of edges)."},
+                    "keep_path": {"type": "boolean", "description": "followme with path_points: keep the drawn path edges."},
+                    "coords": {"$use": "coords"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["mode"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "geometry_edit",
+            "title": "Edit Geometry",
+            "runs_on": "bridge",
+            "handler_key": "geometry_edit",
+            "mutates": true,
+            "timeout_s": 300,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Edge#soft=", "Sketchup::Edge#smooth=", "Sketchup::Edge#find_faces", "Sketchup::Face#reverse!", "Sketchup::Entities#erase_entities", "Sketchup::Entities#intersect_with"],
+            "description": "Clean up or modify faces and edges. operation: soften_edges (soft+smooth where faces meet under angle, default 20 degrees), harden_edges, hide_edges, show_edges, reverse_faces, find_faces (heal missing faces on edges), erase_stray_edges (edges with no face), merge_coplanar_faces (remove edges between coplanar faces with the same materials), intersect (Intersect Faces: the groups in ids with each other, or mode with_context with everything around them; new edges go inside each group). ids may be faces, edges or groups/components (then everything inside, recursively unless recursive:false). Editing inside a component changes every copy; make_unique:true isolates the targeted instances first.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "operation": {"type": "string", "enum": ["soften_edges", "harden_edges", "hide_edges", "show_edges", "reverse_faces", "find_faces", "erase_stray_edges", "merge_coplanar_faces", "intersect"]},
+                    "ids": {"$use": "ids"},
+                    "angle": {"type": "number", "minimum": 0, "maximum": 180, "description": "soften_edges threshold in degrees."},
+                    "recursive": {"type": "boolean", "description": "Include nested groups (default true)."},
+                    "make_unique": {"type": "boolean", "description": "Give shared components their own definition first."},
+                    "mode": {"type": "string", "enum": ["with_each_other", "with_context"], "description": "intersect partner (default with_each_other)."},
+                    "include_hidden": {"type": "boolean", "description": "intersect: use hidden geometry too."}
+                },
+                "required": ["operation", "ids"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "solid_boolean",
+            "title": "Solid Boolean",
+            "runs_on": "bridge",
+            "handler_key": "solid_boolean",
+            "mutates": true,
+            "timeout_s": 300,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Group#union", "Sketchup::Group#subtract", "Sketchup::Group#intersect", "Sketchup::Group#trim", "Sketchup::Group#split", "Sketchup::Group#outer_shell", "Sketchup::Group#manifold?"],
+            "description": "Solid Tools (SketchUp Pro/Studio). target_id is the solid you keep; tool_ids are the other solids, applied in turn. union / intersect / outer_shell merge them; subtract cuts the tools out of the target (result = target minus tools; tools are consumed unless keep_tools); trim cuts the target by the tools and keeps the tools; split returns up to three solids (overlap, target minus tool, tool minus target). All operands must be manifold groups/components in the same parent. The result is a NEW group that inherits the target's name, tag, material, shadow settings and attributes (new id: use the returned id). If the result would be empty or the target would vanish, nothing changes and you get an error instead. Pass every tool in one call (tool_ids) rather than one call per tool. Checked before SketchUp runs: a non-solid operand is described (open edges, internal faces), an inside-out one is refused, and tools that do not reach the target are skipped. SketchUp's engine is slow on dense curved meshes (thousands of faces can take 30 s or more) and can fail or leave holes there: let cutters pass 1 mm beyond the faces they cut and keep segment counts modest.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "operation": {"type": "string", "enum": ["union", "subtract", "intersect", "trim", "split", "outer_shell"]},
+                    "target_id": {"$use": "id", "description": "The solid being kept / cut."},
+                    "tool_ids": {"$use": "ids", "description": "Cutters / other solids."},
+                    "keep_tools": {"type": "boolean", "description": "Keep a copy of the tool solids (default false)."},
+                    "result_name": {"type": "string", "description": "Outliner name for the result (default: the target's name; an unnamed target gives e.g. \"Cut solid 4000 x 215 x 2400\")."}
+                },
+                "required": ["operation", "target_id", "tool_ids"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "annotation_create",
+            "title": "Create Annotation",
+            "runs_on": "bridge",
+            "handler_key": "annotation_create",
+            "mutates": true,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#add_text", "Sketchup::Entities#add_3d_text", "Sketchup::Entities#add_dimension_linear", "Sketchup::Entities#add_dimension_radial", "Sketchup::Entities#add_cline", "Sketchup::Entities#add_cpoint"],
+            "description": "Add annotation. kind: text (leader text at point; leader_vector = offset to the label, leader:false hides the leader), text_3d (3D letters as geometry in their own group: text, height, extrusion, font, bold, italic, filled, align; placed with position / rotation_z / x_axis / z_axis like geometry_create_solid), dimension_linear (start, end, offset_vector = where the dimension line sits), dimension_radial (arc_edge_id = an edge of a circle/arc, leader_point), guide_line (start and end, or start and direction; stipple), guide_point (point). Positions are world by default. Pass name for text_3d so the user can find it in the Outliner.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": ["text", "text_3d", "dimension_linear", "dimension_radial", "guide_line", "guide_point"]},
+                    "text": {"type": "string"},
+                    "point": {"$use": "point"},
+                    "leader_vector": {"$use": "vector", "description": "text: offset from point to the label (default 300 mm each axis)."},
+                    "leader": {"type": "boolean", "description": "text: show the leader line (default true)."},
+                    "start": {"$use": "point"},
+                    "end": {"$use": "point"},
+                    "offset_vector": {"$use": "vector", "description": "dimension_linear: offset of the dimension line (default 500 mm in -Y)."},
+                    "arc_edge_id": {"$use": "id"},
+                    "leader_point": {"$use": "point"},
+                    "direction": {"$use": "direction", "description": "guide_line through start in this direction (infinite)."},
+                    "stipple": {"type": "string", "enum": ["-", ".", "_", "-.-", ""], "description": "guide_line pattern."},
+                    "height": {"type": "number", "description": "text_3d letter height."},
+                    "extrusion": {"type": "number", "description": "text_3d depth (0 = flat)."},
+                    "font": {"type": "string", "description": "text_3d font (default Arial)."},
+                    "bold": {"type": "boolean"},
+                    "italic": {"type": "boolean"},
+                    "filled": {"type": "boolean", "description": "text_3d faces (default true)."},
+                    "align": {"type": "string", "enum": ["left", "center", "right"]},
+                    "position": {"$use": "point", "description": "text_3d origin."},
+                    "rotation_z": {"type": "number"},
+                    "x_axis": {"$use": "direction"},
+                    "z_axis": {"$use": "direction"},
+                    "parent_id": {"$use": "parent_id"},
+                    "path": {"$use": "path"},
+                    "coords": {"$use": "coords"},
+                    "wrap_in": {"type": "string", "enum": ["group", "component"], "description": "text_3d container."},
+                    "name": {"$use": "name"},
+                    "tag": {"$use": "tag"},
+                    "material": {"$use": "material", "description": "text_3d group material."},
+                    "units": {"$use": "units"}
+                },
+                "required": ["kind"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "image_place",
+            "title": "Place Image",
+            "runs_on": "bridge",
+            "handler_key": "image_place",
+            "mutates": true,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#add_image", "Sketchup::Image#transform!", "Sketchup::Image#explode"],
+            "description": "Place an image file (png, jpg, bmp, tif, gif, psd, tga) in the model at real size, e.g. a site plan, elevation drawing or reference photo to model over. width in the call's units (height follows the image's proportions unless given). Lies flat on XY at position by default; normal (and x_axis) stand it up, e.g. normal [0,-1,0] faces the front. as_textured_face:true explodes it into a face carrying the image as a texture.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute path to the image file."},
+                    "position": {"$use": "point", "description": "Lower-left corner (default [0,0,0])."},
+                    "width": {"type": "number"},
+                    "height": {"type": "number"},
+                    "normal": {"$use": "direction"},
+                    "x_axis": {"$use": "direction"},
+                    "as_textured_face": {"type": "boolean"},
+                    "parent_id": {"$use": "parent_id"},
+                    "coords": {"$use": "coords"},
+                    "tag": {"$use": "tag"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["path", "width"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "section_plane",
+            "title": "Section Plane",
+            "runs_on": "bridge",
+            "handler_key": "section_plane",
+            "mutates": true,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#add_section_plane", "Sketchup::SectionPlane#activate", "Sketchup::Entities#active_section_plane=", "Sketchup::SectionPlane#set_plane"],
+            "description": "Section planes. create: point + normal (the side the normal points to is cut away, e.g. normal [0,0,1] at floor height + 1200 mm gives a plan cut), name, symbol (3 chars), activate (default true). activate: id. deactivate: id or parent_id (switches the cut off in that context). update: id with name/symbol/flip. List existing ones with entity_query types ['SectionPlane']; control their display with view_set section_display.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["create", "activate", "deactivate", "update"]},
+                    "point": {"$use": "point"},
+                    "normal": {"$use": "direction"},
+                    "name": {"type": "string", "description": "Outliner name, e.g. \"Section A-A\" (default: SketchUp's own \"Section 1\", \"Section 2\"...)."},
+                    "symbol": {"type": "string", "maxLength": 3},
+                    "activate": {"type": "boolean"},
+                    "id": {"$use": "id"},
+                    "flip": {"type": "boolean", "description": "update: reverse the cut direction."},
+                    "parent_id": {"$use": "parent_id"},
+                    "coords": {"$use": "coords"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "group_create",
+            "title": "Make Group",
+            "runs_on": "bridge",
+            "handler_key": "group_create",
+            "mutates": true,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#add_group", "Sketchup::Group#to_component"],
+            "description": "Group existing entities (or make them a component with as_component). The entities must all be in the ACTIVE context (open their parent with context_set first if they are inside a group). Optional name, definition_name, description, tag, material for the new group/component. Returns its id and placement. Always pass name: it is how the user finds it in the Outliner.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids"},
+                    "as_component": {"type": "boolean"},
+                    "name": {"$use": "name"},
+                    "definition_name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "tag": {"$use": "tag"},
+                    "material": {"$use": "material"}
+                },
+                "required": ["ids"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "component_place",
+            "title": "Place Component",
+            "runs_on": "bridge",
+            "handler_key": "component_place",
+            "mutates": true,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#add_instance", "Sketchup::DefinitionList#load"],
+            "description": "Place instances of a component: by definition name, definition_id, or skp_path (loads a .skp file as a component definition, e.g. from a component library). position (or positions for many copies at once), rotation_z in degrees, optional x_axis / z_axis, and scale [sx, sy, sz] in the component's own axes (negative mirrors). Placed at world coordinates in any parent at any depth. Returns the new instance ids.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "definition": {"type": "string", "description": "Component definition name."},
+                    "definition_id": {"$use": "id"},
+                    "skp_path": {"type": "string", "description": "Absolute path of a .skp to load as a component."},
+                    "position": {"$use": "point"},
+                    "positions": {"$use": "points", "description": "Several insertion points (one instance each)."},
+                    "rotation_z": {"type": "number"},
+                    "x_axis": {"$use": "direction"},
+                    "z_axis": {"$use": "direction"},
+                    "scale": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "parent_id": {"$use": "parent_id"},
+                    "path": {"$use": "path"},
+                    "coords": {"$use": "coords"},
+                    "name": {"$use": "name"},
+                    "tag": {"$use": "tag"},
+                    "material": {"$use": "material"},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "component_manage",
+            "title": "Manage Components",
+            "runs_on": "bridge",
+            "handler_key": "component_manage",
+            "mutates": true,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::ComponentInstance#make_unique", "Sketchup::ComponentInstance#definition=", "Sketchup::ComponentInstance#explode", "Sketchup::Group#explode", "Sketchup::ComponentDefinition#save_as", "Sketchup::ComponentDefinition#behavior"],
+            "description": "Component and group housekeeping. action: make_unique (ids get their own definitions), replace_definition (swap component instances in ids to to_definition / to_definition_id), explode (ids; returns the released entity ids), rename_definition (definition + new_name), set_definition_properties (definition + description and/or behavior: glue_to none/any/horizontal/vertical/sloped, cuts_opening, always_face_camera, shadows_face_sun, is2d, no_scale_mask), save_definition_as (definition + .skp path; overwrite), reset_scale (ids keep position and rotation but lose scaling).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["make_unique", "replace_definition", "explode", "rename_definition", "set_definition_properties", "save_definition_as", "reset_scale"]},
+                    "ids": {"$use": "ids"},
+                    "definition": {"type": "string"},
+                    "definition_id": {"$use": "id"},
+                    "to_definition": {"type": "string"},
+                    "to_definition_id": {"$use": "id"},
+                    "new_name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "behavior": {
+                        "type": "object",
+                        "properties": {
+                            "glue_to": {"type": "string", "enum": ["none", "any", "horizontal", "vertical", "sloped"]},
+                            "cuts_opening": {"type": "boolean"},
+                            "always_face_camera": {"type": "boolean"},
+                            "shadows_face_sun": {"type": "boolean"},
+                            "is2d": {"type": "boolean"},
+                            "no_scale_mask": {"type": "integer"}
+                        }
+                    },
+                    "path": {"type": "string", "description": "save_definition_as: .skp path."},
+                    "overwrite": {"type": "boolean"}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "entity_transform",
+            "title": "Transform",
+            "runs_on": "bridge",
+            "handler_key": "entity_transform",
+            "mutates": true,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Group#transform!", "Sketchup::ComponentInstance#transform!", "Sketchup::Entities#transform_entities", "Sketchup::Group#copy", "Geom::Transformation.rotation", "Geom::Transformation.scaling", "Geom::Transformation.translation"],
+            "description": "Move, rotate, scale or mirror entities in world space, optionally as copies or arrays. operations run in order, each {type, ...}: translate {vector}; move_to {position, anchor: origin (single group/component, default then) | bounds_min (default otherwise) | bounds_center | bounds_bottom_center}; rotate {angle degrees, axis (default [0,0,1]), center (default: bounds centre)}; scale {factors [sx,sy,sz] or a number, center}; mirror {normal, center}. Works for groups, components, images and loose geometry at any nesting depth. copies:N makes N copies each moved one step further (a linear or polar array: translate for rows, rotate for rings); copy:true makes one copy. Returns ids and the new world bounds. Do not include an entity together with a group that contains it.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids"},
+                    "operations": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string", "enum": ["translate", "move_to", "rotate", "scale", "mirror"]},
+                                "vector": {"$use": "vector"},
+                                "position": {"$use": "point"},
+                                "anchor": {"type": "string", "enum": ["origin", "bounds_min", "bounds_center", "bounds_bottom_center"]},
+                                "angle": {"type": "number", "description": "Degrees, counter-clockwise about axis."},
+                                "axis": {"$use": "direction"},
+                                "center": {"$use": "point"},
+                                "factors": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                                "normal": {"$use": "direction"}
+                            },
+                            "required": ["type"]
+                        }
+                    },
+                    "copy": {"type": "boolean"},
+                    "copies": {"type": "integer", "minimum": 0, "maximum": 1000},
+                    "units": {"$use": "units"}
+                },
+                "required": ["ids", "operations"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "entity_delete",
+            "title": "Delete",
+            "runs_on": "bridge",
+            "handler_key": "entity_delete",
+            "mutates": true,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Entities#erase_entities"],
+            "description": "Erase entities (faces, edges, groups, components, text, dimensions, guides, section planes, images) by id. One undo step (model_undo brings them back). Materials, tags, scenes and definitions are removed with their own tools. Open groups must be closed first.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids"}
+                },
+                "required": ["ids"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "entity_set_properties",
+            "title": "Set Properties",
+            "runs_on": "bridge",
+            "handler_key": "entity_set_properties",
+            "mutates": true,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Drawingelement#layer=", "Sketchup::Drawingelement#hidden=", "Sketchup::Group#locked=", "Sketchup::Drawingelement#casts_shadows=", "Sketchup::Drawingelement#receives_shadows="],
+            "description": "Set Entity Info properties on many entities at once: name (groups/components), tag (created if missing; \"Untagged\" clears it), hidden, locked (groups/components), casts_shadows, receives_shadows, soft / smooth (edges). Entities that do not have a property are skipped and reported. To paint use material_apply.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids"},
+                    "name": {"type": "string"},
+                    "tag": {"$use": "tag"},
+                    "hidden": {"type": "boolean"},
+                    "locked": {"type": "boolean"},
+                    "casts_shadows": {"type": "boolean"},
+                    "receives_shadows": {"type": "boolean"},
+                    "soft": {"type": "boolean"},
+                    "smooth": {"type": "boolean"}
+                },
+                "required": ["ids"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "attributes_get",
+            "title": "Get Attributes",
+            "runs_on": "bridge",
+            "handler_key": "attributes_get",
+            "mutates": false,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Entity#attribute_dictionaries", "Sketchup::AttributeDictionary#each_pair"],
+            "description": "Read attribute dictionaries (custom data stored in the .skp) from entities, component definitions (by their id) and/or the model (model:true). Filter by dictionary and key. Dynamic Components keep their parameters in the 'dynamic_attributes' dictionary; IFC classification data also lives in dictionaries.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids"},
+                    "model": {"type": "boolean", "description": "Read the model's own dictionaries."},
+                    "dictionary": {"type": "string"},
+                    "key": {"type": "string"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "attributes_set",
+            "title": "Set Attributes",
+            "runs_on": "bridge",
+            "handler_key": "attributes_set",
+            "mutates": true,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Entity#set_attribute", "Sketchup::Entity#delete_attribute"],
+            "description": "Write attribute values into a dictionary on entities, definitions (by id) and/or the model (model:true). values = {key: value}; a null value deletes that key; delete_dictionary:true removes the whole dictionary. Values may be strings, numbers, booleans or arrays of those (objects are refused: JSON-encode them).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids"},
+                    "model": {"type": "boolean"},
+                    "dictionary": {"type": "string"},
+                    "values": {"type": "object"},
+                    "delete_dictionary": {"type": "boolean"}
+                },
+                "required": ["dictionary"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "material_manage",
+            "title": "Manage Material",
+            "runs_on": "bridge",
+            "handler_key": "material_manage",
+            "mutates": true,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Materials#add", "Sketchup::Materials#remove", "Sketchup::Material#color=", "Sketchup::Material#alpha=", "Sketchup::Material#texture=", "Sketchup::Material#name="],
+            "description": "Create or update (upsert, default), delete or rename a material. color \"#RRGGBB\" or a SketchUp colour name; alpha 0-1 (1 = opaque); texture_path with texture_width / texture_height in the call's units (width alone keeps the image's proportions). SketchUp 2025+ PBR: metallic and roughness factors 0-1, normal_texture_path + normal_scale, ao_texture_path + ao_strength, metallic_texture_path, roughness_texture_path. Deleting a material returns anything painted with it to default. Painting is material_apply.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["upsert", "delete", "rename"]},
+                    "name": {"type": "string"},
+                    "new_name": {"type": "string"},
+                    "color": {"type": "string", "description": "\"#RRGGBB\" or a SketchUp colour name."},
+                    "alpha": {"type": "number", "minimum": 0, "maximum": 1},
+                    "texture_path": {"type": "string"},
+                    "texture_width": {"type": "number"},
+                    "texture_height": {"type": "number"},
+                    "metallic": {"type": "number", "minimum": 0, "maximum": 1},
+                    "roughness": {"type": "number", "minimum": 0, "maximum": 1},
+                    "normal_texture_path": {"type": "string"},
+                    "normal_scale": {"type": "number", "minimum": 0},
+                    "ao_texture_path": {"type": "string"},
+                    "ao_strength": {"type": "number", "minimum": 0, "maximum": 1},
+                    "metallic_texture_path": {"type": "string"},
+                    "roughness_texture_path": {"type": "string"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["name"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "material_apply",
+            "title": "Paint",
+            "runs_on": "bridge",
+            "handler_key": "material_apply",
+            "mutates": true,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Drawingelement#material=", "Sketchup::Face#back_material="],
+            "description": "Paint entities with a material (name, \"#RRGGBB\" plain colour created on demand, or \"none\" to clear). mode entity (default): the entities themselves - faces take side front/back/both, groups/components pass their material to any default-painted faces inside. mode faces_inside: paint every face inside the given groups/components, recursively (like a deep paint bucket); shared components change in every copy unless make_unique:true.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "material": {"$use": "material"},
+                    "ids": {"$use": "ids"},
+                    "side": {"type": "string", "enum": ["front", "back", "both"]},
+                    "mode": {"type": "string", "enum": ["entity", "faces_inside"]},
+                    "make_unique": {"type": "boolean"}
+                },
+                "required": ["material", "ids"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "tag_manage",
+            "title": "Manage Tags",
+            "runs_on": "bridge",
+            "handler_key": "tag_manage",
+            "mutates": true,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Layers#add", "Sketchup::Layers#remove", "Sketchup::Layer#visible=", "Sketchup::Layer#color=", "Sketchup::Layer#name=", "Sketchup::Model#active_layer="],
+            "description": "Tags (layers). action: create (name or names; optional visible, color, line_style, folder), update (name + new_name / visible / color / line_style / folder, \"\" folder = top level), delete (name or names; contents move to Untagged unless delete_contents:true), set_active, isolate (show only these tags), show_all, create_folder / delete_folder (folder path like \"Site/Existing\"; deleting keeps its tags). Untagged cannot be renamed, deleted or hidden. To tag entities use entity_set_properties tag.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["create", "update", "delete", "set_active", "isolate", "show_all", "create_folder", "delete_folder"]},
+                    "name": {"type": "string"},
+                    "names": {"type": "array", "items": {"type": "string"}},
+                    "new_name": {"type": "string"},
+                    "visible": {"type": "boolean"},
+                    "color": {"type": "string", "description": "\"#RRGGBB\"."},
+                    "line_style": {"type": "string", "description": "Line style name (collection_list line_styles)."},
+                    "folder": {"type": "string", "description": "Folder path, e.g. \"Site/Existing\"."},
+                    "delete_contents": {"type": "boolean"}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "scene_manage",
+            "title": "Manage Scenes",
+            "runs_on": "bridge",
+            "handler_key": "scene_manage",
+            "mutates": true,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Pages#add", "Sketchup::Pages#erase", "Sketchup::Pages#selected_page=", "Sketchup::Page#update", "Sketchup::Page#transition_time="],
+            "description": "Scenes (pages). action: create (captures the current view; pass camera / standard_view / zoom / zoom_ids to set the view first; name, description, index, uses, activate), update (re-capture a scene from the current view, optionally after setting the camera), delete, activate (instant, no transition), rename (new_name), reorder (index; 2025+), set_properties (description, transition_time, delay_time, include_in_animation, uses). uses = what the scene remembers: {camera, rendering_options, shadow_info, hidden_geometry, hidden_objects, hidden_layers, section_planes, axes, environment} (omitted = everything).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["create", "update", "delete", "activate", "rename", "reorder", "set_properties"]},
+                    "name": {"type": "string"},
+                    "new_name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "index": {"type": "integer", "minimum": 0},
+                    "uses": {
+                        "type": "object",
+                        "properties": {
+                            "camera": {"type": "boolean"}, "rendering_options": {"type": "boolean"}, "shadow_info": {"type": "boolean"},
+                            "hidden_geometry": {"type": "boolean"}, "hidden_objects": {"type": "boolean"}, "hidden_layers": {"type": "boolean"},
+                            "section_planes": {"type": "boolean"}, "axes": {"type": "boolean"}, "environment": {"type": "boolean"}
+                        }
+                    },
+                    "transition_time": {"type": "number"},
+                    "delay_time": {"type": "number"},
+                    "include_in_animation": {"type": "boolean"},
+                    "activate": {"type": "boolean"},
+                    "camera": {"$use": "camera"},
+                    "standard_view": {"$use": "standard_view"},
+                    "zoom": {"type": "string", "enum": ["extents", "selection"]},
+                    "zoom_ids": {"$use": "ids"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "view_get",
+            "title": "Get View",
+            "runs_on": "bridge",
+            "handler_key": "view_get",
+            "mutates": false,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::View#camera", "Sketchup::Camera#eye", "Sketchup::Camera#target", "Sketchup::View#vpwidth", "Sketchup::Model#rendering_options"],
+            "description": "Current view state: camera (eye, target, up, direction, perspective and fov, or parallel height), viewport size in pixels, active scene, style, shadow summary. include rendering_options / shadow_info for every key and value (the keys view_set accepts), sections for the active section planes.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "include": {"type": "array", "items": {"type": "string", "enum": ["camera", "style", "shadows", "rendering_options", "shadow_info", "sections"]}},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "view_set",
+            "title": "Set View",
+            "runs_on": "bridge",
+            "handler_key": "view_set",
+            "mutates": true,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::View#camera=", "Sketchup::Camera#set", "Sketchup::View#zoom", "Sketchup::View#zoom_extents", "Sketchup::RenderingOptions#[]=", "Sketchup::ShadowInfo#[]=", "Sketchup::Styles#selected_style="],
+            "description": "Change the view. Camera: camera {eye, target, up, perspective, fov, ortho_height}, standard_view (top, front, iso...; aimed at zoom_ids or the whole model), zoom extents/selection, zoom_ids. Look: face_style (wireframe, hidden_line, shaded, shaded_with_textures, monochrome; applied just after this call), xray, show_hidden_geometry, section_display {planes, cuts}, rendering_options {Key: value} for any key view_get lists. Sun: shadows {on, time \"2026-06-21T14:00:00\", light, dark, use_sun_for_shading, on_ground, on_faces, or raw ShadowInfo keys}. style (name), style_file (.style path to add and select), update_style (save changes into the style), environment (2025+). Rendering, shadow and style changes are one undo step.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "camera": {"$use": "camera"},
+                    "standard_view": {"$use": "standard_view"},
+                    "zoom": {"type": "string", "enum": ["extents", "selection"]},
+                    "zoom_ids": {"$use": "ids"},
+                    "face_style": {"type": "string", "enum": ["wireframe", "hidden_line", "shaded", "shaded_with_textures", "monochrome"]},
+                    "xray": {"type": "boolean"},
+                    "show_hidden_geometry": {"type": "boolean"},
+                    "section_display": {"type": "object", "properties": {"planes": {"type": "boolean"}, "cuts": {"type": "boolean"}}},
+                    "rendering_options": {"type": "object", "description": "Raw RenderingOptions keys, e.g. {\"DrawSilhouettes\": false, \"BackgroundColor\": \"#FFFFFF\"}."},
+                    "shadows": {"type": "object", "description": "on, time, light, dark, use_sun_for_shading, on_ground, on_faces, or raw ShadowInfo keys."},
+                    "style": {"type": "string"},
+                    "style_file": {"type": "string"},
+                    "update_style": {"type": "boolean"},
+                    "environment": {"type": "string"},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "view_capture",
+            "title": "Capture View",
+            "runs_on": "bridge",
+            "handler_key": "view_capture",
+            "mutates": false,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::View#write_image", "Sketchup::View#camera="],
+            "description": "See the model: renders the view to an image and returns it to you. Use it to check your work after modelling, and before describing a model. Default 1280 x 800 PNG (smaller costs fewer tokens). Optional camera / standard_view / zoom / zoom_ids aim the shot and the user's view is restored afterwards (restore_view:false leaves it); scene activates that scene first (it stays active). save_path also saves the file (overwrite to replace). transparent background (png), line_scale for thicker lines in large images.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "width": {"type": "integer", "minimum": 64, "maximum": 16000},
+                    "height": {"type": "integer", "minimum": 64, "maximum": 16000},
+                    "format": {"type": "string", "enum": ["png", "jpg"]},
+                    "transparent": {"type": "boolean"},
+                    "antialias": {"type": "boolean"},
+                    "jpeg_quality": {"type": "number", "minimum": 0.1, "maximum": 1},
+                    "line_scale": {"type": "number", "minimum": 0.1, "maximum": 10},
+                    "camera": {"$use": "camera"},
+                    "standard_view": {"$use": "standard_view"},
+                    "zoom": {"type": "string", "enum": ["extents", "selection"]},
+                    "zoom_ids": {"$use": "ids"},
+                    "scene": {"type": "string"},
+                    "restore_view": {"type": "boolean"},
+                    "save_path": {"type": "string"},
+                    "overwrite": {"type": "boolean"},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "model_undo",
+            "title": "Undo / Redo",
+            "runs_on": "bridge",
+            "handler_key": "model_undo",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup.undo"],
+            "description": "Undo or redo the last steps (Edit > Undo / Redo). Every model-changing call of this server is exactly one step named \"MCP: ...\", so steps:1 undoes your last call. Careful: if the user has worked in between, their steps are undone too.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["undo", "redo"]},
+                    "steps": {"type": "integer", "minimum": 1, "maximum": 50}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "sketchup_send_action",
+            "title": "Send Action",
+            "runs_on": "bridge",
+            "handler_key": "sketchup_send_action",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup.send_action"],
+            "description": "Trigger a native SketchUp command by its documented action name, e.g. select a tool for the user (selectPushPullTool:, selectMoveTool:), toggle axes or hidden geometry display. Runs asynchronously just after this call returns, and Sketchup.send_action is deprecated from SketchUp 2026.2: prefer the dedicated tools (view_set, model_undo, camera...). Only the names in the enum (from SketchUp's documentation) are accepted.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["showRubyPanel:", "viewBack:", "viewBottom:", "viewFront:", "viewIso:", "viewLeft:", "viewRight:", "viewTop:", "viewPerspective:", "viewShowAxes:", "viewShowHidden:", "viewZoomExtents:", "viewZoomToSelection:", "viewUndo:", "selectOrbitTool:", "selectPositionCameraTool:", "selectDollyTool:", "selectTurnTool:", "selectWalkTool:", "selectZoomTool:", "selectFieldOfViewTool:", "selectZoomWindowTool:", "pageAdd:", "pageDelete:", "pageUpdate:", "pageNext:", "pagePrevious:", "renderWireframe:", "renderHiddenLine:", "renderMonochrome:", "renderShaded:", "renderTextures:", "selectArcTool:", "selectArc3PointTool:", "selectArc3PointPieTool:", "selectAxisTool:", "selectCircleTool:", "selectEraseTool:", "selectFreehandTool:", "selectLineTool:", "selectMeasureTool:", "selectMoveTool:", "selectOffsetTool:", "selectPaintTool:", "selectPolygonTool:", "selectProtractorTool:", "selectPushPullTool:", "selectRectangleTool:", "selectRectangle3PointTool:", "selectRotateTool:", "selectScaleTool:", "selectSectionPlaneTool:", "selectTextTool:", "selectDimensionTool:", "selectExtrudeTool:", "selectSelectionTool:", "editUndo:", "editRedo:", "editHide:", "editUnhide:", "fixNonPlanarFaces:", "getPhotoTexture:", "selectImageIglooTool:", "selectNorthTool:", "showExtensionStore:"]}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "ruby_eval",
+            "title": "Ruby",
+            "runs_on": "bridge",
+            "handler_key": "ruby_eval",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 300,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+            "api": [],
+            "description": "Run Ruby inside SketchUp for anything the other tools do not cover (bulk queries, custom geometry, calling the user's own Na__ plugins). Ready locals: model, entities (active), selection, view. The last expression's value is returned (plus 'value' when it is plain JSON data), with anything printed. Runs as one undo step and is rolled back entirely on any error (transaction:false to skip). Before writing code, verify every API method with ruby_api_lookup: the code is linted against the official API index and unknown methods are returned as warnings. SketchUp lengths are inches internally (use 2400.mm, x.to_mm); angles are radians (90.degrees). Coordinates inside an open group are world coordinates. Modal dialogs are auto-answered; code cannot be interrupted, so avoid long loops. Refused when the user switched eval off or enabled read-only mode.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string"},
+                    "transaction": {"type": "boolean", "description": "Wrap in one undo step, rolled back on error (default true)."},
+                    "operation_name": {"type": "string", "description": "Undo step name (default 'Ruby')."},
+                    "max_result_chars": {"type": "integer", "minimum": 100, "maximum": 200000}
+                },
+                "required": ["code"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "asset_library",
+            "title": "Asset Library",
+            "runs_on": "bridge",
+            "handler_key": "asset_library",
+            "mutates": false,
+            "timeout_s": 300,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::DefinitionList#load", "Sketchup::Model#start_operation", "Sketchup::Model#abort_operation", "Sketchup::ComponentDefinition#save_thumbnail"],
+            "description": "Adam's component library, used the way the Component Editor Tools Gallery and Index use it (needs Na Noble3d Modelling Tools). The library root is the Gallery's library folder; its top folders are sets (default Na__CoreLib__3dAssets). Convention: NN__Category/NN_S000__Series/NN_NNNN__Series__Item__Descriptor__Type-01__Size__.skp, NN mirrors the SSOT tag numbers, and the component inside is named exactly like the file. action: overview (sets, category and series folders, counts, next free code per series, tag and taxonomy maps, recent journals), browse (files with code, folder and cached gallery data; filter folder, category, series, kind, query; paged), get (one file: definition name, size in mm, description, Na__ComponentLibrary data and a naming check; include_thumbnail returns the Gallery thumbnail), next_code (the next free NN_NNNN in a series or family, with neighbours and the name template), check_name (a name against the convention, codes already taken included), audit (stragglers, duplicate codes, prefix and folder mismatches, bad names, suggested fixes; deep opens files to compare the name inside). Read-only: files are opened in an operation that is always rolled back, so the open model never changes.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["overview", "browse", "get", "next_code", "check_name", "audit"]},
+                    "set": {"type": "string", "description": "Library set: a top folder of the library (default Na__CoreLib__3dAssets) or its Gallery alias."},
+                    "folder": {"type": "string", "description": "Folder inside the set, e.g. \"13__Building__Roof/13_2000__ChimneyPots\"."},
+                    "category": {"type": "string", "description": "Category number or folder, e.g. \"13\" or \"13__Building__Roof\"."},
+                    "series": {"type": "string", "description": "Series code or folder, e.g. \"13_2000\"."},
+                    "family": {"type": "string", "description": "Allocate inside a family: \"13_20\" = 2000-2099, \"60_03\" = 0300-0399."},
+                    "query": {"type": "string", "description": "browse: text in the file name, gallery name, definition name, category or type."},
+                    "kind": {"type": "string", "enum": ["filed", "placeholder", "short_code", "letter_code", "old_prefix", "prefix_only", "unfiled", "uncoded"]},
+                    "path": {"type": "string", "description": "get: the .skp, absolute or relative to the library root."},
+                    "name": {"type": "string", "description": "check_name: a file or definition name."},
+                    "deep": {"type": "boolean", "description": "get (default true): open the file for the definition name, size and library data. audit: open up to deep_limit files to compare the name inside with the file name."},
+                    "deep_limit": {"type": "integer", "minimum": 1, "maximum": 200},
+                    "include_thumbnail": {"type": "boolean", "description": "get: return the Gallery thumbnail image."},
+                    "include_blocked": {"type": "boolean", "description": "Include blocked folders such as 00__Archive and 00__Retired."},
+                    "count": {"type": "integer", "minimum": 1, "maximum": 20, "description": "next_code: how many free codes to list."},
+                    "limit": {"$use": "limit"},
+                    "offset": {"$use": "offset"}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "asset_library_edit",
+            "title": "Asset Library Edit",
+            "runs_on": "bridge",
+            "handler_key": "asset_library_edit",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 300,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::DefinitionList#load", "Sketchup::DefinitionList#unique_name", "Sketchup::Model#start_operation", "Sketchup::Model#abort_operation", "Sketchup::ComponentDefinition#save_as"],
+            "description": "Change Adam's component library through the Component Editor Tools rules (needs Na Noble3d Modelling Tools). action: save (a component from the open model, by definition, definition_id or instance_id, into folder / series / category; code defaults to the next free one; name = the segments after the code; library_data gallery_name, category, type, notes; the file's component is named like the file and a blank category / type is filled from the folder; rename_in_model also renames it in the model as one undo step), rename (path to code, name, new_name and/or new_folder: file and component renamed together), move (path to new_folder), update (library_data, description, def_name), archive (zip a file into its set's 00__Archive as <name>__30-Sep-2026.zip, checked before the original leaves), create_folder (NN__Category or NN_S000__Series), apply_plan (many steps checked together first; dry_run defaults to true; then applied in order within time_budget_s), revert (a journal), refresh (make an open Gallery re-scan). Every change is journaled under <library>/00__Archive/00__McpLibraryJournals with byte copies of rewritten files, so revert restores the originals; nothing is deleted. Refuses existing targets, codes used twice, names that break the convention (force accepts them) and files placed in the open model (allow_in_use). Not allowed in batch_execute. Agree names and codes with the user before saving or renaming.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["save", "rename", "move", "update", "archive", "create_folder", "apply_plan", "revert", "refresh"]},
+                    "set": {"type": "string", "description": "Library set: a top folder of the library (default Na__CoreLib__3dAssets) or its Gallery alias."},
+                    "folder": {"type": "string", "description": "save: the folder inside the set it goes in. create_folder: the folder to make."},
+                    "category": {"type": "string", "description": "Category number or folder, e.g. \"13\" or \"13__Building__Roof\"."},
+                    "series": {"type": "string", "description": "Series code or folder, e.g. \"13_2000\"."},
+                    "family": {"type": "string", "description": "Allocate inside a family: \"13_20\" = 2000-2099, \"60_03\" = 0300-0399."},
+                    "path": {"type": "string", "description": "rename / move / update / archive: the file, absolute or relative to the library root."},
+                    "definition": {"type": "string", "description": "save: the component definition's name in the open model."},
+                    "definition_id": {"$use": "id"},
+                    "instance_id": {"$use": "id", "description": "save: a placed instance whose component is saved."},
+                    "code": {"type": "string", "description": "NN_NNNN. save: omit to take the next free code in the series or family."},
+                    "name": {"type": "string", "description": "save / rename: the segments after the code, e.g. \"Roof__RidgeFinial__FleurDeLis__Type-02\" (the code and trailing __ are added)."},
+                    "new_name": {"type": "string", "description": "rename: the whole new name (instead of code / name)."},
+                    "new_folder": {"type": "string", "description": "rename / move: the destination folder inside the set."},
+                    "def_name": {"type": "string", "description": "The component inside the file: \"auto\" (default) = named like the file, \"keep\" = leave it, or a name."},
+                    "library_data": {"type": "object", "description": "Na__ComponentLibrary fields: gallery_name, category, type, notes, truevision_valid (\"true\"/\"false\"), code (override) and custom keys."},
+                    "description": {"type": "string"},
+                    "fill_taxonomy": {"type": "boolean", "description": "save (default true): fill a blank category / type from the folder."},
+                    "rename_in_model": {"type": "boolean", "description": "save: also rename the component in the open model to its library name (one undo step)."},
+                    "overwrite": {"type": "boolean", "description": "save: replace an existing file (the old one is kept in the journal)."},
+                    "allow_in_use": {"type": "boolean", "description": "Edit a file whose component is placed in the open model (the placed copy is what gets written)."},
+                    "force": {"type": "boolean", "description": "Accept names that break the convention."},
+                    "plan": {"type": "object", "description": "apply_plan: {title, steps: [{op, from, to, path, library_data, def_name, why}]}; op is create_folder, rename_folder, move_file, archive_file, rename_asset or update_asset. Paths relative to the library root are safest."},
+                    "plan_file": {"type": "string", "description": "apply_plan: a JSON plan file instead of plan."},
+                    "journal": {"type": "string", "description": "revert: the journal to undo. apply_plan: continue a paused or failed journal."},
+                    "dry_run": {"type": "boolean", "description": "apply_plan defaults to true (check only, change nothing); the other actions default to false."},
+                    "allow_duplicate_codes": {"type": "boolean"},
+                    "time_budget_s": {"type": "number", "minimum": 5, "maximum": 240, "description": "apply_plan: stop between steps after this long (default 45)."}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "ruby_api_lookup",
+            "title": "SketchUp API Lookup",
+            "runs_on": "server",
+            "handler_key": "ruby_api_lookup",
+            "mutates": false,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": [],
+            "description": "Look up the official SketchUp Ruby API (2,087 methods, 156 classes and modules, up to SketchUp 2026.1, from SketchUp's own ruby-api-stubs) so you never guess a method. query: a class ('Sketchup::Face'), a method ('Face#pushpull', 'Sketchup.send_action', 'pushpull'), or words ('section plane', 'exporter options') -> signatures, version added, summary, parameters, return value, example, docs link. code: Ruby to check -> every method name it calls that exists neither in the SketchUp API nor in Ruby core, with suggestions. live:true also asks the running SketchUp whether each method exists there.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "code": {"type": "string"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+                    "include_examples": {"type": "boolean"},
+                    "live": {"type": "boolean"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "batch_execute",
+            "title": "Batch",
+            "runs_on": "bridge",
+            "handler_key": "batch_execute",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 600,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+            "api": [],
+            "description": "Run several tool calls in ONE round trip and ONE undo step. steps: [{\"tool\": \"geometry_create_solid\", \"arguments\": {...}}, ...]. A string argument \"$<step>.<path>\" is replaced by a value from an earlier step's result, e.g. \"$0.id\" or \"$2.ids.0\", so you can create something and then move, paint or tag it in the same batch. atomic (default true): if any step fails, every step is undone and you get each step's outcome. atomic:false keeps the steps that worked (stop_on_error decides whether to continue). model_file and nested batches are not allowed; context_set only when atomic is false. Ideal for building assemblies (walls, stairs, arrays of components) quickly.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "steps": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 200,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "tool": {"type": "string"},
+                                "arguments": {"type": "object"}
+                            },
+                            "required": ["tool"]
+                        }
+                    },
+                    "atomic": {"type": "boolean"},
+                    "stop_on_error": {"type": "boolean"},
+                    "operation_name": {"type": "string", "description": "Undo step name (default 'Batch (n steps)')."}
+                },
+                "required": ["steps"],
+                "additionalProperties": false
+            }
+        }
+    ]
+}

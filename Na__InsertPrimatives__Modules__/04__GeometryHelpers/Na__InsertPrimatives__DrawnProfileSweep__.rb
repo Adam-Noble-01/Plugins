@@ -325,11 +325,32 @@ module Na__InsertPrimatives
     # Raises before anything is touched when a face cannot be planned.
     # ------------------------------------------------------------
     def self.Na__ProfileSweep__RebuildPlan(face, single_subs, run_subs, stop_subs = [])
-        raise 'a profile beside an opening is not supported yet' if face.loops.length > 1
-
         original = face.outer_loop.vertices.map { |vertex| vertex.position }
         raise 'a face around this corner has no usable boundary' if original.length < 3
 
+        # Openings are planned loop by loop and put back by the chamfer's
+        # rebuild (Na__DrawnChamfer__RestoreOpenings), exactly as for a chamfer.
+        holes = face.loops.reject { |loop| loop.outer? }.map do |loop|
+            Na__InsertPrimatives.Na__ProfileSweep__SubstituteLoop(
+                loop.vertices.map { |vertex| vertex.position }, single_subs, run_subs, stop_subs
+            )
+        end
+
+        {
+            :face          => face,
+            :points        => Na__InsertPrimatives.Na__ProfileSweep__SubstituteLoop(original, single_subs, run_subs, stop_subs),
+            :holes         => holes,
+            :normal        => face.normal,
+            :material      => face.material,
+            :back_material => face.back_material,
+            :layer         => face.layer
+        }
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | One Loop's Positions With the Profile's Corners Substituted
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__SubstituteLoop(original, single_subs, run_subs, stop_subs)
         points = []
 
         original.each_with_index do |position, index|
@@ -363,14 +384,7 @@ module Na__InsertPrimatives
             points.concat(ordered)
         end
 
-        {
-            :face          => face,
-            :points        => points,
-            :normal        => face.normal,
-            :material      => face.material,
-            :back_material => face.back_material,
-            :layer         => face.layer
-        }
+        points
     end
     # ---------------------------------------------------------------
 
