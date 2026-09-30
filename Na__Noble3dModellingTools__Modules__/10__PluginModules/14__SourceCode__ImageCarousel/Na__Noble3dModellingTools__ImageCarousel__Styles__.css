@@ -299,6 +299,29 @@ body {
     opacity                             : 1;
 }
 
+/* Quiet note: the model's remembered folder could not be found */
+.naImageViewer__RestoreNote {
+    position                            : absolute;
+    left                                : 50%;
+    bottom                              : 12px;
+    transform                           : translateX(-50%);
+    max-width                           : 90%;
+    padding                             : 5px 12px;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 4px;
+    background                          : var(--naImageViewer__PanelBg);
+    color                               : var(--naImageViewer__MutedText);
+    font-size                           : 12px;
+    overflow-wrap                       : anywhere;
+    pointer-events                      : none;
+    display                             : none;
+    z-index                             : 4;
+}
+
+.naImageViewer__RestoreNote--visible {
+    display                             : block;
+}
+
 /* Reference length input overlay */
 .naImageViewer__RefOverlay {
     position                            : absolute;

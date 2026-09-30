@@ -2,6 +2,9 @@
 **/90__AppCache__TempFilesCache/
 **/Na__DataLib__Cache__*.json
 
+# User Config - per-user, per-PC settings and tool usage logs, never committed
+**/91__UserConfig__LocalOnly/
+
 # Third-party plugin runtime files
 curic_stretch/config/license.dat
 s4u_slice/s4u_slice.txt

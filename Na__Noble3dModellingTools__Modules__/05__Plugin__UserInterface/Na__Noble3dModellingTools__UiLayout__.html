@@ -61,13 +61,18 @@ rendered into the placeholders by Ruby, rather than hardcoded into this HTML.
         <!-- endregion ------------------------------------------------------- -->
 
 
-        <!-- REGION | Shell — persistent search bar -->
+        <!-- REGION | Shell — persistent search bar and quick-launch row -->
+        <!-- Quick launch: the six most-used tools, most used on the left.   -->
+        <!-- Ranked by Ruby from the local tool usage log, not hardcoded.    -->
 
         <div class="naNoble3d__SearchBar">
             <input type="search" id="naNoble3dSearchInput"
                    class="naNoble3d__SearchInput"
                    placeholder="Search all tools..."
                    autocomplete="off" spellcheck="false">
+            <div id="naNoble3dQuickLaunch" class="naNoble3d__QuickLaunch">
+                {{QUICK_LAUNCH_HTML}}
+            </div>
         </div>
 
         <!-- endregion ------------------------------------------------------- -->

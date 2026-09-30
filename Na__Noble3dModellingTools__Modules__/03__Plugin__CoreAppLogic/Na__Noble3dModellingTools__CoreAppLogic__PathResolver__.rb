@@ -70,6 +70,18 @@ module Na__Noble3dModellingTools
             File.join(self.Na__Noble3dModellingTools__UiDirectory, 'Na__Noble3dModellingTools__UiBridge__.js')
         end
 
+        # Per-user, per-PC settings and logs. Git-ignored; never travels with the plugin.
+        def self.Na__Noble3dModellingTools__UserConfigDirectory
+            File.join(self.Na__Noble3dModellingTools__ModulesRoot, '91__UserConfig__LocalOnly')
+        end
+
+        def self.Na__Noble3dModellingTools__ToolUsageLogFilePath
+            File.join(
+                self.Na__Noble3dModellingTools__UserConfigDirectory,
+                'Na__Noble3dModellingTools__UserConfig__ToolUsageLog__.json'
+            )
+        end
+
         def self.Na__Noble3dModellingTools__RootLoaderFilePath
             File.join(self.Na__Noble3dModellingTools__PluginRoot, 'Na__Noble3dModellingTools__Loader__.rb')
         end

@@ -454,7 +454,15 @@
     // REGION | Ruby-to-JS Data In
     // -------------------------------------------------------------------------
 
+    function Na__ImageViewer__ShowRestoreNote(text) {
+        var el = Na__ImageViewer__El('naImageViewer_restoreNote');
+        if (!el) return;
+        el.textContent = text || '';
+        el.classList.toggle('naImageViewer__RestoreNote--visible', !!text);
+    }
+
     function Na__ImageViewer__OnFolderChosen(list) {
+        Na__ImageViewer__ShowRestoreNote('');
         if (!list || !list.length) {
             na_images = [];
             na_index  = -1;
@@ -468,7 +476,8 @@
         Na__ImageViewer__LoadAt(0);
     }
 
-    window.Na__ImageViewer__OnFolderChosen = Na__ImageViewer__OnFolderChosen;
+    window.Na__ImageViewer__OnFolderChosen  = Na__ImageViewer__OnFolderChosen;
+    window.Na__ImageViewer__ShowRestoreNote = Na__ImageViewer__ShowRestoreNote;
     window.SKP_onFolderChosen = function(list) {
         window.Na__ImageViewer__PendingFolderList = list;
         Na__ImageViewer__OnFolderChosen(list);
@@ -524,6 +533,9 @@
 
         if (window.Na__ImageViewer__PendingFolderList) {
             Na__ImageViewer__OnFolderChosen(window.Na__ImageViewer__PendingFolderList);
+        } else if (window.sketchup && window.sketchup.dialog_ready) {
+            // Ask Ruby for this model's remembered folder, if it has one.
+            window.sketchup.dialog_ready();
         }
     }
 

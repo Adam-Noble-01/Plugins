@@ -336,6 +336,59 @@ body {
     color                   : var(--naNoble3d_MutedText);
 }
 
+/* Quick launch: six tiny cards, most-used tool on the left */
+.naNoble3d__QuickLaunch {
+    display                 : grid;
+    grid-template-columns   : repeat(6, minmax(0, 1fr));
+    gap                     : 6px;
+    margin-top              : 8px;
+}
+
+.naNoble3d__QuickCard {
+    min-width               : 0;
+    padding                 : 4px 3px;
+    font                    : inherit;
+    font-size               : 11px;
+    font-weight             : 600;
+    line-height             : 1.3;
+    color                   : var(--naNoble3d_Text);
+    background              : var(--naNoble3d_Bg);
+    border                  : 1px solid var(--naNoble3d_Border);
+    border-radius           : 4px;
+    white-space             : nowrap;
+    overflow                : hidden;
+    text-overflow           : ellipsis;
+    cursor                  : pointer;
+    transition              : border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.naNoble3d__QuickCard:hover {
+    border-color            : var(--naNoble3d_Accent);
+    color                   : var(--naNoble3d_Accent);
+    background              : #fbfdff;
+}
+
+.naNoble3d__QuickCard:active {
+    transform               : scale(0.97);
+}
+
+.naNoble3d__QuickCard:focus-visible {
+    outline                 : 2px solid var(--naNoble3d_Accent);
+    outline-offset          : 1px;
+}
+
+.naNoble3d__QuickLaunchEmpty {
+    grid-column             : 1 / -1;
+    font-size               : 11px;
+    color                   : var(--naNoble3d_MutedText);
+}
+
+@media (max-width: 420px) {
+    .naNoble3d__QuickLaunch {
+        grid-template-columns : repeat(3, minmax(0, 1fr));
+    }
+}
+
 /* endregion ------------------------------------------------------------------- */
 
 

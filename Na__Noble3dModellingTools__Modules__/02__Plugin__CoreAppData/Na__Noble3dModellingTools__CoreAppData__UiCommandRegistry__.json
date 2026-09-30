@@ -5,6 +5,11 @@
     "dialog_width"           : 560,
     "dialog_height"          : 620,
     "dialog_resizable"       : true,
+    "command_schema_notes"   : {
+        "short_name"   : "Required on every command. Ultra-concise label for the quick-launch cards under the search bar: 12 characters max. The Ruby Console warns about a command without one.",
+        "quick_launch" : "Optional, default true. Set false to keep a command off the quick-launch row. Its launches are still counted in the usage log.",
+        "usage_log"    : "Launch counts are kept per user and per PC in 91__UserConfig__LocalOnly/Na__Noble3dModellingTools__UserConfig__ToolUsageLog__.json (git-ignored)."
+    },
     "tabs"                   : [
         {
             "tab_id"          : "selection_tools",
@@ -62,6 +67,8 @@
             "tooltip"           : "Open the Na Noble3d Modelling Tools dialog",
             "status_bar_text"   : "Open Na Noble3d Modelling Tools",
             "menu_text"         : "Open Noble3d Modelling Tools",
+            "short_name"        : "Main Dialog",
+            "quick_launch"      : false,
             "handler_key"       : "open_main_dialog",
             "expose_to_hotkeys" : true
         },
@@ -71,6 +78,7 @@
             "tooltip"           : "Select quad face rings using shortest opposite edges",
             "status_bar_text"   : "Select quad face rings with shortest direction strategy",
             "menu_text"         : "Select Quad Face Rings (Shortest)",
+            "short_name"        : "Ring Short",
             "handler_key"       : "select_quad_face_rings_shortest",
             "expose_to_hotkeys" : true
         },
@@ -80,6 +88,7 @@
             "tooltip"           : "Select quad face rings using longest opposite edges",
             "status_bar_text"   : "Select quad face rings with longest direction strategy",
             "menu_text"         : "Select Quad Face Rings (Longest)",
+            "short_name"        : "Ring Long",
             "handler_key"       : "select_quad_face_rings_longest",
             "expose_to_hotkeys" : true
         },
@@ -89,6 +98,7 @@
             "tooltip"           : "Select quad face rings using largest face-count strategy",
             "status_bar_text"   : "Select quad face rings with largest face-count strategy",
             "menu_text"         : "Select Quad Face Rings (Largest Count)",
+            "short_name"        : "Ring Most",
             "handler_key"       : "select_quad_face_rings_largest",
             "expose_to_hotkeys" : true
         },
@@ -98,6 +108,7 @@
             "tooltip"           : "Select faces/edges similar in shape and size to the current selection, within the active editing level",
             "status_bar_text"   : "Open Select Similar Filter",
             "menu_text"         : "Select Similar Filter",
+            "short_name"        : "Sel Similar",
             "handler_key"       : "select_similar_filter",
             "expose_to_hotkeys" : true
         },
@@ -107,6 +118,7 @@
             "tooltip"           : "Create lattice bars from selected edges with input prompt",
             "status_bar_text"   : "Run Lattice Maker with prompt",
             "menu_text"         : "Lattice Maker (Prompt)",
+            "short_name"        : "Lattice",
             "handler_key"       : "lattice_maker_prompt",
             "expose_to_hotkeys" : true
         },
@@ -116,6 +128,7 @@
             "tooltip"           : "Create lattice bars from selected edges using last values",
             "status_bar_text"   : "Run Lattice Maker with stored values",
             "menu_text"         : "Lattice Maker (Use Last Values)",
+            "short_name"        : "Lattice Last",
             "handler_key"       : "lattice_maker_last",
             "expose_to_hotkeys" : true
         },
@@ -125,6 +138,7 @@
             "tooltip"           : "Group disconnected geometry islands from the active selection",
             "status_bar_text"   : "Auto-group disconnected solid islands",
             "menu_text"         : "Auto Group Utility",
+            "short_name"        : "Auto Group",
             "handler_key"       : "auto_group_utility",
             "expose_to_hotkeys" : true
         },
@@ -134,6 +148,7 @@
             "tooltip"           : "Group each individual face in the selection into its own group",
             "status_bar_text"   : "Auto-group each face into a separate island group",
             "menu_text"         : "Auto Group Face Islands",
+            "short_name"        : "Face Islands",
             "handler_key"       : "auto_group_face_islands",
             "expose_to_hotkeys" : true
         },
@@ -143,6 +158,7 @@
             "tooltip"           : "Create a grouped wire bounding box around the selected objects",
             "status_bar_text"   : "Create a bounding box around selected objects",
             "menu_text"         : "Create Bounding Box",
+            "short_name"        : "Bound Box",
             "handler_key"       : "create_bounding_box",
             "expose_to_hotkeys" : true
         },
@@ -152,6 +168,7 @@
             "tooltip"           : "Convert groups to components or components to groups, at the current level or through every nested level",
             "status_bar_text"   : "Open Group / Component Converter",
             "menu_text"         : "Group / Component Converter",
+            "short_name"        : "Grp / Comp",
             "handler_key"       : "group_component_converter",
             "expose_to_hotkeys" : true
         },
@@ -161,6 +178,7 @@
             "tooltip"           : "Sketch low-poly whitecard hedges, trees and shrubs with live previews",
             "status_bar_text"   : "Open Vegetation Sketcher",
             "menu_text"         : "Vegetation Sketcher",
+            "short_name"        : "Vegetation",
             "handler_key"       : "vegetation_sketcher",
             "expose_to_hotkeys" : true
         },
@@ -170,6 +188,7 @@
             "tooltip"           : "Recursively explode every nested group and component in the current selection",
             "status_bar_text"   : "Open Mega Explode",
             "menu_text"         : "Mega Explode",
+            "short_name"        : "Mega Explode",
             "handler_key"       : "mega_explode",
             "expose_to_hotkeys" : true
         },
@@ -179,6 +198,7 @@
             "tooltip"           : "Load a SketchUp component file and insert it at its original global coordinates",
             "status_bar_text"   : "Insert a component file in place",
             "menu_text"         : "Insert Component In Place",
+            "short_name"        : "Insert Comp",
             "handler_key"       : "insert_component_in_place",
             "expose_to_hotkeys" : true
         },
@@ -188,6 +208,7 @@
             "tooltip"           : "Show the selected object hierarchy with tags in a visual tree dialog",
             "status_bar_text"   : "Open the Entity Tree Reporter",
             "menu_text"         : "Entity Tree Reporter",
+            "short_name"        : "Entity Tree",
             "handler_key"       : "selected_hierarchy_tag_reporter",
             "expose_to_hotkeys" : true
         },
@@ -197,6 +218,7 @@
             "tooltip"           : "Build modelling utility materials from the SSOT materials library",
             "status_bar_text"   : "Load modelling utility materials from standard library",
             "menu_text"         : "Load Modelling Utility Materials",
+            "short_name"        : "Util Mats",
             "handler_key"       : "load_modelling_utility_materials",
             "expose_to_hotkeys" : true
         },
@@ -206,6 +228,7 @@
             "tooltip"           : "Build the standard TrueVision basic materials palette from SSOT",
             "status_bar_text"   : "Load TrueVision materials palette from standard library",
             "menu_text"         : "Load TrueVision Materials Palette",
+            "short_name"        : "TV Mats",
             "handler_key"       : "load_truevision_materials_palette",
             "expose_to_hotkeys" : true
         },
@@ -215,6 +238,7 @@
             "tooltip"           : "Build all Noble Architecture SSOT materials in the active model",
             "status_bar_text"   : "Load all Noble Architecture standard materials",
             "menu_text"         : "Load All Noble Architecture Materials",
+            "short_name"        : "All Mats",
             "handler_key"       : "load_all_noble_architecture_materials",
             "expose_to_hotkeys" : true
         },
@@ -224,6 +248,7 @@
             "tooltip"           : "Build all Noble Architecture standard SketchUp tags from SSOT",
             "status_bar_text"   : "Load all standard tags and line styles from DataLib",
             "menu_text"         : "Load All Tags",
+            "short_name"        : "All Tags",
             "handler_key"       : "load_all_tags",
             "expose_to_hotkeys" : true
         },
@@ -233,6 +258,7 @@
             "tooltip"           : "Build modelling helper tags from SSOT",
             "status_bar_text"   : "Load modelling helper tags from DataLib",
             "menu_text"         : "Load Modeling Helper Tags",
+            "short_name"        : "Helper Tags",
             "handler_key"       : "load_modeling_helper_tags",
             "expose_to_hotkeys" : true
         },
@@ -242,6 +268,7 @@
             "tooltip"           : "Build Layout line thickness tags from SSOT",
             "status_bar_text"   : "Load line thickness tags from DataLib",
             "menu_text"         : "Load Line Thickness Tags",
+            "short_name"        : "Line Tags",
             "handler_key"       : "load_line_thickness_tags",
             "expose_to_hotkeys" : true
         },
@@ -251,6 +278,7 @@
             "tooltip"           : "Build the minimal TrueVision tag set from SSOT",
             "status_bar_text"   : "Load minimal TrueVision tags from DataLib",
             "menu_text"         : "Load TrueVision Minimal Tags",
+            "short_name"        : "TV Min Tags",
             "handler_key"       : "load_truevision_minimal_tags",
             "expose_to_hotkeys" : true
         },
@@ -260,6 +288,7 @@
             "tooltip"           : "Build the full TrueVision tag set from SSOT",
             "status_bar_text"   : "Load all TrueVision tags from DataLib",
             "menu_text"         : "Load TrueVision All Tags",
+            "short_name"        : "TV Tags",
             "handler_key"       : "load_truevision_all_tags",
             "expose_to_hotkeys" : true
         },
@@ -269,6 +298,7 @@
             "tooltip"           : "Check live web status for registered Noble Architecture DataLib files",
             "status_bar_text"   : "Check DataLib raw URL status",
             "menu_text"         : "Check Web Data Status",
+            "short_name"        : "Web Status",
             "handler_key"       : "check_web_status",
             "expose_to_hotkeys" : true
         },
@@ -278,6 +308,7 @@
             "tooltip"           : "Reload Noble3d Ruby files and refresh the active dialog",
             "status_bar_text"   : "Reload Noble3d plugin data and UI",
             "menu_text"         : "Reload Plugin Data",
+            "short_name"        : "Reload",
             "handler_key"       : "reload_plugin_data",
             "expose_to_hotkeys" : true
         },
@@ -287,6 +318,7 @@
             "tooltip"           : "Delete edges shorter than a user-defined threshold using group isolation",
             "status_bar_text"   : "Cull small edges below a length threshold",
             "menu_text"         : "Cull Edges Below Threshold",
+            "short_name"        : "Cull Edges",
             "handler_key"       : "cull_edges_below_threshold",
             "expose_to_hotkeys" : true
         },
@@ -296,6 +328,7 @@
             "tooltip"           : "Activate the 2D camera-based ortho mirror tool",
             "status_bar_text"   : "Activate Ortho Mirror Tool",
             "menu_text"         : "Ortho Mirror Tool",
+            "short_name"        : "Ortho Mirror",
             "handler_key"       : "ortho_mirror_tool",
             "expose_to_hotkeys" : true
         },
@@ -305,6 +338,7 @@
             "tooltip"           : "Offset the perimeter of many selected faces inward at once",
             "status_bar_text"   : "Activate Multiple Offset Tool",
             "menu_text"         : "Multiple Offset Tool",
+            "short_name"        : "Multi Offset",
             "handler_key"       : "multiple_offset_tool",
             "expose_to_hotkeys" : true
         },
@@ -314,6 +348,7 @@
             "tooltip"           : "Open the Image Viewer to browse a selected folder of images",
             "status_bar_text"   : "Open Image Viewer",
             "menu_text"         : "Image Viewer",
+            "short_name"        : "Images",
             "handler_key"       : "image_carousel",
             "expose_to_hotkeys" : true
         },
@@ -323,6 +358,7 @@
             "tooltip"           : "Batch export selected scenes to image files with saved presets and saved scene ticks",
             "status_bar_text"   : "Open Scene Image Exporter",
             "menu_text"         : "Scene Image Exporter",
+            "short_name"        : "Scene Export",
             "handler_key"       : "scene_image_exporter",
             "expose_to_hotkeys" : true
         },
@@ -332,6 +368,7 @@
             "tooltip"           : "Capture scenes into a model, and rebuild scenes from another model without opening it",
             "status_bar_text"   : "Open Scene Data Transfer",
             "menu_text"         : "Scene Data Transfer",
+            "short_name"        : "Scene Data",
             "handler_key"       : "scene_data_transfer",
             "expose_to_hotkeys" : true
         },
@@ -341,6 +378,7 @@
             "tooltip"           : "Serialise every scene in this model into its embedded transfer payload",
             "status_bar_text"   : "Capture this model's scene data for transfer",
             "menu_text"         : "Capture Scene Data",
+            "short_name"        : "Scene Grab",
             "handler_key"       : "scene_data_transfer_capture",
             "expose_to_hotkeys" : true
         },
@@ -350,6 +388,7 @@
             "tooltip"           : "Paint deep nested faces with the active materials tray material, leaving every edge alone",
             "status_bar_text"   : "Open Paint Deep Nested Faces",
             "menu_text"         : "Paint Deep Nested Faces",
+            "short_name"        : "Deep Paint",
             "handler_key"       : "paint_deep_nested_faces",
             "expose_to_hotkeys" : true
         },
@@ -359,6 +398,7 @@
             "tooltip"           : "Paint the selection immediately with the active material using the saved nesting settings",
             "status_bar_text"   : "Paint nested faces with the active material",
             "menu_text"         : "Paint Faces With Active Material",
+            "short_name"        : "Paint Again",
             "handler_key"       : "paint_deep_nested_faces_repeat",
             "expose_to_hotkeys" : true
         },
@@ -368,6 +408,7 @@
             "tooltip"           : "Flatten selected groups/components to a 2D linework group",
             "status_bar_text"   : "Flatten selection to a 2D linework group (Parallel Projection)",
             "menu_text"         : "Flatten 3D To Group",
+            "short_name"        : "Flatten",
             "handler_key"       : "flatten_3d_to_group",
             "expose_to_hotkeys" : true
         },
@@ -377,6 +418,7 @@
             "tooltip"           : "Flatten selected groups/components to a 2D silhouette outline",
             "status_bar_text"   : "Flatten selection to a 2D silhouette outline (Parallel Projection)",
             "menu_text"         : "Flatten 3D To Silhouette",
+            "short_name"        : "Silhouette",
             "handler_key"       : "flatten_3d_to_silhouette",
             "expose_to_hotkeys" : true
         },
@@ -386,6 +428,7 @@
             "tooltip"           : "Import vector linework from a PDF as flattened edges centred at the origin",
             "status_bar_text"   : "Import vector lines from a PDF file",
             "menu_text"         : "PDF Vector Importer",
+            "short_name"        : "PDF Import",
             "handler_key"       : "pdf_vector_importer",
             "expose_to_hotkeys" : true
         },
@@ -395,6 +438,7 @@
             "tooltip"           : "Trace a transparent-background PNG into SketchUp edge linework with a live preview",
             "status_bar_text"   : "Trace a PNG file into SketchUp linework",
             "menu_text"         : "PNG To Linework",
+            "short_name"        : "PNG Lines",
             "handler_key"       : "png_to_linework",
             "expose_to_hotkeys" : true
         },
@@ -404,6 +448,7 @@
             "tooltip"           : "Open one unified pattern dialog for patio, brickwork, stonework, shrub, slate and rosemary tile previews",
             "status_bar_text"   : "Generate pattern linework directly from one selected face",
             "menu_text"         : "Face Pattern Generator",
+            "short_name"        : "Face Pattern",
             "handler_key"       : "face_pattern_generator",
             "expose_to_hotkeys" : true
         },
@@ -413,6 +458,7 @@
             "tooltip"           : "Open the Component Editor dialog to inspect and edit the selected component or group",
             "status_bar_text"   : "Open Component Editor Tools",
             "menu_text"         : "Component Editor Tools",
+            "short_name"        : "Comp Editor",
             "handler_key"       : "open_component_editor",
             "expose_to_hotkeys" : true
         },
@@ -422,6 +468,7 @@
             "tooltip"           : "Selectively remove specific tags from the current selection while preserving all other tag assignments",
             "status_bar_text"   : "Remove specific tags from selected entities while preserving others",
             "menu_text"         : "Untag Specific In Selection",
+            "short_name"        : "Untag",
             "handler_key"       : "untag_specific_in_selection",
             "expose_to_hotkeys" : true
         },
@@ -431,6 +478,7 @@
             "tooltip"           : "Selectively swap specific materials in the current selection with any other model material",
             "status_bar_text"   : "Swap specific materials in selected entities while preserving all other material assignments",
             "menu_text"         : "Material Swap In Selection",
+            "short_name"        : "Mat Swap",
             "handler_key"       : "material_swap_in_selection",
             "expose_to_hotkeys" : true
         },
@@ -440,6 +488,7 @@
             "tooltip"           : "Assign all linear dimension entities to the 90__Dimensions tag.",
             "status_bar_text"   : "Tags all linear dimensions as 90__Dimensions.",
             "menu_text"         : "Tag All Linear Dimensions",
+            "short_name"        : "Tag Dims",
             "handler_key"       : "dimension_utils_tag_dimensions",
             "expose_to_hotkeys" : false
         },
@@ -449,6 +498,7 @@
             "tooltip"           : "Count and optionally delete all dimension entities in the model.",
             "status_bar_text"   : "Counts and deletes all dimension entities from the model.",
             "menu_text"         : "Delete All Dimensions",
+            "short_name"        : "Del Dims",
             "handler_key"       : "dimension_utils_delete_dimensions",
             "expose_to_hotkeys" : false
         },
@@ -458,6 +508,7 @@
             "tooltip"           : "Assign all Sketchup::Text entities (screen text and leader lines) to the 90__Text tag.",
             "status_bar_text"   : "Tags all text and leader entities as 90__Text.",
             "menu_text"         : "Tag All Text and Leaders",
+            "short_name"        : "Tag Text",
             "handler_key"       : "dimension_utils_tag_text_entities",
             "expose_to_hotkeys" : false
         },
@@ -467,6 +518,7 @@
             "tooltip"           : "Count and optionally delete all Sketchup::Text entities (screen text and leader lines) in the model.",
             "status_bar_text"   : "Counts and deletes all text and leader entities from the model.",
             "menu_text"         : "Delete All Text and Leaders",
+            "short_name"        : "Del Text",
             "handler_key"       : "dimension_utils_delete_text_entities",
             "expose_to_hotkeys" : false
         },
@@ -476,6 +528,7 @@
             "tooltip"           : "Hide selected edges and all edges nested inside selected groups and components",
             "status_bar_text"   : "Hide edges throughout the selected hierarchy",
             "menu_text"         : "Hide Nested Edges",
+            "short_name"        : "Hide Edges",
             "handler_key"       : "hide_nested_edges",
             "expose_to_hotkeys" : true
         },
@@ -485,6 +538,7 @@
             "tooltip"           : "Unhide selected edges and all edges nested inside selected groups and components",
             "status_bar_text"   : "Unhide edges throughout the selected hierarchy",
             "menu_text"         : "Unhide Nested Edges",
+            "short_name"        : "Unhide Edges",
             "handler_key"       : "unhide_nested_edges",
             "expose_to_hotkeys" : true
         },
@@ -494,6 +548,7 @@
             "tooltip"           : "Remove smoothing from selected edges and all edges nested inside selected groups and components",
             "status_bar_text"   : "Remove edge smoothing throughout the selected hierarchy",
             "menu_text"         : "Unsmooth Nested Edges",
+            "short_name"        : "Unsmooth",
             "handler_key"       : "unsmooth_nested_edges",
             "expose_to_hotkeys" : true
         },
@@ -503,6 +558,7 @@
             "tooltip"           : "Remove softening from selected edges and all edges nested inside selected groups and components",
             "status_bar_text"   : "Remove edge softening throughout the selected hierarchy",
             "menu_text"         : "Unsoften Nested Edges",
+            "short_name"        : "Unsoften",
             "handler_key"       : "unsoften_nested_edges",
             "expose_to_hotkeys" : true
         },
@@ -512,6 +568,7 @@
             "tooltip"           : "Reverse every selected face whose front currently points away from the camera",
             "status_bar_text"   : "Orient selected faces toward the camera",
             "menu_text"         : "Orient Faces Toward Camera",
+            "short_name"        : "Face Camera",
             "handler_key"       : "orient_faces_toward_camera",
             "expose_to_hotkeys" : true
         },
@@ -521,6 +578,7 @@
             "tooltip"           : "Capture the ortho viewport as a true-scale textured plane",
             "status_bar_text"   : "Open To Scale Ortho Texture Maker",
             "menu_text"         : "To Scale Ortho Texture Maker",
+            "short_name"        : "Ortho Tex",
             "handler_key"       : "to_scale_ortho_texture_maker",
             "expose_to_hotkeys" : true
         },
@@ -530,6 +588,7 @@
             "tooltip"           : "Replace a positioned textured rectangle with a SketchUp Image in the same place",
             "status_bar_text"   : "Convert selected textured planes to images",
             "menu_text"         : "Textured Plane to Image",
+            "short_name"        : "Plane to Img",
             "handler_key"       : "textured_plane_to_image",
             "expose_to_hotkeys" : true
         }

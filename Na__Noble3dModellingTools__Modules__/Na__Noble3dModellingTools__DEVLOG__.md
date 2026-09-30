@@ -3,6 +3,41 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.12 - 30-Sep-2026 - Most-Used Quick Launch Row
+
+- Every tool launch is now counted. Dialog cards, search results, menus and hotkeys all go through `RunCommandById`, so that is where the count is taken. A new row of six tiny cards under the search bar shows your six most-used tools, most used on the left. It re-ranks after every launch. Ties go to the tool used most recently. Hover a card for its full name and launch count.
+- New core module `03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__ToolUsageTracker__.rb` records launches and ranks the row. Tracking errors are logged and never stop a tool from running.
+- Usage log: `91__UserConfig__LocalOnly/Na__Noble3dModellingTools__UserConfig__ToolUsageLog__.json`. It holds one entry per tool: `short_name`, `menu_text`, `count`, `by_source` (`dialog` / `quick_launch` / `menu_hotkey`), `first_used` and `last_used`. Tools are sorted most used first, so the file reads as a ranking. Every command is counted, including ones kept off the row. Edit or delete the file to reset. If the file can't be read, it is renamed `.corrupt-<time>.json` and a new log starts.
+- `**/91__UserConfig__LocalOnly/` is added to `.gitignore`. Usage stays with each user and PC.
+- Registry schema: every command now has a `short_name`, the quick-launch label, 12 characters max. `command_schema_notes` at the top of the registry documents it. Optional `quick_launch: false` keeps a command off the row but still counts it; `open_main_dialog` uses it. A command without a `short_name` falls back to its `menu_text`. The Ruby Console warns when a `short_name` is missing or longer than 12 characters.
+- Validation: SketchUp's bundled Ruby compiled every core file. 24 behaviour checks ran against the real registry: short names, ranking, exclusion, tie-break, the source split, the sorted log file, a hand edit, and recovery from an unreadable file. Chromium rendered the real dialog HTML at 400, 560 and 740 px. There was no horizontal scroll, and quick cards send `quick_launch` while tab cards send `dialog`. All 53 short names fit a card at 560 px. Native SketchUp testing remains with the user.
+
+### Validation Checklist
+- [ ] Close the main dialog, use Reload Plugin Data, then reopen it. The dialog must be reopened so its callback passes the launch source. A hint shows under the search bar until something is used.
+- [ ] Launch a few tools from cards, the menu and a hotkey. The row fills and re-ranks, most used on the left.
+- [ ] Open the usage log and check the counts and the `by_source` split.
+- [ ] `git status` does not list `91__UserConfig__LocalOnly`.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.9.11 - 30-Sep-2026 - Image Viewer Remembers Each Model's Folder
+
+- Image Viewer now saves the chosen folder in the model. It uses a custom model dictionary, `Na__Noble3dModellingTools__ImageCarousel` > `last_folder_state`, as the Notepad plugin does with `na_notebook_dictionary`. If you save the model, then reopen it the next day and open Image Viewer, that job's images load without choosing the folder again.
+- Per model only. A new model, or one with no saved folder, opens empty and waits for **Select Folder**. Another model never loads this model's folder.
+- New module `Na__Noble3dModellingTools__ImageCarousel__ModelPersistence__.rb` holds the dictionary handling. It writes the folder as a small JSON string (`{"schema":1,"folder":"D:/..."}`) and reads it back. The version field leaves room for more fields later. An unreadable value counts as "nothing remembered".
+- When the page is ready it calls a `dialog_ready` callback, and Ruby then loads the saved folder. Before this, Ruby could send images before the page could receive them.
+- If the saved folder can't be found (drive not mapped, folder moved), a small note at the bottom of the canvas gives the path. It is not a popup, and choosing a folder clears it. The Ruby Console also logs it.
+- Choosing a folder is one undo step, *Image Viewer: Remember Folder*. Choosing the same folder again adds no undo step. Select Folder opens the picker at the model's saved folder, if it exists.
+- Cancelling Select Folder now leaves the current images alone. Before, it cleared the viewer.
+- Validation: SketchUp's bundled Ruby compiled all five module files. It ran 22 behaviour checks against a fake model and dialog: round trip, new-model default, reopen-restore, missing-folder note, cancel and undo-step count. Headless Chromium checked the ready handshake and the note. Native SketchUp testing remains with the user.
+
+### Validation Checklist
+- [ ] Reload Plugin Data, open Image Viewer in a saved model, Select Folder, save the model, restart SketchUp, reopen the model and Image Viewer. The same images load.
+- [ ] File > New, then open Image Viewer. It is empty, with "No folder selected".
+- [ ] Rename the saved folder, reopen the model and Image Viewer. A quiet note gives the missing path. Select Folder clears it.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.10 - 28-Sep-2026 - Paintable Wall Vines
 
 - Added **Vines** to Vegetation Sketcher, with **Wisteria**, **Ivy** and **Leafy climber**. Drag along a face to guide a branching stem; release creates one editable whitecard component and one undo step. Esc cancels an unfinished stroke; Enter or Finish ends painting.

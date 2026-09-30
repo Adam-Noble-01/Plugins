@@ -50,6 +50,24 @@ module Na__Noble3dModellingTools
             !!(@na_dialog && @na_dialog.visible?)
         end
 
+        # Re-rank the quick-launch row after a launch. The row is also rendered into
+        # the page, so a script lost during a page load costs nothing.
+        def self.Na__Noble3dModellingTools__RefreshQuickLaunch
+            return false unless self.Na__Noble3dModellingTools__DialogVisible
+
+            script = <<~SCRIPT
+            (function() {
+                var quickLaunchElement = document.getElementById('naNoble3dQuickLaunch');
+                if (quickLaunchElement) { quickLaunchElement.innerHTML = #{na_build_quick_launch_html.to_json}; }
+            })();
+            SCRIPT
+            @na_dialog.execute_script(script)
+            true
+        rescue => error
+            puts "[Na__Noble3dModellingTools] Quick launch refresh warning: #{error.class}: #{error.message}"
+            false
+        end
+
         def self.Na__Noble3dModellingTools__RefreshDialogIfVisible
             return false unless self.Na__Noble3dModellingTools__DialogVisible
 
@@ -74,6 +92,7 @@ module Na__Noble3dModellingTools
                 .gsub('{{LOGO_FILE_URI}}', na_resolve_logo_file_uri)
                 .gsub('{{TAB_BUTTONS_HTML}}', na_build_tab_buttons_html)
                 .gsub('{{TAB_CONTENT_HTML}}', na_build_tab_content_html)
+                .gsub('{{QUICK_LAUNCH_HTML}}', na_build_quick_launch_html)
                 .gsub('{{STYLESHEET_CONTENT}}', stylesheet_content)
                 .gsub('{{UI_BRIDGE_SCRIPT}}', ui_bridge_script)
         end
@@ -101,6 +120,20 @@ module Na__Noble3dModellingTools
                             "onclick='Na__Noble3d__ShowSearchTab(this)'>Search</button>"
 
             (tab_buttons + [search_button]).join("\n        ")
+        end
+
+        def self.na_build_quick_launch_html
+            quick_commands = Na__ToolUsageTracker.Na__Noble3dModellingTools__QuickLaunchCommands
+            return '<span class="naNoble3d__QuickLaunchEmpty">Your most-used tools will appear here.</span>' if quick_commands.empty?
+
+            quick_commands.map do |quick_command|
+                launch_word = quick_command['count'] == 1 ? 'launch' : 'launches'
+                tooltip_text = "#{quick_command['menu_text']} (#{quick_command['count']} #{launch_word})"
+
+                <<~HTML_QUICK_CARD.strip
+                <button type="button" class="naNoble3d__QuickCard" title="#{na_escape_html(tooltip_text)}" onclick='Na__Noble3d__RunCommand(#{quick_command['command_id'].to_json}, "quick_launch")'>#{na_escape_html(quick_command['short_name'])}</button>
+                HTML_QUICK_CARD
+            end.join("\n")
         end
 
         def self.na_build_tab_content_html
@@ -246,8 +279,8 @@ module Na__Noble3dModellingTools
 # -----------------------------------------------------------------------------
 
         def self.na_setup_dialog_callbacks(dialog)
-            dialog.add_action_callback('run_command') do |_context, command_id|
-                command_result = na_run_command_with_module_load(command_id)
+            dialog.add_action_callback('run_command') do |_context, command_id, source|
+                command_result = na_run_command_with_module_load(command_id, source || 'dialog')
                 na_update_status_element(
                     dialog,
                     command_result.fetch(:message, ''),
@@ -256,9 +289,9 @@ module Na__Noble3dModellingTools
             end
         end
 
-        def self.na_run_command_with_module_load(command_id)
+        def self.na_run_command_with_module_load(command_id, source = 'dialog')
             if Na__Noble3dModellingTools.respond_to?(:Na__Noble3dModellingTools__RunCommandById)
-                Na__Noble3dModellingTools.Na__Noble3dModellingTools__RunCommandById(command_id)
+                Na__Noble3dModellingTools.Na__Noble3dModellingTools__RunCommandById(command_id, source)
             else
                 Na__CommandRouter.Na__Noble3dModellingTools__RunCommand(command_id)
             end

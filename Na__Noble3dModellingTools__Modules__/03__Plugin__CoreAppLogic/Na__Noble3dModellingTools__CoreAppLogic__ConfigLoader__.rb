@@ -23,6 +23,8 @@ module Na__Noble3dModellingTools
 # REGION | Default Configuration
 # -----------------------------------------------------------------------------
 
+        NA_SHORT_NAME_MAX_LENGTH = 12
+
         NA_DEFAULT_CONFIG = {
             'extension_name' => 'Na Noble3d Modelling Tools',
             'dialog_title' => 'Na Noble3d Modelling Tools',
@@ -481,6 +483,21 @@ module Na__Noble3dModellingTools
 
             puts "[Na__Noble3dModellingTools] Config path: #{config_file_path}"
             puts "[Na__Noble3dModellingTools] Command visibility: total=#{command_count}, hotkey_visible=#{hotkey_visible_count}"
+            na_log_short_name_diagnostics(commands)
+        end
+
+        # short_name is the quick-launch card label: every command needs one, and it must stay tiny.
+        def self.na_log_short_name_diagnostics(commands)
+            missing_ids = commands.select { |command| command['short_name_missing'] }.map { |command| command['command_id'] }
+            long_names = commands.select { |command| command['short_name'].length > NA_SHORT_NAME_MAX_LENGTH }
+
+            unless missing_ids.empty?
+                puts "[Na__Noble3dModellingTools] Registry schema: add a short_name to #{missing_ids.join(', ')} (using menu_text until then)."
+            end
+
+            long_names.each do |command|
+                puts "[Na__Noble3dModellingTools] Registry schema: short_name '#{command['short_name']}' for #{command['command_id']} is over #{NA_SHORT_NAME_MAX_LENGTH} characters."
+            end
         end
 
         def self.na_normalized_tabs(raw_tabs)
@@ -506,7 +523,10 @@ module Na__Noble3dModellingTools
                     'status_bar_text' => command.fetch('status_bar_text', '').to_s,
                     'menu_text' => command.fetch('menu_text', '').to_s,
                     'handler_key' => command.fetch('handler_key', '').to_s,
-                    'expose_to_hotkeys' => !!command.fetch('expose_to_hotkeys', false)
+                    'expose_to_hotkeys' => !!command.fetch('expose_to_hotkeys', false),
+                    'short_name' => na_short_name_for(command),
+                    'short_name_missing' => command.fetch('short_name', '').to_s.strip.empty?,
+                    'quick_launch' => command.fetch('quick_launch', true) != false
                 }
             end
 
@@ -515,6 +535,14 @@ module Na__Noble3dModellingTools
             end
 
             commands
+        end
+
+        def self.na_short_name_for(command)
+            short_name = command.fetch('short_name', '').to_s.strip
+            return short_name unless short_name.empty?
+
+            fallback_name = command.fetch('menu_text', '').to_s.strip
+            fallback_name.empty? ? command.fetch('command_name', '').to_s.strip : fallback_name
         end
 
         def self.na_normalized_buttons(raw_buttons)

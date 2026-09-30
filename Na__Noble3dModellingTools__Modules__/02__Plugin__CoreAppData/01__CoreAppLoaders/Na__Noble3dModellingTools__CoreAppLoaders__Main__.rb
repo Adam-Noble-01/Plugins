@@ -20,6 +20,7 @@ require 'json'
 require_relative '../../03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__PathResolver__'
 require_relative '../../03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__StandardDataCache__'
 require_relative '../../03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__ConfigLoader__'
+require_relative '../../03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__ToolUsageTracker__'
 require_relative '../02__ModuleLoaders/Na__Noble3dModellingTools__ModuleLoaders__Main__'
 require_relative '../03__PublicAPI/Na__Noble3dModellingTools__PublicAPI__CommandRouter__'
 require_relative '../../03__Plugin__CoreAppLogic/Na__Noble3dModellingTools__CoreAppLogic__DialogManager__'
@@ -53,11 +54,16 @@ module Na__Noble3dModellingTools
         Na__DialogManager.Na__Noble3dModellingTools__ShowDialog
     end
 
-    def self.Na__Noble3dModellingTools__RunCommandById(command_id)
+    # Every launch path comes through here, so this is where tool use is counted.
+    # source: 'dialog', 'quick_launch' or 'menu_hotkey' (menus and hotkeys share UI::Command).
+    def self.Na__Noble3dModellingTools__RunCommandById(command_id, source = 'menu_hotkey')
         Na__StandardDataCache.Na__Noble3dModellingTools__PrimeStandardCache
         feature_modules_loaded = Na__ModuleLoaders.Na__Noble3dModellingTools__LoadFeatureModules
         na_warn_feature_module_load_failure("run_command:#{command_id}") unless feature_modules_loaded
-        Na__CommandRouter.Na__Noble3dModellingTools__RunCommand(command_id)
+        Na__ToolUsageTracker.Na__Noble3dModellingTools__RecordCommandUse(command_id, source)
+        command_result = Na__CommandRouter.Na__Noble3dModellingTools__RunCommand(command_id)
+        Na__DialogManager.Na__Noble3dModellingTools__RefreshQuickLaunch
+        command_result
     end
 
     def self.Na__Noble3dModellingTools__ReloadPluginData

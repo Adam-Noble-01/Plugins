@@ -13,6 +13,10 @@
 # - No @callbacks_set guard is used — callbacks are registered unconditionally
 #   on every new dialog creation to avoid the stale-guard bug where a re-opened
 #   dialog would have no attached callbacks.
+# - The last chosen folder is remembered per model (ModelPersistence). When
+#   the page reports ready, a remembered folder is scanned and shown; a
+#   missing one gets a quiet note on the canvas. A model with nothing
+#   remembered opens empty and waits for Select Folder.
 #
 # =============================================================================
 
@@ -105,6 +109,14 @@ module Na__Noble3dModellingTools
 # -----------------------------------------------------------------------------
 
         def self.na_register_callbacks(dialog)
+            dialog.add_action_callback('dialog_ready') do |_ctx, _param|
+                begin
+                    na_restore_model_folder(dialog)
+                rescue => error
+                    puts "[Na__ImageCarousel] restore folder error: #{error.class}: #{error.message}"
+                end
+            end
+
             dialog.add_action_callback('choose_folder') do |_ctx, _param|
                 begin
                     puts '[Na__ImageCarousel] choose_folder callback reached'
@@ -138,17 +150,34 @@ module Na__Noble3dModellingTools
 # REGION | Callback Handlers
 # -----------------------------------------------------------------------------
 
+        def self.na_restore_model_folder(dialog)
+            folder = Na__ImageCarousel__ModelPersistence.Na__ImageCarousel__ModelPersistence__LoadFolder(Sketchup.active_model)
+            return unless folder
+
+            unless File.directory?(folder)
+                puts "[Na__ImageCarousel] remembered folder not found: #{folder}"
+                note_text = "This model's last image folder was not found: #{na_native_path(folder)}"
+                dialog.execute_script("window.Na__ImageViewer__ShowRestoreNote && window.Na__ImageViewer__ShowRestoreNote(#{note_text.to_json});")
+                return
+            end
+
+            paths = Na__ImageCarousel__FolderScanner.Na__ImageCarousel__FolderScanner__CollectImages(folder)
+            puts "[Na__ImageCarousel] restored model folder: #{folder} (#{paths.length} image(s))"
+            na_push_folder_images_to_dialog(dialog, paths)
+        end
+
         def self.na_handle_folder_selection(dialog)
-            default_dir = Sketchup.read_default(NA_DIALOG_PREFERENCES_KEY, 'last_dir', Dir.home)
+            model_dir   = Na__ImageCarousel__ModelPersistence.Na__ImageCarousel__ModelPersistence__LoadFolder(Sketchup.active_model)
+            default_dir = model_dir && File.directory?(model_dir) ? model_dir : Sketchup.read_default(NA_DIALOG_PREFERENCES_KEY, 'last_dir', Dir.home)
             folder = UI.select_directory(title: 'Select image folder', directory: default_dir)
 
             unless folder
                 puts '[Na__ImageCarousel] folder selection cancelled'
-                dialog.execute_script('window.SKP_onFolderChosen(null);')
                 return
             end
 
             Sketchup.write_default(NA_DIALOG_PREFERENCES_KEY, 'last_dir', folder)
+            Na__ImageCarousel__ModelPersistence.Na__ImageCarousel__ModelPersistence__SaveFolder(Sketchup.active_model, folder)
             paths = Na__ImageCarousel__FolderScanner.Na__ImageCarousel__FolderScanner__CollectImages(folder)
             puts "[Na__ImageCarousel] selected folder: #{folder}"
             puts "[Na__ImageCarousel] image paths found: #{paths.length}"
@@ -176,6 +205,10 @@ module Na__Noble3dModellingTools
                 })();
             JS
             dialog.execute_script(script)
+        end
+
+        def self.na_native_path(path)
+            Sketchup.platform == :platform_win ? path.to_s.tr('/', '\\') : path.to_s
         end
 
         def self.na_open_in_os(path)

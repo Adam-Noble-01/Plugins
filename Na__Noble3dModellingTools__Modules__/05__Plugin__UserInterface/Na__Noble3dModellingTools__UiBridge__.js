@@ -167,14 +167,16 @@
     // REGION | SketchUp Ruby Bridge — Deferred Command Invocation
     // -----------------------------------------------------------------------------
 
-    function Na__Noble3d__RunCommand(commandId) {
+    // source tells the usage log where the launch came from: 'dialog' (a tab or
+    // search card) or 'quick_launch' (the most-used row under the search bar).
+    function Na__Noble3d__RunCommand(commandId, source) {
         if (!window.sketchup || !window.sketchup.run_command) {
             Na__Noble3d__SetStatus('SketchUp bridge unavailable.', 'error');
             return;
         }
 
         Na__Noble3d__SetStatus('Running command: ' + commandId + '...', 'info');
-        window.sketchup.run_command(String(commandId));
+        window.sketchup.run_command(String(commandId), String(source || 'dialog'));
     }
 
     // endregion -------------------------------------------------------------------

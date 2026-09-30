@@ -10,6 +10,7 @@
 # =============================================================================
 
 require_relative 'Na__Noble3dModellingTools__ImageCarousel__FolderScanner__'
+require_relative 'Na__Noble3dModellingTools__ImageCarousel__ModelPersistence__'
 require_relative 'Na__Noble3dModellingTools__ImageCarousel__DialogManager__'
 require_relative 'Na__Noble3dModellingTools__ImageCarousel__Run__'
 
