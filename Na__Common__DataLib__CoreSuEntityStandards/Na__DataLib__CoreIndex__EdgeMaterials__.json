@@ -2,8 +2,8 @@
     "meta": {
         "fileName"               : "Na__DataLib__CoreIndex__EdgeMaterials__.json",
         "description"            : "Single source of truth for all Noble Architecture standard edge linework colours. Used by Na__EdgeUtil__PaintDeepNestedEdges to create SketchUp edge materials and populate the colour palette UI. Each MTE colour key becomes the SketchUp material name when applied to edges.",
-        "version"                : "2.1.0",
-        "lastUpdated"            : "14-Sep-2026",
+        "version"                : "2.3.0",
+        "lastUpdated"            : "29-Sep-2026",
         "sourceFiles"            : [
             "Na__EdgeUtil__PaintDeepNestedEdges__Modules__/Na__EdgeUtil__PaintDeepNestedEdges__EdgeConfigData__.json (v1.0.0 - superseded)"
         ],
@@ -181,6 +181,38 @@
                 "HsbValue"       : [288, 79, 67],
                 "Description"    : "Purple accent - Material Design Purple 800",
                 "SwatchName"     : "Purple"
+            },
+            "MTE206__LineColour__NewPlantingGreen": {
+                "SketchUpName": "MTE206__LineColour__NewPlantingGreen",
+                "HexValue": "#69B36C",
+                "RgbValue": [
+                    105,
+                    179,
+                    108
+                ],
+                "HsbValue": [
+                    122,
+                    41,
+                    70
+                ],
+                "Description": "New planting woodland green: existing woodland ink lightened approximately 20 percent towards white. Shared by the outline and inherited Mixed Woodland hatch ink.",
+                "SwatchName": "New Planting Green"
+            },
+            "MTE207__LineColour__DarkBlue": {
+                "SketchUpName": "MTE207__LineColour__DarkBlue",
+                "HexValue": "#154D8A",
+                "RgbValue": [
+                    21,
+                    77,
+                    138
+                ],
+                "HsbValue": [
+                    211,
+                    85,
+                    54
+                ],
+                "Description": "Dark blue for changed or removed watercourses and water bodies; distinct from the normal water outline blue.",
+                "SwatchName": "Dark Blue"
             },
             "MTE205__LineColour__Blue": {
                 "SketchUpName"   : "MTE205__LineColour__Blue",

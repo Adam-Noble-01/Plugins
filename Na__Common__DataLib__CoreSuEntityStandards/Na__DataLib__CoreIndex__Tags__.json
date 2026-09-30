@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout), SitePlan__ (site plan drawing export).",
-        "version"           : "2.9.0",
-        "lastUpdated"       : "22-Sep-2026",
+        "version"           : "2.11.0",
+        "lastUpdated"       : "29-Sep-2026",
         "namingConvention"  : "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
         "fieldPrefixes"     : {
             "Tag__"    : "Core SketchUp tag identity (name, description)",
@@ -731,6 +731,40 @@
                 "SitePlan__FillHatchId"        : null,
                 "SitePlan__VisibleAtScales"    : [100, 200, 500, 1250, 2500]
             },
+            "71__SitePlan__BaseMap__Waterbodies__Removed": {
+                "Tag__SketchUpName": "71__SitePlan__BaseMap__Waterbodies__Removed",
+                "Tag__Description": "Former outlines of watercourses and water bodies that are changed, diverted, infilled or removed. Dark blue dotted line only, with no water wash or ripple hatch. Put former edges on this tag and retain the normal Waterbodies tag for the new or retained outline.",
+                "Glb__ExportRangeNumbers": null,
+                "Glb__FullyExcluded": true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__EdgeColourRGB": [
+                    21,
+                    77,
+                    138
+                ],
+                "SitePlan__ExportFileNameStem": "TrueVision__SitePlan__WaterbodiesRemoved",
+                "SitePlan__LayerLabel": "Waterbodies Changed / Removed",
+                "SitePlan__LayerGroup": "Base Map",
+                "SitePlan__DrawOrder": 37,
+                "SitePlan__ZIndexLine": 7,
+                "SitePlan__ZIndexFill": null,
+                "SitePlan__ExportFills": false,
+                "SitePlan__LineColourId": "MTE207__LineColour__DarkBlue",
+                "SitePlan__LineType": "dotted",
+                "SitePlan__LineDashScale": 0.5,
+                "SitePlan__LineWeightPt": 1.0,
+                "SitePlan__LineWeightMm": 0.353,
+                "SitePlan__FillColourId": null,
+                "SitePlan__FillMaterialId": null,
+                "SitePlan__FillOpacity": null,
+                "SitePlan__FillHatchId": null,
+                "SitePlan__VisibleAtScales": [
+                    100,
+                    200,
+                    500
+                ],
+                "Layout__LineStyleName": "Dot"
+            },
             "71__SitePlan__BaseMap__Waterbodies": {
                 "Tag__SketchUpName"            : "71__SitePlan__BaseMap__Waterbodies",
                 "Tag__Description"             : "Ponds, lakes, rivers and canals. Draw closed FACES: the face carries the water wash and its Ponds & Lakes hatch, its edges the blue outline.",
@@ -1100,6 +1134,70 @@
                 "SitePlan__FillHatchId"        : null,
                 "SitePlan__VisibleAtScales"    : [100, 200, 500]
             },
+            "74__SitePlan__ExternalWorks__HardSurfaces__Decking": {
+                "Tag__SketchUpName": "74__SitePlan__ExternalWorks__HardSurfaces__Decking",
+                "Tag__Description": "Decking drawn as closed FACES with a pale warm grey-brown wash, RGB 221, 214, 210. Uses the Hard Surfaces outline and fill stacking with no hatch.",
+                "Glb__ExportRangeNumbers": null,
+                "Glb__FullyExcluded": true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__EdgeColourRGB": [
+                    102,
+                    102,
+                    102
+                ],
+                "SitePlan__ExportFileNameStem": "TrueVision__SitePlan__Decking",
+                "SitePlan__LayerLabel": "Decking",
+                "SitePlan__LayerGroup": "External Works",
+                "SitePlan__DrawOrder": 31,
+                "SitePlan__ZIndexLine": 2,
+                "SitePlan__ZIndexFill": 2,
+                "SitePlan__ExportFills": true,
+                "SitePlan__LineColourId": "MTE103__LineColour__DarkGrey__L40",
+                "SitePlan__LineType": "solid",
+                "SitePlan__LineWeightPt": 0.5,
+                "SitePlan__LineWeightMm": 0.176,
+                "SitePlan__FillColourId": null,
+                "SitePlan__FillMaterialId": "MAT809__SitePlan__DeckingBrown",
+                "SitePlan__FillOpacity": 1.0,
+                "SitePlan__FillHatchId": null,
+                "SitePlan__VisibleAtScales": [
+                    100,
+                    200,
+                    500
+                ]
+            },
+            "74__SitePlan__ExternalWorks__HardSurfaces__GravelDriveway": {
+                "Tag__SketchUpName": "74__SitePlan__ExternalWorks__HardSurfaces__GravelDriveway",
+                "Tag__Description": "Gravel driveways and loose stone surfaces drawn as closed FACES. A light warm stone wash with a sparse gravel pattern, using the Hard Surfaces outline and fill stacking.",
+                "Glb__ExportRangeNumbers": null,
+                "Glb__FullyExcluded": true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__EdgeColourRGB": [
+                    102,
+                    102,
+                    102
+                ],
+                "SitePlan__ExportFileNameStem": "TrueVision__SitePlan__GravelDriveway",
+                "SitePlan__LayerLabel": "Gravel Driveway",
+                "SitePlan__LayerGroup": "External Works",
+                "SitePlan__DrawOrder": 32,
+                "SitePlan__ZIndexLine": 2,
+                "SitePlan__ZIndexFill": 2,
+                "SitePlan__ExportFills": true,
+                "SitePlan__LineColourId": "MTE103__LineColour__DarkGrey__L40",
+                "SitePlan__LineType": "solid",
+                "SitePlan__LineWeightPt": 0.5,
+                "SitePlan__LineWeightMm": 0.176,
+                "SitePlan__FillColourId": null,
+                "SitePlan__FillMaterialId": "MAT810__SitePlan__GravelStone",
+                "SitePlan__FillOpacity": 1.0,
+                "SitePlan__FillHatchId": "SitePlanHatch__Gravel",
+                "SitePlan__VisibleAtScales": [
+                    100,
+                    200,
+                    500
+                ]
+            },
             "74__SitePlan__ExternalWorks__HardSurfaces": {
                 "Tag__SketchUpName"            : "74__SitePlan__ExternalWorks__HardSurfaces",
                 "Tag__Description"             : "Driveways, parking areas, paths, patios, terraces and tracks, where the job needs them called out separately from the simple Site Features pair. Draw closed FACES for the light grey hard standing wash (MAT806); its edges the outline.",
@@ -1270,6 +1368,38 @@
                 "SitePlan__FillOpacity"        : 1.0,
                 "SitePlan__FillHatchId"        : null,
                 "SitePlan__VisibleAtScales"    : [100, 200, 500]
+            },
+            "75__SitePlan__SoftLandscape__Trees__MixedWoodland__NewPlanting": {
+                "Tag__SketchUpName": "75__SitePlan__SoftLandscape__Trees__MixedWoodland__NewPlanting",
+                "Tag__Description": "Newly planted mixed woodland and tree belts drawn as closed FACES. Reuses the Mixed Woodland tree pattern with a slightly lighter green wash and lighter green outline and tree symbols.",
+                "Glb__ExportRangeNumbers": null,
+                "Glb__FullyExcluded": true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__EdgeColourRGB": [
+                    105,
+                    179,
+                    108
+                ],
+                "SitePlan__ExportFileNameStem": "TrueVision__SitePlan__TreesMixedWoodlandNewPlanting",
+                "SitePlan__LayerLabel": "Mixed Woodland - New Planting",
+                "SitePlan__LayerGroup": "Soft Landscape",
+                "SitePlan__DrawOrder": 57,
+                "SitePlan__ZIndexLine": 6,
+                "SitePlan__ZIndexFill": 3,
+                "SitePlan__ExportFills": true,
+                "SitePlan__LineColourId": "MTE206__LineColour__NewPlantingGreen",
+                "SitePlan__LineType": "solid",
+                "SitePlan__LineWeightPt": 0.75,
+                "SitePlan__LineWeightMm": 0.265,
+                "SitePlan__FillColourId": null,
+                "SitePlan__FillMaterialId": "MAT808__SitePlan__NewPlantingWoodlandGreen",
+                "SitePlan__FillOpacity": 1.0,
+                "SitePlan__FillHatchId": "SitePlanHatch__MixedWoodland",
+                "SitePlan__VisibleAtScales": [
+                    100,
+                    200,
+                    500
+                ]
             },
             "75__SitePlan__SoftLandscape__Trees__MixedWoodland": {
                 "Tag__SketchUpName"            : "75__SitePlan__SoftLandscape__Trees__MixedWoodland",
@@ -1558,6 +1688,7 @@
             "71__SitePlan__BaseMap__OsMapping__MinorFeature",
             "71__SitePlan__BaseMap__NeighbouringBuildings",
             "71__SitePlan__BaseMap__Waterbodies",
+            "71__SitePlan__BaseMap__Waterbodies__Removed",
             "71__SitePlan__BaseMap__Amendments",
             "71__SitePlan__BaseMap__Contours",
             "72__SitePlan__Boundary__RedLine",
@@ -1573,6 +1704,8 @@
             "73__SitePlan__SiteFeature__Access",
             "73__SitePlan__SiteFeature__Paths",
             "74__SitePlan__ExternalWorks__HardSurfaces",
+            "74__SitePlan__ExternalWorks__HardSurfaces__GravelDriveway",
+            "74__SitePlan__ExternalWorks__HardSurfaces__Decking",
             "74__SitePlan__ExternalWorks__HardSurfaces__Removed",
             "74__SitePlan__ExternalWorks__ParkingAndAccess",
             "74__SitePlan__ExternalWorks__DrainageAndServices",
@@ -1580,6 +1713,7 @@
             "74__SitePlan__ExternalWorks__PathsAndPaving",
             "74__SitePlan__ExternalWorks__StillWater",
             "75__SitePlan__SoftLandscape__Trees__MixedWoodland",
+            "75__SitePlan__SoftLandscape__Trees__MixedWoodland__NewPlanting",
             "75__SitePlan__SoftLandscape__Trees__Existing",
             "75__SitePlan__SoftLandscape__HedgesAndPlanting",
             "75__SitePlan__SoftLandscape__Trees__ToBeRemoved",
@@ -1639,6 +1773,7 @@
             "71__SitePlan__BaseMap__OsMapping__MinorFeature",
             "71__SitePlan__BaseMap__NeighbouringBuildings",
             "71__SitePlan__BaseMap__Waterbodies",
+            "71__SitePlan__BaseMap__Waterbodies__Removed",
             "71__SitePlan__BaseMap__Amendments",
             "71__SitePlan__BaseMap__Contours",
             "72__SitePlan__Boundary__RedLine",
@@ -1654,6 +1789,8 @@
             "73__SitePlan__SiteFeature__Access",
             "73__SitePlan__SiteFeature__Paths",
             "74__SitePlan__ExternalWorks__HardSurfaces",
+            "74__SitePlan__ExternalWorks__HardSurfaces__GravelDriveway",
+            "74__SitePlan__ExternalWorks__HardSurfaces__Decking",
             "74__SitePlan__ExternalWorks__HardSurfaces__Removed",
             "74__SitePlan__ExternalWorks__ParkingAndAccess",
             "74__SitePlan__ExternalWorks__DrainageAndServices",
@@ -1661,6 +1798,7 @@
             "74__SitePlan__ExternalWorks__PathsAndPaving",
             "74__SitePlan__ExternalWorks__StillWater",
             "75__SitePlan__SoftLandscape__Trees__MixedWoodland",
+            "75__SitePlan__SoftLandscape__Trees__MixedWoodland__NewPlanting",
             "75__SitePlan__SoftLandscape__Trees__Existing",
             "75__SitePlan__SoftLandscape__HedgesAndPlanting",
             "75__SitePlan__SoftLandscape__Trees__ToBeRemoved",

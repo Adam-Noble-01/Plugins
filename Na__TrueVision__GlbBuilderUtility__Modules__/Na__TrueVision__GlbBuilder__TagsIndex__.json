@@ -1,5 +1,6 @@
 {
     "tags": [
+        {"name": "71__SitePlan__BaseMap__Waterbodies__Removed", "description": "Former outlines of watercourses and water bodies that are changed, diverted, infilled or removed. Dark blue dotted line only, with no water wash or ripple hatch. Put former edges on this tag and retain the normal Waterbodies tag for the new or retained outline.", "is_site_plan": true, "folder_name": "Site Plan", "line_style_name": "Dot", "edge_colour_rgb": [21, 77, 138]},
         { "name": "01__ModelFlag__FloorLevelLines",      "description": "Floor level reference lines — mesh exported normally, edges suppressed in linework GLB at any nesting depth." },
         { "name": "01__ModelFlag__BuildingJoinLines",    "description": "Building join / party wall reference lines — mesh exported normally, edges suppressed in linework GLB at any nesting depth." },
         { "name": "01__ModelFlag__ElementsForRemoval",   "description": "Geometry earmarked for demolition or removal — fully excluded from both mesh and linework GLB export." },
@@ -40,6 +41,9 @@
         { "name": "73__SitePlan__Buildings__ToBeDemolished", "description": "Buildings To Be Demolished - site plan layer (Site Plan Export only)" },
         { "name": "73__SitePlan__Buildings__Proposed", "description": "Proposed Buildings - site plan layer (Site Plan Export only)" },
         { "name": "73__SitePlan__Buildings__ProposedSecondary", "description": "Proposed Buildings - Secondary - site plan layer (Site Plan Export only)" },
+        {"name": "74__SitePlan__ExternalWorks__HardSurfaces__Decking", "description": "Decking - site plan layer (Site Plan Export only)", "is_site_plan": true, "folder_name": "Site Plan"},
+        {"name": "75__SitePlan__SoftLandscape__Trees__MixedWoodland__NewPlanting", "description": "Mixed Woodland - New Planting - site plan layer (Site Plan Export only)", "is_site_plan": true, "folder_name": "Site Plan"},
+        {"name": "74__SitePlan__ExternalWorks__HardSurfaces__GravelDriveway", "description": "Gravel Driveway - site plan layer (Site Plan Export only)", "is_site_plan": true, "folder_name": "Site Plan"},
         { "name": "74__SitePlan__ExternalWorks__HardSurfaces", "description": "Hard Surfaces - site plan layer (Site Plan Export only)" },
         { "name": "74__SitePlan__ExternalWorks__ParkingAndAccess", "description": "Parking and Access - site plan layer (Site Plan Export only)" },
         { "name": "74__SitePlan__ExternalWorks__DrainageAndServices", "description": "Drainage and Services - site plan layer (Site Plan Export only)" },
