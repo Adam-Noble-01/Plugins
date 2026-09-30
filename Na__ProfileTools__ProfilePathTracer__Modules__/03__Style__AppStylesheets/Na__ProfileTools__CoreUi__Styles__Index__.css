@@ -205,6 +205,129 @@ body {
 /* endregion ----------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------- */
+/* REGION | Path Offsets Row (start / end overshoot) */
+/* ----------------------------------------------------------------- */
+
+/* Start and End on one row, with the swap between them. Labels match the
+   switch row above so the two rows read as one block of placement settings. */
+.na-offset-row {
+    display             : grid;
+    grid-template-columns : 1fr auto 1fr;
+    gap                 : 10px;
+    align-items         : end;
+    margin-bottom       : 4px;
+}
+
+.na-offset-field {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 5px;
+    min-width           : 0;
+}
+
+.na-offset-field__box {
+    display             : flex;
+    align-items         : center;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : #fff;
+    padding-right       : 10px;
+    transition          : border-color 0.12s, box-shadow 0.12s;
+}
+
+.na-offset-field__box:focus-within {
+    border-color        : var(--na-accent);
+    box-shadow          : 0 0 0 2px rgba(26, 115, 232, 0.18);
+}
+
+/* A non-zero offset takes the amber of the dashed overshoot marks the
+   viewport draws, so a value that will change the build is easy to spot. */
+.na-offset-field__box--set {
+    border-color        : #d98c00;
+    background          : #fffaf0;
+}
+
+.na-offset-field__input {
+    flex                : 1;
+    min-width           : 0;
+    border              : none;
+    outline             : none;
+    background          : transparent;
+    padding             : 7px 8px;
+    font-family         : inherit;
+    font-size           : 13px;
+    font-weight         : 600;
+    color               : var(--na-text);
+    text-align          : right;
+}
+
+.na-offset-field__unit {
+    font-size           : 12px;
+    color               : var(--na-subtle);
+}
+
+.na-offset-row__swap {
+    padding             : 6px 10px;
+    font-size           : 14px;
+    line-height         : 1.2;
+}
+
+.na-offset-row__swap[disabled] {
+    opacity             : 0.4;
+    cursor              : default;
+}
+
+.na-offset-row__hint {
+    font-size           : 11px;
+    color               : var(--na-subtle);
+    margin-bottom       : 10px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Selection Preview Strip */
+/* ----------------------------------------------------------------- */
+
+/* Same shape as the bound-trace strip, in the primary green of the Commit
+   button it pairs with: something is on screen, nothing is in the model yet. */
+.na-preview-strip {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 4px;
+    border-left         : 3px solid #008f5a;
+    background          : #eef8f3;
+}
+
+.na-preview-strip__body {
+    display             : flex;
+    align-items         : baseline;
+    flex-wrap           : wrap;
+    gap                 : 8px;
+    min-width           : 0;
+}
+
+.na-preview-strip__label {
+    font-weight         : 700;
+    font-size           : 11px;
+    color               : #00734a;
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+}
+
+.na-preview-strip__summary {
+    font-weight         : 600;
+    color               : var(--na-text);
+}
+
+.na-preview-strip__hint {
+    font-size           : 12px;
+    color               : var(--na-subtle);
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
 /* REGION | Buttons */
 /* ----------------------------------------------------------------- */
 

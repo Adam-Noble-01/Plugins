@@ -24,13 +24,19 @@ module Na__ProfileTools__ProfilePathTracer
             selected_entities = config_hash['pathEntities'] || []
             toggle_states = config_hash['toggleStates'] || {}
 
+            # startOffsetMm / endOffsetMm: signed mm past the run's first / last
+            # point, the same pair the dialog sends. A selected run has no draw
+            # order, so these are simply its traversal start and end.
             result = Na__ProfilePlacementEngine.Na__Engine__BuildFromSelection(
                 profile_key,
                 selected_entities,
                 toggle_states,
                 rotation_step:     config_hash['rotationStep'].to_i % 4,
                 reverse_direction: config_hash['reverseDirection'] == true,
-                origin_offset:     self.Na__Headless__NormalizedOriginOffset(config_hash['originOffset'])
+                origin_offset:     self.Na__Headless__NormalizedOriginOffset(config_hash['originOffset']),
+                path_offsets:      Na__GeometryBuilders.Na__Geometry__NormalisePathOffsets(
+                    'start' => config_hash['startOffsetMm'], 'end' => config_hash['endOffsetMm']
+                )
             )
             result.merge('mode' => NA_HEADLESS_MODE_KEY)
         rescue => error

@@ -98,17 +98,35 @@ module Na__ProfileTools__ProfilePathTracer
                 sanitized_points = sanitized_points[0...-1]
             end
 
+            input_reversed = false
             if resolved_closed_loop
                 sanitized_points = self.Na__Engine__NormaliseInteractiveLoopWinding(sanitized_points)
             else
+                drawn_start      = sanitized_points.first
                 sanitized_points = self.Na__Engine__AlignOpenRunToCanonicalDirection(sanitized_points)
+                input_reversed   = sanitized_points.first.distance(drawn_start) > NA_INTERACTIVE_POINT_MERGE_TOLERANCE
             end
 
+            # input_reversed tells the caller the traversal now runs from the
+            # user's LAST click to their first, so draw-order settings (the path
+            # offsets) can be swapped onto the ends they were typed for.
             {
                 ordered_points: sanitized_points,
                 ordered_edges: [],
-                is_closed_loop: resolved_closed_loop
+                is_closed_loop: resolved_closed_loop,
+                input_reversed: input_reversed
             }
+        end
+
+        # Path offsets are typed in DRAW order — Start is the first click — but
+        # the builder takes them in TRAVERSAL order, and the canonical direction
+        # rule may have reversed the traversal. Swapping here keeps the overshoot
+        # on the end it was typed for, however the run was drawn.
+        def self.Na__Engine__TraversalPathOffsets(path_offsets, input_reversed)
+            offsets = Na__GeometryBuilders.Na__Geometry__NormalisePathOffsets(path_offsets)
+            return nil unless offsets
+            return offsets unless input_reversed == true
+            { 'start' => offsets['end'], 'end' => offsets['start'] }
         end
 
         # OPEN RUNS — canonical traversal by axis sign, no camera anywhere
@@ -221,13 +239,15 @@ module Na__ProfileTools__ProfilePathTracer
             points.first.distance(points.last) <= NA_INTERACTIVE_LOOP_CLOSE_TOLERANCE
         end
 
-        def self.Na__Engine__GenerateFromInteractivePath(profile_key:, profile_data:, path_points:, rotation_step:, toggle_states: {}, reverse_direction: false, origin_offset: nil)
+        # path_offsets arrive in draw order (Start = first click).
+        def self.Na__Engine__GenerateFromInteractivePath(profile_key:, profile_data:, path_points:, rotation_step:, toggle_states: {}, reverse_direction: false, origin_offset: nil, path_offsets: nil)
             model = Sketchup.active_model
             return { 'isBuilt' => false, 'statusMessage' => 'Generation failed: No active model.' } unless model
 
             path_data = self.Na__Engine__BuildPathDataFromInteractivePoints(path_points)
             return { 'isBuilt' => false, 'statusMessage' => 'Generation failed: Add at least two waypoints.' } unless path_data
 
+            input_reversed = path_data[:input_reversed] == true
             start_point = path_data[:ordered_points].first
             self.Na__Engine__GenerateFromPathData(
                 profile_key: profile_key,
@@ -237,12 +257,17 @@ module Na__ProfileTools__ProfilePathTracer
                 rotation_step: rotation_step,
                 toggle_states: toggle_states,
                 reverse_direction: reverse_direction,
-                origin_offset: origin_offset
+                origin_offset: origin_offset,
+                path_offsets: self.Na__Engine__TraversalPathOffsets(path_offsets, input_reversed),
+                offset_ends_swapped: input_reversed
             )
         end
 
+        # A selected run has no draw order, so its offsets are already in
+        # traversal order — the Selection preview labels which end is Start.
         def self.Na__Engine__BuildFromSelection(profile_key, selected_entities, toggle_states = {},
-                                                 rotation_step: 0, reverse_direction: false, origin_offset: nil)
+                                                 rotation_step: 0, reverse_direction: false, origin_offset: nil,
+                                                 path_offsets: nil)
             path_result = Na__PathAnalysis.Na__Path__BuildSegments(selected_entities)
             return { 'isBuilt' => false, 'reason' => path_result[:reason] } unless path_result[:isValid]
 
@@ -264,11 +289,13 @@ module Na__ProfileTools__ProfilePathTracer
                 rotation_step: rotation_step,
                 toggle_states: toggle_states,
                 reverse_direction: reverse_direction,
-                origin_offset: origin_offset
+                origin_offset: origin_offset,
+                path_offsets: path_offsets
             )
         end
 
-        def self.Na__Engine__GenerateFromPathData(profile_key:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, reverse_direction: false, origin_offset: nil)
+        # path_offsets are in TRAVERSAL order here; see Na__Engine__TraversalPathOffsets.
+        def self.Na__Engine__GenerateFromPathData(profile_key:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, reverse_direction: false, origin_offset: nil, path_offsets: nil, offset_ends_swapped: false)
             model = Sketchup.active_model
             return { 'isBuilt' => false, 'statusMessage' => 'Generation failed: No active model.' } unless model
             unless self.Na__Engine__UnifiedProfileRecord?(profile_data)
@@ -297,7 +324,9 @@ module Na__ProfileTools__ProfilePathTracer
                 rotation_step: rotation_step,
                 toggle_states: toggle_states,
                 reverse_direction: reverse_direction,
-                origin_offset: origin_offset
+                origin_offset: origin_offset,
+                path_offsets: path_offsets,
+                offset_ends_swapped: offset_ends_swapped
             )
 
             if result['isBuilt']

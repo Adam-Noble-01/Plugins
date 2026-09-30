@@ -269,4 +269,22 @@
     font-style          : italic;
 }
 
+/* Library mode: the indicator is a live picker, sized to sit exactly where
+   the read-only box sat so the row does not jump between modes. The doubled
+   class outranks the base .naSelect rule, which the index sheet declares
+   after this imported one. */
+.naSelect.na-active-profile-select {
+    min-height          : 34px;
+    font-weight         : 600;
+    color               : var(--na-text);
+    background          : #fafbfc;
+    cursor              : pointer;
+}
+
+.naSelect.na-active-profile-select:focus {
+    outline             : none;
+    border-color        : var(--na-accent);
+    box-shadow          : 0 0 0 2px rgba(26, 115, 232, 0.18);
+}
+
 /* endregion ----------------------------------------------------------------- */

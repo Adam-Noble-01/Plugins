@@ -104,6 +104,32 @@
         }
     }
 
+    // The whole placement (the same shape Generate sends), pushed on every
+    // control change while a preview tool is running so the viewport follows.
+    function Na__ProfilePathTracer__Bridge__UpdateLivePlacement(state) {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_update_live_placement')) {
+            window.sketchup.na_profilepathtracer_update_live_placement(JSON.stringify(state || {}));
+        }
+    }
+
+    // Selection preview only: build what is on screen / leave with nothing built.
+    function Na__ProfilePathTracer__Bridge__CommitLiveTool() {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_commit_live_tool')) {
+            Na__Bridge__SetStatus('Committing the previewed profile...');
+            window.sketchup.na_profilepathtracer_commit_live_tool();
+            return;
+        }
+        Na__Bridge__SetStatus('Commit callback is not available.');
+    }
+
+    function Na__ProfilePathTracer__Bridge__CancelLiveTool() {
+        if (Na__Bridge__HasCallback('na_profilepathtracer_cancel_live_tool')) {
+            window.sketchup.na_profilepathtracer_cancel_live_tool();
+            return;
+        }
+        Na__Bridge__SetStatus('Cancel callback is not available.');
+    }
+
     function Na__ProfilePathTracer__Bridge__ValidateForExport() {
         if (Na__Bridge__HasCallback('na_profilepathtracer_validate_for_export')) {
             Na__Bridge__SetStatus('Validating selection for export...');
@@ -229,6 +255,9 @@
     window.Na__ProfilePathTracer__Bridge__RequestBootstrap        = Na__ProfilePathTracer__Bridge__RequestBootstrap;
     window.Na__ProfilePathTracer__Bridge__Generate                = Na__ProfilePathTracer__Bridge__Generate;
     window.Na__ProfilePathTracer__Bridge__SetReverseDirection     = Na__ProfilePathTracer__Bridge__SetReverseDirection;
+    window.Na__ProfilePathTracer__Bridge__UpdateLivePlacement     = Na__ProfilePathTracer__Bridge__UpdateLivePlacement;
+    window.Na__ProfilePathTracer__Bridge__CommitLiveTool          = Na__ProfilePathTracer__Bridge__CommitLiveTool;
+    window.Na__ProfilePathTracer__Bridge__CancelLiveTool          = Na__ProfilePathTracer__Bridge__CancelLiveTool;
     window.Na__ProfilePathTracer__Bridge__ValidateForExport       = Na__ProfilePathTracer__Bridge__ValidateForExport;
     window.Na__ProfilePathTracer__Bridge__SaveProfile             = Na__ProfilePathTracer__Bridge__SaveProfile;
     window.Na__ProfilePathTracer__Bridge__PickSceneProfile        = Na__ProfilePathTracer__Bridge__PickSceneProfile;

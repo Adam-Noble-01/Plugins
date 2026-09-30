@@ -231,6 +231,34 @@ module Na__ProfileTools__ProfilePathTracer
                 Na__DebugTools.Na__Debug__Error('Set reverse direction callback failed.', error)
             end
 
+            # Every placement control (profile, rotation, mirrors, insert point,
+            # path offsets) pushes the dialog's whole placement here while a
+            # preview tool is running, so the viewport redraws in place.
+            dialog.add_action_callback('na_profilepathtracer_update_live_placement') do |_context, json_payload|
+                live_config = JSON.parse(json_payload.to_s)
+                self.Na__Dialog__HandleLivePlacementUpdate(live_config)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Live placement update callback failed.', error)
+                self.Na__Dialog__SetStatusFromRuby("Preview update failed: #{error.message}")
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_commit_live_tool') do |_context|
+                commit_result = self.Na__Dialog__HandleCommitLiveTool
+                self.Na__Dialog__SendToJs('Na__ProfilePathTracer__ReceiveGenerateResult', commit_result)
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Commit live tool callback failed.', error)
+                self.Na__Dialog__SendToJs(
+                    'Na__ProfilePathTracer__ReceiveGenerateResult',
+                    { 'isStarted' => false, 'statusMessage' => "Commit failed: #{error.message}" }
+                )
+            end
+
+            dialog.add_action_callback('na_profilepathtracer_cancel_live_tool') do |_context|
+                self.Na__Dialog__HandleCancelLiveTool
+            rescue => error
+                Na__DebugTools.Na__Debug__Error('Cancel live tool callback failed.', error)
+            end
+
             dialog.add_action_callback('na_profilepathtracer_pick_scene_profile') do |_context|
                 model = Sketchup.active_model
                 unless model
@@ -895,11 +923,17 @@ module Na__ProfileTools__ProfilePathTracer
 
             profile_key = profile_resolution['profileKey']
             profile_data = profile_resolution['profileData']
+            profile_source_mode = generate_config['profileSourceMode'].to_s
+            profile_source_mode = 'library' if profile_source_mode.empty?
             toggle_states = self.Na__Dialog__NormalizedToggleStates(generate_config)
             rotation_step = generate_config['rotationStep'].to_i % 4
             reverse_direction = generate_config['reverseDirection'] == true
             origin_offset = self.Na__Dialog__NormalizedOriginOffset(generate_config)
+            path_offsets = self.Na__Dialog__NormalizedPathOffsets(generate_config)
 
+            # Selection mode previews before it builds (v1.6.11). The run is read
+            # and checked here, so a bad selection is refused before any tool is
+            # armed; the preview tool builds only when the user commits.
             if path_mode == 'selection'
                 validation = Na__PathAnalysis.Na__Path__BuildSegments(Sketchup.active_model.selection.to_a)
                 unless validation[:isValid]
@@ -915,26 +949,32 @@ module Na__ProfileTools__ProfilePathTracer
                     is_closed_loop: validation[:isClosedLoop]
                 }
 
-                generation_result = Na__ProfilePlacementEngine.Na__Engine__GenerateFromPathData(
-                    profile_key: profile_key,
-                    profile_data: profile_data,
-                    path_data: path_data,
-                    start_point: path_data[:ordered_points].first,
-                    rotation_step: rotation_step,
-                    toggle_states: toggle_states,
-                    reverse_direction: reverse_direction,
-                    origin_offset: origin_offset
+                preview_tool = Na__SelectionPreviewTool.new(
+                    profile_key:         profile_key,
+                    profile_data:        profile_data,
+                    path_data:           path_data,
+                    profile_source_mode: profile_source_mode,
+                    toggle_states:       toggle_states,
+                    rotation_step:       rotation_step,
+                    reverse_direction:   reverse_direction,
+                    origin_offset:       origin_offset,
+                    path_offsets:        path_offsets
                 )
+                Sketchup.active_model.select_tool(preview_tool)
 
+                loop_note = path_data[:is_closed_loop] ? ' Closed loop — the path offsets do not apply.' : ''
                 return {
-                    'isStarted' => generation_result['isBuilt'] == true,
-                    'statusMessage' => generation_result['statusMessage']
+                    'isStarted' => true,
+                    'statusMessage' => 'Previewing the selected path. Change the profile, Reverse, rotation, mirrors or offsets and the ' \
+                                       'preview follows. Commit Profile (or Enter in the viewport) builds it; Cancel (Esc) leaves nothing ' \
+                                       "behind.#{loop_note}"
                 }
             end
 
             model = Sketchup.active_model
             interactive_tool = Na__PathSelectionTool.new(
-                profile_key, profile_data, toggle_states, rotation_step, reverse_direction, origin_offset
+                profile_key, profile_data, toggle_states, rotation_step, reverse_direction, origin_offset,
+                path_offsets, profile_source_mode
             )
             model.select_tool(interactive_tool)
 
@@ -1012,14 +1052,76 @@ module Na__ProfileTools__ProfilePathTracer
     # -------------------------------------------------------------------------
 
         # The Reverse button used to be read once, at Generate. It now reaches the
-        # tool that is already running, so the flip lands on the live preview
-        # instead of forcing the trace to be restarted from scratch.
+        # tool that is already running — the Interactive trace or the Selection
+        # preview — so the flip lands on the live preview instead of forcing the
+        # trace to be restarted from scratch.
         def self.Na__Dialog__HandleReverseDirectionChange(reverse_direction)
-            is_applied = Na__PathSelectionTool.Na__PathSelectionTool__ApplyReverseDirection(reverse_direction)
-            return unless is_applied
+            live_tool = Na__LiveToolRegistry.Na__LiveTool__Active
+            return unless live_tool && live_tool.respond_to?(:Na__LiveTool__SetReverseDirection)
+
+            live_tool.Na__LiveTool__SetReverseDirection(reverse_direction)
             self.Na__Dialog__SetStatusFromRuby(
                 reverse_direction ? 'Reverse direction: ON — live preview flipped.' : 'Reverse direction: OFF — live preview flipped back.'
             )
+        end
+
+        # The dialog's whole placement, pushed on every control change while a
+        # preview tool runs. The profile is only re-resolved when it changed —
+        # a library lookup re-reads every profile file from disk.
+        def self.Na__Dialog__HandleLivePlacementUpdate(live_config)
+            live_tool = Na__LiveToolRegistry.Na__LiveTool__Active
+            return unless live_tool && live_tool.respond_to?(:Na__LiveTool__ApplyPlacement)
+            live_config = {} unless live_config.is_a?(Hash)
+
+            settings = {
+                toggle_states:     self.Na__Dialog__NormalizedToggleStates(live_config),
+                rotation_step:     live_config['rotationStep'].to_i % 4,
+                reverse_direction: live_config['reverseDirection'] == true,
+                origin_offset:     self.Na__Dialog__NormalizedOriginOffset(live_config),
+                path_offsets:      self.Na__Dialog__NormalizedPathOffsets(live_config)
+            }
+
+            source_mode = live_config['profileSourceMode'].to_s
+            source_mode = 'library' if source_mode.empty?
+            if live_tool.Na__LiveTool__ProfileChanged?(live_config['profileKey'], source_mode)
+                resolution = Na__ProfilePlacementEngine.Na__Engine__ResolveProfileData(live_config)
+                if resolution['isValid']
+                    settings[:profile_key]         = resolution['profileKey']
+                    settings[:profile_data]        = resolution['profileData']
+                    settings[:profile_source_mode] = source_mode
+                else
+                    self.Na__Dialog__SetStatusFromRuby("Preview kept its current profile: #{resolution['reason']}")
+                end
+            end
+
+            live_tool.Na__LiveTool__ApplyPlacement(settings)
+        end
+
+        # Commit Profile — only the Selection preview has a commit step; the
+        # Interactive trace finishes from the viewport as it always has.
+        def self.Na__Dialog__HandleCommitLiveTool
+            live_tool = Na__LiveToolRegistry.Na__LiveTool__Active
+            unless live_tool && live_tool.respond_to?(:Na__LiveTool__Commit)
+                return {
+                    'isStarted'     => false,
+                    'statusMessage' => 'No selection preview is running — select the path edges and click Generate Profile first.'
+                }
+            end
+
+            commit_result = live_tool.Na__LiveTool__Commit
+            {
+                'isStarted'     => commit_result['isBuilt'] == true,
+                'statusMessage' => commit_result['statusMessage'].to_s
+            }
+        end
+
+        def self.Na__Dialog__HandleCancelLiveTool
+            live_tool = Na__LiveToolRegistry.Na__LiveTool__Active
+            unless live_tool && live_tool.respond_to?(:Na__LiveTool__Cancel)
+                self.Na__Dialog__SetStatusFromRuby('Nothing to cancel — no preview is running.')
+                return
+            end
+            live_tool.Na__LiveTool__Cancel
         end
 
         # TAB toggled Reverse inside the viewport, so the dialog button has to be
@@ -1031,14 +1133,28 @@ module Na__ProfileTools__ProfilePathTracer
             )
         end
 
+        # SHIFT+TAB rolled the profile in the viewport. The rotation pills have to
+        # follow, or the dialog's next placement push would roll it straight back.
+        def self.Na__Dialog__PushRotationState(rotation_step)
+            self.Na__Dialog__SendToJs(
+                'Na__ProfilePathTracer__ReceiveRotationState',
+                { 'rotationStep' => rotation_step.to_i % 4 }
+            )
+        end
+
         # Arms / disarms the dialog's own TAB shortcut, so the key only steals
-        # focus traversal while a trace is actually live.
-        def self.Na__Dialog__PushInteractiveToolState(is_active, reverse_direction)
+        # focus traversal while a preview tool is actually live. details adds
+        # 'toolKind' ('interactive' | 'selectionPreview') and, for a Selection
+        # preview, a 'pathSummary' of the run being previewed.
+        def self.Na__Dialog__PushInteractiveToolState(is_active, reverse_direction, details = {})
+            details = {} unless details.is_a?(Hash)
             self.Na__Dialog__SendToJs(
                 'Na__ProfilePathTracer__ReceiveInteractiveToolState',
                 {
                     'isInteractiveToolActive' => is_active == true,
-                    'reverseDirection'        => reverse_direction == true
+                    'reverseDirection'        => reverse_direction == true,
+                    'toolKind'                => details['toolKind'].to_s,
+                    'pathSummary'             => details['pathSummary'].to_s
                 }
             )
         end
@@ -1096,6 +1212,19 @@ module Na__ProfileTools__ProfilePathTracer
             return nil if y_mm.zero? && z_mm.zero?
 
             { 'y' => y_mm, 'z' => z_mm }
+        rescue
+            nil
+        end
+
+        # startOffsetMm / endOffsetMm arrive as signed millimetres, already
+        # parsed and range-checked by the dialog. The geometry layer checks the
+        # range again (and refuses trims longer than the run) when it sweeps.
+        # Both zero means no offsets — nil, so nothing is applied or stamped.
+        def self.Na__Dialog__NormalizedPathOffsets(generate_config)
+            Na__GeometryBuilders.Na__Geometry__NormalisePathOffsets(
+                'start' => generate_config['startOffsetMm'],
+                'end'   => generate_config['endOffsetMm']
+            )
         rescue
             nil
         end

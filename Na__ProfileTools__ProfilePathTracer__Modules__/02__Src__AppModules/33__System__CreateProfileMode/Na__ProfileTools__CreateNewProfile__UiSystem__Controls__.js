@@ -142,6 +142,118 @@
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
+    // REGION | Selection Preview Strip
+    // -------------------------------------------------------------------------
+
+    function Na__Ui__IsSelectionPreviewLive(state) {
+        return !!(state && state.isInteractiveToolActive === true && state.liveToolKind === 'selectionPreview');
+    }
+
+    // Shown while a Selection preview is running, because it changes what the
+    // buttons below mean: nothing is in the model yet, and the choice now is
+    // Commit or Cancel. Every control in between edits the preview live.
+    function Na__Ui__BuildSelectionPreviewStripHtml(state) {
+        if (!Na__Ui__IsSelectionPreviewLive(state)) return '';
+        return [
+            '<div class="na-section na-preview-strip">',
+            '  <div class="na-preview-strip__body">',
+            '    <span class="na-preview-strip__label">Previewing Selection</span>',
+            '    <span class="na-preview-strip__summary">' + Na__Ui__EscapeHtml(state.livePathSummary || '') + '</span>',
+            '  </div>',
+            '  <span class="na-preview-strip__hint">Nothing is built yet. Change the profile, Reverse, rotation, mirrors or offsets and the viewport follows; Commit Profile builds it.</span>',
+            '</div>'
+        ].join('');
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Active Profile Picker
+    // -------------------------------------------------------------------------
+
+    // A list rather than a label, so the profile can be changed without leaving
+    // the tab — which is what lets it change mid-preview: pick another profile
+    // and the sweep in the viewport redraws with it. Same order and same names
+    // as the Gallery cards, so the two read as one list.
+    function Na__Ui__BuildActiveProfileSelectHtml(activeKey) {
+        var store    = window.Na__ProfileTools__ProfileStore;
+        var profiles = store ? (store.Na__Store__GetProfiles() || {}) : {};
+        var keys     = Object.keys(profiles);
+        if (keys.length === 0) {
+            return '<div class="na-active-profile" id="naActiveProfileIndicator">' +
+                   '<span class="na-active-profile__hint">No profiles loaded — check the profile library folder.</span></div>';
+        }
+
+        var hasActive   = !!(activeKey && profiles[activeKey]);
+        var placeholder = hasActive ? '' : '<option value="" selected disabled>Choose a profile…</option>';
+        var options = keys.map(function(key) {
+            var label = (store && store.Na__Store__ProfileLabel(profiles[key])) || key;
+            return '<option value="' + Na__Ui__EscapeHtml(key) + '"' + (key === activeKey ? ' selected' : '') + '>' +
+                   Na__Ui__EscapeHtml(label) + '</option>';
+        }).join('');
+
+        return [
+            '<select class="naSelect na-active-profile-select" id="naSelectActiveProfile"',
+            '        title="The profile to apply. Changing it while a preview is running redraws the preview. The Gallery tab picks from the same list with thumbnails.">',
+            placeholder + options,
+            '</select>'
+        ].join('');
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Path Offsets Row
+    // -------------------------------------------------------------------------
+
+    // Shown as typed, in millimetres, to one decimal place at most.
+    function Na__Ui__FormatOffsetMm(value) {
+        var rounded = Math.round((Number(value) || 0) * 10) / 10;
+        return String(Object.is(rounded, -0) ? 0 : rounded);
+    }
+
+    function Na__Ui__BuildOffsetFieldHtml(endKey, label, value, tooltip) {
+        var inputId = endKey === 'start' ? 'naInputStartOffset' : 'naInputEndOffset';
+        var isSet   = (Number(value) || 0) !== 0;
+        return [
+            '<div class="na-offset-field">',
+            '  <label class="na-switch-field__label" for="' + inputId + '">' + label + '</label>',
+            '  <div class="na-offset-field__box' + (isSet ? ' na-offset-field__box--set' : '') + '">',
+            '    <input class="na-offset-field__input" id="' + inputId + '" type="text" inputmode="decimal"',
+            '           autocomplete="off" spellcheck="false" data-na-offset-end="' + endKey + '"',
+            '           value="' + Na__Ui__FormatOffsetMm(value) + '" title="' + Na__Ui__EscapeHtml(tooltip) + '">',
+            '    <span class="na-offset-field__unit">mm</span>',
+            '  </div>',
+            '</div>'
+        ].join('');
+    }
+
+    // Both ends on one row, with a swap between them: in Selection mode which
+    // end is Start is whatever the edges give, so the fix for an overshoot on
+    // the wrong end is one click rather than retyping both boxes.
+    function Na__Ui__BuildPathOffsetsHtml(state) {
+        var startValue = Number(state.startOffsetMm) || 0;
+        var endValue   = Number(state.endOffsetMm) || 0;
+        var canSwap    = startValue !== endValue;
+
+        return [
+            '<div class="na-offset-row">',
+            Na__Ui__BuildOffsetFieldHtml('start', 'Start Offset', startValue,
+                'Run the profile past the START of an open path, in mm (0.15m or 6in work too). Negative trims it back. ' +
+                'Interactive: Start is your first click. Selection: Start is tagged in the viewport preview.'),
+            '  <button type="button" class="naButtonSecondary na-offset-row__swap" id="naBtnSwapPathOffsets"' + (canSwap ? '' : ' disabled'),
+            '          title="Swap the Start and End offsets">&#8646;</button>',
+            Na__Ui__BuildOffsetFieldHtml('end', 'End Offset', endValue,
+                'Run the profile past the END of an open path, in mm (0.15m or 6in work too). Negative trims it back. ' +
+                'Interactive: End is your last click. Selection: End is tagged in the viewport preview.'),
+            '</div>',
+            '<div class="na-offset-row__hint">Overshoot past the ends of an open path, e.g. a gutter past the verge. Negative values trim; closed loops ignore offsets.</div>'
+        ].join('');
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
     // REGION | Main Controls Renderer
     // -------------------------------------------------------------------------
 
@@ -169,6 +281,7 @@
             : 'Datum: profile origin';
 
         var store            = window.Na__ProfileTools__ProfileStore;
+        var activeKey        = store ? store.Na__Store__GetSelectedKey() : '';
         var activeRecord     = store ? store.Na__Store__GetSelectedRecord() : null;
         var activeName       = activeRecord ? (activeRecord.displayName || activeRecord.profileKey || '') : '';
         var activeHint       = activeName
@@ -178,18 +291,23 @@
         var swapState  = state.swap || null;
         var isBound    = !!(swapState && swapState.isBound);
         var isSwapBusy = !!(swapState && swapState.isBusy);
+        var isPreviewLive = Na__Ui__IsSelectionPreviewLive(state);
+        var isSelectionMode = pathModeValue === 'selection';
 
         return [
+            Na__Ui__BuildSelectionPreviewStripHtml(state),
             Na__Ui__BuildBoundTraceHtml(swapState),
             Na__Ui__BuildSwapArmedHtml(swapState),
 
             '<div class="na-section na-section--controls">',
 
+            // Scene mode takes its profile from the scene pick below, so the
+            // library list would only offer choices that are not in use.
             '  <div class="naFormRow">',
-            '    <label>Active Profile</label>',
-            '    <div class="na-active-profile" id="naActiveProfileIndicator">',
-            activeHint,
-            '    </div>',
+            '    <label' + (isSceneMode ? '' : ' for="naSelectActiveProfile"') + '>Active Profile</label>',
+            isSceneMode
+                ? '    <div class="na-active-profile" id="naActiveProfileIndicator">' + activeHint + '</div>'
+                : Na__Ui__BuildActiveProfileSelectHtml(activeKey),
             '  </div>',
 
             '  <div class="na-switch-row">',
@@ -216,6 +334,8 @@
             ),
             '    </div>',
             '  </div>',
+
+            Na__Ui__BuildPathOffsetsHtml(state),
 
             '<div class="naSceneSourceWrap' + (isSceneMode ? '' : ' naSceneSourceWrap--hidden') + '">',
             '  <div class="naSceneStatus ' + sceneReadyClass + '">' + sceneHint + ': ' + sceneProfileName + '</div>',
@@ -276,12 +396,16 @@
             '          id="naBtnReverseDirection"' + (isBound ? ' disabled' : ''),
             '          title="' + (isBound
                 ? 'Reverse is fixed once a trace is built \u2014 unbind to use it on a new trace.'
-                : 'Flip profile direction: rotates 180\u00b0 and flips Z-axis. Hotkey: TAB (works mid-trace)') + '">',
+                : 'Flip profile direction: rotates 180\u00b0 and flips Z-axis. Hotkey: TAB (works mid-trace and in the Selection preview)') + '">',
             (state.reverseDirection ? '\u21c4 Reversed' : '\u21c4 Reverse'),
             '  </button>',
 
-            '  <button class="naButton naButtonSecondary" id="naBtnSwapProfile"' + (isSwapBusy ? ' disabled' : '') + '',
-            '          title="Select a placed Profile Trace in the model, then click this to pick a replacement profile from the Gallery">',
+            // Both act on the MODEL selection, which a running preview has
+            // captured \u2014 commit or cancel first, then they mean what they say.
+            '  <button class="naButton naButtonSecondary" id="naBtnSwapProfile"' + (isSwapBusy || isPreviewLive ? ' disabled' : '') + '',
+            '          title="' + (isPreviewLive
+                ? 'Unavailable while previewing \u2014 commit or cancel the preview first.'
+                : 'Select a placed Profile Trace in the model, then click this to pick a replacement profile from the Gallery') + '">',
             '\u21c6 Swap Profile',
             '  </button>',
 
@@ -291,21 +415,35 @@
             // a right-clickable spot on the assembly. Deliberately NOT gated on
             // isBound: it acts on the MODEL selection, which is a different thing
             // from a bound trace, so Ruby resolves it and reports the outcome.
-            '  <button class="naButton naButtonSecondary" id="naBtnOpenPathEditor"' + (isSwapBusy ? ' disabled' : '') + '',
+            '  <button class="naButton naButtonSecondary" id="naBtnOpenPathEditor"' + (isSwapBusy || isPreviewLive ? ' disabled' : '') + '',
             '          title="' + (isSwapBusy
                 ? 'Unavailable while a trace is rebuilding.'
-                : 'Select a placed Profile Trace in the model, then click this to open its helper path linework with the edges pre-selected. Close the group when done and the profile rebuilds.') + '">',
+                : isPreviewLive
+                    ? 'Unavailable while previewing \u2014 commit or cancel the preview first.'
+                    : 'Select a placed Profile Trace in the model, then click this to open its helper path linework with the edges pre-selected. Close the group when done and the profile rebuilds.') + '">',
             '\u270e Edit Path',
             '  </button>',
 
-            isBound ? [
+            isBound && !isPreviewLive ? [
                 '<button class="naButton naButtonPrimary" id="naBtnRegenerateTrace"' + (isSwapBusy ? ' disabled' : '') + '',
-                '        title="Rebuild the bound trace with the insert point, rotation and mirrors set above">',
+                '        title="Rebuild the bound trace with the insert point, rotation, mirrors and path offsets set above">',
                 'Regenerate Trace',
                 '</button>'
             ].join('') : '',
 
-            '  <button class="naButton naButtonPrimary" id="naBtnGenerate">Generate Profile</button>',
+            isPreviewLive ? [
+                '<button class="naButton naButtonPrimary" id="naBtnCommitPreview"',
+                '        title="Build the profile exactly as previewed. Enter in the viewport does the same.">\u2713 Commit Profile</button>',
+                '<button class="naButton naButtonSecondary" id="naBtnCancelPreview"',
+                '        title="Leave the preview with nothing built. Esc does the same.">Cancel Preview</button>'
+            ].join('') : [
+                '<button class="naButton naButtonPrimary" id="naBtnGenerate"',
+                '        title="' + (isSelectionMode
+                    ? 'Preview the profile along the selected edges. Nothing is built until you Commit.'
+                    : 'Start drawing the path in the viewport, with a live preview of the profile.') + '">',
+                'Generate Profile',
+                '</button>'
+            ].join(''),
             '</div>'
         ].join('');
     }

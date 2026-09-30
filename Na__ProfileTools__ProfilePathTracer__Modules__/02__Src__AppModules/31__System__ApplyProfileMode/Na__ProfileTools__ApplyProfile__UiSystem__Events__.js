@@ -90,6 +90,89 @@
 
         Na__Ui__AttachAdvancedConfigEvents(handlers);
         Na__Ui__AttachBoundTraceEvents(handlers);
+        Na__Ui__AttachActiveProfileEvents(handlers);
+        Na__Ui__AttachPathOffsetEvents(handlers);
+        Na__Ui__AttachSelectionPreviewEvents(handlers);
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Active Profile Picker
+    // -------------------------------------------------------------------------
+
+    function Na__Ui__AttachActiveProfileEvents(handlers) {
+        var selectActiveProfile = document.getElementById('naSelectActiveProfile');
+        if (!selectActiveProfile) return;
+
+        selectActiveProfile.addEventListener('change', function() {
+            if (selectActiveProfile.value) {
+                handlers.Na__Events__OnActiveProfileSelect(selectActiveProfile.value);
+            }
+        });
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Path Offset Inputs
+    // -------------------------------------------------------------------------
+
+    // Applied on `change` — Enter, or leaving the box — never per keystroke:
+    // the panel re-renders on apply, and doing that mid-typing would throw the
+    // caret out of the box. Enter blurs, which is what fires the change; Esc
+    // puts the last applied value back.
+    function Na__Ui__AttachPathOffsetEvents(handlers) {
+        var offsetInputs = document.querySelectorAll('.na-offset-field__input[data-na-offset-end]');
+        Array.prototype.forEach.call(offsetInputs, function(offsetInput) {
+            var endKey = offsetInput.getAttribute('data-na-offset-end') || '';
+            var appliedValue = offsetInput.value;
+
+            offsetInput.addEventListener('change', function() {
+                handlers.Na__Events__OnPathOffsetChange(endKey, offsetInput.value);
+            });
+
+            offsetInput.addEventListener('keydown', function(keyEvent) {
+                if (keyEvent.key === 'Enter') {
+                    keyEvent.preventDefault();
+                    offsetInput.blur();
+                } else if (keyEvent.key === 'Escape') {
+                    keyEvent.preventDefault();
+                    offsetInput.value = appliedValue;
+                    offsetInput.blur();
+                }
+            });
+        });
+
+        var btnSwapPathOffsets = document.getElementById('naBtnSwapPathOffsets');
+        if (btnSwapPathOffsets) {
+            btnSwapPathOffsets.addEventListener('click', function() {
+                handlers.Na__Events__OnSwapPathOffsets();
+            });
+        }
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Selection Preview Commit / Cancel
+    // -------------------------------------------------------------------------
+
+    function Na__Ui__AttachSelectionPreviewEvents(handlers) {
+        var btnCommitPreview = document.getElementById('naBtnCommitPreview');
+        var btnCancelPreview = document.getElementById('naBtnCancelPreview');
+
+        if (btnCommitPreview) {
+            btnCommitPreview.addEventListener('click', function() {
+                handlers.Na__Events__OnCommitPreview();
+            });
+        }
+
+        if (btnCancelPreview) {
+            btnCancelPreview.addEventListener('click', function() {
+                handlers.Na__Events__OnCancelPreview();
+            });
+        }
     }
 
     // endregion ----------------------------------------------------------------

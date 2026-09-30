@@ -22,6 +22,13 @@
 #   Chain direction is anchored to the assembly's stored StartPoint, so adding
 #   segments at either end will not flip the profile around.
 #
+# PATH OFFSETS (v1.6.11)
+#   The stored StartOffset / EndOffset overshoot (or trim) the sweep past the
+#   ends of each open run — StartOffset at the end nearest StartPoint, which is
+#   the end the build started from. They are applied at FREE ends only: an end
+#   that meets another run or a loop is a junction, and pushing the solid past
+#   it would bury one moulding inside its neighbour.
+#
 # PUBLIC API
 #   Na__RegenEngine__RegenerateFromHelpers(parent_group) -> Boolean
 #       Deletes the SweptSolid sub-group and rebuilds it using the Helpers
@@ -196,6 +203,9 @@ module Na__ProfileTools__ProfilePathTracer
                 return false
             end
 
+            path_offsets   = { 'start' => payload['StartOffset'].to_f, 'end' => payload['EndOffset'].to_f }
+            free_end_flags = self.Na__RegenEngine__FreeEndFlags(runs)
+
             model.start_operation('Na__ProfilePathTracer__Regenerate', true, false, true)
 
             old_solid = Na__DataSerializer.Na__DataSerializer__FindSolidSubGroup(parent_group)
@@ -222,7 +232,8 @@ module Na__ProfileTools__ProfilePathTracer
                     rotation_step:   effective_rotation_step,
                     toggle_states:   toggle_states,
                     origin_offset:   origin_offset,
-                    legacy_frame:    legacy_frame
+                    legacy_frame:    legacy_frame,
+                    path_offsets:    self.Na__RegenEngine__RunPathOffsets(run, path_offsets, free_end_flags[run_index])
                 )
 
                 if swept['isSwept']
@@ -286,6 +297,44 @@ module Na__ProfileTools__ProfilePathTracer
             end.compact
         end
 
+        # [head_free, tail_free] per run. An end is free when no other run
+        # touches it: every open run's two ends and every vertex of a loop go
+        # into one pool, and an end seen there only once (itself) is free. A run
+        # whose two ends meet each other counts both twice, so it is not free
+        # either. Loops have no ends: [false, false].
+        def self.Na__RegenEngine__FreeEndFlags(runs)
+            contact_points = []
+            runs.each do |run|
+                points = Array(run[:ordered_points])
+                if run[:is_closed_loop]
+                    contact_points.concat(points)
+                else
+                    contact_points << points.first << points.last
+                end
+            end
+
+            runs.map do |run|
+                next [false, false] if run[:is_closed_loop]
+                points = Array(run[:ordered_points])
+                [
+                    contact_points.count { |point| point == points.first } == 1,
+                    contact_points.count { |point| point == points.last } == 1
+                ]
+            end
+        end
+
+        # Runs arrive oriented from the end nearest the stored StartPoint (see
+        # Na__Path__OrientChain), which is the traversal start the offsets were
+        # stamped against — so 'start' belongs on the run's head.
+        def self.Na__RegenEngine__RunPathOffsets(run, path_offsets, free_end_flags)
+            return nil if run[:is_closed_loop]
+            head_free, tail_free = Array(free_end_flags)
+            Na__GeometryBuilders.Na__Geometry__NormalisePathOffsets(
+                'start' => head_free ? path_offsets['start'] : 0.0,
+                'end'   => tail_free ? path_offsets['end']   : 0.0
+            )
+        end
+
         def self.Na__RegenEngine__BuildRunSubGroup(solid_group, run_index)
             run_group = solid_group.entities.add_group
             run_group.name = format("#{NA_RUN_GROUP_PREFIX}%02d", run_index + 1)
@@ -294,15 +343,23 @@ module Na__ProfileTools__ProfilePathTracer
 
         def self.Na__RegenEngine__SweepRun(target_entities:, model:, profile_data:, run:,
                                             rotation_step:, toggle_states:, origin_offset:,
-                                            legacy_frame: false)
+                                            legacy_frame: false, path_offsets: nil)
+            # Same order as the first build: the run as drawn stays the Helpers
+            # linework, the sweep follows the run with its ends offset.
+            offset_result = Na__GeometryBuilders.Na__Geometry__ApplyPathOffsets(
+                run[:ordered_points], run[:is_closed_loop], path_offsets
+            )
+            return { 'isSwept' => false, 'reason' => offset_result[:reason] } unless offset_result[:isValid]
+            sweep_points = offset_result[:ordered_points]
+
             resolved_path_data = {
-                ordered_points: run[:ordered_points],
+                ordered_points: sweep_points,
                 ordered_edges:  [],
                 is_closed_loop: run[:is_closed_loop]
             }
 
             frame_transform = Na__GeometryBuilders.Na__Geometry__BuildPathFrame(
-                run[:ordered_points].first, resolved_path_data, legacy_frame
+                sweep_points.first, resolved_path_data, legacy_frame
             )
             return { 'isSwept' => false, 'reason' => 'path frame could not be built' } unless frame_transform
 
@@ -310,7 +367,7 @@ module Na__ProfileTools__ProfilePathTracer
                 target_entities:    target_entities,
                 model:              model,
                 profile_data:       profile_data,
-                ordered_points:     run[:ordered_points],
+                ordered_points:     sweep_points,
                 is_closed_loop:     run[:is_closed_loop],
                 frame_transform:    frame_transform,
                 rotation_step:      rotation_step,

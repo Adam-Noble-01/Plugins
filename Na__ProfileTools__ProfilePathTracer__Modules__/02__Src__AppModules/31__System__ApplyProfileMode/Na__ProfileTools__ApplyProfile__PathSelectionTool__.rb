@@ -11,6 +11,7 @@
 module Na__ProfileTools__ProfilePathTracer
     class Na__PathSelectionTool
         include Na__ProfileTools__ProfilePathTracer::Na__AxisLockMixin
+        include Na__ProfileTools__ProfilePathTracer::Na__LiveToolPlacementMixin
 
     # -------------------------------------------------------------------------
     # REGION | Constants
@@ -51,6 +52,8 @@ module Na__ProfileTools__ProfilePathTracer
         # never drawn and never reaches the build.
         NA_DATUM_PROBE_LENGTH             = 1000.mm
 
+        NA_TOOL_KIND                      = 'interactive'.freeze
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -63,12 +66,17 @@ module Na__ProfileTools__ProfilePathTracer
         # Guarded so a hot reload mid-draw cannot orphan a live tool.
         @na_active_tool = nil unless defined?(@na_active_tool)
 
+        # Also registered with Na__LiveToolRegistry, which is how the dialog now
+        # reaches whichever preview tool is running (this one or the Selection
+        # preview). The class reference stays for the method below.
         def self.Na__PathSelectionTool__RegisterActiveTool(tool)
             @na_active_tool = tool
+            Na__LiveToolRegistry.Na__LiveTool__Register(tool)
         end
 
         def self.Na__PathSelectionTool__ClearActiveTool(tool)
             @na_active_tool = nil if @na_active_tool.equal?(tool)
+            Na__LiveToolRegistry.Na__LiveTool__Clear(tool)
         end
 
         # Dialog -> tool. Returns false when no interactive tool is running, in
@@ -86,13 +94,17 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Initialization / State
     # -------------------------------------------------------------------------
 
-        def initialize(profile_key, profile_data, toggle_states = {}, initial_rotation_step = 0, reverse_direction = false, origin_offset = nil)
+        # path_offsets are in DRAW order: 'start' is the first click, whatever
+        # traversal the canonical direction rule later picks for the build.
+        def initialize(profile_key, profile_data, toggle_states = {}, initial_rotation_step = 0, reverse_direction = false, origin_offset = nil, path_offsets = nil, profile_source_mode = 'library')
             @na_profile_key = profile_key
             @na_profile_data = profile_data || {}
+            @na_profile_source_mode = profile_source_mode.to_s.empty? ? 'library' : profile_source_mode.to_s
             @na_toggle_states = toggle_states || {}
             @na_rotation_step = initial_rotation_step.to_i % 4
             @na_reverse_direction = reverse_direction == true
             @na_origin_offset = origin_offset
+            @na_path_offsets = path_offsets
             @na_key_tab_held = false
             @na_key_shift_held = false
             @na_crosshair_size = NA_DEFAULT_CROSSHAIR_SIZE
@@ -116,6 +128,9 @@ module Na__ProfileTools__ProfilePathTracer
             @na_cache_path = nil
             @na_cache_sweep_segments = []
             @na_cache_profile_polyline = []
+            @na_cache_sweep_points = []
+            @na_cache_traversal_offsets = nil
+            @na_cache_offset_reason = nil
             @na_cache_total_length_mm = 0.0
             @na_last_status_text = nil
         end
@@ -184,6 +199,32 @@ module Na__ProfileTools__ProfilePathTracer
             view = Sketchup.active_model.active_view
             view.invalidate if view
             @na_reverse_direction
+        end
+
+        # --- Live tool API (Na__LiveToolRegistry dispatch) ---------------------
+
+        def Na__LiveTool__Kind
+            NA_TOOL_KIND
+        end
+
+        def Na__LiveTool__SetReverseDirection(reverse_direction)
+            self.Na__PathSelectionTool__SetReverseDirection(reverse_direction)
+        end
+
+        # Na__LiveToolPlacementMixin hook: a profile, rotation, mirror, insert
+        # point or offset change from the dialog lands mid-trace and redraws the
+        # ghost straight away — the waypoints already placed are kept.
+        def Na__LiveTool__OnPlacementChanged
+            self.Na__PathSelectionTool__RebuildPreviewCache
+            self.Na__PathSelectionTool__UpdateStatusText
+            view = Sketchup.active_model.active_view
+            view.invalidate if view
+        end
+
+        def Na__LiveTool__Cancel(message = nil)
+            Sketchup.active_model.select_tool(nil)
+            Sketchup::set_status_text(message || 'Interactive profile drawing cancelled.', NA_STATUS_PROMPT_KEY)
+            true
         end
 
     # endregion ----------------------------------------------------------------
@@ -292,6 +333,9 @@ module Na__ProfileTools__ProfilePathTracer
             Na__PreviewGraphics.Na__Preview__DrawPath(view, @na_cache_path)
             Na__PreviewGraphics.Na__Preview__DrawWaypointMarkers(view, @na_waypoints, @na_crosshair_size * 0.15)
             Na__PreviewGraphics.Na__Preview__DrawSweepSegments(view, @na_cache_sweep_segments)
+            Na__PreviewGraphics.Na__Preview__DrawPathExtensions(
+                view, @na_cache_ordered_points, @na_cache_sweep_points, @na_cache_traversal_offsets
+            )
             Na__PreviewGraphics.Na__Preview__DrawProfileGhost(view, @na_cache_profile_polyline)
             if @na_square_snap_reference && @na_cursor_point
                 Na__PreviewGraphics.Na__Preview__DrawSquareSnapTie(view, @na_cursor_point, @na_square_snap_reference)
@@ -307,6 +351,7 @@ module Na__ProfileTools__ProfilePathTracer
             bounds.add(@na_cursor_point) if @na_cursor_point
             @na_cache_sweep_segments.each { |point| bounds.add(point) } if @na_cache_sweep_segments
             @na_cache_profile_polyline.each { |point| bounds.add(point) } if @na_cache_profile_polyline
+            @na_cache_sweep_points.each { |point| bounds.add(point) } if @na_cache_sweep_points
             bounds
         end
 
@@ -369,6 +414,10 @@ module Na__ProfileTools__ProfilePathTracer
                     self.Na__PathSelectionTool__RebuildPreviewCache
                     self.Na__PathSelectionTool__UpdateStatusText
                     view.invalidate
+                    # The dialog pushes its whole placement back on any change,
+                    # so a rotation it had not heard about would be undone by
+                    # the next profile or offset edit.
+                    self.Na__PathSelectionTool__PushRotationStateToDialog
                 else
                     self.Na__PathSelectionTool__SetReverseDirection(!@na_reverse_direction)
                     self.Na__PathSelectionTool__PushReverseStateToDialog
@@ -465,6 +514,10 @@ module Na__ProfileTools__ProfilePathTracer
             @na_cache_path = nil
             @na_cache_sweep_segments = []
             @na_cache_profile_polyline = []
+            @na_cache_ordered_points = []
+            @na_cache_sweep_points = []
+            @na_cache_traversal_offsets = nil
+            @na_cache_offset_reason = nil
             @na_cache_total_length_mm = 0.0
         end
 
@@ -489,6 +542,15 @@ module Na__ProfileTools__ProfilePathTracer
                     @na_cache_path = preview_path
                     @na_cache_total_length_mm = self.Na__PathSelectionTool__PathLengthMm(preview_path)
 
+                    # The offsets were typed against the draw order; the ghost
+                    # sweeps in traversal order, which the canonical direction
+                    # rule may have reversed. Swapping here is what keeps the
+                    # overshoot on the end it was typed for as the cursor
+                    # crosses from a positive to a negative run.
+                    @na_cache_traversal_offsets = Na__ProfilePlacementEngine.Na__Engine__TraversalPathOffsets(
+                        @na_path_offsets, path_data[:input_reversed]
+                    )
+
                     # One call builds ghost + cage together so the reverse flip is derived
                     # from a single shared bounding box, exactly as the real build does.
                     preview_geometry = Na__GeometryBuilders.Na__Geometry__BuildPreviewGeometry(
@@ -498,10 +560,14 @@ module Na__ProfileTools__ProfilePathTracer
                         rotation_step: @na_rotation_step,
                         toggle_states: @na_toggle_states,
                         reverse_direction: @na_reverse_direction,
-                        origin_offset: @na_origin_offset
+                        origin_offset: @na_origin_offset,
+                        path_offsets: @na_cache_traversal_offsets
                     )
                     @na_cache_profile_polyline = preview_geometry[:profile_polyline]
                     @na_cache_sweep_segments = preview_geometry[:sweep_segments]
+                    @na_cache_ordered_points = Array(path_data[:ordered_points])
+                    @na_cache_sweep_points = Array(preview_geometry[:sweep_points])
+                    @na_cache_offset_reason = preview_geometry[:reason]
                     return
                 end
             end
@@ -576,7 +642,8 @@ module Na__ProfileTools__ProfilePathTracer
                 rotation_step: @na_rotation_step,
                 toggle_states: @na_toggle_states,
                 reverse_direction: @na_reverse_direction,
-                origin_offset: @na_origin_offset
+                origin_offset: @na_origin_offset,
+                path_offsets: @na_path_offsets
             )
 
             Sketchup::set_status_text(result['statusMessage'].to_s, NA_STATUS_PROMPT_KEY)
@@ -611,6 +678,7 @@ module Na__ProfileTools__ProfilePathTracer
             rotation_degrees = @na_rotation_step.to_i * 90
             lock_suffix = self.Na__AxisLock__StatusSuffix
             reverse_suffix = @na_reverse_direction ? ' | REVERSED' : ''
+            reverse_suffix += self.Na__PathSelectionTool__OffsetStatusSuffix
             key_hints = "TAB reverse | SHIFT+TAB rotate (#{rotation_degrees} deg)"
 
             next_status =
@@ -632,6 +700,18 @@ module Na__ProfileTools__ProfilePathTracer
             return if next_status == @na_last_status_text
             Sketchup.status_text = next_status
             @na_last_status_text = next_status
+        end
+
+        # " | Start +150mm End +150mm" while offsets are set (draw order, as
+        # typed), or the reason the ghost is empty when the trims are longer
+        # than the run drawn so far.
+        def Na__PathSelectionTool__OffsetStatusSuffix
+            return " | #{@na_cache_offset_reason}" if @na_cache_offset_reason
+            offsets = Na__GeometryBuilders.Na__Geometry__NormalisePathOffsets(@na_path_offsets)
+            return '' unless offsets
+            " | Start #{format('%+g', offsets['start'].round(1))}mm End #{format('%+g', offsets['end'].round(1))}mm"
+        rescue
+            ''
         end
 
         # Writes a one-off confirmation into the prompt and keeps the memo in
@@ -820,9 +900,20 @@ module Na__ProfileTools__ProfilePathTracer
         # the key keeps its normal focus-traversal job the rest of the time.
         def Na__PathSelectionTool__PushToolStateToDialog(is_active)
             return unless defined?(Na__DialogManager)
-            Na__DialogManager.Na__Dialog__PushInteractiveToolState(is_active, @na_reverse_direction)
+            Na__DialogManager.Na__Dialog__PushInteractiveToolState(
+                is_active, @na_reverse_direction, 'toolKind' => NA_TOOL_KIND
+            )
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Tool state push warning: #{error.message}")
+        end
+
+        # SHIFT+TAB changed the rotation in the viewport; the dialog's pills
+        # have to follow or its next placement push would roll it straight back.
+        def Na__PathSelectionTool__PushRotationStateToDialog
+            return unless defined?(Na__DialogManager)
+            Na__DialogManager.Na__Dialog__PushRotationState(@na_rotation_step)
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Rotation state push warning: #{error.message}")
         end
 
     # endregion ----------------------------------------------------------------

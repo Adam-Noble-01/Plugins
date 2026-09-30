@@ -262,6 +262,121 @@ module Na__ProfileTools__ProfilePathTracer
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
+    # REGION | Path offsets — overshoot / trim past the open ends
+    # -------------------------------------------------------------------------
+
+        # A gutter runs past the verge; a moulding stops short of a return. The
+        # start and end offsets move the two ends of an OPEN run along its own
+        # end segments: positive overshoots, negative trims back. They act on
+        # the sweep only. The Helpers linework keeps the run exactly as it was
+        # drawn or selected, so Edit Path still edits the true line and every
+        # regeneration re-applies the same overshoot to wherever the ends now
+        # sit. Closed loops have no ends and pass through untouched.
+        #
+        # path_offsets is { 'start' => mm, 'end' => mm } in TRAVERSAL order —
+        # 'start' acts on ordered_points.first. Callers that let the user think
+        # in draw order (Interactive mode) convert before they get here.
+        NA_PATH_OFFSET_LIMIT_MM      = 50_000.0
+        NA_PATH_OFFSET_MIN_REMAINING = 1.mm
+        NA_PATH_OFFSET_EPSILON       = 0.001
+
+        def self.Na__Geometry__NormalisePathOffsets(path_offsets)
+            return nil unless path_offsets.is_a?(Hash)
+            start_mm = (path_offsets['start'] || path_offsets[:start]).to_f
+            end_mm   = (path_offsets['end']   || path_offsets[:end]).to_f
+            start_mm = 0.0 unless start_mm.finite?
+            end_mm   = 0.0 unless end_mm.finite?
+            return nil if start_mm.zero? && end_mm.zero?
+            { 'start' => start_mm, 'end' => end_mm }
+        rescue
+            nil
+        end
+
+        # Returns { isValid:, ordered_points:, reason: }. Refuses rather than
+        # clamps: a trim that would eat the whole run, or an offset past the
+        # limit (nearly always metres typed where millimetres were meant), is
+        # reported with the fix named instead of quietly building something else.
+        def self.Na__Geometry__ApplyPathOffsets(ordered_points, is_closed_loop, path_offsets)
+            points    = Array(ordered_points).compact
+            offsets   = self.Na__Geometry__NormalisePathOffsets(path_offsets)
+            unchanged = { isValid: true, ordered_points: points, reason: nil }
+            return unchanged if offsets.nil? || is_closed_loop == true || points.length < 2
+
+            [['Start', offsets['start']], ['End', offsets['end']]].each do |label, value_mm|
+                next if value_mm.abs <= NA_PATH_OFFSET_LIMIT_MM
+                return {
+                    isValid: false, ordered_points: points,
+                    reason: "#{label} offset #{value_mm.round}mm is past the #{NA_PATH_OFFSET_LIMIT_MM.round}mm limit — offsets are millimetres, e.g. 150."
+                }
+            end
+
+            path_length = self.Na__Geometry__PolylineLength(points)
+            trim_length = [-offsets['start'], 0.0].max.mm.to_f + [-offsets['end'], 0.0].max.mm.to_f
+            if trim_length > 0.0 && trim_length >= path_length - NA_PATH_OFFSET_MIN_REMAINING.to_f
+                return {
+                    isValid: false, ordered_points: points,
+                    reason: "Negative offsets trim #{(trim_length * 25.4).round}mm off a #{(path_length * 25.4).round}mm path — nothing would be left. Make the trims smaller."
+                }
+            end
+
+            offset_points = self.Na__Geometry__OffsetPathHead(points, offsets['start'].mm.to_f)
+            offset_points = self.Na__Geometry__OffsetPathHead(offset_points.reverse, offsets['end'].mm.to_f).reverse
+            { isValid: true, ordered_points: offset_points, reason: nil }
+        end
+
+        # Moves the FIRST point of an open run by `distance` (inches) along the
+        # run's own first segment: outward to overshoot, inward to trim. A trim
+        # longer than the first segment carries on round the corner, dropping
+        # whole segments, so -600 on a run whose first leg is 400 lands 200mm
+        # along the second leg — measured along the path, not as the crow flies.
+        def self.Na__Geometry__OffsetPathHead(points, distance)
+            result = Array(points).dup
+            return result if result.length < 2 || distance.abs <= NA_PATH_OFFSET_EPSILON
+
+            if distance > 0.0
+                outward = result[0] - result[1]
+                return result if outward.length.to_f <= NA_PATH_OFFSET_EPSILON
+                result[0] = result[0].offset(outward, distance)
+                return result
+            end
+
+            remaining = -distance
+            while result.length >= 2
+                segment        = result[1] - result[0]
+                segment_length = segment.length.to_f
+                if remaining < segment_length - NA_PATH_OFFSET_EPSILON
+                    result[0] = result[0].offset(segment, remaining)
+                    return result
+                end
+                remaining -= segment_length
+                result.shift
+                return result if remaining <= NA_PATH_OFFSET_EPSILON
+            end
+            result
+        end
+
+        def self.Na__Geometry__PolylineLength(points)
+            list = Array(points)
+            (0...(list.length - 1)).sum { |index| list[index].distance(list[index + 1]).to_f }
+        end
+
+        # Frames are found by nearest vertex, which picks the wrong one once an
+        # end has moved further than its own segment is long. So an anchor on
+        # the drawn run is carried across explicitly: whichever end it sat on,
+        # it lands on the same end of the offset run. A no-op when neither end
+        # moved, so a trace with no offsets frames exactly as it always has.
+        def self.Na__Geometry__MapAnchorOntoSweep(anchor_point, helper_points, sweep_points, is_closed_loop)
+            return anchor_point if anchor_point.nil? || is_closed_loop == true
+            return anchor_point if helper_points.length < 2 || sweep_points.length < 2
+            return anchor_point if helper_points.first == sweep_points.first && helper_points.last == sweep_points.last
+
+            nearer_head = anchor_point.distance(helper_points.first) <= anchor_point.distance(helper_points.last)
+            nearer_head ? sweep_points.first : sweep_points.last
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
     # REGION | Preview geometry — polyline + sweep segments
     # -------------------------------------------------------------------------
 
@@ -281,49 +396,69 @@ module Na__ProfileTools__ProfilePathTracer
             Geom.linear_combination(0.5, incoming_point, 0.5, outgoing_point)
         end
 
-        # Single entry point for the interactive tool. Builds the cursor ghost and
-        # the swept cage from the SAME inputs the real build uses, then applies the
-        # identical reverse transform, so the viewport preview cannot drift from
-        # the geometry Generate will actually produce.
+        # Single entry point for both preview tools (Interactive and Selection).
+        # Builds the ghost and the swept cage from the SAME inputs the real build
+        # uses, then applies the identical reverse transform, so the viewport
+        # preview cannot drift from the geometry Generate will actually produce.
+        #
+        # path_data is the run as drawn or selected; path_offsets (traversal
+        # order) moves its ends for the sweep exactly as the build does. Returns
+        # sweep_points (the offset run, unflipped) so a tool can mark the
+        # overshoot, and a reason when the offsets cannot be applied.
         def self.Na__Geometry__BuildPreviewGeometry(profile_data:, path_data:, start_point:, rotation_step:,
-                                                     toggle_states: {}, reverse_direction: false, origin_offset: nil)
+                                                     toggle_states: {}, reverse_direction: false, origin_offset: nil,
+                                                     path_offsets: nil)
             effective_rotation_step = reverse_direction ? (rotation_step.to_i + 2) % 4 : rotation_step.to_i
+
+            helper_points  = Array(path_data[:ordered_points]).compact
+            is_closed_loop = path_data[:is_closed_loop] == true
+            offset_result  = self.Na__Geometry__ApplyPathOffsets(helper_points, is_closed_loop, path_offsets)
+            unless offset_result[:isValid]
+                return { profile_polyline: [], sweep_segments: [], sweep_points: [], reason: offset_result[:reason] }
+            end
+            sweep_points    = offset_result[:ordered_points]
+            sweep_path_data = path_data.merge(ordered_points: sweep_points)
+            ghost_anchor    = self.Na__Geometry__MapAnchorOntoSweep(start_point, helper_points, sweep_points, is_closed_loop)
 
             profile_polyline = self.Na__Geometry__BuildPreviewProfilePolyline(
                 profile_data:  profile_data,
-                path_data:     path_data,
-                start_point:   start_point,
+                path_data:     sweep_path_data,
+                start_point:   ghost_anchor,
                 rotation_step: effective_rotation_step,
                 toggle_states: toggle_states,
                 origin_offset: origin_offset
             )
             sweep_segments = self.Na__Geometry__BuildPreviewSweepSegments(
                 profile_data:  profile_data,
-                path_data:     path_data,
+                path_data:     sweep_path_data,
                 rotation_step: effective_rotation_step,
                 toggle_states: toggle_states,
                 origin_offset: origin_offset
             )
 
-            return { profile_polyline: profile_polyline, sweep_segments: sweep_segments } unless reverse_direction
+            unflipped = { profile_polyline: profile_polyline, sweep_segments: sweep_segments, sweep_points: sweep_points, reason: nil }
+            return unflipped unless reverse_direction
 
             # Na__Geometry__BuildProfileAlongPath flips the finished assembly, whose
-            # bounds span the swept solid plus the Helpers path linework. Rebuild
-            # that same bounding box here so the preview lands in the same place.
+            # bounds span the swept solid (the OFFSET run) plus the Helpers
+            # linework (the DRAWN run). Rebuild that same bounding box here so the
+            # preview lands in the same place.
             preview_bounds = Geom::BoundingBox.new
             sweep_segments.each { |point| preview_bounds.add(point) }
             profile_polyline.each { |point| preview_bounds.add(point) }
-            Array(path_data[:ordered_points]).compact.each { |point| preview_bounds.add(point) }
-            return { profile_polyline: profile_polyline, sweep_segments: sweep_segments } if preview_bounds.empty?
+            helper_points.each { |point| preview_bounds.add(point) }
+            return unflipped if preview_bounds.empty?
 
             flip_transform = self.Na__Geometry__BuildReverseFlipTransform(preview_bounds)
             {
                 profile_polyline: profile_polyline.map { |point| point.transform(flip_transform) },
-                sweep_segments:   sweep_segments.map { |point| point.transform(flip_transform) }
+                sweep_segments:   sweep_segments.map { |point| point.transform(flip_transform) },
+                sweep_points:     sweep_points,
+                reason:           nil
             }
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Preview geometry build warning: #{error.message}")
-            { profile_polyline: [], sweep_segments: [] }
+            { profile_polyline: [], sweep_segments: [], sweep_points: [], reason: nil }
         end
 
         # Mirrors the assembly about the horizontal plane through bounds.max.z:
@@ -451,7 +586,13 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Solid — follow-me along path
     # -------------------------------------------------------------------------
 
-        def self.Na__Geometry__BuildProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, reverse_direction: false, origin_offset: nil)
+        # path_offsets (traversal order) moves the ends of an open run for the
+        # sweep; the run itself becomes the Helpers linework unchanged.
+        # offset_ends_swapped is stamped, not applied: it records that the user's
+        # "Start" was the traversal END (an Interactive run the canonical
+        # direction rule reversed), so a bound trace shows the offsets the way
+        # they were typed.
+        def self.Na__Geometry__BuildProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, reverse_direction: false, origin_offset: nil, path_offsets: nil, offset_ends_swapped: false)
             return { 'isBuilt' => false, 'reason' => 'No active model.' } unless model
             unless self.Na__Geometry__ProfileType(profile_data) == 'na_unified_asset'
                 return { 'isBuilt' => false, 'reason' => 'Only unified schema profiles are supported.' }
@@ -467,8 +608,16 @@ module Na__ProfileTools__ProfilePathTracer
             return { 'isBuilt' => false, 'reason' => 'Path must contain at least two points.' } if ordered_points.length < 2
             return { 'isBuilt' => false, 'reason' => 'Closed path must contain at least three points.' } if is_closed_loop && ordered_points.length < 3
 
+            # A loop has no ends, so its offsets are stamped as zero: a loop later
+            # opened up in Edit Path must not suddenly sprout the overshoot of a
+            # setting that never applied to it.
+            path_offsets  = is_closed_loop ? nil : self.Na__Geometry__NormalisePathOffsets(path_offsets)
+            offset_result = self.Na__Geometry__ApplyPathOffsets(ordered_points, is_closed_loop, path_offsets)
+            return { 'isBuilt' => false, 'reason' => offset_result[:reason] } unless offset_result[:isValid]
+            sweep_points = offset_result[:ordered_points]
+
             resolved_path_data = path_data.merge(
-                ordered_points: ordered_points,
+                ordered_points: sweep_points,
                 is_closed_loop: is_closed_loop
             )
 
@@ -476,7 +625,8 @@ module Na__ProfileTools__ProfilePathTracer
             local_profile_points = self.Na__Geometry__ApplyMirrorToggles(local_profile_points, toggle_states)
             return { 'isBuilt' => false, 'reason' => 'Selected profile has invalid points.' } if local_profile_points.length < 3
 
-            frame_transform = self.Na__Geometry__BuildPathFrame(start_point, resolved_path_data)
+            frame_anchor    = self.Na__Geometry__MapAnchorOntoSweep(start_point, ordered_points, sweep_points, is_closed_loop)
+            frame_transform = self.Na__Geometry__BuildPathFrame(frame_anchor, resolved_path_data)
             return { 'isBuilt' => false, 'reason' => 'Path frame could not be built.' } unless frame_transform
 
             profile_key = profile_data['profileKey'] || 'Unnamed'
@@ -498,7 +648,7 @@ module Na__ProfileTools__ProfilePathTracer
                 target_entities:    solid_entities,
                 model:              model,
                 profile_data:       profile_data,
-                ordered_points:     ordered_points,
+                ordered_points:     sweep_points,
                 is_closed_loop:     is_closed_loop,
                 frame_transform:    frame_transform,
                 rotation_step:      effective_rotation_step,
@@ -531,7 +681,11 @@ module Na__ProfileTools__ProfilePathTracer
                 start_point: start_point,
                 reverse_direction: reverse_direction,
                 origin_offset: origin_offset,
-                path_points: ordered_points
+                path_points: ordered_points,
+                path_offsets: path_offsets,
+                # Stamped even with no offsets set: it describes the RUN, and
+                # offsets typed onto this trace later (Regenerate Trace) need it.
+                offset_ends_swapped: offset_ends_swapped == true && !is_closed_loop
             )
 
             model.commit_operation
@@ -740,20 +894,23 @@ module Na__ProfileTools__ProfilePathTracer
                                                           profile_key:, rotation_step:, toggle_states:,
                                                           is_closed_loop:, start_point:,
                                                           reverse_direction: false, origin_offset: nil,
-                                                          path_points: [])
+                                                          path_points: [], path_offsets: nil,
+                                                          offset_ends_swapped: false)
             return unless defined?(Na__DataSerializer)
 
             trace_id = Na__DataSerializer.Na__DataSerializer__GenerateNextProfileTraceId(model)
             Na__DataSerializer.Na__DataSerializer__StampParent(parent_group, {
-                'ProfileTraceId'   => trace_id,
-                'ProfileKey'       => profile_key,
-                'RotationStep'     => rotation_step,
-                'ToggleStates'     => toggle_states,
-                'IsClosedLoop'     => is_closed_loop,
-                'StartPoint'       => start_point,
-                'ReverseDirection' => reverse_direction,
-                'OriginOffset'     => origin_offset,
-                'PathPoints'       => path_points
+                'ProfileTraceId'    => trace_id,
+                'ProfileKey'        => profile_key,
+                'RotationStep'      => rotation_step,
+                'ToggleStates'      => toggle_states,
+                'IsClosedLoop'      => is_closed_loop,
+                'StartPoint'        => start_point,
+                'ReverseDirection'  => reverse_direction,
+                'OriginOffset'      => origin_offset,
+                'PathPoints'        => path_points,
+                'PathOffsets'       => path_offsets,
+                'OffsetEndsSwapped' => offset_ends_swapped
             })
             Na__DataSerializer.Na__DataSerializer__StampHelpers(helpers_group, trace_id)
 

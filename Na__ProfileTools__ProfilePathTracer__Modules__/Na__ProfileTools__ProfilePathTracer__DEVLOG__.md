@@ -4,6 +4,124 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.6.11 - 30-Sep-2026 - Start / End Offsets + Selection Mode Preview
+
+### Summary
+Two requests, one theme: see it before you build it.
+
+1. **Start / End offsets.** Two boxes on one row of the Apply Profile tab run the profile past
+   the ends of an open path — a gutter overshooting the verge — or, negative, trim it back.
+   They reach the Interactive ghost, the Selection preview, the build, every Dynamic
+   Regeneration and Regenerate Trace on a bound trace.
+2. **Selection mode previews before it builds.** Generate Profile with edges selected used
+   to build on the spot, and the handing (which side of the line the profile lands on) could
+   only be judged afterwards — a wrong one meant undo, reselect, rerun. Generate now opens a
+   live preview in the viewport, drawn the way the Interactive ghost is drawn. The profile,
+   Reverse, rotation, mirrors, insert point and offsets all change it in place; **Commit
+   Profile** (or Enter) builds it, **Cancel** (or Esc) leaves nothing behind.
+
+### Offsets — what they act on
+
+The offsets move the ends of the **sweep**, never the path. The Helpers linework keeps the run
+exactly as drawn or selected, so Edit Path still edits the true eaves line and each
+regeneration re-applies the same overshoot to wherever the ends now are.
+
+| Value | Effect |
+|---|---|
+| `+150` | end extended 150mm along its own end segment (sloped runs extend along the slope) |
+| `-150` | end trimmed 150mm, measured along the path — a trim longer than the end segment carries on round the corner |
+| trims that would leave nothing | refused, with the lengths named |
+| past ±50,000mm | refused: "offsets are millimetres, e.g. 150" (nearly always metres typed as mm) |
+| closed loop | no ends, so ignored — and stamped as 0, so opening the loop later in Edit Path cannot suddenly sprout an overshoot |
+
+Typed input follows the forgiving-input rule: a bare number is mm, `0.15m` / `15cm` / `6in`
+work, `1,500` is 1500, anything else is refused with the fix named, never clamped.
+
+**Which end is Start.** Interactive: your first click, *whatever* traversal the v1.6.7
+canonical-direction rule picks. That rule reverses positive runs, so the offsets are typed in
+draw order and swapped onto the traversal (`Na__Engine__TraversalPathOffsets`) — without
+this the overshoot would jump ends as the cursor crossed from a +X to a -X run. Selection: a
+selected run has no draw order, so the preview tags its two ends **Start** and **End** in the
+viewport, and the ⇄ button between the boxes swaps the values in one click.
+
+**Stored per trace.** `StartOffset` / `EndOffset` in traversal order (the end nearest
+`StartPoint` is Start, which is how the regen orients its chains), plus `OffsetEndsSwapped`
+when the typed Start is the traversal end. The flag is stamped on every open run, offsets or
+not, so offsets first typed onto a bound trace later still land on the typed ends. No schema
+bump: absent keys read as 0 / 0 / false, which is exactly how every earlier trace was swept.
+Traces built before v1.6.11 carry no flag, so on an old Interactive trace Start may come out at
+the other end — ⇄ fixes it.
+
+**Regeneration applies them at free ends only.** When the Helpers linework holds several runs,
+an end that meets another run (or a loop vertex) is a junction; overshooting it would bury one
+moulding inside its neighbour.
+
+### Selection preview — `Na__SelectionPreviewTool`
+
+- Captures the selected run at Generate; later selection changes cannot move it.
+- Cage and start section from `Na__Geometry__BuildPreviewGeometry`, the same call (same frame,
+  offsets and reverse flip) the build uses, and Commit builds from the captured run — WYSIWYG
+  by construction.
+- Viewport: Enter / double-click commit, TAB reverse, SHIFT+TAB rotate, Esc cancel, and a
+  right-click menu with the same four. A single click only takes focus back from the dialog,
+  so clicking into the model to press TAB can never build by accident.
+- Dialog: a green **Previewing Selection** strip names the run (segments, open/closed,
+  length); Generate becomes **Commit Profile** + **Cancel Preview**; Swap Profile, Edit Path
+  and Regenerate Trace stand down until the preview is committed or cancelled; Enter / Esc in
+  the dialog commit / cancel; switching Path Mode to Interactive cancels the preview.
+- A failed commit (a trim longer than the run, say) keeps the preview up, so the cause is fixed
+  in place rather than by starting over. An undo while previewing closes it.
+
+### Change the profile mid-preview
+
+The Active Profile box is now a list (library mode — Scene Pick keeps the read-only box). It
+routes through the ProfileStore exactly like a Gallery card, so either one changes the profile
+of a running preview, the Interactive ghost included.
+
+### Live settings for both tools — `Na__LiveToolRegistry` + `Na__LiveToolPlacementMixin`
+
+Only Reverse used to reach a running tool; everything else was read once at Generate and then
+frozen, so changing the profile mid-trace changed the dialog and not the ghost. Every placement
+control now pushes the dialog's whole placement to whichever preview tool is running
+(`na_profilepathtracer_update_live_placement`). The profile is re-resolved only when it
+changed, because a library lookup re-reads every profile file from disk. SHIFT+TAB in the
+viewport now pushes the rotation back to the dialog, or the next push would roll it back.
+
+### Verified offline
+
+`RubyVM::InstructionSequence.compile_file` over all 40 Ruby files under SketchUp's bundled Ruby
+3.2.2, and 63 behaviour checks against Geom doubles, including the real half-round gutter
+profile: preview cage extents with offsets, the Reverse handedness flip, trims round a corner,
+refusals, draw-order-vs-traversal for +X and -X Interactive runs, free-end detection at
+junctions and on loops, swap-engine typed/stored conversion, the dictionary round trip, and the
+dialog -> live-tool dispatch including a mid-preview profile change. `node --check` on every
+touched JS file.
+
+### Files touched
+
+| File | Change |
+|---|---|
+| `Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | Path offsets region (`NormalisePathOffsets`, `ApplyPathOffsets`, `OffsetPathHead`, `PolylineLength`, `MapAnchorOntoSweep`); preview and build sweep the offset run, Helpers keep the drawn run; offsets stamped |
+| `Na__ProfileTools__AppData__DataSerializer__.rb` | `StartOffset` / `EndOffset` / `OffsetEndsSwapped` stamp, read and placement update |
+| `Na__ProfileTools__ApplyProfile__PlacementEngine__.rb` | `input_reversed` from the canonical rule, `Na__Engine__TraversalPathOffsets`, offsets plumbed through every generate path |
+| `Na__ProfileTools__ApplyProfile__LiveToolSupport__.rb` | **New** — live tool registry + placement mixin |
+| `Na__ProfileTools__ApplyProfile__SelectionPreviewTool__.rb` | **New** — the Selection preview tool |
+| `Na__ProfileTools__ApplyProfile__PathSelectionTool__.rb` | Offsets on the ghost and the build (overshoot dashes, status), live tool API, rotation push to the dialog |
+| `Na__ProfileTools__ApplyProfile__3dPreviewGraphics__.rb` | `DrawPathExtensions` (amber overshoot dashes), `DrawPathEndLabels` (Start / End tags) |
+| `Na__ProfileTools__RegenerationEngine__Main__.rb` | Stored offsets re-applied per run at free ends |
+| `Na__ProfileTools__ProfileSwapEngine__Main__.rb` | Offsets in the bind placement and Regenerate Trace, typed <-> stored per trace |
+| `Na__ProfileTools__ApplyProfile__HeadlessRunner__.rb` | `startOffsetMm` / `endOffsetMm` accepted |
+| `Na__ProfileTools__AppCore__DialogManager__.rb` | Selection mode arms the preview; live placement, commit and cancel callbacks; rotation push |
+| `Na__ProfileTools__AppCore__Main__.rb` | Requires the two new files |
+| `..._ApplyProfile__UiSystem__MainUiLogic__.js` | Offset parsing and state, live placement push, commit / cancel, dialog hotkeys, focus kept across redraws |
+| `..._ApplyProfile__UiSystem__Events__.js` | Profile list, offset boxes, swap, commit / cancel wiring |
+| `..._CreateNewProfile__UiSystem__Controls__.js` | Profile list, offsets row, preview strip, Commit / Cancel buttons |
+| `..._CreateNewProfile__UiSystem__Bridge__.js` | `UpdateLivePlacement`, `CommitLiveTool`, `CancelLiveTool` |
+| `Na__ProfileTools__AppCore__SwapController__.js` | Offsets carried in the bound placement |
+| `..._CoreUi__Styles__Index__.css`, `..._Styles__EditProfile__.css` | Offsets row, preview strip, profile list |
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.6.10 - 03-Sep-2026 - Forgiving Loop Closure + "Close Loop" Cue
 
 ### Summary

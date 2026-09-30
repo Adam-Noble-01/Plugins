@@ -151,6 +151,57 @@ module Na__ProfileTools__ProfilePathTracer
             loop_points + [first_point]
         end
 
+        # The overshoot, made visible: a dashed amber run from each end of the
+        # drawn / selected path out to where the swept solid will actually stop.
+        # Only positive offsets are marked — a trim needs no mark, the cage
+        # visibly stops short of the line. traversal_offsets is the
+        # { 'start' => mm, 'end' => mm } pair the sweep was built with.
+        def self.Na__Preview__DrawPathExtensions(view, helper_points, sweep_points, traversal_offsets)
+            return unless traversal_offsets.is_a?(Hash)
+            return unless helper_points.is_a?(Array) && sweep_points.is_a?(Array)
+            return if helper_points.length < 2 || sweep_points.length < 2
+
+            segments = []
+            if traversal_offsets['start'].to_f > 0.0 && helper_points.first.distance(sweep_points.first) > NA_LOOP_CLOSE_TOLERANCE
+                segments << helper_points.first << sweep_points.first
+            end
+            if traversal_offsets['end'].to_f > 0.0 && helper_points.last.distance(sweep_points.last) > NA_LOOP_CLOSE_TOLERANCE
+                segments << helper_points.last << sweep_points.last
+            end
+            return if segments.empty?
+
+            view.line_stipple  = '-'
+            view.line_width    = 3
+            view.drawing_color = Sketchup::Color.new(235, 150, 0)
+            view.draw(GL_LINES, segments)
+            view.line_stipple  = ''
+        end
+
+        # "Start" / "End" tags on the two ends of a selected run. A selection has
+        # no draw order, so this is the only way to tell which offset box drives
+        # which end, or which way round the run is being swept.
+        def self.Na__Preview__DrawPathEndLabels(view, start_point, end_point, start_label, end_label)
+            return unless view && start_point && end_point
+
+            start_colour = Sketchup::Color.new(0, 150, 60)
+            end_colour   = Sketchup::Color.new(205, 70, 20)
+
+            view.line_stipple = ''
+            view.draw_points([start_point], 12, 2, start_colour)
+            view.draw_points([end_point], 12, 2, end_colour)
+            self.Na__Preview__DrawScreenLabel(view, start_point, start_label, start_colour)
+            self.Na__Preview__DrawScreenLabel(view, end_point, end_label, end_colour)
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Path end labels draw skipped: #{error.message}")
+        end
+
+        def self.Na__Preview__DrawScreenLabel(view, anchor_point, text, colour)
+            label_position = view.screen_coords(anchor_point)
+            label_position.x += 14
+            label_position.y -= 28
+            view.draw_text(label_position, text.to_s, size: 12, bold: true, color: colour)
+        end
+
     end
 end
 

@@ -29,9 +29,19 @@
         // otherwise snap the Advanced Configuration disclosure shut under the
         // rotation pill or mirror toggle the user just clicked.
         isAdvancedConfigOpen: false,
-        // Mirrors the running Na__PathSelectionTool. Only true while a trace is
-        // live, which is the only time TAB is ours to take from focus traversal.
+        // Mirrors the running preview tool — the Interactive trace or the
+        // Selection preview. Only true while one is live, which is the only time
+        // TAB is ours to take from focus traversal.
         isInteractiveToolActive: false,
+        // 'interactive' | 'selectionPreview' while a tool is live, else ''.
+        // A live Selection preview swaps Generate for Commit / Cancel.
+        liveToolKind: '',
+        livePathSummary: '',
+        // Signed millimetres the sweep runs past the Start / End of an open
+        // path (negative trims). Start is the first click in Interactive mode
+        // and the end tagged "Start" in the Selection preview.
+        startOffsetMm: 0,
+        endOffsetMm: 0,
         previewSourcePoints: [],
         toggleDefinitions: {},
         toggleStates: {},
@@ -92,6 +102,24 @@
     }
 
     function Na__Ui__UpdateActiveProfileIndicator() {
+        // Library mode shows a list: follow the store's selection there, and
+        // redraw only if that profile has no option yet (added since drawn).
+        var selectEl = document.getElementById('naSelectActiveProfile');
+        if (selectEl) {
+            var selectStore = window.Na__ProfileTools__ProfileStore;
+            var selectedKey = selectStore ? selectStore.Na__Store__GetSelectedKey() : '';
+            if (!selectedKey || selectEl.value === selectedKey) return;
+            var hasOption = Array.prototype.some.call(selectEl.options, function(option) {
+                return option.value === selectedKey;
+            });
+            if (hasOption) {
+                selectEl.value = selectedKey;
+            } else {
+                Na__Ui__Render();
+            }
+            return;
+        }
+
         var indicatorEl = document.getElementById('naActiveProfileIndicator');
         if (!indicatorEl) return;
         var store  = window.Na__ProfileTools__ProfileStore;
@@ -182,8 +210,23 @@
             isPreviewEnabled: Na__UiState.isPreviewEnabled,
             reverseDirection: Na__UiState.reverseDirection,
             originOffset: Na__UiState.originOffset,
-            toggleStates: Na__UiState.toggleStates
+            toggleStates: Na__UiState.toggleStates,
+            startOffsetMm: Na__UiState.startOffsetMm,
+            endOffsetMm: Na__UiState.endOffsetMm
         };
+    }
+
+    // While a preview tool is running, every placement edit is sent across
+    // whole, so the viewport redraws with it — a profile picked mid-preview,
+    // a rotation, a mirror, the insert point or an offset.
+    function Na__Ui__PushLivePlacement() {
+        if (!Na__UiState.isInteractiveToolActive) return;
+        if (typeof window.Na__ProfilePathTracer__Bridge__UpdateLivePlacement !== 'function') return;
+        window.Na__ProfilePathTracer__Bridge__UpdateLivePlacement(Na__Ui__BuildGeneratePayload());
+    }
+
+    function Na__Ui__IsSelectionPreviewLive() {
+        return Na__UiState.isInteractiveToolActive === true && Na__UiState.liveToolKind === 'selectionPreview';
     }
 
     // A datum picked on one profile means nothing on another, so switching the
@@ -191,6 +234,89 @@
     function Na__Ui__ClearInsertPointState() {
         Na__UiState.originOffset = null;
         Na__UiState.isInsertPointPickActive = false;
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Path Offsets (parse + apply)
+    // -------------------------------------------------------------------------
+
+    var NA_PATH_OFFSET_LIMIT_MM = 50000;
+    var NA_LENGTH_UNIT_TO_MM = { '': 1, 'mm': 1, 'cm': 10, 'm': 1000, 'in': 25.4, '"': 25.4, 'ft': 304.8, "'": 304.8 };
+
+    // Read the way an architect types it: a bare number is millimetres, a unit
+    // suffix is honoured (0.15m, 15cm, 6in) and commas are thousands separators
+    // (1,500 is 1500). Anything else is refused with the fix named — never
+    // guessed at, never clamped. Returns { isValid, valueMm, reason }.
+    function Na__Ui__ParseOffsetMm(text) {
+        var raw = String(text === null || text === undefined ? '' : text).trim();
+        if (raw === '') return { isValid: true, valueMm: 0, reason: '' };
+
+        var compact = raw.replace(/,/g, '').replace(/\s+/g, '').toLowerCase();
+        var match = compact.match(/^([+-]?(?:\d+\.?\d*|\.\d+))(mm|cm|m|in|"|ft|')?$/);
+        if (!match) {
+            return { isValid: false, valueMm: 0,
+                     reason: '"' + raw + '" is not a length. Type millimetres, e.g. 150 or -50 (0.15m and 6in work too).' };
+        }
+
+        var valueMm = parseFloat(match[1]) * NA_LENGTH_UNIT_TO_MM[match[2] || ''];
+        if (!isFinite(valueMm)) {
+            return { isValid: false, valueMm: 0, reason: '"' + raw + '" is not a length.' };
+        }
+        if (Math.abs(valueMm) > NA_PATH_OFFSET_LIMIT_MM) {
+            return { isValid: false, valueMm: 0,
+                     reason: Math.round(valueMm) + 'mm is past the ' + NA_PATH_OFFSET_LIMIT_MM + 'mm limit. A bare number is millimetres, e.g. 150.' };
+        }
+        return { isValid: true, valueMm: Math.round(valueMm * 10) / 10, reason: '' };
+    }
+
+    function Na__Ui__DescribeOffset(valueMm) {
+        if (valueMm > 0) return '+' + valueMm + 'mm overshoot';
+        if (valueMm < 0) return valueMm + 'mm trim';
+        return 'none';
+    }
+
+    // Applies one box synchronously — state and the push to a running preview —
+    // so a Commit clicked straight out of the box builds with the new value.
+    // Returns the status line; the caller redraws the panel.
+    function Na__Ui__ApplyPathOffset(endKey, text) {
+        var stateKey = endKey === 'end' ? 'endOffsetMm' : 'startOffsetMm';
+        var label    = endKey === 'end' ? 'End' : 'Start';
+        var parsed   = Na__Ui__ParseOffsetMm(text);
+        if (!parsed.isValid) {
+            return { isChanged: false, message: label + ' offset not changed: ' + parsed.reason };
+        }
+
+        var isChanged = parsed.valueMm !== Na__UiState[stateKey];
+        Na__UiState[stateKey] = parsed.valueMm;
+        if (isChanged) Na__Ui__PushLivePlacement();
+
+        var suffix = '';
+        if (isChanged && Na__Ui__IsTraceBound()) {
+            suffix = ' Click Regenerate Trace to apply it.';
+        } else if (isChanged && Na__UiState.isInteractiveToolActive) {
+            suffix = ' Preview updated.';
+        }
+        return {
+            isChanged: isChanged,
+            message: label + ' offset: ' + Na__Ui__DescribeOffset(parsed.valueMm) + '.' + suffix
+        };
+    }
+
+    // A box can still hold text that failed to parse (its change was refused).
+    // Generate, Commit and Regenerate check first, so nothing is built with a
+    // value the user can see is not the one being used.
+    function Na__Ui__PendingOffsetProblem() {
+        var inputs = document.querySelectorAll('.na-offset-field__input[data-na-offset-end]');
+        for (var i = 0; i < inputs.length; i++) {
+            var parsed = Na__Ui__ParseOffsetMm(inputs[i].value);
+            if (!parsed.isValid) {
+                var label = inputs[i].getAttribute('data-na-offset-end') === 'end' ? 'End' : 'Start';
+                return label + ' offset: ' + parsed.reason;
+            }
+        }
+        return '';
     }
 
     // endregion ----------------------------------------------------------------
@@ -229,6 +355,8 @@
         Na__UiState.rotationStep = Number(placement.rotationStep || 0) % 4;
         Na__UiState.originOffset = placement.originOffset || null;
         Na__UiState.isInsertPointPickActive = false;
+        Na__UiState.startOffsetMm = Number(placement.startOffset) || 0;
+        Na__UiState.endOffsetMm = Number(placement.endOffset) || 0;
 
         if (placement.toggleStates && typeof placement.toggleStates === 'object') {
             Object.keys(Na__UiState.toggleDefinitions || {}).forEach(function (toggleKey) {
@@ -265,6 +393,7 @@
             Na__UiState.profileSourceMode = profileSourceMode || 'library';
             Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
+            Na__Ui__PushLivePlacement();
             Na__Ui__SetStatus('Profile source mode: ' + Na__UiState.profileSourceMode);
             if (Na__UiState.profileSourceMode === 'scene' && window.Na__ProfilePathTracer__Bridge__RequestSceneProfileStatus) {
                 window.Na__ProfilePathTracer__Bridge__RequestSceneProfileStatus();
@@ -275,13 +404,59 @@
             Na__Ui__ClearInsertPointState();
             Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
+            Na__Ui__PushLivePlacement();
             Na__Ui__SetStatus('Profile selected: ' + (profileKey || '[none]'));
         },
+        // The Active Profile list. Routed through the store, like a Gallery
+        // pick, so every tab agrees — the store change is what redraws this
+        // panel and pushes the new profile to a running preview.
+        Na__Events__OnActiveProfileSelect: function(profileKey) {
+            var store = window.Na__ProfileTools__ProfileStore;
+            if (store && store.Na__Store__GetProfile(profileKey)) {
+                store.Na__Store__SetSelected(profileKey, { navigate: false });
+                var record = store.Na__Store__GetSelectedRecord();
+                Na__Ui__SetStatus('Profile: ' + (store.Na__Store__ProfileLabel(record) || profileKey) +
+                    (Na__UiState.isInteractiveToolActive ? ' — preview updated.' : '.'));
+                return;
+            }
+            Na__UiEventHandlers.Na__Events__OnProfileChange(profileKey);
+        },
         Na__Events__OnPathModeChange: function(pathMode) {
+            var wasPreviewing = Na__Ui__IsSelectionPreviewLive();
             Na__UiState.pathMode = pathMode;
             Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
             Na__Ui__SetStatus('Path mode: ' + (pathMode === 'interactive' ? 'Interactive path picking' : 'Use current selection'));
+
+            // The preview belongs to Selection mode; leaving the mode leaves it.
+            if (wasPreviewing && pathMode !== 'selection' && window.Na__ProfilePathTracer__Bridge__CancelLiveTool) {
+                window.Na__ProfilePathTracer__Bridge__CancelLiveTool();
+            }
+        },
+        // Applied at once so a Commit clicked straight out of the box builds
+        // with it; the redraw waits a tick, because `change` fires while focus
+        // is still moving to the next control (TAB from Start into End) and
+        // redrawing now would drop it. Na__Ui__Render puts focus back after.
+        Na__Events__OnPathOffsetChange: function(endKey, text) {
+            var outcome = Na__Ui__ApplyPathOffset(endKey, text);
+            window.setTimeout(function() {
+                if (outcome.isChanged) Na__Ui__MarkTraceDirty();
+                Na__Ui__Render();
+                Na__Ui__RenderProfilePreview();
+                Na__Ui__SetStatus(outcome.message);
+            }, 0);
+        },
+        Na__Events__OnSwapPathOffsets: function() {
+            var startOffsetMm = Na__UiState.startOffsetMm;
+            Na__UiState.startOffsetMm = Na__UiState.endOffsetMm;
+            Na__UiState.endOffsetMm = startOffsetMm;
+            Na__Ui__PushLivePlacement();
+            Na__Ui__MarkTraceDirty();
+            Na__Ui__Render();
+            Na__Ui__RenderProfilePreview();
+            Na__Ui__SetStatus('Offsets swapped: Start ' + Na__Ui__DescribeOffset(Na__UiState.startOffsetMm) +
+                ', End ' + Na__Ui__DescribeOffset(Na__UiState.endOffsetMm) + '.' +
+                (Na__Ui__IsTraceBound() ? ' Click Regenerate Trace to apply them.' : ''));
         },
         Na__Events__OnToggleInsertPointPick: function() {
             Na__UiState.isInsertPointPickActive = !Na__UiState.isInsertPointPickActive;
@@ -303,6 +478,7 @@
             Na__Ui__MarkTraceDirty();
             Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
+            Na__Ui__PushLivePlacement();
             Na__Ui__SetStatus('Insert point moved to Y ' + Math.round(sourcePoint[0]) + 'mm, Z ' + Math.round(sourcePoint[1]) + 'mm.' +
                 (Na__Ui__IsTraceBound() ? ' Click Regenerate Trace to apply it.' : ''));
         },
@@ -311,6 +487,7 @@
             Na__Ui__MarkTraceDirty();
             Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
+            Na__Ui__PushLivePlacement();
             Na__Ui__SetStatus('Insert point reset to the profile origin.');
         },
         Na__Events__OnRotateToStep: function(step) {
@@ -318,6 +495,7 @@
             Na__Ui__MarkTraceDirty();
             Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
+            Na__Ui__PushLivePlacement();
             Na__Ui__SetStatus('Rotation set to ' + (Na__UiState.rotationStep * 90) + ' deg');
         },
         Na__Events__OnToggleChange: function(toggleKey, isEnabled) {
@@ -326,6 +504,7 @@
             Na__Ui__MarkTraceDirty();
             Na__Ui__Render();
             Na__Ui__RenderProfilePreview();
+            Na__Ui__PushLivePlacement();
             Na__Ui__SetStatus('Toggle: ' + toggleKey + ' = ' + (isEnabled ? 'ON' : 'OFF'));
         },
         Na__Events__OnReverseDirectionToggle: function() {
@@ -337,9 +516,33 @@
                 Na__Ui__SetStatus('Pick a scene profile source before generating.');
                 return;
             }
+            var offsetProblem = Na__Ui__PendingOffsetProblem();
+            if (offsetProblem) {
+                Na__Ui__SetStatus('Fix the offset first — ' + offsetProblem);
+                return;
+            }
             Na__UiState.lastGeneratePayload = Na__Ui__BuildGeneratePayload();
             if (window.Na__ProfilePathTracer__Bridge__Generate) {
                 window.Na__ProfilePathTracer__Bridge__Generate(Na__UiState.lastGeneratePayload);
+            }
+        },
+        Na__Events__OnCommitPreview: function() {
+            if (!Na__Ui__IsSelectionPreviewLive()) {
+                Na__Ui__SetStatus('No selection preview is running — select the path edges and click Generate Profile first.');
+                return;
+            }
+            var offsetProblem = Na__Ui__PendingOffsetProblem();
+            if (offsetProblem) {
+                Na__Ui__SetStatus('Fix the offset first — ' + offsetProblem);
+                return;
+            }
+            if (window.Na__ProfilePathTracer__Bridge__CommitLiveTool) {
+                window.Na__ProfilePathTracer__Bridge__CommitLiveTool();
+            }
+        },
+        Na__Events__OnCancelPreview: function() {
+            if (window.Na__ProfilePathTracer__Bridge__CancelLiveTool) {
+                window.Na__ProfilePathTracer__Bridge__CancelLiveTool();
             }
         },
         Na__Events__OnPickSceneProfile: function() {
@@ -369,10 +572,17 @@
                 Na__Ui__SetStatus('No Profile Trace is bound — use Swap Profile with a trace selected in the model.');
                 return;
             }
+            var offsetProblem = Na__Ui__PendingOffsetProblem();
+            if (offsetProblem) {
+                Na__Ui__SetStatus('Fix the offset first — ' + offsetProblem);
+                return;
+            }
             swap.Na__Swap__RegenerateBound({
                 rotationStep: Na__UiState.rotationStep,
                 toggleStates: Na__UiState.toggleStates,
-                originOffset: Na__UiState.originOffset
+                originOffset: Na__UiState.originOffset,
+                startOffset:  Na__UiState.startOffsetMm,
+                endOffset:    Na__UiState.endOffsetMm
             });
         },
         // Straight through to Ruby. There is nothing to validate here: the
@@ -412,9 +622,45 @@
         const controlsRoot = document.getElementById('naApplyProfileTabBody');
         if (!controlsRoot) return;
 
+        var focusSnapshot = Na__Ui__CaptureFieldFocus(controlsRoot);
+
         Na__UiState.swap = Na__Ui__ReadSwapState();
         controlsRoot.innerHTML = window.Na__ProfilePathTracer__Ui__Controls.Na__Ui__RenderControls(Na__UiState);
         window.Na__ProfilePathTracer__Ui__Events.Na__Ui__AttachEvents(Na__UiEventHandlers);
+
+        Na__Ui__RestoreFieldFocus(focusSnapshot);
+    }
+
+    // The panel is rebuilt wholesale, so a field the user is in — the End
+    // Offset box they just tabbed into, or the profile list they are arrowing
+    // through — would lose focus on every redraw. Form fields only: putting
+    // focus back on a BUTTON would let Enter re-press it instead of reaching
+    // the Commit hotkey.
+    function Na__Ui__CaptureFieldFocus(root) {
+        var active = document.activeElement;
+        if (!active || !active.id || !root.contains(active)) return null;
+        var tagName = (active.tagName || '').toUpperCase();
+        if (tagName !== 'INPUT' && tagName !== 'SELECT' && tagName !== 'TEXTAREA') return null;
+
+        var snapshot = { id: active.id, selectionStart: null, selectionEnd: null };
+        try {
+            if (typeof active.selectionStart === 'number') {
+                snapshot.selectionStart = active.selectionStart;
+                snapshot.selectionEnd = active.selectionEnd;
+            }
+        } catch (err) { /* field type without a caret */ }
+        return snapshot;
+    }
+
+    function Na__Ui__RestoreFieldFocus(snapshot) {
+        if (!snapshot) return;
+        var field = document.getElementById(snapshot.id);
+        if (!field || typeof field.focus !== 'function') return;
+        field.focus();
+        if (snapshot.selectionStart !== null && typeof field.setSelectionRange === 'function') {
+            try { field.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd); }
+            catch (err) { /* value shorter than the old caret — leave it where focus put it */ }
+        }
     }
 
     // endregion ----------------------------------------------------------------
@@ -436,6 +682,9 @@
         if (isDifferentProfile) {
             Na__Ui__ClearInsertPointState();
             Na__Ui__Render();
+            // A Gallery pick or the Active Profile list, mid-preview: the
+            // running tool redraws with the new profile.
+            Na__Ui__PushLivePlacement();
         }
 
         Na__Ui__UpdateActiveProfileIndicator();
@@ -445,9 +694,23 @@
     function Na__Apply__OnStoreMetaUpdated(payload) {
         if (payload && payload.key && payload.record) {
             Na__UiState.profiles[payload.key] = payload.record;
+            Na__Apply__RelabelProfileOption(payload.key, payload.record);
         }
         Na__Ui__UpdateActiveProfileIndicator();
         Na__Ui__RenderProfilePreview();
+    }
+
+    // A rename in the Edit tab arrives once per keystroke, so the one option
+    // is relabelled in place rather than the whole panel redrawn.
+    function Na__Apply__RelabelProfileOption(profileKey, record) {
+        var selectEl = document.getElementById('naSelectActiveProfile');
+        var store    = window.Na__ProfileTools__ProfileStore;
+        if (!selectEl || !store) return;
+        Array.prototype.forEach.call(selectEl.options, function(option) {
+            if (option.value === profileKey) {
+                option.textContent = store.Na__Store__ProfileLabel(record) || profileKey;
+            }
+        });
     }
 
     // A swap has just landed (or been armed / cancelled / unbound). Adopt the
@@ -612,12 +875,30 @@
         Na__Ui__SetStatus('Reverse direction: ' + (Na__UiState.reverseDirection ? 'ON' : 'OFF') + ' — flipped with TAB.');
     }
 
-    // Sent when the interactive tool activates and again when it deactivates.
+    // Sent when a preview tool (Interactive or Selection) activates and again
+    // when it deactivates. Always a full redraw: whether a Selection preview
+    // is live decides between Generate and Commit / Cancel.
     function Na__ProfilePathTracer__ReceiveInteractiveToolState(payload) {
         if (!payload || typeof payload !== 'object') return;
 
-        Na__UiState.isInteractiveToolActive = payload.isInteractiveToolActive === true;
-        Na__Ui__SetReverseDirection(payload.reverseDirection === true, false);
+        var isActive = payload.isInteractiveToolActive === true;
+        Na__UiState.isInteractiveToolActive = isActive;
+        Na__UiState.liveToolKind    = isActive ? (payload.toolKind || 'interactive') : '';
+        Na__UiState.livePathSummary = isActive ? (payload.pathSummary || '') : '';
+        Na__UiState.reverseDirection = payload.reverseDirection === true;
+        Na__Ui__Render();
+        Na__Ui__RenderProfilePreview();
+    }
+
+    // SHIFT+TAB rolled the profile in the viewport. Follow it here, or this
+    // panel's next placement push would roll it straight back.
+    function Na__ProfilePathTracer__ReceiveRotationState(payload) {
+        if (!payload || typeof payload !== 'object') return;
+
+        Na__UiState.rotationStep = Math.max(0, Math.min(3, Number(payload.rotationStep) || 0));
+        Na__Ui__Render();
+        Na__Ui__RenderProfilePreview();
+        Na__Ui__SetStatus('Rotation ' + (Na__UiState.rotationStep * 90) + ' deg — rolled with SHIFT+TAB.');
     }
 
     function Na__ProfilePathTracer__ReceiveEdgeMaterialsStatus(result) {
@@ -639,6 +920,7 @@
     window.Na__ProfilePathTracer__ReceiveEdgeMaterialsStatus = Na__ProfilePathTracer__ReceiveEdgeMaterialsStatus;
     window.Na__ProfilePathTracer__ReceiveReverseDirectionState = Na__ProfilePathTracer__ReceiveReverseDirectionState;
     window.Na__ProfilePathTracer__ReceiveInteractiveToolState = Na__ProfilePathTracer__ReceiveInteractiveToolState;
+    window.Na__ProfilePathTracer__ReceiveRotationState      = Na__ProfilePathTracer__ReceiveRotationState;
     window.Na__ProfilePathTracer__Ui__Render                = Na__Ui__Render;
     window.Na__ProfilePathTracer__Ui__SetStatusFromBridge   = Na__Ui__SetStatusFromBridge;
 
@@ -653,9 +935,10 @@
     // REGION | Init
     // -------------------------------------------------------------------------
 
-    // The dialog steals focus the moment its Reverse button is clicked, so TAB
-    // has to work here too — otherwise the hotkey would die on the first click.
-    // Only armed while a trace is live, and never over a text field.
+    // The dialog steals focus the moment one of its buttons is clicked, so the
+    // viewport keys have to work here too — otherwise they would die on the
+    // first click. Only armed while a preview tool is live, and never over a
+    // text field.
     function Na__Ui__IsTextEntryTarget(target) {
         if (!target || !target.tagName) return false;
         var tagName = target.tagName.toUpperCase();
@@ -663,15 +946,47 @@
         return target.isContentEditable === true;
     }
 
-    function Na__Ui__AttachReverseHotkey() {
-        document.addEventListener('keydown', function(keyEvent) {
-            if (keyEvent.key !== 'Tab') return;
-            if (keyEvent.shiftKey || keyEvent.ctrlKey || keyEvent.altKey || keyEvent.metaKey) return;
-            if (!Na__UiState.isInteractiveToolActive) return;
-            if (Na__Ui__IsTextEntryTarget(keyEvent.target)) return;
+    // Enter / Esc keep their own meaning on anything that has one: a focused
+    // button is pressed by Enter, a disclosure toggled.
+    function Na__Ui__IsControlTarget(target) {
+        if (Na__Ui__IsTextEntryTarget(target)) return true;
+        if (!target || !target.tagName) return false;
+        var tagName = target.tagName.toUpperCase();
+        return tagName === 'BUTTON' || tagName === 'A' || tagName === 'SUMMARY';
+    }
 
-            keyEvent.preventDefault();
-            Na__UiEventHandlers.Na__Events__OnReverseDirectionToggle();
+    //   TAB        reverse            (both preview tools, as in the viewport)
+    //   SHIFT+TAB  rotate 90 deg      (both preview tools, as in the viewport)
+    //   Enter      commit             (Selection preview)
+    //   Esc        cancel             (Selection preview — an Interactive trace
+    //                                  has waypoints to lose, so its Esc stays
+    //                                  in the viewport)
+    function Na__Ui__AttachLiveToolHotkeys() {
+        document.addEventListener('keydown', function(keyEvent) {
+            if (!Na__UiState.isInteractiveToolActive) return;
+            if (keyEvent.ctrlKey || keyEvent.altKey || keyEvent.metaKey) return;
+
+            if (keyEvent.key === 'Tab') {
+                if (Na__Ui__IsTextEntryTarget(keyEvent.target)) return;
+                keyEvent.preventDefault();
+                if (keyEvent.shiftKey) {
+                    Na__UiEventHandlers.Na__Events__OnRotateToStep((Na__UiState.rotationStep + 1) % 4);
+                } else {
+                    Na__UiEventHandlers.Na__Events__OnReverseDirectionToggle();
+                }
+                return;
+            }
+
+            if (!Na__Ui__IsSelectionPreviewLive() || keyEvent.shiftKey) return;
+            if (Na__Ui__IsControlTarget(keyEvent.target)) return;
+
+            if (keyEvent.key === 'Enter') {
+                keyEvent.preventDefault();
+                Na__UiEventHandlers.Na__Events__OnCommitPreview();
+            } else if (keyEvent.key === 'Escape') {
+                keyEvent.preventDefault();
+                Na__UiEventHandlers.Na__Events__OnCancelPreview();
+            }
         });
     }
 
@@ -679,7 +994,7 @@
         if (window.Na__ProfilePathTracer__Ui__Events && window.Na__ProfilePathTracer__Ui__Events.Na__Ui__AttachHeaderEvents) {
             window.Na__ProfilePathTracer__Ui__Events.Na__Ui__AttachHeaderEvents(Na__UiEventHandlers);
         }
-        Na__Ui__AttachReverseHotkey();
+        Na__Ui__AttachLiveToolHotkeys();
     });
 
     // endregion ----------------------------------------------------------------

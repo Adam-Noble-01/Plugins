@@ -31,10 +31,17 @@
 #   Na__SwapEngine__ApplySwap(request)            -> Hash
 #       request = { 'traceIds' => [...], 'profileKey' => '...',
 #                   'rotationStep' => Int, 'toggleStates' => {...},
-#                   'originOffset' => {'y'=>mm,'z'=>mm} | nil }
+#                   'originOffset' => {'y'=>mm,'z'=>mm} | nil,
+#                   'startOffset' => mm, 'endOffset' => mm }
 #       A blank / absent profileKey means "keep the profile, just re-apply the
 #       placement settings" — which is what the dialog's Regenerate Trace button
 #       sends after the insert point has been moved.
+#
+#   PATH OFFSETS travel to and from the dialog as TYPED: 'startOffset' is the
+#   end the user called Start. The assembly stores them in traversal order and
+#   flags the pair when the two differ (OffsetEndsSwapped — an Interactive run
+#   the canonical direction rule reversed), so both directions translate here.
+#   A profile swap leaves them alone: an overshoot belongs to the path.
 #
 # WHAT IS DELIBERATELY NOT SWAPPABLE
 #   ReverseDirection. Reverse is baked into the parent group's own
@@ -155,6 +162,7 @@ module Na__ProfileTools__ProfilePathTracer
             payload      = Na__DataSerializer.Na__DataSerializer__ReadParentPayload(primary) || {}
             profile_key  = payload['ProfileKey'].to_s
             display_name = self.Na__SwapEngine__ProfileDisplayName(profile_key)
+            typed_offsets = self.Na__SwapEngine__TypedPathOffsets(payload)
 
             {
                 'isBound'            => true,
@@ -168,7 +176,9 @@ module Na__ProfileTools__ProfilePathTracer
                     'rotationStep'     => payload['RotationStep'].to_i,
                     'toggleStates'     => payload['ToggleStates'].is_a?(Hash) ? payload['ToggleStates'] : {},
                     'originOffset'     => payload['OriginOffset'],
-                    'reverseDirection' => payload['ReverseDirection'] == true
+                    'reverseDirection' => payload['ReverseDirection'] == true,
+                    'startOffset'      => typed_offsets['start'],
+                    'endOffset'        => typed_offsets['end']
                 },
                 'statusMessage'      => self.Na__SwapEngine__BindStatusMessage(ids, display_name, profile_key)
             }
@@ -187,10 +197,20 @@ module Na__ProfileTools__ProfilePathTracer
                     'rotationStep'     => 0,
                     'toggleStates'     => {},
                     'originOffset'     => nil,
-                    'reverseDirection' => false
+                    'reverseDirection' => false,
+                    'startOffset'      => 0.0,
+                    'endOffset'        => 0.0
                 },
                 'statusMessage'      => status_message.to_s
             }
+        end
+
+        # Stored (traversal order) -> as typed. See PATH OFFSETS in the header.
+        def self.Na__SwapEngine__TypedPathOffsets(payload)
+            stored_start = payload['StartOffset'].to_f
+            stored_end   = payload['EndOffset'].to_f
+            return { 'start' => stored_end, 'end' => stored_start } if payload['OffsetEndsSwapped'] == true
+            { 'start' => stored_start, 'end' => stored_end }
         end
 
         def self.Na__SwapEngine__BindStatusMessage(ids, display_name, profile_key)
@@ -281,6 +301,15 @@ module Na__ProfileTools__ProfilePathTracer
                 updates['OriginOffset'] = nil
             end
 
+            # As typed -> stored (traversal order), using THIS trace's own flag:
+            # two bound traces can be swapped the opposite way round.
+            typed_offsets = updates.delete('TypedPathOffsets')
+            if typed_offsets
+                swapped = previous_payload['OffsetEndsSwapped'] == true
+                updates['StartOffset'] = swapped ? typed_offsets['end']   : typed_offsets['start']
+                updates['EndOffset']   = swapped ? typed_offsets['start'] : typed_offsets['end']
+            end
+
             model.start_operation('Na__ProfilePathTracer__SwapProfile', true)
             Na__DataSerializer.Na__DataSerializer__UpdateParentPlacement(parent_group, updates)
             self.Na__SwapEngine__RenameForProfile(parent_group, next_key, previous_key)
@@ -304,7 +333,9 @@ module Na__ProfileTools__ProfilePathTracer
                 'ProfileKey'   => previous_payload['ProfileKey'].to_s,
                 'RotationStep' => previous_payload['RotationStep'].to_i,
                 'ToggleStates' => previous_payload['ToggleStates'],
-                'OriginOffset' => previous_payload['OriginOffset']
+                'OriginOffset' => previous_payload['OriginOffset'],
+                'StartOffset'  => previous_payload['StartOffset'],
+                'EndOffset'    => previous_payload['EndOffset']
             )
             parent_group.name = previous_name unless previous_name.empty?
             model.commit_operation
@@ -389,7 +420,23 @@ module Na__ProfileTools__ProfilePathTracer
             overrides['ToggleStates'] = request['toggleStates']          if request['toggleStates'].is_a?(Hash)
             overrides['OriginOffset'] = self.Na__SwapEngine__NormaliseOriginOffset(request['originOffset']) if request.key?('originOffset')
 
+            # Kept as typed here; SwapOneTrace converts per trace, because the
+            # stored order depends on each trace's own OffsetEndsSwapped flag.
+            if request.key?('startOffset') || request.key?('endOffset')
+                overrides['TypedPathOffsets'] = {
+                    'start' => self.Na__SwapEngine__NormaliseOffsetMm(request['startOffset']),
+                    'end'   => self.Na__SwapEngine__NormaliseOffsetMm(request['endOffset'])
+                }
+            end
+
             overrides
+        end
+
+        def self.Na__SwapEngine__NormaliseOffsetMm(value)
+            offset_mm = value.to_f
+            offset_mm.finite? ? offset_mm : 0.0
+        rescue
+            0.0
         end
 
         def self.Na__SwapEngine__NormaliseOriginOffset(incoming)

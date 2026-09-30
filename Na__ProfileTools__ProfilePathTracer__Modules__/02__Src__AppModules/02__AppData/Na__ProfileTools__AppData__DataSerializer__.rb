@@ -22,6 +22,15 @@
 #                                   Informational cache of the PRIMARY run only —
 #                                   regeneration always re-derives the real path
 #                                   from the Helpers edges, which may hold several.
+#     StartOffset          String   mm (signed) the sweep overshoots (+) or trims
+#                                   (-) at the TRAVERSAL start of an open run —
+#                                   the end nearest StartPoint. "0" on loops.
+#     EndOffset            String   mm (signed), same at the traversal end.
+#     OffsetEndsSwapped    String   "true" when the user's "Start" offset is the
+#                                   stored EndOffset (an Interactive run the
+#                                   canonical direction rule reversed). Geometry
+#                                   never reads it; the swap engine does, so a
+#                                   bound trace shows and takes offsets as typed.
 #     DynamicRegenEnabled  String   "true" | "false"
 #     HelpersFingerprint   String   SHA1 of the helpers linework (see
 #                                   Na__RegenSweep). Written inside the same
@@ -37,7 +46,10 @@
 # SCHEMA COMPATIBILITY
 #   1.0.0 assemblies (no ReverseDirection / OriginOffset / PathPoints) still
 #   read back cleanly — the added keys default to false / nil / [] so an older
-#   trace regenerates exactly as it did before.
+#   trace regenerates exactly as it did before. StartOffset / EndOffset /
+#   OffsetEndsSwapped (v1.6.11) are optional in the same way: absent reads as
+#   0 / 0 / false, which is exactly how every earlier trace was swept, so they
+#   did not need a schema bump.
 #   1.2.0 marks assemblies built with the WYSIWYG (mirrored) path frame that
 #   matches the 2D dialog preview. Traces stamped 1.1.0 or earlier were swept
 #   with the legacy right-handed frame; the RegenerationEngine reads this
@@ -100,6 +112,10 @@ module Na__ProfileTools__ProfilePathTracer
             dict['ReverseDirection']    = (payload_hash['ReverseDirection'] == true).to_s
             dict['OriginOffset']        = self.Na__DataSerializer__SerialiseOriginOffset(payload_hash['OriginOffset'])
             dict['PathPoints']          = self.Na__DataSerializer__SerialisePointList(payload_hash['PathPoints'])
+            path_offsets                = payload_hash['PathOffsets'].is_a?(Hash) ? payload_hash['PathOffsets'] : {}
+            dict['StartOffset']         = self.Na__DataSerializer__SerialiseOffsetMm(path_offsets['start'])
+            dict['EndOffset']           = self.Na__DataSerializer__SerialiseOffsetMm(path_offsets['end'])
+            dict['OffsetEndsSwapped']   = (payload_hash['OffsetEndsSwapped'] == true).to_s
             dict['DynamicRegenEnabled'] = 'true'
             dict['SchemaVersion']       = NA_SCHEMA_VERSION
             dict['CreatedAt']           = Time.now.utc.iso8601
@@ -122,7 +138,8 @@ module Na__ProfileTools__ProfilePathTracer
 
         # Patches ONLY the placement values a profile hot-swap is allowed to
         # touch, leaving ProfileTraceId, StartPoint, CreatedAt, SchemaVersion,
-        # ReverseDirection and DynamicRegenEnabled exactly as stamped.
+        # ReverseDirection, OffsetEndsSwapped and DynamicRegenEnabled exactly as
+        # stamped. StartOffset / EndOffset arrive already in traversal order.
         #
         # SchemaVersion in particular must never be bumped here: it is what tells
         # the RegenerationEngine whether an assembly was swept with the legacy
@@ -148,6 +165,8 @@ module Na__ProfileTools__ProfilePathTracer
             if updates.key?('OriginOffset')
                 dict['OriginOffset'] = self.Na__DataSerializer__SerialiseOriginOffset(updates['OriginOffset'])
             end
+            dict['StartOffset'] = self.Na__DataSerializer__SerialiseOffsetMm(updates['StartOffset']) if updates.key?('StartOffset')
+            dict['EndOffset']   = self.Na__DataSerializer__SerialiseOffsetMm(updates['EndOffset'])   if updates.key?('EndOffset')
 
             true
         rescue => error
@@ -236,6 +255,9 @@ module Na__ProfileTools__ProfilePathTracer
                 'ReverseDirection'   => dict['ReverseDirection'] == 'true',
                 'OriginOffset'       => self.Na__DataSerializer__DeserialiseOriginOffset(dict['OriginOffset']),
                 'PathPoints'         => self.Na__DataSerializer__DeserialisePointList(dict['PathPoints']),
+                'StartOffset'        => self.Na__DataSerializer__DeserialiseOffsetMm(dict['StartOffset']),
+                'EndOffset'          => self.Na__DataSerializer__DeserialiseOffsetMm(dict['EndOffset']),
+                'OffsetEndsSwapped'  => dict['OffsetEndsSwapped'] == 'true',
                 'DynamicRegenEnabled'=> dict['DynamicRegenEnabled'] == 'true',
                 'SchemaVersion'      => dict['SchemaVersion'].to_s
             }
@@ -475,6 +497,23 @@ module Na__ProfileTools__ProfilePathTracer
             { 'y' => coords[0].to_f, 'z' => coords[1].to_f }
         rescue
             nil
+        end
+
+        # Path end offsets are plain signed millimetres. A missing key reads as
+        # 0.0 — no overshoot — which is how every pre-v1.6.11 trace was swept.
+        def self.Na__DataSerializer__SerialiseOffsetMm(value)
+            offset_mm = value.to_f
+            offset_mm = 0.0 unless offset_mm.finite?
+            offset_mm.round(3).to_s
+        rescue
+            '0.0'
+        end
+
+        def self.Na__DataSerializer__DeserialiseOffsetMm(stored_value)
+            offset_mm = stored_value.to_f
+            offset_mm.finite? ? offset_mm : 0.0
+        rescue
+            0.0
         end
 
     # endregion ----------------------------------------------------------------

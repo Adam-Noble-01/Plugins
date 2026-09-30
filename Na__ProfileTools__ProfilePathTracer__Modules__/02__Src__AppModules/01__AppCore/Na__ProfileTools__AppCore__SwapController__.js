@@ -59,7 +59,9 @@
                 rotationStep:     0,
                 toggleStates:     {},
                 originOffset:     null,
-                reverseDirection: false
+                reverseDirection: false,
+                startOffset:      0,     // path overshoot, mm, as typed (Start = the
+                endOffset:        0      // end the user called Start)
             }
         };
     }
@@ -125,7 +127,9 @@
             rotationStep:     Number(placement.rotationStep || 0) % 4,
             toggleStates:     (placement.toggleStates && typeof placement.toggleStates === 'object') ? placement.toggleStates : {},
             originOffset:     placement.originOffset || null,
-            reverseDirection: placement.reverseDirection === true
+            reverseDirection: placement.reverseDirection === true,
+            startOffset:      Number(placement.startOffset) || 0,
+            endOffset:        Number(placement.endOffset) || 0
         };
         return true;
     }
@@ -154,7 +158,9 @@
                 rotationStep:     na_state.placement.rotationStep,
                 toggleStates:     na_state.placement.toggleStates,
                 originOffset:     na_state.placement.originOffset,
-                reverseDirection: na_state.placement.reverseDirection
+                reverseDirection: na_state.placement.reverseDirection,
+                startOffset:      na_state.placement.startOffset,
+                endOffset:        na_state.placement.endOffset
             }
         };
     };
@@ -261,7 +267,7 @@
 
     // Same Ruby entry point with a blank profileKey — "keep the profile, apply
     // these placement settings". This is what the Regenerate Trace button sends
-    // after the insert point, rotation or mirrors have been changed.
+    // after the insert point, rotation, mirrors or path offsets have changed.
     Na__ProfileTools__SwapController.Na__Swap__RegenerateBound = function (placement) {
         if (!na_state.isBound) return false;
         if (na_state.isBusy) return false;
@@ -276,7 +282,9 @@
             profileKey:   '',
             rotationStep: Number(resolved.rotationStep || 0) % 4,
             toggleStates: resolved.toggleStates || {},
-            originOffset: resolved.originOffset || null
+            originOffset: resolved.originOffset || null,
+            startOffset:  Number(resolved.startOffset) || 0,
+            endOffset:    Number(resolved.endOffset) || 0
         });
 
         if (!sent) {
