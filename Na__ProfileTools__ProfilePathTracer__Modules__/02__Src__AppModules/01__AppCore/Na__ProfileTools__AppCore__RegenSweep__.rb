@@ -162,7 +162,10 @@ module Na__ProfileTools__ProfilePathTracer
         # Order-independent hash of the helper linework in parent space (the
         # group's own transformation is included, so scaling or moving the
         # Helpers group instance also reads as a change). Rounded to 1e-4" so
-        # float noise cannot register as an edit.
+        # float noise cannot register as an edit. Parent space only while the
+        # assembly is closed, which every caller guarantees: a new build is
+        # never open, a rebuild steps out first and the sweep skips an assembly
+        # being edited. Moving the groups around it changes nothing here.
         def self.Na__RegenSweep__ComputeFingerprint(helpers_group)
             return nil unless Na__DataSerializer.Na__DataSerializer__GroupValid?(helpers_group)
 

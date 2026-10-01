@@ -29,10 +29,17 @@
 #   that meets another run or a loop is a junction, and pushing the solid past
 #   it would bury one moulding inside its neighbour.
 #
+# COORDINATE SPACE (v1.6.12)
+#   A rebuild reads the Helpers edges and writes the new solid in PARENT space,
+#   the assembly's own axes, which is what the API reports only while the
+#   assembly is closed. Regenerate Now or a profile swap run from inside it
+#   (Edit Path) therefore steps out first, as clicking outside would.
+#
 # PUBLIC API
 #   Na__RegenEngine__RegenerateFromHelpers(parent_group) -> Boolean
 #       Deletes the SweptSolid sub-group and rebuilds it using the Helpers
 #       edges as the path source. Returns true if at least one run swept.
+#       Steps out of the assembly first when the user is editing inside it.
 #
 #   Na__RegenEngine__InProgress? -> Boolean
 #       Re-entrancy guard — true while a regeneration operation is running.
@@ -79,6 +86,11 @@ module Na__ProfileTools__ProfilePathTracer
             helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
             return false unless helpers_group
 
+            unless self.Na__RegenEngine__LeaveAssemblyContext(parent_group)
+                self.Na__RegenEngine__ReportFailure('the trace is open for editing and could not be closed — click outside it, then regenerate.')
+                return false
+            end
+
             # The remembered start point anchors chain direction, so extending the
             # linework at either end does not flip the profile round.
             path_result = self.Na__RegenEngine__BuildPathFromHelpers(helpers_group, payload['StartPoint'])
@@ -121,6 +133,44 @@ module Na__ProfileTools__ProfilePathTracer
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
+    # REGION | Private - Edit Context
+    # -------------------------------------------------------------------------
+
+        # A rebuild reads the Helpers edges through the Helpers transformation
+        # and sweeps into a fresh sub-group: parent space in, parent space out.
+        # That holds only while the assembly is CLOSED. Opened (Regenerate Now
+        # or a swap run from inside Edit Path), everything in it reports world
+        # space: "in the active drawing context and all its parent coordinate
+        # systems all coordinates are global". World points were read as parent
+        # space, so the solid landed displaced by however far the assembly had
+        # moved since it was built, and the rebuild could erase the very
+        # SweptSolid group the user was standing in. The Dynamic Regeneration
+        # sweep already waits for the user to step out
+        # (Na__RegenSweep__InsideEditContext?); a manual rebuild steps out itself,
+        # to the context the assembly sits in, as clicking outside it would.
+        # A no-op whenever the assembly is not open.
+        #
+        # Runs before the rebuild opens its operation. SketchUp wraps a path
+        # change in transparent operations of its own, since entities cannot be
+        # modified in the same operation as the active entities change.
+        def self.Na__RegenEngine__LeaveAssemblyContext(parent_group)
+            model = Sketchup.active_model
+            return false unless model
+
+            active_path    = Array(model.active_path)
+            assembly_index = active_path.index { |instance| instance == parent_group }
+            return true unless assembly_index
+
+            model.active_path = active_path[0...assembly_index]
+            true
+        rescue ArgumentError => error
+            Na__DebugTools.Na__Debug__Warn("RegenEngine: could not leave the assembly: #{error.message}")
+            false
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
     # REGION | Private - Path Extraction from Helpers
     # -------------------------------------------------------------------------
 
@@ -135,6 +185,8 @@ module Na__ProfileTools__ProfilePathTracer
             # the Helpers instance itself, that transform must be baked into the
             # path or the rebuild lands at the pre-move position. The stored
             # anchor lives in parent space, so it maps into local space first.
+            # Both readings need the assembly closed, which
+            # Na__RegenEngine__LeaveAssemblyContext has made sure of.
             transform    = helpers_group.transformation
             local_anchor = self.Na__RegenEngine__MapAnchorToLocal(anchor_point, transform)
 

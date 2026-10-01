@@ -15,10 +15,15 @@
 #     RotationStep         Integer  0-3
 #     ToggleStates         String   JSON-encoded hash of toggle flags
 #     IsClosedLoop         String   "true" | "false"
-#     StartPoint           String   JSON-encoded [x, y, z] in inches
+#     StartPoint           String   JSON-encoded [x, y, z] in inches, in PARENT
+#                                   space (the assembly's own axes, before any
+#                                   Reverse flip). The build pins the assembly to
+#                                   the world axes (v1.6.12), so parent space is
+#                                   world space as built, inside a group or not.
 #     ReverseDirection     String   "true" | "false"
 #     OriginOffset         String   JSON-encoded [y_mm, z_mm] datum shift
-#     PathPoints           String   JSON-encoded [[x,y,z], ...] in inches.
+#     PathPoints           String   JSON-encoded [[x,y,z], ...] in inches, in
+#                                   parent space like StartPoint.
 #                                   Informational cache of the PRIMARY run only —
 #                                   regeneration always re-derives the real path
 #                                   from the Helpers edges, which may hold several.

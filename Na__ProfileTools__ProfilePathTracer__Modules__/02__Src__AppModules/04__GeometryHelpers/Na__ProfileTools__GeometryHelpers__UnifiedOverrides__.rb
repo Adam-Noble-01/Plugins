@@ -14,6 +14,14 @@
 #   first segment (see Na__Geometry__BuildSweepRailPlan) so both caps are coplanar
 #   and the corner miters cleanly. Open paths cap at the first vertex.
 #
+# WORLD SPACE INSIDE OPEN GROUPS (v1.6.12):
+#   Every point the build is handed is a WORLD point — a selected edge's vertex
+#   (a selection lives in the open context, which reports world) or an
+#   InputPoint. The assembly is pinned to the world axes before anything goes
+#   in, and Reverse is set the same way (Na__Geometry__PinGroupToWorld,
+#   Na__Geometry__ApplyReverseFlip). Parent space is then world space as built —
+#   the space the regeneration engine rebuilds in.
+#
 # =============================================================================
 
 module Na__ProfileTools__ProfilePathTracer
@@ -583,6 +591,53 @@ module Na__ProfileTools__ProfilePathTracer
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
+    # REGION | Assembly placement — world space inside open groups
+    # -------------------------------------------------------------------------
+
+        # THE COORDINATE RULE (SketchUp's API team): "In the active drawing
+        # context and all its parent coordinate systems all coordinates are
+        # global. In all other coordinate systems they are local."
+        #
+        # Every point the build is handed is a world point: a selected edge's
+        # vertex position (selected edges sit in the open context, which reports
+        # world) or an InputPoint position (always world). But a group added to
+        # the active entities is itself closed — its entities are local — and it
+        # starts at the open group's placement. Fed world points as they stood,
+        # the whole trace was carried through that placement: right at the model
+        # root; moved, turned and scaled by the open group's transformation
+        # inside one, nowhere near the preview, which draws in world.
+        #
+        # An instance's transformation in the open context is read as world, so
+        # the identity puts the assembly's axes on the world's and world points
+        # go in unchanged. Parent space is then world space AS BUILT: the stamped
+        # StartPoint and PathPoints, the Helpers linework and the swept solid all
+        # share it, and the regeneration engine, which rebuilds in parent space
+        # with parent Z as up, reproduces the build exactly however the enclosing
+        # groups move later. At the model root this is a no-op.
+        def self.Na__Geometry__PinGroupToWorld(group)
+            group.transformation = Geom::Transformation.new
+        end
+
+        # Reverse mirrors the finished assembly about the horizontal plane through
+        # the top of its bounds: the flip the preview applies to its own world
+        # geometry (Na__Geometry__BuildPreviewGeometry). Both halves are taken in
+        # world space, without leaning on how Group#bounds and Group#transform!
+        # behave for an instance inside an open group (never measured):
+        #   - the definition's bounds are in parent space, which the pin made
+        #     world space;
+        #   - the assembly sits at the world identity, so the flip IS its world
+        #     transformation, set exactly as the pin was.
+        # The flip moves the instance, not its contents, so the Helpers edges keep
+        # their un-flipped coordinates, which is what lets the regeneration
+        # engine rebuild in un-flipped parent space.
+        def self.Na__Geometry__ApplyReverseFlip(parent_group)
+            flip_transform = self.Na__Geometry__BuildReverseFlipTransform(parent_group.definition.bounds)
+            parent_group.transformation = flip_transform
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
     # REGION | Solid — follow-me along path
     # -------------------------------------------------------------------------
 
@@ -634,6 +689,7 @@ module Na__ProfileTools__ProfilePathTracer
 
             parent_group = model.active_entities.add_group
             parent_group.name = "Na__ProfileTrace__#{profile_key}"
+            self.Na__Geometry__PinGroupToWorld(parent_group)
 
             helpers_group = parent_group.entities.add_group
             helpers_group.name = 'Na__ProfileTrace__Helpers'
@@ -664,12 +720,7 @@ module Na__ProfileTools__ProfilePathTracer
 
             self.Na__Geometry__BuildHelpersSubGroup(model, helpers_group, ordered_points, is_closed_loop)
 
-            # Group#transform! moves the instance, not its contents, so the Helpers
-            # edges keep their original local coordinates — which is what lets the
-            # regeneration engine rebuild in un-flipped space.
-            if reverse_direction
-                parent_group.transform!(self.Na__Geometry__BuildReverseFlipTransform(parent_group.bounds))
-            end
+            self.Na__Geometry__ApplyReverseFlip(parent_group) if reverse_direction
 
             # @delegate: ../02__AppData/Na__ProfileTools__AppData__DataSerializer__
             self.Na__Geometry__StampAssemblyDictionaries(

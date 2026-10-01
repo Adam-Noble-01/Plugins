@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "225bfa37-21b8-4f66-995c-e124016b75ef",
+  "name": "Cresting 01",
+  "description": "Better Name When Time",
+  "category": "Roof Cresting",
+  "created_at": "2026-10-01T09:02:07Z",
+  "updated_at": "2026-10-01T09:02:07Z",
+  "configuration": {
+    "type": "object",
+    "unit_width_mm": 260.0000000000102,
+    "unit_depth_mm": 10.000000000009276,
+    "unit_height_mm": 149.99999999999477,
+    "spacing_mm": 0.0,
+    "distribution": "fixed",
+    "inset_mm": 200.0,
+    "anchor_mode": "local_axis",
+    "keep_upright": false,
+    "reverse_path": false,
+    "path_source": "draw",
+    "offset_lateral_mm": 0.0,
+    "offset_vertical_mm": 0.0,
+    "merge_corners": false
+  },
+  "source": {
+    "asset_id": "922db944-bdb2-41c6-a9ff-0341af5e9896",
+    "name": "85__Cresting",
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  }
+}

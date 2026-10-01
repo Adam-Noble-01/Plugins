@@ -4,6 +4,115 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.6.12 - 01-Oct-2026 - Traces Built Inside Groups Land on Their Preview
+
+### Summary
+Built inside a group open for editing, a trace landed somewhere else. Right at the model root;
+inside a moved, rotated or scaled group it came out displaced, turned and the wrong size, metres
+from the preview, which draws in world space. Both path modes, Reverse on or off, open runs and
+loops. This predates v1.6.11; the Selection preview only made it visible.
+
+A second, older fault from the same rule: **Regenerate Now** or a profile swap run from *inside*
+the trace (Edit Path) rebuilt the solid displaced by however far the trace had moved since it was
+built.
+
+### What was wrong
+SketchUp's API team: *"In the active drawing context and all its parent coordinate systems all
+coordinates are global. In all other coordinate systems they are local."*
+
+1. **The build put world points into a group that was not at the world.** Every point the build is
+   handed is world: a selected edge's vertex (selected edges sit in the open context, which reports
+   world) or an InputPoint (always world). `Na__Geometry__BuildProfileAlongPath` added the assembly
+   to the active entities and fed those points into its Helpers and SweptSolid sub-groups. But a new
+   group is itself closed, so its entities are local, and it starts at the open group's placement.
+   The whole trace went through that placement. At the root the placement is the identity, which is
+   why it always worked there.
+2. **A manual rebuild from inside the trace mixed spaces.** A rebuild reads the Helpers edges through
+   the Helpers transformation and sweeps into a fresh sub-group: parent space in, parent space out.
+   With the trace open, both read as world, and the rebuild could erase the SweptSolid group the
+   user was standing in. The Dynamic Regeneration sweep has always waited for the user to step out;
+   Regenerate Now and Swap did not. (At the root, Reverse's mirror is its own inverse and cancelled
+   the error, which is why it never showed.)
+
+### The fix
+- **`Na__Geometry__PinGroupToWorld`.** The assembly's transformation is set to the identity right
+  after it is created. Inside an open group that reads as world, so the assembly's axes sit on the
+  world's and world points go in unchanged. Parent space is then world space *as built*: the stamped
+  `StartPoint` / `PathPoints`, the Helpers, the solid and the RegenSweep fingerprint all share it,
+  and the regeneration engine (parent space, parent Z up) reproduces the build exactly however the
+  enclosing groups move later. At the root it changes nothing.
+- **`Na__Geometry__ApplyReverseFlip`.** Reverse takes its bounds from the assembly's definition
+  (parent space, so world after the pin) and sets the flip as the transformation, the same way as
+  the pin. The old `transform!` with the instance bounds leaned on how both behave for an instance
+  inside an open group, which was never measured. At the root the two are identical.
+- **`Na__RegenEngine__LeaveAssemblyContext`.** A manual rebuild (Regenerate Now, Swap Profile,
+  Regenerate Trace) run from inside the trace first steps out to the context the trace sits in,
+  exactly as clicking outside it does, then rebuilds. It does nothing when the trace is not open.
+
+### What depends on the build's coordinate space
+| Dependent | Status |
+|---|---|
+| `StartPoint` / `PathPoints` (DataSerializer) | Parent space, now world as built; the schema header says so. No schema bump: older stamps are parent space too |
+| `Na__RegenEngine__BuildPathFromHelpers` | Maps the Helpers edges through `helpers_group.transformation` into parent space: right whenever the trace is closed, which every rebuild now guarantees |
+| Reverse flip | Taken in world, the same flip `Na__Geometry__BuildPreviewGeometry` applies to the ghost |
+| `Na__EditPathNavigator` | Builds an absolute path (context, trace, Helpers); unchanged |
+| RegenSweep fingerprint | Parent space, only computed with the trace closed. Moving the groups around a trace never reads as an edit |
+
+**Traces built inside a group before v1.6.12 stay where they were built.** Their Helpers, stamps
+and solid agree with each other, so every rebuild leaves them in place, and nothing records where
+they were meant to go. Move them into place by hand, or rebuild them.
+
+**Not changed:** Create Profile's origin helper (`Na__Exporter__CreateOriginHelperAtPoint`) adds an
+InputPoint into an unpinned new group in the same way. What reads that helper back has to be
+checked before it is pinned, so it is left for its own change.
+
+### Verified offline
+A fake SketchUp model that follows the rule (open contexts report world, closed ones local, a new
+group starts at the open group's placement), driving the real build, Selection preview,
+Interactive engine, regeneration, sweep and Edit Path code under SketchUp's bundled Ruby 3.2.2. It
+uses the asymmetric VG103 cornice profile with a 90 deg roll. Contexts: the model root; a group
+moved and rotated with two more inside it, tilted off the horizontal (three deep); and a
+non-uniformly scaled group (2 / 1.5 / 0.5) inside the first.
+
+Every combination of Selection and Interactive with Reverse off and on, plus closed loops, was
+checked for:
+- the Helpers, the swept section and the rail land on the preview;
+- the stamps are in parent space;
+- a rebuild reproduces the build, and the sweep leaves an unchanged trace alone;
+- Edit Path, drag a vertex, then Regenerate Now from inside, and Edit Path, drag, click outside,
+  both follow the edit;
+- moving the outer group after the build keeps every rebuild in step;
+- a pre-v1.6.12 trace is left where it is.
+
+**Before the fix every build inside the groups landed 2-7 m from its preview, and Regenerate Now
+from inside a moved trace landed 1.5-3.7 m off. After: 17/17.** The v1.6.11 suite (63 checks)
+still passes, and all 40 Ruby files compile.
+
+### To verify in SketchUp
+Reload Plugin Data is enough: nothing was deleted. Test model: a box in a group moved **and**
+rotated, a second inside it, a third inside that; plus one group scaled non-uniformly.
+
+1. At the root, one Selection and one Interactive trace: unchanged.
+2. Three deep, Selection mode: Generate, Commit. The solid lands on the preview and the Helpers on
+   the selected edges. Again with Reverse (TAB).
+3. Three deep, Interactive, Reverse off and on, plus a closed loop: each lands on its ghost.
+4. In the scaled group: a 150mm profile measures 150mm with the Tape Measure.
+5. Open Path for Editing, move a Helpers endpoint, click outside: the solid follows.
+6. Open Path for Editing, move an endpoint, right-click an edge, Regenerate Now: you are back in the
+   trace's group, and the solid follows.
+7. Close everything, move and rotate the outer group, then repeat 6 on a Reverse trace, and Swap
+   Profile on it: the trace stays with its group.
+
+### Files touched
+| File | Change |
+|---|---|
+| `Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | `Na__Geometry__PinGroupToWorld` and `Na__Geometry__ApplyReverseFlip` (new region); the build pins the assembly and flips through them; header note |
+| `Na__ProfileTools__RegenerationEngine__Main__.rb` | `Na__RegenEngine__LeaveAssemblyContext`, called before a rebuild reads anything; header note |
+| `Na__ProfileTools__AppCore__RegenSweep__.rb` | Fingerprint comment: parent space, closed-trace invariant |
+| `Na__ProfileTools__AppData__DataSerializer__.rb` | Schema header: `StartPoint` / `PathPoints` are parent space |
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.6.11 - 30-Sep-2026 - Start / End Offsets + Selection Mode Preview
 
 ### Summary
