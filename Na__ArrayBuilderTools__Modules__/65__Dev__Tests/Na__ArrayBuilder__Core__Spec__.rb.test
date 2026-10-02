@@ -465,8 +465,17 @@ na_frame = Geom::Transformation.translation([300,400,500])
 na_batches = NA_PREVIEW.Na__Preview__DrawBatches(na_mesh_geometry,na_frame)
 na_expected = na_mesh[:points].first.transform(na_frame * NA_LAYOUT.Na__Layout__Transform(na_mesh_plan[:positions].first,na_mesh_plan[:config],na_mesh_source))
 Na__Spec__Check('native mesh preview uses final geometry placement') { na_batches[:faces].values.first.first==na_expected }
-na_payload = NA_PREVIEW.Na__Preview__Payload(na_mesh_geometry,na_mesh_plan)
-Na__Spec__Check('HTML sends single mesh plus instance matrices') { na_payload['mesh']['points'].length==3 && na_payload['instances'].length==na_mesh_plan[:positions].length }
+na_payload = NA_PREVIEW.Na__Preview__Payload(na_mesh_plan)
+Na__Spec__Check('HTML sends single mesh plus profile matrices') { na_payload['mesh']['points'].length==3 && na_payload['instances'].length==[na_mesh_plan[:positions].length,10].min }
+na_long_plan = NA_LAYOUT.Na__Layout__Resolve(na_object_config,[ORIGIN,Geom::Point3d.new(8000.mm,6000.mm,3000.mm),Geom::Point3d.new(8000.mm,12000.mm,3000.mm)],na_mesh_source)
+na_long_payload = NA_PREVIEW.Na__Preview__Payload(na_long_plan)
+Na__Spec__Check('side profile caps at ten units and reports the full count') { na_long_plan[:positions].length>10 && na_long_payload['instances'].length==10 && na_long_payload['total_count']==na_long_plan[:positions].length && na_long_payload['truncated'] }
+Na__Spec__Check('side profile lays a sloped, turning path flat along X') {
+    na_matrices = na_long_payload['instances']
+    na_x = na_matrices.map { |na_matrix| na_matrix[12] }
+    na_matrices.map { |na_matrix| na_matrix.first(12) }.uniq.length==1 && na_matrices.map { |na_matrix| na_matrix.values_at(13,14) }.uniq.length==1 &&
+        na_x.each_cons(2).all? { |na_a, na_b| na_b > na_a } && na_long_payload['path'].all? { |na_point| na_point[1]==0 && na_point[2]==0 }
+}
 Na__Spec__Check('preview does not create geometry') { na_mesh_root.entities.length==1 }
 
 # REGION | Native union dispatch only for overlapping corner neighbours

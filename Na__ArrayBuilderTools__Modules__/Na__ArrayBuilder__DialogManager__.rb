@@ -435,7 +435,7 @@ module Na__ArrayBuilderTools
                     na_plan = @na_pending_plan
                     na_geometry = Na__ArrayBuilder__PreviewGeometry.Na__Preview__Resolve(na_plan)
                     @na_tool.Na__Tool__SetGeometryPreview(na_plan, na_geometry, Na__Dialog__PreviewFrame())
-                    Na__Dialog__SendPlanPreview(na_plan, false, true, na_geometry)
+                    Na__Dialog__SendPlanPreview(na_plan, false, true)
                 end
             rescue StandardError => na_error
                 na_send_status_to_dialog('warning', na_error.message)
@@ -447,9 +447,8 @@ module Na__ArrayBuilderTools
             @na_preview_timer = @na_pending_plan = nil
         end
 
-        def self.Na__Dialog__SendPlanPreview(na_plan, na_sample, na_placing = false, na_geometry = nil)
-            na_geometry ||= Na__ArrayBuilder__PreviewGeometry.Na__Preview__Resolve(na_plan)
-            na_payload = Na__ArrayBuilder__PreviewGeometry.Na__Preview__Payload(na_geometry, na_plan)
+        def self.Na__Dialog__SendPlanPreview(na_plan, na_sample, na_placing = false)
+            na_payload = Na__ArrayBuilder__PreviewGeometry.Na__Preview__Payload(na_plan)
             Na__Dialog__Send('preview', na_payload.merge('sample' => na_sample, 'placing' => na_placing))
         end
 

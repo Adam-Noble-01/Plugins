@@ -2,15 +2,15 @@
    NA ARRAY BUILDER TOOLS - UI PREVIEW
    FILE       : Na__ArrayBuilder__UiPreview__.js
    AUTHOR     : Noble Architecture
-   PURPOSE    : Project instanced source meshes into a shaded SVG preview.
+   PURPOSE    : Draw instanced source meshes as a flat side-profile SVG.
    ============================================================================= */
 
 const NA_PREVIEW_EDGES = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
 
-// FUNCTION | Project a Three-Dimensional Coordinate Into the Preview Plane
+// FUNCTION | Side Profile: View the Array Face-On, Along the Path, Z Up
 // -----------------------------------------------------------------------------
 function Na__Preview__Project(na_point) {
-    return [na_point[0] - na_point[1] * 0.55, -(na_point[2] + na_point[1] * 0.35)];
+    return [na_point[0], -na_point[2]];
 }
 
 export function Na__Preview__Markup(na_data) {
@@ -35,7 +35,7 @@ export function Na__Preview__Markup(na_data) {
     na_boxes.forEach(na_box => {
         if (na_box.length !== 8 || !na_box.flat().every(Number.isFinite)) return;
         const na_corners = na_box.map(Na__Preview__Map);
-        na_markup += '<polygon points="' + [4,5,6,7].map(na_index => na_corners[na_index].join(',')).join(' ') + '" fill="#dce9fb"/>';
+        na_markup += '<polygon points="' + [0,1,5,4].map(na_index => na_corners[na_index].join(',')).join(' ') + '" fill="#dce9fb"/>';
         na_markup += '<path d="' + NA_PREVIEW_EDGES.map(([na_a, na_b]) => 'M' + na_corners[na_a].join(',') + 'L' + na_corners[na_b].join(',')).join(' ') + '" fill="none" stroke="#417bb8" stroke-width="1.2"/>';
     });
     return na_markup + '</svg>';
@@ -74,9 +74,9 @@ function Na__Preview__MeshMarkup(na_data) {
             const na_v = na_face[2].map((na_value, na_index) => na_value - na_face[0][na_index]);
             const na_normal = [na_u[1]*na_v[2]-na_u[2]*na_v[1], na_u[2]*na_v[0]-na_u[0]*na_v[2], na_u[0]*na_v[1]-na_u[1]*na_v[0]];
             const na_length = Math.hypot(...na_normal) || 1;
-            const na_light = 0.62 + 0.38 * Math.abs((na_normal[0]*0.3 - na_normal[1]*0.4 + na_normal[2]*0.86) / na_length);
+            const na_light = 0.62 + 0.38 * Math.abs((na_normal[0]*0.35 - na_normal[1]*0.8 + na_normal[2]*0.5) / na_length);
             const na_colour = 'rgb(' + na_rgb.map(na_value => Math.round(Math.max(0, Math.min(255, na_value * na_light)))).join(',') + ')';
-            na_faces.push({ depth: na_face.reduce((na_sum, na_point) => na_sum - 0.55*na_point[0] - na_point[1] + 0.35*na_point[2], 0),
+            na_faces.push({ depth: na_face.reduce((na_sum, na_point) => na_sum - na_point[1], 0),
                 markup: '<polygon points="' + na_face.map(Na__Preview__MapMesh).join(' ') + '" fill="' + na_colour + '" stroke="' + na_colour + '" stroke-width="0.35"/>' });
         });
         na_mesh.edges.forEach(([na_a, na_b]) => na_lines.push('M' + Na__Preview__MapMesh(na_points[na_a]) + 'L' + Na__Preview__MapMesh(na_points[na_b])));

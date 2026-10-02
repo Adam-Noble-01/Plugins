@@ -2,6 +2,23 @@
 # =======================================================================================
 ## Version History
 
+## Array Builder Version 0.4.2 - 01-Oct-2026
+
+### Side-profile array preview
+
+- Removed the oblique pseudo-3D dialog preview. It projected the whole saved
+  path, so sloped or diagonal arrays drew as a thin skewed streak and long
+  arrays shipped every instance (up to 400) as SVG polygons.
+- The dialog now draws a flat side profile: the array is re-laid on a straight
+  path of the same length (same distribution, gap, alignment and height
+  offset; reverse ignored) and the first 10 units are drawn face-on, Z up.
+  The caption reads `side profile · first 10 of N units` when truncated; the
+  units / path / gap metrics still come from the real array.
+- The in-model blue preview is unchanged. Gallery thumbnails use the same
+  face-on projection.
+- Validation: 145 isolated Ruby checks (new: 10-unit cap with full count, and a
+  sloped two-segment path laid flat along X), Ruby syntax, JavaScript checks.
+
 ## Array Builder Version 0.4.1 - 17-Sep-2026
 
 - Picking a replacement object while editing now immediately regenerates the

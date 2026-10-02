@@ -272,7 +272,7 @@ window.Na__ArrayUi__Receive = function Na__ArrayUi__Receive(na_event, na_payload
         const na_preview = Na__Ui__Element('na-preview');
         if (na_payload.missing_source || na_payload.error) na_preview.textContent = na_payload.error || 'Pick a source object to preview this array.';
         else na_preview.innerHTML = Na__Preview__Markup(na_payload);
-        Na__Ui__Element('na-preview-caption').textContent = (na_payload.sample ? '3,000 mm sample path' : na_payload.placing ? 'Live SketchUp path' : 'Saved array path') + (na_payload.truncated ? ' · ' + na_payload.preview_count + ' units shown for performance' : ' · actual geometry');
+        Na__Ui__Element('na-preview-caption').textContent = (na_payload.sample ? '3,000 mm sample path' : na_payload.placing ? 'Live SketchUp path' : 'Saved array path') + ' · side profile' + (na_payload.truncated ? ' · first ' + na_payload.preview_count + ' of ' + na_payload.total_count.toLocaleString() + ' units' : '');
     } else if (na_event === 'gallery') {
         na_presets = na_payload.records;
         const na_warning = Na__Ui__Element('na-gallery-warning');

@@ -7,6 +7,13 @@
 # PURPOSE    : Export selected profile geometry to the unified Na__ schema.
 #              Edge colour data is now resolved through Na__EdgeColourManager.
 #
+# WORLD SPACE INSIDE OPEN GROUPS (v1.6.13):
+#   The picked origin is an InputPoint position (always world) and the
+#   selected face sits in the open context, which reports world, so the
+#   export measures world from world and never reads the origin helper back.
+#   The helper itself is pinned to the world axes before its arms go in
+#   (Na__Geometry__PinGroupToWorld, the pin the trace build uses).
+#
 # =============================================================================
 
 require 'json'
@@ -612,6 +619,12 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Origin Helper Creation
     # -------------------------------------------------------------------------
 
+        # origin_point is the picker's InputPoint position: world at any depth.
+        # A group added to the active entities is closed (its entities are
+        # local) and starts at the open group's placement, so world points fed
+        # in as they stood were carried through that placement: right at the
+        # model root, metres off inside a moved, turned or scaled group.
+        # Pinned first, the arms land on the click. At the root it is a no-op.
         def self.Na__Exporter__CreateOriginHelperAtPoint(origin_point)
             return { 'isCreated' => false, 'reason' => 'No origin point was supplied.' } unless origin_point
 
@@ -622,6 +635,8 @@ module Na__ProfileTools__ProfilePathTracer
 
             group = model.active_entities.add_group
             group.name = NA_ORIGIN_HELPER_GROUP_NAME
+            # @delegate: ../04__GeometryHelpers/Na__ProfileTools__GeometryHelpers__UnifiedOverrides__
+            Na__GeometryBuilders.Na__Geometry__PinGroupToWorld(group)
             entities = group.entities
             size = NA_ORIGIN_HELPER_SIZE_MM.mm
 

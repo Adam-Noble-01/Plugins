@@ -13,6 +13,7 @@ module Na__ArrayBuilderTools
         NA_TRIANGLE_BUDGET = 120_000
         NA_PANEL_BUDGET = 30_000
         NA_SOURCE_LIMIT = 250_000
+        NA_PROFILE_LIMIT = 10
         NA_BLOCK_FACES = [[0,3,2,1], [4,5,6,7], [0,1,5,4], [1,2,6,5], [2,3,7,6], [3,0,4,7]].freeze
         NA_BLOCK_EDGES = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].freeze
 
@@ -94,19 +95,34 @@ module Na__ArrayBuilderTools
             na_transforms = na_plan[:positions].first(na_count).map { |na_position|
                 Na__ArrayBuilder__LayoutEngine.Na__Layout__Transform(na_position, na_plan[:config], na_plan[:source])
             }
-            { mesh: na_mesh, transforms: na_transforms,
-              panel_count: [[NA_PANEL_BUDGET / na_cost, 1].max, na_count, 400].min,
-              total_count: na_plan[:positions].length }
+            { mesh: na_mesh, transforms: na_transforms }
         end
 
-        def self.Na__Preview__Payload(na_geometry, na_plan)
-            na_mesh = na_geometry[:mesh]
-            na_count = na_geometry[:panel_count]
+        # FUNCTION | Side Profile for the Dialog: the First Units Unrolled Flat
+        # ------------------------------------------------------------
+        # The array is re-laid on a straight X path of the same length, so the
+        # spacing, alignment and height offset match the real array while the
+        # dialog draws a plain elevation of at most NA_PROFILE_LIMIT units.
+        def self.Na__Preview__Payload(na_plan)
+            na_mesh = Na__Preview__Mesh(na_plan)
+            na_cost = [na_mesh[:triangles].length + na_mesh[:edges].length, 1].max
+            na_length = [na_plan[:length_mm], 1.0].max
+            na_config = na_plan[:config].merge('reverse_path' => false)
+            na_profile = Na__ArrayBuilder__LayoutEngine.Na__Layout__Resolve(
+                na_config, [ORIGIN, Geom::Point3d.new(na_length.mm, 0, 0)], na_plan[:source]
+            )
+            na_limit = [[NA_PANEL_BUDGET / na_cost, 1].max, NA_PROFILE_LIMIT].min
+            na_shown = na_profile[:positions].first(na_limit)
+            na_truncated = na_shown.length < na_profile[:positions].length
+            na_end = na_truncated ? na_shown.last[:point].x * 25.4 + na_profile[:config]['unit_width_mm'] : na_length
             {
                 'mesh' => { 'points' => na_mesh[:points].map(&:to_a), 'triangles' => na_mesh[:triangles], 'edges' => na_mesh[:edges] },
-                'instances' => na_geometry[:transforms].first(na_count).map(&:to_a),
-                'path' => na_plan[:points].map(&:to_a), 'preview_count' => na_count,
-                'truncated' => na_count < na_geometry[:total_count]
+                'instances' => na_shown.map { |na_position|
+                    Na__ArrayBuilder__LayoutEngine.Na__Layout__Transform(na_position, na_profile[:config], na_plan[:source]).to_a
+                },
+                'path' => [[0, 0, 0], [na_end.mm.to_f, 0, 0]],
+                'preview_count' => na_shown.length, 'total_count' => na_plan[:positions].length,
+                'truncated' => na_truncated
             }
         end
 

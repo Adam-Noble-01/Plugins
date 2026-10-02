@@ -4,6 +4,88 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.6.13 - 01-Oct-2026 - Origin Helper Lands on the Click Inside Groups
+
+### Summary
+Create Profile, Save Profile and Edit Profile > Replace Geometry each drop the red `00__OriginPoint`
+helper where the origin was clicked. Inside a group open for editing that was moved, rotated or
+scaled, the helper landed metres from the click. **The exported profile was never affected**: the
+export measures from the clicked point itself, not from the helper. At the model root nothing
+changes. This is the case v1.6.12 left open under "Not changed".
+
+### What was wrong
+The click is an InputPoint position: world, at any depth. `Na__Exporter__CreateOriginHelperAtPoint`
+added a group to the active entities and drew its six arms around that point. A new group is
+closed, so its entities are local, and it starts at the open group's placement, so the arms were
+carried through that placement. It is the same fault v1.6.12 fixed in the trace build.
+
+### The fix
+The helper is pinned to the world axes as soon as it is created
+(`Na__GeometryBuilders.Na__Geometry__PinGroupToWorld`, the call the trace build uses), so the world
+arms go in unchanged. At the root the pin sets the identity the group already had.
+
+### What reads the origin helper
+Nothing in Profile Path Tracer reads the helper back. Three other plugins look for a group named
+(or tagged) `00__OriginPoint`:
+
+| Reader | What it reads | Effect of the pin |
+|---|---|---|
+| PPT export: `Na__Exporter__CollectGeometry`, and `ValidateSelection`'s dialog preview | The clicked world point and the selected face's vertices (open context: world) | None. It never reads the helper: Profile2D / Mesh3D are identical before and after |
+| PPT Replace Geometry: `Na__GeometryReplacer__Replace` | The same as the export | None |
+| Assembly Studio `JsonExporter2D` | `group.bounds.center` | Now the click (it read the displaced helper) |
+| Assembly Studio `JsonExporter3D`, Component Editor Tools export | `definition.bounds.center` through the chained instance transformations | Now the click, whether read from inside the open groups or from the root |
+| TrueVision GLB camera-follow (`CapturePivotLocal`) | `transformation.origin`, the group's own origin | Never the click, before or after: the helper's arms sit on the click, its group origin does not. Only reached for a helper inside a camera-follow assembly |
+
+### Found, not changed
+The export also recurses into a selected group or component, but reads its contents without the
+instance's transformation. Their positions are therefore in the group's own coordinates while the
+click is world. The documented selection, a face, is unaffected. Select the group holding the face
+instead, and the profile comes out right only while that group sits on the world axes. Otherwise it
+is off by the group's whole placement: 6.2 m in the offline test, at the root as well as inside
+groups. A component made with its axes at a corner is usually off from the start. Left for its own
+change.
+
+### Verified offline
+`origin_helper.rb.test`, on the Coordinate Rule doubles from v1.6.12, drives the real Exporter,
+GeometryReplacer, MetaWriter, profile parser and Interactive engine under SketchUp's bundled Ruby
+3.2.2. Contexts: the model root; three deep (moved and rotated, the two inner levels tilted); a
+2 / 1.5 / 0.5 scaled group. The profile is an asymmetric L, drawn upright in a vertical plane
+turned 25 deg off X. It is clicked on a corner and 40 / 25 mm off it, then re-captured by Replace
+Geometry from the opposite corner. Checked:
+- the helper's arms centre on the click, 120mm along world X, Y and Z;
+- the `bounds`-style readers above give the click, from inside and from the root;
+- the dialog preview and the saved Profile2D / Mesh3D are measured from the click;
+- re-applied by the Interactive engine in the same context, every section vertex sits its exported
+  distance from the run head, and a clicked corner rides the run.
+
+**Before the fix every helper inside a group was 6-10 m off, and the readers read it there. The
+export and the re-apply already passed, which is what shows the pin cannot move a profile. After:
+9/9.** The v1.6.12 (17/17) and v1.6.11 (63 checks) suites still pass, and all 40 Ruby files
+compile.
+
+### To verify in SketchUp
+Reload Plugin Data is enough: nothing was deleted. Test model: a box in a group moved **and**
+rotated, a second inside it, a third inside that; plus one group scaled non-uniformly. Always
+select the profile **face**, not a group holding it (see "Found, not changed").
+
+1. At the root: Create Profile on a face, click a corner, Save. The helper's arms meet on the
+   corner, as before.
+2. Three deep: open the innermost group, select an upright profile face, Create Profile, click a
+   corner, Save. The helper's arms meet on that corner.
+3. Three deep again, but click off the face (say a box corner), and Save.
+4. In the scaled group, as 2. The helper sits on the click, and its arms measure 120mm.
+5. From inside the three-deep group, Edit Profile > Replace Geometry on one of those profiles,
+   clicking a different corner. The new helper sits on the new click.
+6. Apply each saved profile along a line, at the root and three deep. The clicked corner (for 3,
+   the clicked point) rides the line, and the profile measures what was drawn.
+
+### Files touched
+| File | Change |
+|---|---|
+| `Na__ProfileTools__CreateNewProfile__Exporter__.rb` | The origin helper is pinned through `Na__Geometry__PinGroupToWorld`; header note |
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.6.12 - 01-Oct-2026 - Traces Built Inside Groups Land on Their Preview
 
 ### Summary
