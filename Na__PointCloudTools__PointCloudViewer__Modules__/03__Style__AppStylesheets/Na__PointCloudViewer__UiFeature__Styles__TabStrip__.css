@@ -1,0 +1,93 @@
+/* =============================================================================
+   NA POINT CLOUD VIEWER - TAB STRIP + STATUS BAR STYLES
+   =============================================================================
+   FILE       : Na__PointCloudViewer__UiFeature__Styles__TabStrip__.css
+   PURPOSE    : Tab navigation strip, tab panels and the shared status bar
+                (EAS / Profile Path Tracer pattern).
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Strip */
+/* ----------------------------------------------------------------- */
+
+.na-tab-strip {
+    display             : flex;
+    align-items         : stretch;
+    background          : var(--na-tab-strip-bg);
+    border-bottom       : 1px solid var(--na-border);
+    flex-shrink         : 0;
+}
+
+.na-tab-bar {
+    display             : flex;
+    align-items         : stretch;
+    flex                : 1;
+    overflow-x          : auto;
+}
+
+.na-tab {
+    padding             : 10px 16px;
+    background          : transparent;
+    border              : none;
+    border-bottom       : 3px solid transparent;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+    font-weight         : 500;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+    transition          : color 0.15s, border-color 0.15s;
+}
+
+.na-tab:hover {
+    color               : var(--na-text);
+    background          : rgba(0, 0, 0, 0.04);
+}
+
+.na-tab.na-tab-active {
+    color               : var(--na-accent);
+    border-bottom-color : var(--na-accent);
+    font-weight         : 600;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Panels */
+/* ----------------------------------------------------------------- */
+
+.na-tab-panel {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    min-height          : 0;
+    overflow-y          : auto;
+}
+
+.na-tab-panel.na-hidden {
+    display             : none;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Status Bar */
+/* ----------------------------------------------------------------- */
+
+.na-status-bar {
+    background          : var(--na-status-bg);
+    border-top          : 1px solid var(--na-border);
+    padding             : 6px 16px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    min-height          : 28px;
+    display             : flex;
+    align-items         : center;
+    flex-shrink         : 0;
+}
+
+.na-status-bar--success { background: #e7f7ee; color: #1a5e3a; }
+.na-status-bar--warn    { background: #fff4e5; color: #7a4a00; }
+.na-status-bar--error   { background: #fdecea; color: #8f1d17; }
+
+/* endregion ----------------------------------------------------------------- */

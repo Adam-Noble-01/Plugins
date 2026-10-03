@@ -1,0 +1,72 @@
+{
+    "schema"        : "Na__PointCloudViewer__AppConfig__Defaults",
+    "schemaVersion" : 2,
+    "_comment"      : "PLUGIN DEFAULT CONFIG: committed, read-only at runtime. Per-user values live in 91__UserConfig__LocalOnly/; the LAS link, the cloud position and the clip box live in each model, with a backup copy per computer (see ARCHITECTURE.md, Config Layers).",
+
+    "plugin" : {
+        "name"    : "Na Point Cloud Viewer",
+        "version" : "0.7.0"
+    },
+
+    "dialog" : {
+        "title"          : "Na Point Cloud Viewer",
+        "preferencesKey" : "Na__PointCloudTools__PointCloudViewer",
+        "width"          : 600,
+        "height"         : 880
+    },
+
+    "overlay" : {
+        "id"          : "noble_architecture.point_cloud_viewer.cloud",
+        "name"        : "Na Point Cloud Viewer",
+        "description" : "Draws the model's point cloud as a locked visual reference. Not selectable, not snappable, not exported."
+    },
+
+    "render" : {
+        "defaults" : {
+            "pointBudget"    : 1000000,
+            "pointSizePx"    : 2,
+            "opacityPercent" : 100,
+            "colourMode"     : "rgb"
+        },
+        "limits" : {
+            "pointBudgetMin" : 10000,
+            "pointBudgetMax" : 50000000,
+            "pointSizeMinPx" : 1,
+            "pointSizeMaxPx" : 10,
+            "opacityMinPct"  : 5,
+            "opacityMaxPct"  : 100
+        },
+        "budgetPresets" : [
+            { "id" : "low",      "label" : "Low",       "points" : 500000   },
+            { "id" : "medium",   "label" : "Medium",    "points" : 1000000  },
+            { "id" : "high",     "label" : "High",      "points" : 5000000  },
+            { "id" : "veryHigh", "label" : "Very High", "points" : 20000000 }
+        ],
+        "monochromeRgb"    : [0, 0, 0],
+        "noRgbFallbackRgb" : [110, 110, 110],
+        "nativeImage" : {
+            "_comment"      : "Render scale = output pixels per logical viewport pixel. movingScale (and at most movingBudgetMax points) while the camera moves or something is dragged; fullScale and the whole budget once still for settleSeconds. movingBudgetMax 0 = no cap.",
+            "movingScale"   : 0.5,
+            "movingBudgetMax" : 5000000,
+            "fullScale"     : 1.0,
+            "settleSeconds" : 0.25,
+            "nearInches"    : 0.5
+        }
+    },
+
+    "transform" : {
+        "_comment"         : "Move gimbal and Rotate protractor. Snap values are per-user defaults; the user can change them on the Transform tab.",
+        "moveSnapEnabled"  : true,
+        "moveSnapMm"       : 5,
+        "angleSnapEnabled" : false,
+        "angleSnapDegrees" : 15,
+        "gimbalPx"         : 90,
+        "protractorPx"     : 80
+    },
+
+    "paths" : {
+        "cacheFolder"      : "90__AppCache__PointCloudCache",
+        "userConfigFolder" : "91__UserConfig__LocalOnly",
+        "userConfigFile"   : "Na__PointCloudViewer__UserConfig__.json"
+    }
+}

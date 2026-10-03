@@ -1,0 +1,192 @@
+/* =============================================================================
+   NA POINT CLOUD VIEWER - CLIP BOX STYLES
+   =============================================================================
+   FILE       : Na__PointCloudViewer__UiFeature__Styles__ClipBox__.css
+   PURPOSE    : Clipping tab: status line, the six typed limits and the clip
+                scene list.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Clip Box Card */
+/* ----------------------------------------------------------------- */
+
+.na-clip-status {
+    margin              : 0;
+    font-size           : 12.5px;
+    color               : var(--na-subtle);
+    line-height         : 1.45;
+}
+
+.na-clip-status--on {
+    color               : var(--na-text);
+    font-weight         : 600;
+}
+
+.na-hint--live {
+    border-left         : 3px solid var(--na-warn);
+    background          : #fff4e5;
+    border-radius       : 4px;
+    padding             : 7px 10px;
+    color               : #7a4a00;
+}
+
+.na-clip-limits {
+    display             : grid;
+    grid-template-columns : 1fr 1fr;
+    gap                 : 8px 14px;
+    margin-top          : 14px;
+}
+
+.na-clip-field {
+    display             : grid;
+    grid-template-columns : 52px 1fr auto;
+    align-items         : center;
+    gap                 : 6px;
+}
+
+.na-clip-field__label {
+    font-size           : 12px;
+    font-weight         : 600;
+    color               : var(--na-text);
+}
+
+.naInput.na-clip-field__input {
+    padding             : 5px 7px;
+    text-align          : right;
+    font-variant-numeric: tabular-nums;
+}
+
+.naInput.na-clip-field__input:disabled {
+    background          : #f0f1f3;
+    color               : var(--na-subtle);
+}
+
+.na-clip-field__unit {
+    min-width           : 18px;
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Clip Scenes */
+/* ----------------------------------------------------------------- */
+
+.na-scene-list {
+    display             : flex;
+    flex-direction      : column;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    overflow            : hidden;
+}
+
+.na-scene {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    padding             : 5px 8px;
+    border-bottom       : 1px solid #eceef1;
+    background          : #fff;
+}
+
+.na-scene:last-child {
+    border-bottom       : none;
+}
+
+.na-scene--active {
+    background          : #eef3fb;
+    box-shadow          : inset 3px 0 0 var(--na-accent);
+}
+
+.na-scene__name {
+    flex                : 1;
+    min-width           : 0;
+    border              : none;
+    background          : transparent;
+    padding             : 4px 2px;
+    text-align          : left;
+    font-family         : inherit;
+    font-size           : 13px;
+    font-weight         : 600;
+    color               : var(--na-text);
+    cursor              : pointer;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-scene__name:hover {
+    color               : var(--na-accent);
+}
+
+.na-scene__tag {
+    flex-shrink         : 0;
+    font-size           : 11px;
+    color               : var(--na-subtle);
+}
+
+.na-scene--active .na-scene__tag {
+    color               : var(--na-accent);
+    font-weight         : 600;
+}
+
+.na-scene__actions {
+    display             : flex;
+    flex-shrink         : 0;
+    gap                 : 4px;
+}
+
+.na-scene-action {
+    border              : 1px solid var(--na-border);
+    background          : #fff;
+    border-radius       : 4px;
+    padding             : 3px 8px;
+    font-family         : inherit;
+    font-size           : 11.5px;
+    color               : var(--na-text);
+    cursor              : pointer;
+}
+
+.na-scene-action:hover {
+    background          : var(--na-bg);
+}
+
+.na-scene-action--primary {
+    border-color        : var(--na-accent);
+    color               : var(--na-accent);
+    font-weight         : 600;
+}
+
+.na-scene-action--danger {
+    color               : var(--na-danger);
+}
+
+.naInput.na-scene__rename {
+    flex                : 1;
+    padding             : 4px 6px;
+}
+
+.na-scene-empty {
+    margin              : 0;
+    padding             : 8px 10px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    background          : #fafbfc;
+}
+
+.na-scene-add {
+    display             : flex;
+    gap                 : 8px;
+    margin-top          : 10px;
+}
+
+.na-scene-add .naInput {
+    flex                : 1;
+}
+
+.na-scene-add .naButton {
+    flex-shrink         : 0;
+}
+
+/* endregion ----------------------------------------------------------------- */

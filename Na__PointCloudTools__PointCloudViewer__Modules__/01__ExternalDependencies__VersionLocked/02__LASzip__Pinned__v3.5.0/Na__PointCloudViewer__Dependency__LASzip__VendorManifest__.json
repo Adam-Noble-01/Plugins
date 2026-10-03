@@ -1,0 +1,27 @@
+{
+    "schema"          : "Na__PointCloudViewer__DependencyManifest",
+    "schemaVersion"   : 1,
+    "name"            : "LASzip",
+    "purpose"         : "LAS 1.0-1.4 point reading (header, scale/offset, point records, RGB) for the native engine.",
+    "repository"      : "https://github.com/LASzip/LASzip",
+    "pinnedTag"       : "3.5.0",
+    "pinnedCommit"    : "fa089bd8b2b4ca5631e199d257374c32a125f73f",
+    "commitDate"      : "2025-12-08T17:36:04+01:00",
+    "licence"         : "Apache License 2.0 (COPYING.txt in this folder)",
+    "acquiredOn"      : "2026-10-03",
+    "acquiredBy"      : "git clone --depth 1 --branch 3.5.0 https://github.com/LASzip/LASzip.git",
+    "filesKept"       : [
+        "src/*.cpp, src/*.hpp           (library source, unmodified)",
+        "dll/laszip_api.h               (C API header that src/laszip_dll.cpp includes as ../dll/laszip_api.h)",
+        "include/laszip/*.h             (laszip_common.h, laszip_api_version.h)",
+        "COPYING.txt, README.md, AUTHORS.txt"
+    ],
+    "filesDropped"    : [
+        "Upstream CMake / Visual Studio project files - the native engine's own CMakeLists.txt lists these sources",
+        "dll/laszip_api.c               (runtime DLL loader - we link the library statically)",
+        "docs/, example/, tools/, data/, design/, unused/, scripts/"
+    ],
+    "modifications"   : "None. Files are byte-identical to the pinned commit.",
+    "buildNotes"      : "Compiled as a static library inside the native engine build (Milestone 2): all src/*.cpp, defines UNORDERED and HAVE_UNORDERED_MAP=1, static link so LASZIP_DYN_LINK stays undefined.",
+    "runtimeNetworkAccess" : false
+}

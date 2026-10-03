@@ -2,6 +2,10 @@
 **/90__AppCache__TempFilesCache/
 **/Na__DataLib__Cache__*.json
 
+# Point Cloud Viewer cache - render scratch images, native DLL shadow copies, later .napc caches.
+# Large binary, rebuildable from the source LAS on each PC.
+**/90__AppCache__PointCloudCache/
+
 # User Config - per-user, per-PC settings and tool usage logs, never committed
 **/91__UserConfig__LocalOnly/
 

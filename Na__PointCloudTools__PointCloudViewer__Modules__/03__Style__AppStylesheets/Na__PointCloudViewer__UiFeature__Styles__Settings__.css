@@ -1,0 +1,146 @@
+/* =============================================================================
+   NA POINT CLOUD VIEWER - SETTINGS TAB STYLES
+   =============================================================================
+   FILE       : Na__PointCloudViewer__UiFeature__Styles__Settings__.css
+   PURPOSE    : Settings tab body: section cards, reload table, paths, the
+                technical log and About (Profile Path Tracer settings pattern).
+   ============================================================================= */
+
+.na-settings-body {
+    padding             : 16px;
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 14px;
+}
+
+.na-settings-section {
+    background          : var(--na-panel);
+    border              : 1px solid var(--na-border);
+    border-radius       : 8px;
+    padding             : 14px 16px;
+}
+
+.na-settings-section-info {
+    background          : #fafbfc;
+}
+
+.na-settings-heading {
+    margin              : 0 0 8px;
+    font-size           : 14px;
+    font-weight         : 700;
+    color               : var(--na-text);
+}
+
+.na-settings-description {
+    margin              : 0 0 12px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    line-height         : 1.5;
+}
+
+.na-settings-button-row {
+    margin-bottom       : 10px;
+}
+
+.na-settings-info-line {
+    margin              : 6px 0 0;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+}
+
+.na-btn {
+    padding             : 8px 14px;
+    border-radius       : 4px;
+    border              : 1px solid transparent;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+    font-weight         : 500;
+    transition          : background 0.12s, border-color 0.12s;
+}
+
+.na-btn-primary {
+    background          : var(--na-accent);
+    border-color        : var(--na-accent);
+    color               : #ffffff;
+}
+
+.na-btn-primary:hover {
+    background          : var(--na-accent-hover);
+    border-color        : var(--na-accent-hover);
+}
+
+.na-btn[disabled] {
+    opacity             : 0.45;
+    cursor              : default;
+}
+
+.na-reload-table {
+    width               : 100%;
+    border-collapse     : collapse;
+    font-size           : 12px;
+}
+
+.na-reload-table td {
+    padding             : 4px 0;
+    border-bottom       : 1px solid #eceef1;
+}
+
+.na-reload-table td:last-child {
+    text-align          : right;
+    font-weight         : 600;
+}
+
+.na-ok   { color: var(--na-success); }
+.na-warn { color: var(--na-warn); }
+
+.na-path {
+    margin              : 0;
+    padding             : 6px 8px;
+    background          : #f0f1f3;
+    border-radius       : 4px;
+    font-family         : Consolas, "Courier New", monospace;
+    font-size           : 11px;
+    color               : var(--na-subtle);
+    word-break          : break-all;
+}
+
+.na-log {
+    max-height          : 220px;
+    overflow-y          : auto;
+    border              : 1px solid #eceef1;
+    border-radius       : 4px;
+    background          : #fafbfc;
+    font-family         : Consolas, "Courier New", monospace;
+    font-size           : 11px;
+}
+
+.na-log__row {
+    display             : grid;
+    grid-template-columns : 62px 1fr;
+    gap                 : 8px;
+    padding             : 4px 8px;
+    border-bottom       : 1px solid #eceef1;
+    color               : var(--na-text);
+}
+
+.na-log__row:last-child {
+    border-bottom       : none;
+}
+
+.na-log__row--warn  { color: var(--na-warn); }
+.na-log__row--error { color: var(--na-danger); background: #fdf3f2; }
+
+.na-log__time {
+    color               : var(--na-subtle);
+}
+
+.na-log__message {
+    white-space         : pre-wrap;
+    word-break          : break-word;
+}
+
+.na-log__empty {
+    padding             : 8px;
+    color               : var(--na-subtle);
+}

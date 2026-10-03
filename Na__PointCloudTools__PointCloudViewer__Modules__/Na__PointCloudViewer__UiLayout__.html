@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- =============================================================================
+     NA POINT CLOUD VIEWER - UI LAYOUT
+     =============================================================================
+     FILE       : Na__PointCloudViewer__UiLayout__.html
+     PURPOSE    : HtmlDialog layout: brand header, tab strip, tab panels,
+                  shared status bar and the full-dialog loading overlay.
+     TABS       : View (default) | Clipping | Transform | Settings
+     DATA       : None in the markup. Ruby pushes state as JSON through
+                  window.Na__PointCloudViewer__Receive; the tab scripts render it.
+     ============================================================================= -->
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Na Point Cloud Viewer by Noble Architecture</title>
+    <link rel="stylesheet" href="03__Style__AppStylesheets/Na__PointCloudViewer__CoreUi__Styles__Index__.css">
+</head>
+
+<body>
+
+<div class="na-app-shell">
+
+    <!-- ==========================================================================
+         REGION | Brand Header
+         ========================================================================== -->
+    <header class="na-brand-header">
+        <div class="na-brand-header__left">
+            <img src="01__AppAssets__PointCloudViewer/Na__PointCloudViewer__Brand__NobleLogo__.png"
+                 class="na-brand-header__logo" alt="Noble Architecture" onerror="this.style.display='none'">
+        </div>
+        <div class="na-brand-header__right">
+            <span class="na-brand-header__title">Na Point Cloud Viewer</span>
+            <span class="na-brand-header__subtitle" id="na-brand-version">by Noble Architecture</span>
+        </div>
+    </header>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
+         REGION | Tab Strip
+         ========================================================================== -->
+    <div class="na-tab-strip">
+        <nav id="na-tab-bar" class="na-tab-bar" role="tablist">
+            <button id="na-tab-button-view"     class="na-tab na-tab-active" role="tab" data-na-tab-id="view"     onclick="Na_TabRouter.na_activateTab('view')">View</button>
+            <button id="na-tab-button-clipping" class="na-tab" role="tab" data-na-tab-id="clipping" onclick="Na_TabRouter.na_activateTab('clipping')">Clipping</button>
+            <button id="na-tab-button-transform" class="na-tab" role="tab" data-na-tab-id="transform" onclick="Na_TabRouter.na_activateTab('transform')">Transform</button>
+            <button id="na-tab-button-settings" class="na-tab" role="tab" data-na-tab-id="settings" onclick="Na_TabRouter.na_activateTab('settings')">Settings</button>
+        </nav>
+    </div>
+    <!-- endregion ============================================================== -->
+
+    <div class="na-tab-panels-container">
+
+        <!-- ======================================================================
+             REGION | Tab Panel - View
+             ====================================================================== -->
+        <div id="na-tab-view" class="na-tab-panel na-tab-active" role="tabpanel" data-na-tab-id="view">
+            <div class="na-panel-body">
+
+                <section class="na-card" id="na-view-cloud-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Point Cloud</h3>
+                        <label class="na-toggle" title="Same switch as this cloud's entry in SketchUp's Overlays panel">
+                            <input type="checkbox" id="na-view-visible">
+                            <span class="na-toggle__track"></span>
+                            <span class="na-toggle__label">Show</span>
+                        </label>
+                    </div>
+                    <div id="na-view-cloud-summary" class="na-cloud-summary na-cloud-summary--empty">No point cloud loaded.</div>
+                    <p class="na-fault na-hidden" id="na-view-fault"></p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButton" id="na-view-import-las">Import LAS&hellip;</button>
+                        <button type="button" class="naButtonSecondary" id="na-view-zoom" title="Frames the cloud, or only the clipped part while clipping is on">Zoom to Cloud</button>
+                        <button type="button" class="naButtonSecondary" id="na-view-unload">Unload</button>
+                    </div>
+                    <p class="na-hint">The LAS file is only ever read, never changed. The model remembers which LAS it uses, where the cloud sits and the clip box; Reload Point Cloud brings the points back next time.</p>
+                </section>
+
+                <section class="na-card na-card--link na-hidden" id="na-link-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Saved With This Model</h3>
+                    </div>
+                    <p class="na-link-summary" id="na-link-summary"></p>
+                    <p class="na-hint na-hint--top" id="na-link-position"></p>
+                    <p class="na-path na-link-path" id="na-link-path"></p>
+                    <p class="na-note na-hidden" id="na-link-backup-note"></p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButton" id="na-link-reload">Reload Point Cloud</button>
+                        <button type="button" class="naButtonSecondary" id="na-link-locate">Locate LAS&hellip;</button>
+                        <button type="button" class="naButtonSecondary na-hidden" id="na-link-restore">Restore Newer Backup</button>
+                    </div>
+                    <p class="na-hint">Nothing loads until you press Reload. The file is checked against the model's record (point count and survey position) before it is used.</p>
+                </section>
+
+                <section class="na-card na-card--import na-hidden" id="na-las-import-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Import LAS</h3>
+                        <span class="na-card__value na-las-file-name" id="na-las-file-name"></span>
+                    </div>
+                    <div class="na-stat-grid" id="na-las-report"></div>
+                    <p class="na-unit-question">What units are this file's coordinates in?</p>
+                    <div class="na-unit-options" id="na-las-unit-options"></div>
+                    <p class="na-hint" id="na-las-unit-note"></p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButton" id="na-las-import-go" disabled>Import</button>
+                        <button type="button" class="naButtonSecondary" id="na-las-import-cancel">Cancel</button>
+                    </div>
+                </section>
+
+                <section class="na-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Point Budget</h3>
+                        <span class="na-card__value" id="na-view-budget-value"></span>
+                    </div>
+                    <input type="range" class="na-slider" id="na-view-budget-slider" min="0" max="1000" step="1">
+                    <div class="na-budget-row">
+                        <div class="na-preset-row" id="na-view-budget-presets"></div>
+                        <input type="number" class="naInput na-budget-input" id="na-view-budget-input" step="10000" min="0">
+                    </div>
+                    <p class="na-hint" id="na-view-budget-hint">The most points drawn at once. Raise it for more detail.</p>
+                </section>
+
+                <section class="na-card">
+                    <div class="na-control-pair">
+                        <div>
+                            <div class="na-card__header">
+                                <h3 class="na-card__title">Point Size</h3>
+                                <span class="na-card__value" id="na-view-size-value"></span>
+                            </div>
+                            <input type="range" class="na-slider" id="na-view-size-slider" min="1" max="10" step="1">
+                        </div>
+                        <div>
+                            <div class="na-card__header">
+                                <h3 class="na-card__title">Point Opacity</h3>
+                                <span class="na-card__value" id="na-view-opacity-value"></span>
+                            </div>
+                            <input type="range" class="na-slider" id="na-view-opacity-slider" min="5" max="100" step="5">
+                        </div>
+                    </div>
+                    <div class="na-switch-field na-switch-field--spaced">
+                        <span class="na-switch-field__label">Colour Mode</span>
+                        <div class="na-switch" id="na-view-colour-switch">
+                            <button type="button" class="na-switch__option" data-na-value="rgb">RGB</button>
+                            <button type="button" class="na-switch__option" data-na-value="black">Monochrome Black</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="na-card na-card--quiet">
+                    <h3 class="na-card__title">Units</h3>
+                    <div class="na-unit-grid">
+                        <span class="na-unit-grid__label">SketchUp model units</span>     <span class="na-unit-grid__value" id="na-units-model"></span>
+                        <span class="na-unit-grid__label">Point cloud source units</span> <span class="na-unit-grid__value" id="na-units-source"></span>
+                        <span class="na-unit-grid__label">Internal SketchUp storage</span><span class="na-unit-grid__value" id="na-units-internal">Inches</span>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+        <!-- endregion ============================================================ -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Clipping
+             ====================================================================== -->
+        <div id="na-tab-clipping" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="clipping">
+            <div class="na-panel-body">
+
+                <section class="na-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Clip Box</h3>
+                        <label class="na-toggle" title="Hide every point outside the box">
+                            <input type="checkbox" id="na-clip-enabled">
+                            <span class="na-toggle__track"></span>
+                            <span class="na-toggle__label">Clip</span>
+                        </label>
+                    </div>
+                    <p class="na-clip-status" id="na-clip-status"></p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButton" id="na-clip-edit">Edit Clip Box</button>
+                        <button type="button" class="naButtonSecondary" id="na-clip-reset">Reset to Cloud</button>
+                    </div>
+                    <p class="na-hint" id="na-clip-edit-hint">Edit Clip Box shows the box in the model so you can move its sides with the mouse.</p>
+                    <div class="na-clip-limits" id="na-clip-limits"></div>
+                    <p class="na-hint">Limits are in the model's units. Type a value and press Enter. Clipping only hides points; the LAS is never changed.</p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Clip Scenes</h3>
+                    <div class="na-scene-list" id="na-scene-list"></div>
+                    <div class="na-scene-add">
+                        <input type="text" class="naInput" id="na-scene-name" maxlength="60" placeholder="Name, for example Ground Floor">
+                        <button type="button" class="naButton" id="na-scene-save">Save Current Clip</button>
+                    </div>
+                    <p class="na-hint">A scene remembers the clip box. Click a name to switch to it. Scenes are saved in this SketchUp model.</p>
+                </section>
+
+            </div>
+        </div>
+        <!-- endregion ============================================================ -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Transform
+             ====================================================================== -->
+        <div id="na-tab-transform" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="transform">
+            <div class="na-panel-body">
+
+                <section class="na-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Position</h3>
+                        <span class="na-lock-badge" id="na-xform-badge">Locked</span>
+                    </div>
+                    <p class="na-clip-status" id="na-xform-status"></p>
+                    <p class="na-note na-hidden" id="na-xform-note"></p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButton" id="na-xform-lock">Unlock to Transform</button>
+                        <span class="na-button-row__gap"></span>
+                        <button type="button" class="naButtonSecondary na-tool-button" id="na-xform-move">Move</button>
+                        <button type="button" class="naButtonSecondary na-tool-button" id="na-xform-rotate">Rotate</button>
+                    </div>
+                    <p class="na-hint" id="na-xform-tool-hint"></p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Values</h3>
+                    <div class="na-gimbal-row">
+                        <p class="na-xform-caption" id="na-xform-caption">The gimbal point sits at:</p>
+                        <div class="na-gimbal-row__buttons">
+                            <button type="button" class="naButtonSecondary na-tool-button na-button--small" id="na-xform-pick-gimbal">Set Gimbal Point</button>
+                            <button type="button" class="naButtonSecondary na-button--small" id="na-xform-centre-gimbal">Centre Gimbal</button>
+                        </div>
+                    </div>
+                    <div class="na-xform-grid">
+                        <label class="na-xform-field">
+                            <span class="na-xform-field__label na-axis-chip--x">X</span>
+                            <input type="text" class="naInput na-xform-field__input" id="na-xform-x" data-na-key="x" spellcheck="false">
+                            <span class="na-xform-field__unit" data-na-unit="length"></span>
+                        </label>
+                        <label class="na-xform-field">
+                            <span class="na-xform-field__label na-axis-chip--y">Y</span>
+                            <input type="text" class="naInput na-xform-field__input" id="na-xform-y" data-na-key="y" spellcheck="false">
+                            <span class="na-xform-field__unit" data-na-unit="length"></span>
+                        </label>
+                        <label class="na-xform-field">
+                            <span class="na-xform-field__label na-axis-chip--z">Z</span>
+                            <input type="text" class="naInput na-xform-field__input" id="na-xform-z" data-na-key="z" spellcheck="false">
+                            <span class="na-xform-field__unit" data-na-unit="length"></span>
+                        </label>
+                    </div>
+                    <p class="na-xform-caption">Rotation</p>
+                    <div class="na-xform-grid">
+                        <label class="na-xform-field">
+                            <span class="na-xform-field__label na-axis-chip--z">Plan</span>
+                            <input type="text" class="naInput na-xform-field__input" id="na-xform-rotZ" data-na-key="rotZ" spellcheck="false">
+                            <span class="na-xform-field__unit" data-na-unit="angle"></span>
+                        </label>
+                        <label class="na-xform-field">
+                            <span class="na-xform-field__label na-axis-chip--x">Tilt X</span>
+                            <input type="text" class="naInput na-xform-field__input" id="na-xform-rotX" data-na-key="rotX" spellcheck="false">
+                            <span class="na-xform-field__unit" data-na-unit="angle"></span>
+                        </label>
+                        <label class="na-xform-field">
+                            <span class="na-xform-field__label na-axis-chip--y">Tilt Y</span>
+                            <input type="text" class="naInput na-xform-field__input" id="na-xform-rotY" data-na-key="rotY" spellcheck="false">
+                            <span class="na-xform-field__unit" data-na-unit="angle"></span>
+                        </label>
+                    </div>
+                    <p class="na-hint">Type a value and press Enter. X, Y and Z place the gimbal point (and the cloud with it) in the model's units; rotations are in degrees and turn the cloud about the gimbal point. The cloud is only ever moved and rotated, never scaled.</p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-xform-reset">Reset to Import Position</button>
+                    </div>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Snapping</h3>
+                    <div class="na-snap-row">
+                        <label class="na-snap-row__check"><input type="checkbox" id="na-snap-move"> Snap gimbal moves to</label>
+                        <input type="text" class="naInput na-snap-row__input" id="na-snap-move-step" spellcheck="false">
+                        <span class="na-snap-row__unit" data-na-unit="length"></span>
+                    </div>
+                    <div class="na-snap-row">
+                        <label class="na-snap-row__check"><input type="checkbox" id="na-snap-angle"> Snap rotation to</label>
+                        <input type="text" class="naInput na-snap-row__input" id="na-snap-angle-step" spellcheck="false">
+                        <span class="na-snap-row__unit" data-na-unit="angle"></span>
+                    </div>
+                    <p class="na-hint">Rotate also snaps to model geometry (endpoints, edges, axes), so you can line the cloud up with lines you have drawn.</p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Export</h3>
+                    <p class="na-hint na-hint--top">Saves the cloud file, units, position, rotation, lock, clip box, clip scenes and display settings to one JSON file. No point data.</p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-xform-export">Export Configuration&hellip;</button>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+        <!-- endregion ============================================================ -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Settings
+             ====================================================================== -->
+        <div id="na-tab-settings" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="settings">
+            <div class="na-settings-body">
+
+                <section class="na-settings-section">
+                    <h3 class="na-settings-heading">Plugin Maintenance</h3>
+                    <p class="na-settings-description">Reload runs every Ruby file again and reopens this window, so code, layout, style and default-config changes apply without restarting SketchUp.</p>
+                    <div class="na-settings-button-row">
+                        <button type="button" class="na-btn na-btn-primary" id="na-settings-reload">Reload Plugin</button>
+                    </div>
+                    <table class="na-reload-table">
+                        <tr><td>Ruby modules</td><td class="na-ok">Reloaded</td></tr>
+                        <tr><td>HTML, CSS and JS</td><td class="na-ok">Reloaded (window reopens)</td></tr>
+                        <tr><td>Default config JSON</td><td class="na-ok">Read again</td></tr>
+                        <tr><td>Native renderer (DLL)</td><td class="na-ok">Swapped in if rebuilt; re-import the LAS afterwards</td></tr>
+                    </table>
+                    <p class="na-settings-info-line" id="na-settings-native-status"></p>
+                </section>
+
+                <section class="na-settings-section">
+                    <h3 class="na-settings-heading">Saved With This Model</h3>
+                    <p class="na-settings-description">The model keeps three small text records: which LAS it uses, where the cloud sits (position, rotation, gimbal point, lock) and the clip box with its scenes. They never load anything by themselves and never stop a model from opening; use Reload Point Cloud on the View tab. A copy of the same records is kept on this computer, so a day's alignment survives SketchUp closing without saving.</p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-settings-open-backups">Open Backups Folder</button>
+                        <button type="button" class="naButtonSecondary" id="na-settings-remove-link">Remove Point Cloud Data From Model</button>
+                    </div>
+                    <p class="na-hint" id="na-settings-link-status"></p>
+                </section>
+
+                <section class="na-settings-section">
+                    <h3 class="na-settings-heading">Point Cloud Cache</h3>
+                    <p class="na-settings-description">Working files for this plugin. Everything here can be rebuilt from the original LAS.</p>
+                    <p class="na-path" id="na-settings-cache-path"></p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-settings-open-cache">Open Cache Folder</button>
+                    </div>
+                </section>
+
+                <section class="na-settings-section">
+                    <h3 class="na-settings-heading">User Config</h3>
+                    <p class="na-settings-description">Preferences on this computer, such as the last tab and the last LAS folder.</p>
+                    <p class="na-path" id="na-settings-user-config-path"></p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-settings-open-user-config">Open Config Folder</button>
+                    </div>
+                </section>
+
+                <section class="na-settings-section">
+                    <h3 class="na-settings-heading">Technical Log</h3>
+                    <p class="na-settings-description">Details behind any message in the status bar, newest first.</p>
+                    <div id="na-settings-log" class="na-log"></div>
+                </section>
+
+                <section class="na-settings-section na-settings-section-info">
+                    <h3 class="na-settings-heading">About</h3>
+                    <p class="na-settings-info-line" id="na-settings-about-version"></p>
+                    <p class="na-settings-info-line">LAS reading: LASzip 3.5.0 (Apache 2.0), included with the plugin.</p>
+                </section>
+
+            </div>
+        </div>
+        <!-- endregion ============================================================ -->
+
+    </div>
+
+    <!-- ==========================================================================
+         REGION | Status Bar (shared across tabs)
+         ========================================================================== -->
+    <div id="na-status-bar" class="na-status-bar na-hidden">
+        <span id="na-status-message"></span>
+    </div>
+    <!-- endregion ============================================================== -->
+
+</div>
+
+<!-- ==========================================================================
+     REGION | Loading Overlay (shown BEFORE any long Ruby task starts)
+     ========================================================================== -->
+<div id="na-loading-overlay" class="na-loading-overlay na-hidden" role="alertdialog" aria-live="assertive">
+    <div class="na-loading-card">
+        <div class="na-spinner" aria-hidden="true"></div>
+        <h2 class="na-loading-title" id="na-loading-title">Working&hellip;</h2>
+        <p class="na-loading-status" id="na-loading-status">Starting&hellip;</p>
+        <div class="na-progress" id="na-loading-progress"><div class="na-progress__bar" id="na-loading-bar"></div></div>
+        <p class="na-loading-percent" id="na-loading-percent"></p>
+        <button type="button" class="naButtonSecondary" id="na-loading-cancel">Cancel</button>
+        <p class="na-loading-note">If this window stops updating, SketchUp is busy on a single step and will catch up.</p>
+    </div>
+</div>
+<!-- endregion ============================================================== -->
+
+<!-- ==========================================================================
+     REGION | JavaScript Includes (load order matters)
+       1. BridgeBase  - window.sketchup wrapper
+       2. MainShell   - receive dispatcher, status bar, loading overlay
+       3. Tab logic   - View, LAS import, Clipping, Transform, model link, Settings
+       4. TabRouter   - last: activates the remembered tab on first state
+     ========================================================================== -->
+<script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__UiSystem__BridgeBase__.js"></script>
+<script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__UiSystem__MainShell__.js"></script>
+<script src="02__Src__AppModules/30__System__ViewTab/Na__PointCloudViewer__ViewTab__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/40__System__LasImport/Na__PointCloudViewer__LasImport__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/50__System__ClipBox/Na__PointCloudViewer__ClipBox__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/60__System__Transform/Na__PointCloudViewer__Transform__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/70__System__Persistence/Na__PointCloudViewer__Persistence__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/35__System__SettingsMode/Na__PointCloudViewer__SettingsTab__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__TabRouter__.js"></script>
+<!-- endregion ============================================================== -->
+
+</body>
+</html>
+<!-- =============================================================================
+     END OF FILE
+     ============================================================================= -->

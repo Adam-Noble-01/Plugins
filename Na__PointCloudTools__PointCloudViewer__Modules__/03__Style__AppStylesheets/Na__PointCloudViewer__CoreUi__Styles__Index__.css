@@ -1,0 +1,199 @@
+/* =============================================================================
+   NA POINT CLOUD VIEWER - CORE UI STYLES - INDEX
+   =============================================================================
+   FILE       : Na__PointCloudViewer__CoreUi__Styles__Index__.css
+   PURPOSE    : Master stylesheet. Imports the feature style modules and
+                defines the shared variables, base layout, form controls and
+                buttons (same family as Profile Path Tracer / Element Studio).
+   NOTE       : @import rules MUST appear before all other rules per CSS spec.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Feature Stylesheet Imports (MUST be first) */
+/* ----------------------------------------------------------------- */
+
+@import url("Na__PointCloudViewer__UiFeature__Styles__BrandHeader__.css");
+@import url("Na__PointCloudViewer__UiFeature__Styles__TabStrip__.css");
+@import url("Na__PointCloudViewer__UiFeature__Styles__Controls__.css");
+@import url("Na__PointCloudViewer__UiFeature__Styles__ClipBox__.css");
+@import url("Na__PointCloudViewer__UiFeature__Styles__Transform__.css");
+@import url("Na__PointCloudViewer__UiFeature__Styles__Settings__.css");
+@import url("Na__PointCloudViewer__UiFeature__Styles__LoadingOverlay__.css");
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | CSS Variables */
+/* ----------------------------------------------------------------- */
+
+:root {
+    --na-bg             : #f4f5f7;
+    --na-panel          : #ffffff;
+    --na-border         : #d6d9de;
+    --na-text           : #20242b;
+    --na-subtle         : #5f6773;
+    --na-accent         : #1a73e8;
+    --na-accent-hover   : #155fc0;
+    --na-brand-bg       : #1a1a2e;
+    --na-brand-text     : #ffffff;
+    --na-tab-strip-bg   : #f0f2f5;
+    --na-status-bg      : #eef3fb;
+    --na-success        : #008f5a;
+    --na-warn           : #b06000;
+    --na-danger         : #b3261e;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Base Reset + Layout Shell */
+/* ----------------------------------------------------------------- */
+
+* {
+    box-sizing          : border-box;
+}
+
+body {
+    margin              : 0;
+    font-family         : "Segoe UI", Tahoma, sans-serif;
+    font-size           : 13px;
+    background          : var(--na-bg);
+    color               : var(--na-text);
+    height              : 100vh;
+    overflow            : hidden;
+}
+
+.na-app-shell {
+    display             : flex;
+    flex-direction      : column;
+    height              : 100vh;
+    overflow            : hidden;
+}
+
+.na-tab-panels-container {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    min-height          : 0;
+    overflow            : hidden;
+}
+
+.na-panel-body {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 12px;
+    padding             : 14px 16px 18px;
+}
+
+.na-hidden {
+    display             : none !important;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Form Controls */
+/* ----------------------------------------------------------------- */
+
+.naFormRow {
+    display             : grid;
+    grid-template-columns : 140px 1fr;
+    gap                 : 10px;
+    align-items         : center;
+    margin              : 10px 0;
+}
+
+.naFormRow label {
+    font-weight         : 600;
+    font-size           : 12px;
+}
+
+.naInput,
+.naSelect,
+.naTextarea {
+    width               : 100%;
+    padding             : 7px 8px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : #fff;
+    font-size           : 13px;
+    font-family         : inherit;
+    color               : var(--na-text);
+}
+
+.naTextarea {
+    resize              : vertical;
+    min-height          : 52px;
+    margin-top          : 10px;
+}
+
+.na-select-inline {
+    width               : auto;
+    min-width           : 170px;
+}
+
+.na-select-compact {
+    padding             : 3px 4px;
+    font-size           : 12px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Buttons */
+/* ----------------------------------------------------------------- */
+
+.naButton {
+    border              : 1px solid var(--na-accent);
+    background          : var(--na-accent);
+    color               : #fff;
+    border-radius       : 4px;
+    padding             : 8px 14px;
+    cursor              : pointer;
+    font-size           : 13px;
+    font-family         : inherit;
+    font-weight         : 500;
+    transition          : background 0.12s, border-color 0.12s;
+}
+
+.naButton:hover {
+    background          : var(--na-accent-hover);
+    border-color        : var(--na-accent-hover);
+}
+
+.naButtonSecondary {
+    border              : 1px solid var(--na-border);
+    background          : var(--na-panel);
+    color               : var(--na-text);
+    border-radius       : 4px;
+    padding             : 8px 14px;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+}
+
+.naButtonSecondary:hover {
+    background          : var(--na-bg);
+}
+
+/* A toggle-style button that is currently on (Edit Clip Box while editing). */
+.naButton.naButton--active {
+    background          : var(--na-warn);
+    border-color        : var(--na-warn);
+}
+
+.naButton[disabled],
+.naButtonSecondary[disabled] {
+    opacity             : 0.45;
+    cursor              : default;
+}
+
+.na-button-row {
+    display             : flex;
+    gap                 : 8px;
+    flex-wrap           : wrap;
+    align-items         : center;
+    margin-top          : 10px;
+}
+
+/* endregion ----------------------------------------------------------------- */
