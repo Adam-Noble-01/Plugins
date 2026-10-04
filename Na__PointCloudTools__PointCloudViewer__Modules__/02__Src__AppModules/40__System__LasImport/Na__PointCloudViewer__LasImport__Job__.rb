@@ -14,6 +14,11 @@
 #   factor and the placement (Na__Placement: a saved position for this same
 #   LAS is restored). The LAS file itself is only ever opened for reading.
 #
+# POINT CACHE (Na__PointCache): a LAS import also writes the engine's .napc
+#   cache on the same worker thread; a job started with 'fromCache' loads that
+#   cache instead of the LAS (about a second instead of a full read). A cache
+#   that turns out unusable falls back to reading the LAS, if it is there.
+#
 # =============================================================================
 
 module Na__PointCloudViewer
@@ -27,28 +32,39 @@ module Na__PointCloudViewer
                 1 => 'Reading point records',
                 2 => 'Converting colours...',
                 3 => 'Shuffling points so the point budget samples the whole cloud',
-                4 => 'Preparing viewport data...'
+                4 => 'Saving a point cache so the next Reload is quick',
+                5 => 'Preparing viewport data...'
             }.freeze
 
-            def initialize(session, view, path, source_unit, header_ms)
+            # options: 'cachePath' + 'lasStamp' [bytes, mtime] -> also write the cache;
+            #          'fromCache' (+ 'expectCount', 'lasMissing') -> load that cache instead.
+            def initialize(session, view, path, source_unit, header_ms, options = {})
                 @session     = session
                 @view        = view
                 @path        = path
                 @source_unit = source_unit
                 @header_ms   = header_ms
+                @options     = options || {}
+                @from_cache  = @options['fromCache']
                 @handle      = nil
+                @fell_back   = false
                 @started_ms  = Na__PerfStats.Na__Perf__NowMs
                 @summary     = { 'kind' => 'las' }
             end
 
             def na_title
-                "Importing #{File.basename(@path)}"
+                @from_cache ? "Loading #{File.basename(@path)}" : "Importing #{File.basename(@path)}"
             end
 
             def na_step
                 unless @handle
+                    if @from_cache
+                        @handle = Na__NativeEngine.Na__Native__CacheLoadStart(@from_cache, @options['expectCount'].to_i)
+                        return { 'done' => false, 'status' => 'Opening the point cache...', 'percent' => 1.0, 'delay' => NA_POLL_SECONDS }
+                    end
                     fallback = Na__ConfigLoader.Na__Config__GetOr([110, 110, 110], 'render', 'noRgbFallbackRgb')
-                    @handle = Na__NativeEngine.Na__Native__LasImportStart(@path, fallback)
+                    las_bytes, las_mtime = @options['lasStamp'] || [0, 0]
+                    @handle = Na__NativeEngine.Na__Native__LasImportStart(@path, fallback, @options['cachePath'], las_bytes, las_mtime)
                     return { 'done' => false, 'status' => NA_PHASE_TEXT[0], 'percent' => 1.0, 'delay' => NA_POLL_SECONDS }
                 end
 
@@ -75,8 +91,10 @@ module Na__PointCloudViewer
             def na_finish(poll)
                 if poll['failed'].to_i == 1
                     message = Na__NativeEngine.Na__Native__JobError(@handle)
+                    return self.na_fall_back_to_las(message) if @from_cache && File.file?(@path)
                     raise message.empty? ? 'The LAS import failed.' : message
                 end
+                cache_note = self.na_cache_note(poll)
 
                 pointer = Na__NativeEngine.Na__Native__JobTakeCloud(@handle)
                 Na__NativeEngine.Na__Native__JobDestroy(@handle)
@@ -90,11 +108,18 @@ module Na__PointCloudViewer
                 Na__ModelRegistry.Na__Registry__SetVisible(true)
                 Na__RenderController.Na__Render__ZoomToCloud(@session, @view)
 
-                @summary = { 'kind' => 'las', 'totalPoints' => cloud.total_points, 'timings' => cloud.timings }
+                @summary = { 'kind' => 'las', 'totalPoints' => cloud.total_points, 'timings' => cloud.timings, 'fromCache' => @from_cache ? true : false }
                 shown = [@session.settings['pointBudget'].to_i, cloud.total_points].min
-                message = "Imported #{Na__PerfStats.Na__Perf__Thousands(cloud.total_points)} points from #{File.basename(@path)} " \
-                          "(#{Na__UnitContract.Na__Units__SourceUnitLabel(@source_unit)}) in #{format('%.1f', cloud.timings['importWallMs'] / 1000.0)} s."
+                seconds = format('%.1f', cloud.timings['importWallMs'] / 1000.0)
+                message = if @from_cache
+                              "Loaded #{Na__PerfStats.Na__Perf__Thousands(cloud.total_points)} points of #{File.basename(@path)} from the point cache in #{seconds} s."
+                          else
+                              "Imported #{Na__PerfStats.Na__Perf__Thousands(cloud.total_points)} points from #{File.basename(@path)} " \
+                                  "(#{Na__UnitContract.Na__Units__SourceUnitLabel(@source_unit)}) in #{seconds} s."
+                          end
+                message += ' The LAS was not found at its saved location; this computer\'s cached copy of it was used.' if @options['lasMissing']
                 message += ' Its saved position in this model was restored.' if restored
+                message += " #{cache_note}" if cache_note
                 message += " Showing #{Na__PerfStats.Na__Perf__Thousands(shown)}. Raise the Point Budget to see more." if shown < cloud.total_points
                 { 'done' => true, 'status' => message, 'percent' => 100.0 }
             end
@@ -120,6 +145,7 @@ module Na__PointCloudViewer
                     'colourBits'        => poll['colourBits'].to_i
                 }
                 cloud.timings['lasHeaderMs']    = @header_ms
+                cloud.timings['fromCache']      = @from_cache ? true : false
                 cloud.timings['lasReadMs']      = poll['readMs'].round(1)
                 cloud.timings['lasColourMs']    = poll['colourMs'].round(1)
                 cloud.timings['lasShuffleMs']   = poll['shuffleMs'].round(1)
@@ -128,12 +154,37 @@ module Na__PointCloudViewer
                 cloud
             end
 
+            # The cache could not be used (damaged, or from another version):
+            # delete it and read the LAS instead, writing a fresh cache.
+            def na_fall_back_to_las(message)
+                Na__DebugTools.Na__Debug__Warn("Point cache not used (#{message}); reading the LAS instead.")
+                Na__NativeEngine.Na__Native__JobDestroy(@handle)
+                @handle = nil
+                cache_path = @from_cache
+                File.delete(cache_path) if File.file?(cache_path)
+                @from_cache = nil
+                @fell_back  = true
+                @options = { 'cachePath' => cache_path, 'lasStamp' => Na__PointCache.Na__Cache__LasStamp(@path) }
+                { 'done' => false, 'status' => 'The point cache could not be used; reading the LAS instead...', 'percent' => 1.0, 'delay' => NA_POLL_SECONDS }
+            rescue SystemCallError
+                { 'done' => false, 'status' => 'Reading the LAS instead...', 'percent' => 1.0, 'delay' => NA_POLL_SECONDS }
+            end
+
+            def na_cache_note(poll)
+                return nil if @from_cache || !@options['cachePath']
+                case poll['cacheState'].to_i
+                when 1  then 'A point cache was saved, so the next Reload takes about a second.'
+                when -1 then "No point cache was saved (#{Na__NativeEngine.Na__Native__JobError(@handle)})."
+                end
+            end
+
             # ---------------------------------------------------------------
             # Progress text
             # ---------------------------------------------------------------
 
             def na_status(poll)
                 phase = poll['phase'].to_i
+                return 'Reading the point cache...' if @from_cache && phase == 1
                 text  = NA_PHASE_TEXT.fetch(phase, 'Working...')
                 return text unless [1, 3].include?(phase) && poll['total'].to_i > 0
                 "#{text}... #{Na__PerfStats.Na__Perf__Thousands(poll['done'])} of #{Na__PerfStats.Na__Perf__Thousands(poll['total'])}"
@@ -141,10 +192,13 @@ module Na__PointCloudViewer
 
             def na_percent(poll)
                 total = [poll['total'].to_f, 1.0].max
+                fraction = poll['done'].to_f / total
+                return (2.0 + 95.0 * fraction).round(1) if @from_cache && poll['phase'].to_i == 1
                 case poll['phase'].to_i
-                when 1 then 2.0 + 83.0 * poll['done'].to_f / total
-                when 2 then 86.0
-                when 3 then 88.0 + 11.0 * poll['done'].to_f / total
+                when 1 then 2.0 + 78.0 * fraction
+                when 2 then 81.0
+                when 3 then 82.0 + 8.0 * fraction
+                when 4 then 90.0 + 9.0 * fraction
                 else 1.0
                 end.round(1)
             end

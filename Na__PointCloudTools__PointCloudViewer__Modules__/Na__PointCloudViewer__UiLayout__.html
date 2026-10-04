@@ -332,10 +332,12 @@
 
                 <section class="na-settings-section">
                     <h3 class="na-settings-heading">Point Cloud Cache</h3>
-                    <p class="na-settings-description">Working files for this plugin. Everything here can be rebuilt from the original LAS.</p>
+                    <p class="na-settings-description">Working files for this plugin, on this computer only. Each imported LAS gets one point cache, so Reload Point Cloud takes about a second instead of reading the whole LAS. Everything here can be deleted and rebuilds from the original LAS.</p>
                     <p class="na-path" id="na-settings-cache-path"></p>
+                    <p class="na-settings-info-line" id="na-settings-cache-stats"></p>
                     <div class="na-button-row">
                         <button type="button" class="naButtonSecondary" id="na-settings-open-cache">Open Cache Folder</button>
+                        <button type="button" class="naButtonSecondary" id="na-settings-clear-cache">Clear Point Caches</button>
                     </div>
                 </section>
 

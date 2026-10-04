@@ -69,10 +69,21 @@ module Na__PointCloudViewer
     # REGION | Install
     # -------------------------------------------------------------------------
 
+        # COLD START: SketchUp loads extensions with a model already in place, but
+        # that model must not be touched yet. Adding the overlay during extension
+        # loading crashed SketchUp a few seconds later, inside Ruby, while other
+        # extensions were still loading (found 03-Oct-2026, reproduced 5 times;
+        # every Reload Plugin worked because SketchUp was already running).
+        # So the first install only registers the AppObserver: its startup
+        # notifications (expectsStartupModelNotifications) add the overlay once
+        # loading has finished, and any dialog action adds it on demand
+        # (Na__Registry__ActiveOverlay). A RELOAD, mid-session, adds it at once.
         def self.Na__Registry__InstallOnce
-            unless @na_app_observer
+            first_install = @na_app_observer.nil?
+            if first_install
                 @na_app_observer = Na__AppObserver.new
                 Sketchup.add_observer(@na_app_observer)
+                return true
             end
             model = Sketchup.active_model
             self.Na__Registry__EnsureOverlay(model) if model

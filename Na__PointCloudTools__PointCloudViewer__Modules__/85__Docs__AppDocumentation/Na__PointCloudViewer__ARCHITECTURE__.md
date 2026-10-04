@@ -1,9 +1,9 @@
 # Na Point Cloud Viewer - ARCHITECTURE
 
-Status: **v0.6.0: native image renderer, LAS import, the clip box with clip scenes, the
-Transform tab (move gimbal with a settable gimbal point, rotate protractor, lock, typed values,
-JSON export) and model persistence (LAS link + local backup, explicit Reload) are built;
-everything marked _Designed_ is not yet code.** Written 03-Oct-2026. Keep this file true: when a design
+Status: **v0.7.0: native image renderer (binned raster, screen crop, orbit budget), LAS import
+with the `.napc` point cache, the clip box with clip scenes, the Transform tab and model
+persistence (LAS link + local backup, explicit Reload) are built; everything marked _Designed_
+is not yet code.** Written 03-Oct-2026. Keep this file true: when a design
 decision changes, change it here and say why in the DEVLOG.
 
 **The decisive finding (M1):** SketchUp's View API costs ~2.3 us per drawn point (100k points =
@@ -213,10 +213,33 @@ Live quick benchmark, 1M points, 1909 x 1228 viewport (v0.2.0):
 | Orbiting, forced full resolution | 72.6 ms | 13.8 | native 26.8 (raster 9.6, PNG 15.5) + load_file 39.3 + texture 4.1 |
 | GL_POINTS, 100k (reference) | 313.6 ms | 3.2 | - |
 
-Next optimisations, in order of payoff: `load_file` dominates orbiting (SketchUp-side, per
-pixel), so crop the image to the screen rectangle the cloud covers and test a 256-colour palette
-PNG (1 byte/px); parallel CRC/Adler for the settled frame; points stored in spatial order (M2
-cache) for raster cache locality.
+**Optimisations built in v0.7.0** (JW02, 1909 x 1228 viewport, all images pixel-identical to
+v0.6.0, PNGs fully validated):
+
+| Render | v0.6.0 | v0.7.0 |
+|---|---|---|
+| Full resolution, 1M points | 31 ms | 16 ms |
+| Full resolution, all 10.8M | 124 ms | 73 ms |
+| Orbiting (half res), all 10.8M | 57 ms | 23 ms (capped at 5M while moving) |
+| Zoomed out: image SketchUp must decode | 9.4 MB | 0.8 MB |
+
+- **Binned raster:** points are stored shuffled (so a budget is an even sample), which made every
+  core write all over the depth buffer and fight over cache lines (~77 ns per point measured).
+  Pass 1 projects a batch of 2M points into per-band bins; pass 2 gives each horizontal band to one
+  worker (dynamic, 4 bands per worker), applied with plain loads and stores. Pass 1 is now bound by
+  memory traffic (bins 12 bytes/point); micro-tuning (local copies, a cast instead of `floor`)
+  gained nothing and was dropped to keep the output bit-exact.
+- **Screen crop** (ABI 4: `FULL_WIDTH/HEIGHT`, `CROP_X/Y`): the image covers only the projected
+  rectangle of the visible box (cloud, or its part inside the clip box) plus the point size; the
+  whole view when only some corners are behind the camera; nothing at all when the box is off
+  screen or entirely behind the camera. Every stage scales with pixels, including SketchUp's own
+  `load_file` / `load_texture`, the largest cost.
+- **Parallel PNG:** each worker copies and checksums its run of stored blocks; CRC-32 and Adler-32
+  are joined with zlib's combine maths (byte-identical file). 10.5 ms -> 2.8 ms at full resolution.
+- **Orbit budget:** while moving, at most `render.nativeImage.movingBudgetMax` (5M) points; the
+  settled frame draws the whole budget.
+- Not done: a 256-colour palette PNG (would posterise RGB clouds); spatially ordered storage (needs
+  the octree, M3).
 
 Not solvable from the overlay: points are drawn over SketchUp faces (no depth from the model).
 
@@ -258,57 +281,43 @@ find 1M inside; 19 ms once, then cached.
 
 ---
 
-## 9. Cache format `.napc` v1 (_Designed: M2_)
+## 9. Point cache `.napc` v1 (BUILT in v0.7.0, simple form)
 
-Location: `90__AppCache__PointCloudCache/<cacheId>/cloud.napc` (git-ignored, per PC).
-`cacheId` = first 16 hex chars of SHA-256(fingerprint). Little-endian throughout.
+`01__CppSource/...PointCache__.{hpp,cpp}` (engine), `70__System__Persistence/...PointCache__.rb`.
+
+The engine's own copy of an imported cloud: one file read straight into memory instead of decoding
+and shuffling the LAS again. JW02: 172 MB, Reload from cache 0.08 s native / ~0.1 s in SketchUp vs
+~1.1 s (warm) to ~3 s (cold) from the LAS.
 
 ```
-HEADER (256 bytes)
-  0    char[8]   "NAPCLOUD"
-  8    u32       formatVersion = 1          (mismatch -> "created by an older version, rebuild")
-  12   u32       headerBytes = 256
-  16   u64       pointCount
-  24   u32       nodeCount
-  28   u32       paletteCount (<= 256)
-  32   u8[32]    sourceFingerprint (SHA-256, see below)
-  64   u64       sourceFileBytes
-  72   i64       sourceModifiedUnix
-  80   f64[3]    lasScale
-  104  f64[3]    lasOffset
-  128  f64[3]    localOrigin (source units)
-  152  f64[6]    bounds relative to localOrigin (min xyz, max xyz)
-  200  u8        hasRgb
-  201  u8        rgbSourceBits (8 | 16)
-  202  u8, u8    lasVersionMajor, lasVersionMinor
-  204  u8        pointDataFormat
-  205  ...       reserved (zero)
-  248  u32       headerCrc32 (bytes 0-247)
-PALETTE          paletteCount x RGB8, padded to 8 bytes
-NODE TABLE       nodeCount x 64 bytes:
-                 u32 nodeKey (level + octant path), u8 level, u8 childMask, u16 pad,
-                 f64[3] centre (rel. localOrigin), f32 halfSize, f32 spacing,
-                 u64 blockOffset, u32 pointCount, u32 blockCrc32, u8[8] reserved
-POINT BLOCKS     per node, 16-byte aligned, points sorted by palette index:
-                 f32[3] x n  position relative to node centre (source units)
-                 u8[3]  x n  RGB (8-bit; 16-bit LAS RGB downshifted after detection)
-                 u8     x n  palette index
-                 u32[2] x r  palette runs (index, count) - draw-batch boundaries without scanning
-FOOTER           "NAPCEND\0", u32 nodeTableCrc32
+HEADER (256 bytes, little-endian)
+  0    char[8]  "NAPCv1\0\0"
+  8    u32      headerBytes = 256
+  12   u32      version = 1
+  16   i64      pointCount
+  24   f64[3]   localOrigin (source units)
+  48   f64[3]   local box min      72  f64[3]  local box max
+  96   i32      colourBits
+  104  f64      LAS size (bytes)   112 f64  LAS modified time (Unix seconds)
+  120  u64      xyzBytes           128 u64  bgraBytes
+  252  u32      CRC-32 of bytes 0..251
+XYZ   f32 x 3 x count   local coordinates, shuffled order (as drawn)
+BGRA  u32 x count       colours as drawn
 ```
 
-- **Fingerprint** = SHA-256 over: file size, LAS header + VLR bytes, 64 evenly spaced 64 KiB
-  samples of the point data, the last 64 KiB. Validating on model open reads ~4 MB, not the file.
-- **Transactional write**: `cloud.napc.tmp` -> full read-back verify (header CRC, node table CRC,
-  every block CRC) -> rename. Failure or cancel deletes the `.tmp`; a half-written cache can never
-  be opened because only renamed files are considered.
-- **Invalidation**: version mismatch, fingerprint mismatch (LAS changed), or CRC failure -> clear
-  message and an explicit Rebuild button. Never a silent re-import.
-- XYZ precision: f32 relative to the node centre -> sub-micron at leaf level, ~0.1 mm worst case at
-  the root of a 1 km cloud; f64 centres keep the global relationship exact.
-- Very large clouds: the importer streams points; the octree is built in chunks spilled to temp
-  files under the cache folder (PotreeConverter 2 approach) when the cloud exceeds the in-memory
-  cap. Ruby never holds the cloud - only the selected nodes' arrays.
+- **Where:** `90__AppCache__PointCloudCache/01__PointCaches/Na__PointCloudViewer__PointCache__<crc32
+  of fingerprint>.napc`, per computer, git-ignored. One file per scan (fingerprint = point count +
+  survey origin), so re-importing overwrites rather than duplicates.
+- **Written** by the import worker thread after the shuffle (phase "Saving a point cache"), to
+  `<file>.tmp` then `MoveFileExW(REPLACE_EXISTING | WRITE_THROUGH)`: whole or absent. A failed
+  write never fails the import; cancel deletes the `.tmp`.
+- **Used** only when the header passes every check (magic, version, CRC, exact file length, point
+  count) AND its fingerprint matches AND the LAS, when found, has the recorded size and modified
+  time (2 s slack). A changed LAS rebuilds; a LAS found nowhere still allows the cache (same scan
+  by fingerprint) with a note. A cache that fails while loading is deleted and the LAS read instead.
+- **Settings:** count and size, Open Cache Folder, Clear Point Caches (second click).
+- **Still designed (M3):** octree nodes, palette and per-node CRCs inside the cache, so large clouds
+  can be loaded and drawn by level of detail rather than whole.
 
 ---
 
@@ -544,8 +553,22 @@ The native DLL is loaded from a **shadow copy** (`90__AppCache__PointCloudCache/
 so the build can overwrite the original while SketchUp runs. When the original is newer, reload
 destroys every live native cloud (clearing their GC free functions first), calls `napc_shutdown`,
 unloads the old copy and loads the new one; sessions see the generation change and upload again.
-Clouds that exist only in the engine (LAS imports before the M2b cache) must be re-imported after
-a swap.
+After a swap the cloud must be loaded again (Reload Point Cloud reads the point cache, so this is
+quick).
+
+**Cold start (found 03-Oct-2026):** SketchUp loads extensions with a model already in place, but
+that model must not be touched yet. Adding the overlay during extension loading crashed SketchUp
+~20 s into every cold start, inside Ruby, while later extensions (AI Assistant) were loading:
+`SketchUp.exe+0x384172` null write, the Ruby interpreter on the stack. Reload Plugin never showed
+it (SketchUp already running), so it surfaced only when Adam restarted. Proven by bisection with
+real cold starts (plugin off: no crash; plugin loaded but bootstrap skipped: no crash; overlay
+added at load: crash; overlay added by the startup notification: no crash). Rule now: the first
+`Na__Registry__InstallOnce` only registers the AppObserver; `expectsStartupModelNotifications`
+delivers onNewModel / onOpenModel after loading and adds the overlay; any dialog action adds it on
+demand. Only a reload (mid-session) adds it at once.
+
+Testing cold starts: SketchUp 2026 loads extensions only after the Welcome screen, so launch
+`SketchUp.exe "<scratch copy of a template>.skp"` and watch `%LOCALAPPDATA%\Temp\SketchUp*.dmp`.
 
 ---
 
@@ -588,5 +611,6 @@ real engine and a real LAS (79 checks for v0.4.0).
 | M3 | LOD selection (octree), node-level clip culling, navigation budget if needed | Stable LOD while orbiting |
 | **Transform** (built, v0.5.0) | Transform tab: lock / unlock, move gimbal with snapping, rotate protractor with inference, typed position and rotation, placement stored in the model with undo and restored on re-import, configuration JSON export | Adam: "add the tool so we can transform a point cloud" |
 | **Persistence** (built, v0.6.0) | LAS link in the model, local backup, explicit Reload / Locate / Restore / Remove, settable gimbal point, All budget preset, display settings per user | Adam: "positions all messed up the next day" must never happen |
+| **Speed + cache** (built, v0.7.0) | Binned raster, screen crop, parallel PNG, orbit budget, `.napc` point cache; cold-start crash fixed | Reload in ~0.1 s; no crash on restart |
 | M4 | Two-point align, set origin, round trip across both computers | Round trip across both computers |
 | M5 | Large-cloud hardening, error wording, docs | |

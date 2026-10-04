@@ -51,6 +51,7 @@ module Na__PointCloudViewer
             'link_restore_backup'     => :na_link_restore_backup,
             'link_remove'             => :na_link_remove,
             'open_backups_folder'     => :na_open_backups_folder,
+            'cache_clear'             => :na_cache_clear,
             'job_cancel'              => :na_job_cancel,
             'settings_reload_plugin'  => :na_settings_reload_plugin,
             'open_cache_folder'       => :na_open_cache_folder,
@@ -265,6 +266,14 @@ module Na__PointCloudViewer
 
         def self.na_link_remove(_payload)
             self.na_clip_change { |session| Na__ModelLink.Na__Link__RemoveFromModel(session) }
+        end
+
+        # Loaded clouds are unaffected (they live in memory); the next Reload
+        # reads the LAS and writes a new cache.
+        def self.na_cache_clear(_payload)
+            removed = Na__PointCache.Na__Cache__Clear
+            Na__DialogManager.Na__Dialog__PushState
+            Na__DialogManager.Na__Dialog__PushStatus(removed.zero? ? 'There were no point caches to clear.' : "Cleared #{removed} point cache file#{removed == 1 ? '' : 's'}. They rebuild from the LAS on the next import or Reload.", 'success')
         end
 
         def self.na_open_backups_folder(_payload)

@@ -96,6 +96,7 @@ require_relative '../60__System__Transform/Na__PointCloudViewer__Transform__Move
 require_relative '../60__System__Transform/Na__PointCloudViewer__Transform__RotateTool__'
 require_relative '../60__System__Transform/Na__PointCloudViewer__Transform__ConfigExport__'
 require_relative '../70__System__Persistence/Na__PointCloudViewer__Persistence__LocalBackup__'
+require_relative '../70__System__Persistence/Na__PointCloudViewer__Persistence__PointCache__'
 require_relative '../70__System__Persistence/Na__PointCloudViewer__Persistence__ModelLink__'
 
 # -----------------------------------------------------------------------------

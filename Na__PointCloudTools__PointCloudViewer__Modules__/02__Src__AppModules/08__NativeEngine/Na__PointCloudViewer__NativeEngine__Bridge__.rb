@@ -38,7 +38,8 @@ module Na__PointCloudViewer
         NA_STAT_COUNT       = 10
         NA_STAT_KEYS        = %w[pointsTested pointsOnScreen threads clearMs rasterMs resolveMs encodeMs writeMs nativeTotalMs pngBytes].freeze
         NA_LAS_INFO_COUNT   = 22
-        NA_JOB_POLL_COUNT   = 21
+        NA_JOB_POLL_COUNT   = 22
+        NA_CACHE_INFO_COUNT = 14
         NA_TEXT_CAPACITY    = 8192
 
         @na_handle     = nil  unless defined?(@na_handle)
@@ -121,7 +122,9 @@ module Na__PointCloudViewer
                 render:   Fiddle::Function.new(handle['napc_render_png'], [voidp, voidp, int, voidp, voidp, int], int),
                 shutdown: Fiddle::Function.new(handle['napc_shutdown'], [], Fiddle::TYPE_VOID),
                 las_header:   Fiddle::Function.new(handle['napc_las_read_header'], [voidp, voidp, int, voidp, int], int),
-                las_import:   Fiddle::Function.new(handle['napc_las_import_start'], [voidp, voidp, int], voidp),
+                las_import:   Fiddle::Function.new(handle['napc_las_import_start'], [voidp, voidp, voidp, int], voidp),
+                cache_load:   Fiddle::Function.new(handle['napc_cache_load_start'], [voidp, voidp, int], voidp),
+                cache_peek:   Fiddle::Function.new(handle['napc_cache_peek'], [voidp, voidp, int], int),
                 job_poll:     Fiddle::Function.new(handle['napc_job_poll'], [voidp, voidp, int], int),
                 job_error:    Fiddle::Function.new(handle['napc_job_error'], [voidp, voidp, int], int),
                 job_cancel:   Fiddle::Function.new(handle['napc_job_cancel'], [voidp], Fiddle::TYPE_VOID),
@@ -205,7 +208,9 @@ module Na__PointCloudViewer
                               scaleX scaleY scaleZ offsetX offsetY offsetZ minX minY minZ maxX maxY maxZ
                               hasRgb vlrCount hasWkt hasGeoKeys isCompressed].freeze
         NA_JOB_KEYS = %w[phase done total finished failed cancelled readMs colourMs shuffleMs totalMs colourBits
-                         originX originY originZ minX minY minZ maxX maxY maxZ pointCount].freeze
+                         originX originY originZ minX minY minZ maxX maxY maxZ pointCount cacheState].freeze
+        NA_CACHE_INFO_KEYS = %w[pointCount originX originY originZ minX minY minZ maxX maxY maxZ colourBits
+                                lasBytes lasMtime version].freeze
 
         def self.Na__Native__LasReadHeader(path)
             raise self.na_unavailable_error unless self.Na__Native__EnsureLoaded
@@ -219,12 +224,35 @@ module Na__PointCloudViewer
                             .merge('systemId' => system_id.to_s, 'software' => software.to_s, 'wkt' => wkt.to_s)
         end
 
-        def self.Na__Native__LasImportStart(path, fallback_rgb)
+        # cache_path: also write the point cache there once the cloud is ready
+        # (nil = no cache). las_bytes / las_mtime are stored in its header.
+        def self.Na__Native__LasImportStart(path, fallback_rgb, cache_path = nil, las_bytes = 0, las_mtime = 0)
             raise self.na_unavailable_error unless self.Na__Native__EnsureLoaded
-            params = fallback_rgb.map(&:to_f).pack('d*')
-            raw = @na_functions[:las_import].call(Fiddle::Pointer[path.encode('UTF-8')], Fiddle::Pointer[params], 3)
+            params = (fallback_rgb.map(&:to_f) + [las_bytes.to_f, las_mtime.to_f]).pack('d*')
+            cache  = cache_path ? Fiddle::Pointer[cache_path.encode('UTF-8')] : Fiddle::Pointer.new(0)
+            raw = @na_functions[:las_import].call(Fiddle::Pointer[path.encode('UTF-8')], cache, Fiddle::Pointer[params], 5)
             raise "The LAS import could not start: #{self.na_last_error}" if raw.null?
             Fiddle::Pointer.new(raw.to_i, 0, @na_functions[:job_destroy])
+        end
+
+        # Loads a point cache on the engine's worker thread (same job API as an import).
+        def self.Na__Native__CacheLoadStart(cache_path, expect_count)
+            raise self.na_unavailable_error unless self.Na__Native__EnsureLoaded
+            params = [expect_count.to_f].pack('d*')
+            raw = @na_functions[:cache_load].call(Fiddle::Pointer[cache_path.encode('UTF-8')], Fiddle::Pointer[params], 1)
+            raise "The point cache could not be opened: #{self.na_last_error}" if raw.null?
+            Fiddle::Pointer.new(raw.to_i, 0, @na_functions[:job_destroy])
+        end
+
+        # The validated cache header as a Hash, or nil (missing or not usable).
+        def self.Na__Native__CachePeek(cache_path)
+            return nil unless File.file?(cache_path)
+            raise self.na_unavailable_error unless self.Na__Native__EnsureLoaded
+            out = Fiddle::Pointer.malloc(8 * NA_CACHE_INFO_COUNT, self.na_ruby_free)
+            code = @na_functions[:cache_peek].call(Fiddle::Pointer[cache_path.encode('UTF-8')], out, NA_CACHE_INFO_COUNT)
+            return nil if code < 0
+            values = out.to_s(8 * NA_CACHE_INFO_COUNT).unpack('d*')
+            NA_CACHE_INFO_KEYS.each_with_index.to_h { |key, index| [key, values[index]] }
         end
 
         def self.Na__Native__JobPoll(job)

@@ -37,6 +37,7 @@ module Na__PointCloudViewer
                     'cacheFolder'    => Na__AssetResolver.Na__Paths__CacheFolder,
                     'userConfigFile' => Na__AssetResolver.Na__Paths__UserConfigFile
                 },
+                'pointCaches'  => Na__PointCache.Na__Cache__Stats,
                 'nativeEngine' => self.na_native_payload,
                 'ui'           => { 'activeTab' => Na__UserConfigStore.Na__UserConfig__Get('ui', 'activeTab', 'view') },
                 'log'          => Na__DebugTools.Na__Debug__RecentEntries(30)

@@ -4,6 +4,64 @@
 
 # =======================================================================================
 
+## Point Cloud Viewer - v0.7.0 - 03-Oct-2026 - Faster Rendering, Point Cache, Cold-Start Crash Fixed
+
+### Summary
+Adam asked whether the optimisations promised before the clip box were ever done (they were not),
+confirmed v0.6.0 persistence works ("everything's in the transformed place"), and asked for the
+cache so a reload pops in without a full re-read. Then SketchUp started crashing on every start.
+
+### Cold-start crash (fixed)
+- Five crashed starts, identical: `SketchUp.exe+0x384172`, null write, Ruby interpreter on the
+  stack, ~20 s after launch, `su_assistant.rb` (AI Assistant) on the stack in two dumps. A 22:02
+  dump showed the same fault before most of today's changes.
+- Not the native engine (not loaded in the crashed process). Bisected with real cold starts using
+  a scratch template (`SketchUp.exe <file.skp>`: SketchUp 2026 loads extensions only after the
+  Welcome screen, so two early "no crash" tests had proved nothing):
+  plugin off -> fine; plugin loaded, bootstrap skipped -> fine; bootstrap without the model
+  observer -> crash; overlay added only by the startup notification -> fine.
+- Cause: the first InstallOnce added the overlay to the model while SketchUp was still loading
+  extensions. Every Reload Plugin worked because SketchUp was already running; today's restarts were
+  the first real cold starts. Fix: a cold start only registers the AppObserver; the startup
+  notification adds the overlay (ARCHITECTURE section 18). Verified live: no crash, overlay
+  registered and enabled, session bound.
+
+### Rendering (ARCHITECTURE 7.2)
+- Binned raster (per-band bins, one worker per band): 1M points 2x faster; all 10.8M 38% faster at
+  full resolution. Images byte-identical to v0.6.0 in every test case.
+- Screen crop (ABI 4): the image covers only the visible box's screen rectangle; nothing is
+  rendered when the cloud is off screen or behind the camera. Zoomed out on JW02: 9.4 MB -> 0.8 MB
+  per frame for SketchUp to decode. Live in SketchUp: 16% of the viewport rendered.
+- Parallel PNG checksums (zlib combine): encode 10.5 -> 2.8 ms.
+- Orbit budget: at most 5M points while moving (all 10.8M orbiting: 57 -> 23 ms native), the whole
+  budget once settled.
+
+### Point cache (ARCHITECTURE section 9)
+- `.napc` v1 written by the import worker (tmp + rename), loaded on a worker thread, header CRC and
+  exact length checked, LAS size + time recorded. One cache per scan.
+- Reload Point Cloud and Import LAS use the cache when the LAS is unchanged (JW02: ~0.1 s), rebuild
+  it when the LAS changed, fall back to the LAS when a cache is damaged, and load the cache alone
+  (with a note) when the LAS cannot be found anywhere.
+- Settings: cache count and size, Clear Point Caches.
+
+### Verified
+- Native: equivalence test old vs new engine (4 cases + crop), perf table, cache test (write, peek,
+  0.08 s load, byte-identical render, wrong count / truncated / CRC-damaged / missing refused).
+- Offline harness: **183 checks pass** (13 new): cold-start registration, crop and off-screen
+  skip, orbit cap and settle, cache saved on import, Reload from cache, damaged cache falls back,
+  LAS missing loads from cache, Clear Point Caches.
+- Live SketchUp (scratch template, pinned to a test instance): two cold starts with the final
+  code plus the bisection run that proved the cause, no crash; import + render with the crop,
+  screenshot correct.
+
+### For Adam to test
+- Start SketchUp normally, open a model, open the dialog: no crash.
+- Reload Point Cloud: the first time reads the LAS and saves a cache; the next Reload is near
+  instant.
+- Orbit with All points: smoother while moving, full density when you stop.
+
+---
+
 ## Point Cloud Viewer - v0.6.0 - 03-Oct-2026 - Saved With the Model, Gimbal Point, All Points
 
 ### Summary

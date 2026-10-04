@@ -15,6 +15,15 @@
     var SettingsTab = {};
     var Shell  = window.Na__PointCloudViewer__Shell;
     var Bridge = window.Na__PointCloudViewer__Bridge;
+    var na_clear_armed = false;
+    var na_clear_timer = null;
+    var na_last_state  = null;
+
+    function na_disarm_clear() {
+        if (na_clear_timer) window.clearTimeout(na_clear_timer);
+        na_clear_timer = null;
+        na_clear_armed = false;
+    }
 
     // -------------------------------------------------------------------------
     // REGION | Render
@@ -22,11 +31,21 @@
 
     SettingsTab.na_render = function (state) {
         if (!state) return;
+        na_last_state = state;
         var native = state.nativeEngine || {};
         Shell.na_text('na-settings-native-status', 'Native engine: ' + (native.message || 'status unknown'));
 
         var paths = state.paths || {};
         Shell.na_text('na-settings-cache-path', paths.cacheFolder || '');
+        var caches = state.pointCaches || { count: 0, bytes: 0 };
+        Shell.na_text('na-settings-cache-stats', caches.count
+            ? 'Point caches: ' + caches.count + ' (' + (caches.bytes / 1e6).toFixed(0) + ' MB)'
+            : 'No point caches yet. One is saved with the next LAS import.');
+        var clear = document.getElementById('na-settings-clear-cache');
+        if (!caches.count) na_disarm_clear();
+        clear.disabled = !caches.count;
+        clear.textContent = na_clear_armed ? 'Click again to clear' : 'Clear Point Caches';
+        clear.classList.toggle('na-button--danger', na_clear_armed);
         Shell.na_text('na-settings-user-config-path', paths.userConfigFile || '');
 
         var plugin = state.plugin || {};
@@ -65,6 +84,19 @@
         });
         document.getElementById('na-settings-open-cache').addEventListener('click', function () {
             Bridge.na_call('open_cache_folder', {});
+        });
+        document.getElementById('na-settings-clear-cache').addEventListener('click', function () {
+            if (!na_clear_armed) {
+                na_clear_armed = true;
+                na_clear_timer = window.setTimeout(function () {
+                    na_disarm_clear();
+                    if (na_last_state) SettingsTab.na_render(na_last_state);
+                }, 3000);
+                if (na_last_state) SettingsTab.na_render(na_last_state);
+                return;
+            }
+            na_disarm_clear();
+            Bridge.na_call('cache_clear', {});
         });
         document.getElementById('na-settings-open-user-config').addEventListener('click', function () {
             Bridge.na_call('open_user_config_folder', {});

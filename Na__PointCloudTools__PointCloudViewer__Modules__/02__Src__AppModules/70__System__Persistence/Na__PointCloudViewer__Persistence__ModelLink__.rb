@@ -135,19 +135,30 @@ module Na__PointCloudViewer
     # REGION | Reload + Locate (explicit user actions only)
     # -------------------------------------------------------------------------
 
-        # Returns nil when the import has started, or a plain-English reason.
+        # Returns nil when the load has started, or a plain-English reason.
+        # Order: this computer's point cache when the LAS it was made from is
+        # found unchanged (fast); else the LAS itself (writes a fresh cache);
+        # else, with no matching LAS anywhere, the cache alone (with a note).
         def self.Na__Link__Reload(session)
             model = session.model
             link = self.Na__Link__Read(model)
             return 'This model has no point cloud link to reload.' unless link
             backup = Na__LocalBackup.Na__Backup__Find(model, link)
-            match, mismatched = self.na_find_matching_file(self.na_candidates(model, link, backup), link['cloud']['fingerprint'])
-            unless match
-                name = link['cloud']['fileName']
-                return "#{name} is at a different location now. Use Locate LAS to point to it." if mismatched.empty?
-                return "A file called #{name} was found, but it is not the same scan (different point count or position). Use Locate LAS to choose the right file."
+            candidates = self.na_candidates(model, link, backup)
+            fingerprint = link['cloud']['fingerprint']
+            cached = Na__PointCache.Na__Cache__ForFingerprint(fingerprint)
+            if cached
+                unchanged = candidates.find { |path| Na__PointCache.Na__Cache__MatchesLas?(cached, path) }
+                return self.na_start_import(session, unchanged, link['cloud']['sourceUnit'], 0) if unchanged
             end
-            self.na_start_import(session, match[0], link['cloud']['sourceUnit'], match[1])
+            match, mismatched = self.na_find_matching_file(candidates, fingerprint)
+            return self.na_start_import(session, match[0], link['cloud']['sourceUnit'], match[1]) if match
+            if cached
+                return Na__LasImport.Na__LasImport__StartFromCache(session, link['cloud']['lastPath'], link['cloud']['sourceUnit'], cached)
+            end
+            name = link['cloud']['fileName']
+            return "#{name} is at a different location now. Use Locate LAS to point to it." if mismatched.empty?
+            "A file called #{name} was found, but it is not the same scan (different point count or position). Use Locate LAS to choose the right file."
         end
 
         def self.Na__Link__Locate(session)
