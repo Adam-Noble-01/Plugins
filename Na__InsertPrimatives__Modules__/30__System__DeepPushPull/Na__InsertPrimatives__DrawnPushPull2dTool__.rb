@@ -144,6 +144,7 @@ module Na__InsertPrimatives
                 'ARROWS lock the measured axis, TAB toggles QUAD mode',
                 'Hold SHIFT+ALT to FOLLOW — every corner of the wall runs along its own edge',
                 'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
+                'QUADS: grab a loop edge to offset it; *4 arrays, /7 divides, 450*4 does both',
                 'VCB: 300 | +50 | -25   (the typed distance pins and places)',
                 'After placing, keep typing: 1200 resizes the pull, -1200 turns it round — the strip replays the change',
                 'Double-click an edge to pull its wall by the last distance placed (remembered in the model)'
@@ -170,6 +171,7 @@ module Na__InsertPrimatives
         # FUNCTION | Describe What Is Grabbed Rather Than a Drawing Plane
         # ------------------------------------------------------------
         def na_drawn__plane_description
+            return na_qo__plane_description if na_qo__active? || na_qo__hovering?
             return 'Parallel camera — hover an edge' unless @na_pp_target
 
             "In #{Na__InsertPrimatives.Na__DeepPick__PathLabel(@na_pp_target)}"
@@ -193,7 +195,39 @@ module Na__InsertPrimatives
 
         # FUNCTION | Track Whatever the Cursor Is Offering
         # ------------------------------------------------------------
+        # A coplanar ring edge has no edge-on end face. Resolve it directly,
+        # before the ordinary edge-to-hidden-face picker rejects that edge.
+        def na_qo__pick_face(view, x, y)
+            edge_target = Na__InsertPrimatives.Na__DeepPick__EdgeAt(view, x, y)
+            if edge_target && Na__InsertPrimatives.Na__QuadRings__QuadLine?(edge_target[:edge])
+                return Na__InsertPrimatives.Na__DeepPick__BuildTarget(
+                    edge_target[:faces].first, edge_target[:path], edge_target[:transformation]
+                )
+            end
+            super
+        end
+
+        def na_qo__track_hover(view, x, y, target)
+            ring = super
+            return nil unless ring
+            factor = Na__InsertPrimatives.Na__PushPull2d__ScreenFactor(
+                ring[:direction], Na__InsertPrimatives.Na__PushPull2d__CameraDirection(view)
+            )
+            if factor < NA_PP2D_MIN_SCREEN_FACTOR
+                na_qo__clear_hover
+                @na_qo_refusal = 'The ring runs into the screen — orbit to offset it'
+                return nil
+            end
+            ring
+        end
+
         def na_drawn__hover_face(view, x, y)
+            return na_pps__hover(view, x, y) if na_pps__active?
+            ring_face = na_qo__pick_face(view, x, y) if na_drawn__quad_mode?
+            if na_qo__track_hover(view, x, y, ring_face)
+                na_drawn__adopt_target(ring_face)
+                return true
+            end
             resolved = Na__InsertPrimatives.Na__PushPull2d__ResolveTargetAt(view, x, y)
 
             if resolved.nil? || resolved[:reason] == :none
@@ -228,6 +262,7 @@ module Na__InsertPrimatives
         # FUNCTION | Take Hold of the Wall Behind the Edge Under the Cursor
         # ------------------------------------------------------------
         def na_drawn__grab_face(view, x, y)
+            return super if na_pps__active?
             resolved = Na__InsertPrimatives.Na__PushPull2d__ResolveTargetAt(view, x, y)
 
             if resolved.nil? || resolved[:reason] == :none
@@ -372,6 +407,7 @@ module Na__InsertPrimatives
         # travel along it, so the lock would leave the tool frozen at zero.
         # ------------------------------------------------------------
         def na_drawn__apply_axis_lock(axis, view)
+            return na_qo__refuse_axis_lock if na_qo__active?
             previous      = @na_axis_lock
             @na_axis_lock = (@na_axis_lock == axis) ? nil : axis
 
@@ -411,6 +447,7 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__preview_points
             points = super
+            return points if na_qo__active? || na_qo__hovering?
             return points unless @na_pp2d_edge_world
 
             points = points + @na_pp2d_edge_world
@@ -431,6 +468,7 @@ module Na__InsertPrimatives
         # before a single pixel of drag.
         # ------------------------------------------------------------
         def na_drawn__draw_hover(view)
+            return na_qo__draw_hover(view) if na_qo__hovering?
             return unless @na_pp_target
 
             unless @na_pp_loop.nil? || @na_pp_loop.empty?
@@ -584,6 +622,7 @@ module Na__InsertPrimatives
         # area on screen rather than as a number in the status bar.
         # ------------------------------------------------------------
         def na_drawn__draw_push_preview(view)
+            return na_qo__draw_preview(view) if na_qo__active?
             offset = na_drawn__push_offset_vector
             live   = offset && Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(@na_size_d)
 
@@ -745,6 +784,8 @@ module Na__InsertPrimatives
         # FUNCTION | Middle Section of the Status Bar Line
         # ------------------------------------------------------------
         def na_drawn__status_detail
+            return na_pps__status if na_pps__active? && !na_qo__active?
+            return na_qo__status_detail if na_qo__active? || na_qo__hovering?
             quads = na_drawn__quad_mode? ? ' QUADS' : ''
             slope = na_drawn__slope_hint
 
@@ -773,6 +814,7 @@ module Na__InsertPrimatives
         # FUNCTION | Measurements Box Label and Live Value
         # ------------------------------------------------------------
         def na_drawn__vcb_label_and_value
+            return na_qo__vcb_label_and_value if na_qo__active? || na_qo__record_open?
             label = na_drawn__slope_mode? ? 'Slope distance' : 'Pull distance'
             return [label, na_drawn__format_sizes([@na_size_d])] if @na_state == :picking_depth
 

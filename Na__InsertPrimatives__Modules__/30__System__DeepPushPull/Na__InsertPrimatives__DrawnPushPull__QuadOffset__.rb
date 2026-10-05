@@ -122,13 +122,9 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Does This Tool Offer Quad Offsets?
-        # The perspective tool only. In a parallel view the ring's own faces are
-        # edge-on and the 2D tool's edge pick owns the cursor.
+        # Both cameras share the ring engine; the 2D tool supplies an edge pick.
         # ------------------------------------------------------------
         def na_qo__supported?
-            return false if defined?(Na__InsertPrimatives::DrawnPushPull2dTool) &&
-                            is_a?(Na__InsertPrimatives::DrawnPushPull2dTool)
-
             true
         end
         # ---------------------------------------------------------------
@@ -327,10 +323,15 @@ module Na__InsertPrimatives
         # Asked fresh at the click rather than trusting the last hover, which
         # may be a frame behind the model. false leaves the face grab to run.
         # ------------------------------------------------------------
+        def na_qo__pick_face(view, x, y)
+            Na__InsertPrimatives.Na__DeepPick__FaceAt(view, x, y)
+        end
+
         def na_qo__try_grab(view, x, y)
+            return false if na_pps__active?
             return false unless na_qo__supported? && na_drawn__quad_mode?
 
-            face_target = Na__InsertPrimatives.Na__DeepPick__FaceAt(view, x, y)
+            face_target = na_qo__pick_face(view, x, y)
             return false unless face_target && !face_target[:locked]
 
             ring = na_qo__track_hover(view, x, y, face_target)
@@ -395,6 +396,8 @@ module Na__InsertPrimatives
             ray     = view.pickray(x, y)
             closest = Geom.closest_points([target[:line_origin], target[:direction]], ray)
             return nil unless closest && closest[0]
+
+            return closest[0] unless view.camera.perspective?
 
             na_drawn__point_in_front_of_ray?(ray, closest[0]) ? closest[0] : nil
         rescue StandardError
@@ -670,8 +673,8 @@ module Na__InsertPrimatives
         # it had reached. Refused, with the fix, when the drag is not a cut.
         # ------------------------------------------------------------
         def na_qo__convert_cut_drag(text, view)
-            unless na_qo__supported?
-                raise ArgumentError, '*4 and /7 array quad cuts in a perspective view — orbit out of the 2D view first'
+            if na_pps__active? && @na_pps_targets.length > 1
+                raise ArgumentError, 'Array one edge loop at a time — select a single face or grab a loop edge'
             end
 
             unless na_drawn__quad_mode?
@@ -1127,10 +1130,6 @@ module Na__InsertPrimatives
         # FUNCTION | *N or /N Typed After a Loop Cut or a Push
         # ------------------------------------------------------------
         def na_qo__parse_cut_retype(text, record)
-            unless na_qo__supported?
-                raise ArgumentError, '*4 and /7 array quad cuts in a perspective view — orbit out of the 2D view first'
-            end
-
             unless record[:cut]
                 raise ArgumentError, '*4 and /7 repeat quad cuts, and this was a push — hover a quad line, or drag INTO a face with QUADS on'
             end

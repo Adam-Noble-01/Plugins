@@ -86,6 +86,7 @@ module Na__InsertPrimatives
         '30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__Revise__.rb',
         '30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__QuadOffset__.rb',
         '30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__Follow__.rb',
+        '30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__Preselect__.rb',
         '30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPullTool__.rb',
         '30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull2d__Pick__.rb',
         '30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull2dTool__.rb',

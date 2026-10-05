@@ -238,7 +238,9 @@ module Na__InsertPrimatives
             # The flags are strictly conditional. Without a context change they
             # would merge the push into whatever the user did LAST, making their
             # next Ctrl+Z silently eat two unrelated actions.
-            if entered
+            if @na_pps_transaction
+                raise "A selected face left the active editing context" if entered
+            elsif entered
                 model.start_operation(op_name, true, true, true)
             else
                 model.start_operation(op_name, true)
@@ -375,10 +377,10 @@ module Na__InsertPrimatives
                 # rather than costing the user a second Ctrl+Z.
                 na_revise__remember(model, na_drawn__signed_d)
 
-                model.commit_operation
+                model.commit_operation unless @na_pps_transaction
                 pushed = true
             rescue StandardError => error
-                model.abort_operation
+                model.abort_operation unless @na_pps_transaction
                 @na_pp_last_error = error.message
                 na_drawn__trace("pushpull raised: #{error.message}")
             end

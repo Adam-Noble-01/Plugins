@@ -103,6 +103,7 @@ require_relative 'Na__InsertPrimatives__DrawnPushPull__Commit__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__Revise__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__QuadOffset__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__Follow__'
+require_relative 'Na__InsertPrimatives__DrawnPushPull__Preselect__'
 
 module Na__InsertPrimatives
     # -----------------------------------------------------------------------------
@@ -119,6 +120,8 @@ module Na__InsertPrimatives
         include Na__InsertPrimatives::DrawnPushPullRevise                     # <-- The push half of the revise contract
         include Na__InsertPrimatives::DrawnPushPullQuadOffset                 # <-- Quad lines: offset, array, divide. After Revise, so its overrides sit in front
         include Na__InsertPrimatives::DrawnPushPullFollow                     # <-- SHIFT+ALT: every corner along its own edge
+
+        include Na__InsertPrimatives::DrawnPushPullPreselect
 
         NA_PP_MIN_AXIS_FACTOR = 0.0872                                        # <-- cos 85 degrees; below this the lock is refused
         NA_PP_HOVER_FILL      = Sketchup::Color.new(  0, 140, 255,  80)
@@ -686,6 +689,7 @@ module Na__InsertPrimatives
         # FUNCTION | Track Whichever Face Is Under the Cursor
         # ------------------------------------------------------------
         def na_drawn__hover_face(view, x, y)
+            return na_pps__hover(view, x, y) if na_pps__active?
             target = Na__InsertPrimatives.Na__DeepPick__FaceAt(view, x, y)
 
             if target.nil?
@@ -797,7 +801,7 @@ module Na__InsertPrimatives
         # FUNCTION | Take Hold of the Face Under the Cursor
         # ------------------------------------------------------------
         def na_drawn__grab_face(view, x, y)
-            target = Na__InsertPrimatives.Na__DeepPick__FaceAt(view, x, y)
+            target = na_pps__active? ? na_pps__nearest(view, x, y) : Na__InsertPrimatives.Na__DeepPick__FaceAt(view, x, y)
 
             unless target
                 UI.beep
@@ -818,7 +822,11 @@ module Na__InsertPrimatives
             na_drawn__adopt_target(target)
 
             @na_ip.pick(view, x, y)
-            @na_point_a = @na_ip.position || Na__InsertPrimatives.Na__DeepPick__WorldOuterLoop(target[:face], target[:transformation]).first
+            @na_point_a = if na_pps__active?
+                na_pps__anchor(target, view, x, y)
+            else
+                @na_ip.position || Na__InsertPrimatives.Na__DeepPick__WorldOuterLoop(target[:face], target[:transformation]).first
+            end
             return false unless @na_point_a
 
             @na_ip_origin.copy!(@na_ip)
@@ -904,6 +912,7 @@ module Na__InsertPrimatives
         # FUNCTION | Points the Preview Occupies, for the Draw Extents
         # ------------------------------------------------------------
         def na_drawn__preview_points
+            return na_pps__preview_points if na_pps__active? && !na_qo__active?
             return na_qo__preview_points if na_qo__active? || na_qo__hovering?
             return [] if @na_pp_loop.nil? || @na_pp_loop.empty?
             return @na_pp_loop unless @na_state == :picking_depth
@@ -918,6 +927,7 @@ module Na__InsertPrimatives
         # FUNCTION | Highlight the Hovered Face, or Preview the Push
         # ------------------------------------------------------------
         def na_drawn__draw_preview(view)
+            return na_pps__draw(view) if na_pps__active? && !na_qo__active?
             na_drawn__draw_push_preview(view)
         end
         # ---------------------------------------------------------------
@@ -931,12 +941,12 @@ module Na__InsertPrimatives
             Na__InsertPrimatives.Na__DrawnPreview__DrawAxisRay(view, na_drawn__axis_ray_origin, @na_axis_lock)
 
             if @na_state == :idle
-                na_drawn__draw_hover(view)
+                na_pps__active? ? na_pps__draw(view) : na_drawn__draw_hover(view)
                 na_revise__draw_animation(view)                               # <-- The ghost of a retyped push sweeping to its new distance
                 return
             end
 
-            na_drawn__draw_push_preview(view)
+            na_drawn__draw_preview(view)
             Na__InsertPrimatives.Na__DrawnPreview__DrawCrosshair(view, @na_point_a, nil, NA_DRAWN_ANCHOR_COLOR)
             na_drawn__draw_grid_correction(view)                              # <-- CTRL+SHIFT only; the mixin decides
         end
@@ -1171,6 +1181,7 @@ module Na__InsertPrimatives
         # FUNCTION | Middle Section of the Status Bar Line
         # ------------------------------------------------------------
         def na_drawn__status_detail
+            return na_pps__status if na_pps__active? && !na_qo__active?
             return na_qo__status_detail if na_qo__active? || na_qo__hovering?
 
             quads = na_drawn__quad_mode? ? ' QUADS' : ''
